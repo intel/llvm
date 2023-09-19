@@ -64,6 +64,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: add proper event dep management
   sycl::detail::NDRDescT ndr =
       getNDRDesc(workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize);
+  hKernel->handleLocalArgs();
 
   __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
@@ -90,6 +91,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: we should avoid calling clear here by avoiding using push_back
   // in setKernelArgs.
   hKernel->_args.clear();
+  hKernel->_localArgInfo.clear();
   return UR_RESULT_SUCCESS;
 }
 

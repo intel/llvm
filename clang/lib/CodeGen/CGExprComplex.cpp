@@ -488,24 +488,14 @@ ComplexPairTy ComplexExprEmitter::EmitCast(CastKind CK, Expr *Op,
 
   case CK_LValueBitCast: {
     LValue origLV = CGF.EmitLValue(Op);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address V = origLV.getAddress(CGF).withElementType(CGF.ConvertType(DestTy));
-#else
-    Address V = origLV.getAddress(CGF);
-    V = Builder.CreateElementBitCast(V, CGF.ConvertType(DestTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     return EmitLoadOfLValue(CGF.MakeAddrLValue(V, DestTy), Op->getExprLoc());
   }
 
   case CK_LValueToRValueBitCast: {
     LValue SourceLVal = CGF.EmitLValue(Op);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address Addr = SourceLVal.getAddress(CGF).withElementType(
         CGF.ConvertTypeForMem(DestTy));
-#else
-    Address Addr = Builder.CreateElementBitCast(SourceLVal.getAddress(CGF),
-                                                CGF.ConvertTypeForMem(DestTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
     DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
     return EmitLoadOfLValue(DestLV, Op->getExprLoc());

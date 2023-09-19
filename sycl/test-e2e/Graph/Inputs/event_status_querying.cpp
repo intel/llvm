@@ -34,7 +34,7 @@ std::string event_status_name(sycl::info::event_command_status status) {
 }
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   using T = int;
 

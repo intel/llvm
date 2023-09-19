@@ -53,9 +53,8 @@ target triple = "spir"
 
 ; Function Attrs: convergent noinline nounwind optnone
 
-define dso_local spir_kernel void @foo(%"class.cl::tt::vec" addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
-  %2 = getelementptr inbounds %"class.cl::tt::vec", %"class.cl::tt::vec" addrspace(1)* %0, i32 0, i32 0, i32 0
-  store float 0.000000e+00, float addrspace(1)* %2, align 4, !tbaa !8
+define dso_local spir_kernel void @foo(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+  store float 0.000000e+00, ptr addrspace(1) %0, align 4, !tbaa !8
   ret void
 }
 

@@ -1,7 +1,3 @@
-#include <iostream>
-#include <sycl/detail/kernel_properties.hpp>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/sycl.hpp>
 
 class KernelTest1;

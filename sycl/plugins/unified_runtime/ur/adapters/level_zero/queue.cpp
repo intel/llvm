@@ -613,6 +613,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   }
+  (*RetQueue)->UsingImmCmdLists = (NativeHandleDesc == 1);
 
   return UR_RESULT_SUCCESS;
 }

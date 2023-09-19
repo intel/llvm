@@ -14,8 +14,7 @@
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
   int Value;
-  detail::ur::assertion(
-      hipDeviceGetAttribute(&Value, Attribute, Device->get()) == hipSuccess);
+  UR_CHECK_ERROR(hipDeviceGetAttribute(&Value, Attribute, Device->get()));
   return Value;
 }
 
@@ -44,10 +43,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int ComputeUnits = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&ComputeUnits,
-                              hipDeviceAttributeMultiprocessorCount,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &ComputeUnits, hipDeviceAttributeMultiprocessorCount, hDevice->get()));
     detail::ur::assertion(ComputeUnits >= 0);
     return ReturnValue(static_cast<uint32_t>(ComputeUnits));
   }
@@ -60,19 +57,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     } return_sizes;
 
     int MaxX = 0, MaxY = 0, MaxZ = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxX,
-                                                hipDeviceAttributeMaxBlockDimX,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxX, hipDeviceAttributeMaxBlockDimX,
+                                         hDevice->get()));
     detail::ur::assertion(MaxX >= 0);
 
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxY,
-                                                hipDeviceAttributeMaxBlockDimY,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxY, hipDeviceAttributeMaxBlockDimY,
+                                         hDevice->get()));
     detail::ur::assertion(MaxY >= 0);
 
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxZ,
-                                                hipDeviceAttributeMaxBlockDimZ,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxZ, hipDeviceAttributeMaxBlockDimZ,
+                                         hDevice->get()));
     detail::ur::assertion(MaxZ >= 0);
 
     return_sizes.sizes[0] = size_t(MaxX);
@@ -87,19 +81,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     } return_sizes;
 
     int MaxX = 0, MaxY = 0, MaxZ = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxX,
-                                                hipDeviceAttributeMaxGridDimX,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxX, hipDeviceAttributeMaxGridDimX,
+                                         hDevice->get()));
     detail::ur::assertion(MaxX >= 0);
 
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxY,
-                                                hipDeviceAttributeMaxGridDimY,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxY, hipDeviceAttributeMaxGridDimY,
+                                         hDevice->get()));
     detail::ur::assertion(MaxY >= 0);
 
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxZ,
-                                                hipDeviceAttributeMaxGridDimZ,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxZ, hipDeviceAttributeMaxGridDimZ,
+                                         hDevice->get()));
     detail::ur::assertion(MaxZ >= 0);
 
     return_sizes.sizes[0] = size_t(MaxX);
@@ -110,10 +101,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int MaxWorkGroupSize = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&MaxWorkGroupSize,
-                              hipDeviceAttributeMaxThreadsPerBlock,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&MaxWorkGroupSize,
+                                         hipDeviceAttributeMaxThreadsPerBlock,
+                                         hDevice->get()));
 
     detail::ur::assertion(MaxWorkGroupSize >= 0);
 
@@ -164,13 +154,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int MaxThreads = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&MaxThreads, hipDeviceAttributeMaxThreadsPerBlock,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &MaxThreads, hipDeviceAttributeMaxThreadsPerBlock, hDevice->get()));
     int WarpSize = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&WarpSize,
-                                                hipDeviceAttributeWarpSize,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                                         hDevice->get()));
     int MaxWarps = (MaxThreads + WarpSize - 1) / WarpSize;
     return ReturnValue(MaxWarps);
   }
@@ -178,25 +166,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Volta provides independent thread scheduling
     // TODO: Revisit for previous generation GPUs
     int Major = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&Major, hipDeviceAttributeComputeCapabilityMajor,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &Major, hipDeviceAttributeComputeCapabilityMajor, hDevice->get()));
     bool IFP = (Major >= 7);
     return ReturnValue(IFP);
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     int WarpSize = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&WarpSize,
-                                                hipDeviceAttributeWarpSize,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                                         hDevice->get()));
     size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
     return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int ClockFreq = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&ClockFreq,
-                                                hipDeviceAttributeClockRate,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &ClockFreq, hipDeviceAttributeClockRate, hDevice->get()));
     detail::ur::assertion(ClockFreq >= 0);
     return ReturnValue(static_cast<uint32_t>(ClockFreq) / 1000u);
   }
@@ -240,14 +225,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int TexHeight = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&TexHeight, hipDeviceAttributeMaxTexture2DHeight,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexHeight, hipDeviceAttributeMaxTexture2DHeight, hDevice->get()));
     detail::ur::assertion(TexHeight >= 0);
     int SurfHeight = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&SurfHeight, hipDeviceAttributeMaxTexture2DHeight,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &SurfHeight, hipDeviceAttributeMaxTexture2DHeight, hDevice->get()));
     detail::ur::assertion(SurfHeight >= 0);
 
     int Min = std::min(TexHeight, SurfHeight);
@@ -257,14 +240,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&TexWidth, hipDeviceAttributeMaxTexture2DWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexWidth, hipDeviceAttributeMaxTexture2DWidth, hDevice->get()));
     detail::ur::assertion(TexWidth >= 0);
     int SurfWidth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&SurfWidth, hipDeviceAttributeMaxTexture2DWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &SurfWidth, hipDeviceAttributeMaxTexture2DWidth, hDevice->get()));
     detail::ur::assertion(SurfWidth >= 0);
 
     int Min = std::min(TexWidth, SurfWidth);
@@ -274,14 +255,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int TexHeight = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&TexHeight, hipDeviceAttributeMaxTexture3DHeight,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexHeight, hipDeviceAttributeMaxTexture3DHeight, hDevice->get()));
     detail::ur::assertion(TexHeight >= 0);
     int SurfHeight = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&SurfHeight, hipDeviceAttributeMaxTexture3DHeight,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &SurfHeight, hipDeviceAttributeMaxTexture3DHeight, hDevice->get()));
     detail::ur::assertion(SurfHeight >= 0);
 
     int Min = std::min(TexHeight, SurfHeight);
@@ -291,14 +270,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&TexWidth, hipDeviceAttributeMaxTexture3DWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexWidth, hipDeviceAttributeMaxTexture3DWidth, hDevice->get()));
     detail::ur::assertion(TexWidth >= 0);
     int SurfWidth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&SurfWidth, hipDeviceAttributeMaxTexture3DWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &SurfWidth, hipDeviceAttributeMaxTexture3DWidth, hDevice->get()));
     detail::ur::assertion(SurfWidth >= 0);
 
     int Min = std::min(TexWidth, SurfWidth);
@@ -308,14 +285,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
     // Take the smaller of maximum surface and maximum texture depth.
     int TexDepth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&TexDepth, hipDeviceAttributeMaxTexture3DDepth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexDepth, hipDeviceAttributeMaxTexture3DDepth, hDevice->get()));
     detail::ur::assertion(TexDepth >= 0);
     int SurfDepth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&SurfDepth, hipDeviceAttributeMaxTexture3DDepth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &SurfDepth, hipDeviceAttributeMaxTexture3DDepth, hDevice->get()));
     detail::ur::assertion(SurfDepth >= 0);
 
     int Min = std::min(TexDepth, SurfDepth);
@@ -325,14 +300,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
     // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&TexWidth, hipDeviceAttributeMaxTexture1DWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &TexWidth, hipDeviceAttributeMaxTexture1DWidth, hDevice->get()));
     detail::ur::assertion(TexWidth >= 0);
     int SurfWidth = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&SurfWidth, hipDeviceAttributeMaxTexture1DWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &SurfWidth, hipDeviceAttributeMaxTexture1DWidth, hDevice->get()));
     detail::ur::assertion(SurfWidth >= 0);
 
     int Min = std::min(TexWidth, SurfWidth);
@@ -354,10 +327,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int MemBaseAddrAlign = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&MemBaseAddrAlign,
-                              hipDeviceAttributeTextureAlignment,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &MemBaseAddrAlign, hipDeviceAttributeTextureAlignment, hDevice->get()));
     // Multiply by 8 as clGetDeviceInfo returns this value in bits
     MemBaseAddrAlign *= 8;
     return ReturnValue(MemBaseAddrAlign);
@@ -395,9 +366,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
     int CacheSize = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&CacheSize,
-                                                hipDeviceAttributeL2CacheSize,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &CacheSize, hipDeviceAttributeL2CacheSize, hDevice->get()));
     detail::ur::assertion(CacheSize >= 0);
     // The L2 cache is global to the GPU.
     return ReturnValue(static_cast<uint64_t>(CacheSize));
@@ -405,8 +375,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     size_t Bytes = 0;
     // Runtime API has easy access to this value, driver API info is scarse.
-    detail::ur::assertion(hipDeviceTotalMem(&Bytes, hDevice->get()) ==
-                          hipSuccess);
+    UR_CHECK_ERROR(hipDeviceTotalMem(&Bytes, hDevice->get()));
     return ReturnValue(uint64_t{Bytes});
   }
   case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
@@ -416,10 +385,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // memory on AMD GPU may be larger than what can fit in the positive part
     // of a signed integer, so use an unsigned integer and cast the pointer to
     // int*.
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&ConstantMemory,
-                              hipDeviceAttributeTotalConstantMemory,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&ConstantMemory,
+                                         hipDeviceAttributeTotalConstantMemory,
+                                         hDevice->get()));
     detail::ur::assertion(ConstantMemory >= 0);
 
     return ReturnValue(static_cast<uint64_t>(ConstantMemory));
@@ -438,18 +406,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
     int LocalMemSize = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&LocalMemSize,
-                              hipDeviceAttributeMaxSharedMemoryPerBlock,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &LocalMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock,
+        hDevice->get()));
     detail::ur::assertion(LocalMemSize >= 0);
     return ReturnValue(static_cast<uint64_t>(LocalMemSize));
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int EccEnabled = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&EccEnabled,
-                                                hipDeviceAttributeEccEnabled,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &EccEnabled, hipDeviceAttributeEccEnabled, hDevice->get()));
 
     detail::ur::assertion((EccEnabled == 0) | (EccEnabled == 1));
     auto Result = static_cast<bool>(EccEnabled);
@@ -457,9 +423,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
     int IsIntegrated = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&IsIntegrated,
-                                                hipDeviceAttributeIntegrated,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &IsIntegrated, hipDeviceAttributeIntegrated, hDevice->get()));
 
     detail::ur::assertion((IsIntegrated == 0) | (IsIntegrated == 1));
     auto Result = static_cast<bool>(IsIntegrated);
@@ -513,8 +478,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_NAME: {
     static constexpr size_t MAX_DEVICE_NAME_LENGTH = 256u;
     char Name[MAX_DEVICE_NAME_LENGTH];
-    detail::ur::assertion(hipDeviceGetName(Name, MAX_DEVICE_NAME_LENGTH,
-                                           hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(
+        hipDeviceGetName(Name, MAX_DEVICE_NAME_LENGTH, hDevice->get()));
     // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
     // name instead, this is also what AMD OpenCL devices return.
     if (strlen(Name) == 0) {
@@ -531,7 +496,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_DRIVER_VERSION: {
     std::string Version;
-    detail::ur::assertion(getHipVersionString(Version) == hipSuccess);
+    UR_CHECK_ERROR(getHipVersionString(Version));
     return ReturnValue(Version.c_str());
   }
   case UR_DEVICE_INFO_PROFILE: {
@@ -720,8 +685,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
     int Major = 0, Minor = 0;
-    detail::ur::assertion(hipDeviceComputeCapability(
-                              &Major, &Minor, hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceComputeCapability(&Major, &Minor, hDevice->get()));
     std::string Result = std::to_string(Major) + "." + std::to_string(Minor);
     return ReturnValue(Result.c_str());
   }
@@ -745,9 +709,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     int Value = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&Value, hipDeviceAttributeMemoryClockRate,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &Value, hipDeviceAttributeMemoryClockRate, hDevice->get()));
     detail::ur::assertion(Value >= 0);
     // Convert kilohertz to megahertz when returning.
     return ReturnValue(Value / 1000);
@@ -755,9 +718,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH: {
     int Value = 0;
-    detail::ur::assertion(
-        hipDeviceGetAttribute(&Value, hipDeviceAttributeMemoryBusWidth,
-                              hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &Value, hipDeviceAttributeMemoryBusWidth, hDevice->get()));
     detail::ur::assertion(Value >= 0);
     return ReturnValue(Value);
   }
@@ -795,9 +757,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&Value,
-                                                hipDeviceAttributePciDeviceId,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&Value, hipDeviceAttributePciDeviceId,
+                                         hDevice->get()));
     detail::ur::assertion(Value >= 0);
     return ReturnValue(Value);
   }
@@ -833,8 +794,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PCI_ADDRESS: {
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
-    detail::ur::assertion(hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize,
-                                               hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(
+        hipDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, hDevice->get()));
     // A typical PCI address is 12 bytes + \0: "1234:67:90.2", but the HIP API
     // is not guaranteed to use this format. In practice, it uses this format,
     // at least in 5.3-5.5. To be on the safe side, we make sure the terminating
@@ -846,6 +807,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_ESIMD_SUPPORT:
+    return ReturnValue(false);
+
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:

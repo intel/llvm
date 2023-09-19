@@ -181,9 +181,6 @@ enum class image_channel_type : /* unspecified */ {
   snorm_int16,
   unorm_int8,
   unorm_int16,
-  unorm_short_565,
-  unorm_short_555,
-  unorm_int_101010,
   signed_int8,
   signed_int16,
   signed_int32,
@@ -325,8 +322,8 @@ void free_image_mem(image_mem_handle memHandle,
 
 The first method of allocating device memory for images is through 
 `alloc_image_mem`. This takes a `sycl::device`, `sycl::context`, 
-and `image_descriptor` to allocate device memory, appropriately sized 
-based on the `image_descriptor`. Alternatively, we can also pass a 
+and `image_descriptor` to allocate device memory, with the appropriate image 
+type and size based on the `image_descriptor`. Alternatively, we can also pass a 
 `sycl::queue` instead of both `sycl::device` and `sycl::context`.
 
 Memory allocated in this way requires the user to free that memory after all 
@@ -391,20 +388,30 @@ namespace sycl::ext::oneapi {
 sycl::range<3> get_image_range(const image_mem_handle memHandle,
                                const sycl::device &syclDevice,
                                const sycl::context &syclContext);
+sycl::range<3> get_image_range(const image_mem_handle memHandle,
+                               const sycl::queue &syclQueue);
 
 sycl::image_channel_type
 get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext);
+sycl::image_channel_type
+get_image_channel_type(const image_mem_handle memHandle,
+                       const sycl::queue &syclQueue);
 
 unsigned int get_image_num_channels(const image_mem_handle memHandle,
                                     const sycl::device &syclDevice,
                                     const sycl::context &syclContext);
+unsigned int get_image_num_channels(const image_mem_handle memHandle,
+                                    const sycl::queue &syclQueue);
 
 image_mem_handle get_mip_level_mem_handle(const image_mem_handle mipMemHandle,
                                           unsigned int level, 
                                           const sycl::device &syclDevice,
                                           const sycl::context &syclContext);
+image_mem_handle get_mip_level_mem_handle(const image_mem_handle mipMemHandle,
+                                          unsigned int level,
+                                          const sycl::queue &syclQueue);
 }
 ```
 
@@ -666,7 +673,7 @@ sample, with the minimum value being 0.
 `max_mipmap_level_clamp` defines the maximum mipmap level from which we can 
 sample. This cannot value cannot be higher than the number of allocated levels.
 
-`max_anisotropy` dictates the anisotropic ratio used when samplling the mipmap 
+`max_anisotropy` dictates the anisotropic ratio used when sampling the mipmap 
 with anisotropic filtering.
 
 === Explicit copies
@@ -966,18 +973,24 @@ sampler handle is included in the `sampled_image_handle` as
 
 The returned data will be of templated type `DataT`, which is specified by the 
 user, and should map to the type that the image was created with (a combination 
-of `image_channel_type` and `image_channel_order`). An example of a type 
-resulting from these two is shown below.
+of `image_channel_type` and `image_channel_order`). One exception to this are 
+normalized integer channel types which are read back as either 32-bit or 16-bit 
+floating point values.
 
-For reads or writes, `DataT` must correspond to the type specified in the 
-`image_descriptor` when the image was created. For multi-channel types, the 
-resultant `DataT` should be a `sycl::vec` type. E.g., for a channel order of 
-`image_channel_order::rg` and channel type of `image_channel_type::fp16`, the 
-resultant `DataT` should be `sycl::vec<sycl::half, 2>`.
+For multi-channel types, the resultant `DataT` should be a `sycl::vec` type. 
+E.g., for a channel order of `image_channel_order::rg` and channel type of 
+`image_channel_type::fp16`, the resultant `DataT` should be 
+`sycl::vec<sycl::half, 2>`.
 
-It's possible to write to an image via `write_image` passing the 
+An example of reading a normalized channel type with a channel order of 
+`image_channel_order::rg` and channel type of `image_channel_type::unorm_int8`, 
+the user can read the data as a `sycl::vec<float, 2>` or 
+`sycl::vec<sycl::half, 2>`.
+
+It's possible to write to an unsampled image via `write_image` passing the 
 handle of the image to be written to, along with the coordinates to write to and 
-the data.
+the data. User-defined types are allowed to be written provided that type is 
+trivially copyable.
 
 Sampled images cannot be written to using `write_image`.
 
@@ -1957,4 +1970,10 @@ These features still need to be handled:
 
                  - Updated code samples.
 |4.1|2023-07-21| - Made bindless image sampler member names snake-case
+|4.2|2023-08-18| - `write_image` now allows passing of user-defined types
+|4.3|2023-09-08| - Clarify how normalized image formats are read
+                 - Remove support for packed normalized image formats 
+                   (`unorm_short_555`, `unorm_short_565`, `unorm_int_101010`)
+|4.4|2023-09-12| - Added overload with `sycl::queue` to standalone functions
+|4.5|2023-09-14| - Update wording for allocating images + fix typo
 |======================

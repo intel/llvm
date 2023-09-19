@@ -83,20 +83,6 @@ class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
                           attr-dict `:` type($result) }];
 }
 
-// Base class for floating point unary predicate operations.
-class Arith_FloatPredicateOp<string mnemonic, list<Trait> traits = []> :
-    Arith_Op<mnemonic,
-      !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>, Pure,
-        TypesMatchWith<"result type has i1 element type and same shape as operands",
-        "operand", "result", "::getI1SameShape($_self)">], traits)>,
-    Arguments<(ins FloatLike:$operand,
-      DefaultValuedAttr<
-        Arith_FastMathAttr, "::mlir::arith::FastMathFlags::none">:$fastmath)>,
-    Results<(outs BoolLike:$result)> {
-  let assemblyFormat = [{ $operand (`fastmath` `` $fastmath^)?
-                          attr-dict `:` type($operand) }];
-}
-
 // Base class for arithmetic cast operations. Requires a single operand and
 // result. If either is a shaped type, then the other must be of the same shape.
 class Arith_CastOp<string mnemonic, TypeConstraint From, TypeConstraint To,
@@ -846,16 +832,16 @@ def Arith_SubFOp : Arith_FloatBinaryOp<"subf"> {
 }
 
 //===----------------------------------------------------------------------===//
-// MaxFOp
+// MaximumFOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MaxFOp : Arith_FloatBinaryOp<"maxf", [Commutative]> {
+def Arith_MaximumFOp : Arith_FloatBinaryOp<"maximumf", [Commutative]> {
   let summary = "floating-point maximum operation";
   let description = [{
     Syntax:
 
     ```
-    operation ::= ssa-id `=` `arith.maxf` ssa-use `,` ssa-use `:` type
+    operation ::= ssa-id `=` `arith.maximumf` ssa-use `,` ssa-use `:` type
     ```
 
     Returns the maximum of the two arguments, treating -0.0 as less than +0.0.
@@ -865,7 +851,7 @@ def Arith_MaxFOp : Arith_FloatBinaryOp<"maxf", [Commutative]> {
 
     ```mlir
     // Scalar floating-point maximum.
-    %a = arith.maxf %b, %c : f64
+    %a = arith.maximumf %b, %c : f64
     ```
   }];
   let hasFolder = 1;
@@ -890,16 +876,16 @@ def Arith_MaxUIOp : Arith_TotalIntBinaryOp<"maxui", [Commutative]> {
 }
 
 //===----------------------------------------------------------------------===//
-// MinFOp
+// MinimumFOp
 //===----------------------------------------------------------------------===//
 
-def Arith_MinFOp : Arith_FloatBinaryOp<"minf", [Commutative]> {
+def Arith_MinimumFOp : Arith_FloatBinaryOp<"minimumf", [Commutative]> {
   let summary = "floating-point minimum operation";
   let description = [{
     Syntax:
 
     ```
-    operation ::= ssa-id `=` `arith.minf` ssa-use `,` ssa-use `:` type
+    operation ::= ssa-id `=` `arith.minimumf` ssa-use `,` ssa-use `:` type
     ```
 
     Returns the minimum of the two arguments, treating -0.0 as less than +0.0.
@@ -909,7 +895,7 @@ def Arith_MinFOp : Arith_FloatBinaryOp<"minf", [Commutative]> {
 
     ```mlir
     // Scalar floating-point minimum.
-    %a = arith.minf %b, %c : f64
+    %a = arith.minimumf %b, %c : f64
     ```
   }];
   let hasFolder = 1;
@@ -982,22 +968,6 @@ def Arith_DivFOp : Arith_FloatBinaryOp<"divf"> {
 
 def Arith_RemFOp : Arith_FloatBinaryOp<"remf"> {
   let summary = "floating point division remainder operation";
-  let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// IsNanOp
-//===----------------------------------------------------------------------===//
-def Arith_IsNanOp : Arith_FloatPredicateOp<"is_nan"> {
-  let summary = "Returns true for IEEE NaN inputs";
-  let hasFolder = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// IsInfOp
-//===----------------------------------------------------------------------===//
-def Arith_IsInfOp : Arith_FloatPredicateOp<"is_inf"> {
-  let summary = "Returns true for infinite float inputs";
   let hasFolder = 1;
 }
 

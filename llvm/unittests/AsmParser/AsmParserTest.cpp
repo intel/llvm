@@ -253,11 +253,6 @@ TEST(AsmParserTest, TypeWithSlotMappingParsing) {
   ASSERT_TRUE(Ty);
   ASSERT_TRUE(Ty->isPointerTy());
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  PointerType *PT = cast<PointerType>(Ty);
-  ASSERT_TRUE(PT->isOpaque());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-
   // Check that we reject types with garbage.
   Ty = parseType("i32 garbage", Error, M, &Mapping);
   ASSERT_TRUE(!Ty);
@@ -372,11 +367,6 @@ TEST(AsmParserTest, TypeAtBeginningWithSlotMappingParsing) {
   ASSERT_TRUE(Ty);
   ASSERT_TRUE(Ty->isPointerTy());
   ASSERT_TRUE(Read == 3);
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  PointerType *PT = cast<PointerType>(Ty);
-  ASSERT_TRUE(PT->isOpaque());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Check that we reject types with garbage.
   Ty = parseTypeAtBeginning("i32 garbage", Read, Error, M, &Mapping);

@@ -94,47 +94,43 @@ $_ZN3FooclEv = comdat any
 define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 !stall_enable !7 !scheduler_target_fmax_mhz !12 !loop_fuse !13 !initiation_interval !14 !max_concurrency !15 !disable_loop_pipelining !7 {
 entry:
   %Foo = alloca %class._ZTS3Foo.Foo, align 1
-  %0 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %0) #4
-  %1 = addrspacecast %class._ZTS3Foo.Foo* %Foo to %class._ZTS3Foo.Foo addrspace(4)*
-  call spir_func void @_ZN3FooclEv(%class._ZTS3Foo.Foo addrspace(4)* %1)
-  %2 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %Foo) #4
+  %0 = addrspacecast ptr %Foo to ptr addrspace(4)
+  call spir_func void @_ZN3FooclEv(ptr addrspace(4) %0)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %Foo) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: nounwind
-define linkonce_odr spir_func void @_ZN3FooclEv(%class._ZTS3Foo.Foo addrspace(4)* %this) #2 comdat align 2 {
+define linkonce_odr spir_func void @_ZN3FooclEv(ptr addrspace(4) %this) #2 comdat align 2 {
 entry:
-  %this.addr = alloca %class._ZTS3Foo.Foo addrspace(4)*, align 8
-  store %class._ZTS3Foo.Foo addrspace(4)* %this, %class._ZTS3Foo.Foo addrspace(4)** %this.addr, align 8, !tbaa !8
-  %this1 = load %class._ZTS3Foo.Foo addrspace(4)*, %class._ZTS3Foo.Foo addrspace(4)** %this.addr, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !8
+  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ3barvE12kernel_name2() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %"class._ZTSZ3barvE3$_0.anon", align 1
-  %1 = bitcast %"class._ZTSZ3barvE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #4
-  %2 = addrspacecast %"class._ZTSZ3barvE3$_0.anon"* %0 to %"class._ZTSZ3barvE3$_0.anon" addrspace(4)*
-  call spir_func void @"_ZZ3barvENK3$_0clEv"(%"class._ZTSZ3barvE3$_0.anon" addrspace(4)* %2)
-  %3 = bitcast %"class._ZTSZ3barvE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #4
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @"_ZZ3barvENK3$_0clEv"(ptr addrspace(4) %1)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #4
   ret void
 }
 ; Function Attrs: inlinehint nounwind
-define internal spir_func void @"_ZZ3barvENK3$_0clEv"(%"class._ZTSZ3barvE3$_0.anon" addrspace(4)* %this) #3 align 2 {
+define internal spir_func void @"_ZZ3barvENK3$_0clEv"(ptr addrspace(4) %this) #3 align 2 {
 entry:
-  %this.addr = alloca %"class._ZTSZ3barvE3$_0.anon" addrspace(4)*, align 8
-  store %"class._ZTSZ3barvE3$_0.anon" addrspace(4)* %this, %"class._ZTSZ3barvE3$_0.anon" addrspace(4)** %this.addr, align 8, !tbaa !8
-  %this1 = load %"class._ZTSZ3barvE3$_0.anon" addrspace(4)*, %"class._ZTSZ3barvE3$_0.anon" addrspace(4)** %this.addr, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !8
+  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
   ret void
 }
 
@@ -142,12 +138,10 @@ entry:
 define spir_kernel void @_ZTSZ3barvE11kernel_name3() #0 !disable_loop_pipelining !16 {
 entry:
   %Foo = alloca %class._ZTS3Foo.Foo, align 1
-  %0 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %0) #4
-  %1 = addrspacecast %class._ZTS3Foo.Foo* %Foo to %class._ZTS3Foo.Foo addrspace(4)*
-  call spir_func void @_ZN3FooclEv(%class._ZTS3Foo.Foo addrspace(4)* %1)
-  %2 = bitcast %class._ZTS3Foo.Foo* %Foo to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %Foo) #4
+  %0 = addrspacecast ptr %Foo to ptr addrspace(4)
+  call spir_func void @_ZN3FooclEv(ptr addrspace(4) %0)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %Foo) #4
   ret void
 }
 
