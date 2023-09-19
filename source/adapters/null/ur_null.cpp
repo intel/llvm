@@ -39,8 +39,7 @@ context_t::context_t() {
     };
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Platform.pfnGet =
-        []([[maybe_unused]] ur_adapter_handle_t *phAdapters,
-           [[maybe_unused]] uint32_t NumAdapters, uint32_t NumEntries,
+        [](ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
            ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
             if (phPlatforms != nullptr && NumEntries != 1) {
                 return UR_RESULT_ERROR_INVALID_SIZE;
@@ -122,9 +121,8 @@ context_t::context_t() {
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Device.pfnGetInfo =
-        []([[maybe_unused]] ur_device_handle_t hDevice,
-           ur_device_info_t infoType, size_t propSize, void *pDeviceInfo,
-           size_t *pPropSizeRet) {
+        [](ur_device_handle_t, ur_device_info_t infoType, size_t propSize,
+           void *pDeviceInfo, size_t *pPropSizeRet) {
             switch (infoType) {
             case UR_DEVICE_INFO_TYPE:
                 if (pDeviceInfo && propSize != sizeof(ur_device_type_t)) {

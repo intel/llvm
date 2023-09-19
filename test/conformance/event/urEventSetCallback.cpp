@@ -167,9 +167,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventSetCallbackTest);
 /* Negative tests */
 using urEventSetCallbackNegativeTest = uur::event::urEventTest;
 
-void emptyCallback([[maybe_unused]] ur_event_handle_t hEvent,
-                   [[maybe_unused]] ur_execution_info_t execStatus,
-                   [[maybe_unused]] void *pUserData) {}
+void emptyCallback(ur_event_handle_t, ur_execution_info_t, void *) {}
 
 TEST_P(urEventSetCallbackNegativeTest, InvalidNullHandleEvent) {
     ASSERT_EQ_RESULT(

@@ -233,8 +233,8 @@ TEST_F(test, getLastFailedMemoryProvider) {
             return allocResult;
         }
 
-        enum umf_result_t free(void *ptr, size_t size) noexcept {
-            (void)size;
+        enum umf_result_t free(void *ptr,
+                               [[maybe_unused]] size_t size) noexcept {
             ::free(ptr);
             return UMF_RESULT_SUCCESS;
         }
