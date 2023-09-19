@@ -9905,14 +9905,15 @@ operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params) {
     ur_params::serializeStruct(os, (params.pNext));
 
     os << ", ";
-    os << ".addrModes = [";
+    os << ".addrModes = {";
     for (auto i = 0; i < 3; i++) {
         if (i != 0) {
             os << ", ";
         }
+
         os << (params.addrModes[i]);
     }
-    os << "]";
+    os << "}";
 
     os << "}";
     return os;
