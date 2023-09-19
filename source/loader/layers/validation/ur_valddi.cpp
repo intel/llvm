@@ -214,6 +214,10 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
         if (NULL == phAdapters) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (NumEntries == 0 && phPlatforms != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     ur_result_t result =
@@ -5520,7 +5524,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ///< events that must be complete before the host pipe write.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
-        phEvent ///< [out] returns an event object that identifies this write command
+        phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
 ) {
     auto pfnWriteHostPipe = context.urDdiTable.Enqueue.pfnWriteHostPipe;
@@ -5543,10 +5547,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
         }
 
         if (NULL == pSrc) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == phEvent) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
