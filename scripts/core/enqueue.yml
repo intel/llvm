@@ -1458,7 +1458,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent 
       desc: |
-            [out] returns an event object that identifies this write command 
+            [out][optional] returns an event object that identifies this write command
             and can be used to query or queue a wait for this command to complete.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:

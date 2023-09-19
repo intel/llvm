@@ -453,6 +453,7 @@ ur_result_t UR_APICALL urAdapterGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phAdapters`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NumEntries == 0 && phPlatforms != NULL`
 ur_result_t UR_APICALL urPlatformGet(
     ur_adapter_handle_t *
         phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
@@ -4332,6 +4333,8 @@ ur_result_t UR_APICALL urEventGetInfo(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_PROFILING_INFO_COMMAND_COMPLETE < propName`
+///     - ::UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE
+///         + If `hEvent`s associated queue was not created with `UR_QUEUE_FLAG_PROFILING_ENABLE`.
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pPropValue && propSize == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -6089,7 +6092,6 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pipe_symbol`
 ///         + `NULL == pSrc`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
 ///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
 ///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
@@ -6116,7 +6118,7 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ///< events that must be complete before the host pipe write.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
-        phEvent ///< [out] returns an event object that identifies this write command
+        phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
     ) try {
     auto pfnWriteHostPipe =
