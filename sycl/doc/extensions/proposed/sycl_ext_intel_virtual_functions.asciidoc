@@ -111,8 +111,9 @@ be used:
 
 - if an object is constructed in host code, calling a virtual member function
   for that object in device code has undefined behavior;
-- if an object is constructed in device code, calling a virtual member function
-  for that object in host code has undefined behavior;
+- if an object is constructed in device code on a device `A`, calling a virtual
+  member function for that object in host code, or on another device `B` has
+  undefined behavior;
 
 === New properties
 
@@ -359,7 +360,7 @@ q.single_task(syclext::properties{syclext::calls_indirectly<set_A>},
 q.single_task(syclext::properties{syclext::calls_indirectly<set_A>},
     [=] [[sycl::device_has(sycl::aspect::fp64)]] {
   // No diagnostic is required for this kernel, because list of declared aspects
-  // matches list of used aspects. That includes viratul member functions from
+  // matches list of used aspects. That includes virtual member functions from
   // "set_A", which includes 'Foo::foo' that uses 'fp64' aspect
 });
 
@@ -443,11 +444,42 @@ q.single_task([=] {
 });
 ----
 
+==== Interation with `reqd_sub_group_size` attribute
+
+The `reqd_sub_group_size` attribute is a bit of a special case comparing to
+other optional kernel features, because it requires to compile a kernel in a
+certain way, which may require special handling for all functions which are
+called from it.
+
+When the same helper function is called from two or more kernels
+with different `reqd_sub_group_size` attribute, it may be required for the
+implementation to duplicate that helper function to create different versions
+of it tailored to different sub-group sizes. It can be done in a straightforward
+manner when operating on a static call graph.
+
+Virtual member functions are essentially called indirectly and pointers to them
+are initialized just once when an object of a polymorhpic class is being
+created. Therefore, to support calling such virtual member function from two or
+more kernels with different `reqd_sub_group_size`, each kernel may need to
+receive a different pointer to a different version of a virtual member function.
+
+To avoid possibly posing such multi-versioning requirements on implementations,
+virtual member functions can only be called from a kernel with _primary_
+sub-group-size as defined by
+link:../experimental/sycl_ext_oneapi_named_sub_group_sizes.asciidoc[
+sycl_ext_oneapi_named_sub_group_sizes] extension, or otherwise behavior is
+undefined.
+
+NOTE: for implementations that don't support
+`sycl_ext_oneapi_named_sub_group_sizes` extension, virtual member functions can
+only be called from kernels which *don't* have `reqd_sub_group_size` attribute
+set on them explicitly, or otherwise behavior is undefined.
+
 === Kernel bundles and device images
 
 When an object of a polymorphic class is constructed, it stores a pointer to
 virtual table, which points to its virtual member functions. Addresses of those
-functions are only accessible and valid within a kernel bundle containing a
+functions are accessible and valid only within a kernel bundle containing a
 kernel which used to construct an object.
 
 Performing calls to virtual member functions of an object constructed in a
@@ -500,12 +532,6 @@ int main() {
   return 0;
 }
 ----
-
-As a side effect, the restriction above also means that if an object of a
-polymorphic class was constructed by a kernel within a kernel bundle associcated
-only with a device `DA`, then performing calls to virtual member functions of
-that object in any kernels submitted to a device is an undefined behavior.
-
 
 == Example usage
 
