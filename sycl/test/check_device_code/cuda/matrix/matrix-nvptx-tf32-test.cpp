@@ -88,8 +88,7 @@ int main() {
             get_wi_data(sg, sub_b)[i] =
                 round_to_tf32(get_wi_data(sg, sub_b)[i]);
 
-          joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c)(sg, sub_a, sub_b,
-                                                           sub_c);
+          joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 {{.*}}
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -138,8 +137,7 @@ int main() {
             get_wi_data(sg, sub_b)[i] =
                 round_to_tf32(get_wi_data(sg, sub_b)[i]);
 
-          joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c)(sg, sub_a, sub_b,
-                                                           sub_c);
+          joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
