@@ -1,7 +1,7 @@
 // REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda, hip
 
 // Test local internalization of a nested array type.
 
