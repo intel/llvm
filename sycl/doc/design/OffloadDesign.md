@@ -215,13 +215,10 @@ off to the `llvm-spirv` tool, which translates the LLVM-IR to SPIR-V.
 
 *Table: Options to pass sycl-post-link and llvm-spirv options to the clang-linker-wrapper*
 
-Options that will be used by clang-linker-wrapper when invoking `sycl-post-link`
+Options that will be used by clang-linker-wrapper when invoking the `sycl-post-link`
 tool are provided by the driver via the `--sycl-post-link-options=<arg>` option.
-Options that will be used by clang-linker-wrapper when invoking `llvm-spirv`
+Options that will be used by clang-linker-wrapper when invoking the `llvm-spirv`
 tool are provided by the driver via the `--llvm-spirv-options=<arg>` option.
-
-SPIR-V binary is thn sent to the Ahead of Time compilation step to produce the
-final device binary or is wrapped before being linked into the final executable.
 
 ### Ahead Of Time Compilation
 
