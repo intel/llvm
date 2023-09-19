@@ -449,6 +449,8 @@ public:
 
   void startFusion(QueueImplPtr Queue);
 
+  void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
+
   void cancelFusion(QueueImplPtr Queue);
 
   EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
@@ -488,9 +490,32 @@ protected:
     return Lock;
   }
 
+  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
+  /// avoidance to the Fusion map
+  WriteLockT acquireFusionWriteLock() {
+#ifdef _WIN32
+    WriteLockT Lock(MFusionMapLock, std::defer_lock);
+    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
+      // Without yield while loop acts like endless while loop and occupies the
+      // whole CPU when multiple command groups are created in multiple host
+      // threads
+      std::this_thread::yield();
+    }
+#else
+    WriteLockT Lock(MFusionMapLock);
+    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
+    // try_lock in the loop above will be executed, so using a single lock here
+#endif // _WIN32
+    return Lock;
+  }
+
   /// Provides shared access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
+
+  /// Provides shared access to std::shared_timed_mutex object with deadlock
+  /// avoidance to the Fusion map
+  ReadLockT acquireFusionReadLock() { return ReadLockT{MFusionMapLock}; }
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
@@ -626,6 +651,10 @@ protected:
                              std::vector<Command *> &ToCleanUp);
 
     void startFusion(QueueImplPtr Queue);
+
+    /// Clean up the internal fusion commands held for the given queue.
+    /// @param Queue the queue for which to remove the fusion commands.
+    void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
 
     void cancelFusion(QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
 
@@ -870,6 +899,7 @@ protected:
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
+  RWLockT MFusionMapLock;
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
