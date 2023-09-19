@@ -516,6 +516,7 @@ Regression/group.cpp
 Regression/half_operators.cpp
 Regression/implicit_kernel_bundle_image_filtering.cpp
 Regression/mad_sat.cpp
+Regression/pf-wg-atomic64.cpp
 Regression/reduction_64bit_atomic64.cpp
 Regression/reduction_resource_leak_dw.cpp
 Regression/reduction_resource_leak_usm.cpp
