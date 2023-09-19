@@ -15,7 +15,7 @@
 #include "ur_api.h"
 
 //////////////////////////////////////////////////////////////////////////
-int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
+int main(int, char *[]) {
     ur_result_t status;
 
     // Initialize the platform
