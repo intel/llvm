@@ -15,7 +15,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(helpers)
 
 if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  set(CMAKE_FIND_FRAMEWORK NEVER)
+    set(Python3_FIND_FRAMEWORK NEVER)
+    set(Python3_FIND_STRATEGY LOCATION)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
