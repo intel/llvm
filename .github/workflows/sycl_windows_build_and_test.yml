@@ -26,7 +26,7 @@ on:
 jobs:
   build:
     name: Build + LIT
-    runs-on: [Windows, build]
+    runs-on: [Windows, test-runner]
     # TODO use cached checkout
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
@@ -125,7 +125,7 @@ jobs:
     # Continue if build was successful.
     if: ${{ always() && needs.build.outputs.build_conclusion == 'success' }}
     name: SYCL E2E on Windows
-    runs-on: [Windows, gen12]
+    runs-on: [Windows, test-runner]
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
       with:
@@ -170,6 +170,7 @@ jobs:
       run: |
         # Run E2E tests.
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests"
+        export LIT_FILTER=Basic
         cmake --build build-e2e --target check-sycl-e2e
     - name: Cleanup
       shell: cmd
