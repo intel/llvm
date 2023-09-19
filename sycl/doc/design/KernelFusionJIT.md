@@ -162,7 +162,7 @@ The metadata is attached to a function that will become the fused kernel:
 
 ### Support for non SPIR-V targets
 
-Fusion is currently supported for the NVPTX/CUDA backend. 
+Fusion is currently supported for the NVPTX/CUDA and HIP backend.
 
 As this backend cannot ingest a SPIR-V module, additional changes to the
 compilation flow are necessary. During static compilation the LLVM module for
@@ -170,12 +170,9 @@ this backend is stored in addition to the finalized binary.
 
 This behavior is controlled by the `-fsycl-embed-ir` flag to avoid binary
 inflation in case kernel fusion is not used. If users want to use kernel fusion
-at runtime on the NVPTX/CUDA backend, they need to pass the `-fsycl-embed-ir`
+at runtime on the NVPTX/HIP backend, they need to pass the `-fsycl-embed-ir`
 flag during static compilation. 
 
 During the fusion process at runtime, the JIT will load the LLVM IR and
 finalize the fused kernel to the final target. More information is available
-[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support). 
-
-Support for the AMD GPU/HIP/AMDGCN backend is not yet implemented, but could
-follow an approach similar to the NVPTX/CUDA backend.
+[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support).
