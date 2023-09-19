@@ -362,32 +362,27 @@ namespace sycl {
 // This utility function is used to gather all SYCL device library files that
 // will be linked with input device files.
 // The list of files and its location are passed from driver.
-Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
-                        const ArgList &Args) {
+static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
+                               const ArgList &Args) {
   StringRef SYCLDeviceLibLoc;
   if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ))
     SYCLDeviceLibLoc = A->getValue();
   if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
-    if (A->getValues().size() == 0) {
-      llvm::errs()
-          << "Need to emit equivalent of warn_drv_empty_joined_argument\n";
+    if (A->getValues().size() == 0)
       return createStringError(
           inconvertibleErrorCode(),
-          "Need to emit equivalent of warn_drv_empty_joined_argument.");
-    } else {
-      for (StringRef Val : A->getValues()) {
-        SmallString<128> LibName(SYCLDeviceLibLoc);
-        llvm::sys::path::append(LibName, Val);
-        if (llvm::sys::fs::exists(LibName))
-          DeviceLibFiles.push_back(std::string(LibName));
-      }
+          "Number of device library files cannot be zero.");
+    for (StringRef Val : A->getValues()) {
+      SmallString<128> LibName(SYCLDeviceLibLoc);
+      llvm::sys::path::append(LibName, Val);
+      if (llvm::sys::fs::exists(LibName))
+        DeviceLibFiles.push_back(std::string(LibName));
     }
   }
   return Error::success();
 }
 
-// This utility function is copied from clang/lib/Driver/Driver.cpp
-bool isStaticArchiveFile(const StringRef &Filename) {
+static bool isStaticArchiveFile(const StringRef &Filename) {
   if (!llvm::sys::path::has_extension(Filename))
     // Any file with no extension should not be considered an Archive.
     return false;
@@ -398,8 +393,8 @@ bool isStaticArchiveFile(const StringRef &Filename) {
 }
 
 // Find if section related to triple is present in a bundled file
-Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
-                            const ArgList &Args) {
+static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
+                                   const ArgList &Args) {
   Expected<std::string> OffloadBundlerPath = findProgram(
       "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
   if (!OffloadBundlerPath)
@@ -422,7 +417,7 @@ Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
 // This routine is used to run the clang-offload-bundler tool and unbundle
 // device inputs that have been created with an older compiler where the
 // device object is bundled into a host object.
-Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
+static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
   Expected<std::string> OffloadBundlerPath = findProgram(
       "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
   if (!OffloadBundlerPath)
@@ -460,7 +455,8 @@ Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
 }
 
 // This routine is used to convert SPIR-V input files into LLVM IR files.
-Expected<StringRef> convertSPIRVToIR(StringRef Filename, const ArgList &Args) {
+static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
+                                            const ArgList &Args) {
   Expected<std::string> SPIRVToIRWrapperPath = findProgram(
       "spirv-to-ir-wrapper", {getMainExecutable("spirv-to-ir-wrapper")});
   if (!SPIRVToIRWrapperPath)
@@ -490,8 +486,8 @@ Expected<StringRef> convertSPIRVToIR(StringRef Filename, const ArgList &Args) {
 }
 
 // Run sycl-post-link tool
-Expected<StringRef> runSYCLPostLink(SmallVector<StringRef, 16> &InputFiles,
-                                    const ArgList &Args) {
+static Expected<StringRef>
+runSYCLPostLink(SmallVector<StringRef, 16> &InputFiles, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -527,7 +523,7 @@ Expected<StringRef> runSYCLPostLink(SmallVector<StringRef, 16> &InputFiles,
 }
 
 // This table is used to manage the output table populated by sycl-post-link.
-typedef struct Table {
+struct Table {
   typedef struct {
     std::string IRFile;
     std::string PropFile;
@@ -535,36 +531,11 @@ typedef struct Table {
   } SYCLTableEntry;
 
   SmallVector<SYCLTableEntry, 16> Entries;
-  bool IsSPIRV;
-  void clearEntries(void) { Entries.clear(); }
-  int numEntries(void) { return Entries.size(); }
-
-  void addEntry(std::string IRFile, std::string PropFile, std::string SymFile) {
-    SYCLTableEntry Entry;
-    Entry.IRFile = IRFile;
-    Entry.PropFile = PropFile;
-    Entry.SymFile = SymFile;
-    Entries.push_back(Entry);
-  }
 
   SmallVector<std::string, 16> getListOfIRFiles(void) {
     SmallVector<std::string, 16> Files;
     for (auto Entry : Entries) {
       Files.push_back(Entry.IRFile);
-    }
-    return Files;
-  }
-  SmallVector<std::string, 16> getListOfPropFiles(void) {
-    SmallVector<std::string, 16> Files;
-    for (auto Entry : Entries) {
-      Files.push_back(Entry.PropFile);
-    }
-    return Files;
-  }
-  SmallVector<std::string, 16> getListOfSymFiles(void) {
-    SmallVector<std::string, 16> Files;
-    for (auto Entry : Entries) {
-      Files.push_back(Entry.SymFile);
     }
     return Files;
   }
@@ -630,12 +601,12 @@ typedef struct Table {
     }
     return Error::success();
   }
-} SYCLTable;
+};
 
 // Run LLVM to SPIR-V translation.
-Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
-                                              const ArgList &Args) {
-  SYCLTable LiveSYCLTable;
+static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
+                                                     const ArgList &Args) {
+  Table LiveSYCLTable;
   Expected<std::string> LLVMToSPIRVPath =
       findProgram("llvm-spirv", {getMainExecutable("llvm-spirv")});
   if (!LLVMToSPIRVPath)
@@ -681,7 +652,8 @@ Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
 }
 
 // Run clang-offload-wrapper and llc
-Expected<StringRef> runWrapper(StringRef &InputFile, const ArgList &Args) {
+static Expected<StringRef> runWrapper(StringRef &InputFile,
+                                      const ArgList &Args) {
   // Create a new file to write the wrapped file to.
   auto TempFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "bc");
@@ -740,9 +712,10 @@ Expected<StringRef> runWrapper(StringRef &InputFile, const ArgList &Args) {
 
 // This routine is used to unbundle all device library files that will be
 // linked with input device codes.
-Error unbundleSYCLDeviceLibs(const SmallVector<std::string, 16> &Files,
-                             SmallVector<std::string, 16> &UnbundledFiles,
-                             const ArgList &Args) {
+static Error
+unbundleSYCLDeviceLibs(const SmallVector<std::string, 16> &Files,
+                       SmallVector<std::string, 16> &UnbundledFiles,
+                       const ArgList &Args) {
   for (auto &Filename : Files) {
     if (!sys::fs::exists(Filename) || sys::fs::is_directory(Filename))
       continue;
@@ -784,8 +757,8 @@ Expected<StringRef> linkDeviceInputFiles(SmallVector<StringRef, 16> InputFiles,
 }
 
 // Link all device library files and input file into one.
-Expected<StringRef> linkDeviceLibFiles(SmallVector<StringRef, 16> InputFiles,
-                                       const ArgList &Args) {
+static Expected<StringRef>
+linkDeviceLibFiles(SmallVector<StringRef, 16> InputFiles, const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("LinkDeviceLibraryFiles");
 
   Expected<std::string> LLVMLinkPath =
@@ -812,8 +785,8 @@ Expected<StringRef> linkDeviceLibFiles(SmallVector<StringRef, 16> InputFiles,
   return *OutFileOrErr;
 }
 
-Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
-                               const ArgList &Args) {
+static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
+                                      const ArgList &Args) {
   SmallVector<StringRef, 16> InputFilesVec;
   for (StringRef InputFile : InputFiles)
     InputFilesVec.emplace_back(InputFile);
@@ -973,10 +946,9 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       if (!OutputFile)
         return OutputFile.takeError();
       return *OutputFile;
-    } else {
-      // Return empty file
-      return StringRef("");
     }
+    // Return empty file
+    return StringRef("");
   }
   default:
     return createStringError(inconvertibleErrorCode(),
@@ -1041,7 +1013,7 @@ std::unique_ptr<lto::LTO> createLTO(
       lto::createInProcessThinBackend(llvm::heavyweight_hardware_concurrency());
 
   Conf.CPU = Arch.str();
-  // Conf.Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple);
+  Conf.Options = codegen::InitTargetOptionsFromCodeGenFlags(Triple);
 
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   Conf.MAttrs = Features;
@@ -1051,9 +1023,6 @@ std::unique_ptr<lto::LTO> createLTO(
   Conf.CGOptLevel = *CGOptLevelOrNone;
   Conf.OptLevel = OptLevel[1] - '0';
   Conf.DefaultTriple = Triple.getTriple();
-  if (Triple.isSPIR())
-    Conf.OverrideTriple = "spirv64-unknown-unknown";
-
   LTOError = false;
   Conf.DiagHandler = diagnosticHandler;
 
@@ -1112,6 +1081,10 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
 
+  // Early exit for SPIR targets
+  if (Triple.isSPIR())
+    return Error::success();
+
   SmallVector<OffloadFile, 4> BitcodeInputFiles;
   DenseSet<StringRef> UsedInRegularObj;
   DenseSet<StringRef> UsedInSharedLib;
@@ -1162,10 +1135,9 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
 
   // LTO Module hook to output bitcode without running the backend.
   SmallVector<StringRef> BitcodeOutput;
-  auto OutputBitcode = [&](size_t Task, const Module &M) {
+  auto OutputBitcode = [&](size_t, const Module &M) {
     auto TempFileOrErr = createOutputFile(sys::path::filename(ExecutableName) +
-                                              std::to_string(Task) + "-jit-" +
-                                              Triple.getTriple(),
+                                              "-jit-" + Triple.getTriple(),
                                           "bc");
     if (!TempFileOrErr)
       reportError(TempFileOrErr.takeError());
@@ -1183,7 +1155,7 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
   auto Features = getTargetFeatures(BitcodeInputFiles);
   auto LTOBackend = Args.hasArg(OPT_embed_bitcode) ||
                             Args.hasArg(OPT_builtin_bitcode_EQ) ||
-                            Args.hasArg(OPT_clang_backend) || Triple.isSPIR()
+                            Args.hasArg(OPT_clang_backend)
                         ? createLTO(Args, Features, OutputBitcode)
                         : createLTO(Args, Features);
 
@@ -1294,11 +1266,10 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
 
   // Append the new inputs to the device linker input. If the user requested an
   // internalizing link we need to pass the bitcode to clang.
-  for (StringRef File : Args.hasArg(OPT_clang_backend) ||
-                                Args.hasArg(OPT_builtin_bitcode_EQ) ||
-                                Triple.isSPIR()
-                            ? BitcodeOutput
-                            : Files)
+  for (StringRef File :
+       Args.hasArg(OPT_clang_backend) || Args.hasArg(OPT_builtin_bitcode_EQ)
+           ? BitcodeOutput
+           : Files)
     OutputFiles.push_back(File);
 
   return Error::success();
