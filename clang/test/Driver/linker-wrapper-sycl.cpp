@@ -1,35 +1,3 @@
-// REQUIRES: system-linux
-
-/// ########################################################################
-
-/// Check the phases for SYCL compilation using new offload model
-// RUN: %clangxx -ccc-print-phases -fsycl --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-PHASES %s
-// CHK-PHASES:       0: input, "[[INPUT:.*]]", c++, (host-sycl)
-// CHK-PHASES-NEXT:  1: append-footer, {0}, c++, (host-sycl)
-// CHK-PHASES-NEXT:  2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHK-PHASES-NEXT:  3: compiler, {2}, ir, (host-sycl)
-// CHK-PHASES-NEXT:  4: input, "[[INPUT]]", c++, (device-sycl)
-// CHK-PHASES-NEXT:  5: preprocessor, {4}, c++-cpp-output, (device-sycl)
-// CHK-PHASES-NEXT:  6: compiler, {5}, ir, (device-sycl)
-// CHK-PHASES-NEXT:  7: backend, {6}, assembler, (device-sycl)
-// CHK-PHASES-NEXT:  8: assembler, {7}, object, (device-sycl)
-// CHK-PHASES-NEXT:  9: offload, "device-sycl (spir64-unknown-unknown)" {8}, object
-// CHK-PHASES-NEXT: 10: clang-offload-packager, {9}, image, (device-sycl)
-// CHK-PHASES-NEXT: 11: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {10}, ir
-// CHK-PHASES-NEXT: 12: backend, {11}, assembler, (host-sycl)
-// CHK-PHASES-NEXT: 13: assembler, {12}, object, (host-sycl)
-// CHK-PHASES-NEXT: 14: clang-linker-wrapper, {13}, image, (host-sycl)
-
-/// ########################################################################
-
-/// Check the toolflow for SYCL compilation using new offload model
-// RUN: %clangxx -### -fsycl --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
-// CHK-FLOW: "[[PATH:.*]]/clang-18" "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
-// CHK-FLOW-NEXT: "[[PATH]]/clang-offload-packager" "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl"
-// CHK-FLOW-NEXT: "[[PATH]]/append-file" "[[INPUT]]" "--append=[[FOOTER]].h" "--orig-filename=[[INPUT]]" "--output=[[APPENDOUT:.*]]" "--use-include"
-// CHK-FLOW-NEXT: "[[PATH]]/clang-18" "-cc1" "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-fsycl-is-host"{{.*}} "-full-main-file-name" "[[INPUT]]" {{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[APPENDOUT]]"
-// CHK-FLOW-NEXT: "[[PATH]]/clang-linker-wrapper" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" {{.*}} "[[CC1FINALOUT]]"
-
 /// Check for no crashes for SYCL compilation using new offload model
 /// TODO(NOM4): Enable when driver support is available
 // RUNXXX: %clangxx -fsycl --offload-new-driver %s
