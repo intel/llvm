@@ -863,11 +863,11 @@ table below.
 | A type | B type | C and D type | M | N | K
 | `matrix_type::uint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::uint8`  | `matrix_type::int8` |
+| `matrix_type::uint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::int8`  | `matrix_type::uint8` |
+| `matrix_type::sint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::int8`  | `matrix_type::int8` |
+| `matrix_type::sint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
@@ -889,15 +889,15 @@ column in the table below.
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
 |`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.2+| `matrix_type::uint8`  .2+| `matrix_type::int8` .2+|
+.2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
 `architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.2+| `matrix_type::int8`  .2+| `matrix_type::uint8` .2+|
+.2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
 `architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.2+| `matrix_type::int8`  .2+| `matrix_type::int8` .2+|
+.2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
 `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
 `architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
@@ -940,7 +940,7 @@ supported parameter combination is specified in the following table.
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::int8`  .3+| `matrix_type::sint32`
+.3+| `matrix_type::sint8`  .3+| `matrix_type::sint32`
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
