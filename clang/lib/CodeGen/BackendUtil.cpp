@@ -45,6 +45,7 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
@@ -103,6 +104,7 @@ using namespace llvm;
 
 namespace llvm {
 extern cl::opt<bool> DebugInfoCorrelate;
+extern cl::opt<bool> PrintPipelinePasses;
 
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
@@ -118,7 +120,7 @@ namespace {
 
 // Default filename used for profile generation.
 std::string getDefaultProfileGenName() {
-  return DebugInfoCorrelate ? "default_%p.proflite" : "default_%m.profraw";
+  return DebugInfoCorrelate ? "default_%m.proflite" : "default_%m.profraw";
 }
 
 class EmitAssemblyHelper {
@@ -304,6 +306,18 @@ static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
   case CodeGenOptions::ArmPL:
     TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::ArmPL,
                                              TargetTriple);
+    break;
+  default:
+    break;
+  }
+  switch (CodeGenOpts.getAltMathLib()) {
+  case CodeGenOptions::TestAltMathLibrary:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::TestAltMathLibrary);
+    break;
+  case CodeGenOptions::SVMLAltMathLibrary:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::SVMLAltMathLibrary);
     break;
   default:
     break;
@@ -784,7 +798,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         CodeGenOpts.InstrProfileOutput.empty() ? getDefaultProfileGenName()
                                                : CodeGenOpts.InstrProfileOutput,
         "", "", CodeGenOpts.MemoryProfileUsePath, nullptr, PGOOptions::IRInstr,
-        PGOOptions::NoCSAction, CodeGenOpts.DebugInfoForProfiling);
+        PGOOptions::NoCSAction, CodeGenOpts.DebugInfoForProfiling,
+        /*PseudoProbeForProfiling=*/false, CodeGenOpts.AtomicProfileUpdate);
   else if (CodeGenOpts.hasProfileIRUse()) {
     // -fprofile-use.
     auto CSAction = CodeGenOpts.hasProfileCSIRUse() ? PGOOptions::CSIRUse
@@ -952,6 +967,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(
                 SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
           });
+    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
+      PB.registerPipelineStartEPCallback(
+          [&](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(ESIMDRemoveHostCodePass());
+          });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
@@ -962,8 +982,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
-    bool IsLTO = CodeGenOpts.PrepareForLTO;
+    const bool PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
+    const bool PrepareForLTO = CodeGenOpts.PrepareForLTO;
 
     if (LangOpts.ObjCAutoRefCount) {
       PB.registerPipelineStartEPCallback(
@@ -1052,17 +1072,18 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    bool IsThinOrUnifiedLTO = IsThinLTO || (IsLTO && CodeGenOpts.UnifiedLTO);
+    const bool PrepareForThinOrUnifiedLTO =
+        PrepareForThinLTO || (PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
-      MPM =
-          PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
+      MPM = PB.buildO0DefaultPipeline(OptimizationLevel::O0,
+                                      PrepareForLTO || PrepareForThinLTO);
     } else if (CodeGenOpts.FatLTO) {
-      MPM = PB.buildFatLTODefaultPipeline(Level, IsThinOrUnifiedLTO,
-                                          IsThinOrUnifiedLTO ||
+      MPM = PB.buildFatLTODefaultPipeline(Level, PrepareForThinOrUnifiedLTO,
+                                          PrepareForThinOrUnifiedLTO ||
                                               shouldEmitRegularLTOSummary());
-    } else if (IsThinOrUnifiedLTO) {
+    } else if (PrepareForThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
-    } else if (IsLTO) {
+    } else if (PrepareForLTO) {
       MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
     } else {
       MPM = PB.buildPerModuleDefaultPipeline(Level);
@@ -1155,17 +1176,25 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (CodeGenOpts.FatLTO) {
     // Set module flags, like EnableSplitLTOUnit and UnifiedLTO, since FatLTO
     // uses a different action than Backend_EmitBC or Backend_EmitLL.
-    bool IsThinOrUnifiedLTO =
-        CodeGenOpts.PrepareForThinLTO ||
-        (CodeGenOpts.PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (!TheModule->getModuleFlag("ThinLTO"))
       TheModule->addModuleFlag(Module::Error, "ThinLTO",
-                               uint32_t(IsThinOrUnifiedLTO));
+                               uint32_t(CodeGenOpts.PrepareForThinLTO));
     if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
       TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                uint32_t(CodeGenOpts.EnableSplitLTOUnit));
     if (CodeGenOpts.UnifiedLTO && !TheModule->getModuleFlag("UnifiedLTO"))
       TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
+  }
+
+  // Print a textual, '-passes=' compatible, representation of pipeline if
+  // requested.
+  if (PrintPipelinePasses) {
+    MPM.printPipeline(outs(), [&PIC](StringRef ClassName) {
+      auto PassName = PIC.getPassNameForClassName(ClassName);
+      return PassName.empty() ? ClassName : PassName;
+    });
+    outs() << "\n";
+    return;
   }
 
   // Now that we have all of the passes ready, run them.
@@ -1202,6 +1231,13 @@ void EmitAssemblyHelper::RunCodegenPipeline(
       return;
     break;
   default:
+    return;
+  }
+
+  // If -print-pipeline-passes is requested, don't run the legacy pass manager.
+  // FIXME: when codegen is switched to use the new pass manager, it should also
+  // emit pass names here.
+  if (PrintPipelinePasses) {
     return;
   }
 
@@ -1427,7 +1463,7 @@ void clang::EmbedObject(llvm::Module *M, const CodeGenOptions &CGOpts,
   for (StringRef OffloadObject : CGOpts.OffloadObjects) {
     llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
         llvm::MemoryBuffer::getFileOrSTDIN(OffloadObject);
-    if (std::error_code EC = ObjectOrErr.getError()) {
+    if (ObjectOrErr.getError()) {
       auto DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                                           "could not open '%0' for embedding");
       Diags.Report(DiagID) << OffloadObject;

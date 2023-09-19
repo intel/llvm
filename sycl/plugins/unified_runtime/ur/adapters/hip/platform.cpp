@@ -24,7 +24,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
     return ReturnValue("FULL PROFILE");
   case UR_PLATFORM_INFO_VERSION: {
     std::string Version;
-    detail::ur::assertion(getHipVersionString(Version) == hipSuccess);
+    UR_CHECK_ERROR(getHipVersionString(Version));
     return ReturnValue(Version.c_str());
   }
   case UR_PLATFORM_INFO_BACKEND: {

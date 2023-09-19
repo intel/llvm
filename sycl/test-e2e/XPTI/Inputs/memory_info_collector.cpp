@@ -30,116 +30,40 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
   std::cout << "xptiTraceInit: Stream Name = " << StreamName << "\n";
   std::string_view NameView{StreamName};
 
+  using type = xpti::trace_point_type_t;
   if (NameView == "sycl.experimental.mem_alloc") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin),
-        memCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end),
-        memCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin),
-        memCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end),
-        memCallback);
+    for (type t : std::initializer_list<type>{
+             type::mem_alloc_begin, type::mem_alloc_end,
+             type::mem_release_begin, type::mem_release_end})
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), memCallback);
   }
 
+  auto buffer_image_traces = std::initializer_list<type>{
+      type::offload_alloc_memory_object_construct,
+      type::offload_alloc_memory_object_associate,
+      type::offload_alloc_memory_object_release,
+      type::offload_alloc_memory_object_destruct, type::offload_alloc_accessor};
   if (NameView == "sycl.experimental.buffer") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_construct),
-        syclBufferCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_associate),
-        syclBufferCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_release),
-        syclBufferCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_destruct),
-        syclBufferCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor),
-        syclBufferCallback);
+    for (type t : buffer_image_traces)
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t),
+                           syclBufferCallback);
   }
   if (NameView == "sycl.experimental.image") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_construct),
-        syclImageCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_associate),
-        syclImageCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_release),
-        syclImageCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(
-            xpti::trace_point_type_t::offload_alloc_memory_object_destruct),
-        syclImageCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor),
-        syclImageCallback);
+    for (type t : buffer_image_traces)
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t),
+                           syclImageCallback);
   }
   if (NameView == "sycl") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::graph_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::node_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::edge_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::task_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::task_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::signal),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::barrier_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::barrier_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::wait_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::wait_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::signal),
-        syclCallback);
+    for (type t : std::initializer_list<type>{
+             type::graph_create, type::node_create, type::edge_create,
+             type::task_begin, type::task_end, type::signal, type::wait_begin,
+             type::wait_end, type::barrier_begin, type::barrier_end,
+             type::diagnostics})
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclCallback);
   }
 }
 

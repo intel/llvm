@@ -4,8 +4,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG v0.7.1)
+  set(UNIFIED_RUNTIME_TAG a346a301d776bc72c228d26fbf54af99c6ade1bf)
 
+  set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
@@ -45,7 +46,6 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
-
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -223,11 +223,13 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/sampler.hpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
       "ur/adapters/hip/usm.cpp"
+      "ur/adapters/hip/usm.hpp"
       "ur/adapters/hip/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
       Threads::Threads
   )
 
@@ -235,6 +237,13 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
     VERSION "0.0.0"
     SOVERSION "0"
   )
+
+  if(UMF_ENABLE_POOL_TRACKING)
+    target_compile_definitions("ur_adapter_hip" PRIVATE
+      UMF_ENABLE_POOL_TRACKING)
+  else()
+    message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
+  endif()
 
   if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
@@ -285,6 +294,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       UnifiedRuntime-Headers
       Threads::Threads
       sycl
+      OpenCL-Headers
   )
 
   set_target_properties("ur_adapter_native_cpu" PROPERTIES

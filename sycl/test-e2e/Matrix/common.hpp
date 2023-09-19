@@ -4,6 +4,7 @@
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 constexpr float BF16_EPSILON = 0.00781250;
+constexpr float FLOAT_EPSILON = 10e-3;
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
 public:

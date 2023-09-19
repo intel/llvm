@@ -533,8 +533,14 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   if (sameCtx(HostAllocaCmd->getQueue()->getContextImplPtr(),
               Record->MCurContext)) {
-    if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
-      remapMemoryObject(Record, Req, HostAllocaCmd, ToEnqueue);
+    if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
+      remapMemoryObject(Record, Req,
+                        Req->MIsSubBuffer ? (static_cast<AllocaSubBufCommand *>(
+                                                 HostAllocaCmd))
+                                                ->getParentAlloca()
+                                          : HostAllocaCmd,
+                        ToEnqueue);
+    }
   } else
     insertMemoryMove(Record, Req, HostQueue, ToEnqueue);
 
@@ -942,7 +948,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
   // they create any requirement or event dependency on any of the kernels in
   // the fusion list, this will lead to cancellation of the fusion in the
   // GraphProcessor.
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
   if (isInFusionMode(QUniqueID) && !NewCmd->isHostTask()) {
     auto *FusionCmd = findFusionList(QUniqueID)->second.get();
 
@@ -1046,8 +1052,14 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
-          !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
-        remapMemoryObject(Record, Req, AllocaCmd, ToEnqueue);
+          !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
+        remapMemoryObject(Record, Req,
+                          Req->MIsSubBuffer
+                              ? (static_cast<AllocaSubBufCommand *>(AllocaCmd))
+                                    ->getParentAlloca()
+                              : AllocaCmd,
+                          ToEnqueue);
+      }
     } else {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
       // create two copies: device->host and host->device.
@@ -1349,7 +1361,14 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 }
 
 void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  cleanUpCmdFusion(Queue.get());
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
+  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
+}
+
+void Scheduler::GraphBuilder::cleanUpCmdFusion(
+    sycl::detail::queue_impl *Queue) {
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue);
   if (isInFusionMode(QUniqueID)) {
     throw sycl::exception{sycl::make_error_code(sycl::errc::invalid),
                           "Queue already in fusion mode"};
@@ -1365,7 +1384,6 @@ void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
     cleanupCommand(OldFusionCmd->second.release());
     MFusionMap.erase(OldFusionCmd);
   }
-  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
 }
 
 void Scheduler::GraphBuilder::removeNodeFromGraph(
@@ -1404,7 +1422,7 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
 
 void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
                                            std::vector<Command *> &ToEnqueue) {
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
   if (!isInFusionMode(QUniqueID)) {
     return;
   }
@@ -1492,7 +1510,7 @@ EventImplPtr
 Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                                         std::vector<Command *> &ToEnqueue,
                                         const property_list &PropList) {
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
   if (!isInFusionMode(QUniqueID)) {
     auto InactiveFusionList = findFusionList(QUniqueID);

@@ -281,6 +281,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
     return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ESIMD_SUPPORT:
+    return ReturnValue(false);
 
     CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
 

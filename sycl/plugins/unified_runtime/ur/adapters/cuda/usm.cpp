@@ -28,8 +28,6 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
   UR_ASSERT(!pUSMDesc ||
                 (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(size < hContext->DeviceID->getMaxAllocSize(),
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   if (!hPool) {
     return USMHostAllocImpl(ppMem, hContext, nullptr, size, alignment);
@@ -54,8 +52,6 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(!pUSMDesc ||
                 (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(size <= hDevice->getMaxAllocSize(),
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   if (!hPool) {
     return USMDeviceAllocImpl(ppMem, hContext, hDevice, nullptr, size,
@@ -81,8 +77,6 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(!pUSMDesc ||
                 (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
             UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(size <= hDevice->getMaxAllocSize(),
-            UR_RESULT_ERROR_INVALID_USM_SIZE);
 
   if (!hPool) {
     return USMSharedAllocImpl(ppMem, hContext, hDevice, nullptr, nullptr, size,
