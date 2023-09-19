@@ -743,6 +743,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(Supported);
   }
+  case UR_DEVICE_INFO_ESIMD_SUPPORT: {
+    bool Supported = false;
+    cl_device_type DevType = CL_DEVICE_TYPE_DEFAULT;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
+                        sizeof(cl_device_type), &DevType, nullptr));
+
+    cl_uint VendorID = 0;
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_VENDOR_ID,
+        sizeof(VendorID), &VendorID, nullptr));
+
+    /* ESIMD is only supported by Intel GPUs. */
+    Supported = DevType == CL_DEVICE_TYPE_GPU && VendorID == 0x8086;
+
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
