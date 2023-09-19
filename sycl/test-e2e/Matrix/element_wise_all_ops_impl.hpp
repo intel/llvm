@@ -64,7 +64,7 @@ void verify_op_a(const T l, const T r, const float ref, OP op) {
                sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
            auto wi_slice =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
+               sycl::ext::oneapi::detail::get_wi_data(sg, sub_mat);
            for (int i = 0; i < wi_slice.length(); i++) {
              wi_slice[i] = op(wi_slice[i], r);
            }
@@ -105,7 +105,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
                sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
            auto wi_slice =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
+               sycl::ext::oneapi::detail::get_wi_data(sg, sub_mat);
            for (int i = 0; i < wi_slice.length(); i++) {
              wi_slice[i] = op(wi_slice[i], r);
            }

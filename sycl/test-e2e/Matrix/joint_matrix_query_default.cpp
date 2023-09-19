@@ -78,7 +78,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a;
            myparams2::joint_matrix_b<
-               sub_group, ext::intel::experimental::matrix::layout::packed>
+               sub_group,
+               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
                sub_b;
            myparams2::joint_matrix_accumulator<sub_group> sub_c;
 
@@ -99,7 +100,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
                  N * 4);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

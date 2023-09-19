@@ -62,7 +62,7 @@ void matrix_verify_add(const T1 val1, const T1 val2, const T1 result) {
        joint_matrix_fill(sg, sub_a, val1);
 
        auto wi_slice_a =
-           sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
+           sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
        for (int i = 0; i < wi_slice_a.length(); i++) {
          wi_slice_a[i] = wi_slice_a[i] + val2;
        }

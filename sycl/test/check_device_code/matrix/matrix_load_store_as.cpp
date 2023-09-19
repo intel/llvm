@@ -29,8 +29,9 @@ int main(void) {
           joint_matrix<sub_group, unsigned short, use::a, 8, 16,
                        layout::row_major>
               tA;
-          joint_matrix<sub_group, unsigned short, use::b, 16, 16,
-                       ext::intel::experimental::matrix::layout::packed>
+          joint_matrix<
+              sub_group, unsigned short, use::b, 16, 16,
+              ext::oneapi::experimental::matrix::layout::ext_intel_packed>
               tB;
           joint_matrix<sub_group, float, use::accumulator, 8, 16> tC;
 
@@ -49,7 +50,7 @@ int main(void) {
           // B should load from global address space
           // CHECK: %{{.*}} = tail call spir_func noundef target("spirv.JointMatrixINTEL", i16, 16, 16, 2, 3, 1) @_Z[[#]]__spirv_JointMatrixLoadINTEL{{.*}}(ptr addrspace(1) noundef %{{.*}}, i64 noundef 32, i32 noundef 2, i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_load(sg, tB, pB, 32);
-          tC = joint_matrix_mad(sg, tA, tB, tC);
+          joint_matrix_mad(sg, tA, tB, tC, tC);
           // C should store to global address space
           // CHECK: tail call spir_func void @_Z[[#]]__spirv_JointMatrixStoreINTEL{{.*}}(ptr addrspace(1) noundef %{{.*}}, target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) noundef %{{.*}}, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_store(sg, tC, pC, 16, layout::row_major);

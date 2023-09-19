@@ -56,8 +56,9 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T2, use::a, TM, TK, layout::row_major> sub_a;
            // For B, we assume B has been already VNNIed.
-           joint_matrix<sub_group, T2, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+           joint_matrix<
+               sub_group, T2, use::b, TK, TN,
+               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, T1, use::accumulator, TM, TN> sub_c;
 
@@ -78,7 +79,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      (k * TK / vnniFactor) * (N * vnniFactor) +
                      sg_starty / SG_SZ * TN * vnniFactor,
                  N * vnniFactor);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

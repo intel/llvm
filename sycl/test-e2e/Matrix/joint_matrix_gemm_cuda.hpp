@@ -178,7 +178,7 @@ void test(queue &q) {
                 }
               }
 
-              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+              joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
             }
             joint_matrix_store(
                 sg, sub_c,

@@ -61,19 +61,8 @@ struct joint_matrix {
   }
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__)
-  // Generate a non-trivial assignment operator and copy c'tor that prevents
-  // memcpy from being generated.
-  // TODO: to remove, when either IGC can handle alloca JointMatrix or
-  // combination of InstCombine + SROA + mem2reg can remove it
-  joint_matrix(const joint_matrix &other) {
-    spvm = other.spvm;
-    return *this;
-  }
-
-  joint_matrix &operator=(const joint_matrix &rhs) {
-    spvm = rhs.spvm;
-    return *this;
-  }
+  joint_matrix(const joint_matrix &other) = delete;
+  joint_matrix &operator=(const joint_matrix &rhs) = delete;
 #endif // defined(__SPIR__)
 #endif
 };
@@ -99,7 +88,7 @@ public:
     return jm.cuda_impl.wi_marray.size();
 #else
     throw runtime_error("get_wi_data is available using: "
-                        "ext::intel::experimental::matrix::get_wi_data.",
+                        "ext::oneapi::detail::get_wi_data.",
                         PI_ERROR_INVALID_DEVICE);
 #endif
   };
@@ -109,7 +98,7 @@ public:
     return (jm.cuda_impl.wi_marray[i]);
 #else
     throw runtime_error("get_wi_data is available using: "
-                        "ext::intel::experimental::matrix::get_wi_data.",
+                        "ext::oneapi::detail::get_wi_data.",
                         PI_ERROR_INVALID_DEVICE);
 #endif
   };
@@ -138,9 +127,9 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
 __SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
                       "use joint_matrix_apply() instead.")
 #else
-__attribute__((unavailable(
-    "get_wi_data can't be used on intel device, please use "
-    "sycl::ext::intel::experimental::matrix::get_wi_data instead!")))
+__attribute__((
+    unavailable("get_wi_data can't be used on intel device, please use "
+                "sycl::ext::oneapi::detail::get_wi_data instead!")))
 #endif
 #endif
 inline __SYCL_ALWAYS_INLINE decltype(auto)
@@ -176,7 +165,7 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
           T>::storage_element_type;
-  auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, jm);
+  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, jm);
   for (int i = 0; i < wi_data_c.length(); i++) {
     storage_element_type element = wi_data_c[i];
     lambda(element);
@@ -262,7 +251,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case sycl::ext::intel::experimental::matrix::layout::packed:
+  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
         DecorT, S, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
@@ -327,8 +316,9 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
-    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
+    const joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+                       sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -361,7 +351,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case sycl::ext::intel::experimental::matrix::layout::packed:
+  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
     __spirv_JointMatrixStoreINTEL<
         DecorT, T, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
@@ -382,53 +372,78 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
-template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M,
-          std::size_t K, std::size_t N, layout LayoutA, layout LayoutB>
-inline __SYCL_ALWAYS_INLINE
-    joint_matrix<Group, Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-    joint_matrix_mad(
-        Group sg, joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
-        joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
-        joint_matrix<Group, Tc, use::accumulator, M, N,
-                     sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-            &C) {
+template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
+          std::size_t M, std::size_t K, std::size_t N, layout LayoutA,
+          layout LayoutB>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
+    Group sg, const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+    const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
+    const joint_matrix<Group, Tc, use::accumulator, M, N,
+                       sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        &C,
+    joint_matrix<Group, Td, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
   if constexpr (std::is_same<Ta, Tb>::value) {
-    joint_matrix<Group, Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-        D;
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
                                                      LayoutB>(
         D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
-    return D;
   } else {
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
   }
 #else
-  joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> res;
   if constexpr (std::is_same<Ta, uint16_t>::value &&
                 std::is_same<Tb, uint16_t>::value &&
                 std::is_same<Tc, float>::value)
-    res.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
+    D.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
   else if constexpr (std::is_unsigned<Ta>::value && std::is_unsigned<Tb>::value)
-    res.spvm = __spirv_JointMatrixUUMadINTEL(A.spvm, B.spvm, C.spvm);
+    D.spvm = __spirv_JointMatrixUUMadINTEL(A.spvm, B.spvm, C.spvm);
   else if constexpr (std::is_signed<Ta>::value && std::is_unsigned<Tb>::value)
-    res.spvm = __spirv_JointMatrixSUMadINTEL(A.spvm, B.spvm, C.spvm);
+    D.spvm = __spirv_JointMatrixSUMadINTEL(A.spvm, B.spvm, C.spvm);
   else if constexpr (std::is_unsigned<Ta>::value && std::is_signed<Tb>::value)
-    res.spvm = __spirv_JointMatrixUSMadINTEL(A.spvm, B.spvm, C.spvm);
+    D.spvm = __spirv_JointMatrixUSMadINTEL(A.spvm, B.spvm, C.spvm);
   else
-    res.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
-  return res;
+    D.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
   std::ignore = A;
   std::ignore = B;
   std::ignore = C;
+  std::ignore = D;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
+          use Use1, use Use2, layout Layout1, layout Layout2>
+void joint_matrix_copy(Group sg,
+                       joint_matrix<Group, T1, Use1, Rows, Cols, Layout1> &src,
+                       joint_matrix<Group, T2, Use2, Rows, Cols, Layout2> &dst) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  for (int i = 0; i < src.cuda_impl.wi_marray.size(); i++) {
+    dest.cuda_impl.wi_marray[i] = src.cuda_impl.wi_marray[i];
+  }
+#else
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T2>::storage_element_type;
+  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, src);
+  auto wi_data_dst = sycl::ext::oneapi::detail::get_wi_data(sg, dst);
+  for (int i = 0; i < wi_data_c.length(); i++) {
+    wi_data_dst[i] = static_cast<storage_element_type>(wi_data_c[i]);
+  }
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = dst;
+  std::ignore = src;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)

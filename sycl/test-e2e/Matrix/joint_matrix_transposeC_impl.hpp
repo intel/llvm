@@ -42,8 +42,9 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
 
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the packed_b layout.
-           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+           joint_matrix<
+               sub_group, bfloat16, use::b, TK, TN,
+               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            joint_matrix_load(sg, sub_c,
@@ -55,7 +56,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
              joint_matrix_load(sg, sub_b,
                                pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
                                N * vnniFactor);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
            }
            joint_matrix_store(
                sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
