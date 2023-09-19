@@ -57,6 +57,8 @@ struct ur_kernel_handle_t_ {
     args_index_t Indices;
     args_size_t OffsetPerIndex;
     std::set<const void *> PtrArgs;
+    // Ptr args needing prefetch arranged [Ptr, Size of alloca]
+    std::set<std::pair<const void *, size_t>> PtrArgsRequiringPrefetch;
 
     std::uint32_t ImplicitOffsetArgs[3] = {0, 0, 0};
 
@@ -177,11 +179,20 @@ struct ur_kernel_handle_t_ {
     Args.addArg(Index, Size, Arg);
   }
 
-  /// We track all pointer arguments to be able to issue prefetches at enqueue
-  /// time
   void setKernelPtrArg(int Index, size_t Size, const void *PtrArg) {
     Args.PtrArgs.insert(*static_cast<void *const *>(PtrArg));
     setKernelArg(Index, Size, PtrArg);
+    // Ptr args using managed memory may require prefetch
+    hipPointerAttribute_t Attribs;
+    // We are only using hipPointerGetAttributes to check if the ptr refers to
+    // a managed memory location, meaning the Ptr may require a prefetch at
+    // kernel launch. If this call fails then it means that the Ptr may have
+    // been a host Ptr, which is not a problem
+    if (hipPointerGetAttributes(&Attribs, PtrArg) == hipSuccess &&
+        Attribs.isManaged) {
+      Args.PtrArgsRequiringPrefetch.insert(
+          {*static_cast<void *const *>(PtrArg), Size});
+    }
   }
 
   bool isPtrArg(const void *ptr) {
