@@ -219,7 +219,12 @@ void SYCLMemObjT::detachMemoryObject(
   // buffer creation and set to meaningfull
   // value only if any operation on buffer submitted inside addCG call. addCG is
   // called from queue::submit and buffer destruction could not overlap with it.
-  if (MRecord && (!MHostPtrProvided || MIsInternal))
+  // For L0 context could be created with two ownership strategies - keep and
+  // transfer. If user keeps ownership - we could not enable deferred buffer
+  // release due to resource release conflict.
+  bool ContextOwnedByRuntime =
+      !MInteropContext || MInteropContext->isOwnedByRuntime();
+  if (MRecord && ContextOwnedByRuntime && (!MHostPtrProvided || MIsInternal))
     Scheduler::getInstance().deferMemObjRelease(Self);
 }
 
