@@ -381,11 +381,11 @@ struct UrSamplerAddressModesTest {
                "\\{"
                ".stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES, "
                ".pNext = nullptr, "
-               ".addrModes = \\["
+               ".addrModes = \\{"
                "UR_SAMPLER_ADDRESSING_MODE_CLAMP, "
                "UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT, "
                "UR_SAMPLER_ADDRESSING_MODE_REPEAT"
-               "\\]"
+               "\\}"
                "\\}";
     }
 

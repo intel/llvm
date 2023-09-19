@@ -85,14 +85,16 @@ def findMemberType(_item):
         os << ".${iname} = ";
         ${x}_params::serializeUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif th.type_traits.is_array(item['type']):
-        os << ".${iname} = [";
+        os << ".${iname} = {";
         for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
             if(i != 0){
                 os << ", ";
             }
-            os << ${deref}(params${access}${item['name']}[i]);
+            <%call expr="member(iname, itype, True)">
+                ${deref}(params${access}${item['name']}[i])
+            </%call>
         }
-        os << "]";
+        os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
         ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));

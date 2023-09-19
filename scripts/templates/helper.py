@@ -236,7 +236,7 @@ class type_traits:
     @classmethod
     def get_array_element_type(cls, name):
         if not cls.is_array(name):
-            raise Exception("Cannot find array length of non-array type.")
+            raise Exception("Cannot find array type of non-array type.")
 
         match = re.match(cls.RE_ARRAY, name)
         return match.groups()[0]
