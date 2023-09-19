@@ -179,6 +179,19 @@ The properties supported with `annotated_arg` may be defined in
 separate extensions. Please note that there cannot be duplicated property in a 
 properties list. Otherwise, a compiler time error is triggered.
 
+The type `annoated_arg<T, ...>` is device copyable given that the type `T` is device copyable,
+as defined by the following:
+
+[source,c++]
+----
+template <typename T, typename PropertyList>
+struct is_device_copyable<
+    ext::oneapi::experimental::annotated_arg<T, PropertyList>,
+    std::enable_if_t<!std::is_trivially_copyable_v<
+        ext::oneapi::experimental::annotated_arg<T, PropertyList>>>>
+    : is_device_copyable<T> {};
+----
+
 The section below describes the constructors and member functions for
 `annotated_arg`.
 
