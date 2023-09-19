@@ -67,7 +67,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               N);
           //CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.row.row.f64(double {{.*}}, double {{.*}}, double {{.*}}, double {{.*}})
-          joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.row.stride.f64.p1(ptr addrspace(1) %{{.*}}, double {{.*}}, double {{.*}}, i32 8)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -98,7 +98,7 @@ int main() {
               sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
               K);
           //CHECK-OPAQUE: tail call { double, double } @llvm.nvvm.wmma.m8n8k4.mma.col.col.f64(double {{.*}}, double {{.*}}, double {{.*}}, double {{.*}})
-          joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+          joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m8n8k4.store.d.col.stride.f64.p1(ptr addrspace(1) %{{.*}}, double {{.*}}, double {{.*}}, i32 8)
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
