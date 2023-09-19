@@ -356,8 +356,8 @@ void KernelsEnvironment::LoadSource(
     binary_out = binary_ptr;
 }
 
-std::vector<std::string>
-KernelsEnvironment::GetEntryPointNames(std::string program_name) {
+std::vector<std::string> KernelsEnvironment::GetEntryPointNames(
+    [[maybe_unused]] std::string program_name) {
     std::vector<std::string> entry_points;
 #ifdef KERNELS_ENVIRONMENT
     entry_points = uur::device_binaries::program_kernel_map[program_name];

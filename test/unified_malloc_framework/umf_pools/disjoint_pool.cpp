@@ -42,7 +42,8 @@ TEST_F(test, freeErrorPropagation) {
             *ptr = malloc(size);
             return UMF_RESULT_SUCCESS;
         }
-        enum umf_result_t free(void *ptr, size_t size) noexcept {
+        enum umf_result_t free(void *ptr,
+                               [[maybe_unused]] size_t size) noexcept {
             ::free(ptr);
             return freeReturn;
         }
