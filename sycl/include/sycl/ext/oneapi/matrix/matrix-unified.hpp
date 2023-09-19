@@ -428,7 +428,7 @@ void joint_matrix_copy(
 #if defined(__NVPTX__)
   std::ignore = sg;
   for (int i = 0; i < src.cuda_impl.wi_marray.size(); i++) {
-    dest.cuda_impl.wi_marray[i] = src.cuda_impl.wi_marray[i];
+    dst.cuda_impl.wi_marray[i] = src.cuda_impl.wi_marray[i];
   }
 #else
   using storage_element_type =
