@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -e
+set -x
+
 if [ -f "$1" ]; then
     # Read data from the dependencies.json passed as the first argument.
     CONFIG_FILE=$1
@@ -20,20 +23,17 @@ else
     CPU_TAG=$cpu_tag
 fi
 
-if [ -t 0 ]; then
-    # Interactive run (?), no token expected. Might be changed later.
-    TOKEN=""
-else
-    TOKEN=$(</dev/stdin)
-fi
-
 function get_release() {
     REPO=$1
     TAG=$2
-    URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
+    if [ "$TAG" == "latest" ]; then
+        URL="https://api.github.com/repos/${REPO}/releases/latest"
+    else
+        URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
+    fi
     HEADER=""
-    if [ "$TOKEN" != "" ]; then
-        HEADER="Authorization: Bearer $TOKEN"
+    if [ "$GITHUB_TOKEN" != "" ]; then
+        HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
     curl -s -L -H "$HEADER" $URL \
         | jq -r '. as $raw | try .assets[].browser_download_url catch error($raw)'

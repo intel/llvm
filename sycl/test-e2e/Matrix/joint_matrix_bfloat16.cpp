@@ -18,5 +18,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
+constexpr size_t TN = 16;
 
 #include "joint_matrix_bfloat16_impl.hpp"

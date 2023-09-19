@@ -1,6 +1,6 @@
 ;; Test that we set patchable-function-prefix for asan.module_ctor when kcfi-offset is defined.
 
-; RUN: opt -opaque-pointers < %s -passes=asan -S | FileCheck %s
+; RUN: opt < %s -passes=asan -S | FileCheck %s
 
 ; CHECK: @llvm.global_ctors = {{.*}}{ i32 1, ptr @asan.module_ctor, ptr @asan.module_ctor }
 

@@ -13,8 +13,8 @@
 ;;                  ^(){});
 ;; }
 ; RUN: llvm-as < %s > %t.bc
-; RUN: llvm-spirv -opaque-pointers=1 %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -opaque-pointers=1 %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -36,9 +36,9 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test_enqueue_empty() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {
 entry:
   %tmp = alloca %struct.ndrange_t, align 8
-  %call = call spir_func %opencl.queue_t* @_Z17get_default_queuev() #4
-  call spir_func void @_Z10ndrange_1Dm(%struct.ndrange_t* sret(%struct.ndrange_t) %tmp, i64 1) #4
-  %0 = call i32 @__enqueue_kernel_basic_events(%opencl.queue_t* %call, i32 1, %struct.ndrange_t* %tmp, i32 0, %opencl.clk_event_t* addrspace(4)* null, %opencl.clk_event_t* addrspace(4)* null, i8 addrspace(4)* addrspacecast (i8* bitcast (void (i8 addrspace(4)*)* @__test_enqueue_empty_block_invoke_kernel to i8*) to i8 addrspace(4)*), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast ({ i32, i32 } addrspace(1)* @__block_literal_global to i8 addrspace(1)*) to i8 addrspace(4)*))
+  %call = call spir_func ptr @_Z17get_default_queuev() #4
+  call spir_func void @_Z10ndrange_1Dm(ptr sret(%struct.ndrange_t) %tmp, i64 1) #4
+  %0 = call i32 @__enqueue_kernel_basic_events(ptr %call, i32 1, ptr %tmp, i32 0, ptr addrspace(4) null, ptr addrspace(4) null, ptr addrspace(4) addrspacecast (ptr @__test_enqueue_empty_block_invoke_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global to ptr addrspace(4)))
   ret void
 ; CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[GenBlock:[0-9]+]] [[Block]]
 ; CHECK-SPIRV: Bitcast [[Int8PtrGen]] [[Int8PtrGenBlock:[0-9]+]] [[GenBlock]]
@@ -46,28 +46,27 @@ entry:
 }
 
 ; Function Attrs: convergent
-declare spir_func %opencl.queue_t* @_Z17get_default_queuev() #1
+declare spir_func ptr @_Z17get_default_queuev() #1
 
 ; Function Attrs: convergent
-declare spir_func void @_Z10ndrange_1Dm(%struct.ndrange_t* sret(%struct.ndrange_t), i64) #1
+declare spir_func void @_Z10ndrange_1Dm(ptr sret(%struct.ndrange_t), i64) #1
 
 ; Function Attrs: convergent nounwind
-define internal spir_func void @__test_enqueue_empty_block_invoke(i8 addrspace(4)* %.block_descriptor) #2 {
+define internal spir_func void @__test_enqueue_empty_block_invoke(ptr addrspace(4) %.block_descriptor) #2 {
 entry:
-  %.block_descriptor.addr = alloca i8 addrspace(4)*, align 8
-  store i8 addrspace(4)* %.block_descriptor, i8 addrspace(4)** %.block_descriptor.addr, align 8
-  %block = bitcast i8 addrspace(4)* %.block_descriptor to <{ i32, i32 }> addrspace(4)*
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 8
   ret void
 }
 
 ; Function Attrs: nounwind
-define internal spir_kernel void @__test_enqueue_empty_block_invoke_kernel(i8 addrspace(4)*) #3 {
+define internal spir_kernel void @__test_enqueue_empty_block_invoke_kernel(ptr addrspace(4)) #3 {
 entry:
-  call void @__test_enqueue_empty_block_invoke(i8 addrspace(4)* %0)
+  call void @__test_enqueue_empty_block_invoke(ptr addrspace(4) %0)
   ret void
 }
 
-declare i32 @__enqueue_kernel_basic_events(%opencl.queue_t*, i32, %struct.ndrange_t*, i32, %opencl.clk_event_t* addrspace(4)*, %opencl.clk_event_t* addrspace(4)*, i8 addrspace(4)*, i8 addrspace(4)*)
+declare i32 @__enqueue_kernel_basic_events(ptr, i32, ptr, i32, ptr addrspace(4), ptr addrspace(4), ptr addrspace(4), ptr addrspace(4))
 
 ; CHECK-SPIRV: Function [[Void]] [[Invoke]] {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEXT: FunctionParameter [[Int8PtrGen]]  {{[0-9]+}}

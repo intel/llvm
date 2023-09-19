@@ -1,10 +1,10 @@
-//===--------- context.hpp - Level Zero Adapter ----------------------===//
+//===--------- context.hpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <list>
@@ -101,13 +101,17 @@ struct ur_context_handle_t_ : _ur_object {
   std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
       SharedReadOnlyMemPools;
 
-  // Since L0 native runtime does not distinguisg "shared device_read_only"
-  // vs regular "shared" allocations, we have keep track of it to use
-  // proper memory pool when freeing allocations.
-  std::unordered_set<void *> SharedReadOnlyAllocs;
-
   // Store the host memory pool. It does not depend on any device.
   umf::pool_unique_handle_t HostMemPool;
+
+  // Allocation-tracking proxy pools for direct allocations. No pooling used.
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      DeviceMemProxyPools;
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      SharedMemProxyPools;
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      SharedReadOnlyMemProxyPools;
+  umf::pool_unique_handle_t HostMemProxyPool;
 
   // We need to store all memory allocations in the context because there could
   // be kernels with indirect access. Kernels with indirect access start to

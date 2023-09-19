@@ -49,7 +49,7 @@
 ; }
 
 ; Check that translation of optimized IR doesn't crash:
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses -o %t.spv
 
 ; Check that reverse translation restore ptr.annotations correctly:

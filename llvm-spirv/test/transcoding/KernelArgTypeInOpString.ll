@@ -51,7 +51,7 @@ target triple = "spir-unknown-unknown"
 %struct.struct_name = type { i32, i32 }
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_kernel void @foo(%struct.image_kernel_data addrspace(1)* %in, i32 %out, %struct.struct_name addrspace(1)* %outData) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !8 !kernel_arg_type_qual !9 {
+define spir_kernel void @foo(ptr addrspace(1) %in, i32 %out, ptr addrspace(1) %outData) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !8 !kernel_arg_type_qual !9 {
 entry:
   ret void
 }
@@ -78,4 +78,4 @@ attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide
 !7 = !{!"image_kernel_data*", !"myInt", !"struct struct_name*"}
 !8 = !{!"image_kernel_data*", !"int", !"struct struct_name*"}
 !9 = !{!"", !"", !""}
-!10 = !{void (%struct.image_kernel_data addrspace(1)*, i32, %struct.struct_name addrspace(1)*)* @foo}
+!10 = !{ptr @foo}

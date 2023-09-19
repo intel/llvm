@@ -12,7 +12,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-DAG: {{[0-9]*}} Capability Linkage
 ; Function Attrs: nounwind
-define spir_func void @func_export(i32 addrspace(1)* nocapture %a) #0 {
+define spir_func void @func_export(ptr addrspace(1) nocapture %a) #0 {
 entry:
 ; CHECK-DAG: {{[0-9]*}} Capability Int64
   %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #3
@@ -20,7 +20,7 @@ entry:
   br i1 %cmp, label %if.then, label %if.end
 
 if.then:                                          ; preds = %entry
-  store i32 1, i32 addrspace(1)* %a, align 4, !tbaa !9
+  store i32 1, ptr addrspace(1) %a, align 4, !tbaa !9
   br label %if.end
 
 if.end:                                           ; preds = %if.then, %entry
@@ -34,13 +34,13 @@ declare spir_func i64 @_Z13get_global_idj(i32) #1
 ; CHECK-NOT: {{[0-9]*}} Capability Shader
 ; CHECK-NOT: {{[0-9]*}} Capability Float64
 ; Function Attrs: nounwind
-define spir_kernel void @func_kernel(i32 addrspace(1)* %a) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @func_kernel(ptr addrspace(1) %a) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
 entry:
-  tail call spir_func void @func_import(i32 addrspace(1)* %a) #4
+  tail call spir_func void @func_import(ptr addrspace(1) %a) #4
   ret void
 }
 
-declare spir_func void @func_import(i32 addrspace(1)*) #2
+declare spir_func void @func_import(ptr addrspace(1)) #2
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

@@ -42,25 +42,25 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64"
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel1(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel1(ptr addrspace(1) noalias %s.ascast) {
   fence acquire
   ret void
 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel2(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel2(ptr addrspace(1) noalias %s.ascast) {
   fence release
   ret void
 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel3(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel3(ptr addrspace(1) noalias %s.ascast) {
   fence acq_rel
   ret void
 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @fence_test_kernel4(i32 addrspace(1)* noalias %s.ascast) {
+define spir_kernel void @fence_test_kernel4(ptr addrspace(1) noalias %s.ascast) {
   fence syncscope("singlethread") seq_cst
   ret void
 }

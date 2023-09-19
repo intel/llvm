@@ -163,9 +163,10 @@ jobs:
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
       if: inputs.install_drivers == 'true'
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo apt install curl
-        echo "$GITHUB_TOKEN" | sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |

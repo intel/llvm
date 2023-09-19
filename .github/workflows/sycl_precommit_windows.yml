@@ -20,6 +20,8 @@ on:
     - '.github/workflows/sycl_linux_build.yml'
     - '.github/workflows/sycl_linux_run_tests.yml'
     - '.github/workflows/sycl_precommit_aws.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
 
 permissions:
   contents: read

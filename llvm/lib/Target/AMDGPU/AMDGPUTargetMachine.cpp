@@ -175,12 +175,6 @@ static VGPRRegisterRegAlloc fastRegAllocVGPR(
   "fast", "fast register allocator", createFastVGPRRegisterAllocator);
 }
 
-static cl::opt<bool> EnableSROA(
-  "amdgpu-sroa",
-  cl::desc("Run SROA after promote alloca pass"),
-  cl::ReallyHidden,
-  cl::init(true));
-
 static cl::opt<bool>
 EnableEarlyIfConversion("amdgpu-early-ifcvt", cl::Hidden,
                         cl::desc("Run early if-conversion"),
@@ -396,9 +390,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUCodeGenPreparePass(*PR);
   initializeAMDGPULateCodeGenPreparePass(*PR);
   initializeAMDGPURemoveIncompatibleFunctionsPass(*PR);
-  initializeAMDGPULowerModuleLDSPass(*PR);
+  initializeAMDGPULowerModuleLDSLegacyPass(*PR);
   initializeAMDGPURewriteOutArgumentsPass(*PR);
-  initializeAMDGPURewriteUndefForPHIPass(*PR);
+  initializeAMDGPURewriteUndefForPHILegacyPass(*PR);
   initializeAMDGPUUnifyMetadataPass(*PR);
   initializeSIAnnotateControlFlowPass(*PR);
   initializeAMDGPUInsertDelayAluPass(*PR);
@@ -610,8 +604,8 @@ void AMDGPUTargetMachine::registerDefaultAliasAnalyses(AAManager &AAM) {
 
 void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerPipelineParsingCallback(
-      [](StringRef PassName, ModulePassManager &PM,
-         ArrayRef<PassBuilder::PipelineElement>) {
+      [this](StringRef PassName, ModulePassManager &PM,
+             ArrayRef<PassBuilder::PipelineElement>) {
         if (PassName == "amdgpu-unify-metadata") {
           PM.addPass(AMDGPUUnifyMetadataPass());
           return true;
@@ -625,7 +619,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           return true;
         }
         if (PassName == "amdgpu-lower-module-lds") {
-          PM.addPass(AMDGPULowerModuleLDSPass());
+          PM.addPass(AMDGPULowerModuleLDSPass(*this));
           return true;
         }
         if (PassName == "amdgpu-lower-ctor-dtor") {
@@ -680,6 +674,14 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         if (PassName == "amdgpu-codegenprepare") {
           PM.addPass(AMDGPUCodeGenPreparePass(*this));
+          return true;
+        }
+        if (PassName == "amdgpu-lower-kernel-arguments") {
+          PM.addPass(AMDGPULowerKernelArgumentsPass(*this));
+          return true;
+        }
+        if (PassName == "amdgpu-rewrite-undef-for-phi") {
+          PM.addPass(AMDGPURewriteUndefForPHIPass());
           return true;
         }
         return false;
@@ -1004,7 +1006,7 @@ void AMDGPUPassConfig::addIRPasses() {
 
   // Runs before PromoteAlloca so the latter can account for function uses
   if (EnableLowerModuleLDS) {
-    addPass(createAMDGPULowerModuleLDSPass());
+    addPass(createAMDGPULowerModuleLDSLegacyPass(&TM));
   }
 
   // AMDGPUAttributor infers lack of llvm.amdgcn.lds.kernel.id calls, so run
@@ -1015,13 +1017,18 @@ void AMDGPUPassConfig::addIRPasses() {
   if (TM.getOptLevel() > CodeGenOpt::None)
     addPass(createInferAddressSpacesPass());
 
+  // Run atomic optimizer before Atomic Expand
+  if ((TM.getTargetTriple().getArch() == Triple::amdgcn) &&
+      (TM.getOptLevel() >= CodeGenOpt::Less) &&
+      (AMDGPUAtomicOptimizerStrategy != ScanOptions::None)) {
+    addPass(createAMDGPUAtomicOptimizerPass(AMDGPUAtomicOptimizerStrategy));
+  }
+
   addPass(createAtomicExpandPass());
 
   if (TM.getOptLevel() > CodeGenOpt::None) {
     addPass(createAMDGPUPromoteAlloca());
 
-    if (EnableSROA)
-      addPass(createSROAPass());
     if (isPassEnabled(EnableScalarIRPasses))
       addStraightLineScalarOptimizationPasses();
 
@@ -1150,11 +1157,6 @@ bool GCNPassConfig::addPreISel() {
   if (TM->getOptLevel() > CodeGenOpt::None)
     addPass(createAMDGPULateCodeGenPreparePass());
 
-  if ((TM->getOptLevel() >= CodeGenOpt::Less) &&
-      (AMDGPUAtomicOptimizerStrategy != ScanOptions::None)) {
-    addPass(createAMDGPUAtomicOptimizerPass(AMDGPUAtomicOptimizerStrategy));
-  }
-
   if (TM->getOptLevel() > CodeGenOpt::None)
     addPass(createSinkingPass());
 
@@ -1174,7 +1176,7 @@ bool GCNPassConfig::addPreISel() {
     // TODO: Move this right after structurizeCFG to avoid extra divergence
     // analysis. This depends on stopping SIAnnotateControlFlow from making
     // control flow modifications.
-    addPass(createAMDGPURewriteUndefForPHIPass());
+    addPass(createAMDGPURewriteUndefForPHILegacyPass());
   }
   addPass(createLCSSAPass());
 

@@ -105,6 +105,9 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
     // Ideally, the static compiler should have performed that job.
     const unsigned FlatAddressSpace = getFlatAddressSpace(Mod);
     FPM.addPass(InferAddressSpacesPass(FlatAddressSpace));
+    // Run CFG simplification to prevent unreachable code from obscuring
+    // internalization opportunities.
+    FPM.addPass(SimplifyCFGPass{});
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
   // Run dataflow internalization and runtime constant propagation.

@@ -1,5 +1,5 @@
 ; RUN: opt -module-summary -o %t.o %s
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t.lto.o %t.o \
+; RUN: llvm-lto2 run -save-temps -o %t.lto.o %t.o \
 ; RUN:   -r=%t.o,foo,plx \
 ; RUN:   -r=%t.o,get,pl
 ; RUN: llvm-dis %t.lto.o.0.2.internalize.bc >/dev/null 2>%t.dis.stderr || true

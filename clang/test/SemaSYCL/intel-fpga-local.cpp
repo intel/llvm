@@ -285,7 +285,7 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int mrg_reg[4];
 
-  //expected-error@+1{{attribute requires a string}}
+  //expected-error@+1{{expected string literal as argument of 'merge' attribute}}
   [[intel::merge(3, 9.0f)]] unsigned int mrg_float[4];
 
   //expected-error@+1{{attribute requires exactly 2 arguments}}

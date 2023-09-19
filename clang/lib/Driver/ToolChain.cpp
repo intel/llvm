@@ -87,8 +87,8 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
       List.push_back(Path);
   };
 
-  for (const auto &Path : getRuntimePaths())
-    addIfExists(getLibraryPaths(), Path);
+  if (std::optional<std::string> Path = getRuntimePath())
+    getLibraryPaths().push_back(*Path);
   for (const auto &Path : getStdlibPaths())
     addIfExists(getFilePaths(), Path);
   for (const auto &Path : getArchSpecificLibPaths())
@@ -428,6 +428,12 @@ ToolChain::getDefaultUnwindTableLevel(const ArgList &Args) const {
   return UnwindTableLevel::None;
 }
 
+unsigned ToolChain::GetDefaultDwarfVersion() const {
+  // TODO: Remove the RISC-V special case when R_RISCV_SET_ULEB128 linker
+  // support becomes more widely available.
+  return getTriple().isRISCV() ? 4 : 5;
+}
+
 Tool *ToolChain::getClang() const {
   if (!Clang)
     Clang.reset(new tools::Clang(*this, useIntegratedBackend()));
@@ -749,15 +755,18 @@ const char *ToolChain::getCompilerRTArgString(const llvm::opt::ArgList &Args,
   return Args.MakeArgString(getCompilerRT(Args, Component, Type));
 }
 
-ToolChain::path_list ToolChain::getRuntimePaths() const {
-  path_list Paths;
-  auto addPathForTriple = [this, &Paths](const llvm::Triple &Triple) {
+std::optional<std::string> ToolChain::getRuntimePath() const {
+  auto getPathForTriple =
+      [this](const llvm::Triple &Triple) -> std::optional<std::string> {
     SmallString<128> P(D.ResourceDir);
     llvm::sys::path::append(P, "lib", Triple.str());
-    Paths.push_back(std::string(P.str()));
+    if (getVFS().exists(P))
+      return std::string(P);
+    return {};
   };
 
-  addPathForTriple(getTriple());
+  if (auto Path = getPathForTriple(getTriple()))
+    return *Path;
 
   // When building with per target runtime directories, various ways of naming
   // the Arm architecture may have been normalised to simply "arm".
@@ -777,7 +786,8 @@ ToolChain::path_list ToolChain::getRuntimePaths() const {
   if (getTriple().getArch() == Triple::arm && !getTriple().isArmMClass()) {
     llvm::Triple ArmTriple = getTriple();
     ArmTriple.setArch(Triple::arm);
-    addPathForTriple(ArmTriple);
+    if (auto Path = getPathForTriple(ArmTriple))
+      return *Path;
   }
 
   // Android targets may include an API level at the end. We still want to fall
@@ -786,10 +796,11 @@ ToolChain::path_list ToolChain::getRuntimePaths() const {
       getTriple().getEnvironmentName() != "android") {
     llvm::Triple TripleWithoutLevel = getTriple();
     TripleWithoutLevel.setEnvironmentName("android");
-    addPathForTriple(TripleWithoutLevel);
+    if (auto Path = getPathForTriple(TripleWithoutLevel))
+      return *Path;
   }
 
-  return Paths;
+  return {};
 }
 
 ToolChain::path_list ToolChain::getStdlibPaths() const {
@@ -1445,8 +1456,12 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     if (A->getOption().matches(options::OPT_m_Group)) {
       // AMD GPU is a special case, as -mcpu is required for the device
       // compilation, except for SYCL which uses --offload-arch.
-      if (SameTripleAsHost || (getTriple().getArch() == llvm::Triple::amdgcn &&
-                               DeviceOffloadKind != Action::OFK_SYCL)) {
+      // Pass code object version to device toolchain
+      // to correctly set metadata in intermediate files.
+      if (SameTripleAsHost ||
+          A->getOption().matches(options::OPT_mcode_object_version_EQ) ||
+          (getTriple().getArch() == llvm::Triple::amdgcn &&
+           DeviceOffloadKind != Action::OFK_SYCL)) {
         DAL->append(A);
         continue;
       }

@@ -1,4 +1,4 @@
-RUN: llvm-dis -opaque-pointers=1 %p/Inputs/x86_intrcc_upgrade.bc -o - | FileCheck %s
+RUN: llvm-dis %p/Inputs/x86_intrcc_upgrade.bc -o - | FileCheck %s
 
 Make sure we upgrade x86_intrcc to a byval with explicit type
 

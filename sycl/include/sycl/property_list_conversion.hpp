@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 // This file contains conversion routines from property_list to
 // accessor_property_list. A separate file helps to avoid cyclic dependencies
 // between header files.

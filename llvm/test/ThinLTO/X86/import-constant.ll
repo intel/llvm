@@ -3,8 +3,7 @@
 ; by store instructions.
 ; RUN: opt -thinlto-bc %s -o %t1.bc
 ; RUN: opt -thinlto-bc %p/Inputs/import-constant.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t-out \
-; RUN:    -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t-out \
 ; RUN:    -import-constants-with-refs \
 ; RUN:    -r=%t1.bc,main,plx \
 ; RUN:    -r=%t1.bc,_Z6getObjv,l \
@@ -16,8 +15,7 @@
 ; RUN: llvm-dis %t-out.1.4.opt.bc -o - | FileCheck %s --check-prefix=OPT
 
 ; Check when importing references is prohibited
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t-out-norefs \
-; RUN:    -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t-out-norefs \
 ; RUN:    -import-constants-with-refs=false \
 ; RUN:    -r=%t1.bc,main,plx \
 ; RUN:    -r=%t1.bc,_Z6getObjv,l \

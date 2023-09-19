@@ -1,6 +1,6 @@
 target triple = "arm64-apple-ios7.0"
 
-; RUN: llvm-dis -opaque-pointers < %S/upgrade-arc-runtime-calls-bitcast.bc | FileCheck %s
+; RUN: llvm-dis < %S/upgrade-arc-runtime-calls-bitcast.bc | FileCheck %s
 
 ; CHECK: tail call ptr @objc_retain(i32 1)
 ; CHECK: tail call ptr @objc_storeStrong(

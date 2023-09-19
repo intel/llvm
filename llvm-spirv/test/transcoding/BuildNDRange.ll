@@ -30,11 +30,11 @@ target triple = "spir"
 ; Function Attrs: nounwind
 define spir_kernel void @test() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {
   %ndrange = alloca %struct.ndrange_t, align 4
-  call spir_func void @_Z10ndrange_1Djj(%struct.ndrange_t* sret(%struct.ndrange_t) %ndrange, i32 123, i32 456)
+  call spir_func void @_Z10ndrange_1Djj(ptr sret(%struct.ndrange_t) %ndrange, i32 123, i32 456)
   ret void
 }
 
-declare spir_func void @_Z10ndrange_1Djj(%struct.ndrange_t* sret(%struct.ndrange_t), i32, i32) #1
+declare spir_func void @_Z10ndrange_1Djj(ptr sret(%struct.ndrange_t), i32, i32) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

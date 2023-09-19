@@ -47,18 +47,23 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
-           joint_matrix_fill(sg, sub_c, 1);
+           // bounds-checked load where width and height are added
+           joint_matrix_fill_checked(sg, sub_c, 1, M, N);
            for (int k = 0; k < K; k += TK) {
-             joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
+             // bounds-checked load where width and height are added
+             joint_matrix_load_checked(sg, sub_a, pA + (sg_startx * TM) * K + k,
+                                       K, M, K);
              // Assume we alreay in vnni format.
-             joint_matrix_load(sg, sub_b,
-                               pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
-                               N * vnniFactor);
+             // bounds-checked load where width and height are added
+             joint_matrix_load_checked(
+                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
+                 N * vnniFactor, K / vnniFactor, N * vnniFactor);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
-           joint_matrix_store(
+           // bounds-checked store where width and height are added
+           joint_matrix_store_checked(
                sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
-               layout::row_major);
+               layout::row_major, M, N);
          }); // parallel for
    }).wait();
 }

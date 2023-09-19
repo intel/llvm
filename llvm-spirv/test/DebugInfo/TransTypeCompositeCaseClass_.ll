@@ -31,9 +31,9 @@ entry:
   %retval = alloca i32, align 4
   %a = alloca %class.A, align 1
   %b = alloca %struct.B, align 1
-  store i32 0, i32* %retval, align 4
-  call void @llvm.dbg.declare(metadata %class.A* %a, metadata !11, metadata !DIExpression()), !dbg !13
-  call void @llvm.dbg.declare(metadata %struct.B* %b, metadata !14, metadata !DIExpression()), !dbg !16
+  store i32 0, ptr %retval, align 4
+  call void @llvm.dbg.declare(metadata ptr %a, metadata !11, metadata !DIExpression()), !dbg !13
+  call void @llvm.dbg.declare(metadata ptr %b, metadata !14, metadata !DIExpression()), !dbg !16
   ret i32 0, !dbg !17
 }
 

@@ -13,23 +13,23 @@
 
 int main() {
 
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
 
   auto Init = Graph.add([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] = 2.0f; });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] = 2; });
   });
 
   auto Add = Graph.add([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] += 2.0f; });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] += 2; });
   });
 
   auto Mult = Graph.add([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] *= 3.0f; });
+    CGH.parallel_for(range<1>{N}, [=](id<1> idx) { X[idx] *= 3; });
   });
 
   Graph.make_edge(Init, Mult);
@@ -39,11 +39,11 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), X, N * sizeof(float)).wait();
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), X, N * sizeof(int)).wait();
 
   for (int i = 0; i < N; i++)
-    assert(Output[i] == 8.0f);
+    assert(Output[i] == 8);
 
   sycl::free(X, Queue);
 
