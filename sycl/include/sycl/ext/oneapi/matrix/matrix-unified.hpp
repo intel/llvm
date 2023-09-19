@@ -421,9 +421,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
 
 template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
           use Use1, use Use2, layout Layout1, layout Layout2>
-void joint_matrix_copy(Group sg,
-                       joint_matrix<Group, T1, Use1, Rows, Cols, Layout1> &src,
-                       joint_matrix<Group, T2, Use2, Rows, Cols, Layout2> &dst) {
+void joint_matrix_copy(
+    Group sg, joint_matrix<Group, T1, Use1, Rows, Cols, Layout1> &src,
+    joint_matrix<Group, T2, Use2, Rows, Cols, Layout2> &dst) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;

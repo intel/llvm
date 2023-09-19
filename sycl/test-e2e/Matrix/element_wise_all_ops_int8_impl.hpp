@@ -40,8 +40,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
+           auto wi_slice_a = sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] + 2;
            }
@@ -75,8 +74,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
+           auto wi_slice_a = sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] - 2;
            }
@@ -110,8 +108,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
+           auto wi_slice_a = sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] * 3;
            }
@@ -145,8 +142,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 4);
 
-           auto wi_slice_a =
-               sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
+           auto wi_slice_a = sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] / 2;
            }
@@ -180,8 +176,7 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, 5);
 
-           auto wi_slice_a =
-               sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
+           auto wi_slice_a = sycl::ext::oneapi::detail::get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              if (wi_slice_a[i]) {
                if (wi_slice_a[i] > 2 || wi_slice_a[i] >= 2 ||

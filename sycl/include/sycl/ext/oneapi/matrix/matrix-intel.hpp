@@ -187,7 +187,7 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
-  template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
+  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
         static_cast<storage_element_type>(                                     \
@@ -202,7 +202,7 @@ public:
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
-  template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
+  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
@@ -306,7 +306,7 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
         __spirv_VectorExtractDynamic<                                          \
@@ -319,7 +319,7 @@ public:
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
