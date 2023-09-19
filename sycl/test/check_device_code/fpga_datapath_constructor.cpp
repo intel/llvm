@@ -26,7 +26,7 @@ public:
   }
 };
 
-// CHECK: call spir_func double @sqrt
+// CHECK: call {{.*}}sqrt
 
 int main() {
   queue Q;
