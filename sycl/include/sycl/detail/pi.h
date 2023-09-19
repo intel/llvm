@@ -148,7 +148,7 @@
 // 14.39 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 38
+#define _PI_H_VERSION_MINOR 39
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
