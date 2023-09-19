@@ -289,21 +289,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   // TODO: this is all hacky and should be removed when we add support
   // for building to all the devices in the context.
   //
-  auto MakeFirst = Context->Devices.begin();
-  for (auto I = Context->Devices.begin(); I != Context->Devices.end(); ++I) {
-    if (*I == Device) {
-      MakeFirst = I;
-      if (!Device->RootDevice)
-        break;
-      // continue the search for possible root-device in the context
-    } else if (*I == Device->RootDevice) {
-      MakeFirst = I;
-      break; // stop the search
-    }
-  }
-  if (MakeFirst != Context->Devices.begin())
-    std::iter_swap(MakeFirst, Context->Devices.begin());
+  { // Lock context for thread-safe update
+    std::scoped_lock Lock(Context->Mutex);
+    UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
+    auto MakeFirst = Context->Devices.begin();
+    for (auto I = Context->Devices.begin(); I != Context->Devices.end(); ++I) {
+      if (*I == Device) {
+        MakeFirst = I;
+        if (!Device->RootDevice)
+          break;
+        // continue the search for possible root-device in the context
+      } else if (*I == Device->RootDevice) {
+        MakeFirst = I;
+        break; // stop the search
+      }
+    }
+    if (MakeFirst != Context->Devices.begin())
+      std::iter_swap(MakeFirst, Context->Devices.begin());
+  }
   ur_queue_flags_t Flags{};
   if (Props) {
     Flags = Props->flags;
@@ -321,8 +325,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
       }
     }
   }
-
-  UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
