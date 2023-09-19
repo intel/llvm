@@ -92,6 +92,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
       clGetEventInfo(cl_adapter::cast<cl_event>(hEvent), CLEventInfo, propSize,
                      pPropValue, pPropSizeRet);
   CL_RETURN_ON_FAILURE(RetErr);
+
+  if (RetErr == CL_SUCCESS &&
+      propName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    /* If the CL_EVENT_COMMAND_EXECUTION_STATUS info value is CL_QUEUED, change
+     * it to CL_SUBMITTED. sycl::info::event::event_command_status has no
+     * equivalent to CL_QUEUED.
+     *
+     * FIXME UR Port: This should not be part of the UR adapter. Since PI_QUEUED
+     * exists, SYCL RT should be changed to handle this situation. In addition,
+     * SYCL RT is relying on PI_QUEUED status to make sure that the queues are
+     * flushed. */
+    const auto param_value_int = static_cast<ur_event_status_t *>(pPropValue);
+    if (*param_value_int == UR_EVENT_STATUS_QUEUED) {
+      *param_value_int = UR_EVENT_STATUS_SUBMITTED;
+    }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
