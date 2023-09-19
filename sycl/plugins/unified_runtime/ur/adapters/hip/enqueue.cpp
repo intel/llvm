@@ -1316,7 +1316,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   void *HIPDevicePtr = const_cast<void *>(pMem);
-
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
   // If the device does not support managed memory access, we can't set
