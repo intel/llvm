@@ -1438,17 +1438,14 @@ std::optional<range<Dims>> handler::getRoundedRange(range<Dims> UserRange) {
   // non-32-bit global range, we wrap the old kernel in a new kernel
   // that has each work item peform multiple invocations the old
   // kernel in a 32-bit global range.
-  auto Dev = detail::getDeviceFromHandler(*this);
-
+  auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   id<Dims> MaxNWGs = [&] {
     size_t PiResult[3] = {};
-    auto Ret = MQueue->getDeviceImplPtr()
-                   ->getPlugin()
-                   ->call_nocheck<PiApiKind::piDeviceGetInfo>(
-                       MQueue->getDeviceImplPtr()->getHandleRef(),
-                       PiInfoCode<ext::oneapi::experimental::info::device::
-                                      max_work_groups<3>>::value,
-                       sizeof(PiResult), &PiResult, nullptr);
+    auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+        sizeof(PiResult), &PiResult, nullptr);
 
     if (Ret != PI_SUCCESS) {
       id<Dims> Default;
