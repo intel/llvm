@@ -47,7 +47,7 @@ int main(void) {
           // B should load from global address space
           // CHECK: %{{.*}} = tail call spir_func noundef target("spirv.JointMatrixINTEL", i16, 16, 16, 3, 3) @_Z[[#]]__spirv_JointMatrixLoadINTEL{{.*}}(ptr addrspace(1) noundef %{{.*}}, i64 noundef 32, i32 noundef [[#]], i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_load(sg, tB, pB, 32, matrix_layout::packed_b);
-          joint_matrix_mad(sg, tA, tB, tC, tC);
+          tC = joint_matrix_mad(sg, tA, tB, tC);
           // C should store to global address space
           // CHECK: tail call spir_func void @_Z[[#]]__spirv_JointMatrixStoreINTEL{{.*}}(ptr addrspace(1) noundef %{{.*}}, target("spirv.JointMatrixINTEL", float, 8, 16, 0, 3) noundef %{{.*}}, i64 noundef 16, i32 noundef 0, i32 noundef 3, i32 noundef 0) #{{.*}}
           joint_matrix_store(sg, tC, pC, 16, matrix_layout::row_major);
