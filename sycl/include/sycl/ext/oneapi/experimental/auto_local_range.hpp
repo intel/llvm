@@ -10,8 +10,6 @@
 
 #include <sycl/range.hpp>
 
-#define SYCL_EXT_ONEAPI_AUTO_LOCAL_RANGE 1
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
