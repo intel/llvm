@@ -105,6 +105,7 @@ class type_traits:
     RE_DESC     = r"(.*)desc_t.*"
     RE_PROPS    = r"(.*)properties_t.*"
     RE_FLAGS    = r"(.*)flags_t"
+    RE_ARRAY    = r"(.*)\[([1-9][0-9]*)\]"
 
     @staticmethod
     def base(name):
@@ -216,6 +217,29 @@ class type_traits:
             return None
         except:
             return None
+
+    @classmethod
+    def is_array(cls, name):
+        try:
+            return True if re.match(cls.RE_ARRAY, name) else False
+        except:
+            return False
+        
+    @classmethod
+    def get_array_length(cls, name):
+        if not cls.is_array(name):
+            raise Exception("Cannot find array length of non-array type.")
+
+        match = re.match(cls.RE_ARRAY, name)
+        return match.groups()[1]
+    
+    @classmethod
+    def get_array_element_type(cls, name):
+        if not cls.is_array(name):
+            raise Exception("Cannot find array type of non-array type.")
+
+        match = re.match(cls.RE_ARRAY, name)
+        return match.groups()[0]
 
 """
     Extracts traits from a value name
@@ -729,7 +753,10 @@ Private:
     returns c/c++ name of any type
 """
 def _get_type_name(namespace, tags, obj, item):
-    name = subt(namespace, tags, item['type'],)
+    type = item['type']
+    if type_traits.is_array(type):
+        type = type_traits.get_array_element_type(type)
+    name = subt(namespace, tags, type,)
     return name
 
 """
@@ -763,9 +790,9 @@ def get_ctype_name(namespace, tags, item):
     while type_traits.is_pointer(name):
         name = "POINTER(%s)"%_remove_ptr(name)
 
-    if 'name' in item and value_traits.is_array(item['name']):
-        length = subt(namespace, tags, value_traits.get_array_length(item['name']))
-        name = "%s * %s"%(name, length)
+    if 'name' in item and type_traits.is_array(item['type']):
+        length = subt(namespace, tags, type_traits.get_array_length(item['type'])) 
+        name = "%s * %s"%(type_traits.get_array_element_type(name), length)
 
     return name
 
@@ -804,7 +831,8 @@ def make_member_lines(namespace, tags, obj, prefix="", py=False, meta=None):
             delim = "," if i < (len(obj['members'])-1) else ""
             prologue = "(\"%s\", %s)%s"%(name, tname, delim)
         else:
-            prologue = "%s %s;"%(tname, name)
+            array_suffix = f"[{type_traits.get_array_length(item['type'])}]" if type_traits.is_array(item['type']) else ""
+            prologue = "%s %s %s;"%(tname, name, array_suffix)
 
         comment_style = "##" if py else "///<"
         ws_count = 64 if py else 48
