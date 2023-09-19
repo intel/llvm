@@ -5271,7 +5271,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ///< events that must be complete before the host pipe write.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
-        phEvent ///< [out] returns an event object that identifies this write command
+        phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5308,8 +5308,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
     try {
         // convert platform handle to loader handle
-        *phEvent = reinterpret_cast<ur_event_handle_t>(
-            ur_event_factory.getInstance(*phEvent, dditable));
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                ur_event_factory.getInstance(*phEvent, dditable));
+        }
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
