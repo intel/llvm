@@ -176,111 +176,103 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+// Template helper function for creating USM pools for given pool descriptor.
+template <typename P, typename... Args>
+std::pair<ur_result_t, umf::pool_unique_handle_t>
+createUMFPoolForDesc(usm::pool_descriptor &Desc, Args &&...args) {
+  umf_result_t UmfRet = UMF_RESULT_SUCCESS;
+  umf::provider_unique_handle_t MemProvider = nullptr;
+
+  switch (Desc.type) {
+  case UR_USM_TYPE_HOST: {
+    std::tie(UmfRet, MemProvider) =
+        umf::memoryProviderMakeUnique<L0HostMemoryProvider>(Desc.hContext,
+                                                            Desc.hDevice);
+    break;
+  }
+  case UR_USM_TYPE_DEVICE: {
+    std::tie(UmfRet, MemProvider) =
+        umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(Desc.hContext,
+                                                              Desc.hDevice);
+    break;
+  }
+  case UR_USM_TYPE_SHARED: {
+    if (Desc.deviceReadOnly) {
+      std::tie(UmfRet, MemProvider) =
+          umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
+              Desc.hContext, Desc.hDevice);
+    } else {
+      std::tie(UmfRet, MemProvider) =
+          umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(Desc.hContext,
+                                                                Desc.hDevice);
+    }
+    break;
+  }
+  default:
+    assert(0 && "Invalid UR descriptor type!");
+  }
+
+  if (UmfRet)
+    return std::pair<ur_result_t, umf::pool_unique_handle_t>{
+        umf::umf2urResult(UmfRet), nullptr};
+
+  umf::pool_unique_handle_t Pool = nullptr;
+  std::tie(UmfRet, Pool) =
+      umf::poolMakeUnique<P, 1>({std::move(MemProvider)}, args...);
+
+  return std::pair<ur_result_t, umf::pool_unique_handle_t>{
+      umf::umf2urResult(UmfRet), std::move(Pool)};
+};
+
 ur_result_t ur_context_handle_t_::initialize() {
 
-  // Helper lambda to create various USM allocators for a device.
-  // Note that the CCS devices and their respective subdevices share a
-  // common ze_device_handle and therefore, also share USM allocators.
-  auto createUSMAllocators = [this](ur_device_handle_t Device) {
-    auto MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
-                           reinterpret_cast<ur_context_handle_t>(this), Device)
-                           .second;
-    DeviceMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
-                            {std::move(MemProvider)},
-                            DisjointPoolConfigInstance
-                                .Configs[usm::DisjointPoolMemType::Device])
-                            .second));
+  auto Context = reinterpret_cast<ur_context_handle_t>(this);
 
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
-                            {std::move(MemProvider)},
-                            DisjointPoolConfigInstance
-                                .Configs[usm::DisjointPoolMemType::Shared])
-                            .second));
+  ur_result_t Ret;
+  std::tie(Ret, PoolManager) =
+      usm::pool_manager<usm::pool_descriptor>::create();
+  if (Ret)
+    return Ret;
 
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedReadOnlyMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<usm::DisjointPool, 1>(
-                {std::move(MemProvider)},
-                DisjointPoolConfigInstance
-                    .Configs[usm::DisjointPoolMemType::SharedReadOnly])
-                .second));
+  std::vector<usm::pool_descriptor> Descs;
+  // Create pool descriptor for every device and subdevice
+  std::tie(Ret, Descs) = usm::pool_descriptor::create(nullptr, Context);
+  if (Ret)
+    return Ret;
 
-    MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    DeviceMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
-                .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
-                .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedReadOnlyMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
-                .second));
+  auto descTypeToDisjointPoolType =
+      [](usm::pool_descriptor &Desc) -> usm::DisjointPoolMemType {
+    switch (Desc.type) {
+    case UR_USM_TYPE_HOST:
+      return usm::DisjointPoolMemType::Host;
+    case UR_USM_TYPE_DEVICE:
+      return usm::DisjointPoolMemType::Host;
+    case UR_USM_TYPE_SHARED:
+      return (Desc.deviceReadOnly) ? usm::DisjointPoolMemType::SharedReadOnly
+                                   : usm::DisjointPoolMemType::Shared;
+    default:
+      assert(0 && "Invalid pool descriptor type!");
+    }
   };
 
-  // Recursive helper to call createUSMAllocators for all sub-devices
-  std::function<void(ur_device_handle_t)> createUSMAllocatorsRecursive;
-  createUSMAllocatorsRecursive =
-      [createUSMAllocators,
-       &createUSMAllocatorsRecursive](ur_device_handle_t Device) -> void {
-    createUSMAllocators(Device);
-    for (auto &SubDevice : Device->SubDevices)
-      createUSMAllocatorsRecursive(SubDevice);
-  };
+  // Create USM pool for each pool descriptor and add it to pool manager.
+  for (auto &Desc : Descs) {
+    umf::pool_unique_handle_t Pool = nullptr;
+    auto PoolType = descTypeToDisjointPoolType(Desc);
 
-  // Create USM pool for each pair (device, context).
-  //
-  for (auto &Device : Devices) {
-    createUSMAllocatorsRecursive(Device);
-  }
-  // Create USM pool for host. Device and Shared USM allocations
-  // are device-specific. Host allocations are not device-dependent therefore
-  // we don't need a map with device as key.
-  auto MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
-                         reinterpret_cast<ur_context_handle_t>(this), nullptr)
-                         .second;
-  HostMemPool =
-      umf::poolMakeUnique<usm::DisjointPool, 1>(
-          {std::move(MemProvider)},
-          DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
-          .second;
+    std::tie(Ret, Pool) = createUMFPoolForDesc<usm::DisjointPool>(
+        Desc, DisjointPoolConfigInstance.Configs[PoolType]);
+    if (Ret)
+      return Ret;
 
-  MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
-                    reinterpret_cast<ur_context_handle_t>(this), nullptr)
-                    .second;
-  HostMemProxyPool =
-      umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)}).second;
+    PoolManager.addPool(Desc, Pool);
 
-  // We may allocate memory to this root device so create allocators.
-  if (SingleRootDevice &&
-      DeviceMemPools.find(SingleRootDevice->ZeDevice) == DeviceMemPools.end()) {
-    createUSMAllocators(SingleRootDevice);
+    umf::pool_unique_handle_t ProxyPool = nullptr;
+    std::tie(Ret, ProxyPool) = createUMFPoolForDesc<USMProxyPool>(Desc);
+    if (Ret)
+      return Ret;
+
+    ProxyPoolManager.addPool(Desc, ProxyPool);
   }
 
   // Create the immediate command list to be used for initializations.

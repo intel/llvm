@@ -293,16 +293,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   // find the allocator depending on context as we do for Shared and Device
   // allocations.
   umf_memory_pool_handle_t hPoolInternal = nullptr;
+  usm::pool_descriptor Desc = {nullptr, Context, nullptr, UR_USM_TYPE_HOST,
+                               false};
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Align & (Align - 1)) != 0)) {
-    hPoolInternal = Context->HostMemProxyPool.get();
+    auto hPoolInternalOpt = Context->ProxyPoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   } else if (Pool) {
-    hPoolInternal = Pool->HostMemPool.get();
+    auto hPoolInternalOpt = Pool->PoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   } else {
-    hPoolInternal = Context->HostMemPool.get();
+    auto hPoolInternalOpt = Context->PoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   }
 
   *RetMem = umfPoolAlignedMalloc(hPoolInternal, Size, Align);
@@ -364,24 +369,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
+  usm::pool_descriptor Desc = {nullptr, Context, Device, UR_USM_TYPE_DEVICE,
+                               false};
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    auto It = Context->DeviceMemProxyPools.find(Device->ZeDevice);
-    if (It == Context->DeviceMemProxyPools.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
+    auto hPoolInternalOpt = Context->ProxyPoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   } else if (Pool) {
-    hPoolInternal = Pool->DeviceMemPools[Device].get();
+    auto hPoolInternalOpt = Pool->PoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   } else {
-    auto It = Context->DeviceMemPools.find(Device->ZeDevice);
-    if (It == Context->DeviceMemPools.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
+    auto hPoolInternalOpt = Context->PoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   }
 
   *RetMem = umfPoolAlignedMalloc(hPoolInternal, Size, Alignment);
@@ -464,30 +466,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
+  usm::pool_descriptor Desc = {nullptr, Context, Device, UR_USM_TYPE_SHARED,
+                               DeviceReadOnly};
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemProxyPools
-                                      : Context->SharedMemProxyPools);
-    auto It = Allocator.find(Device->ZeDevice);
-    if (It == Allocator.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
+    auto hPoolInternalOpt = Context->ProxyPoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   } else if (Pool) {
-    hPoolInternal = (DeviceReadOnly)
-                        ? Pool->SharedReadOnlyMemPools[Device].get()
-                        : Pool->SharedMemPools[Device].get();
+    auto hPoolInternalOpt = Pool->PoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   } else {
-    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemPools
-                                      : Context->SharedMemPools);
-    auto It = Allocator.find(Device->ZeDevice);
-    if (It == Allocator.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
+    auto hPoolInternalOpt = Context->PoolManager.getPool(Desc);
+    hPoolInternal = hPoolInternalOpt.value();
   }
 
   *RetMem = umfPoolAlignedMalloc(hPoolInternal, Size, Alignment);
@@ -751,50 +744,50 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     pNext = const_cast<void *>(BaseDesc->pNext);
   }
 
-  auto MemProvider =
-      umf::memoryProviderMakeUnique<L0HostMemoryProvider>(Context, nullptr)
-          .second;
+  ur_result_t Ret;
+  std::tie(Ret, PoolManager) =
+      usm::pool_manager<usm::pool_descriptor>::create();
+  if (Ret) {
+    urPrint("urUSMPoolCreate: unexpected internal error\n");
+    throw UsmAllocationException(Ret);
+  }
 
-  HostMemPool =
-      umf::poolMakeUnique<usm::DisjointPool, 1>(
-          {std::move(MemProvider)},
-          this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
-          .second;
+  std::vector<usm::pool_descriptor> Descs;
+  // Create pool descriptor for every device and subdevice
+  std::tie(Ret, Descs) = usm::pool_descriptor::create(nullptr, Context);
+  if (Ret) {
+    urPrint("urUSMPoolCreate: unexpected internal error\n");
+    throw UsmAllocationException(Ret);
+  }
 
-  for (auto device : Context->Devices) {
-    MemProvider =
-        umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(Context, device)
-            .second;
-    DeviceMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(device),
-        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
-                            {std::move(MemProvider)},
-                            this->DisjointPoolConfigs
-                                .Configs[usm::DisjointPoolMemType::Device])
-                            .second));
+  auto descTypeToDisjointPoolType =
+      [](usm::pool_descriptor &Desc) -> usm::DisjointPoolMemType {
+    switch (Desc.type) {
+    case UR_USM_TYPE_HOST:
+      return usm::DisjointPoolMemType::Host;
+    case UR_USM_TYPE_DEVICE:
+      return usm::DisjointPoolMemType::Host;
+    case UR_USM_TYPE_SHARED:
+      return (Desc.deviceReadOnly) ? usm::DisjointPoolMemType::SharedReadOnly
+                                   : usm::DisjointPoolMemType::Shared;
+    default:
+      assert(0 && "Invalid pool descriptor type!");
+    }
+  };
 
-    MemProvider =
-        umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(Context, device)
-            .second;
-    SharedMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(device),
-        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
-                            {std::move(MemProvider)},
-                            this->DisjointPoolConfigs
-                                .Configs[usm::DisjointPoolMemType::Shared])
-                            .second));
+  // Create USM pool for each pool descriptor and add it to pool manager.
+  for (auto &Desc : Descs) {
+    umf::pool_unique_handle_t Pool = nullptr;
+    auto PoolType = descTypeToDisjointPoolType(Desc);
 
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      Context, device)
-                      .second;
-    SharedReadOnlyMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(device),
-        std::make_tuple(
-            umf::poolMakeUnique<usm::DisjointPool, 1>(
-                {std::move(MemProvider)},
-                this->DisjointPoolConfigs
-                    .Configs[usm::DisjointPoolMemType::SharedReadOnly])
-                .second));
+    std::tie(Ret, Pool) = createUMFPoolForDesc<usm::DisjointPool>(
+        Desc, DisjointPoolConfigInstance.Configs[PoolType]);
+    if (Ret) {
+      urPrint("urUSMPoolCreate: unexpected internal error\n");
+      throw UsmAllocationException(Ret);
+    }
+
+    PoolManager.addPool(Desc, Pool);
   }
 }
 
