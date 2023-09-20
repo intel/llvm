@@ -1335,9 +1335,9 @@ def generate_builtins(builtins, namespace):
           scalar_result.append(generated_builtin)
   return (scalar_result, vector_result, marray_result)
 
-def generate_file(directory, file_name, extra_includes, generated_builtins):
+def generate_file(directory, file_name, includes, generated_builtins):
   """Generates a builtins header."""
-  instantiated_extra_includes = ('\n'.join([f'#include <{inc}>' for inc in extra_includes]))
+  instantiated_includes = ('\n'.join([f'#include <{inc}>' for inc in includes]))
 
   if file_name == 'builtins_scalar_gen.hpp':
       include = 'sycl/builtins_utils_scalar.hpp'
@@ -1358,9 +1358,7 @@ def generate_file(directory, file_name, extra_includes, generated_builtins):
 
 #pragma once
 
-#include <{include}>
-
-{instantiated_extra_includes}
+{instantiated_includes}
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -1400,6 +1398,6 @@ if __name__ == "__main__":
   # Write the builtins to new header files, separated by whether or not they
   # are scalar, vector or marray builtins.
   file_path = sys.argv[1]
-  generate_file(file_path, "builtins_scalar_gen.hpp", [], scalar_builtins)
-  generate_file(file_path, "builtins_vector_gen.hpp", [], vector_builtins)
+  generate_file(file_path, "builtins_scalar_gen.hpp", ["sycl/builtins_utils_scalar.hpp"], scalar_builtins)
+  generate_file(file_path, "builtins_vector_gen.hpp", ["sycl/builtins_utils_vec.hpp"], vector_builtins)
   generate_file(file_path, "builtins_marray_gen.hpp", ["sycl/builtins_scalar_gen.hpp", "sycl/builtins_vector_gen.hpp"], marray_builtins)
