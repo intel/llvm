@@ -73,7 +73,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
@@ -91,16 +91,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
-    ur_exp_command_buffer_handle_t, void *, const void *, size_t, size_t,
-    uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
@@ -121,7 +112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hSrcMem,
     ur_mem_handle_t hDstMem, ur_rect_offset_t srcOrigin,
     ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
@@ -149,7 +140,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     size_t offset, size_t size, const void *pSrc,
     uint32_t numSyncPointsInWaitList,
@@ -170,7 +161,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
@@ -190,7 +181,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
     ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
@@ -218,7 +209,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     ur_rect_offset_t bufferOffset, ur_rect_offset_t hostOffset,
     ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
@@ -256,15 +247,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   (void)phEventWaitList;
   (void)phEvent;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
-    ur_exp_command_buffer_handle_t, ur_mem_handle_t, const void *, size_t,
-    size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for CUDA adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
