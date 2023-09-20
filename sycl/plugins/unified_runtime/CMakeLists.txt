@@ -293,7 +293,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     LIBRARIES
       UnifiedRuntime-Headers
       Threads::Threads
-      sycl
       OpenCL-Headers
   )
 

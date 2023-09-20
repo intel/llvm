@@ -6,24 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include "cg_types.hpp"
-#include <CL/__spirv/spirv_vars.hpp>
 #include <functional>
-#include <memory>
-#include <vector>
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-
-struct NativeCPUArgDesc {
-  void *MPtr;
-
-  NativeCPUArgDesc(void *Ptr) : MPtr(Ptr){};
-};
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
 
 struct __nativecpu_state {
   alignas(16) size_t MGlobal_id[3];
