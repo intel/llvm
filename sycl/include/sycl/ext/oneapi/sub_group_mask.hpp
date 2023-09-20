@@ -42,14 +42,6 @@ namespace ext::oneapi {
 // forward decalre sycl::ext::oneapi::sub_group
 struct sub_group;
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__AMDGCN__) &&                    \
-        (__AMDGCN_WAVEFRONT_SIZE == 64) ||                                     \
-    !defined(__SYCL_DEVICE_ONLY__)
-#define BITS_TYPE uint64_t
-#else
-#define BITS_TYPE uint32_t
-#endif
-
 // defining `group_ballot` here to make predicate default `true`
 // need to forward declare sub_group_mask first
 struct sub_group_mask;
@@ -61,7 +53,7 @@ group_ballot(Group g, bool predicate = true);
 
 struct sub_group_mask {
   friend class sycl::detail::Builder;
-  using BitsType = BITS_TYPE;
+  using BitsType = uint64_t;
 
   static constexpr size_t max_bits =
       sizeof(BitsType) * CHAR_BIT /* implementation-defined */;
@@ -353,9 +345,9 @@ group_ballot(Group g, bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
       sycl::detail::spirv::group_scope<Group>::value, predicate);
-  BITS_TYPE val = res[0];
-  if constexpr (sizeof(BITS_TYPE) == 8)
-    val |= ((BITS_TYPE)res[1]) << 32;
+  BitsType val = res[0];
+  if constexpr (sizeof(BitsType) == 8)
+    val |= ((BitsType)res[1]) << 32;
   return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
       val, g.get_max_local_range()[0]);
 #else
@@ -364,8 +356,6 @@ group_ballot(Group g, bool predicate) {
                   "Sub-group mask is not supported on host device"};
 #endif
 }
-
-#undef BITS_TYPE
 
 } // namespace ext::oneapi
 } // namespace _V1
