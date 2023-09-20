@@ -821,6 +821,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_bool{false});
   case PI_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(pi_bool{false});
+  case PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT:
+    return ReturnValue(pi_bool{true});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
