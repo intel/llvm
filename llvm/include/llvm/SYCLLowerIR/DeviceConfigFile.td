@@ -111,8 +111,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
     AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_memory_export,
     AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_interop_semaphore_export,
-    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_non_uniform_groups],
-    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_intel_esimd],
+    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_intel_esimd, AspectExt_oneapi_non_uniform_groups],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.

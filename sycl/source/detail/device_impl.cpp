@@ -553,6 +553,7 @@ bool device_impl::has(aspect Aspect) const {
             MDevice, PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT, sizeof(pi_bool),
             &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
+  }
   case aspect::ext_oneapi_non_uniform_groups: {
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl) ||
