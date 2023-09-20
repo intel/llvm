@@ -8321,8 +8321,22 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     FrontendInputs = {};
 
   for (const InputInfo &Input : FrontendInputs) {
-    if (Input.isFilename())
-      CmdArgs.push_back(Input.getFilename());
+    if (Input.isFilename()) {
+      if (IsSYCL && !IsSYCLOffloadDevice) {
+        StringRef Footer(
+            C.getDriver().getIntegrationFooter(Input.getBaseInput()));
+        // Add the footer mtoguchi
+        if (!Footer.empty()) {
+          CmdArgs.push_back("-include");
+          CmdArgs.push_back(Input.getFilename());
+          CmdArgs.push_back(Args.MakeArgString(Footer));
+        } else {
+          CmdArgs.push_back(Input.getFilename());
+        }
+      } else {
+        CmdArgs.push_back(Input.getFilename());
+      }
+    }
     else
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }

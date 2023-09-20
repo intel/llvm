@@ -7821,23 +7821,6 @@ Action *Driver::ConstructPhaseAction(
              "Cannot preprocess this input type!");
     }
     types::ID HostPPType = types::getPreprocessedType(Input->getType());
-    if (Args.hasArg(options::OPT_fsycl) && HostPPType != types::TY_INVALID &&
-        !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-        TargetDeviceOffloadKind == Action::OFK_None &&
-        Input->getType() != types::TY_CUDA_DEVICE) {
-      // Performing a host compilation with -fsycl.  Append the integration
-      // footer to the source file.
-      auto *AppendFooter =
-          C.MakeAction<AppendFooterJobAction>(Input, Input->getType());
-      // FIXME: There are 2 issues with dependency generation in regards to
-      // the integration footer that need to be addressed.
-      // 1) Input file referenced on the RHS of a dependency is based on the
-      //    input src, which is a temporary.  We want this to be the true
-      //    user input src file.
-      // 2) When generating dependencies against a preprocessed file, header
-      //    file information (using -MD or-MMD) is not provided.
-      return C.MakeAction<PreprocessJobAction>(AppendFooter, OutputTy);
-    }
     return C.MakeAction<PreprocessJobAction>(Input, OutputTy);
   }
   case phases::Precompile: {
