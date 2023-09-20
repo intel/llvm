@@ -77,7 +77,11 @@ int main() {
   for (size_t i = 0; i < dataSize; ++i) {
     assert(out[i] == (40 * i * i) && "Computation error");
   }
-
+  sycl::free(in1, q1);
+  sycl::free(in2, q1);
+  sycl::free(in3, q1);
+  sycl::free(tmp, q1);
+  sycl::free(out, q1);
   return 0;
 }
 
