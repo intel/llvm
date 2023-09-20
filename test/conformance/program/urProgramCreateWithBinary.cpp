@@ -10,11 +10,14 @@ struct urProgramCreateWithBinaryTest : uur::urProgramTest {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
         size_t binary_size = 0;
-        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARIES, 0,
-                                        nullptr, &binary_size));
+        ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
+                                        sizeof(binary_size), &binary_size,
+                                        nullptr));
         binary.resize(binary_size);
+        uint8_t *binary_ptr = binary.data();
         ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARIES,
-                                        binary_size, binary.data(), nullptr));
+                                        sizeof(binary_ptr), &binary_ptr,
+                                        nullptr));
     }
 
     void TearDown() override {
