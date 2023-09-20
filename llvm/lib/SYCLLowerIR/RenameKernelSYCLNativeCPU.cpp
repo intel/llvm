@@ -17,7 +17,7 @@
 
 using namespace llvm;
 
-bool isSpirvSyclBuiltin(StringRef FName) {
+static bool isSpirvSyclBuiltin(StringRef FName) {
   if (!FName.consume_front("_Z"))
     return false;
   // now skip the digits
