@@ -43,12 +43,12 @@ declare <4x float> @llvm.fma.v4f32(<4 x float>, <4 x float>, <4 x float>)
 
 ; It checks that the fma intrinsic of <4 x float> gets widened by a factor of 8,
 ; to produce a PAIR of <16 x float>s.
-; CHECK: %[[LDA0:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDA1:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDB0:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDB1:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDC0:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDC1:.+]] = load <16 x float>, ptr %{{.+}}, align 4
+; CHECK: %[[LDA0:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDA1:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDB0:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDB1:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDC0:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDC1:.+]] = load <16 x float>, ptr %{{.+}}, align 16
 ; CHECK: %[[FMA0:.+]] = call <16 x float> @llvm.fma.v16f32(<16 x float> %[[LDA0]], <16 x float> %[[LDB0]], <16 x float> %[[LDC0]])
 ; CHECK: %[[FMA1:.+]] = call <16 x float> @llvm.fma.v16f32(<16 x float> %[[LDA1]], <16 x float> %[[LDB1]], <16 x float> %[[LDC1]])
 ; CHECK: store <16 x float> %[[FMA0]], ptr %{{.+}}, align 16

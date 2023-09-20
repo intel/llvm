@@ -62,7 +62,7 @@ entry:
 ; CHECK: %idx = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %a = getelementptr <2 x i32>, ptr %pa, i64 %idx
 ; CHECK: %b = getelementptr <2 x i32>, ptr %pb, i64 %idx
-; CHECK: %[[T0:.*]] = load <8 x i32>, ptr %a, align 4
+; CHECK: %[[T0:.*]] = load <8 x i32>, ptr %a, align 8
 ; CHECK: %[[RES2:.+]] = call <8 x i32> @llvm.abs.v8i32(<8 x i32> %[[T0]], i1 true)
 ; CHECK: store <8 x i32> %[[RES2]], ptr %b, align 8
 ; CHECK: ret void

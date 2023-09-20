@@ -2158,8 +2158,8 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
             ptr = B.CreateInBoundsGEP(dataTy, ptr, packetStride,
                                       Twine(name, ".incr"));
           }
-          results.push_back(
-              VTI.createLoad(B, getWideType(dataTy, factor), ptr, one, EVL));
+          results.push_back(VTI.createLoad(B, getWideType(dataTy, factor), ptr,
+                                           one, alignment, EVL));
         }
       } else {
         auto *const one = B.getInt64(1);

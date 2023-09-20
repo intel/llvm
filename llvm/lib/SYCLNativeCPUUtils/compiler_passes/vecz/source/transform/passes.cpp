@@ -123,6 +123,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
         Value *Data = MaskedOp->getDataOperand();
         Value *Ptr = MaskedOp->getPointerOperand();
         Type *DataTy = MaskedOp->getDataType();
+        auto Alignment = BuiltinDesc->getAlignment();
         if (MaskedOp->isLoad()) {
           Value *Load = nullptr;
           if (DataTy->isVectorTy()) {
@@ -133,11 +134,13 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
             if (isa<ScalableVectorType>(DataTy)) {
               continue;
             }
-            Load = VTI.createLoad(B, CI->getType(), Ptr, B.getInt64(1));
+            Load =
+                VTI.createLoad(B, CI->getType(), Ptr, B.getInt64(1), Alignment);
           } else {
-            Load = B.CreateLoad(CI->getType(), Ptr, /*isVolatile*/ false,
-                                CI->getName());
+            Load = B.CreateAlignedLoad(CI->getType(), Ptr, Align(Alignment),
+                                       /*isVolatile*/ false, CI->getName());
           }
+          Load->takeName(CI);
           CI->replaceAllUsesWith(Load);
         } else {
           if (DataTy->isVectorTy()) {
@@ -151,7 +154,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
             VTI.createStore(B, Data, Ptr, B.getInt64(1),
                             BuiltinDesc->getAlignment());
           } else {
-            B.CreateStore(Data, Ptr);
+            B.CreateAlignedStore(Data, Ptr, Align(Alignment));
           }
         }
         ToDelete.push_back(CI);

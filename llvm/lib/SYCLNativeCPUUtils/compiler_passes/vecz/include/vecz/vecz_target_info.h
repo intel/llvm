@@ -79,6 +79,7 @@ class TargetInfo {
   /// @param[in] ptr Memory address to load a vector value from.
   /// @param[in] stride Distance in elements between two lanes in memory.
   ///                     A stride of one represents a contiguous load.
+  /// @param[in] alignment The alignment of the load, in bytes
   /// @param[in] evl 'effective vector length' of the operation. Must be
   /// pre-scaled for vector operations. If null, the operation is unpredicated:
   /// it is executed on all lanes.
@@ -86,6 +87,7 @@ class TargetInfo {
   /// @return IR value that results from the vector load.
   virtual llvm::Value *createLoad(llvm::IRBuilder<> &builder, llvm::Type *ty,
                                   llvm::Value *ptr, llvm::Value *stride,
+                                  unsigned alignment,
                                   llvm::Value *evl = nullptr) const;
 
   /// @brief Create a vector store. If a stride greater than one is used, the

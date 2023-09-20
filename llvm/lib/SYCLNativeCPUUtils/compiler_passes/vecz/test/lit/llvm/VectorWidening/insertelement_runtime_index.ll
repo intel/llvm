@@ -38,7 +38,7 @@ entry:
 
 ; CHECK: define spir_kernel void @__vecz_v4_runtime_index
 
-; CHECK: %[[INTO:.+]]  = load <16 x i32>, ptr %arrayidx, align 4
+; CHECK: %[[INTO:.+]]  = load <16 x i32>, ptr %arrayidx, align 16
 ; CHECK: %[[LD:.+]] = load <4 x i32>, ptr
 ; CHECK: %[[ADD:.+]] = add <4 x i32> %[[LD]], <i32 0, i32 4, i32 8, i32 12>
 

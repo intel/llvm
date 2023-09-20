@@ -41,10 +41,10 @@ entry:
 
 ; It checks that the zexts and add of <4 x i32> gets widened by a factor of 8,
 ; to produce PAIRs of <16 x i32>s.
-; CHECK: %[[LDA0:.+]] = load <16 x i32>, ptr %{{.+}}, align 4
-; CHECK: %[[LDA1:.+]] = load <16 x i32>, ptr %{{.+}}, align 4
-; CHECK: %[[LDB0:.+]] = load <16 x i32>, ptr %{{.+}}, align 4
-; CHECK: %[[LDB1:.+]] = load <16 x i32>, ptr %{{.+}}, align 4
+; CHECK: %[[LDA0:.+]] = load <16 x i32>, ptr %{{.+}}, align 16
+; CHECK: %[[LDA1:.+]] = load <16 x i32>, ptr %{{.+}}, align 16
+; CHECK: %[[LDB0:.+]] = load <16 x i32>, ptr %{{.+}}, align 16
+; CHECK: %[[LDB1:.+]] = load <16 x i32>, ptr %{{.+}}, align 16
 ; CHECK: %[[XA0:.+]] = zext <16 x i32> %[[LDA0]] to <16 x i64>
 ; CHECK: %[[XA1:.+]] = zext <16 x i32> %[[LDA1]] to <16 x i64>
 ; CHECK: %[[XB0:.+]] = zext <16 x i32> %[[LDB0]] to <16 x i64>

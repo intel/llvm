@@ -53,12 +53,12 @@ declare <4x float> @llvm.fmuladd.v4f32(<4 x float>, <4 x float>, <4 x float>)
 
 ; It checks that the fmuladd intrinsic of <4 x float> gets widened by a factor of 8,
 ; to produce a PAIR of <16 x float>s.
-; CHECK: %[[LDA0:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDA1:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDB0:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDB1:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDC0:.+]] = load <16 x float>, ptr %{{.+}}, align 4
-; CHECK: %[[LDC1:.+]] = load <16 x float>, ptr %{{.+}}, align 4
+; CHECK: %[[LDA0:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDA1:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDB0:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDB1:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDC0:.+]] = load <16 x float>, ptr %{{.+}}, align 16
+; CHECK: %[[LDC1:.+]] = load <16 x float>, ptr %{{.+}}, align 16
 
 ; CHECK: loop:
 ; CHECK: %[[ACC0:.+]] = phi <16 x float> [ %[[FMA0:.+]], %loop ], [ %[[LDA0]], %entry ]

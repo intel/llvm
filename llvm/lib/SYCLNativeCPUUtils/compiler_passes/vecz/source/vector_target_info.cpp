@@ -73,7 +73,8 @@ bool isLegalMaskedScatter(const TargetTransformInfo &TTI, Type *Ty,
 TargetInfo::TargetInfo(TargetMachine *tm) : TM_(tm) {}
 
 Value *TargetInfo::createLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
-                              Value *Stride, Value *EVL) const {
+                              Value *Stride, unsigned Alignment,
+                              Value *EVL) const {
   if (!Ptr || !Stride || !Ty->isVectorTy()) {
     return nullptr;
   }
@@ -90,10 +91,9 @@ Value *TargetInfo::createLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   PointerType *VecPtrTy = Ty->getPointerTo(PtrTy->getAddressSpace());
   Value *VecPtr = B.CreateBitCast(Ptr, VecPtrTy);
   if (CIntStride && CIntStride->getSExtValue() == 1) {
-    unsigned Align = EleTy->getScalarSizeInBits() / 8;
     if (EVL) {
       const Function *F = B.GetInsertBlock()->getParent();
-      auto const Legality = isVPLoadLegal(F, Ty, Align);
+      auto const Legality = isVPLoadLegal(F, Ty, Alignment);
       if (!Legality.isVPLegal()) {
         emitVeczRemarkMissed(F,
                              "Could not create a VP load as the target "
@@ -106,7 +106,7 @@ Value *TargetInfo::createLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
       SmallVector<llvm::Type *, 2> Tys = {Ty, VecPtr->getType()};
       return B.CreateIntrinsic(llvm::Intrinsic::vp_load, Tys, Args);
     }
-    return B.CreateAlignedLoad(Ty, VecPtr, MaybeAlign(Align));
+    return B.CreateAlignedLoad(Ty, VecPtr, MaybeAlign(Alignment));
   }
 
   if (EVL) {
@@ -1112,7 +1112,7 @@ bool TargetInfo::optimizeInterleavedGroup(IRBuilder<> &B,
       }
       Value *Load = nullptr;
       if (!HasMask) {
-        Load = createLoad(B, VecTy, AddressN, getSizeInt(B, 1));
+        Load = createLoad(B, VecTy, AddressN, getSizeInt(B, 1), Align);
       } else {
         Value *Mask = VecMasks[i];
         Load =
