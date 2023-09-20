@@ -31,7 +31,8 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true),
+      MOwnNativeHanle(OwnNativeHandle) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -81,7 +82,8 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true),
+      MOwnNativeHandle(OwnNativeHandle) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -222,9 +224,12 @@ void SYCLMemObjT::detachMemoryObject(
   // For L0 context could be created with two ownership strategies - keep and
   // transfer. If user keeps ownership - we could not enable deferred buffer
   // release due to resource release conflict.
-  bool ContextOwnedByRuntime =
-      !MInteropContext || MInteropContext->isOwnedByRuntime();
-  if (MRecord && ContextOwnedByRuntime && (!MHostPtrProvided || MIsInternal))
+  bool InteropObjectsUsed =
+      !MOwnNativeHandle ||
+      (MInteropContext && !MInteropContext->isOwnedByRuntime());
+
+  if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
+      !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal))
     Scheduler::getInstance().deferMemObjRelease(Self);
 }
 

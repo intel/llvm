@@ -1,4 +1,4 @@
-//==- BufferDestructionCheck.cpp --- check delayed destruction of buffer --==//
+//==- BufferReleaseBase.cpp --- check delayed destruction of buffer --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,60 +21,10 @@
 #include <gmock/gmock.h>
 
 #include "../scheduler/SchedulerTestUtils.hpp"
+#include "BufferReleaseBase.hpp"
 
-class MockCmdWithReleaseTracking : public MockCommand {
-public:
-  MockCmdWithReleaseTracking(
-      sycl::detail::QueueImplPtr Queue, sycl::detail::Requirement Req,
-      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Req, Type){};
-  MockCmdWithReleaseTracking(
-      sycl::detail::QueueImplPtr Queue,
-      sycl::detail::Command::CommandType Type = sycl::detail::Command::RUN_CG)
-      : MockCommand(Queue, Type){};
-  ~MockCmdWithReleaseTracking() { Release(); }
-  MOCK_METHOD0(Release, void());
-};
-
-class BufferDestructionCheck : public ::testing::Test {
-public:
-  BufferDestructionCheck() : Mock{}, Plt{Mock.getPlatform()} {}
-
-protected:
-  void SetUp() override {
-    if (Plt.is_host()) {
-      std::cout << "Not run due to host-only environment\n";
-      GTEST_SKIP();
-    }
-    MockSchedulerPtr = new MockScheduler();
-    sycl::detail::GlobalHandler::instance().attachScheduler(
-        dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
-  }
-  void TearDown() override {
-    sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
-  }
-
-  template <typename Buffer>
-  MockCmdWithReleaseTracking *addCommandToBuffer(Buffer &Buf, sycl::queue &Q) {
-    sycl::detail::Requirement MockReq = getMockRequirement(Buf);
-    std::vector<sycl::detail::Command *> AuxCmds;
-    sycl::detail::MemObjRecord *Rec = MockSchedulerPtr->getOrInsertMemObjRecord(
-        sycl::detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
-    MockCmdWithReleaseTracking *MockCmd = new MockCmdWithReleaseTracking(
-        sycl::detail::getSyclObjImpl(Q), MockReq);
-    std::vector<sycl::detail::Command *> ToEnqueue;
-    MockSchedulerPtr->addNodeToLeaves(Rec, MockCmd, sycl::access::mode::write,
-                                      ToEnqueue);
-    // we do not want to enqueue commands, just keep not enqueued and not
-    // completed, otherwise check is not possible
-    return MockCmd;
-  }
-
-protected:
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt;
-  MockScheduler *MockSchedulerPtr;
-};
+class BufferDestructionCheck
+    : public BufferDestructionCheckCommon<sycl::backend::opencl> {};
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   sycl::context Context{Plt};
@@ -151,6 +101,46 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
+}
+
+pi_device GlobalDeviceHandle(createDummyHandle<pi_device>());
+
+inline pi_result customMockDevicesGet(pi_platform platform,
+                                      pi_device_type device_type,
+                                      pi_uint32 num_entries, pi_device *devices,
+                                      pi_uint32 *num_devices) {
+  if (num_devices)
+    *num_devices = 1;
+
+  if (devices && num_entries > 0)
+    devices[0] = GlobalDeviceHandle;
+
+  return PI_SUCCESS;
+}
+
+inline pi_result customMockContextGetInfo(pi_context context,
+                                          pi_context_info param_name,
+                                          size_t param_value_size,
+                                          void *param_value,
+                                          size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_CONTEXT_INFO_NUM_DEVICES: {
+    if (param_value)
+      *static_cast<pi_uint32 *>(param_value) = 1;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_uint32);
+    return PI_SUCCESS;
+  }
+  case PI_CONTEXT_INFO_DEVICES: {
+    if (param_value)
+      *static_cast<pi_device *>(param_value) = GlobalDeviceHandle;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(GlobalDeviceHandle);
+    break;
+  }
+  default:;
+  }
+  return PI_SUCCESS;
 }
 
 TEST_F(BufferDestructionCheck, BufferWithRawHostPtr) {
