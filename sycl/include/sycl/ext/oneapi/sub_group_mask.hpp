@@ -345,9 +345,9 @@ group_ballot(Group g, bool predicate) {
 #ifdef __SYCL_DEVICE_ONLY__
   auto res = __spirv_GroupNonUniformBallot(
       sycl::detail::spirv::group_scope<Group>::value, predicate);
-  BitsType val = res[0];
-  if constexpr (sizeof(BitsType) == 8)
-    val |= ((BitsType)res[1]) << 32;
+  sub_group_mask::BitsType val = res[0];
+  if constexpr (sizeof(sub_group_mask::BitsType) == 8)
+    val |= ((sub_group_mask::BitsType)res[1]) << 32;
   return sycl::detail::Builder::createSubGroupMask<sub_group_mask>(
       val, g.get_max_local_range()[0]);
 #else
