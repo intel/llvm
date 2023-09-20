@@ -327,10 +327,10 @@ elementtype0 = [ElementType(0)]
 unsignedtype0 = [ConversionTraitType("make_unsigned_t", 0)]
 samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
 samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
-samesizefloat0 = [ConversionTraitType("same_size_float_t", 0)]
 intelements0 = [ConversionTraitType("int_elements_t", 0)]
 boolelements0 = [ConversionTraitType("bool_elements_t", 0)]
 upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
+nanreturn0 = [ConversionTraitType("nan_return_unswizzled_t", 0)]
 
 # Map of builtin type group names and the associated types.
 builtin_types = {
@@ -403,10 +403,10 @@ builtin_types = {
   "unsignedtype0" : unsignedtype0,
   "samesizesignedint0" : samesizesignedint0,
   "samesizeunsignedint0" : samesizeunsignedint0,
-  "samesizefloat0" : samesizefloat0,
   "intelements0" : intelements0,
   "upsampledint0" : upsampledint0,
   "boolelements0" : boolelements0,
+  "nanreturn0" : nanreturn0,
   "char" : ["char"],
   "signed char" : ["signed char"],
   "short" : ["short"],
@@ -734,6 +734,14 @@ def custom_fast_math_sincos_invoke(return_type, _, arg_names):
   return f"""    *{arg_names[1]} = __sycl_std::__invoke_native_cos<{return_type}>({arg_names[0]});
     return __sycl_std::__invoke_native_sin<{return_type}>({arg_names[0]});"""
 
+def custom_nan_invoke(return_type, arg_types, arg_names):
+  """
+  Generates the custom body for the `nan` function.
+  """
+  return f"""  using unswizzled_arg_t = detail::simplify_if_swizzle_t<{arg_types[0]}>;
+  return __sycl_std::__invoke_nan<{return_type}>(
+    detail::convert_data_type<unswizzled_arg_t, detail::nan_argument_base_t<unswizzled_arg_t>>()({arg_names[0]}));"""
+
 # List of all builtins definitions in the sycl namespace.
 sycl_builtins = {# Math functions
                  "acos": [Def("genfloat", ["genfloat"])],
@@ -814,16 +822,16 @@ sycl_builtins = {# Math functions
                           Def("float", ["float", "floatptr"]),
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
-                 "nan": [Def("samesizefloat0", ["vuint32n"]),
-                         Def("samesizefloat0", ["muintn"], marray_use_loop=True),
-                         Def("samesizefloat0", ["unsigned int"]),
-                         Def("samesizefloat0", ["vuint64n"]),
-                         Def("samesizefloat0", ["mulongn"], marray_use_loop=True),
-                         Def("samesizefloat0", ["unsigned long"]),
-                         Def("samesizefloat0", ["unsigned long long"]),
-                         Def("samesizefloat0", ["vuint16n"]),
-                         Def("samesizefloat0", ["mushortn"], marray_use_loop=True),
-                         Def("samesizefloat0", ["unsigned short"])],
+                 "nan": [Def("nanreturn0", ["vuint32n"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["muintn"], marray_use_loop=True),
+                         Def("nanreturn0", ["unsigned int"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["vuint64n"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["mulongn"], marray_use_loop=True),
+                         Def("nanreturn0", ["unsigned long"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["unsigned long long"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["vuint16n"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["mushortn"], marray_use_loop=True),
+                         Def("nanreturn0", ["unsigned short"], custom_invoke=custom_nan_invoke)],
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
@@ -928,7 +936,7 @@ sycl_builtins = {# Math functions
                  "(min)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmin_common", template_scalar_args=True),
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmin_common", convert_args=[(1,0)]),
-                           Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
+                           Def("vhalfn", ["vhalfn", "half"], invoke_name="fmin_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
                            Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min", marray_use_loop=True),
                            Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min", marray_use_loop=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_min"),

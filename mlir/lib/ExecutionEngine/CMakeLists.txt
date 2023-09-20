@@ -147,15 +147,8 @@ if(LLVM_ENABLE_PIC)
     MLIRSparseTensorEnums
     MLIRSparseTensorRuntime
     )
-  set_property(TARGET mlir_c_runner_utils PROPERTY CXX_VISIBILITY_PRESET hidden)
   set_property(TARGET mlir_c_runner_utils PROPERTY CXX_STANDARD 17)
   target_compile_definitions(mlir_c_runner_utils PRIVATE mlir_c_runner_utils_EXPORTS)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # Don't export symbols from link-time dependencies, these are internal
-    # implementation details.
-    # FIXME: Add a similar fix for Windows.
-    target_link_options(mlir_c_runner_utils PRIVATE "-Wl,-exclude-libs,ALL")
-  endif()
 
   add_mlir_library(mlir_runner_utils
     SHARED
@@ -163,14 +156,7 @@ if(LLVM_ENABLE_PIC)
 
     EXCLUDE_FROM_LIBMLIR
   )
-  set_property(TARGET mlir_runner_utils PROPERTY CXX_VISIBILITY_PRESET hidden)
   target_compile_definitions(mlir_runner_utils PRIVATE mlir_runner_utils_EXPORTS)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    # Don't export symbols from link-time dependencies, these are internal
-    # implementation details.
-    # FIXME: Add a similar fix for Windows.
-    target_link_options(mlir_runner_utils PRIVATE "-Wl,-exclude-libs,ALL")
-  endif()
 
   add_mlir_library(mlir_async_runtime
     SHARED
@@ -276,11 +262,15 @@ if(LLVM_ENABLE_PIC)
     set(CMAKE_PREFIX_PATH "${REAL_CMAKE_PREFIX_PATH}")
 
     if (NOT DEFINED ROCM_TEST_CHIPSET)
-      execute_process(COMMAND "${ROCM_PATH}/bin/rocm_agent_enumerator"
-      OUTPUT_VARIABLE AGENTS_STRING
-      ERROR_VARIABLE AGENTS_STRING
-      RESULT_VARIABLE AGENT_ENUMERATOR_RESULT)
-
+      find_program(ROCM_AGENT_ENUMERATOR rocm_agent_enumerator "${ROCM_PATH}/bin" /usr/bin /usr/local/bin)
+      if(ROCM_AGENT_ENUMERATOR)
+          execute_process(COMMAND "${ROCM_AGENT_ENUMERATOR}"
+          OUTPUT_VARIABLE AGENTS_STRING
+          ERROR_VARIABLE AGENTS_STRING
+          RESULT_VARIABLE AGENT_ENUMERATOR_RESULT)
+      else()
+        message(SEND_ERROR "Could not find rocm_agent_enumerator")
+      endif()
       if (NOT AGENT_ENUMERATOR_RESULT EQUAL 0)
         message(SEND_ERROR "Could not run rocm_agent_enumerator and ROCM_TEST_CHIPSET is not defined")
         set(AGENTS_STRING "")

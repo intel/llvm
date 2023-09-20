@@ -1,10 +1,10 @@
-//===--------- queue.cpp - CUDA Adapter ------------------------------===//
+//===--------- queue.cpp - CUDA Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "queue.hpp"
 #include "common.hpp"
@@ -242,7 +242,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
-  (void)pProperties;
   (void)hDevice;
 
   unsigned int CuFlags;
@@ -263,13 +262,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
   // Create queue and set num_compute_streams to 1, as computeCuStreams has
   // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
-                                    std::move(TransferCuStreams),
-                                    hContext,
-                                    hContext->getDevice(),
-                                    CuFlags,
-                                    Flags,
-                                    /*backend_owns*/ false};
+  *phQueue =
+      new ur_queue_handle_t_{std::move(ComputeCuStreams),
+                             std::move(TransferCuStreams),
+                             hContext,
+                             hContext->getDevice(),
+                             CuFlags,
+                             Flags,
+                             /*backend_owns*/ pProperties->isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
   return Return;
@@ -311,9 +311,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
   }
-  default:
+  case UR_QUEUE_INFO_DEVICE_DEFAULT:
+  case UR_QUEUE_INFO_SIZE:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }

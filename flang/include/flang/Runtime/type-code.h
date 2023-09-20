@@ -10,7 +10,7 @@
 #define FORTRAN_RUNTIME_TYPE_CODE_H_
 
 #include "flang/Common/Fortran.h"
-#include "flang/ISO_Fortran_binding.h"
+#include "flang/ISO_Fortran_binding_wrapper.h"
 #include <optional>
 #include <utility>
 
@@ -21,10 +21,10 @@ using common::TypeCategory;
 class TypeCode {
 public:
   TypeCode() {}
-  explicit TypeCode(ISO::CFI_type_t t) : raw_{t} {}
-  TypeCode(TypeCategory, int kind);
+  explicit RT_API_ATTRS TypeCode(ISO::CFI_type_t t) : raw_{t} {}
+  RT_API_ATTRS TypeCode(TypeCategory, int kind);
 
-  int raw() const { return raw_; }
+  RT_API_ATTRS int raw() const { return raw_; }
 
   constexpr bool IsValid() const {
     return raw_ >= CFI_type_signed_char && raw_ <= CFI_TYPE_LAST;
@@ -50,10 +50,22 @@ public:
   constexpr bool IsDerived() const { return raw_ == CFI_type_struct; }
   constexpr bool IsIntrinsic() const { return IsValid() && !IsDerived(); }
 
-  std::optional<std::pair<TypeCategory, int>> GetCategoryAndKind() const;
+  RT_API_ATTRS std::optional<std::pair<TypeCategory, int>>
+  GetCategoryAndKind() const;
 
-  bool operator==(const TypeCode &that) const { return raw_ == that.raw_; }
-  bool operator!=(const TypeCode &that) const { return raw_ != that.raw_; }
+  RT_API_ATTRS bool operator==(TypeCode that) const {
+    if (raw_ == that.raw_) { // fast path
+      return true;
+    } else {
+      // Multiple raw CFI_type_... codes can represent the same Fortran
+      // type category + kind type parameter, e.g. CFI_type_int and
+      // CFI_type_int32_t.
+      auto thisCK{GetCategoryAndKind()};
+      auto thatCK{that.GetCategoryAndKind()};
+      return thisCK && thatCK && *thisCK == *thatCK;
+    }
+  }
+  bool operator!=(TypeCode that) const { return !(*this == that); }
 
 private:
   ISO::CFI_type_t raw_{CFI_type_other};

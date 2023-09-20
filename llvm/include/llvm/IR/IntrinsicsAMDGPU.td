@@ -362,12 +362,6 @@ def int_amdgcn_rsq_legacy :  ClangBuiltin<"__builtin_amdgcn_rsq_legacy">,
 def int_amdgcn_rsq_clamp : DefaultAttrsIntrinsic<
   [llvm_anyfloat_ty], [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable]>;
 
-// For int_amdgcn_ldexp_f16, only the low 16 bits of the i32 src1 operand will used.
-def int_amdgcn_ldexp : DefaultAttrsIntrinsic<
-  [llvm_anyfloat_ty], [LLVMMatchType<0>, llvm_i32_ty],
-  [IntrNoMem, IntrSpeculatable]
->;
-
 def int_amdgcn_frexp_mant : DefaultAttrsIntrinsic<
   [llvm_anyfloat_ty], [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable]
 >;
@@ -460,21 +454,6 @@ def int_amdgcn_fmad_ftz :
             [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
             [IntrNoMem, IntrSpeculatable]
 >;
-
-// Fields should mirror atomicrmw
-class AMDGPUAtomicIncIntrin : Intrinsic<[llvm_anyint_ty],
-  [llvm_anyptr_ty,
-  LLVMMatchType<0>,
-  llvm_i32_ty, // ordering
-  llvm_i32_ty, // scope
-  llvm_i1_ty], // isVolatile
-  [IntrArgMemOnly, IntrWillReturn, NoCapture<ArgIndex<0>>,
-   ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>, IntrNoCallback, IntrNoFree], "",
-  [SDNPMemOperand]
->;
-
-def int_amdgcn_atomic_inc : AMDGPUAtomicIncIntrin;
-def int_amdgcn_atomic_dec : AMDGPUAtomicIncIntrin;
 
 class AMDGPULDSIntrin :
   Intrinsic<[llvm_any_ty],
@@ -1693,6 +1672,11 @@ def int_amdgcn_s_sleep :
                                 IntrHasSideEffects]> {
 }
 
+def int_amdgcn_s_nop :
+  DefaultAttrsIntrinsic<[], [llvm_i16_ty], [ImmArg<ArgIndex<0>>, IntrNoMem,
+                                IntrHasSideEffects]> {
+}
+
 def int_amdgcn_s_incperflevel :
   ClangBuiltin<"__builtin_amdgcn_s_incperflevel">,
   DefaultAttrsIntrinsic<[], [llvm_i32_ty], [ImmArg<ArgIndex<0>>, IntrNoMem,
@@ -1848,12 +1832,12 @@ def int_amdgcn_live_mask : DefaultAttrsIntrinsic <[llvm_i1_ty],
 def int_amdgcn_mbcnt_lo :
   ClangBuiltin<"__builtin_amdgcn_mbcnt_lo">,
   DefaultAttrsIntrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty],
-   [IntrNoMem, IntrConvergent]>;
+   [IntrNoMem]>;
 
 def int_amdgcn_mbcnt_hi :
   ClangBuiltin<"__builtin_amdgcn_mbcnt_hi">,
   DefaultAttrsIntrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty],
-            [IntrNoMem, IntrConvergent]>;
+            [IntrNoMem]>;
 
 // llvm.amdgcn.ds.swizzle src offset
 def int_amdgcn_ds_swizzle :
@@ -1942,7 +1926,20 @@ def int_amdgcn_ballot :
 
 def int_amdgcn_inverse_ballot :
   Intrinsic<[llvm_i1_ty], [llvm_anyint_ty],
-            [IntrNoMem, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+            [IntrNoMem, IntrWillReturn, IntrNoCallback, IntrNoFree]>;
+
+class AMDGPUWaveReduce<LLVMType data_ty = llvm_anyint_ty> : Intrinsic<
+    [data_ty], 
+    [
+      LLVMMatchType<0>,   // llvm value to reduce (SGPR/VGPR)
+      llvm_i32_ty         // Reduction Strategy Switch for lowering ( 0: Default,
+                          //                                          1: Iterative strategy, and
+                          //                                          2. DPP)
+    ],
+    [IntrNoMem, IntrConvergent, IntrWillReturn, IntrNoCallback, IntrNoFree, ImmArg<ArgIndex<1>>]>;
+
+def int_amdgcn_wave_reduce_umin : AMDGPUWaveReduce;
+def int_amdgcn_wave_reduce_umax : AMDGPUWaveReduce;
 
 def int_amdgcn_readfirstlane :
   ClangBuiltin<"__builtin_amdgcn_readfirstlane">,
@@ -2128,6 +2125,28 @@ def int_amdgcn_is_private : ClangBuiltin<"__builtin_amdgcn_is_private">,
   [IntrNoMem, IntrSpeculatable, NoCapture<ArgIndex<0>>]
 >;
 
+// A uniform tail call to a function with the `amdgpu_cs_chain` or
+// `amdgpu_cs_chain_preserve` calling convention. It will populate the SGPRs
+// starting at s0 and the VGPRs starting at v8, set EXEC and perform a jump to
+// the given function.
+// Can only be used in functions with the `amdgpu_cs`, `amdgpu_cs_chain` or
+// `amdgpu_cs_chain_preserve` calling conventions, and only in uniform control
+// flow.
+def int_amdgcn_cs_chain:
+  Intrinsic<[],
+            [llvm_anyptr_ty, // The function to jump to.
+             llvm_anyint_ty, // Value to put in EXEC (should be i32 or i64).
+             llvm_any_ty, // Arguments that will be copied into SGPRs (s0+).
+                          // Must be uniform.
+             llvm_any_ty, // Arguments that will be copied into VGPRs (v8+).
+                          // Need not be uniform.
+             llvm_i32_ty, // Flags.
+             llvm_vararg_ty // Additional arguments. Only present if Flags is
+                            // non-zero.
+            ],
+            [IntrConvergent, IntrNoReturn, ImmArg<ArgIndex<4>>]>;
+
+
 //===----------------------------------------------------------------------===//
 // CI+ Intrinsics
 //===----------------------------------------------------------------------===//
@@ -2158,7 +2177,7 @@ def int_amdgcn_mov_dpp :
 // v_mov_b32 <dest> <old>
 // v_mov_b32 <dest> <src> <dpp_ctrl> <row_mask> <bank_mask> <bound_ctrl>
 def int_amdgcn_update_dpp :
-  Intrinsic<[llvm_anyint_ty],
+  Intrinsic<[llvm_any_ty],
             [LLVMMatchType<0>, LLVMMatchType<0>, llvm_i32_ty,
             llvm_i32_ty, llvm_i32_ty, llvm_i1_ty],
              [IntrNoMem, IntrConvergent, IntrWillReturn,

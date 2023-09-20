@@ -1,10 +1,10 @@
-//===--------- program.cpp - CUDA Adapter ---------------------------===//
+//===--------- program.cpp - CUDA Adapter ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "program.hpp"
 
@@ -315,7 +315,11 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->Binary, 1);
   case UR_PROGRAM_INFO_KERNEL_NAMES:
-    return getKernelNames(hProgram);
+    /* TODO: Add implementation for getKernelNames */
+    UR_ASSERT(getKernelNames(hProgram), UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }

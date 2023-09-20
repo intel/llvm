@@ -178,6 +178,17 @@ BENCHMARK_CAPTURE(BM_InsertValue, unordered_set_string, std::unordered_set<std::
 BENCHMARK_CAPTURE(BM_InsertValueRehash, unordered_set_string, std::unordered_set<std::string>{}, getRandomStringInputs)
     ->Arg(TestNumInputs);
 
+// Prefixed String //
+BENCHMARK_CAPTURE(
+    BM_InsertValue, unordered_set_prefixed_string, std::unordered_set<std::string>{}, getPrefixedRandomStringInputs)
+    ->Arg(TestNumInputs);
+
+BENCHMARK_CAPTURE(BM_InsertValueRehash,
+                  unordered_set_prefixed_string,
+                  std::unordered_set<std::string>{},
+                  getPrefixedRandomStringInputs)
+    ->Arg(TestNumInputs);
+
 //----------------------------------------------------------------------------//
 //                         BM_Find
 // ---------------------------------------------------------------------------//
@@ -205,7 +216,6 @@ BENCHMARK_CAPTURE(BM_FindRehash,
     ->Arg(TestNumInputs);
 
 // Sorted //
-#if 1
 BENCHMARK_CAPTURE(BM_Find,
                   unordered_set_sorted_uint128,
                   std::unordered_set<__uint128_t, UInt128Hash>{},
@@ -217,7 +227,6 @@ BENCHMARK_CAPTURE(BM_FindRehash,
                   std::unordered_set<__uint128_t, UInt128Hash>{},
                   getSortedTopBitsIntegerInputs<__uint128_t>)
     ->Arg(TestNumInputs);
-#endif
 
 // Sorted //
 BENCHMARK_CAPTURE(
@@ -257,6 +266,15 @@ BENCHMARK_CAPTURE(BM_Find, unordered_set_string, std::unordered_set<std::string>
     ->Arg(TestNumInputs);
 
 BENCHMARK_CAPTURE(BM_FindRehash, unordered_set_string, std::unordered_set<std::string>{}, getRandomStringInputs)
+    ->Arg(TestNumInputs);
+
+// Prefixed String //
+BENCHMARK_CAPTURE(
+    BM_Find, unordered_set_prefixed_string, std::unordered_set<std::string>{}, getPrefixedRandomStringInputs)
+    ->Arg(TestNumInputs);
+
+BENCHMARK_CAPTURE(
+    BM_FindRehash, unordered_set_prefixed_string, std::unordered_set<std::string>{}, getPrefixedRandomStringInputs)
     ->Arg(TestNumInputs);
 
 //----------------------------------------------------------------------------//

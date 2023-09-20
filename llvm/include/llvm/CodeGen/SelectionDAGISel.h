@@ -89,9 +89,10 @@ public:
   /// not match or is not implemented, return true.  The resultant operands
   /// (which will appear in the machine instruction) should be added to the
   /// OutOps vector.
-  virtual bool SelectInlineAsmMemoryOperand(const SDValue &Op,
-                                            unsigned ConstraintID,
-                                            std::vector<SDValue> &OutOps) {
+  virtual bool
+  SelectInlineAsmMemoryOperand(const SDValue &Op,
+                               InlineAsm::ConstraintCode ConstraintID,
+                               std::vector<SDValue> &OutOps) {
     return true;
   }
 
@@ -128,6 +129,7 @@ public:
     OPC_CheckChild0Same, OPC_CheckChild1Same,
     OPC_CheckChild2Same, OPC_CheckChild3Same,
     OPC_CheckPatternPredicate,
+    OPC_CheckPatternPredicate2,
     OPC_CheckPredicate,
     OPC_CheckPredicateWithOperands,
     OPC_CheckOpcode,
@@ -326,6 +328,8 @@ private:
                                 SDLoc DL);
   void Select_STACKMAP(SDNode *N);
   void Select_PATCHPOINT(SDNode *N);
+
+  void Select_JUMP_TABLE_DEBUG_INFO(SDNode *N);
 
 private:
   void DoInstructionSelection();

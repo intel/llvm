@@ -225,6 +225,18 @@ def G_DYN_STACKALLOC : GenericInstruction {
   let hasSideEffects = true;
 }
 
+def G_STACKSAVE : GenericInstruction {
+  let OutOperandList = (outs ptype0:$dst);
+  let InOperandList = (ins);
+  let hasSideEffects = true;
+}
+
+def G_STACKRESTORE : GenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins ptype0:$src);
+  let hasSideEffects = true;
+}
+
 def G_FREEZE : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$src);
@@ -902,6 +914,13 @@ def G_FEXP2 : GenericInstruction {
   let hasSideEffects = false;
 }
 
+// Floating point base-10 exponential of a value.
+def G_FEXP10 : GenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src1);
+  let hasSideEffects = false;
+}
+
 // Floating point base-e logarithm of a value.
 def G_FLOG : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
@@ -927,6 +946,13 @@ def G_FLOG10 : GenericInstruction {
 def G_FLDEXP : GenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$src0, type1:$src1);
+  let hasSideEffects = false;
+}
+
+// Floating point frexp
+def G_FFREXP : GenericInstruction {
+  let OutOperandList = (outs type0:$dst0, type1:$dst1);
+  let InOperandList = (ins type0:$src0);
   let hasSideEffects = false;
 }
 
@@ -1221,10 +1247,6 @@ def G_INTRINSIC : GenericInstruction {
   let OutOperandList = (outs);
   let InOperandList = (ins unknown:$intrin, variable_ops);
   let hasSideEffects = false;
-
-  // Conservatively assume this is convergent. If there turnes out to
-  // be a need, there should be separate convergent intrinsic opcodes.
-  let isConvergent = 1;
 }
 
 // Intrinsic with side effects.
@@ -1234,9 +1256,23 @@ def G_INTRINSIC_W_SIDE_EFFECTS : GenericInstruction {
   let hasSideEffects = true;
   let mayLoad = true;
   let mayStore = true;
+}
 
-  // Conservatively assume this is convergent. If there turnes out to
-  // be a need, there should be separate convergent intrinsic opcodes.
+// Convergent intrinsic without side effects.
+def G_INTRINSIC_CONVERGENT : GenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins unknown:$intrin, variable_ops);
+  let hasSideEffects = false;
+  let isConvergent = true;
+}
+
+// Convergent intrinsic with side effects.
+def G_INTRINSIC_CONVERGENT_W_SIDE_EFFECTS : GenericInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins unknown:$intrin, variable_ops);
+  let hasSideEffects = true;
+  let mayLoad = true;
+  let mayStore = true;
   let isConvergent = true;
 }
 
@@ -1369,6 +1405,8 @@ def G_VECREDUCE_FMUL : VectorReduction;
 
 def G_VECREDUCE_FMAX : VectorReduction;
 def G_VECREDUCE_FMIN : VectorReduction;
+def G_VECREDUCE_FMAXIMUM : VectorReduction;
+def G_VECREDUCE_FMINIMUM : VectorReduction;
 
 def G_VECREDUCE_ADD : VectorReduction;
 def G_VECREDUCE_MUL : VectorReduction;

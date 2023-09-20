@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -emit-llvm %s -o - -triple=wasm32-unknown-unknown -Wno-deprecated-non-prototype | FileCheck %s
+// RUN: %clang_cc1 -emit-llvm %s -o - -triple=wasm32-unknown-unknown -Wno-deprecated-non-prototype | FileCheck %s
 
 int main(argc, argv)
   int argc;

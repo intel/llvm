@@ -17,7 +17,6 @@
 
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/PointerSumType.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/ADT/ilist_node.h"
 #include "llvm/ADT/iterator_range.h"
@@ -29,6 +28,7 @@
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/ArrayRecycler.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/TrailingObjects.h"
 #include <algorithm>
 #include <cassert>
@@ -113,6 +113,7 @@ public:
                              // (e.g. branch folding) should skip
                              // this instruction.
     Unpredictable = 1 << 16, // Instruction with unpredictable condition.
+    NoConvergent = 1 << 17,  // Call does not require convergence guarantees.
   };
 
 private:
@@ -121,21 +122,26 @@ private:
 
   // Operands are allocated by an ArrayRecycler.
   MachineOperand *Operands = nullptr;   // Pointer to the first operand.
-  uint32_t Flags = 0;                   // Various bits of additional
-                                        // information about machine
-                                        // instruction.
-  uint16_t NumOperands = 0;             // Number of operands on instruction.
-  uint8_t AsmPrinterFlags = 0;          // Various bits of information used by
-                                        // the AsmPrinter to emit helpful
-                                        // comments.  This is *not* semantic
-                                        // information.  Do not use this for
-                                        // anything other than to convey comment
-                                        // information to AsmPrinter.
 
-  // OperandCapacity has uint8_t size, so it should be next to AsmPrinterFlags
+#define LLVM_MI_NUMOPERANDS_BITS 24
+#define LLVM_MI_FLAGS_BITS 24
+#define LLVM_MI_ASMPRINTERFLAGS_BITS 8
+
+  /// Number of operands on instruction.
+  uint32_t NumOperands : LLVM_MI_NUMOPERANDS_BITS;
+
+  // OperandCapacity has uint8_t size, so it should be next to NumOperands
   // to properly pack.
   using OperandCapacity = ArrayRecycler<MachineOperand>::Capacity;
   OperandCapacity CapOperands;          // Capacity of the Operands array.
+
+  /// Various bits of additional information about the machine instruction.
+  uint32_t Flags : LLVM_MI_FLAGS_BITS;
+
+  /// Various bits of information used by the AsmPrinter to emit helpful
+  /// comments.  This is *not* semantic information.  Do not use this for
+  /// anything other than to convey comment information to AsmPrinter.
+  uint8_t AsmPrinterFlags : LLVM_MI_ASMPRINTERFLAGS_BITS;
 
   /// Internal implementation detail class that provides out-of-line storage for
   /// extra info used by the machine instruction when this info cannot be stored
@@ -342,16 +348,22 @@ public:
 
   /// Return whether an AsmPrinter flag is set.
   bool getAsmPrinterFlag(CommentFlag Flag) const {
+    assert(isUInt<LLVM_MI_ASMPRINTERFLAGS_BITS>(unsigned(Flag)) &&
+           "Flag is out of range for the AsmPrinterFlags field");
     return AsmPrinterFlags & Flag;
   }
 
   /// Set a flag for the AsmPrinter.
   void setAsmPrinterFlag(uint8_t Flag) {
+    assert(isUInt<LLVM_MI_ASMPRINTERFLAGS_BITS>(unsigned(Flag)) &&
+           "Flag is out of range for the AsmPrinterFlags field");
     AsmPrinterFlags |= Flag;
   }
 
   /// Clear specific AsmPrinter flags.
   void clearAsmPrinterFlag(CommentFlag Flag) {
+    assert(isUInt<LLVM_MI_ASMPRINTERFLAGS_BITS>(unsigned(Flag)) &&
+           "Flag is out of range for the AsmPrinterFlags field");
     AsmPrinterFlags &= ~Flag;
   }
 
@@ -362,15 +374,21 @@ public:
 
   /// Return whether an MI flag is set.
   bool getFlag(MIFlag Flag) const {
+    assert(isUInt<LLVM_MI_FLAGS_BITS>(unsigned(Flag)) &&
+           "Flag is out of range for the Flags field");
     return Flags & Flag;
   }
 
   /// Set a MI flag.
   void setFlag(MIFlag Flag) {
+    assert(isUInt<LLVM_MI_FLAGS_BITS>(unsigned(Flag)) &&
+           "Flag is out of range for the Flags field");
     Flags |= (uint32_t)Flag;
   }
 
   void setFlags(unsigned flags) {
+    assert(isUInt<LLVM_MI_FLAGS_BITS>(flags) &&
+           "flags to be set are out of range for the Flags field");
     // Filter out the automatically maintained flags.
     unsigned Mask = BundledPred | BundledSucc;
     Flags = (Flags & Mask) | (flags & ~Mask);
@@ -378,6 +396,8 @@ public:
 
   /// clearFlag - Clear a MI flag.
   void clearFlag(MIFlag Flag) {
+    assert(isUInt<LLVM_MI_FLAGS_BITS>(unsigned(Flag)) &&
+           "Flag to clear is out of range for the Flags field");
     Flags &= ~((uint32_t)Flag);
   }
 
@@ -546,15 +566,6 @@ public:
   const MachineOperand &getDebugOperand(unsigned Index) const {
     assert(Index < getNumDebugOperands() && "getDebugOperand() out of range!");
     return *(debug_operands().begin() + Index);
-  }
-
-  SmallSet<Register, 4> getUsedDebugRegs() const {
-    assert(isDebugValue() && "not a DBG_VALUE*");
-    SmallSet<Register, 4> UsedRegs;
-    for (const auto &MO : debug_operands())
-      if (MO.isReg() && MO.getReg())
-        UsedRegs.insert(MO.getReg());
-    return UsedRegs;
   }
 
   /// Returns whether this debug value has at least one debug operand with the
@@ -1014,6 +1025,8 @@ public:
       if (ExtraInfo & InlineAsm::Extra_IsConvergent)
         return true;
     }
+    if (getFlag(NoConvergent))
+      return false;
     return hasProperty(MCID::Convergent, Type);
   }
 
@@ -1182,7 +1195,7 @@ public:
   /// Returns true if this instruction is a candidate for remat.
   /// This flag is deprecated, please don't use it anymore.  If this
   /// flag is set, the isReallyTriviallyReMaterializable() method is called to
-  /// verify the instruction is really rematable.
+  /// verify the instruction is really rematerializable.
   bool isRematerializable(QueryType Type = AllInBundle) const {
     // It's only possible to re-mat a bundle if all bundled instructions are
     // re-materializable.
@@ -1335,6 +1348,10 @@ public:
       if (Op.isReg() && !Op.getReg().isValid())
         return true;
     return false;
+  }
+
+  bool isJumpTableDebugInfo() const {
+    return getOpcode() == TargetOpcode::JUMP_TABLE_DEBUG_INFO;
   }
 
   bool isPHI() const {
@@ -1725,6 +1742,9 @@ public:
   /// Return true if all the defs of this instruction are dead.
   bool allDefsAreDead() const;
 
+  /// Return true if all the implicit defs of this instruction are dead.
+  bool allImplicitDefsAreDead() const;
+
   /// Return a valid size if the instruction is a spill instruction.
   std::optional<unsigned> getSpillSize(const TargetInstrInfo *TII) const;
 
@@ -1909,12 +1929,6 @@ public:
   /// Find all DBG_VALUEs that point to the register def in this instruction
   /// and point them to \p Reg instead.
   void changeDebugValuesDefReg(Register Reg);
-
-  /// Returns the Intrinsic::ID for this instruction.
-  /// \pre Must have an intrinsic ID operand.
-  unsigned getIntrinsicID() const {
-    return getOperand(getNumExplicitDefs()).getIntrinsicID();
-  }
 
   /// Sets all register debug operands in this debug value instruction to be
   /// undef.

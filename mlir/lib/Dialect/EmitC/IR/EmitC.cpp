@@ -45,6 +45,27 @@ Operation *EmitCDialect::materializeConstant(OpBuilder &builder,
 }
 
 //===----------------------------------------------------------------------===//
+// AddOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AddOp::verify() {
+  Type lhsType = getLhs().getType();
+  Type rhsType = getRhs().getType();
+
+  if (lhsType.isa<emitc::PointerType>() && rhsType.isa<emitc::PointerType>())
+    return emitOpError("requires that at most one operand is a pointer");
+
+  if ((lhsType.isa<emitc::PointerType>() &&
+       !rhsType.isa<IntegerType, emitc::OpaqueType>()) ||
+      (rhsType.isa<emitc::PointerType>() &&
+       !lhsType.isa<IntegerType, emitc::OpaqueType>()))
+    return emitOpError("requires that one operand is an integer or of opaque "
+                       "type if the other is a pointer");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // ApplyOp
 //===----------------------------------------------------------------------===//
 
@@ -128,7 +149,7 @@ LogicalResult emitc::ConstantOp::verify() {
 
   // Value must not be empty
   StringAttr strAttr = llvm::dyn_cast<StringAttr>(getValueAttr());
-  if (strAttr && strAttr.getValue().empty())
+  if (strAttr && strAttr.empty())
     return emitOpError() << "value must not be empty";
 
   auto value = cast<TypedAttr>(getValueAttr());
@@ -139,9 +160,7 @@ LogicalResult emitc::ConstantOp::verify() {
   return success();
 }
 
-OpFoldResult emitc::ConstantOp::fold(FoldAdaptor adaptor) {
-  return getValue();
-}
+OpFoldResult emitc::ConstantOp::fold(FoldAdaptor adaptor) { return getValue(); }
 
 //===----------------------------------------------------------------------===//
 // IncludeOp
@@ -179,6 +198,40 @@ ParseResult IncludeOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 //===----------------------------------------------------------------------===//
+// LiteralOp
+//===----------------------------------------------------------------------===//
+
+/// The literal op requires a non-empty value.
+LogicalResult emitc::LiteralOp::verify() {
+  if (getValue().empty())
+    return emitOpError() << "value must not be empty";
+  return success();
+}
+//===----------------------------------------------------------------------===//
+// SubOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult SubOp::verify() {
+  Type lhsType = getLhs().getType();
+  Type rhsType = getRhs().getType();
+  Type resultType = getResult().getType();
+
+  if (rhsType.isa<emitc::PointerType>() && !lhsType.isa<emitc::PointerType>())
+    return emitOpError("rhs can only be a pointer if lhs is a pointer");
+
+  if (lhsType.isa<emitc::PointerType>() &&
+      !rhsType.isa<IntegerType, emitc::OpaqueType, emitc::PointerType>())
+    return emitOpError("requires that rhs is an integer, pointer or of opaque "
+                       "type if lhs is a pointer");
+
+  if (lhsType.isa<emitc::PointerType>() && rhsType.isa<emitc::PointerType>() &&
+      !resultType.isa<IntegerType, emitc::OpaqueType>())
+    return emitOpError("requires that the result is an integer or of opaque "
+                       "type if lhs and rhs are pointers");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // VariableOp
 //===----------------------------------------------------------------------===//
 
@@ -201,6 +254,12 @@ LogicalResult emitc::VariableOp::verify() {
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/EmitC/IR/EmitC.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// EmitC Enums
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Dialect/EmitC/IR/EmitCEnums.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // EmitC Attributes

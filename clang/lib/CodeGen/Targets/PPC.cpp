@@ -31,8 +31,8 @@ static Address complexTempStructure(CodeGenFunction &CGF, Address VAListAddr,
   }
 
   llvm::Type *EltTy = CGF.ConvertTypeForMem(CTy->getElementType());
-  RealAddr = CGF.Builder.CreateElementBitCast(RealAddr, EltTy);
-  ImagAddr = CGF.Builder.CreateElementBitCast(ImagAddr, EltTy);
+  RealAddr = RealAddr.withElementType(EltTy);
+  ImagAddr = ImagAddr.withElementType(EltTy);
   llvm::Value *Real = CGF.Builder.CreateLoad(RealAddr, ".vareal");
   llvm::Value *Imag = CGF.Builder.CreateLoad(ImagAddr, ".vaimag");
 
@@ -431,11 +431,7 @@ Address PPC32_SVR4_ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAList,
 
   llvm::Type *DirectTy = CGF.ConvertType(Ty), *ElementTy = DirectTy;
   if (isIndirect)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     DirectTy = llvm::PointerType::getUnqual(CGF.getLLVMContext());
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    DirectTy = DirectTy->getPointerTo(0);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Case 1: consume registers.
   Address RegAddr = Address::invalid();
@@ -460,8 +456,7 @@ Address PPC32_SVR4_ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAList,
         Builder.CreateMul(NumRegs, Builder.getInt8(RegSize.getQuantity()));
     RegAddr = Address(
         Builder.CreateInBoundsGEP(CGF.Int8Ty, RegAddr.getPointer(), RegOffset),
-        CGF.Int8Ty, RegAddr.getAlignment().alignmentOfArrayElement(RegSize));
-    RegAddr = Builder.CreateElementBitCast(RegAddr, DirectTy);
+        DirectTy, RegAddr.getAlignment().alignmentOfArrayElement(RegSize));
 
     // Increase the used-register count.
     NumRegs =
@@ -502,7 +497,7 @@ Address PPC32_SVR4_ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAList,
                              OverflowArea.getElementType(), Align);
     }
 
-    MemAddr = Builder.CreateElementBitCast(OverflowArea, DirectTy);
+    MemAddr = OverflowArea.withElementType(DirectTy);
 
     // Increase the overflow area.
     OverflowArea = Builder.CreateConstInBoundsByteGEP(OverflowArea, Size);

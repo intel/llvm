@@ -589,12 +589,6 @@ feature, the application must be compiled in ahead-of-time (AOT) mode using
 description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
 
-The two APIs `device::ext_oneapi_architecture_is` and the
-`ext::oneapi::experimental::info::device::architecture` device descriptor are
-currently supported only for Intel devices (both GPU and CPU).  There is no
-support yet for Nvidia or AMD devices.
-
-
 == Future direction
 
 This experimental extension is still evolving.  We expect that future versions

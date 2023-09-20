@@ -112,7 +112,22 @@ void stream_impl::flush(const EventImplPtr &LeadEvent) {
             .get_access<access::mode::read_write, access::target::host_buffer>(
                 cgh);
     cgh.host_task([=] {
-      printf("%s", &(BufHostAcc[0]));
+      if (!BufHostAcc.empty()) {
+        // SYCL 2020, 4.16:
+        // > If the totalBufferSize or workItemBufferSize limits are exceeded,
+        // > it is implementation-defined whether the streamed characters
+        // > exceeding the limit are output, or silently ignored/discarded, and
+        // > if output it is implementation-defined whether those extra
+        // > characters exceeding the workItemBufferSize limit count toward the
+        // > totalBufferSize limit. Regardless of this implementation defined
+        // > behavior of output exceeding the limits, no undefined or erroneous
+        // > behavior is permitted of an implementation when the limits are
+        // > exceeded.
+        //
+        // Defend against zero-sized buffers (although they'd have no practical
+        // use).
+        printf("%s", &(BufHostAcc[0]));
+      }
       fflush(stdout);
     });
   });

@@ -346,7 +346,7 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-OFF
 // RUN:   %clang -### -fsycl %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-DEFAULT
-// RUN:   %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN:   %clang -### -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-NON-SPIRV
 // CHK-ESIMD-SPLIT-ON: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-o"{{.*}}
 // CHK-ESIMD-SPLIT-OFF-NOT: sycl-post-link{{.*}} "-split-esimd"{{.*}}

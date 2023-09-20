@@ -1,14 +1,36 @@
-//===--------- context.cpp - CUDA Adapter ----------------------------===//
+//===--------- context.cpp - CUDA Adapter ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "usm.hpp"
 
 #include <cassert>
+
+void ur_context_handle_t_::addPool(ur_usm_pool_handle_t Pool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  PoolHandles.insert(Pool);
+}
+
+void ur_context_handle_t_::removePool(ur_usm_pool_handle_t Pool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  PoolHandles.erase(Pool);
+}
+
+ur_usm_pool_handle_t
+ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  for (auto &Pool : PoolHandles) {
+    if (Pool->hasUMFPool(UMFPool)) {
+      return Pool;
+    }
+  }
+  return nullptr;
+}
 
 /// Create a UR CUDA context.
 ///
@@ -62,10 +84,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   }
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hContext->getDevice()->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+        hContext->getDevice()->get()));
     uint32_t Capabilities =
         (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
@@ -129,7 +150,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   std::ignore = pProperties;
   std::ignore = phContext;
 
-  return UR_RESULT_ERROR_INVALID_OPERATION;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(

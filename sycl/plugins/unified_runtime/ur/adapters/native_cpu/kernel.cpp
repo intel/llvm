@@ -54,12 +54,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = hKernel;
-  std::ignore = argIndex;
-  std::ignore = argSize;
   std::ignore = pProperties;
-
-  DIE_NO_IMPLEMENTATION
+  // emplace a placeholder kernel arg, gets replaced with a pointer to the
+  // memory pool before enqueueing the kernel.
+  hKernel->_args.emplace_back(nullptr);
+  hKernel->_localArgInfo.emplace_back(argIndex, argSize);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
@@ -69,10 +69,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t *pPropSizeRet) {
   std::ignore = hKernel;
   std::ignore = propName;
-  std::ignore = propSize;
   std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
 
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  // todo: check if we need this
+  // std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  switch (propName) {
+    //  case UR_KERNEL_INFO_CONTEXT:
+    //    return ReturnValue(ur_context_handle_t{ hKernel->Program->Context });
+    //  case UR_KERNEL_INFO_PROGRAM:
+    //    return ReturnValue(ur_program_handle_t{ Kernel->Program });
+  case UR_KERNEL_INFO_FUNCTION_NAME:
+    if (hKernel->_name) {
+      return ReturnValue(hKernel->_name);
+    }
+    return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
+    //  case UR_KERNEL_INFO_NUM_ARGS:
+    //    return ReturnValue(uint32_t{ Kernel->ZeKernelProperties->numKernelArgs
+    //    });
+  case UR_KERNEL_INFO_REFERENCE_COUNT:
+    return ReturnValue(uint32_t{hKernel->getReferenceCount()});
+  case UR_KERNEL_INFO_ATTRIBUTES:
+    return ReturnValue("");
+  default:
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
   DIE_NO_IMPLEMENTATION
 }
 
@@ -92,7 +113,8 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return returnValue(global_work_size, 3);
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    size_t max_threads = 0;
+    // todo: set proper values
+    size_t max_threads = 128;
     return returnValue(max_threads);
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
@@ -104,7 +126,8 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return returnValue(static_cast<uint64_t>(bytes));
   }
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
-    int warpSize = 0;
+    // todo: set proper values
+    int warpSize = 16;
     return returnValue(static_cast<size_t>(warpSize));
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
@@ -125,17 +148,34 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                         void *pPropValue, size_t *pPropSizeRet) {
   std::ignore = hKernel;
   std::ignore = hDevice;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
 
-  DIE_NO_IMPLEMENTATION
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  switch (propName) {
+  case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
+    // todo: set proper values
+    int WarpSize = 8;
+    return ReturnValue(static_cast<uint32_t>(WarpSize));
+  }
+  case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
+    // todo: set proper values
+    int MaxWarps = 32;
+    return ReturnValue(static_cast<uint32_t>(MaxWarps));
+  }
+  case UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS: {
+    // todo: set proper values
+    return ReturnValue(0);
+  }
+  case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
+    // todo: set proper values
+    return ReturnValue(0);
+  }
+  }
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  std::ignore = hKernel;
-  DIE_NO_IMPLEMENTATION
+  hKernel->incrementReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

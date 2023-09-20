@@ -70,6 +70,9 @@ bool CurrentCodeLocationValid() {
 struct DemangleHandle {
   char *p;
   DemangleHandle(char *ptr) : p(ptr) {}
+
+  DemangleHandle &operator=(const DemangleHandle &) = delete;
+
   ~DemangleHandle() { std::free(p); }
 };
 static std::string demangleKernelName(std::string Name) {
@@ -430,7 +433,6 @@ void Command::waitForPreparedHostEvents() const {
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
-
   if (!EventImpls.empty()) {
     if (Queue->is_host()) {
       // Host queue can wait for events from different contexts, i.e. it may
@@ -473,6 +475,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
           getPiEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
       const PluginPtr &Plugin = Queue->getPlugin();
+
+      if (MEvent != nullptr)
+        MEvent->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -1506,7 +1511,7 @@ pi_int32 MemCpyCommand::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event, MEvent);
 
   return PI_SUCCESS;
 }
@@ -1667,7 +1672,7 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), Event);
+      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
   return PI_SUCCESS;
 }
@@ -2038,10 +2043,11 @@ void emitKernelInstrumentationData(
 
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = -1;
-  instrumentationFillCommonData(KernelName, CodeLoc.fileName(),
-                                CodeLoc.lineNumber(), CodeLoc.columnNumber(),
-                                Address, Queue, FromSource, InstanceID,
-                                CmdTraceEvent);
+  std::string FileName =
+      CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
+  instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
+                                CodeLoc.columnNumber(), Address, Queue,
+                                FromSource, InstanceID, CmdTraceEvent);
 
   if (CmdTraceEvent) {
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
@@ -2295,7 +2301,8 @@ static pi_result SetKernelParamsAndLaunch(
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     sycl::detail::pi::PiKernel Kernel, NDRDescT &NDRDesc,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-    sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
+    const detail::EventImplPtr &OutEventImpl,
+    const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
@@ -2332,11 +2339,13 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-
+  if (OutEventImpl != nullptr)
+    OutEventImpl->setHostEnqueueTime();
   pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
+      RawEvents.empty() ? nullptr : &RawEvents[0],
+      OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   return Error;
 }
 
@@ -2379,7 +2388,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   pi_program PiProgram = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
-  const KernelArgMask *EliminatedArgMask;
+  const KernelArgMask *EliminatedArgMask = nullptr;
   if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
   } else {
@@ -2447,7 +2456,7 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-    sycl::detail::pi::PiEvent *OutEvent,
+    const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
 
@@ -2546,7 +2555,7 @@ pi_int32 enqueueImpKernel(
     }
 
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEvent,
+                                     NDRDesc, EventsWaitList, OutEventImpl,
                                      EliminatedArgMask, getMemAllocationFunc);
   }
   if (PI_SUCCESS != Error) {
@@ -2564,7 +2573,7 @@ pi_int32
 enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                         sycl::detail::pi::PiEvent *OutEvent, bool read) {
+                         const detail::EventImplPtr &OutEventImpl, bool read) {
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2592,6 +2601,10 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 
   pi_queue pi_q = Queue->getHandleRef();
   pi_result Error;
+
+  auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
+  if (OutEventImpl != nullptr)
+    OutEventImpl->setHostEnqueueTime();
   if (read) {
     Error =
         Plugin->call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
@@ -2722,11 +2735,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
+  bool DiscardEvent = (MQueue->has_discard_events_support() &&
+                       MCommandGroup->getRequirements().size() == 0);
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->has_discard_events_support() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+      DiscardEvent ? nullptr : &MEvent->getHandleRef();
+  detail::EventImplPtr EventImpl = DiscardEvent ? nullptr : MEvent;
+
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UpdateHost: {
@@ -2745,7 +2759,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MElemSize, Copy->getDst(),
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2762,7 +2776,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MAccessRange, Req->MAccessRange,
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2780,7 +2794,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
         MQueue, ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
-        MEvent->getHandleRef());
+        MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2793,7 +2807,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-        std::move(RawEvents), MEvent->getHandleRef());
+        std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2823,14 +2837,14 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       } else {
         assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
-
+        if (MEvent != nullptr)
+          MEvent->setHostEnqueueTime();
         MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
             nullptr,
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
             NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
-
       return PI_SUCCESS;
     }
 
@@ -2845,32 +2859,34 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         ExecKernel->MSyclKernel;
     const std::string &KernelName = ExecKernel->MKernelName;
 
-    if (!Event) {
+    if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
           !(SyclKernel && SyclKernel->isInterop()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
-        Event = &MEvent->getHandleRef();
+        EventImpl = MEvent;
       }
     }
 
-    return enqueueImpKernel(MQueue, NDRDesc, Args,
-                            ExecKernel->getKernelBundle(), SyclKernel,
-                            KernelName, RawEvents, Event, getMemAllocationFunc,
-                            ExecKernel->MKernelCacheConfig);
+    return enqueueImpKernel(
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
+        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
+        ExecKernel->MKernelCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
-                            Copy->getDst(), std::move(RawEvents), Event);
+                            Copy->getDst(), std::move(RawEvents), Event,
+                            MEvent);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event);
+                            Fill->getFill(), std::move(RawEvents), Event,
+                            MEvent);
 
     return PI_SUCCESS;
   }
@@ -2878,14 +2894,15 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
-                                Event);
+                                Event, MEvent);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
-                              Advise->getAdvice(), std::move(RawEvents), Event);
+                              Advise->getAdvice(), std::move(RawEvents), Event,
+                              MEvent);
 
     return PI_SUCCESS;
   }
@@ -2894,21 +2911,23 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_2d_usm(Copy->getSrc(), Copy->getSrcPitch(), MQueue,
                                Copy->getDst(), Copy->getDstPitch(),
                                Copy->getWidth(), Copy->getHeight(),
-                               std::move(RawEvents), Event);
+                               std::move(RawEvents), Event, MEvent);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Fill2DUSM: {
     CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
     MemoryManager::fill_2d_usm(Fill->getDst(), MQueue, Fill->getPitch(),
                                Fill->getWidth(), Fill->getHeight(),
-                               Fill->getPattern(), std::move(RawEvents), Event);
+                               Fill->getPattern(), std::move(RawEvents), Event,
+                               MEvent);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Memset2DUSM: {
     CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
-    MemoryManager::memset_2d_usm(
-        Memset->getDst(), MQueue, Memset->getPitch(), Memset->getWidth(),
-        Memset->getHeight(), Memset->getValue(), std::move(RawEvents), Event);
+    MemoryManager::memset_2d_usm(Memset->getDst(), MQueue, Memset->getPitch(),
+                                 Memset->getWidth(), Memset->getHeight(),
+                                 Memset->getValue(), std::move(RawEvents),
+                                 Event, MEvent);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayHostTask: {
@@ -2920,7 +2939,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
         AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-        Req->MData = AllocaCmd->getMemAllocation();
+        if (AllocaCmd)
+          Req->MData = AllocaCmd->getMemAllocation();
         break;
       }
       default:
@@ -2980,6 +3000,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
+    if (MEvent != nullptr)
+      MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
 
@@ -2996,6 +3018,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
+    if (MEvent != nullptr)
+      MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
@@ -3006,7 +3030,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_to_device_global(
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
-        std::move(RawEvents), Event);
+        std::move(RawEvents), Event, MEvent);
 
     return CL_SUCCESS;
   }
@@ -3016,7 +3040,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_from_device_global(
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
-        std::move(RawEvents), Event);
+        std::move(RawEvents), Event, MEvent);
 
     return CL_SUCCESS;
   }
@@ -3029,15 +3053,17 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     bool blocking = ExecReadWriteHostPipe->isBlocking();
     bool read = ExecReadWriteHostPipe->isReadHostPipe();
 
-    if (!Event) {
-      Event = &MEvent->getHandleRef();
+    if (!EventImpl) {
+      EventImpl = MEvent;
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
-                                    typeSize, RawEvents, Event, read);
+                                    typeSize, RawEvents, EventImpl, read);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
+    if (MEvent != nullptr)
+      MEvent->setHostEnqueueTime();
     return MQueue->getPlugin()
         ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
             CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
@@ -3133,11 +3159,22 @@ pi_int32 KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
+  // We need to release the queue here because KernelFusionCommands are
+  // held back by the scheduler thus prevent the deallocation of the queue.
+  resetQueue();
   return PI_SUCCESS;
 }
 
 void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
   MStatus = Status;
+}
+
+void KernelFusionCommand::resetQueue() {
+  assert(MStatus != FusionStatus::ACTIVE &&
+         "Cannot release the queue attached to the KernelFusionCommand if it "
+         "is active.");
+  MQueue.reset();
+  MWorkerQueue.reset();
 }
 
 void KernelFusionCommand::emitInstrumentationData() {

@@ -286,13 +286,14 @@ define void @func3() {
 
 ; Requires the saving of r4 due to variable sized
 ; object in stack frame. (Eg: VLA) Sets up frame pointer in r8
-; CHECK64: stmg  4, 9, 1856(4)
+; CHECK64: stmg  4, 10, 1856(4)
 ; CHECK64: aghi  4, -192
+; CHECK64: lg  6, 40(5)
+; CHECK64: lg  5, 32(5)
 ; CHECK64: lgr     8, 4
-; TODO Will change to basr with ADA introduction.
-; CHECK64: brasl   7, @@ALCAXP
-; CHECK64-NEXT: bcr     0, 3
-; CHECK64: lmg	4, 9, 2048(4)
+; CHECK64: basr   7, 6
+; CHECK64-NEXT: bcr     0, 0
+; CHECK64: lmg  4, 10, 2048(4)
 define i64 @func4(i64 %n) {
   %vla = alloca i64, i64 %n, align 8
   %call = call i64 @fun2(i64 %n, ptr nonnull %vla, ptr nonnull %vla)
@@ -303,12 +304,11 @@ define i64 @func4(i64 %n) {
 ; to force use of agfi before stmg.
 ; CHECK64: lgr	0, 4
 ; CHECK64: agfi	4, -1040192
-; CHECK64: stmg  4, 9, 2048(4)
+; CHECK64: stmg  4, 10, 2048(4)
 ; CHECK64: lgr     8, 4
-; TODO Will change to basr with ADA introduction.
-; CHECK64: brasl   7, @@ALCAXP
-; CHECK64-NEXT: bcr     0, 3
-;; CHECK64: lmg 4, 9, 2048(4)
+; CHECK64: basr   7, 6
+; CHECK64-NEXT: bcr     0, 0
+; CHECK64: lmg 4, 10, 2048(4)
 define i64 @func5(i64 %n) {
   %vla = alloca i64, i64 %n, align 8
   %arr = alloca [130000 x i64], align 8
@@ -369,7 +369,7 @@ define void @large_stack1(i64 %n1, i64 %n2, i64 %n3) {
 ; CHECK64: @BB8_2:
 ; CHECK64: lgr 3, 0
 ; CHECK64: lg  3, 2192(3)
-; CHECK64: stmg  4, 11, 2048(4)
+; CHECK64: stmg  4, 12, 2048(4)
 ; CHECK64: lgr 8, 4
 define void @large_stack2(i64 %n1, i64 %n2, i64 %n3) {
   %arr0 = alloca [131072 x i64], align 8
@@ -380,6 +380,10 @@ define void @large_stack2(i64 %n1, i64 %n2, i64 %n3) {
 }
 
 ; CHECK-LABEL: leaf_func
+; CHECK: .long	8 * DSA Size 0x0
+; CHECK-NEXT:     * Entry Flags
+; CHECK-NEXT:     *   Bit 1: 1 = Leaf function
+; CHECK-NEXT:     *   Bit 2: 0 = Does not use alloca
 ; CHECK-NOT: aghi  4,
 ; CHECK-NOT: stmg
 ; CHECK: agr	1, 2
@@ -393,6 +397,27 @@ define i64 @leaf_func0(i64 %a, i64 %b, i64 %c) {
   %o = sub i64 %m, 4
   ret i64 %o
 }
+
+
+; =============================
+;     Tests for PPA1 Fields
+; =============================
+; CHECK-LABEL: named_func
+; CHECK: .byte	129  * PPA1 Flags 4
+; CHECK-NEXT: *   Bit 7: 1 = Name Length and Name
+define i64 @named_func(i64 %arg) {
+  %sum = add i64 1, %arg
+  ret i64 %sum
+}
+
+; CHECK-LABEL: __unnamed_1
+; CHECK: .byte	128  * PPA1 Flags 4
+; CHECK-NOT: *   Bit 7: 1 = Name Length and Name
+define void @""(ptr %p) {
+  call i64 (ptr) @fun1(ptr %p)
+  ret void
+}
+
 
 declare i64 @fun(i64 %arg0)
 declare i64 @fun1(ptr %ptr)

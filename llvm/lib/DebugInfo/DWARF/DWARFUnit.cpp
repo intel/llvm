@@ -828,7 +828,7 @@ void DWARFUnit::updateVariableDieMap(DWARFDie Die) {
   // no type), then we use a size of one to still allow symbolization of the
   // exact address.
   uint64_t GVSize = 1;
-  if (DWARFDie BaseType = Die.getAttributeValueAsReferencedDie(DW_AT_type))
+  if (Die.getAttributeValueAsReferencedDie(DW_AT_type))
     if (std::optional<uint64_t> Size = Die.getTypeSize(getAddressByteSize()))
       GVSize = *Size;
 
@@ -1040,8 +1040,16 @@ DWARFUnit::getLastChildEntry(const DWARFDebugInfoEntry *Die) const {
 }
 
 const DWARFAbbreviationDeclarationSet *DWARFUnit::getAbbreviations() const {
-  if (!Abbrevs)
-    Abbrevs = Abbrev->getAbbreviationDeclarationSet(getAbbreviationsOffset());
+  if (!Abbrevs) {
+    Expected<const DWARFAbbreviationDeclarationSet *> AbbrevsOrError =
+        Abbrev->getAbbreviationDeclarationSet(getAbbreviationsOffset());
+    if (!AbbrevsOrError) {
+      // FIXME: We should propagate this error upwards.
+      consumeError(AbbrevsOrError.takeError());
+      return nullptr;
+    }
+    Abbrevs = *AbbrevsOrError;
+  }
   return Abbrevs;
 }
 

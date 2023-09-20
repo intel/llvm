@@ -1,10 +1,10 @@
-//===--------- program.cpp - HIP Adapter ---------------------------===//
+//===--------- program.cpp - HIP Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "program.hpp"
 
@@ -211,7 +211,12 @@ urProgramRelease(ur_program_handle_t hProgram) {
     try {
       ScopedContext Active(hProgram->getContext()->getDevice());
       auto HIPModule = hProgram->get();
-      Result = UR_CHECK_ERROR(hipModuleUnload(HIPModule));
+      if (HIPModule) {
+        Result = UR_CHECK_ERROR(hipModuleUnload(HIPModule));
+      } else {
+        // no module to unload
+        Result = UR_RESULT_SUCCESS;
+      }
     } catch (...) {
       Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }

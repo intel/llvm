@@ -58,13 +58,15 @@ public:
       return rewriter.notifyMatchFailure(
           op, "0-D and 1-D vectors are handled separately");
 
+    if (dstType.getScalableDims().front())
+      return rewriter.notifyMatchFailure(
+          op, "Cannot unroll leading scalable dim in dstType");
+
     auto loc = op.getLoc();
-    auto eltType = dstType.getElementType();
     int64_t dim = dstType.getDimSize(0);
     Value idx = op.getOperand(0);
 
-    VectorType lowType =
-        VectorType::get(dstType.getShape().drop_front(), eltType);
+    VectorType lowType = VectorType::Builder(dstType).dropDim(0);
     Value trueVal = rewriter.create<vector::CreateMaskOp>(
         loc, lowType, op.getOperands().drop_front());
     Value falseVal = rewriter.create<arith::ConstantOp>(
@@ -77,9 +79,7 @@ public:
       Value val = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
                                                  bnd, idx);
       Value sel = rewriter.create<arith::SelectOp>(loc, val, trueVal, falseVal);
-      auto pos = rewriter.getI64ArrayAttr(d);
-      result =
-          rewriter.create<vector::InsertOp>(loc, dstType, sel, result, pos);
+      result = rewriter.create<vector::InsertOp>(loc, dstType, sel, result, d);
     }
     rewriter.replaceOp(op, result);
     return success();
@@ -151,11 +151,9 @@ public:
         loc, lowType, rewriter.getI64ArrayAttr(newDimSizes));
     Value result = rewriter.create<arith::ConstantOp>(
         loc, dstType, rewriter.getZeroAttr(dstType));
-    for (int64_t d = 0; d < trueDim; d++) {
-      auto pos = rewriter.getI64ArrayAttr(d);
+    for (int64_t d = 0; d < trueDim; d++)
       result =
-          rewriter.create<vector::InsertOp>(loc, dstType, trueVal, result, pos);
-    }
+          rewriter.create<vector::InsertOp>(loc, dstType, trueVal, result, d);
     rewriter.replaceOp(op, result);
     return success();
   }

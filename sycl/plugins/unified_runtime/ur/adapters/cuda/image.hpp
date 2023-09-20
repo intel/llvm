@@ -1,10 +1,10 @@
-//===--------- image.hpp - CUDA Adapter ------------------------------===//
+//===--------- image.hpp - CUDA Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -17,6 +17,7 @@ ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
 
 ur_result_t
 urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
+                           ur_image_channel_order_t image_channel_order,
                            CUarray_format *return_cuda_format,
                            size_t *return_pixel_types_size_bytes);
 

@@ -246,6 +246,82 @@ static LogicalResult printOperation(CppEmitter &emitter,
   return printConstantOp(emitter, operation, value);
 }
 
+static LogicalResult printBinaryOperation(CppEmitter &emitter,
+                                          Operation *operation,
+                                          StringRef binaryOperator) {
+  raw_ostream &os = emitter.ostream();
+
+  if (failed(emitter.emitAssignPrefix(*operation)))
+    return failure();
+  os << emitter.getOrCreateName(operation->getOperand(0));
+  os << " " << binaryOperator;
+  os << " " << emitter.getOrCreateName(operation->getOperand(1));
+
+  return success();
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::AddOp addOp) {
+  Operation *operation = addOp.getOperation();
+
+  return printBinaryOperation(emitter, operation, "+");
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::DivOp divOp) {
+  Operation *operation = divOp.getOperation();
+
+  return printBinaryOperation(emitter, operation, "/");
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::MulOp mulOp) {
+  Operation *operation = mulOp.getOperation();
+
+  return printBinaryOperation(emitter, operation, "*");
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::RemOp remOp) {
+  Operation *operation = remOp.getOperation();
+
+  return printBinaryOperation(emitter, operation, "%");
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::SubOp subOp) {
+  Operation *operation = subOp.getOperation();
+
+  return printBinaryOperation(emitter, operation, "-");
+}
+
+static LogicalResult printOperation(CppEmitter &emitter, emitc::CmpOp cmpOp) {
+  Operation *operation = cmpOp.getOperation();
+
+  StringRef binaryOperator;
+
+  switch (cmpOp.getPredicate()) {
+  case emitc::CmpPredicate::eq:
+    binaryOperator = "==";
+    break;
+  case emitc::CmpPredicate::ne:
+    binaryOperator = "!=";
+    break;
+  case emitc::CmpPredicate::lt:
+    binaryOperator = "<";
+    break;
+  case emitc::CmpPredicate::le:
+    binaryOperator = "<=";
+    break;
+  case emitc::CmpPredicate::gt:
+    binaryOperator = ">";
+    break;
+  case emitc::CmpPredicate::ge:
+    binaryOperator = ">=";
+    break;
+  case emitc::CmpPredicate::three_way:
+    binaryOperator = "<=>";
+    break;
+  }
+
+  return printBinaryOperation(emitter, operation, binaryOperator);
+}
+
 static LogicalResult printOperation(CppEmitter &emitter,
                                     cf::BranchOp branchOp) {
   raw_ostream &os = emitter.ostream();
@@ -670,7 +746,7 @@ static LogicalResult printOperation(CppEmitter &emitter,
       // When generating code for an scf.for op, printing a trailing semicolon
       // is handled within the printOperation function.
       bool trailingSemicolon =
-          !isa<scf::IfOp, scf::ForOp, cf::CondBranchOp>(op);
+          !isa<cf::CondBranchOp, emitc::LiteralOp, scf::IfOp, scf::ForOp>(op);
 
       if (failed(emitter.emitOperation(
               op, /*trailingSemicolon=*/trailingSemicolon)))
@@ -689,6 +765,8 @@ CppEmitter::CppEmitter(raw_ostream &os, bool declareVariablesAtTop)
 
 /// Return the existing or a new name for a Value.
 StringRef CppEmitter::getOrCreateName(Value val) {
+  if (auto literal = dyn_cast_if_present<emitc::LiteralOp>(val.getDefiningOp()))
+    return literal.getValue();
   if (!valueMapper.count(val))
     valueMapper.insert(val, formatv("v{0}", ++valueInScopeCount.top()));
   return *valueMapper.begin(val);
@@ -930,8 +1008,9 @@ LogicalResult CppEmitter::emitOperation(Operation &op, bool trailingSemicolon) {
           .Case<cf::BranchOp, cf::CondBranchOp>(
               [&](auto op) { return printOperation(*this, op); })
           // EmitC ops.
-          .Case<emitc::ApplyOp, emitc::CallOp, emitc::CastOp, emitc::ConstantOp,
-                emitc::IncludeOp, emitc::VariableOp>(
+          .Case<emitc::AddOp, emitc::ApplyOp, emitc::CallOp, emitc::CastOp,
+                emitc::CmpOp, emitc::ConstantOp, emitc::DivOp, emitc::IncludeOp,
+                emitc::MulOp, emitc::RemOp, emitc::SubOp, emitc::VariableOp>(
               [&](auto op) { return printOperation(*this, op); })
           // Func ops.
           .Case<func::CallOp, func::ConstantOp, func::FuncOp, func::ReturnOp>(
@@ -942,12 +1021,17 @@ LogicalResult CppEmitter::emitOperation(Operation &op, bool trailingSemicolon) {
           // Arithmetic ops.
           .Case<arith::ConstantOp>(
               [&](auto op) { return printOperation(*this, op); })
+          .Case<emitc::LiteralOp>([&](auto op) { return success(); })
           .Default([&](Operation *) {
             return op.emitOpError("unable to find printer for op");
           });
 
   if (failed(status))
     return failure();
+
+  if (isa<emitc::LiteralOp>(op))
+    return success();
+
   os << (trailingSemicolon ? ";\n" : "\n");
   return success();
 }

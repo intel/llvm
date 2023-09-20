@@ -22,7 +22,8 @@ apt update && apt install -yqq \
       zstd \
       zip \
       unzip \
-      jq
+      jq \
+      curl
 
 pip3 install psutil
 

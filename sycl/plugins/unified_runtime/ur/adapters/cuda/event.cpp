@@ -1,10 +1,10 @@
-//===--------- event.cpp - CUDA Adapter ------------------------------===//
+//===--------- event.cpp - CUDA Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "event.hpp"
 #include "common.hpp"
@@ -219,7 +219,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
                                                        ur_execution_info_t,
                                                        ur_event_callback_t,
                                                        void *) {
-  detail::ur::die("Event Callback not implemented in CUDA adapter");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -1,5 +1,5 @@
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=1 --spirv-preserve-auxdata --spirv-text -spirv-allow-unknown-intrinsics=llvm.genx. --spirv-preserve-auxdata -o %t.txt
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-preserve-auxdata --spirv-text -spirv-allow-unknown-intrinsics=llvm.genx. --spirv-preserve-auxdata -o %t.txt
 ; RUN: llvm-spirv --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-text -r %t.txt -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV

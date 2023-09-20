@@ -110,18 +110,20 @@ let GIIgnoreCopies = 1 in
 class AMDGPUPatIgnoreCopies<dag pattern, dag result> : AMDGPUPat<pattern, result>;
 
 let RecomputePerFunction = 1 in {
-def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
-def FP32Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP32Denormals()">;
-def FP64Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
-def NoFP16Denormals : Predicate<"!MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
-def NoFP32Denormals : Predicate<"!MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP32Denormals()">;
-def NoFP64Denormals : Predicate<"!MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
+def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals != DenormalMode::getPreserveSign()">;
+def FP32Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP32Denormals != DenormalMode::getPreserveSign()">;
+def FP64Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals != DenormalMode::getPreserveSign()">;
+def NoFP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals == DenormalMode::getPreserveSign()">;
+def NoFP32Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP32Denormals == DenormalMode::getPreserveSign()">;
+def NoFP64Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals == DenormalMode::getPreserveSign()">;
 def UnsafeFPMath : Predicate<"TM.Options.UnsafeFPMath">;
 }
 
 def FMA : Predicate<"Subtarget->hasFMA()">;
 
 def InstFlag : OperandWithDefaultOps <i32, (ops (i32 0))>;
+
+def i1imm_0 : OperandWithDefaultOps<i1, (ops (i1 0))>;
 
 class CustomOperandClass<string name, bit optional, string parserMethod,
                          string defaultMethod>
@@ -542,19 +544,18 @@ def truncstorei16_#as : PatFrag<(ops node:$val, node:$ptr),
 def store_hi16_#as : StoreHi16 <truncstorei16, i16>;
 def truncstorei8_hi16_#as : StoreHi16<truncstorei8, i8>;
 def truncstorei16_hi16_#as : StoreHi16<truncstorei16, i16>;
-
 } // End let IsStore = 1, AddressSpaces = ...
 
 let IsAtomic = 1, AddressSpaces = !cast<AddressSpaceList>("StoreAddress_"#as).AddrSpaces in {
-def atomic_store_8_#as : PatFrag<(ops node:$ptr, node:$val),
-                                 (atomic_store_8 node:$ptr, node:$val)>;
-def atomic_store_16_#as : PatFrag<(ops node:$ptr, node:$val),
-                                  (atomic_store_16 node:$ptr, node:$val)>;
-def atomic_store_32_#as : PatFrag<(ops node:$ptr, node:$val),
-                                  (atomic_store_32 node:$ptr, node:$val)>;
-def atomic_store_64_#as : PatFrag<(ops node:$ptr, node:$val),
-                                  (atomic_store_64 node:$ptr, node:$val)>;
-}
+def atomic_store_8_#as : PatFrag<(ops node:$val, node:$ptr),
+                                 (atomic_store_8 node:$val, node:$ptr)>;
+def atomic_store_16_#as : PatFrag<(ops node:$val, node:$ptr),
+                                  (atomic_store_16 node:$val, node:$ptr)>;
+def atomic_store_32_#as : PatFrag<(ops node:$val, node:$ptr),
+                                  (atomic_store_32 node:$val, node:$ptr)>;
+def atomic_store_64_#as : PatFrag<(ops node:$val, node:$ptr),
+                                  (atomic_store_64 node:$val, node:$ptr)>;
+} // End let IsAtomic = 1, AddressSpaces = ...
 } // End foreach as
 
 multiclass noret_op {

@@ -113,6 +113,7 @@ static bool hasFeature(StringRef Feature, const LangOptions &LangOpts,
                         .Case("c99", LangOpts.C99)
                         .Case("c11", LangOpts.C11)
                         .Case("c17", LangOpts.C17)
+                        .Case("c23", LangOpts.C23)
                         .Case("freestanding", LangOpts.Freestanding)
                         .Case("gnuinlineasm", LangOpts.GNUAsm)
                         .Case("objc", LangOpts.ObjC)
@@ -264,10 +265,10 @@ bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
 }
 
 OptionalDirectoryEntryRef Module::getEffectiveUmbrellaDir() const {
-  if (const auto *ME = Umbrella.dyn_cast<const FileEntryRef::MapEntry *>())
-    return FileEntryRef(*ME).getDir();
-  if (const auto *ME = Umbrella.dyn_cast<const DirectoryEntryRef::MapEntry *>())
-    return DirectoryEntryRef(*ME);
+  if (Umbrella && Umbrella.is<FileEntryRef>())
+    return Umbrella.get<FileEntryRef>().getDir();
+  if (Umbrella && Umbrella.is<DirectoryEntryRef>())
+    return Umbrella.get<DirectoryEntryRef>();
   return std::nullopt;
 }
 
@@ -693,6 +694,14 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
     }
   };
   VisitModule({M, nullptr});
+}
+
+void VisibleModuleSet::makeTransitiveImportsVisible(Module *M,
+                                                    SourceLocation Loc,
+                                                    VisibleCallback Vis,
+                                                    ConflictCallback Cb) {
+  for (auto *I : M->Imports)
+    setVisible(I, Loc, Vis, Cb);
 }
 
 ASTSourceDescriptor::ASTSourceDescriptor(Module &M)

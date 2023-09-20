@@ -181,11 +181,6 @@ static cl::opt<std::string> ShowLinkGraphs(
              "matching that regex after fixups have been applied"),
     cl::Optional, cl::cat(JITLinkCategory));
 
-static cl::opt<bool> ShowSizes(
-    "show-sizes",
-    cl::desc("Show sizes pre- and post-dead stripping, and allocations"),
-    cl::init(false), cl::cat(JITLinkCategory));
-
 static cl::opt<bool> ShowTimes("show-times",
                                cl::desc("Show times for llvm-jitlink phases"),
                                cl::init(false), cl::cat(JITLinkCategory));
@@ -386,13 +381,6 @@ static Error applyHarnessPromotions(Session &S, LinkGraph &G) {
     G.makeExternal(*Sym);
 
   return Error::success();
-}
-
-static uint64_t computeTotalBlockSizes(LinkGraph &G) {
-  uint64_t TotalSize = 0;
-  for (auto *B : G.blocks())
-    TotalSize += B->getSize();
-  return TotalSize;
 }
 
 static void dumpSectionContents(raw_ostream &OS, LinkGraph &G) {
@@ -1106,17 +1094,6 @@ void Session::modifyPassConfig(const Triple &TT,
   PassConfig.PrePrunePasses.push_back(
       [this](LinkGraph &G) { return applyHarnessPromotions(*this, G); });
 
-  if (ShowSizes) {
-    PassConfig.PrePrunePasses.push_back([this](LinkGraph &G) -> Error {
-      SizeBeforePruning += computeTotalBlockSizes(G);
-      return Error::success();
-    });
-    PassConfig.PostFixupPasses.push_back([this](LinkGraph &G) -> Error {
-      SizeAfterFixups += computeTotalBlockSizes(G);
-      return Error::success();
-    });
-  }
-
   if (ShowRelocatedSectionContents)
     PassConfig.PostFixupPasses.push_back([](LinkGraph &G) -> Error {
       outs() << "Relocated section contents for " << G.getName() << ":\n";
@@ -1411,7 +1388,8 @@ static Error addAbsoluteSymbols(Session &S,
       return Err;
 
     // Register the absolute symbol with the session symbol infos.
-    S.SymbolInfos[Name] = {ArrayRef<char>(), Addr};
+    S.SymbolInfos[Name] = {ArrayRef<char>(), Addr,
+                           AbsDef.getFlags().getTargetFlags()};
   }
 
   return Error::success();
@@ -1879,14 +1857,11 @@ getTargetInfo(const Triple &TT,
           std::move(MAI), std::move(Ctx), std::move(Disassembler),
           std::move(MII), std::move(MIA), std::move(InstPrinter)};
 }
-
-static Error runChecks(Session &S) {
+static Error runChecks(Session &S, Triple TT, SubtargetFeatures Features) {
   if (CheckFiles.empty())
     return Error::success();
 
   LLVM_DEBUG(dbgs() << "Running checks...\n");
-
-  auto TI = getTargetInfo(S.ES.getTargetTriple(), S.Features);
 
   auto IsSymbolValid = [&S](StringRef Symbol) {
     return S.isSymbolRegistered(Symbol);
@@ -1911,7 +1886,7 @@ static Error runChecks(Session &S) {
   RuntimeDyldChecker Checker(
       IsSymbolValid, GetSymbolInfo, GetSectionInfo, GetStubInfo, GetGOTInfo,
       S.ES.getTargetTriple().isLittleEndian() ? support::little : support::big,
-      TI.Disassembler.get(), TI.InstPrinter.get(), dbgs());
+      TT, StringRef(), Features, dbgs());
 
   std::string CheckLineStart = "# " + CheckName + ":";
   for (auto &CheckFile : CheckFiles) {
@@ -1932,19 +1907,6 @@ static Error addSelfRelocations(LinkGraph &G) {
               *Sym, G, *TI.Disassembler, *TI.MIA))
         return Err;
   return Error::success();
-}
-
-static void dumpSessionStats(Session &S) {
-  if (!ShowSizes)
-    return;
-  if (!OrcRuntime.empty())
-    outs() << "Note: Session stats include runtime and entry point lookup, but "
-              "not JITDylib initialization/deinitialization.\n";
-  if (ShowSizes)
-    outs() << "  Total size of all blocks before pruning: "
-           << S.SizeBeforePruning
-           << "\n  Total size of all blocks after fixups: " << S.SizeAfterFixups
-           << "\n";
 }
 
 static Expected<ExecutorSymbolDef> getMainEntryPoint(Session &S) {
@@ -2036,7 +1998,9 @@ int main(int argc, char *argv[]) {
   auto [TT, Features] = getFirstFileTripleAndFeatures();
   ExitOnErr(sanitizeArguments(TT, argv[0]));
 
-  auto S = ExitOnErr(Session::Create(std::move(TT), std::move(Features)));
+  auto S = ExitOnErr(Session::Create(TT, Features));
+
+  enableStatistics(*S, !OrcRuntime.empty());
 
   {
     TimeRegion TR(Timers ? &Timers->LoadObjectsTimer : nullptr);
@@ -2063,8 +2027,6 @@ int main(int argc, char *argv[]) {
   if (ShowAddrs)
     S->dumpSessionInfo(outs());
 
-  dumpSessionStats(*S);
-
   if (!EntryPoint) {
     if (Timers)
       Timers->JITLinkTG.printAll(errs());
@@ -2072,13 +2034,10 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  ExitOnErr(runChecks(*S));
-
-  if (NoExec)
-    return 0;
+  ExitOnErr(runChecks(*S, std::move(TT), std::move(Features)));
 
   int Result = 0;
-  {
+  if (!NoExec) {
     LLVM_DEBUG(dbgs() << "Running \"" << EntryPointName << "\"...\n");
     TimeRegion TR(Timers ? &Timers->RunTimer : nullptr);
     if (!OrcRuntime.empty())

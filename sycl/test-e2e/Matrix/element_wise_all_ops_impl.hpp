@@ -185,7 +185,6 @@ void test_ewops_c() {
 
 int main() {
   static constexpr size_t TM = 8;
-  static constexpr size_t TN = SG_SZ;
   static constexpr size_t TK = 16;
 
   static constexpr size_t MATRIX_M = TM * 2;

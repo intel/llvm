@@ -19,6 +19,7 @@
 #include "RISCVMachineFunctionInfo.h"
 #include "RISCVTargetMachine.h"
 #include "TargetInfo/RISCVTargetInfo.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
@@ -35,6 +36,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 
@@ -44,6 +46,10 @@ using namespace llvm;
 
 STATISTIC(RISCVNumInstrsCompressed,
           "Number of RISC-V Compressed instructions emitted");
+
+namespace llvm {
+extern const SubtargetFeatureKV RISCVFeatureKV[RISCV::NumSubtargetFeatures];
+} // namespace llvm
 
 namespace {
 class RISCVAsmPrinter : public AsmPrinter {
@@ -72,6 +78,7 @@ public:
   typedef std::tuple<unsigned, uint32_t> HwasanMemaccessTuple;
   std::map<HwasanMemaccessTuple, MCSymbol *> HwasanMemaccessSymbols;
   void LowerHWASAN_CHECK_MEMACCESS(const MachineInstr &MI);
+  void LowerKCFI_CHECK(const MachineInstr &MI);
   void EmitHwasanMemaccessSymbols(Module &M);
 
   // Wrapper needed for tblgenned pseudo lowering.
@@ -81,6 +88,8 @@ public:
   void emitEndOfAsmFile(Module &M) override;
 
   void emitFunctionEntryLabel() override;
+  void emitDirectiveOptionArch();
+  bool isSameAttribute();
 
 private:
   void emitAttributes();
@@ -149,6 +158,9 @@ void RISCVAsmPrinter::emitInstruction(const MachineInstr *MI) {
   switch (MI->getOpcode()) {
   case RISCV::HWASAN_CHECK_MEMACCESS_SHORTGRANULES:
     LowerHWASAN_CHECK_MEMACCESS(*MI);
+    return;
+  case RISCV::KCFI_CHECK:
+    LowerKCFI_CHECK(*MI);
     return;
   case RISCV::PseudoRVVInitUndefM1:
   case RISCV::PseudoRVVInitUndefM2:
@@ -220,24 +232,65 @@ bool RISCVAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
 
   const MachineOperand &AddrReg = MI->getOperand(OpNo);
   assert(MI->getNumOperands() > OpNo + 1 && "Expected additional operand");
-  const MachineOperand &DispImm = MI->getOperand(OpNo + 1);
+  const MachineOperand &Offset = MI->getOperand(OpNo + 1);
   // All memory operands should have a register and an immediate operand (see
   // RISCVDAGToDAGISel::SelectInlineAsmMemoryOperand).
   if (!AddrReg.isReg())
     return true;
-  if (!DispImm.isImm())
+  if (!Offset.isImm() && !Offset.isGlobal())
     return true;
 
-  OS << DispImm.getImm() << "("
-     << RISCVInstPrinter::getRegisterName(AddrReg.getReg()) << ")";
+  MCOperand MCO;
+  if (!lowerOperand(Offset, MCO))
+    return true;
+
+  if (Offset.isImm())
+    OS << MCO.getImm();
+  else if (Offset.isGlobal())
+    OS << *MCO.getExpr();
+  OS << "(" << RISCVInstPrinter::getRegisterName(AddrReg.getReg()) << ")";
   return false;
+}
+
+void RISCVAsmPrinter::emitDirectiveOptionArch() {
+  RISCVTargetStreamer &RTS =
+      static_cast<RISCVTargetStreamer &>(*OutStreamer->getTargetStreamer());
+  SmallVector<RISCVOptionArchArg> NeedEmitStdOptionArgs;
+  const MCSubtargetInfo &MCSTI = *TM.getMCSubtargetInfo();
+  for (const auto &Feature : RISCVFeatureKV) {
+    if (STI->hasFeature(Feature.Value) == MCSTI.hasFeature(Feature.Value))
+      continue;
+
+    if (!llvm::RISCVISAInfo::isSupportedExtensionFeature(Feature.Key))
+      continue;
+
+    auto Delta = STI->hasFeature(Feature.Value) ? RISCVOptionArchArgType::Plus
+                                                : RISCVOptionArchArgType::Minus;
+    NeedEmitStdOptionArgs.emplace_back(Delta, Feature.Key);
+  }
+  if (!NeedEmitStdOptionArgs.empty())
+    RTS.emitDirectiveOptionArch(NeedEmitStdOptionArgs);
+}
+
+bool RISCVAsmPrinter::isSameAttribute() {
+  const MCSubtargetInfo &MCSTI = *TM.getMCSubtargetInfo();
+  return MCSTI.getFeatureBits() == STI->getFeatureBits();
 }
 
 bool RISCVAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   STI = &MF.getSubtarget<RISCVSubtarget>();
+  RISCVTargetStreamer &RTS =
+      static_cast<RISCVTargetStreamer &>(*OutStreamer->getTargetStreamer());
+  if (!isSameAttribute()) {
+    RTS.emitDirectiveOptionPush();
+    emitDirectiveOptionArch();
+  }
 
   SetupMachineFunction(MF);
   emitFunctionBody();
+
+  if (!isSameAttribute())
+    RTS.emitDirectiveOptionPop();
   return false;
 }
 
@@ -303,6 +356,92 @@ void RISCVAsmPrinter::LowerHWASAN_CHECK_MEMACCESS(const MachineInstr &MI) {
   auto Expr = RISCVMCExpr::create(Res, RISCVMCExpr::VK_RISCV_CALL, OutContext);
 
   EmitToStreamer(*OutStreamer, MCInstBuilder(RISCV::PseudoCALL).addExpr(Expr));
+}
+
+void RISCVAsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
+  Register AddrReg = MI.getOperand(0).getReg();
+  assert(std::next(MI.getIterator())->isCall() &&
+         "KCFI_CHECK not followed by a call instruction");
+  assert(std::next(MI.getIterator())->getOperand(0).getReg() == AddrReg &&
+         "KCFI_CHECK call target doesn't match call operand");
+
+  // Temporary registers for comparing the hashes. If a register is used
+  // for the call target, or reserved by the user, we can clobber another
+  // temporary register as the check is immediately followed by the
+  // call. The check defaults to X6/X7, but can fall back to X28-X31 if
+  // needed.
+  unsigned ScratchRegs[] = {RISCV::X6, RISCV::X7};
+  unsigned NextReg = RISCV::X28;
+  auto isRegAvailable = [&](unsigned Reg) {
+    return Reg != AddrReg && !STI->isRegisterReservedByUser(Reg);
+  };
+  for (auto &Reg : ScratchRegs) {
+    if (isRegAvailable(Reg))
+      continue;
+    while (!isRegAvailable(NextReg))
+      ++NextReg;
+    Reg = NextReg++;
+    if (Reg > RISCV::X31)
+      report_fatal_error("Unable to find scratch registers for KCFI_CHECK");
+  }
+
+  if (AddrReg == RISCV::X0) {
+    // Checking X0 makes no sense. Instead of emitting a load, zero
+    // ScratchRegs[0].
+    EmitToStreamer(*OutStreamer, MCInstBuilder(RISCV::ADDI)
+                                     .addReg(ScratchRegs[0])
+                                     .addReg(RISCV::X0)
+                                     .addImm(0));
+  } else {
+    // Adjust the offset for patchable-function-prefix. This assumes that
+    // patchable-function-prefix is the same for all functions.
+    int NopSize = STI->hasStdExtCOrZca() ? 2 : 4;
+    int64_t PrefixNops = 0;
+    (void)MI.getMF()
+        ->getFunction()
+        .getFnAttribute("patchable-function-prefix")
+        .getValueAsString()
+        .getAsInteger(10, PrefixNops);
+
+    // Load the target function type hash.
+    EmitToStreamer(*OutStreamer, MCInstBuilder(RISCV::LW)
+                                     .addReg(ScratchRegs[0])
+                                     .addReg(AddrReg)
+                                     .addImm(-(PrefixNops * NopSize + 4)));
+  }
+
+  // Load the expected 32-bit type hash.
+  const int64_t Type = MI.getOperand(1).getImm();
+  const int64_t Hi20 = ((Type + 0x800) >> 12) & 0xFFFFF;
+  const int64_t Lo12 = SignExtend64<12>(Type);
+  if (Hi20) {
+    EmitToStreamer(
+        *OutStreamer,
+        MCInstBuilder(RISCV::LUI).addReg(ScratchRegs[1]).addImm(Hi20));
+  }
+  if (Lo12 || Hi20 == 0) {
+    EmitToStreamer(*OutStreamer,
+                   MCInstBuilder((STI->hasFeature(RISCV::Feature64Bit) && Hi20)
+                                     ? RISCV::ADDIW
+                                     : RISCV::ADDI)
+                       .addReg(ScratchRegs[1])
+                       .addReg(ScratchRegs[1])
+                       .addImm(Lo12));
+  }
+
+  // Compare the hashes and trap if there's a mismatch.
+  MCSymbol *Pass = OutContext.createTempSymbol();
+  EmitToStreamer(*OutStreamer,
+                 MCInstBuilder(RISCV::BEQ)
+                     .addReg(ScratchRegs[0])
+                     .addReg(ScratchRegs[1])
+                     .addExpr(MCSymbolRefExpr::create(Pass, OutContext)));
+
+  MCSymbol *Trap = OutContext.createTempSymbol();
+  OutStreamer->emitLabel(Trap);
+  EmitToStreamer(*OutStreamer, MCInstBuilder(RISCV::EBREAK));
+  emitKCFITrapEntry(*MI.getMF(), Trap);
+  OutStreamer->emitLabel(Pass);
 }
 
 void RISCVAsmPrinter::EmitHwasanMemaccessSymbols(Module &M) {
@@ -640,12 +779,13 @@ static bool lowerRISCVVMachineInstrToMCInst(const MachineInstr *MI,
   uint64_t TSFlags = MCID.TSFlags;
   unsigned NumOps = MI->getNumExplicitOperands();
 
-  // Skip policy, VL and SEW operands which are the last operands if present.
+  // Skip policy, SEW, VL, VXRM/FRM operands which are the last operands if
+  // present.
   if (RISCVII::hasVecPolicyOp(TSFlags))
     --NumOps;
-  if (RISCVII::hasVLOp(TSFlags))
-    --NumOps;
   if (RISCVII::hasSEWOp(TSFlags))
+    --NumOps;
+  if (RISCVII::hasVLOp(TSFlags))
     --NumOps;
   if (RISCVII::hasRoundModeOp(TSFlags))
     --NumOps;

@@ -115,22 +115,22 @@ bool SPIRVLowerConstExprBase::visit(Module *M) {
     }
     auto FBegin = I.begin();
     while (!WorkList.empty()) {
-      auto II = WorkList.front();
+      auto *II = WorkList.front();
 
       auto LowerOp = [&II, &FBegin, &I, &Changed](Value *V) -> Value * {
         if (isa<Function>(V))
           return V;
         auto *CE = cast<ConstantExpr>(V);
         SPIRVDBG(dbgs() << "[lowerConstantExpressions] " << *CE;)
-        auto ReplInst = CE->getAsInstruction();
-        auto InsPoint = II->getParent() == &*FBegin ? II : &FBegin->back();
+        auto *ReplInst = CE->getAsInstruction();
+        auto *InsPoint = II->getParent() == &*FBegin ? II : &FBegin->back();
         ReplInst->insertBefore(InsPoint);
         SPIRVDBG(dbgs() << " -> " << *ReplInst << '\n';)
         std::vector<Instruction *> Users;
         // Do not replace use during iteration of use. Do it in another loop
-        for (auto U : CE->users()) {
+        for (auto *U : CE->users()) {
           SPIRVDBG(dbgs() << "[lowerConstantExpressions] Use: " << *U << '\n';)
-          if (auto InstUser = dyn_cast<Instruction>(U)) {
+          if (auto *InstUser = dyn_cast<Instruction>(U)) {
             // Only replace users in scope of current function
             if (InstUser->getParent()->getParent() == &I)
               Users.push_back(InstUser);
@@ -152,9 +152,9 @@ bool SPIRVLowerConstExprBase::visit(Module *M) {
         auto *Op = II->getOperand(OI);
         if (auto *CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
-        } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
+        } else if (auto *MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
           Metadata *MD = MDAsVal->getMetadata();
-          if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
+          if (auto *ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
             Constant *C = ConstMD->getValue();
             Value *ReplInst = nullptr;
             if (auto *CE = dyn_cast<ConstantExpr>(C))

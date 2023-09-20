@@ -406,29 +406,22 @@ bool AArch64CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
           if (NewVT.isVector()) {
             if (OldLLT.isVector()) {
               if (NewLLT.getNumElements() > OldLLT.getNumElements()) {
-                // We don't handle VA types which are not exactly twice the
-                // size, but can easily be done in future.
-                if (NewLLT.getNumElements() != OldLLT.getNumElements() * 2) {
-                  LLVM_DEBUG(dbgs() << "Outgoing vector ret has too many elts");
-                  return false;
-                }
-                auto Undef = MIRBuilder.buildUndef({OldLLT});
+
                 CurVReg =
-                    MIRBuilder.buildMergeLikeInstr({NewLLT}, {CurVReg, Undef})
+                    MIRBuilder.buildPadVectorWithUndefElements(NewLLT, CurVReg)
                         .getReg(0);
               } else {
                 // Just do a vector extend.
                 CurVReg = MIRBuilder.buildInstr(ExtendOp, {NewLLT}, {CurVReg})
                               .getReg(0);
               }
-            } else if (NewLLT.getNumElements() == 2) {
-              // We need to pad a <1 x S> type to <2 x S>. Since we don't have
-              // <1 x S> vector types in GISel we use a build_vector instead
-              // of a vector merge/concat.
-              auto Undef = MIRBuilder.buildUndef({OldLLT});
+            } else if (NewLLT.getNumElements() >= 2 &&
+                       NewLLT.getNumElements() <= 8) {
+              // We need to pad a <1 x S> type to <2/4/8 x S>. Since we don't
+              // have <1 x S> vector types in GISel we use a build_vector
+              // instead of a vector merge/concat.
               CurVReg =
-                  MIRBuilder
-                      .buildBuildVector({NewLLT}, {CurVReg, Undef.getReg(0)})
+                  MIRBuilder.buildPadVectorWithUndefElements(NewLLT, CurVReg)
                       .getReg(0);
             } else {
               LLVM_DEBUG(dbgs() << "Could not handle ret ty\n");
@@ -539,8 +532,8 @@ bool AArch64CallLowering::fallBackToDAGISel(const MachineFunction &MF) const {
   }
 
   SMEAttrs Attrs(F);
-  if (Attrs.hasNewZAInterface() ||
-      (!Attrs.hasStreamingInterface() && Attrs.hasStreamingBody()))
+  if (Attrs.hasZAState() || Attrs.hasStreamingInterfaceOrBody() ||
+      Attrs.hasStreamingCompatibleInterface())
     return true;
 
   return false;
@@ -571,6 +564,11 @@ void AArch64CallLowering::saveVarArgRegisters(
     if (IsWin64CC) {
       GPRIdx = MFI.CreateFixedObject(GPRSaveSize,
                                      -static_cast<int>(GPRSaveSize), false);
+      if (GPRSaveSize & 15)
+        // The extra size here, if triggered, will always be 8.
+        MFI.CreateFixedObject(16 - (GPRSaveSize & 15),
+                              -static_cast<int>(alignTo(GPRSaveSize, 16)),
+                              false);
     } else
       GPRIdx = MFI.CreateStackObject(GPRSaveSize, Align(8), false);
 

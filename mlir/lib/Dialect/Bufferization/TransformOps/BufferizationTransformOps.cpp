@@ -11,19 +11,44 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 #include "mlir/Dialect/Bufferization/Transforms/OneShotModuleBufferize.h"
+#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/Bufferization/Transforms/Transforms.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
-#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 
 using namespace mlir;
 using namespace mlir::bufferization;
 using namespace mlir::transform;
 
 //===----------------------------------------------------------------------===//
+// BufferLoopHoistingOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure transform::BufferLoopHoistingOp::applyToOne(
+    TransformRewriter &rewriter, Operation *target,
+    ApplyToEachResultList &results, TransformState &state) {
+  bufferization::hoistBuffersFromLoops(target);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::BufferLoopHoistingOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  onlyReadsHandle(getTarget(), effects);
+  modifiesPayload(effects);
+}
+
+//===----------------------------------------------------------------------===//
 // OneShotBufferizeOp
 //===----------------------------------------------------------------------===//
+
+LogicalResult transform::OneShotBufferizeOp::verify() {
+  if (getMemcpyOp() != "memref.copy" && getMemcpyOp() != "linalg.copy")
+    return emitOpError() << "unsupported memcpy op";
+  return success();
+}
 
 DiagnosedSilenceableFailure
 transform::OneShotBufferizeOp::apply(transform::TransformRewriter &rewriter,
@@ -39,6 +64,19 @@ transform::OneShotBufferizeOp::apply(transform::TransformRewriter &rewriter,
   if (getFunctionBoundaryTypeConversion().has_value())
     options.setFunctionBoundaryTypeConversion(
         *getFunctionBoundaryTypeConversion());
+  if (getMemcpyOp() == "memref.copy") {
+    options.memCpyFn = [](OpBuilder &b, Location loc, Value from, Value to) {
+      b.create<memref::CopyOp>(loc, from, to);
+      return success();
+    };
+  } else if (getMemcpyOp() == "linalg.copy") {
+    options.memCpyFn = [](OpBuilder &b, Location loc, Value from, Value to) {
+      b.create<linalg::CopyOp>(loc, from, to);
+      return success();
+    };
+  } else {
+    llvm_unreachable("invalid copy op");
+  }
 
   auto payloadOps = state.getPayloadOps(getTarget());
   for (Operation *target : payloadOps) {
@@ -83,8 +121,7 @@ DiagnosedSilenceableFailure transform::EliminateEmptyTensorsOp::apply(
     if (failed(analyzeOp(target, state)))
       return mlir::emitSilenceableFailure(target->getLoc())
              << "failed to analyze op";
-    if (failed(bufferization::insertSliceAnchoredEmptyTensorEliminationStep(
-            rewriter, target, state)))
+    if (failed(bufferization::eliminateEmptyTensors(rewriter, target, state)))
       return mlir::emitSilenceableFailure(target->getLoc())
              << "failed to eliminate insert_slice anchored tensor.empty ops";
   }
@@ -138,4 +175,5 @@ public:
 void mlir::bufferization::registerTransformDialectExtension(
     DialectRegistry &registry) {
   registry.addExtensions<BufferizationTransformDialectExtension>();
+  bufferization::registerAllocationOpInterfaceExternalModels(registry);
 }

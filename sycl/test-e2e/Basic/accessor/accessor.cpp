@@ -1495,7 +1495,7 @@ int main() {
   {
     AccT acc;
     sycl::queue q;
-    bool result;
+    bool result = false;
     {
       sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
       // We are passing a default constructed accessor and a non default
@@ -1529,7 +1529,7 @@ int main() {
     AccT acc;
     assert(acc.empty());
     sycl::queue q;
-    bool result;
+    bool result = false;
     {
       // We are passing only a default constructed accessor. Default constructed
       // accessors can be passed to commands, but trying to access the

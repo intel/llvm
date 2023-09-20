@@ -1,10 +1,10 @@
-//===--------- ur_interface_loader.cpp - Unified Runtime  ------------===//
+//===--------- ur_interface_loader.cpp - Unified Runtime  -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <ur_api.h>
 #include <ur_ddi.h>
@@ -40,7 +40,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   pDdiTable->pfnGet = urPlatformGet;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
   pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
   return UR_RESULT_SUCCESS;
 }
@@ -115,7 +115,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
-  pDdiTable->pfnSetArgLocal = nullptr;
+  pDdiTable->pfnSetArgLocal = urKernelSetArgLocal;
   pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
@@ -132,9 +132,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urSamplerGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
   pDdiTable->pfnRelease = urSamplerRelease;
   pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
@@ -238,10 +238,10 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
-  pDdiTable->pfnPoolCreate = nullptr;
-  pDdiTable->pfnPoolRetain = nullptr;
-  pDdiTable->pfnPoolRelease = nullptr;
-  pDdiTable->pfnPoolGetInfo = nullptr;
+  pDdiTable->pfnPoolCreate = urUSMPoolCreate;
+  pDdiTable->pfnPoolRetain = urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = urUSMPoolGetInfo;
   pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }

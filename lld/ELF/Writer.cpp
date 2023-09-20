@@ -347,8 +347,13 @@ template <class ELFT> void elf::createSyntheticSections() {
 
     if (config->emachine == EM_AARCH64 &&
         config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+      if (!config->relocatable && !config->shared && !needsInterpSection())
+        error("--android-memtag-mode is incompatible with fully-static "
+              "executables (-static)");
       part.memtagAndroidNote = std::make_unique<MemtagAndroidNote>();
       add(*part.memtagAndroidNote);
+      part.memtagDescriptors = std::make_unique<MemtagDescriptors>();
+      add(*part.memtagDescriptors);
     }
 
     if (config->androidPackDynRelocs)
@@ -664,7 +669,7 @@ static bool shouldKeepInSymtab(const Defined &sym) {
   return true;
 }
 
-static bool includeInSymtab(const Symbol &b) {
+bool lld::elf::includeInSymtab(const Symbol &b) {
   if (auto *d = dyn_cast<Defined>(&b)) {
     // Always include absolute symbols.
     SectionBase *sec = d->section;
@@ -928,12 +933,10 @@ static unsigned getSectionRank(const OutputSection &osec) {
     // their coverage by a single signed 16-bit offset from the TOC base
     // pointer.
     StringRef name = osec.name;
-    if (name == ".branch_lt")
+    if (name == ".got")
       rank |= 1;
-    else if (name == ".got")
-      rank |= 2;
     else if (name == ".toc")
-      rank |= 4;
+      rank |= 2;
   }
 
   if (config->emachine == EM_MIPS) {
@@ -1644,6 +1647,8 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
       changed |= part.relaDyn->updateAllocSize();
       if (part.relrDyn)
         changed |= part.relrDyn->updateAllocSize();
+      if (part.memtagDescriptors)
+        changed |= part.memtagDescriptors->updateAllocSize();
     }
 
     const Defined *changedSym = script->assignAddresses();
@@ -2149,6 +2154,11 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     sec->finalize();
 
   script->checkMemoryRegions();
+
+  if (config->emachine == EM_ARM && !config->isLE && config->armBe8) {
+    addArmInputSectionMappingSymbols();
+    sortArmMappingSymbols();
+  }
 }
 
 // Ensure data sections are not mixed with executable sections when
@@ -2978,7 +2988,7 @@ template <class ELFT> void Writer<ELFT>::writeBuildId() {
   switch (config->buildId) {
   case BuildIdKind::Fast:
     computeHash(output, input, [](uint8_t *dest, ArrayRef<uint8_t> arr) {
-      write64le(dest, xxHash64(arr));
+      write64le(dest, xxh3_64bits(arr));
     });
     break;
   case BuildIdKind::Md5:

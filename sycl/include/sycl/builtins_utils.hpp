@@ -274,31 +274,6 @@ struct same_size_unsigned_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
           sizeof...(Indexes)>;
 };
 
-// Utility traits for getting a floating point type with the specified size.
-template <size_t Size> struct get_float_by_size {
-  using type = select_scalar_by_size_t<Size, void, half, float, double>;
-};
-template <typename T> struct same_size_float {
-  using type = typename get_float_by_size<sizeof(T)>::type;
-};
-template <typename T, size_t N> struct same_size_float<marray<T, N>> {
-  using type = marray<typename same_size_float<T>::type, N>;
-};
-template <typename T, int N> struct same_size_float<vec<T, N>> {
-  using type = vec<typename same_size_float<T>::type, N>;
-};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct same_size_float<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                                 OperationCurrentT, Indexes...>> {
-  // Converts to vec for simplicity.
-  using type = vec<typename same_size_float<typename VecT::element_type>::type,
-                   sizeof...(Indexes)>;
-};
-
-template <typename T>
-using same_size_float_t = typename same_size_float<T>::type;
-
 // Utility trait for changing the element type of a type T. If T is a scalar,
 // the new type replaces T completely.
 template <typename NewElemT, typename T> struct change_elements {
@@ -355,6 +330,25 @@ struct upsampled_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 };
 
 template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
+
+// Wrapper trait around nan_return to allow propagation through swizzles and
+// marrays.
+template <typename T> struct nan_return_unswizzled {
+  using type = typename nan_types<T, T>::ret_type;
+};
+template <typename T, size_t N> struct nan_return_unswizzled<marray<T, N>> {
+  using type = marray<typename nan_return_unswizzled<T>::type, N>;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct nan_return_unswizzled<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                       OperationCurrentT, Indexes...>> {
+  using type = typename nan_return_unswizzled<
+      vec<typename VecT::element_type, sizeof...(Indexes)>>::type;
+};
+
+template <typename T>
+using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
 
 // Utility functions for converting to/from vec/marray.
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {

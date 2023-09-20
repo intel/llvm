@@ -1,10 +1,10 @@
-//===--------- adapter.cpp - Level Zero Adapter ----------------------===//
+//===--------- adapter.cpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
@@ -159,7 +159,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
   std::lock_guard<std::mutex> Lock{Adapter.Mutex};
   if (--Adapter.RefCount == 0) {
-    adapterStateTeardown();
+    return adapterStateTeardown();
   }
 
   return UR_RESULT_SUCCESS;

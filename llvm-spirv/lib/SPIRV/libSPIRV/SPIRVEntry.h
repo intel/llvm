@@ -366,7 +366,7 @@ public:
   void setLinkageType(SPIRVLinkageTypeKind);
   void setModule(SPIRVModule *TheModule);
   void setName(const std::string &TheName);
-  virtual void setScope(SPIRVEntry *Scope){};
+  virtual void setScope(SPIRVEntry *Scope) {}
   void takeAnnotations(SPIRVForward *);
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);

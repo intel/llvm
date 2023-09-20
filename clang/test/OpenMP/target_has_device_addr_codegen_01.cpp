@@ -53,7 +53,7 @@ int main() {
 // CHECK-NEXT:    [[TMP0:%.*]] = load float, ptr [[A]], align 4
 // CHECK-NEXT:    [[CONV:%.*]] = fptosi float [[TMP0]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i32 [[CONV]] to i64
-// CHECK-NEXT:    [[TMP2:%.*]] = call ptr @llvm.stacksave()
+// CHECK-NEXT:    [[TMP2:%.*]] = call ptr @llvm.stacksave.p0()
 // CHECK-NEXT:    store ptr [[TMP2]], ptr [[SAVED_STACK]], align 8
 // CHECK-NEXT:    [[VLA:%.*]] = alloca float, i64 [[TMP1]], align 4
 // CHECK-NEXT:    store i64 [[TMP1]], ptr [[__VLA_EXPR0]], align 8
@@ -138,13 +138,13 @@ int main() {
 // CHECK-NEXT:    [[CONV1:%.*]] = fptosi float [[TMP41]] to i32
 // CHECK-NEXT:    store i32 [[CONV1]], ptr [[RETVAL]], align 4
 // CHECK-NEXT:    [[TMP42:%.*]] = load ptr, ptr [[SAVED_STACK]], align 8
-// CHECK-NEXT:    call void @llvm.stackrestore(ptr [[TMP42]])
+// CHECK-NEXT:    call void @llvm.stackrestore.p0(ptr [[TMP42]])
 // CHECK-NEXT:    [[TMP43:%.*]] = load i32, ptr [[RETVAL]], align 4
 // CHECK-NEXT:    ret i32 [[TMP43]]
 //
 //
 // CHECK-LABEL: define {{[^@]+}}@_ZN1SC1Ev
-// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat align 2 {
+// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -154,7 +154,7 @@ int main() {
 //
 //
 // CHECK-LABEL: define {{[^@]+}}@_ZN1S3fooEv
-// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat align 2 {
+// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    [[DOTOFFLOAD_BASEPTRS:%.*]] = alloca [5 x ptr], align 8
@@ -291,7 +291,7 @@ int main() {
 //
 //
 // CHECK-LABEL: define {{[^@]+}}@_ZN1SC2Ev
-// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat align 2 {
+// CHECK-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // CHECK-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -361,7 +361,7 @@ int main() {
 // SIMD-ONLY0-NEXT:    [[TMP0:%.*]] = load float, ptr [[A]], align 4
 // SIMD-ONLY0-NEXT:    [[CONV:%.*]] = fptosi float [[TMP0]] to i32
 // SIMD-ONLY0-NEXT:    [[TMP1:%.*]] = zext i32 [[CONV]] to i64
-// SIMD-ONLY0-NEXT:    [[TMP2:%.*]] = call ptr @llvm.stacksave()
+// SIMD-ONLY0-NEXT:    [[TMP2:%.*]] = call ptr @llvm.stacksave.p0()
 // SIMD-ONLY0-NEXT:    store ptr [[TMP2]], ptr [[SAVED_STACK]], align 8
 // SIMD-ONLY0-NEXT:    [[VLA:%.*]] = alloca float, i64 [[TMP1]], align 4
 // SIMD-ONLY0-NEXT:    store i64 [[TMP1]], ptr [[__VLA_EXPR0]], align 8
@@ -393,13 +393,13 @@ int main() {
 // SIMD-ONLY0-NEXT:    [[CONV6:%.*]] = fptosi float [[TMP12]] to i32
 // SIMD-ONLY0-NEXT:    store i32 [[CONV6]], ptr [[RETVAL]], align 4
 // SIMD-ONLY0-NEXT:    [[TMP13:%.*]] = load ptr, ptr [[SAVED_STACK]], align 8
-// SIMD-ONLY0-NEXT:    call void @llvm.stackrestore(ptr [[TMP13]])
+// SIMD-ONLY0-NEXT:    call void @llvm.stackrestore.p0(ptr [[TMP13]])
 // SIMD-ONLY0-NEXT:    [[TMP14:%.*]] = load i32, ptr [[RETVAL]], align 4
 // SIMD-ONLY0-NEXT:    ret i32 [[TMP14]]
 //
 //
 // SIMD-ONLY0-LABEL: define {{[^@]+}}@_ZN1SC1Ev
-// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat align 2 {
+// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2:[0-9]+]] comdat {
 // SIMD-ONLY0-NEXT:  entry:
 // SIMD-ONLY0-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // SIMD-ONLY0-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -409,7 +409,7 @@ int main() {
 //
 //
 // SIMD-ONLY0-LABEL: define {{[^@]+}}@_ZN1S3fooEv
-// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat align 2 {
+// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) #[[ATTR3:[0-9]+]] comdat {
 // SIMD-ONLY0-NEXT:  entry:
 // SIMD-ONLY0-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // SIMD-ONLY0-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8
@@ -437,7 +437,7 @@ int main() {
 //
 //
 // SIMD-ONLY0-LABEL: define {{[^@]+}}@_ZN1SC2Ev
-// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat align 2 {
+// SIMD-ONLY0-SAME: (ptr noundef nonnull align 8 dereferenceable(40) [[THIS:%.*]]) unnamed_addr #[[ATTR2]] comdat {
 // SIMD-ONLY0-NEXT:  entry:
 // SIMD-ONLY0-NEXT:    [[THIS_ADDR:%.*]] = alloca ptr, align 8
 // SIMD-ONLY0-NEXT:    store ptr [[THIS]], ptr [[THIS_ADDR]], align 8

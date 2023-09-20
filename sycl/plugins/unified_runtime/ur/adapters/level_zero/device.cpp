@@ -1,10 +1,10 @@
-//===--------- device.cpp - Level Zero Adapter -----------------------===//
+//===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "device.hpp"
 #include "ur_level_zero.hpp"
@@ -786,6 +786,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
     return ReturnValue(static_cast<uint32_t>(
         0)); //__read_write attribute currently undefinde in opencl
+  }
+
+  case UR_DEVICE_INFO_ESIMD_SUPPORT: {
+    // ESIMD is only supported by Intel GPUs.
+    uint32_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
+                      Device->ZeDeviceProperties->vendorId == 0x8086;
+    return ReturnValue(result);
   }
 
   default:

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o - %s | FileCheck %s
 
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins. We disable index flipping for SYCL Native
@@ -15,8 +15,8 @@ int main() {
   sycl::range<1> r(1);
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test1>(r, [=](sycl::id<1> id) { acc[id[0]] = 42; });
-    // CHECK: @_ZTS5Test1.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
-    // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(ptr %2)
+    // CHECK: @_ZTS5Test1.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
+    // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(i32 0, ptr addrspace(1) %2)
   });
   sycl::nd_range<2> r2({1, 1}, {
                                    1,
@@ -24,16 +24,21 @@ int main() {
                                });
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test2>(r2, [=](sycl::id<2> id) { acc[id[1]] = 42; });
-    // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
-    // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(ptr %2)
+    // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
+    // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(i32 1, ptr addrspace(1) %2)
+    // CHECK: call{{.*}}__dpcpp_nativecpu_global_id(i32 0, ptr addrspace(1) %2)
   });
   sycl::nd_range<3> r3({1, 1, 1}, {1, 1, 1});
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test3>(
         r3, [=](sycl::item<3> item) { acc[item[2]] = item.get_range(0); });
-    // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_range(ptr %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_id(ptr %2)
+    // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
+    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_range(i32 2, ptr addrspace(1) %2)
+    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_range(i32 1, ptr addrspace(1) %2)
+    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_range(i32 0, ptr addrspace(1) %2)
+    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_id(i32 2, ptr addrspace(1) %2)
+    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_id(i32 1, ptr addrspace(1) %2)
+    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_global_id(i32 0, ptr addrspace(1) %2)
   });
 
   const size_t dim = 2;
@@ -61,9 +66,10 @@ int main() {
       auto rangeZ = id.get_local_range(2);
       Accessor[groupX * rangeX + localX][groupY * rangeY + localY]
               [groupZ * rangeZ + localZ] = {rangeX, rangeY, rangeZ};
-      // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_local_id(ptr %{{[0-9]*}})
-      // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_wg_size(ptr %{{[0-9]*}})
-      // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_wg_id(ptr %{{[0-9]*}})
+
+      // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_local_id(i32 0, ptr addrspace(1) %{{[0-9]*}})
+      // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_wg_size(i32 0, ptr addrspace(1) %{{[0-9]*}})
+      // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_wg_id(i32 0, ptr addrspace(1) %{{[0-9]*}})
     });
   });
 }

@@ -208,6 +208,7 @@ struct Configuration {
   bool ltoDebugPassManager = false;
   bool csProfileGenerate = false;
   llvm::StringRef csProfilePath;
+  bool pgoWarnMismatch;
 
   bool callGraphProfileSort = false;
   llvm::StringRef printSymbolOrder;
@@ -227,6 +228,7 @@ struct Configuration {
   llvm::SmallVector<llvm::StringRef, 0> mllvmOpts;
 
   bool zeroModTime = true;
+  bool generateUuid = true;
 
   llvm::StringRef osoPrefix;
 

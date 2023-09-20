@@ -23,7 +23,6 @@ def Affine_Dialect : Dialect {
   let name = "affine";
   let cppNamespace = "::mlir::affine";
   let hasConstantMaterializer = 1;
-  let usePropertiesForAttributes = 1;
   let dependentDialects = ["arith::ArithDialect"];
 }
 
@@ -123,7 +122,7 @@ def AffineForOp : Affine_Op<"for",
      ["getSingleInductionVar", "getSingleLowerBound", "getSingleStep",
       "getSingleUpperBound"]>,
      DeclareOpInterfaceMethods<RegionBranchOpInterface,
-     ["getSuccessorEntryOperands"]>]> {
+     ["getEntrySuccessorOperands"]>]> {
   let summary = "for operation";
   let description = [{
     Syntax:
@@ -285,18 +284,18 @@ def AffineForOp : Affine_Op<"for",
 
     /// Returns loop step.
     int64_t getStep() {
-      return ::llvm::cast<IntegerAttr>((*this)->getAttr(getStepAttrStrName())).getInt();
+      return ::llvm::cast<IntegerAttr>(*(*this)->getInherentAttr(getStepAttrStrName())).getInt();
     }
 
     /// Returns affine map for the lower bound.
     AffineMap getLowerBoundMap() { return getLowerBoundMapAttr().getValue(); }
     AffineMapAttr getLowerBoundMapAttr() {
-      return ::llvm::cast<AffineMapAttr>((*this)->getAttr(getLowerBoundAttrStrName()));
+      return ::llvm::cast<AffineMapAttr>(*(*this)->getInherentAttr(getLowerBoundAttrStrName()));
     }
     /// Returns affine map for the upper bound. The upper bound is exclusive.
     AffineMap getUpperBoundMap() { return getUpperBoundMapAttr().getValue(); }
     AffineMapAttr getUpperBoundMapAttr() {
-      return ::llvm::cast<AffineMapAttr>((*this)->getAttr(getUpperBoundAttrStrName()));
+      return ::llvm::cast<AffineMapAttr>(*(*this)->getInherentAttr(getUpperBoundAttrStrName()));
     }
 
     /// Set lower bound. The new bound must have the same number of operands as
@@ -498,7 +497,8 @@ class AffineLoadOpBase<string mnemonic, list<Trait> traits = []> :
         MemRefsNormalizable])> {
   let arguments = (ins Arg<AnyMemRef, "the reference to load from",
       [MemRead]>:$memref,
-      Variadic<Index>:$indices);
+      Variadic<Index>:$indices,
+      AffineMapAttr:$map);
 
   code extraClassDeclarationBase = [{
     /// Returns the operand index of the memref.
@@ -508,7 +508,7 @@ class AffineLoadOpBase<string mnemonic, list<Trait> traits = []> :
 
     /// Returns the affine map used to index the memref for this operation.
     AffineMapAttr getAffineMapAttr() {
-      return ::llvm::cast<AffineMapAttr>((*this)->getAttr(getMapAttrStrName()));
+      return getProperties().map;
     }
 
     static StringRef getMapAttrStrName() { return "map"; }
@@ -676,17 +676,17 @@ def AffineParallelOp : Affine_Op<"parallel",
 
     ```mlir
     func.func @conv_2d(%D : memref<100x100xf32>, %K : memref<3x3xf32>) -> (memref<98x98xf32>) {
-      %O = alloc memref<98x98xf32>
+      %O = memref.alloc() : memref<98x98xf32>
       affine.parallel (%x, %y) = (0, 0) to (98, 98) {
-        %0 = affine.parallel (%kx, %ky) = (0, 0) to (2, 2) reduce ("addf") {
+        %0 = affine.parallel (%kx, %ky) = (0, 0) to (2, 2) reduce ("addf") -> f32 {
           %1 = affine.load %D[%x + %kx, %y + %ky] : memref<100x100xf32>
           %2 = affine.load %K[%kx, %ky] : memref<3x3xf32>
           %3 = arith.mulf %1, %2 : f32
           affine.yield %3 : f32
         }
-        affine.store %0, O[%x, %y] : memref<98x98xf32>
+        affine.store %0, %O[%x, %y] : memref<98x98xf32>
       }
-      return %O
+      return %O : memref<98x98xf32>
     }
     ```
 
@@ -802,7 +802,8 @@ def AffinePrefetchOp : Affine_Op<"prefetch",
                    BoolAttr:$isWrite,
                    ConfinedAttr<I32Attr, [IntMinValue<0>,
                      IntMaxValue<3>]>:$localityHint,
-                   BoolAttr:$isDataCache);
+                   BoolAttr:$isDataCache,
+                   AffineMapAttr:$map);
 
   let builders = [
     OpBuilder<(ins "Value":$memref, "AffineMap":$map,
@@ -815,11 +816,12 @@ def AffinePrefetchOp : Affine_Op<"prefetch",
       auto isWriteAttr = $_builder.getBoolAttr(isWrite);
       auto isDataCacheAttr = $_builder.getBoolAttr(isDataCache);
       $_state.addOperands(memref);
-      $_state.addAttribute(getMapAttrStrName(), AffineMapAttr::get(map));
       $_state.addOperands(mapOperands);
-      $_state.addAttribute(getLocalityHintAttrStrName(), localityHintAttr);
-      $_state.addAttribute(getIsWriteAttrStrName(), isWriteAttr);
-      $_state.addAttribute(getIsDataCacheAttrStrName(), isDataCacheAttr);
+      Properties &prop = $_state.getOrAddProperties<Properties>();
+      prop.map = AffineMapAttr::get(map);
+      prop.localityHint = localityHintAttr;
+      prop.isWrite = isWriteAttr;
+      prop.isDataCache = isDataCacheAttr;
     }]>];
 
   let extraClassDeclaration = [{
@@ -830,10 +832,10 @@ def AffinePrefetchOp : Affine_Op<"prefetch",
     /// Returns the affine map used to index the memref for this operation.
     AffineMap getAffineMap() { return getAffineMapAttr().getValue(); }
     AffineMapAttr getAffineMapAttr() {
-      return ::llvm::cast<AffineMapAttr>((*this)->getAttr(getMapAttrStrName()));
+      return getProperties().map;
     }
 
-    /// Impelements the AffineMapAccessInterface.
+    /// Implements the AffineMapAccessInterface.
     /// Returns the AffineMapAttr associated with 'memref'.
     NamedAttribute getAffineMapAttrForMemRef(Value mref) {
       assert(mref == getMemref() &&
@@ -875,7 +877,7 @@ class AffineStoreOpBase<string mnemonic, list<Trait> traits = []> :
 
     /// Returns the affine map used to index the memref for this operation.
     AffineMapAttr getAffineMapAttr() {
-      return ::llvm::cast<AffineMapAttr>((*this)->getAttr(getMapAttrStrName()));
+      return getProperties().map;
     }
 
     static StringRef getMapAttrStrName() { return "map"; }
@@ -913,7 +915,8 @@ def AffineStoreOp : AffineStoreOpBase<"store"> {
   let arguments = (ins AnyType:$value,
       Arg<AnyMemRef, "the reference to store to",
       [MemWrite]>:$memref,
-      Variadic<Index>:$indices);
+      Variadic<Index>:$indices,
+      AffineMapAttr:$map);
 
   let skipDefaultBuilders = 1;
   let builders = [
@@ -1066,7 +1069,8 @@ def AffineVectorStoreOp : AffineStoreOpBase<"vector_store"> {
   let arguments = (ins AnyVector:$value,
       Arg<AnyMemRef, "the reference to store to",
       [MemWrite]>:$memref,
-      Variadic<Index>:$indices);
+      Variadic<Index>:$indices,
+      AffineMapAttr:$map);
 
   let skipDefaultBuilders = 1;
   let builders = [

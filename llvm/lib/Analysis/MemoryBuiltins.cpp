@@ -602,10 +602,10 @@ Value *llvm::lowerObjectSizeCall(IntrinsicInst *ObjectSize,
                              MustSucceed);
 }
 
-Value *llvm::lowerObjectSizeCall(IntrinsicInst *ObjectSize,
-                                 const DataLayout &DL,
-                                 const TargetLibraryInfo *TLI, AAResults *AA,
-                                 bool MustSucceed) {
+Value *llvm::lowerObjectSizeCall(
+    IntrinsicInst *ObjectSize, const DataLayout &DL,
+    const TargetLibraryInfo *TLI, AAResults *AA, bool MustSucceed,
+    SmallVectorImpl<Instruction *> *InsertedInstructions) {
   assert(ObjectSize->getIntrinsicID() == Intrinsic::objectsize &&
          "ObjectSize must be a call to llvm.objectsize!");
 
@@ -640,7 +640,11 @@ Value *llvm::lowerObjectSizeCall(IntrinsicInst *ObjectSize,
         Eval.compute(ObjectSize->getArgOperand(0));
 
     if (SizeOffsetPair != ObjectSizeOffsetEvaluator::unknown()) {
-      IRBuilder<TargetFolder> Builder(Ctx, TargetFolder(DL));
+      IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(
+          Ctx, TargetFolder(DL), IRBuilderCallbackInserter([&](Instruction *I) {
+            if (InsertedInstructions)
+              InsertedInstructions->push_back(I);
+          }));
       Builder.SetInsertPoint(ObjectSize);
 
       // If we've outside the end of the object, then we can always access
@@ -826,7 +830,9 @@ SizeOffsetType ObjectSizeOffsetVisitor::visitGlobalAlias(GlobalAlias &GA) {
 }
 
 SizeOffsetType ObjectSizeOffsetVisitor::visitGlobalVariable(GlobalVariable &GV){
-  if (!GV.hasDefinitiveInitializer())
+  if (!GV.getValueType()->isSized() || GV.hasExternalWeakLinkage() ||
+      ((!GV.hasInitializer() || GV.isInterposable()) &&
+       Options.EvalMode != ObjectSizeOpts::Mode::Min))
     return unknown();
 
   APInt Size(IntTyBits, DL.getTypeAllocSize(GV.getValueType()));
@@ -1185,7 +1191,8 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::visitPHINode(PHINode &PHI) {
 
   // Compute offset/size for each PHI incoming pointer.
   for (unsigned i = 0, e = PHI.getNumIncomingValues(); i != e; ++i) {
-    Builder.SetInsertPoint(&*PHI.getIncomingBlock(i)->getFirstInsertionPt());
+    BasicBlock *IncomingBlock = PHI.getIncomingBlock(i);
+    Builder.SetInsertPoint(IncomingBlock, IncomingBlock->getFirstInsertionPt());
     SizeOffsetEvalType EdgeData = compute_(PHI.getIncomingValue(i));
 
     if (!bothKnown(EdgeData)) {
@@ -1197,8 +1204,8 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::visitPHINode(PHINode &PHI) {
       InsertedInstructions.erase(SizePHI);
       return unknown();
     }
-    SizePHI->addIncoming(EdgeData.first, PHI.getIncomingBlock(i));
-    OffsetPHI->addIncoming(EdgeData.second, PHI.getIncomingBlock(i));
+    SizePHI->addIncoming(EdgeData.first, IncomingBlock);
+    OffsetPHI->addIncoming(EdgeData.second, IncomingBlock);
   }
 
   Value *Size = SizePHI, *Offset = OffsetPHI;

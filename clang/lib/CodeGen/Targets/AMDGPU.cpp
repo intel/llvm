@@ -8,6 +8,7 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
+#include "clang/Basic/TargetOptions.h"
 
 using namespace clang;
 using namespace clang::CodeGen;
@@ -34,11 +35,7 @@ private:
     // Single value types.
     auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty);
     if (PtrTy && PtrTy->getAddressSpace() == FromAS)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       return llvm::PointerType::get(Ty->getContext(), ToAS);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      return llvm::PointerType::getWithSamePointeeType(PtrTy, ToAS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Ty;
   }
 
@@ -252,6 +249,12 @@ ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty,
         return ABIArgInfo::getDirect();
       }
     }
+
+    // Use pass-by-reference in stead of pass-by-value for struct arguments in
+    // function ABI.
+    return ABIArgInfo::getIndirectAliased(
+        getContext().getTypeAlignInChars(Ty),
+        getContext().getTargetAddressSpace(LangAS::opencl_private));
   }
 
   // Otherwise just do the default thing.
@@ -271,6 +274,8 @@ public:
 
   void setFunctionDeclAttributes(const FunctionDecl *FD, llvm::Function *F,
                                  CodeGenModule &CGM) const;
+
+  void emitTargetGlobals(CodeGen::CodeGenModule &CGM) const override;
 
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &M) const override;
@@ -327,26 +332,7 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
 
   const auto *FlatWGS = FD->getAttr<AMDGPUFlatWorkGroupSizeAttr>();
   if (ReqdWGS || FlatWGS) {
-    unsigned Min = 0;
-    unsigned Max = 0;
-    if (FlatWGS) {
-      Min = FlatWGS->getMin()
-                ->EvaluateKnownConstInt(M.getContext())
-                .getExtValue();
-      Max = FlatWGS->getMax()
-                ->EvaluateKnownConstInt(M.getContext())
-                .getExtValue();
-    }
-    if (ReqdWGS && Min == 0 && Max == 0)
-      Min = Max = ReqdWGS->getXDim() * ReqdWGS->getYDim() * ReqdWGS->getZDim();
-
-    if (Min != 0) {
-      assert(Min <= Max && "Min must be less than or equal Max");
-
-      std::string AttrVal = llvm::utostr(Min) + "," + llvm::utostr(Max);
-      F->addFnAttr("amdgpu-flat-work-group-size", AttrVal);
-    } else
-      assert(Max == 0 && "Max must be zero");
+    M.handleAMDGPUFlatWorkGroupSizeAttr(F, FlatWGS, ReqdWGS);
   } else if (IsOpenCLKernel || IsHIPKernel) {
     // By default, restrict the maximum size to a value specified by
     // --gpu-max-threads-per-block=n or its default value for HIP.
@@ -359,24 +345,8 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
     F->addFnAttr("amdgpu-flat-work-group-size", AttrVal);
   }
 
-  if (const auto *Attr = FD->getAttr<AMDGPUWavesPerEUAttr>()) {
-    unsigned Min =
-        Attr->getMin()->EvaluateKnownConstInt(M.getContext()).getExtValue();
-    unsigned Max = Attr->getMax() ? Attr->getMax()
-                                        ->EvaluateKnownConstInt(M.getContext())
-                                        .getExtValue()
-                                  : 0;
-
-    if (Min != 0) {
-      assert((Max == 0 || Min <= Max) && "Min must be less than or equal Max");
-
-      std::string AttrVal = llvm::utostr(Min);
-      if (Max != 0)
-        AttrVal = AttrVal + "," + llvm::utostr(Max);
-      F->addFnAttr("amdgpu-waves-per-eu", AttrVal);
-    } else
-      assert(Max == 0 && "Max must be zero");
-  }
+  if (const auto *Attr = FD->getAttr<AMDGPUWavesPerEUAttr>())
+    M.handleAMDGPUWavesPerEUAttr(F, Attr);
 
   if (const auto *Attr = FD->getAttr<AMDGPUNumSGPRAttr>()) {
     unsigned NumSGPR = Attr->getNumSGPR();
@@ -420,6 +390,36 @@ void AMDGPUTargetCodeGenInfo::addAMDGCNMetadata(llvm::GlobalValue *GV,
 }
 
 
+/// Emits control constants used to change per-architecture behaviour in the
+/// AMDGPU ROCm device libraries.
+void AMDGPUTargetCodeGenInfo::emitTargetGlobals(
+    CodeGen::CodeGenModule &CGM) const {
+  StringRef Name = "llvm.amdgcn.abi.version";
+  llvm::GlobalVariable *OriginalGV = CGM.getModule().getNamedGlobal(Name);
+  if (OriginalGV && !llvm::GlobalVariable::isExternalLinkage(OriginalGV->getLinkage()))
+    return;
+
+  auto *Type = llvm::IntegerType::getIntNTy(CGM.getModule().getContext(), 32);
+  llvm::Constant *COV = llvm::ConstantInt::get(
+      Type, CGM.getTarget().getTargetOpts().CodeObjectVersion);
+
+  // It needs to be constant weak_odr without externally_initialized so that
+  // the load instuction can be eliminated by the IPSCCP.
+  auto *GV = new llvm::GlobalVariable(
+      CGM.getModule(), Type, true, llvm::GlobalValue::WeakODRLinkage, COV, Name,
+      nullptr, llvm::GlobalValue::ThreadLocalMode::NotThreadLocal,
+      CGM.getContext().getTargetAddressSpace(LangAS::opencl_constant));
+  GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Local);
+  GV->setVisibility(llvm::GlobalValue::VisibilityTypes::HiddenVisibility);
+
+  // Replace any external references to this variable with the new global.
+  if (OriginalGV) {
+    OriginalGV->replaceAllUsesWith(GV);
+    GV->takeName(OriginalGV);
+    OriginalGV->eraseFromParent();
+  }
+}
+
 void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
   if (requiresAMDGPUProtectedVisibility(D, GV)) {
@@ -437,13 +437,6 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
   if (FD)
     setFunctionDeclAttributes(FD, F, M);
-
-  const bool IsHIPKernel =
-      M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
-
-  // TODO: This should be moved to language specific attributes instead.
-  if (IsHIPKernel)
-    F->addFnAttr("uniform-work-group-size", "true");
 
   // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
   const bool IsSYCLKernel =
@@ -474,13 +467,8 @@ llvm::Constant *AMDGPUTargetCodeGenInfo::getNullPointer(
     return llvm::ConstantPointerNull::get(PT);
 
   auto &Ctx = CGM.getContext();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   auto NPT = llvm::PointerType::get(
       PT->getContext(), Ctx.getTargetAddressSpace(LangAS::opencl_generic));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  auto NPT = llvm::PointerType::getWithSamePointeeType(
-      PT, Ctx.getTargetAddressSpace(LangAS::opencl_generic));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return llvm::ConstantExpr::getAddrSpaceCast(
       llvm::ConstantPointerNull::get(NPT), PT);
 }
@@ -497,12 +485,11 @@ AMDGPUTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
     return DefaultGlobalAS;
 
   LangAS AddrSpace = D->getType().getAddressSpace();
-  assert(AddrSpace == LangAS::Default || isTargetAddressSpace(AddrSpace));
   if (AddrSpace != LangAS::Default)
     return AddrSpace;
 
   // Only promote to address space 4 if VarDecl has constant initialization.
-  if (CGM.isTypeConstant(D->getType(), false, false) &&
+  if (D->getType().isConstantStorage(CGM.getContext(), false, false) &&
       D->hasConstantInitialization()) {
     if (auto ConstAS = CGM.getTarget().getConstantAddressSpace())
       return *ConstAS;
@@ -641,6 +628,47 @@ llvm::Value *AMDGPUTargetCodeGenInfo::createEnqueuedBlockKernel(
     F->setMetadata("kernel_arg_name", llvm::MDNode::get(C, ArgNames));
 
   return F;
+}
+
+void CodeGenModule::handleAMDGPUFlatWorkGroupSizeAttr(
+    llvm::Function *F, const AMDGPUFlatWorkGroupSizeAttr *FlatWGS,
+    const ReqdWorkGroupSizeAttr *ReqdWGS) {
+  unsigned Min = 0;
+  unsigned Max = 0;
+  if (FlatWGS) {
+    Min = FlatWGS->getMin()->EvaluateKnownConstInt(getContext()).getExtValue();
+    Max = FlatWGS->getMax()->EvaluateKnownConstInt(getContext()).getExtValue();
+  }
+  if (ReqdWGS && Min == 0 && Max == 0)
+    Min = Max = ReqdWGS->getXDim() * ReqdWGS->getYDim() * ReqdWGS->getZDim();
+
+  if (Min != 0) {
+    assert(Min <= Max && "Min must be less than or equal Max");
+
+    std::string AttrVal = llvm::utostr(Min) + "," + llvm::utostr(Max);
+    F->addFnAttr("amdgpu-flat-work-group-size", AttrVal);
+  } else
+    assert(Max == 0 && "Max must be zero");
+}
+
+void CodeGenModule::handleAMDGPUWavesPerEUAttr(
+    llvm::Function *F, const AMDGPUWavesPerEUAttr *Attr) {
+  unsigned Min =
+      Attr->getMin()->EvaluateKnownConstInt(getContext()).getExtValue();
+  unsigned Max =
+      Attr->getMax()
+          ? Attr->getMax()->EvaluateKnownConstInt(getContext()).getExtValue()
+          : 0;
+
+  if (Min != 0) {
+    assert((Max == 0 || Min <= Max) && "Min must be less than or equal Max");
+
+    std::string AttrVal = llvm::utostr(Min);
+    if (Max != 0)
+      AttrVal = AttrVal + "," + llvm::utostr(Max);
+    F->addFnAttr("amdgpu-waves-per-eu", AttrVal);
+  } else
+    assert(Max == 0 && "Max must be zero");
 }
 
 std::unique_ptr<TargetCodeGenInfo>

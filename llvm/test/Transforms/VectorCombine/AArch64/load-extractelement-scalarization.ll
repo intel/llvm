@@ -13,6 +13,17 @@ define i32 @load_extract_idx_0(ptr %x) {
   ret i32 %r
 }
 
+define i32 @vscale_load_extract_idx_0(ptr %x) {
+; CHECK-LABEL: @vscale_load_extract_idx_0(
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i32 0
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i32 0
+  ret i32 %r
+}
+
 ; If the original load had a smaller alignment than the scalar type, the
 ; smaller alignment should be used.
 define i32 @load_extract_idx_0_small_alignment(ptr %x) {
@@ -48,6 +59,17 @@ define i32 @load_extract_idx_2(ptr %x) {
   ret i32 %r
 }
 
+define i32 @vscale_load_extract_idx_2(ptr %x) {
+; CHECK-LABEL: @vscale_load_extract_idx_2(
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i32 2
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i32 2
+  ret i32 %r
+}
+
 define i32 @load_extract_idx_3(ptr %x) {
 ; CHECK-LABEL: @load_extract_idx_3(
 ; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds <4 x i32>, ptr [[X:%.*]], i32 0, i32 3
@@ -69,6 +91,17 @@ define i32 @load_extract_idx_4(ptr %x) {
 ;
   %lv = load <4 x i32>, ptr %x
   %r = extractelement <4 x i32> %lv, i32 4
+  ret i32 %r
+}
+
+define i32 @vscale_load_extract_idx_4(ptr %x) {
+; CHECK-LABEL: @vscale_load_extract_idx_4(
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i32 4
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i32 4
   ret i32 %r
 }
 
@@ -101,6 +134,25 @@ entry:
   %lv = load <4 x i32>, ptr %x
   call void @maythrow()
   %r = extractelement <4 x i32> %lv, i64 %idx
+  ret i32 %r
+}
+
+define i32 @vscale_load_extract_idx_var_i64_known_valid_by_assume(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_known_valid_by_assume(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i64 [[IDX:%.*]], 4
+; CHECK-NEXT:    call void @llvm.assume(i1 [[CMP]])
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    call void @maythrow()
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp ult i64 %idx, 4
+  call void @llvm.assume(i1 %cmp)
+  %lv = load <vscale x 4 x i32>, ptr %x
+  call void @maythrow()
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx
   ret i32 %r
 }
 
@@ -213,6 +265,45 @@ entry:
   ret i32 %r
 }
 
+define i32 @vscale_load_extract_idx_var_i64_not_known_valid_by_assume_0(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_not_known_valid_by_assume_0(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i64 [[IDX:%.*]], 5
+; CHECK-NEXT:    call void @llvm.assume(i1 [[CMP]])
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp ult i64 %idx, 5
+  call void @llvm.assume(i1 %cmp)
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx
+  ret i32 %r
+}
+
+define i32 @vscale_load_extract_idx_var_i64_not_known_valid_by_assume_1(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_not_known_valid_by_assume_1(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[VS:%.*]] = call i64 @llvm.vscale.i64()
+; CHECK-NEXT:    [[VM:%.*]] = mul i64 [[VS]], 4
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ult i64 [[IDX:%.*]], [[VM]]
+; CHECK-NEXT:    call void @llvm.assume(i1 [[CMP]])
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %vs = call i64 @llvm.vscale.i64()
+  %vm = mul i64 %vs, 4
+  %cmp = icmp ult i64 %idx, %vm
+  call void @llvm.assume(i1 %cmp)
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx
+  ret i32 %r
+}
+
+declare i64 @llvm.vscale.i64()
 declare void @llvm.assume(i1)
 
 define i32 @load_extract_idx_var_i64_known_valid_by_and(ptr %x, i64 %idx) {
@@ -227,6 +318,21 @@ entry:
   %idx.clamped = and i64 %idx, 3
   %lv = load <4 x i32>, ptr %x
   %r = extractelement <4 x i32> %lv, i64 %idx.clamped
+  ret i32 %r
+}
+
+define i32 @vscale_load_extract_idx_var_i64_known_valid_by_and(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_known_valid_by_and(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_CLAMPED:%.*]] = and i64 [[IDX:%.*]], 3
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX_CLAMPED]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %idx.clamped = and i64 %idx, 3
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx.clamped
   ret i32 %r
 }
 
@@ -260,6 +366,21 @@ entry:
   ret i32 %r
 }
 
+define i32 @vscale_load_extract_idx_var_i64_not_known_valid_by_and(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_not_known_valid_by_and(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_CLAMPED:%.*]] = and i64 [[IDX:%.*]], 4
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX_CLAMPED]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %idx.clamped = and i64 %idx, 4
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx.clamped
+  ret i32 %r
+}
+
 define i32 @load_extract_idx_var_i64_known_valid_by_urem(ptr %x, i64 %idx) {
 ; CHECK-LABEL: @load_extract_idx_var_i64_known_valid_by_urem(
 ; CHECK-NEXT:  entry:
@@ -272,6 +393,21 @@ entry:
   %idx.clamped = urem i64 %idx, 4
   %lv = load <4 x i32>, ptr %x
   %r = extractelement <4 x i32> %lv, i64 %idx.clamped
+  ret i32 %r
+}
+
+define i32 @vscale_load_extract_idx_var_i64_known_valid_by_urem(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_known_valid_by_urem(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_CLAMPED:%.*]] = urem i64 [[IDX:%.*]], 4
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX_CLAMPED]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %idx.clamped = urem i64 %idx, 4
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx.clamped
   ret i32 %r
 }
 
@@ -302,6 +438,21 @@ entry:
   %idx.clamped = urem i64 %idx, 5
   %lv = load <4 x i32>, ptr %x
   %r = extractelement <4 x i32> %lv, i64 %idx.clamped
+  ret i32 %r
+}
+
+define i32 @vscale_load_extract_idx_var_i64_not_known_valid_by_urem(ptr %x, i64 %idx) {
+; CHECK-LABEL: @vscale_load_extract_idx_var_i64_not_known_valid_by_urem(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[IDX_CLAMPED:%.*]] = urem i64 [[IDX:%.*]], 5
+; CHECK-NEXT:    [[LV:%.*]] = load <vscale x 4 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[LV]], i64 [[IDX_CLAMPED]]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %idx.clamped = urem i64 %idx, 5
+  %lv = load <vscale x 4 x i32>, ptr %x
+  %r = extractelement <vscale x 4 x i32> %lv, i64 %idx.clamped
   ret i32 %r
 }
 
@@ -505,9 +656,9 @@ define i31 @load_with_non_power_of_2_element_type(ptr %x) {
 define i32 @load_multiple_extracts_with_constant_idx(ptr %x) {
 ; CHECK-LABEL: @load_multiple_extracts_with_constant_idx(
 ; CHECK-NEXT:    [[LV:%.*]] = load <4 x i32>, ptr [[X:%.*]], align 16
-; CHECK-NEXT:    [[SHIFT:%.*]] = shufflevector <4 x i32> [[LV]], <4 x i32> poison, <4 x i32> <i32 1, i32 poison, i32 poison, i32 poison>
-; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[LV]], [[SHIFT]]
-; CHECK-NEXT:    [[RES:%.*]] = extractelement <4 x i32> [[TMP1]], i32 0
+; CHECK-NEXT:    [[E_0:%.*]] = extractelement <4 x i32> [[LV]], i32 0
+; CHECK-NEXT:    [[E_1:%.*]] = extractelement <4 x i32> [[LV]], i32 1
+; CHECK-NEXT:    [[RES:%.*]] = add i32 [[E_0]], [[E_1]]
 ; CHECK-NEXT:    ret i32 [[RES]]
 ;
   %lv = load <4 x i32>, ptr %x
@@ -521,10 +672,9 @@ define i32 @load_multiple_extracts_with_constant_idx(ptr %x) {
 ; because the vector large vector requires 2 vector registers.
 define i32 @load_multiple_extracts_with_constant_idx_profitable(ptr %x) {
 ; CHECK-LABEL: @load_multiple_extracts_with_constant_idx_profitable(
-; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds <8 x i32>, ptr [[X:%.*]], i32 0, i32 0
-; CHECK-NEXT:    [[E_0:%.*]] = load i32, ptr [[TMP1]], align 16
-; CHECK-NEXT:    [[TMP2:%.*]] = getelementptr inbounds <8 x i32>, ptr [[X]], i32 0, i32 6
-; CHECK-NEXT:    [[E_1:%.*]] = load i32, ptr [[TMP2]], align 8
+; CHECK-NEXT:    [[LV:%.*]] = load <8 x i32>, ptr [[X:%.*]], align 16
+; CHECK-NEXT:    [[E_0:%.*]] = extractelement <8 x i32> [[LV]], i32 0
+; CHECK-NEXT:    [[E_1:%.*]] = extractelement <8 x i32> [[LV]], i32 6
 ; CHECK-NEXT:    [[RES:%.*]] = add i32 [[E_0]], [[E_1]]
 ; CHECK-NEXT:    ret i32 [[RES]]
 ;

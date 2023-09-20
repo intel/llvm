@@ -1,7 +1,6 @@
 ; Full LTO test
 ; RUN: opt %s -o %t.bc
-; RUN: llvm-lto2 run -opaque-pointers -o %t.o %t.bc -save-temps \
-; RUN:   -opaque-pointers \
+; RUN: llvm-lto2 run -o %t.o %t.bc -save-temps \
 ; RUN:   -r=%t.bc,a,px \
 ; RUN:   -r=%t.bc,b,px \
 ; RUN:   -r=%t.bc,c,px \
@@ -11,8 +10,7 @@
 ; RUN: llvm-dis %t.o.0.4.opt.bc -o - | FileCheck --check-prefix=CHECK-USED %s
 ; Thin LTO test
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
-; RUN: llvm-lto2 run -opaque-pointers -o %t.o %t.bc \
-; RUN:   -opaque-pointers \
+; RUN: llvm-lto2 run -o %t.o %t.bc \
 ; RUN:   -r=%t.bc,a,px \
 ; RUN:   -r=%t.bc,b,px \
 ; RUN:   -r=%t.bc,c,px \

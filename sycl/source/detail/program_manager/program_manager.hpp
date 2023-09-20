@@ -89,6 +89,7 @@ public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
+
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
                                       const context &Context,
                                       const device &Device,
@@ -342,11 +343,6 @@ private:
   std::unordered_map<RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
-
-  /// Keeps images without entry info.
-  /// Such images are assumed to contain all kernel associated with the module.
-  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::unordered_set<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to

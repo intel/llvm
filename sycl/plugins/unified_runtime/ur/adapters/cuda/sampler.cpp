@@ -1,10 +1,10 @@
-//===--------- sampler.cpp - CUDA Adapter ----------------------------===//
+//===--------- sampler.cpp - CUDA Adapter ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "sampler.hpp"
 #include "common.hpp"
@@ -92,4 +92,15 @@ urSamplerRelease(ur_sampler_handle_t hSampler) {
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urSamplerGetNativeHandle(ur_sampler_handle_t, ur_native_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t,
+    const ur_sampler_native_properties_t *, ur_sampler_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

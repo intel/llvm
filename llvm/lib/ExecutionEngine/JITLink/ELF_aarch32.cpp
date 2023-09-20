@@ -40,6 +40,8 @@ Expected<aarch32::EdgeKind_aarch32> getJITLinkEdgeKind(uint32_t ELFType) {
     return aarch32::Data_Delta32;
   case ELF::R_ARM_CALL:
     return aarch32::Arm_Call;
+  case ELF::R_ARM_JUMP24:
+    return aarch32::Arm_Jump24;
   case ELF::R_ARM_THM_CALL:
     return aarch32::Thumb_Call;
   case ELF::R_ARM_THM_JUMP24:
@@ -64,6 +66,8 @@ Expected<uint32_t> getELFRelocationType(Edge::Kind Kind) {
     return ELF::R_ARM_ABS32;
   case aarch32::Arm_Call:
     return ELF::R_ARM_CALL;
+  case aarch32::Arm_Jump24:
+    return ELF::R_ARM_JUMP24;
   case aarch32::Thumb_Call:
     return ELF::R_ARM_THM_CALL;
   case aarch32::Thumb_Jump24:
@@ -191,7 +195,7 @@ protected:
 public:
   ELFLinkGraphBuilder_aarch32(StringRef FileName,
                               const llvm::object::ELFFile<ELFT> &Obj, Triple TT,
-                              LinkGraph::FeatureVector Features,
+                              SubtargetFeatures Features,
                               aarch32::ArmConfig ArmCfg)
       : ELFLinkGraphBuilder<ELFT>(Obj, std::move(TT), std::move(Features),
                                   FileName, getELFAArch32EdgeKindName),
@@ -254,7 +258,7 @@ createLinkGraphFromELFObject_aarch32(MemoryBufferRef ObjectBuffer) {
   case Triple::thumb: {
     auto &ELFFile = cast<ELFObjectFile<ELF32LE>>(**ELFObj).getELFFile();
     return ELFLinkGraphBuilder_aarch32<support::little>(
-               (*ELFObj)->getFileName(), ELFFile, TT, Features->getFeatures(),
+               (*ELFObj)->getFileName(), ELFFile, TT, std::move(*Features),
                ArmCfg)
         .buildGraph();
   }
@@ -262,7 +266,7 @@ createLinkGraphFromELFObject_aarch32(MemoryBufferRef ObjectBuffer) {
   case Triple::thumbeb: {
     auto &ELFFile = cast<ELFObjectFile<ELF32BE>>(**ELFObj).getELFFile();
     return ELFLinkGraphBuilder_aarch32<support::big>(
-               (*ELFObj)->getFileName(), ELFFile, TT, Features->getFeatures(),
+               (*ELFObj)->getFileName(), ELFFile, TT, std::move(*Features),
                ArmCfg)
         .buildGraph();
   }

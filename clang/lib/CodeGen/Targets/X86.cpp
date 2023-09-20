@@ -87,12 +87,15 @@ static ABIArgInfo getDirectX86Hva(llvm::Type* T = nullptr) {
 /// Similar to llvm::CCState, but for Clang.
 struct CCState {
   CCState(CGFunctionInfo &FI)
-      : IsPreassigned(FI.arg_size()), CC(FI.getCallingConvention()) {}
+      : IsPreassigned(FI.arg_size()), CC(FI.getCallingConvention()),
+	Required(FI.getRequiredArgs()), IsDelegateCall(FI.isDelegateCall()) {}
 
   llvm::SmallBitVector IsPreassigned;
   unsigned CC = CallingConv::CC_C;
   unsigned FreeRegs = 0;
   unsigned FreeSSERegs = 0;
+  RequiredArgs Required;
+  bool IsDelegateCall = false;
 };
 
 /// X86_32ABIInfo - The X86-32 ABI information.
@@ -141,7 +144,7 @@ class X86_32ABIInfo : public ABIInfo {
   Class classify(QualType Ty) const;
   ABIArgInfo classifyReturnType(QualType RetTy, CCState &State) const;
   ABIArgInfo classifyArgumentType(QualType RetTy, CCState &State,
-                                  bool isDelegateCall) const;
+                                  unsigned ArgIndex) const;
 
   /// Updates the number of available free registers, returns
   /// true if any registers were allocated.
@@ -319,8 +322,7 @@ void X86_32TargetCodeGenInfo::addReturnRegisterOutputs(
   ResultTruncRegTypes.push_back(CoerceTy);
 
   // Coerce the integer by bitcasting the return slot pointer.
-  ReturnSlot.setAddress(
-      CGF.Builder.CreateElementBitCast(ReturnSlot.getAddress(CGF), CoerceTy));
+  ReturnSlot.setAddress(ReturnSlot.getAddress(CGF).withElementType(CoerceTy));
   ResultRegDests.push_back(ReturnSlot);
 
   rewriteInputConstraintReferences(NumOutputs, 1, AsmString);
@@ -740,7 +742,7 @@ void X86_32ABIInfo::runVectorCallFirstPass(CGFunctionInfo &FI, CCState &State) c
 }
 
 ABIArgInfo X86_32ABIInfo::classifyArgumentType(QualType Ty, CCState &State,
-                                               bool isDelegateCall) const {
+                                               unsigned ArgIndex) const {
   // FIXME: Set alignment on indirect arguments.
   bool IsFastCall = State.CC == llvm::CallingConv::X86_FastCall;
   bool IsRegCall = State.CC == llvm::CallingConv::X86_RegCall;
@@ -753,8 +755,14 @@ ABIArgInfo X86_32ABIInfo::classifyArgumentType(QualType Ty, CCState &State,
   const RecordType *RT = Ty->getAs<RecordType>();
   if (RT) {
     CGCXXABI::RecordArgABI RAA = getRecordArgABI(RT, getCXXABI());
-    if (RAA == CGCXXABI::RAA_Indirect || isDelegateCall) {
+    if (RAA == CGCXXABI::RAA_Indirect) {
       return getIndirectResult(Ty, false, State);
+    } else if (State.IsDelegateCall) {
+      // Avoid having different alignments on delegate call args by always
+      // setting the alignment to 4, which is what we do for inallocas.
+      ABIArgInfo Res = getIndirectResult(Ty, false, State);
+      Res.setIndirectAlign(CharUnits::fromQuantity(4));
+      return Res;
     } else if (RAA == CGCXXABI::RAA_DirectInMemory) {
       // The field index doesn't matter, we'll fix it up later.
       return ABIArgInfo::getInAlloca(/*FieldIndex=*/0);
@@ -807,11 +815,12 @@ ABIArgInfo X86_32ABIInfo::classifyArgumentType(QualType Ty, CCState &State,
     }
     llvm::IntegerType *PaddingType = NeedsPadding ? Int32 : nullptr;
 
-    // Pass over-aligned aggregates on Windows indirectly. This behavior was
-    // added in MSVC 2015. Use the required alignment from the record layout,
-    // since that may be less than the regular type alignment, and types with
-    // required alignment of less than 4 bytes are not passed indirectly.
-    if (IsWin32StructABI) {
+    // Pass over-aligned aggregates to non-variadic functions on Windows
+    // indirectly. This behavior was added in MSVC 2015. Use the required
+    // alignment from the record layout, since that may be less than the
+    // regular type alignment, and types with required alignment of less than 4
+    // bytes are not passed indirectly.
+    if (IsWin32StructABI && State.Required.isRequiredArg(ArgIndex)) {
       unsigned AlignInBits = 0;
       if (RT) {
         const ASTRecordLayout &Layout =
@@ -977,13 +986,13 @@ void X86_32ABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
   bool UsedInAlloca = false;
   MutableArrayRef<CGFunctionInfoArgInfo> Args = FI.arguments();
-  for (int I = 0, E = Args.size(); I < E; ++I) {
+  for (unsigned I = 0, E = Args.size(); I < E; ++I) {
     // Skip arguments that have already been assigned.
     if (State.IsPreassigned.test(I))
       continue;
 
     Args[I].info =
-        classifyArgumentType(Args[I].type, State, FI.isDelegateCall());
+        classifyArgumentType(Args[I].type, State, I);
     UsedInAlloca |= (Args[I].info.getKind() == ABIArgInfo::InAlloca);
   }
 
@@ -1010,11 +1019,7 @@ X86_32ABIInfo::addFieldToArgStruct(SmallVector<llvm::Type *, 6> &FrameFields,
   Info = ABIArgInfo::getInAlloca(FrameFields.size(), IsIndirect);
   llvm::Type *LLTy = CGT.ConvertTypeForMem(Type);
   if (IsIndirect)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     LLTy = llvm::PointerType::getUnqual(getVMContext());
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    LLTy = LLTy->getPointerTo(0);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   FrameFields.push_back(LLTy);
   StackOffset += IsIndirect ? WordSize : getContext().getTypeSizeInChars(Type);
 
@@ -1547,6 +1552,24 @@ static bool checkAVXParamFeature(DiagnosticsEngine &Diag,
   return false;
 }
 
+static bool checkAVX512ParamFeature(DiagnosticsEngine &Diag,
+                                    SourceLocation CallLoc,
+                                    const llvm::StringMap<bool> &CallerMap,
+                                    const llvm::StringMap<bool> &CalleeMap,
+                                    QualType Ty, bool IsArgument) {
+  bool Caller256 = CallerMap.lookup("avx512f") && !CallerMap.lookup("evex512");
+  bool Callee256 = CalleeMap.lookup("avx512f") && !CalleeMap.lookup("evex512");
+
+  // Forbid 512-bit or larger vector pass or return when we disabled ZMM
+  // instructions.
+  if (Caller256 || Callee256)
+    return Diag.Report(CallLoc, diag::err_avx_calling_convention)
+           << IsArgument << Ty << "evex512";
+
+  return checkAVXParamFeature(Diag, CallLoc, CallerMap, CalleeMap, Ty,
+                              "avx512f", IsArgument);
+}
+
 static bool checkAVXParam(DiagnosticsEngine &Diag, ASTContext &Ctx,
                           SourceLocation CallLoc,
                           const llvm::StringMap<bool> &CallerMap,
@@ -1554,8 +1577,8 @@ static bool checkAVXParam(DiagnosticsEngine &Diag, ASTContext &Ctx,
                           bool IsArgument) {
   uint64_t Size = Ctx.getTypeSize(Ty);
   if (Size > 256)
-    return checkAVXParamFeature(Diag, CallLoc, CallerMap, CalleeMap, Ty,
-                                "avx512f", IsArgument);
+    return checkAVX512ParamFeature(Diag, CallLoc, CallerMap, CalleeMap, Ty,
+                                   IsArgument);
 
   if (Size > 128)
     return checkAVXParamFeature(Diag, CallLoc, CallerMap, CalleeMap, Ty, "avx",
@@ -3097,7 +3120,7 @@ Address X86_64ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
     assert(AI.isDirect() && "Unexpected ABI info for mixed regs");
     llvm::StructType *ST = cast<llvm::StructType>(AI.getCoerceToType());
     Address Tmp = CGF.CreateMemTemp(Ty);
-    Tmp = CGF.Builder.CreateElementBitCast(Tmp, ST);
+    Tmp = Tmp.withElementType(ST);
     assert(ST->getNumElements() == 2 && "Unexpected ABI info for mixed regs");
     llvm::Type *TyLo = ST->getElementType(0);
     llvm::Type *TyHi = ST->getElementType(1);
@@ -3125,11 +3148,10 @@ Address X86_64ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
         CharUnits::fromQuantity(getDataLayout().getABITypeAlign(TyHi)));
     CGF.Builder.CreateStore(V, CGF.Builder.CreateStructGEP(Tmp, 1));
 
-    RegAddr = CGF.Builder.CreateElementBitCast(Tmp, LTy);
+    RegAddr = Tmp.withElementType(LTy);
   } else if (neededInt) {
     RegAddr = Address(CGF.Builder.CreateGEP(CGF.Int8Ty, RegSaveArea, gp_offset),
-                      CGF.Int8Ty, CharUnits::fromQuantity(8));
-    RegAddr = CGF.Builder.CreateElementBitCast(RegAddr, LTy);
+                      LTy, CharUnits::fromQuantity(8));
 
     // Copy to a temporary if necessary to ensure the appropriate alignment.
     auto TInfo = getContext().getTypeInfoInChars(Ty);
@@ -3146,8 +3168,7 @@ Address X86_64ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 
   } else if (neededSSE == 1) {
     RegAddr = Address(CGF.Builder.CreateGEP(CGF.Int8Ty, RegSaveArea, fp_offset),
-                      CGF.Int8Ty, CharUnits::fromQuantity(16));
-    RegAddr = CGF.Builder.CreateElementBitCast(RegAddr, LTy);
+                      LTy, CharUnits::fromQuantity(16));
   } else {
     assert(neededSSE == 2 && "Invalid number of needed registers!");
     // SSE registers are spaced 16 bytes apart in the register save
@@ -3167,15 +3188,15 @@ Address X86_64ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                          : llvm::StructType::get(CGF.DoubleTy, CGF.DoubleTy);
     llvm::Value *V;
     Address Tmp = CGF.CreateMemTemp(Ty);
-    Tmp = CGF.Builder.CreateElementBitCast(Tmp, ST);
-    V = CGF.Builder.CreateLoad(CGF.Builder.CreateElementBitCast(
-        RegAddrLo, ST->getStructElementType(0)));
+    Tmp = Tmp.withElementType(ST);
+    V = CGF.Builder.CreateLoad(
+        RegAddrLo.withElementType(ST->getStructElementType(0)));
     CGF.Builder.CreateStore(V, CGF.Builder.CreateStructGEP(Tmp, 0));
-    V = CGF.Builder.CreateLoad(CGF.Builder.CreateElementBitCast(
-        RegAddrHi, ST->getStructElementType(1)));
+    V = CGF.Builder.CreateLoad(
+        RegAddrHi.withElementType(ST->getStructElementType(1)));
     CGF.Builder.CreateStore(V, CGF.Builder.CreateStructGEP(Tmp, 1));
 
-    RegAddr = CGF.Builder.CreateElementBitCast(Tmp, LTy);
+    RegAddr = Tmp.withElementType(LTy);
   }
 
   // AMD64-ABI 3.5.7p5: Step 5. Set:
@@ -3354,6 +3375,10 @@ ABIArgInfo WinX86_64ABIInfo::classify(QualType Ty, unsigned &FreeSSERegs,
 }
 
 void WinX86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  ASTContext &Context = getContext();
+  if (doOpenCLClassification(FI, Context))
+    return;
+
   const unsigned CC = FI.getCallingConvention();
   bool IsVectorCall = CC == llvm::CallingConv::X86_VectorCall;
   bool IsRegCall = CC == llvm::CallingConv::X86_RegCall;

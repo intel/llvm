@@ -16,7 +16,11 @@ queue q;
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'fp16' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[sycl::device_has(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
@@ -38,10 +42,14 @@ template <sycl::aspect Aspect>
 // CHECK: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr {{.*}} Inherited
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[sycl::device_has(sycl::aspect::cpu)]] void func5();
 void func5() {}
 

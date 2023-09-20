@@ -8,11 +8,14 @@
 
 #include <utility>
 
+#include "Detail/DimLvlMapParser.h"
+
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensorStorageLayout.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensorType.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Matchers.h"
@@ -209,14 +212,19 @@ std::string SparseTensorDimSliceAttr::getStaticString(int64_t v) {
   return isDynamic(v) ? "?" : std::to_string(v);
 }
 
+void SparseTensorDimSliceAttr::print(llvm::raw_ostream &os) const {
+  assert(getImpl() && "Uninitialized SparseTensorDimSliceAttr");
+  os << '(';
+  os << getStaticString(getOffset());
+  os << ", ";
+  os << getStaticString(getSize());
+  os << ", ";
+  os << getStaticString(getStride());
+  os << ')';
+}
+
 void SparseTensorDimSliceAttr::print(AsmPrinter &printer) const {
-  printer << "(";
-  printer << getStaticString(getOffset());
-  printer << ", ";
-  printer << getStaticString(getSize());
-  printer << ", ";
-  printer << getStaticString(getStride());
-  printer << ")";
+  print(printer.getStream());
 }
 
 static ParseResult parseOptionalStaticSlice(int64_t &result,
@@ -402,6 +410,7 @@ SparseTensorEncodingAttr::getStaticLvlSliceStride(Level lvl) const {
 }
 
 const static DimLevelType validDLTs[] = {DimLevelType::Dense,
+                                         DimLevelType::TwoOutOfFour,
                                          DimLevelType::Compressed,
                                          DimLevelType::CompressedNu,
                                          DimLevelType::CompressedNo,
@@ -442,24 +451,22 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
   AffineMap dimToLvl = {};
   unsigned posWidth = 0;
   unsigned crdWidth = 0;
-
   StringRef attrName;
-  // Exactly 6 keys.
-  SmallVector<StringRef, 6> keys = {"lvlTypes", "dimToLvl", "posWidth",
-                                    "crdWidth", "dimSlices"};
+  SmallVector<StringRef, 6> keys = {"lvlTypes", "dimToLvl",  "posWidth",
+                                    "crdWidth", "dimSlices", "map"};
   while (succeeded(parser.parseOptionalKeyword(&attrName))) {
-    if (!llvm::is_contained(keys, attrName)) {
+    // Detect admissible keyword.
+    auto *it = find(keys, attrName);
+    if (it == keys.end()) {
       parser.emitError(parser.getNameLoc(), "unexpected key: ") << attrName;
       return {};
     }
-
+    unsigned keyWordIndex = it - keys.begin();
     // Consume the `=` after keys
     RETURN_ON_FAIL(parser.parseEqual())
-    // FIXME: using `operator==` below duplicates the string comparison
-    // cost of the `is_contained` check above. Should instead use some
-    // "find" function that returns the index into `keys` so that we can
-    // dispatch on that instead.
-    if (attrName == "lvlTypes") {
+    // Dispatch on keyword.
+    switch (keyWordIndex) {
+    case 0: { // lvlTypes
       Attribute attr;
       RETURN_ON_FAIL(parser.parseAttribute(attr));
       auto arrayAttr = llvm::dyn_cast<ArrayAttr>(attr);
@@ -476,25 +483,33 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
           return {};
         }
       }
-    } else if (attrName == "dimToLvl") {
+      break;
+    }
+    case 1: { // dimToLvl
       Attribute attr;
       RETURN_ON_FAIL(parser.parseAttribute(attr))
       auto affineAttr = llvm::dyn_cast<AffineMapAttr>(attr);
       ERROR_IF(!affineAttr, "expected an affine map for dimToLvl")
       dimToLvl = affineAttr.getValue();
-    } else if (attrName == "posWidth") {
+      break;
+    }
+    case 2: { // posWidth
       Attribute attr;
       RETURN_ON_FAIL(parser.parseAttribute(attr))
       auto intAttr = llvm::dyn_cast<IntegerAttr>(attr);
       ERROR_IF(!intAttr, "expected an integral position bitwidth")
       posWidth = intAttr.getInt();
-    } else if (attrName == "crdWidth") {
+      break;
+    }
+    case 3: { // crdWidth
       Attribute attr;
       RETURN_ON_FAIL(parser.parseAttribute(attr))
       auto intAttr = llvm::dyn_cast<IntegerAttr>(attr);
       ERROR_IF(!intAttr, "expected an integral index bitwidth")
       crdWidth = intAttr.getInt();
-    } else if (attrName == "dimSlices") {
+      break;
+    }
+    case 4: { // dimSlices
       RETURN_ON_FAIL(parser.parseLSquare())
       // Dispatches to DimSliceAttr to skip mnemonic
       bool finished = false;
@@ -510,9 +525,47 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
       if (!finished)
         return {};
       RETURN_ON_FAIL(parser.parseRSquare())
+      break;
     }
+    case 5: { // map (new STEA surface syntax)
+      ir_detail::DimLvlMapParser cParser(parser);
+      auto res = cParser.parseDimLvlMap();
+      RETURN_ON_FAIL(res);
+      // TODO: use DimLvlMap directly as storage representation, rather
+      // than converting things over.
+      const auto &dlm = *res;
 
-    // Only the last item can omit the comma
+      ERROR_IF(!lvlTypes.empty(), "Cannot mix `lvlTypes` with `map`")
+      const Level lvlRank = dlm.getLvlRank();
+      for (Level lvl = 0; lvl < lvlRank; lvl++)
+        lvlTypes.push_back(dlm.getLvlType(lvl));
+
+      ERROR_IF(!dimSlices.empty(), "Cannot mix `dimSlices` with `map`")
+      const Dimension dimRank = dlm.getDimRank();
+      for (Dimension dim = 0; dim < dimRank; dim++)
+        dimSlices.push_back(dlm.getDimSlice(dim));
+      // NOTE: the old syntax requires an all-or-nothing approach to
+      // `dimSlices`; therefore, if any slice actually exists then we need
+      // to convert null-DSA into default/nop DSA.
+      const auto isDefined = [](SparseTensorDimSliceAttr slice) {
+        return static_cast<bool>(slice.getImpl());
+      };
+      if (llvm::any_of(dimSlices, isDefined)) {
+        const auto defaultSlice =
+            SparseTensorDimSliceAttr::get(parser.getContext());
+        for (Dimension dim = 0; dim < dimRank; dim++)
+          if (!isDefined(dimSlices[dim]))
+            dimSlices[dim] = defaultSlice;
+      } else {
+        dimSlices.clear();
+      }
+
+      ERROR_IF(dimToLvl, "Cannot mix `dimToLvl` with `map`")
+      dimToLvl = dlm.getDimToLvlMap(parser.getContext());
+      break;
+    }
+    } // switch
+    // Only last item can omit the comma.
     if (parser.parseOptionalComma().failed())
       break;
   }
@@ -771,7 +824,7 @@ Level mlir::sparse_tensor::toStoredDim(RankedTensorType type, Dimension d) {
 //===----------------------------------------------------------------------===//
 
 /// We normalized sparse tensor encoding attribute by always using
-/// ordered/unique DLT such that "compressed-nu-no" and "compressed-nu" (as well
+/// ordered/unique DLT such that "compressed_nu_no" and "compressed_nu" (as well
 /// as other variants) lead to the same storage specifier type, and stripping
 /// irrelevant fields that do not alter the sparse tensor memory layout.
 static SparseTensorEncodingAttr
@@ -1196,7 +1249,7 @@ void PushBackOp::build(OpBuilder &builder, OperationState &result,
 
 LogicalResult PushBackOp::verify() {
   if (Value n = getN()) {
-    auto nValue = dyn_cast_or_null<arith::ConstantIndexOp>(n.getDefiningOp());
+    std::optional<int64_t> nValue = getConstantIntValue(n);
     if (nValue && nValue.value() < 1)
       return emitOpError("n must be not less than 1");
   }
@@ -1304,7 +1357,7 @@ LogicalResult SortOp::verify() {
   if (getXs().empty())
     return emitError("need at least one xs buffer.");
 
-  auto n = getN().getDefiningOp<arith::ConstantIndexOp>();
+  std::optional<int64_t> n = getConstantIntValue(getN());
 
   Type xtp = getMemRefType(getXs().front()).getElementType();
   auto checkTypes = [&](ValueRange operands,
@@ -1329,7 +1382,7 @@ LogicalResult SortOp::verify() {
 }
 
 LogicalResult SortCooOp::verify() {
-  auto cn = getN().getDefiningOp<arith::ConstantIndexOp>();
+  std::optional<int64_t> cn = getConstantIntValue(getN());
   // We can't check the size of the buffers when n or buffer dimensions aren't
   // compile-time constants.
   if (!cn)

@@ -546,6 +546,13 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_intel_esimd: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT, sizeof(pi_bool),
+            &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
   case aspect::ext_oneapi_non_uniform_groups: {
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl) ||
@@ -631,6 +638,15 @@ uint64_t device_impl::getCurrentDeviceTime() {
     Diff = 0;
   }
   return MDeviceHostBaseTime.first + Diff;
+}
+
+bool device_impl::isGetDeviceAndHostTimerSupported() {
+  const auto &Plugin = getPlugin();
+  uint64_t DeviceTime = 0, HostTime = 0;
+  auto Result =
+      Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+          MDevice, &DeviceTime, &HostTime);
+  return Result != PI_ERROR_INVALID_OPERATION;
 }
 
 } // namespace detail

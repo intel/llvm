@@ -100,33 +100,33 @@
 
 /// Tests the behaviors of using -fsycl-targets=nvidia_gpu*
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_50 -DMAC_STR=SM_50
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_52 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_52 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_52 -DMAC_STR=SM_52
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_53 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_53 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_53 -DMAC_STR=SM_53
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_60 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_60 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_60 -DMAC_STR=SM_60
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_61 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_61 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_61 -DMAC_STR=SM_61
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_62 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_62 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_62 -DMAC_STR=SM_62
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_70 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_70 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_70 -DMAC_STR=SM_70
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_72 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_72 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_72 -DMAC_STR=SM_72
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_75 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_75 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_75 -DMAC_STR=SM_75
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_80 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_80 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_80 -DMAC_STR=SM_80
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_86 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_86 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_86 -DMAC_STR=SM_86
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_87 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_87 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_87 -DMAC_STR=SM_87
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_89 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_89 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_89 -DMAC_STR=SM_89
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_90 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90 -DMAC_STR=SM_90
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 // DEVICE_NVIDIA: llvm-foreach{{.*}} "--gpu-name" "[[DEV_STR]]"
@@ -135,49 +135,49 @@
 
 /// Tests the behaviors of using -fsycl-targets=amd_gpu*
 
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx700 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx700 -DMAC_STR=GFX700
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx701 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx701 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx701 -DMAC_STR=GFX701
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx702 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx702 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx702 -DMAC_STR=GFX702
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx801 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx801 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx801 -DMAC_STR=GFX801
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx802 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx802 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx802 -DMAC_STR=GFX802
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx803 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx803 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx803 -DMAC_STR=GFX803
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx805 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx805 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx805 -DMAC_STR=GFX805
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx810 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx810 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx810 -DMAC_STR=GFX810
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx900 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx900 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx900 -DMAC_STR=GFX900
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx902 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx902 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx902 -DMAC_STR=GFX902
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx904 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx904 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx904 -DMAC_STR=GFX904
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx906 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx906 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx906 -DMAC_STR=GFX906
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx908 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx908 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx908 -DMAC_STR=GFX908
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx90a -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx90a -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx90a -DMAC_STR=GFX90A
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1010 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1010 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1010 -DMAC_STR=GFX1010
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1011 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1011 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1011 -DMAC_STR=GFX1011
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1012 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1012 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1012 -DMAC_STR=GFX1012
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1013 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1013 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1013 -DMAC_STR=GFX1013
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1030 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1030 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1030 -DMAC_STR=GFX1030
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1031 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1031 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1031 -DMAC_STR=GFX1031
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1032 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1032 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1032 -DMAC_STR=GFX1032
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1034 -### %s 2>&1 | \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx1034 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1034 -DMAC_STR=GFX1034
 // MACRO_AMD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
@@ -195,23 +195,23 @@
 // MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
 
 /// test for invalid intel arch
-// RUN: %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
-// RUN: %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
 // BAD_INPUT: error: SYCL target is invalid: 'intel_gpu_bad'
 
 /// test for invalid nvidia arch
-// RUN: %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT
-// RUN: %clang_cl -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=nvidia_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_NVIDIA_INPUT
 // BAD_NVIDIA_INPUT: error: SYCL target is invalid: 'nvidia_gpu_bad'
 
 /// test for invalid amd arch
-// RUN: %clangxx -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN: not %clangxx -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
-// RUN: %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_AMD_INPUT
 // BAD_AMD_INPUT: error: SYCL target is invalid: 'amd_gpu_bad'
 
@@ -223,14 +223,14 @@
 // FATO: "-targets=sycl-spir64_gen-unknown-unknown-skl,host-x86_64-unknown-linux-gnu"
 
 /// Test for proper creation of fat object
-// RUN: %clangxx -c -fsycl -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN: %clangxx -c -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_FATO
 // NVIDIA_FATO: clang-offload-bundler{{.*}} "-type=o"
 // NVIDIA_FATO: "-targets=sycl-nvptx64-nvidia-cuda-sm_50,host-x86_64-unknown-linux-gnu"
 
 /// Test for proper creation of fat object
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx700 \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_FATO
 // AMD_FATO: clang-offload-bundler{{.*}} "-type=o"
@@ -247,7 +247,7 @@
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o
-// RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_50 \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvidia_gpu_sm_50 \
 // RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=NVIDIA_CONSUME_FAT
 // NVIDIA_CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"
@@ -256,7 +256,7 @@
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o
-// RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx700 \
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx700 \
 // RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_CONSUME_FAT
 // AMD_CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"

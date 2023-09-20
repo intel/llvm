@@ -17,6 +17,10 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
+    - '.github/workflows/sycl_precommit_windows.yml'
+    - '.github/workflows/sycl_windows_build_and_test.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
 
 jobs:
   detect_changes:
@@ -71,12 +75,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: ESIMD Emu
-            runner: '["Linux", "x86-cpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-            image_options: -u 1001
-            target_devices: ext_intel_esimd_emulator:gpu
-            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest

@@ -153,10 +153,10 @@ struct TypeVisitor;
 struct ParamType {
   /// @brief Constructor.
   /// @param TypeEnum type id.
-  ParamType(TypeEnum TypeId) : TypeId(TypeId){};
+  ParamType(TypeEnum TypeId) : TypeId(TypeId) {}
 
   /// @brief Destructor.
-  virtual ~ParamType(){};
+  virtual ~ParamType() {}
 
   /// Abstract Methods ///
 

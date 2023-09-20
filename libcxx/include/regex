@@ -710,7 +710,8 @@ public:
     regex_iterator& operator=(const regex_iterator&);
 
     bool operator==(const regex_iterator&) const;
-    bool operator!=(const regex_iterator&) const;                                // Removed in C++20
+    bool operator==(default_sentinel_t) const { return *this == regex_iterator(); } // since C++20
+    bool operator!=(const regex_iterator&) const;                                   // Removed in C++20
 
     const value_type& operator*() const;
     const value_type* operator->() const;
@@ -768,7 +769,8 @@ public:
     regex_token_iterator& operator=(const regex_token_iterator&);
 
     bool operator==(const regex_token_iterator&) const;
-    bool operator!=(const regex_token_iterator&) const;                  // Removed in C++20
+    bool operator==(default_sentinel_t) const { return *this == regex_token_iterator(); } // since C++20
+    bool operator!=(const regex_token_iterator&) const;                                   // Removed in C++20
 
     const value_type& operator*() const;
     const value_type* operator->() const;
@@ -791,8 +793,10 @@ typedef regex_token_iterator<wstring::const_iterator> wsregex_token_iterator;
 #include <__availability>
 #include <__config>
 #include <__iterator/back_insert_iterator.h>
+#include <__iterator/default_sentinel.h>
 #include <__iterator/wrap_iter.h>
 #include <__locale>
+#include <__memory/shared_ptr.h>
 #include <__memory_resource/polymorphic_allocator.h>
 #include <__type_traits/is_swappable.h>
 #include <__utility/move.h>
@@ -1455,7 +1459,7 @@ struct __state
     _LIBCPP_INLINE_VISIBILITY
     __state()
         : __do_(0), __first_(nullptr), __current_(nullptr), __last_(nullptr),
-          __node_(nullptr), __flags_() {}
+          __node_(nullptr), __flags_(), __at_first_(false) {}
 };
 
 // __node
@@ -2772,9 +2776,9 @@ public:
                             flag_type __f = regex_constants::ECMAScript)
             {return assign(__s.begin(), __s.end(), __f);}
 
-    template <class _InputIterator>
+    template <class _InputIterator, __enable_if_t<__has_exactly_input_iterator_category<_InputIterator>::value, int> = 0>
         _LIBCPP_INLINE_VISIBILITY
-        typename enable_if<__has_exactly_input_iterator_category<_InputIterator>::value, basic_regex&>::type
+        basic_regex&
         assign(_InputIterator __first, _InputIterator __last,
                             flag_type __f = regex_constants::ECMAScript)
         {
@@ -2794,13 +2798,9 @@ private:
     }
 public:
 
-    template <class _ForwardIterator>
+    template <class _ForwardIterator, __enable_if_t<__has_forward_iterator_category<_ForwardIterator>::value, int> = 0>
         _LIBCPP_INLINE_VISIBILITY
-        typename enable_if
-        <
-            __has_forward_iterator_category<_ForwardIterator>::value,
-            basic_regex&
-        >::type
+        basic_regex&
         assign(_ForwardIterator __first, _ForwardIterator __last,
                             flag_type __f = regex_constants::ECMAScript)
         {
@@ -3106,8 +3106,7 @@ private:
 
 #if _LIBCPP_STD_VER >= 17
 template <class _ForwardIterator,
-          class = typename enable_if<__has_forward_iterator_category<_ForwardIterator>::value, nullptr_t>::type
->
+          __enable_if_t<__has_forward_iterator_category<_ForwardIterator>::value, int> = 0>
 basic_regex(_ForwardIterator, _ForwardIterator,
             regex_constants::syntax_option_type = regex_constants::ECMAScript)
     -> basic_regex<typename iterator_traits<_ForwardIterator>::value_type>;
@@ -5530,38 +5529,38 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     difference_type length(size_type __sub = 0) const
         {
-        _LIBCPP_ASSERT(ready(), "match_results::length() called when not ready");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::length() called when not ready");
         return (*this)[__sub].length();
         }
     _LIBCPP_INLINE_VISIBILITY
     difference_type position(size_type __sub = 0) const
         {
-        _LIBCPP_ASSERT(ready(), "match_results::position() called when not ready");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::position() called when not ready");
         return _VSTD::distance(__position_start_, (*this)[__sub].first);
         }
     _LIBCPP_INLINE_VISIBILITY
     string_type str(size_type __sub = 0) const
         {
-        _LIBCPP_ASSERT(ready(), "match_results::str() called when not ready");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::str() called when not ready");
         return (*this)[__sub].str();
         }
     _LIBCPP_INLINE_VISIBILITY
     const_reference operator[](size_type __n) const
         {
-        _LIBCPP_ASSERT(ready(), "match_results::operator[]() called when not ready");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::operator[]() called when not ready");
         return __n < __matches_.size() ? __matches_[__n] : __unmatched_;
         }
 
     _LIBCPP_INLINE_VISIBILITY
     const_reference prefix() const
         {
-        _LIBCPP_ASSERT(ready(), "match_results::prefix() called when not ready");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::prefix() called when not ready");
         return __prefix_;
         }
     _LIBCPP_INLINE_VISIBILITY
     const_reference suffix() const
         {
-        _LIBCPP_ASSERT(ready(), "match_results::suffix() called when not ready");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::suffix() called when not ready");
         return __suffix_;
         }
 
@@ -5701,7 +5700,7 @@ match_results<_BidirectionalIterator, _Allocator>::format(_OutputIter __output_i
         const char_type* __fmt_first, const char_type* __fmt_last,
         regex_constants::match_flag_type __flags) const
 {
-    _LIBCPP_ASSERT(ready(), "match_results::format() called when not ready");
+    _LIBCPP_ASSERT_UNCATEGORIZED(ready(), "match_results::format() called when not ready");
     if (__flags & regex_constants::format_sed)
     {
         for (; __fmt_first != __fmt_last; ++__fmt_first)
@@ -6429,7 +6428,10 @@ public:
                                      = regex_constants::match_default) = delete;
 #endif
 
-    bool operator==(const regex_iterator& __x) const;
+    _LIBCPP_HIDE_FROM_ABI bool operator==(const regex_iterator& __x) const;
+#if _LIBCPP_STD_VER >= 20
+    _LIBCPP_HIDE_FROM_ABI bool operator==(default_sentinel_t) const { return *this == regex_iterator(); }
+#endif
 #if _LIBCPP_STD_VER < 20
     _LIBCPP_INLINE_VISIBILITY
     bool operator!=(const regex_iterator& __x) const {return !(*this == __x);}
@@ -6609,9 +6611,14 @@ public:
     regex_token_iterator(const regex_token_iterator&);
     regex_token_iterator& operator=(const regex_token_iterator&);
 
-    bool operator==(const regex_token_iterator& __x) const;
-    _LIBCPP_INLINE_VISIBILITY
+    _LIBCPP_HIDE_FROM_ABI bool operator==(const regex_token_iterator& __x) const;
+#if _LIBCPP_STD_VER >= 20
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_HIDE_FROM_ABI bool operator==(default_sentinel_t) const {
+        return *this == regex_token_iterator();
+    }
+#endif
 #if _LIBCPP_STD_VER < 20
+    _LIBCPP_INLINE_VISIBILITY
     bool operator!=(const regex_token_iterator& __x) const {return !(*this == __x);}
 #endif
 
@@ -6945,6 +6952,7 @@ _LIBCPP_POP_MACROS
 #  include <cstdlib>
 #  include <iosfwd>
 #  include <iterator>
+#  include <mutex>
 #  include <new>
 #  include <type_traits>
 #  include <typeinfo>

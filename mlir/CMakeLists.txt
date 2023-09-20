@@ -35,11 +35,6 @@ if(MLIR_STANDALONE_BUILD)
     "${CMAKE_CURRENT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 
-  # Some LLVM CMake utilities use these aliases for the CMake builtin variables.
-  # We set them for compatibility.
-  set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-  set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-
   set(LLVM_LIT_ARGS "-sv" CACHE STRING "Default options for lit")
 endif()
 
@@ -102,7 +97,7 @@ endif()
 
 # Build the CUDA conversions and run according tests if the NVPTX backend
 # is available
-if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD AND MLIR_ENABLE_EXECUTION_ENGINE)
+if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   set(MLIR_ENABLE_CUDA_CONVERSIONS 1)
 else()
   set(MLIR_ENABLE_CUDA_CONVERSIONS 0)
@@ -112,17 +107,21 @@ add_definitions(-DMLIR_CUDA_CONVERSIONS_ENABLED=${MLIR_ENABLE_CUDA_CONVERSIONS})
 
 # Build the ROCm conversions and run according tests if the AMDGPU backend
 # is available.
-if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD AND MLIR_ENABLE_EXECUTION_ENGINE)
+if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   set(MLIR_ENABLE_ROCM_CONVERSIONS 1)
 else()
   set(MLIR_ENABLE_ROCM_CONVERSIONS 0)
 endif()
 add_definitions(-DMLIR_ROCM_CONVERSIONS_ENABLED=${MLIR_ENABLE_ROCM_CONVERSIONS})
 
+set(MLIR_ENABLE_DEPRECATED_GPU_SERIALIZATION 0 CACHE BOOL "Enable deprecated GPU serialization passes")
 set(MLIR_ENABLE_CUDA_RUNNER 0 CACHE BOOL "Enable building the mlir CUDA runner")
 set(MLIR_ENABLE_ROCM_RUNNER 0 CACHE BOOL "Enable building the mlir ROCm runner")
 set(MLIR_ENABLE_SPIRV_CPU_RUNNER 0 CACHE BOOL "Enable building the mlir SPIR-V cpu runner")
 set(MLIR_ENABLE_VULKAN_RUNNER 0 CACHE BOOL "Enable building the mlir Vulkan runner")
+set(MLIR_ENABLE_NVPTXCOMPILER 0 CACHE BOOL
+    "Statically link the nvptxlibrary instead of calling ptxas as a subprocess \
+    for compiling PTX to cubin")
 
 option(MLIR_INCLUDE_TESTS
        "Generate build targets for the MLIR unit tests."

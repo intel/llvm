@@ -429,7 +429,7 @@ private:
 public:
   ELFLinkGraphBuilder_aarch64(StringRef FileName,
                               const object::ELFFile<ELFT> &Obj, Triple TT,
-                              LinkGraph::FeatureVector Features)
+                              SubtargetFeatures Features)
       : ELFLinkGraphBuilder<ELFT>(Obj, std::move(TT), std::move(Features),
                                   FileName, aarch64::getEdgeKindName) {}
 };
@@ -589,7 +589,7 @@ createLinkGraphFromELFObject_aarch64(MemoryBufferRef ObjectBuffer) {
   auto &ELFObjFile = cast<object::ELFObjectFile<object::ELF64LE>>(**ELFObj);
   return ELFLinkGraphBuilder_aarch64<object::ELF64LE>(
              (*ELFObj)->getFileName(), ELFObjFile.getELFFile(),
-             (*ELFObj)->makeTriple(), Features->getFeatures())
+             (*ELFObj)->makeTriple(), std::move(*Features))
       .buildGraph();
 }
 
@@ -598,7 +598,7 @@ void link_ELF_aarch64(std::unique_ptr<LinkGraph> G,
   PassConfiguration Config;
   const Triple &TT = G->getTargetTriple();
   if (Ctx->shouldAddDefaultTargetPasses(TT)) {
-    // Add eh-frame passses.
+    // Add eh-frame passes.
     Config.PrePrunePasses.push_back(DWARFRecordSectionSplitter(".eh_frame"));
     Config.PrePrunePasses.push_back(EHFrameEdgeFixer(
         ".eh_frame", 8, aarch64::Pointer32, aarch64::Pointer64,
