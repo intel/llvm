@@ -1,4 +1,4 @@
-name: SYCL Pre Commit on Windows
+name: SYCL Pre Commit on Windows (Test change)
 
 on:
   pull_request:
