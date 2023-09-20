@@ -19,7 +19,8 @@ void enableZeTracing();
 void disableZeTracing();
 
 // TODO: Move these functions to the UR plugin once it's updated to include the
-// changes from oneapi-src/unified-runtime#849.
+// changes from oneapi-src/unified-runtime#849. urEnqueueCooperativeKernelLaunch
+// llvm/sycl/plugins/unified_runtime/ur/adapters/level_zero/kernel.cpp
 namespace pi2ur {
 pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
                                                      pi_uint32 *GroupCountRet) {
@@ -29,6 +30,10 @@ pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
   return ur2piResult(ze2urResult(Result));
 }
 
+// TODO: This function is a modified version of urEnqueueKernelLaunch in
+// llvm/sycl/plugins/unified_runtime/ur/adapters/level_zero/kernel.cpp. The two
+// functions should be refactored to share common code once the UR plugin is
+// updated to include cooperative kernels.
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunch(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
