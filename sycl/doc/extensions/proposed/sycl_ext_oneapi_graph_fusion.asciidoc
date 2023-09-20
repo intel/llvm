@@ -44,6 +44,7 @@ Julian Oppermann, Codeplay +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 John Pennycook, Intel +
+Greg Lueck, Intel +
 
 == Dependencies
 
@@ -192,8 +193,9 @@ By adding the `insert_barriers` property, a _work-group barrier_ will be
 inserted between the kernels. To achieve a device-wide synchronization, i.e.,
 a synchronization between different work-groups that is implicit between two
 kernels when executed separately, users should leverage the subgraph feature of
-the SYCL graph proposal. By creating two subgraphs, fusing each and adding both
-to the same graph, a device-wide synchronization between two fused parts can be
+the SYCL graph proposal, as device-wide synchronization inside the fused kernel
+is not achievable. By creating two subgraphs, fusing each and adding both to
+the same graph, a device-wide synchronization between two fused parts can be
 achieved if necessary.
 ====
 
@@ -233,9 +235,11 @@ the property is specified on an accessor) or in any kernel in the graph (in case
 the property is specified on a buffer or an USM pointer).
 
 More concretely, the two shortcuts express the following semantics:
+
 * `access_scope_work_group`: Applying this specialization asserts that each
 element in the buffer or allocated device memory is accessed by no more than one
 work-group.
+
 * `access_scope_work_item`: Applying this specialization asserts that each
 element in the buffer or allocated device memory is accessed by no more than one
 work-item.
@@ -320,7 +324,7 @@ in the sequence before the command itself.
 
 The exact linearization of the dependency DAG (which generally only implies a
 partial order) is implementation defined. The linearization should be
-deterministic, i.e. it should yield the same sequence when presented with the
+deterministic, i.e., it should yield the same sequence when presented with the
 same DAG.
 
 === Synchronization in kernels
@@ -336,13 +340,13 @@ barrier can added between each of the kernels being fused by applying the
 As the fusion compiler can reason about the access behavior of the different
 kernels only in a very limited fashion, **it's the user's responsibility to
 make sure no data races occur in the fused kernel**. Data races could in
-particular be introduced because the implicit inter-work-group synchronization
+particular be introduced because the implicit device-wide synchronization
 between the execution of two separate kernels is eliminated by fusion. The user
 must ensure that the kernels combined during fusion do not rely on this
 synchronization or introduce appropriate synchronization.
 
 Device-wide synchronization can be achieved by splitting the graph into multiple
-subgraphs and fusing each separately, as decribed above.
+subgraphs and fusing each separately, as described above.
 
 === Limitations
 
@@ -421,7 +425,7 @@ To achieve this result during fusion, a fusion compiler must establish some
 additional context and information. 
 
 First, the compiler must know that two arguments refer to the same underlying
-memory. This is possible during runtime, so no additional user input is
+memory. This can be inferred during runtime, so no additional user input is
 required.
 
 For the remaining information that needs to be established, the necessity of
@@ -456,10 +460,12 @@ must be provided by the user by applying the `fusion_internal_memory` property
 to the buffer or allocated device memory as described above.
 
 The type of memory that can be used for internalization depends on the memory
-access pattern of the fuses kernel. Depending on the access pattern, the buffer
+access pattern of the fused kernel. Depending on the access pattern, the buffer
 or allocated device memory can be classified as:
+
 * _Privately internalizable_: If not a single element of the buffer/memory is to
   be accessed by more than one work-item;
+
 * _Locally internalizable_: If not a single element of the buffer/memory is to
   be accessed by work items of different work groups.
 
@@ -483,10 +489,10 @@ dataflow internalization. Implementations should document the necessary
 properties required to enable internalization in implementation documentation.
 
 All internalization-related properties are only _descriptive_, so it is not an
-error if an implementation is unable to perform internalization based on the
-specified properties. Implementations can provide a diagnostic message in case
-the set of specified properties are not sufficient to perform internalization,
-but are not required to do so.
+error if an implementation is unable to or for other reasons decides not to
+perform internalization based on the specified properties. Implementations can
+provide a diagnostic message in case the set of specified properties are not
+sufficient to perform internalization, but are not required to do so.
 
 [NOTE]
 ====
@@ -575,87 +581,86 @@ internalization is performed.
 ```c++
 #include <sycl/sycl.hpp>
 
-using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
 
 struct AddKernel {
-  accessor<int, 1> accIn1;
-  accessor<int, 1> accIn2;
-  accessor<int, 1> accOut;
+  sycl::accessor<int, 1> accIn1;
+  sycl::accessor<int, 1> accIn2;
+  sycl::accessor<int, 1> accOut;
 
-  void operator()(id<1> i) const { accOut[i] = accIn1[i] + accIn2[i]; }
+  void operator()(sycl::id<1> i) const { accOut[i] = accIn1[i] + accIn2[i]; }
 };
 
 int main() {
   constexpr size_t dataSize = 512;
   int in1[dataSize], in2[dataSize], in3[dataSize], out[dataSize];
 
-  queue q{default_selector_v};
+  sycl::queue q{default_selector_v};
 
   {
-    buffer<int> bIn1{in1, range{dataSize}};
+    sycl::buffer<int> bIn1{in1, sycl::range{dataSize}};
     bIn1.set_write_back(false);
-    buffer<int> bIn2{in2, range{dataSize}};
+    sycl::buffer<int> bIn2{in2, sycl::range{dataSize}};
     bIn2.set_write_back(false);
-    buffer<int> bIn3{in3, range{dataSize}};
+    sycl::buffer<int> bIn3{in3, sycl::range{dataSize}};
     bIn3.set_write_back(false);
     buffer<int> bTmp1{range{dataSize}};
     // Internalization specified on the buffer
-    buffer<int> bTmp2{
-        range{dataSize},
-        {sycl::ext::oneapi::experimental::property::access_scope_work_item{},
-          sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
-          no_init}};
+    sycl::buffer<int> bTmp2{
+        sycl::range{dataSize},
+        {sycl_ext::property::access_scope_work_item{},
+          sycl_ext::property::fusion_internal_memory{},
+          sycl::no_init}};
     // Internalization specified on the buffer
-    buffer<int> bTmp3{
-        range{dataSize},
-        {sycl::ext::oneapi::experimental::property::access_scope_work_item{},
-          sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
-          no_init}};
-    buffer<int> bOut{out, range{dataSize}};
+    sycl::buffer<int> bTmp3{
+        sycl::range{dataSize},
+        {sycl_ext::property::access_scope_work_item{},
+          sycl_ext::property::fusion_internal_memory{},
+          sycl::no_init}};
+    sycl::buffer<int> bOut{out, sycl::range{dataSize}};
     bOut.set_write_back(false);
 
-    ext::oneapi::experimental::command_graph graph{
+    sycl_ext::command_graph graph{
         q.get_context(), q.get_device(),
-        sycl::ext::oneapi::experimental::property::graph::
-                                                assume_buffer_outlives_graph{}};
+        sycl_ext::property::graph::assume_buffer_outlives_graph{}};
 
     graph.begin_recording(q);
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](sycl::handler &cgh) {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
       // Internalization specified on each accessor.
       auto accTmp1 = bTmp1.get_access(cgh,
-            sycl::ext::oneapi::experimental::property::access_scope_work_item{}
-            sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
-            no_init);
+            sycl_ext::property::access_scope_work_item{}
+            sycl_ext::property::fusion_internal_memory{},
+            sycl::no_init);
       cgh.parallel_for<AddKernel>(dataSize, AddKernel{accIn1, accIn2, accTmp1});
     });
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](sycl::handler &cgh) {
       // Internalization specified on each accessor.
       auto accTmp1 = bTmp1.get_access(cgh,
-            sycl::ext::oneapi::experimental::property::access_scope_work_item{}
-            sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
-            no_init);
+            sycl_ext::property::access_scope_work_item{}
+            sycl_ext::property::fusion_internal_memory{},
+            sycl::no_init);
       auto accIn3 = bIn3.get_access(cgh);
       auto accTmp2 = bTmp2.get_access(cgh);
       cgh.parallel_for<class KernelOne>(
-          dataSize, [=](id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
+          dataSize, [=](sycl::id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
     });
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](sycl::handler &cgh) {
       // Internalization specified on each accessor.
       auto accTmp1 = bTmp1.get_access(cgh,
-            sycl::ext::oneapi::experimental::property::access_scope_work_item{}
-            sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
-            no_init);
+            sycl_ext::property::access_scope_work_item{}
+            sycl_ext::property::fusion_internal_memory{},
+            sycl::no_init);
       auto accTmp3 = bTmp3.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
-          dataSize, [=](id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
+          dataSize, [=](sycl::id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
     });
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](sycl::handler &cgh) {
       auto accTmp2 = bTmp2.get_access(cgh);
       auto accTmp3 = bTmp3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
@@ -667,8 +672,7 @@ int main() {
 
     // Trigger fusion during finalization.
     auto exec_graph =
-        graph.finalize({sycl::ext::oneapi::experimental::property::
-                            graph::require_fusion{}});
+        graph.finalize({sycl_ext::property::graph::require_fusion{}});
 
     q.ext_oneapi_graph(exec_graph);
 
@@ -683,8 +687,6 @@ int main() {
 ```c++
 #include <sycl/sycl.hpp>
 
-using namespace sycl;
-
 namespace sycl_ext = sycl::ext::oneapi::experimental;
 
 int main() {
@@ -693,56 +695,56 @@ int main() {
 
   int in1[dataSize], in2[dataSize], in3[dataSize], out[dataSize];
 
-  queue q{default_selector_v};
+  sycl::queue q{default_selector_v};
 
   sycl_ext::command_graph graph{q.get_context(), q.get_device()};
 
   int *dIn1, dIn2, dIn3, dTmp, dOut;
 
-  dIn1 = malloc_device<int>(q, dataSize);
-  dIn2 = malloc_device<int>(q, dataSize);
-  dIn3 = malloc_device<int>(q, dataSize);
-  dOut = malloc_device<int>(q, dataSize);
+  dIn1 = sycl::malloc_device<int>(q, dataSize);
+  dIn2 = sycl::malloc_device<int>(q, dataSize);
+  dIn3 = sycl::malloc_device<int>(q, dataSize);
+  dOut = sycl::malloc_device<int>(q, dataSize);
 
-  // Specify internalization for an USM pointer
-  dTmp = malloc_device<int>(q, dataSize)
+  // Specify internalization to local memory for an USM pointer
+  dTmp = sycl::malloc_device<int>(q, dataSize)
   auto annotatedTmp = sycl_ext::annotated_ptr(
-      dTmp, sycl_ext::property::access_scope_work_item{},
+      dTmp, sycl_ext::property::access_scope_work_group{},
              sycl_ext::property::fusion_internal_memory{}, no_init);
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
   auto copy_in1 =
-      graph.add([&](handler &cgh) { cgh.memcpy(dIn1, in1, numBytes); });
+      graph.add([&](sycl::handler &cgh) { cgh.memcpy(dIn1, in1, numBytes); });
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
   auto copy_in2 =
-      graph.add([&](handler &cgh) { cgh.memcpy(dIn2, in2, numBytes); });
+      graph.add([&](sycl::handler &cgh) { cgh.memcpy(dIn2, in2, numBytes); });
 
   auto kernel1 = graph.add(
-      [&](handler &cgh) {
+      [&](sycl::handler &cgh) {
         cgh.parallel_for<class KernelOne>(
-            dataSize, [=](id<1> i) { annotatedTmp[i] = in1[i] + in2[i]; });
+            dataSize, [=](sycl::id<1> i) { annotatedTmp[i] = in1[i] + in2[i]; });
       },
       {sycl_ext::property::node::depends_on(copy_in1, copy_in2)});
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
   auto copy_in3 =
-      graph.add([&](handler &cgh) { cgh.memcpy(dIn3, in3, numBytes); });
+      graph.add([&](sycl::handler &cgh) { cgh.memcpy(dIn3, in3, numBytes); });
 
   auto kernel2 = graph.add(
-      [&](handler &cgh) {
+      [&](sycl::handler &cgh) {
         cgh.parallel_for<class KernelTwo>(
-            dataSize, [=](id<1> i) { out[i] = annotatedTmp[i] * in3[i]; });
+            dataSize, [=](sycl::id<1> i) { out[i] = annotatedTmp[i] * in3[i]; });
       },
       {sycl_ext::property::node::depends_on(copy_in3, kernel1)});
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized after any device kernel in the graph.
   auto copy_out =
-      graph.add([&](handler &cgh) { cgh.memcpy(out, dOut, numBytes); },
+      graph.add([&](sycl::handler &cgh) { cgh.memcpy(out, dOut, numBytes); },
                 {sycl_ext::property::node::depends_on(kernel2)});
 
   // Trigger fusion during finalization.
@@ -751,11 +753,11 @@ int main() {
   // use queue shortcut for graph submission
   q.ext_oneapi_graph(exec).wait();
 
-  free(dIn1, q);
-  free(dIn2, q);
-  free(dIn3, q);
-  free(dOut, q);
-  free(dTmp, q);
+  sycl::free(dIn1, q);
+  sycl::free(dIn2, q);
+  sycl::free(dIn3, q);
+  sycl::free(dOut, q);
+  sycl::free(dTmp, q);
 
   return 0;
 }
