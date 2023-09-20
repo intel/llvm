@@ -304,15 +304,20 @@ q.submit([&](sycl::handler& cgh) {
     joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
     joint_matrix_fill(sg, tC, 0);
     for (int k = 0; k < K; k += tK) {
-      joint_matrix_load(sg, tA, accA + sg_startx * tM * K + k, K);
-      joint_matrix_load(sg, tB, accB + k * N*4 + sg_starty/SG_SIZE*tN*4, N*4);
-      tC = joint_matrix_mad(sg, tA, tB, tC);
+      joint_matrix_load(sg, tA,
+          accA.template get_multi_ptr<sycl::access::decorated::no>() +
+          sg_startx * tM * K + k, K);
+      joint_matrix_load(sg, tB,
+          accB.template get_multi_ptr<sycl::access::decorated::no>() +
+          k * N*4 + sg_starty/SG_SIZE*tN*4, N*4);
+      joint_matrix_mad(sg, tC, tA, tB, tC);
     }
-    auto wi_data_c = ext::intel::experimental::matrix::get_wi_data(sg, tC);
-    for (int i = 0; i < wi_data_c.length(); i++)
-      wi_data_c[i] *= alpha;
+    joint_matrix_apply(sg, tC, [=](int8_t x) {
+      x *= alpha;
+    });
     joint_matrix_store(sg, tC,
-      accC + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
+        accC.template get_multi_ptr<sycl::access::decorated::no>()
+        + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
   });
 });
 q.wait();

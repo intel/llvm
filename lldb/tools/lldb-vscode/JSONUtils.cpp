@@ -137,6 +137,12 @@ std::vector<std::string> GetStrings(const llvm::json::Object *obj,
 /// glance.
 static std::optional<std::string>
 GetSyntheticSummaryForContainer(lldb::SBValue &v) {
+  // We gate this feature because it performs GetNumChildren(), which can
+  // cause performance issues because LLDB needs to complete possibly huge
+  // types.
+  if (!g_vsc.enable_auto_variable_summaries)
+    return std::nullopt;
+
   if (v.TypeIsPointerType() || !v.MightHaveChildren())
     return std::nullopt;
   /// As this operation can be potentially slow, we limit the total time spent
@@ -191,6 +197,9 @@ GetSyntheticSummaryForContainer(lldb::SBValue &v) {
 /// Return whether we should dereference an SBValue in order to generate a more
 /// meaningful summary string.
 static bool ShouldBeDereferencedForSummary(lldb::SBValue &v) {
+  if (!g_vsc.enable_auto_variable_summaries)
+    return false;
+
   if (!v.GetType().IsPointerType() && !v.GetType().IsReferenceType())
     return false;
 
@@ -1103,10 +1112,13 @@ std::string CreateUniqueVariableNameForDisplay(lldb::SBValue v,
 // }
 llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
                                  int64_t varID, bool format_hex,
-                                 bool is_name_duplicated) {
+                                 bool is_name_duplicated,
+                                 std::optional<std::string> custom_name) {
   llvm::json::Object object;
-  EmplaceSafeString(object, "name",
-                    CreateUniqueVariableNameForDisplay(v, is_name_duplicated));
+  EmplaceSafeString(
+      object, "name",
+      custom_name ? *custom_name
+                  : CreateUniqueVariableNameForDisplay(v, is_name_duplicated));
 
   if (format_hex)
     v.SetFormat(lldb::eFormatHex);
@@ -1131,15 +1143,20 @@ llvm::json::Value CreateVariable(lldb::SBValue v, int64_t variablesReference,
   const bool is_synthetic = v.IsSynthetic();
   if (is_array || is_synthetic) {
     const auto num_children = v.GetNumChildren();
+    // We create a "[raw]" fake child for each synthetic type, so we have to
+    // account for it when returning indexed variables. We don't need to do this
+    // for non-indexed ones.
+    bool has_raw_child = is_synthetic && g_vsc.enable_synthetic_child_debugging;
+    int actual_num_children = num_children + (has_raw_child ? 1 : 0);
     if (is_array) {
-      object.try_emplace("indexedVariables", num_children);
+      object.try_emplace("indexedVariables", actual_num_children);
     } else if (num_children > 0) {
       // If a type has a synthetic child provider, then the SBType of "v" won't
       // tell us anything about what might be displayed. So we can check if the
       // first child's name is "[0]" and then we can say it is indexed.
       const char *first_child_name = v.GetChildAtIndex(0).GetName();
       if (first_child_name && strcmp(first_child_name, "[0]") == 0)
-        object.try_emplace("indexedVariables", num_children);
+        object.try_emplace("indexedVariables", actual_num_children);
     }
   }
   EmplaceSafeString(object, "type", type_cstr ? type_cstr : NO_TYPENAME);
