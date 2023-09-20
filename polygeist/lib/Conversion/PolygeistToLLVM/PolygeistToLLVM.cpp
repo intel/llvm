@@ -1210,6 +1210,34 @@ struct ConvertPolygeistToLLVMPass
       LLVM_DEBUG(llvm::dbgs() << "ConvertPolygeistToLLVMPass: Module after:\n";
                  m->dump(); llvm::dbgs() << "\n";);
     }
+
+    if (!options.useGenericFunctions) {
+      // During conversion, duplicate malloc and free functions can be generated
+      // if the user calls either of these functions and also uses `new` while
+      // using "non-generic" allocation functions. Remove potential duplicates
+      // here.
+      constexpr StringLiteral freeFn("free");
+      constexpr StringLiteral mallocFn("malloc");
+      std::array<std::pair<StringRef, bool>, 2> functionFound{
+          std::pair<StringRef, bool>{freeFn, false},
+          std::pair<StringRef, bool>{mallocFn, false}};
+      std::vector<LLVM::LLVMFuncOp> toRemove;
+      for (auto func : m.getOps<LLVM::LLVMFuncOp>()) {
+        StringRef name = func.getName();
+        auto *iter = llvm::find_if(functionFound,
+                                   [=](const std::pair<StringRef, bool> &el) {
+                                     return name == el.first;
+                                   });
+        if (iter == functionFound.end())
+          continue;
+        if (iter->second)
+          toRemove.push_back(func);
+        else
+          iter->second = true;
+      }
+      for (LLVM::LLVMFuncOp func : toRemove)
+        func.erase();
+    }
   }
 };
 } // namespace

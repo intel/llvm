@@ -30,10 +30,10 @@
 // CHECK-LLVM-SAME:        ptr noundef byval(%"class.sycl::_V1::range.1") align 8 %0, 
 // CHECK-LLVM-SAME:        ptr noundef byval({ ptr addrspace(1) }) align 8 %1)
 // CHECK-LLVM-NEXT:    call spir_func void @__itt_offload_wi_start_wrapper()
-// CHECK-LLVM-NEXT:    %3 = alloca %"class.sycl::_V1::item.1.true", align 8
+// CHECK-LLVM-NEXT:    %3 = alloca %"class.sycl::_V1::item.1.true", i64 1, align 8
 // CHECK-LLVM-NEXT:    %4 = alloca { ptr addrspace(4) }, i64 1, align 8
-// CHECK-LLVM-NEXT:    %5 = alloca %"class.sycl::_V1::range.1", align 8
-// CHECK-LLVM-NEXT:    %6 = alloca { %"class.sycl::_V1::range.1", { ptr addrspace(4) } }, align 8
+// CHECK-LLVM-NEXT:    %5 = alloca %"class.sycl::_V1::range.1", i64 1, align 8
+// CHECK-LLVM-NEXT:    %6 = alloca { %"class.sycl::_V1::range.1", { ptr addrspace(4) } }, i64 1, align 8
 // CHECK-LLVM-NEXT:    %7 = getelementptr { %"class.sycl::_V1::range.1", { ptr addrspace(4) } }, ptr %6, i32 0, i32 0
 // CHECK-LLVM-NEXT:    %8 = addrspacecast ptr %5 to ptr addrspace(4)
 // CHECK-LLVM-NEXT:    %9 = addrspacecast ptr %0 to ptr addrspace(4)

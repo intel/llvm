@@ -40,6 +40,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRLLVMCommonConversion
   MLIRMathDialect
   MLIRMemRefDialect
+  MLIRMemRefToLLVM
   MLIRNVVMDialect
   MLIRPass
   MLIRPolygeistAnalysis  
