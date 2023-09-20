@@ -2,18 +2,18 @@
 
 ; Verify that SPIRITTAnnotations pass inherits the debug information
 ; from the insertion points:
-; CHECK: call void @__itt_offload_wi_start_wrapper(), !dbg ![[D1:[0-9]+]]
+; CHECK: call spir_func void @__itt_offload_wi_start_wrapper(), !dbg ![[D1:[0-9]+]]
 ; CHECK: call spir_func void @foo(){{.*}}!dbg ![[D1]]
-; CHECK: call void @__itt_offload_wg_barrier_wrapper(), !dbg ![[D2:[0-9]+]]
+; CHECK: call spir_func void @__itt_offload_wg_barrier_wrapper(), !dbg ![[D2:[0-9]+]]
 ; CHECK: call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 528){{.*}}!dbg ![[D2]]
-; CHECK: call void @__itt_offload_wi_resume_wrapper(), !dbg ![[D2]]
+; CHECK: call spir_func void @__itt_offload_wi_resume_wrapper(), !dbg ![[D2]]
 ; CHECK: [[LD:%[A-Za-z0-9._]+]] = load ptr addrspace(1), ptr addrspace(1) @res
 ; CHECK: [[AC1:%[A-Za-z0-9._]+]] = addrspacecast ptr addrspace(1) [[LD]] to ptr addrspace(4)
-; CHECK: call void @__itt_offload_atomic_op_start(ptr addrspace(4) [[AC1]], i32 2, i32 0), !dbg ![[D3:[0-9]+]]
+; CHECK: call spir_func void @__itt_offload_atomic_op_start(ptr addrspace(4) [[AC1]], i32 2, i32 0), !dbg ![[D3:[0-9]+]]
 ; CHECK: %call4 = call spir_func i32 @_Z18__spirv_AtomicIAddPU3AS1iiii(ptr addrspace(1) [[LD]], i32 2, i32 0, i32 1){{.*}}!dbg ![[D3]]
 ; CHECK: [[AC2:%[A-Za-z0-9._]+]] = addrspacecast ptr addrspace(1) [[LD]] to ptr addrspace(4)
-; CHECK: call void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[AC2]], i32 2, i32 0), !dbg ![[D3]]
-; CHECK: call void @__itt_offload_wi_finish_wrapper(), !dbg ![[D4:[0-9]+]]
+; CHECK: call spir_func void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[AC2]], i32 2, i32 0), !dbg ![[D3]]
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper(), !dbg ![[D4:[0-9]+]]
 ; CHECK: ret void, !dbg ![[D4]]
 ; CHECK: ![[D2]] = !DILocation(line: 8, column: 3
 ; CHECK: ![[D3]] = !DILocation(line: 11, column: 3
