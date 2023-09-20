@@ -47,9 +47,7 @@ Compilation::Compilation(const Driver &D, const ToolChain &_DefaultToolChain,
 Compilation::~Compilation() {
   // Remove temporary files. This must be done before arguments are freed, as
   // the file names might be derived from the input arguments.
-  if (!(TheDriver.isSaveTempsEnabled() ||
-        TheDriver.isDumpDeviceCodeEnabled()) &&
-      !ForceKeepTempFiles)
+  if (!TheDriver.isSaveTempsEnabled() && !ForceKeepTempFiles)
     CleanupFileList(TempFiles);
 
   delete TranslatedArgs;
@@ -128,6 +126,20 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // Don't try to remove files which we don't have write access to (but may be
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
+
+  // If -fsycl-dump-device-code option is enabled, filter .spv files
+  // from the list of temporary files and save them in the user provided
+  // directory.
+  std::string FileNameExt;
+  std::string FileName = File;
+  if (TheDriver.isDumpDeviceCodeEnabled()) {
+    size_t i = FileName.rfind('.', FileName.length());
+    if (i != std::string::npos)
+      FileNameExt = FileName.substr(i + 1, FileName.length() - i);
+  }
+  if (FileNameExt == "spv")
+    return false;
+
   if (!llvm::sys::fs::can_write(File) || !llvm::sys::fs::is_regular_file(File))
     return true;
 
@@ -320,9 +332,7 @@ void Compilation::initCompilationForDiagnostics() {
   Jobs.clear();
 
   // Remove temporary files.
-  if (!(TheDriver.isSaveTempsEnabled() ||
-        TheDriver.isDumpDeviceCodeEnabled()) &&
-      !ForceKeepTempFiles)
+  if (!TheDriver.isSaveTempsEnabled() && !ForceKeepTempFiles)
     CleanupFileList(TempFiles);
 
   // Clear temporary/results file lists.
