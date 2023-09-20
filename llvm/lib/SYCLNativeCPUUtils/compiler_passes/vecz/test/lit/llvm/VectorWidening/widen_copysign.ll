@@ -69,8 +69,8 @@ entry:
 ; CHECK: %a = getelementptr <2 x float>, ptr %pa, i64 %idx
 ; CHECK: %b = getelementptr <2 x float>, ptr %pb, i64 %idx
 ; CHECK: %c = getelementptr <2 x float>, ptr %pc, i64 %idx
-; CHECK: [[T0:%.*]] = load <8 x float>, ptr %a, align 4
-; CHECK: [[T1:%.*]] = load <8 x float>, ptr %b, align 4
+; CHECK: [[T0:%.*]] = load <8 x float>, ptr %a, align 8
+; CHECK: [[T1:%.*]] = load <8 x float>, ptr %b, align 8
 ; CHECK: %res1 = call <8 x float> @llvm.copysign.v8f32(<8 x float> [[T0]], <8 x float> [[T1]])
 ; CHECK: store <8 x float> %res1, ptr %c, align 8
 ; CHECK: ret void
