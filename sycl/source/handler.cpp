@@ -1409,12 +1409,5 @@ std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   return {};
 }
 
-template std::optional<range<1>>
-handler::getRoundedRange<1>(range<1> UserRange);
-template std::optional<range<2>>
-handler::getRoundedRange<2>(range<2> UserRange);
-template std::optional<range<3>>
-handler::getRoundedRange<3>(range<3> UserRange);
-
 } // namespace _V1
 } // namespace sycl
