@@ -133,9 +133,9 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   std::string FileNameExt;
   std::string FileName = File;
   if (TheDriver.isDumpDeviceCodeEnabled()) {
-    size_t i = FileName.rfind('.', FileName.length());
-    if (i != std::string::npos)
-      FileNameExt = FileName.substr(i + 1, FileName.length() - i);
+    size_t PositionOfDot = FileName.rfind('.', FileName.length());
+    if (PositionOfDot != std::string::npos)
+      FileNameExt = FileName.substr(PositionOfDot + 1, FileName.length() - PositionOfDot);
   }
   if (FileNameExt == "spv")
     return false;
