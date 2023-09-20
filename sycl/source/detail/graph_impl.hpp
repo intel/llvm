@@ -14,6 +14,7 @@
 #include <sycl/handler.hpp>
 
 #include <detail/accessor_impl.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
 #include <cstring>
@@ -867,6 +868,20 @@ public:
                                                    DebugPrint);
     }
     return false;
+  }
+
+  /// Checks if the previous submissions of this graph have been completed
+  /// This function checks the status of events associated to the previous graph
+  /// submissions.
+  /// @return true if all previous submissions have been completed, false
+  /// otherwise.
+  bool previousSubmissionCompleted() const {
+    for (auto Event : MExecutionEvents) {
+      if (!Event->isCompleted()) {
+        return false;
+      }
+    }
+    return true;
   }
 
 private:
