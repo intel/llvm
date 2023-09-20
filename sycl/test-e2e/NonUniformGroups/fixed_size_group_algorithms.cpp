@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 //
 // REQUIRES: gpu
+// REQUIRES: sg-32
 // UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>
@@ -14,11 +15,6 @@ template <size_t PartitionSize> void test() {
   sycl::queue Q;
 
   constexpr uint32_t SGSize = 32;
-  auto SGSizes = Q.get_device().get_info<sycl::info::device::sub_group_sizes>();
-  if (std::find(SGSizes.begin(), SGSizes.end(), SGSize) == SGSizes.end()) {
-    std::cout << "Test skipped due to missing support for sub-group size 32."
-              << std::endl;
-  }
 
   sycl::buffer<size_t, 1> TmpBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> BarrierBuf{sycl::range{SGSize}};

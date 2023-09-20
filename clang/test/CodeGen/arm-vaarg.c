@@ -1,6 +1,3 @@
-// Added -Xclang -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
 // RUN: %clang -mfloat-abi=soft -target arm-linux-gnu -emit-llvm -S -o - %s | FileCheck %s
 
 struct Empty {};
