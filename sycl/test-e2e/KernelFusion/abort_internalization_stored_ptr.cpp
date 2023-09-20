@@ -6,6 +6,8 @@
 
 // CHECK:      Unable to perform all promotions for function {{.*}}. Detailed information:
 // CHECK-NON-HIP-NEXT: Failed to promote argument 0 of function {{.*}}: It is not safe to promote values being stored to another pointer
+// COM: The libspirv for HIP adds an instruction prior to the store causing the internalization failure.
+// COM: The failure is still related to what we expect, it just fails for a slightly different reason.
 // CHECK-HIP-NEXT: Failed to promote argument 0 of function {{.*}}: Do not know how to handle value to promote
 
 #include <sycl/sycl.hpp>

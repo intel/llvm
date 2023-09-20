@@ -194,9 +194,8 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   case BinaryFormat::AMDGCN: {
     llvm::Expected<KernelBinary *> BinaryOrError =
         translateToAMDGCN(Kernel, Mod, JITCtx);
-    if (auto Error = BinaryOrError.takeError()) {
+    if (auto Error = BinaryOrError.takeError())
       return Error;
-    }
     KernelBin = *BinaryOrError;
     break;
   }
@@ -322,12 +321,11 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
   const auto *Target =
       llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
 
-  if (!Target) {
+  if (!Target)
     return createStringError(
         inconvertibleErrorCode(),
         "Failed to load and translate AMDGCN LLVM IR module with error %s",
         ErrorMessage.c_str());
-  }
 
   // Set to the lowest tested target according to the GetStartedGuide, section
   // "Build DPC++ toolchain with support for HIP AMD"

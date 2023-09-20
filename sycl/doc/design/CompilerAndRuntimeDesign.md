@@ -772,9 +772,10 @@ kernel is compiled to PTX assembly by the kernel fusion JIT compiler at runtime.
 For the HIP backend, the resulting fused kernel is compiled to an AMDGCN binary
 by the kernel fusion JIT compiler at runtime, however this output requires
 finalization by `lld`. Rather than adding another dependancy to the fusion jit,
-a `Requires finalization` property is added the binary. The hip plugin will then
-use the AMD Compiler Object Manager library (`comgr`, part of the ROCm package) in order
-to finalize it into a loadable format.
+a `Requires finalization` property is added the binary. The HIP
+PI plugin/UR adapter will then use the AMD Compiler Object Manager library
+(`comgr`, part of the ROCm package) in order to finalize it into
+a loadable format.
 
 Note that the device binary in LLVM IR does not replace the device binary in
 target format, but is embed in addition to it.
