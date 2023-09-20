@@ -595,6 +595,7 @@ feature, the application must be compiled in ahead-of-time (AOT) mode using
 "special target values" listed in the link:../../UsersManual.md[users manual]
 description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+
 The architecture enumeration `intel_cpu_spr` does not currently work
 with any of the APIs described in this extension. It cannot be used
 with the `if_architecture_is` function, the
