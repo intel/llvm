@@ -1395,106 +1395,18 @@ handler::getCommandGraph() const {
   return MQueue->getCommandGraph();
 }
 
-template <int Dims>
-std::optional<range<Dims>> handler::getRoundedRange(range<Dims> UserRange) {
-  range<Dims> RoundedRange = UserRange;
-  // Disable the rounding-up optimizations under these conditions:
-  // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-  // 2. The kernel is provided via an interoperability method (this uses a
-  // different code path).
-  // 3. The range is already a multiple of the rounding factor.
-  //
-  // Cases 2 and 3 could be supported with extra effort.
-  // As an optimization for the common case it is an
-  // implementation choice to not support those scenarios.
-  // Note that "this_item" is a free function, i.e. not tied to any
-  // specific id or item. When concurrent parallel_fors are executing
-  // on a device it is difficult to tell which parallel_for the call is
-  // being made from. One could replicate portions of the
-  // call-graph to make this_item calls kernel-specific but this is
-  // not considered worthwhile.
-
-  // Perform range rounding if rounding-up is enabled.
-  if (this->DisableRangeRounding())
-    return {};
-
-  // Range should be a multiple of this for reasonable performance.
-  size_t MinFactorX = 16;
-  // Range should be a multiple of this for improved performance.
-  size_t GoodFactor = 32;
-  // Range should be at least this to make rounding worthwhile.
-  size_t MinRangeX = 1024;
-
-  // Check if rounding parameters have been set through environment:
-  // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
-  this->GetRangeRoundingSettings(MinFactorX, GoodFactor, MinRangeX);
-
-  // In SYCL, each dimension of a global range size is specified by
-  // a size_t, which can be up to 64 bits.  All backends should be
-  // able to accept a kernel launch with a 32-bit global range size
-  // (i.e. do not throw an error).  The OpenCL CPU backend will
-  // accept every 64-bit global range, but the GPU backends will not
-  // generally accept every 64-bit global range.  So, when we get a
-  // non-32-bit global range, we wrap the old kernel in a new kernel
-  // that has each work item peform multiple invocations the old
-  // kernel in a 32-bit global range.
+std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
-  id<Dims> MaxNWGs = [&] {
-    size_t PiResult[3] = {};
-    auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(),
-        PiInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(PiResult), &PiResult, nullptr);
-
-    if (Ret != PI_SUCCESS) {
-      id<Dims> Default;
-      for (int i = 0; i < Dims; ++i)
-        Default[i] = (std::numeric_limits<int32_t>::max)();
-      return Default;
-    }
-
-    id<Dims> IdResult;
-    size_t Limit = (std::numeric_limits<int>::max)();
-    for (int i = 0; i < Dims; ++i)
-      IdResult[i] = (std::min)(Limit, PiResult[Dims - i - 1]);
-    return IdResult;
-  }();
-  auto M = (std::numeric_limits<uint32_t>::max)();
-  range<Dims> MaxRange;
-  for (int i = 0; i < Dims; ++i) {
-    auto DesiredSize = MaxNWGs[i] * GoodFactor;
-    MaxRange[i] =
-        DesiredSize <= M ? DesiredSize : (M / GoodFactor) * GoodFactor;
+  std::array<size_t, 3> PiResult = {};
+  auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+      Dev->getHandleRef(),
+      PiInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(PiResult), &PiResult, nullptr);
+  if (Ret == PI_SUCCESS) {
+    return PiResult;
   }
-
-  bool DidAdjust = false;
-  auto Adjust = [&](int Dim, size_t Value) {
-    if (this->RangeRoundingTrace())
-      std::cout << "parallel_for range adjusted at dim " << Dim << " from "
-                << RoundedRange[Dim] << " to " << Value << std::endl;
-    RoundedRange[Dim] = Value;
-    DidAdjust = true;
-  };
-
-  // Perform range rounding if there are sufficient work-items to
-  // need rounding and the user-specified range is not a multiple of
-  // a "good" value.
-  if (RoundedRange[0] % MinFactorX != 0 && RoundedRange[0] >= MinRangeX) {
-    // It is sufficient to round up just the first dimension.
-    // Multiplying the rounded-up value of the first dimension
-    // by the values of the remaining dimensions (if any)
-    // will yield a rounded-up value for the total range.
-    Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
-  }
-
-  for (int i = 0; i < Dims; ++i)
-    if (RoundedRange[i] > MaxRange[i])
-      Adjust(i, MaxRange[i]);
-
-  if (!DidAdjust)
-    return {};
-  return RoundedRange;
+  return {};
 }
 
 template std::optional<range<1>>
