@@ -20,6 +20,8 @@
 #include "helpers.h"
 #include "ur_api.h"
 
+constexpr unsigned PAGE_SIZE = 4096;
+
 void ur_check(const ur_result_t r) {
     if (r != UR_RESULT_SUCCESS) {
         urTearDown(nullptr);
@@ -38,6 +40,23 @@ std::vector<ur_adapter_handle_t> get_adapters() {
     std::vector<ur_adapter_handle_t> adapters(adapterCount);
     ur_check(urAdapterGet(adapterCount, adapters.data(), nullptr));
     return adapters;
+}
+
+std::vector<ur_adapter_handle_t>
+get_supported_adapters(std::vector<ur_adapter_handle_t> &adapters) {
+    std::vector<ur_adapter_handle_t> supported_adapters;
+    for (auto adapter : adapters) {
+        ur_adapter_backend_t backend;
+        ur_check(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
+                                  sizeof(ur_adapter_backend_t), &backend,
+                                  nullptr));
+
+        if (backend == UR_ADAPTER_BACKEND_LEVEL_ZERO) {
+            supported_adapters.push_back(adapter);
+        }
+    }
+
+    return supported_adapters;
 }
 
 std::vector<ur_platform_handle_t>
@@ -70,7 +89,7 @@ std::vector<ur_device_handle_t> get_gpus(ur_platform_handle_t p) {
     return devices;
 }
 
-template <typename T, size_t N> struct alignas(4096) AlignedArray {
+template <typename T, size_t N> struct alignas(PAGE_SIZE) AlignedArray {
     T data[N];
 };
 
@@ -79,7 +98,8 @@ int main() {
     ur_check(urInit(UR_DEVICE_INIT_FLAG_GPU, loader_config));
 
     auto adapters = get_adapters();
-    auto platforms = get_platforms(adapters);
+    auto supported_adapters = get_supported_adapters(adapters);
+    auto platforms = get_platforms(supported_adapters);
     auto gpus = get_gpus(platforms.front());
     auto spv = generate_plus_one_spv();
 
@@ -131,10 +151,26 @@ int main() {
 
     ur_check(urQueueFinish(queue));
 
+    std::cout << "Input Array: ";
     for (int i = 0; i < a_size; ++i) {
-        std::cout << b.data[i] << " ";
+        std::cout << a.data[i] << " ";
     }
     std::cout << std::endl;
 
-    return urTearDown(nullptr) == UR_RESULT_SUCCESS ? 0 : 1;
+    bool expectedResult = false;
+
+    std::cout << "Output Array: ";
+    for (int i = 0; i < a_size; ++i) {
+        std::cout << b.data[i] << " ";
+        expectedResult |= (b.data[i] == a.data[i] + 1);
+    }
+    std::cout << std::endl;
+
+    if (expectedResult) {
+        std::cout << "Results are correct." << std::endl;
+    } else {
+        std::cout << "Results are incorrect." << std::endl;
+    }
+
+    return urTearDown(nullptr) == UR_RESULT_SUCCESS && expectedResult ? 0 : 1;
 }
