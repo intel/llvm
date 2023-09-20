@@ -1207,7 +1207,7 @@ The `sycl::ext::codeplay::experimental::property::queue::enable_fusion` property
 defined by the extension is ignored by queue recording.
 
 To enable kernel fusion in a `command_graph` see the
-https://github.com/sommerlukas/llvm/blob/proposal/graph-fusion/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
+link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
 which is layered ontop of `sycl_ext_oneapi_graph`.
 
 ==== sycl_ext_oneapi_kernel_properties
