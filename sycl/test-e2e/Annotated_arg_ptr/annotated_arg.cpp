@@ -97,7 +97,7 @@ int main() {
   using device_copyable_annotated_arg_with_properties =
       annotated_arg<device_copyable_class, decltype(properties{conduit})>;
   assert(is_device_copyable<
-            device_copyable_annotated_arg_with_properties>::value &&
+             device_copyable_annotated_arg_with_properties>::value &&
          "annotated_arg<device_copyable_class, properties> is not device "
          "copyable.");
 
