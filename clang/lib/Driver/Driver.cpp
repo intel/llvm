@@ -5233,7 +5233,7 @@ class OffloadingActionBuilder final {
     // worked against to add the device link steps.  This is also used to change
     // how the toolchain is formed, either by dependency additions or by adding
     // actions explicitly.
-    void appendSYCLDeviceLink(ActionList &LI, const ToolChain *TC,
+    void appendSYCLDeviceLink(ActionList &ListIndex, const ToolChain *TC,
                               OffloadAction::DeviceDependences &DA,
                               ActionList &AL, const char *BoundArch,
                               bool AddOffloadAction = false) {
@@ -5249,32 +5249,33 @@ class OffloadingActionBuilder final {
       };
 
       // List of device specific libraries to be fed into llvm-link.
-      ActionList DeviceLibs;
+      ActionList SYCLDeviceLibs;
 
       // List of device specific library 'objects' (FPGA AOCO libraries) that
       // are fed directly to the FPGA offline compiler.
-      ActionList DeviceLibObjects;
+      ActionList FPGADeviceLibObjects;
 
       // List of device objects that go through the device link step.
       ActionList LinkObjects;
-      auto TT = TC->getTriple();
-      auto IsNVPTX = TT.isNVPTX();
-      auto IsAMDGCN = TT.isAMDGCN();
-      auto IsSPIR = TT.isSPIR();
-      bool IsSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                        TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                        TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+      auto TargetTriple = TC->getTriple();
+      auto IsNVPTX = TargetTriple.isNVPTX();
+      auto IsAMDGCN = TargetTriple.isAMDGCN();
+      auto IsSPIR = TargetTriple.isSPIR();
+      bool IsSpirvAOT =
+          TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+          TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+          TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
       const bool IsSYCLNativeCPU =
           TC->getAuxTriple() &&
-          driver::isSYCLNativeCPU(TT, *TC->getAuxTriple());
-      for (const auto &Input : LI) {
-        if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
+          driver::isSYCLNativeCPU(TargetTriple, *TC->getAuxTriple());
+      for (const auto &Input : ListIndex) {
+        if (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
             types::isFPGA(Input->getType())) {
           assert(BoundArch == nullptr &&
                  "fpga triple bounded arch not nullptr");
           // FPGA aoco does not go through the link, everything else does.
           if (Input->getType() == types::TY_FPGA_AOCO) {
-            DeviceLibObjects.push_back(Input);
+            FPGADeviceLibObjects.push_back(Input);
             continue;
           }
           // FPGA aocr/aocx does not go through the link and is passed
@@ -5309,6 +5310,10 @@ class OffloadingActionBuilder final {
             LinkObjects.push_back(Input);
             continue;
           }
+          // Any objects or lists of objects that come in from the unbundling
+          // step can either be LLVM-IR or SPIR-V based.  Send these through
+          // the spirv-to-ir-wrapper to convert to LLVM-IR to be properly
+          // processed during the device link.
           Action *ConvertSPIRVAction = C.MakeAction<SpirvToIrWrapperJobAction>(
               Input, Input->getType() == types::TY_Tempfilelist
                          ? types::TY_Tempfilelist
@@ -5316,7 +5321,7 @@ class OffloadingActionBuilder final {
           LinkObjects.push_back(ConvertSPIRVAction);
         }
       }
-      for (auto A : SYCLFinalDeviceList) {
+      for (const auto &A : SYCLFinalDeviceList) {
         // Given the list of archives that have final device binaries, take
         // those archives and unbundle all of the devices seen.  These will
         // be added to the final host link with no additional processing.
@@ -5443,14 +5448,14 @@ class OffloadingActionBuilder final {
                            options::OPT_fno_sycl_device_lib_jit_link, false);
           bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
-              TC, DeviceLibs, UseAOTLink,
+              TC, SYCLDeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
         if (IsSYCLNativeCPU) {
-          SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, DeviceLibs);
+          SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, SYCLDeviceLibs);
         }
         JobAction *LinkSYCLLibs =
-            C.MakeAction<LinkJobAction>(DeviceLibs, types::TY_LLVM_BC);
+            C.MakeAction<LinkJobAction>(SYCLDeviceLibs, types::TY_LLVM_BC);
         for (Action *FullLinkObject : FullLinkObjects) {
           if (FullLinkObject->getKind() ==
               clang::driver::Action::OffloadDepsJobClass)
@@ -5462,9 +5467,9 @@ class OffloadingActionBuilder final {
             if (IsRDC) {
               // First object has to be non-DeviceLib for only-needed to be
               // passed.
-              DeviceLibs.insert(DeviceLibs.begin(), FullLinkObject);
-              FullDeviceLinkAction =
-                  C.MakeAction<LinkJobAction>(DeviceLibs, types::TY_LLVM_BC);
+              SYCLDeviceLibs.insert(SYCLDeviceLibs.begin(), FullLinkObject);
+              FullDeviceLinkAction = C.MakeAction<LinkJobAction>(
+                  SYCLDeviceLibs, types::TY_LLVM_BC);
             } else {
               FullDeviceLinkAction = FullLinkObject;
 
@@ -5533,11 +5538,11 @@ class OffloadingActionBuilder final {
             // for SYCL Native CPU, we just take the linked device
             // modules, lower them to an object file , and link it to the host
             // object file.
-            auto *backendAct = C.MakeAction<BackendJobAction>(
+            auto *BackendAct = C.MakeAction<BackendJobAction>(
                 FullDeviceLinkAction, types::TY_PP_Asm);
-            auto *asmAct =
-                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
-            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
+            auto *AsmAct =
+                C.MakeAction<AssembleJobAction>(BackendAct, types::TY_Object);
+            DA.add(*AsmAct, *TC, BoundArch, Action::OFK_SYCL);
             auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
                 PostLinkAction, types::TY_Object);
             DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
@@ -5615,7 +5620,8 @@ class OffloadingActionBuilder final {
             if (IsAOT) {
               types::ID OutType = types::TY_Tempfilelist;
               if (!DeviceCodeSplit) {
-                OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+                OutType = (TargetTriple.getSubArch() ==
+                           llvm::Triple::SPIRSubArch_fpga)
                               ? FPGAOutType
                               : types::TY_Image;
               }
@@ -5637,7 +5643,7 @@ class OffloadingActionBuilder final {
                 unbundleAdd(A, types::TY_FPGA_Dependencies);
               for (Action *A : FPGAArchiveInputs)
                 unbundleAdd(A, types::TY_FPGA_Dependencies_List);
-              for (const auto &A : DeviceLibObjects)
+              for (const auto &A : FPGADeviceLibObjects)
                 BEInputs.push_back(A);
               BuildCodeAction =
                   C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
@@ -5665,8 +5671,9 @@ class OffloadingActionBuilder final {
               WrapperInputs, types::TY_Object);
 
           if (IsSpirvAOT) {
-            bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-                          BoundArch != nullptr);
+            bool AddBA =
+                (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                 BoundArch != nullptr);
             addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
           } else {
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
