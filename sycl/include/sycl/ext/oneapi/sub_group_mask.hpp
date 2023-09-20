@@ -43,7 +43,8 @@ namespace ext::oneapi {
 struct sub_group;
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__AMDGCN__) &&                    \
-    (__AMDGCN_WAVEFRONT_SIZE == 64)
+        (__AMDGCN_WAVEFRONT_SIZE == 64) ||                                     \
+    !defined(__SYCL_DEVICE_ONLY__)
 #define BITS_TYPE uint64_t
 #else
 #define BITS_TYPE uint32_t
