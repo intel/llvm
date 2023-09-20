@@ -15,8 +15,6 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
 
-#define SYCL_EXT_ONEAPI_ROOT_GROUP 1
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
