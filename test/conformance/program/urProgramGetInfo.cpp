@@ -5,7 +5,14 @@
 
 #include <uur/fixtures.h>
 
-using urProgramGetInfoTest = uur::urProgramTestWithParam<ur_program_info_t>;
+struct urProgramGetInfoTest : uur::urProgramTestWithParam<ur_program_info_t> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urProgramTestWithParam<ur_program_info_t>::SetUp());
+        // Some queries need the program to be built.
+        ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
+    }
+};
 
 UUR_TEST_SUITE_P(
     urProgramGetInfoTest,
