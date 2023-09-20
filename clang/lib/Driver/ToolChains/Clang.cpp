@@ -8336,8 +8336,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       } else {
         CmdArgs.push_back(Input.getFilename());
       }
-    }
-    else
+    } else
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
 
