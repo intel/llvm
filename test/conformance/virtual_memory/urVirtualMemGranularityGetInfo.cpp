@@ -4,8 +4,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include <uur/fixtures.h>
 
-using urVirtualMemGranularityGetInfoTest =
-    uur::urContextTestWithParam<ur_virtual_mem_granularity_info_t>;
+struct urVirtualMemGranularityGetInfoTest
+    : uur::urContextTestWithParam<ur_virtual_mem_granularity_info_t> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urContextTestWithParam<ur_virtual_mem_granularity_info_t>::SetUp());
+        ur_bool_t virtual_memory_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            this->device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+            sizeof(ur_bool_t), &virtual_memory_support, nullptr));
+        if (!virtual_memory_support) {
+            GTEST_SKIP() << "Virtual memory is not supported.";
+        }
+    }
+};
 
 UUR_TEST_SUITE_P(
     urVirtualMemGranularityGetInfoTest,
@@ -42,7 +54,19 @@ TEST_P(urVirtualMemGranularityGetInfoTest, Success) {
     }
 }
 
-using urVirtualMemGranularityGetInfoNegativeTest = uur::urContextTest;
+struct urVirtualMemGranularityGetInfoNegativeTest : uur::urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+
+        ur_bool_t virtual_memory_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t),
+            &virtual_memory_support, nullptr));
+        if (!virtual_memory_support) {
+            GTEST_SKIP() << "Virtual memory is not supported.";
+        }
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urVirtualMemGranularityGetInfoNegativeTest);
 
 TEST_P(urVirtualMemGranularityGetInfoNegativeTest, InvalidNullHandleContext) {
