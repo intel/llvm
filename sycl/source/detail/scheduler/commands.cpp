@@ -2855,18 +2855,31 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         if (ExecKernel->MKernelIsCooperative) {
           MQueue->getPlugin()
               ->call<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                  /* queue */
                   nullptr,
+                  /* kernel */
                   reinterpret_cast<pi_kernel>(
                       ExecKernel->MHostKernel->getPtr()),
-                  NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-                  &NDRDesc.GlobalSize[0], &NDRDesc.LocalSize[0], 0, nullptr,
-                  nullptr);
+                  /* work_dim */
+                  NDRDesc.Dims,
+                  /* global_work_offset */ &NDRDesc.GlobalOffset[0],
+                  /* global_work_size */ &NDRDesc.GlobalSize[0],
+                  /* local_work_size */ &NDRDesc.LocalSize[0],
+                  /* num_events_in_wait_list */ 0,
+                  /* event_wait_list */ nullptr,
+                  /* event */ nullptr);
         } else {
           MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
+              /* queue */
               nullptr,
+              /* kernel */
               reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-              NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-              &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+              /* work_dim */ NDRDesc.Dims,
+              /* global_work_offset */ &NDRDesc.GlobalOffset[0],
+              /* global_work_size */ &NDRDesc.GlobalSize[0],
+              /* local_work_size */ &NDRDesc.LocalSize[0],
+              /* num_events_in_wait_list */ 0, /* event_wait_list */ nullptr,
+              /* event */ nullptr);
         }
       }
       return PI_SUCCESS;
