@@ -38,7 +38,7 @@ RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
       workList.push_back(&F);
     }
   }
-  while(!workList.empty()) {
+  while (!workList.empty()) {
     auto *F = workList.pop_back_val();
     // skip SPIRV builtins and LLVM intrinsics
     if (isSpirvSyclBuiltin(F->getName()) || F->isIntrinsic())
