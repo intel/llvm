@@ -810,7 +810,9 @@ struct urVirtualMemMappedTest : urVirtualMemTest {
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urVirtualMemUnmap(context, virtual_ptr, size));
+        if (virtual_ptr) {
+            EXPECT_SUCCESS(urVirtualMemUnmap(context, virtual_ptr, size));
+        }
         UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTest::TearDown());
     }
 };
@@ -826,8 +828,10 @@ struct urVirtualMemMappedTestWithParam : urVirtualMemTestWithParam<T> {
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(
-            urVirtualMemUnmap(this->context, this->virtual_ptr, this->size));
+        if (this->virtual_ptr) {
+            EXPECT_SUCCESS(urVirtualMemUnmap(this->context, this->virtual_ptr,
+                                             this->size));
+        }
         UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTestWithParam<T>::TearDown());
     }
 };
@@ -861,7 +865,9 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
     }
 
     void TearDown() override {
-        ASSERT_SUCCESS(urUSMFree(this->context, ptr));
+        if (ptr) {
+            ASSERT_SUCCESS(urUSMFree(this->context, ptr));
+        }
         if (pool) {
             ASSERT_TRUE(use_pool);
             ASSERT_SUCCESS(urUSMPoolRelease(pool));
