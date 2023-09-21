@@ -64,8 +64,7 @@ void query_amx() {
           sub_group sg = spmd_item.get_sub_group();
           myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a1;
           myparams2::joint_matrix_b<
-              sub_group,
-              sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+              sub_group, sycl::ext::intel::experimental::matrix::layout::packed>
               sub_b1;
           myparams2::joint_matrix_accumulator<sub_group> sub_c1;
 
@@ -145,8 +144,7 @@ void query_xmx8() {
           sub_group sg = spmd_item.get_sub_group();
           myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a1;
           myparams2::joint_matrix_b<
-              sub_group,
-              sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+              sub_group, sycl::ext::intel::experimental::matrix::layout::packed>
               sub_b1;
           myparams2::joint_matrix_accumulator<sub_group> sub_c1;
 

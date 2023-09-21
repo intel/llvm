@@ -49,7 +49,14 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
                    (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
                N, layout::row_major);
            // This will be replaced by joint_matrix_copy API
-           joint_matrix_copy(sg, sub_c, sub_a);
+           // joint_matrix_copy(sg, sub_c, sub_ac);
+           auto wi_slice_c =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
+           auto wi_slice_a =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
+           for (int i = 0; i < wi_slice_c.length(); i++) {
+             wi_slice_a[i] = (bfloat16)wi_slice_c[i];
+           }
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +

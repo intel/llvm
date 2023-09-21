@@ -64,7 +64,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK) * (N) + sg_starty / SG_SZ * TN,
                  N);
-             joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
+             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

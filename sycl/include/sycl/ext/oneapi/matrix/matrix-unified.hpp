@@ -87,9 +87,10 @@ public:
 #if defined(__NVPTX__)
     return jm.cuda_impl.wi_marray.size();
 #else
-    throw runtime_error("get_wi_data is available using: "
-                        "ext::oneapi::detail::get_wi_data.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw runtime_error(
+        "get_wi_data is available using: ext::oneapi::detail::get_wi_data, but "
+        "intel users are expected to use joint_matrix_copy instead.",
+        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 
@@ -97,9 +98,10 @@ public:
 #if defined(__NVPTX__)
     return (jm.cuda_impl.wi_marray[i]);
 #else
-    throw runtime_error("get_wi_data is available using: "
-                        "ext::oneapi::detail::get_wi_data.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw runtime_error(
+        "get_wi_data is available using: ext::oneapi::detail::get_wi_data, but "
+        "intel users are expected to use joint_matrix_copy instead.",
+        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 };
@@ -129,7 +131,7 @@ __SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
 #else
 __attribute__((
     unavailable("get_wi_data can't be used on intel device, please use "
-                "sycl::ext::oneapi::detail::get_wi_data instead!")))
+                "joint_matrix_apply instead!")))
 #endif
 #endif
 inline __SYCL_ALWAYS_INLINE decltype(auto)
@@ -251,7 +253,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
+  case layout::ext_intel_packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
         DecorT, S, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
@@ -351,7 +353,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
+  case layout::ext_intel_packed:
     __spirv_JointMatrixStoreINTEL<
         DecorT, T, NumRows, NumCols,
         spv_matrix_use_traits<use::accumulator>::value,
@@ -376,13 +378,14 @@ template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
           std::size_t M, std::size_t K, std::size_t N, layout LayoutA,
           layout LayoutB>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
-    Group sg, const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+    Group sg,
+    joint_matrix<Group, Td, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
+    const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
     const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
     const joint_matrix<Group, Tc, use::accumulator, M, N,
                        sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-        &C,
-    joint_matrix<Group, Td, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D) {
+        &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;

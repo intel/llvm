@@ -154,9 +154,8 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            sub_group sg = spmd_item.get_sub_group();
 
            // TK = 32, TN = 16
-           joint_matrix<
-               sub_group, int8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, int8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
            joint_matrix_load(
@@ -167,7 +166,8 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
 
            int32_t sum_local_cols[N] = {0}; // 4 local cols, N total
            // sub_b has 32x16 elements, 32 elements per WI, 4 per WI per row
-           auto wiData = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+           auto wiData =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
 
            size_t
                global_index; // Index into the result array that holds the sums.

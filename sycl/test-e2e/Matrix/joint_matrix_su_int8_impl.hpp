@@ -51,9 +51,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix<sub_group, int8_t, use::a, TM, TK, layout::row_major>
                sub_a;
            // For B, we assume B has been already VNNIed.
-           joint_matrix<
-               sub_group, uint8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, uint8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
            joint_matrix<sub_group, int32_t, use::accumulator, TM, TN> sub_c;
 
@@ -73,7 +72,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
                  N * 4);
-             joint_matrix_mad(sg, sub_a, sub_b, sub_c, sub_c);
+             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

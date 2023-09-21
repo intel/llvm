@@ -36,14 +36,14 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<
-               sub_group, int8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, int8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] + 2;
            }
@@ -73,14 +73,14 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<
-               sub_group, int8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, int8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] - 2;
            }
@@ -110,14 +110,14 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<
-               sub_group, int8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, int8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] * 3;
            }
@@ -147,14 +147,14 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<
-               sub_group, int8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, int8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 4);
 
-           auto wi_slice_b = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              wi_slice_b[i] = wi_slice_b[i] / 2;
            }
@@ -184,14 +184,14 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<
-               sub_group, int8_t, use::b, TK, TN,
-               ext::oneapi::experimental::matrix::layout::ext_intel_packed>
+           joint_matrix<sub_group, int8_t, use::b, TK, TN,
+                        ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+           auto wi_slice_b =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
            for (int i = 0; i < wi_slice_b.length(); i++) {
              if (wi_slice_b[i]) {
                if (wi_slice_b[i] > 2 || wi_slice_b[i] >= 2 ||
