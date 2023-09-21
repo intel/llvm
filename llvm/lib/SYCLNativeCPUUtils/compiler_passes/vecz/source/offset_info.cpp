@@ -176,8 +176,8 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
 
   // If we have a uniform value here we don't need to analyse any further.
   if (!SAR.UVR.isVarying(Ins)) {
-    auto const &KB = computeKnownBits(Ins, SAR.F.getParent()->getDataLayout(),
-                                      0, &SAR.assumptions);
+    auto const &KB =
+        computeKnownBits(Ins, SAR.F.getParent()->getDataLayout(), 0, &SAR.AC);
     auto const bitWidth = OffsetTy->getIntegerBitWidth();
 
     // We are interested in the bits that are not known to be zero.

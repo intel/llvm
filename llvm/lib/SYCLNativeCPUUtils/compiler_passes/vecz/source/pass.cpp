@@ -166,7 +166,7 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
       // If we fail to vectorize a function, we still cloned and then
       // deleted it which affects internal addresses. The module has changed
       // and we can't cache any analyses.
-      Mach.getFAM().invalidate(*VectorizedFn, llvm::PreservedAnalyses::all());
+      Mach.getFAM().invalidate(*VectorizedFn, llvm::PreservedAnalyses::none());
       // Remove the partially-vectorized function if something went wrong.
       Ctx.clearActiveVU(VectorizedFn);
       VU->setVectorizedFunction(nullptr);
