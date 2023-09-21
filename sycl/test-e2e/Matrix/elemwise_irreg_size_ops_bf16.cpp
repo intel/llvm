@@ -103,11 +103,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  N * 2);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-           auto wi_slice_c =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
-           for (int i = 0; i < wi_slice_c.length(); i++) {
-             wi_slice_c[i] += 5.0;
-           }
+           joint_matrix_apply(sg, sub_c, [](float &x) { x += 5.0; });
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +

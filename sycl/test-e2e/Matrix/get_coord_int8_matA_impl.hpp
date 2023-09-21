@@ -96,16 +96,11 @@ void matrix_sum_rows(queue q, big_matrix<T, M, K> &A, nd_range<2> &r) {
                          K);
 
        int32_t sum_local_rows[M] = {0};
-       auto data =
-           sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
 
-       // each WI calculates local sum of rows
-       for (int i = 0; i < data.length(); ++i) {
-         auto data_item = data[i];
-         auto [row, col] = data_item.get_coord();
-         sum_local_rows[row + global_idx * TM] += data_item;
-       }
-
+       ext::intel::experimental::matrix::joint_matrix_apply(
+           sg, sub_a, [&](int8_t &x, size_t row, size_t col) {
+             sum_local_rows[row + global_idx * TM] += x;
+           });
        for (int i = 0; i < M; ++i) {
          sum_local_rows[i] =
              reduce_over_group(sg, sum_local_rows[i], sycl::plus<>());

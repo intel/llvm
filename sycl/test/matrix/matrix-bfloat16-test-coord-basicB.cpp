@@ -166,8 +166,6 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
 
            int32_t sum_local_cols[N] = {0}; // 4 local cols, N total
            // sub_b has 32x16 elements, 32 elements per WI, 4 per WI per row
-           auto wiData =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
 
            size_t
                global_index; // Index into the result array that holds the sums.
@@ -175,19 +173,15 @@ void matrix_sum_cols(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            // Keep track of cols handled in this WI
            int32_t handled_cols[N] = {-1};
 
-           //  each WI calculates local sum of cols
-           for (int i = 0; i < wiData.length(); ++i) {
-             // get the index of the element in the submatrix
-             auto dataItem = wiData[i];
-             auto [row, col] = dataItem.get_coord();
-
-             // Calculation of global index
-             int sg_idx = (int)global_idy / SG_SZ;
-             global_index = col + sg_idx * 4 /*VNNI_FACTOR*/ * SG_SZ;
-             sum_local_cols[global_index] += wiData[i];
-             handled_cols[global_index] = 1;
-           }
-
+           sycl::ext::intel::experimental::matrix::joint_matrix_apply(
+               sg, sub_b,
+               [&](int8_t &x, size_t row,
+                   size_t col) { // Calculation of global index
+                 int sg_idx = (int)global_idy / SG_SZ;
+                 global_index = col + sg_idx * 4 /*VNNI_FACTOR*/ * SG_SZ;
+                 sum_local_cols[global_index] += x;
+                 handled_cols[global_index] = 1;
+               });
            for (int j = 0; j < N; j++) {
              if (handled_cols[j] == 1) {
                global_index = j;

@@ -124,7 +124,7 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
 
            int32_t sum_local_cols[N] = {0};
            auto wiData =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
+               sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
 
            // each WI calculates local sum of cols
            for (int i = 0; i < wiData.length(); ++i) {

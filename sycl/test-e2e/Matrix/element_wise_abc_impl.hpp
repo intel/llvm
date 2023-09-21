@@ -65,33 +65,21 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                accA.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * K,
                K);
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] += 1;
-           }
+           joint_matrix_apply(sg, sub_a, [](T2 &x) { x += 1; });
 
            joint_matrix_load(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
                    sg_starty / SG_SZ * TN * vnniFactor,
                N * vnniFactor);
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             wi_slice_b[i] += 1;
-           }
+           joint_matrix_apply(sg, sub_b, [](T2 &x) { x += 1; });
 
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
                N, layout::row_major);
-           auto wi_slice_c =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
-           for (int i = 0; i < wi_slice_c.length(); i++) {
-             wi_slice_c[i] += 1;
-           }
+           joint_matrix_apply(sg, sub_c, [](T1 &x) { x += 1; });
          }); // parallel for
    }).wait();
 }

@@ -95,11 +95,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  N * 4);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-           auto wi_data_c =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
-           for (int i = 0; i < wi_data_c.length(); i++) {
-             wi_data_c[i] *= 2;
-           }
+           joint_matrix_apply(sg, sub_c, [](int32_t &x) { x *= 2; });
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<sycl::access::decorated::no>() +
