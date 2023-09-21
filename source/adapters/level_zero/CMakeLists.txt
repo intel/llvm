@@ -3,7 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(L0_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/level_zero")
 
 set(TARGET_NAME ur_adapter_level_zero)
 
@@ -73,36 +72,36 @@ target_include_directories(LevelZeroLoader-Headers
 
 add_ur_adapter(${TARGET_NAME}
     SHARED
-    ${L0_DIR}/ur_interface_loader.cpp
-    ${L0_DIR}/adapter.hpp
-    ${L0_DIR}/adapter.cpp
-    ${L0_DIR}/command_buffer.hpp
-    ${L0_DIR}/command_buffer.cpp
-    ${L0_DIR}/common.hpp
-    ${L0_DIR}/context.hpp
-    ${L0_DIR}/device.hpp
-    ${L0_DIR}/event.hpp
-    ${L0_DIR}/usm.hpp
-    ${L0_DIR}/memory.hpp
-    ${L0_DIR}/kernel.hpp
-    ${L0_DIR}/platform.hpp
-    ${L0_DIR}/program.hpp
-    ${L0_DIR}/queue.hpp
-    ${L0_DIR}/sampler.hpp
-    ${L0_DIR}/ur_level_zero.cpp
-    ${L0_DIR}/common.cpp
-    ${L0_DIR}/context.cpp
-    ${L0_DIR}/device.cpp
-    ${L0_DIR}/event.cpp
-    ${L0_DIR}/usm.cpp
-    ${L0_DIR}/usm_p2p.cpp
-    ${L0_DIR}/memory.cpp
-    ${L0_DIR}/kernel.cpp
-    ${L0_DIR}/platform.cpp
-    ${L0_DIR}/program.cpp
-    ${L0_DIR}/queue.cpp
-    ${L0_DIR}/sampler.cpp
-    ${L0_DIR}/../../ur.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/context.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/event.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/usm.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/memory.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernel.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/memory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES
@@ -119,6 +118,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
-    ${L0_DIR}/../../../
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../"
     LevelZeroLoader-Headers
 )
