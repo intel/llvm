@@ -5413,7 +5413,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
           Triple.isNVPTX() || Triple.isAMDGCN()) {
         StringRef Device = JA.getOffloadingArch();
-        if (!Device.empty()) {
+        if (!Device.empty() && !SYCL::gen::getGenDeviceMacro(Device).empty()) {
           Macro = "-D";
           Macro += SYCL::gen::getGenDeviceMacro(Device);
         }
