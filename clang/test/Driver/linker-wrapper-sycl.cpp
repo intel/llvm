@@ -1,3 +1,5 @@
+// REQUIRES: system-linux
+
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl
 // RUN: clang-linker-wrapper -sycl-device-library-location=%S/Inputs -sycl-device-libraries=libsycl-crt.o,libsycl-complex.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %S/Inputs/test-sycl.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS %s
 // CHK-CMDS: "[[PATH:.*]]/llvm-link" [[INPUT:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
