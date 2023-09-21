@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/BinaryFormat/MsgPack.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -231,13 +233,61 @@ static const std::pair<std::pair<StringRef, StringRef>,
         GEN_xyz(__spirv_WorkgroupId, 21, __dpcpp_nativecpu_get_wg_id),
 };
 
+
 static inline bool IsForVisualStudio(StringRef triple_str) {
   llvm::Triple triple(triple_str);
   return triple.isKnownWindowsMSVCEnvironment();
 }
 
-Function *getReplaceFunc(const Module &M, StringRef Name) {
+static constexpr unsigned int NativeCPUGlobalAS = 1;
+static constexpr char StateTypeName[] = "struct.__nativecpu_state";
+
+Type *getStateType(Module& M) {
+  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
+  auto& Ctx = M.getContext();
+  auto* I64Ty = Type::getInt64Ty(Ctx);
+  auto* Array3dTy = ArrayType::get(I64Ty, 3);
+  std::array<Type*, 7> Elements;
+  Elements.fill(Array3dTy);
+  auto *StateType = StructType::get(Ctx, Elements);
+  StateType->setName(StateTypeName);
+  return StateType;
+}
+
+Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
+  auto& Ctx = M.getContext();
+  Type *I64Ty = Type::getInt64Ty(Ctx);
+  Type *I32Ty = Type::getInt32Ty(Ctx);
+  Type *RetTy = I64Ty;
+  Type *DimTy = I32Ty;
+  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
+  static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
+  static const StringMap<unsigned> OffsetMap{
+    {"__dpcpp_nativecpu_global_id", 0 },
+    {"__dpcpp_nativecpu_global_range", 1 },
+    {"__dpcpp_nativecpu_get_wg_size", 2},
+    {"__dpcpp_nativecpu_get_wg_id", 3},
+    {"__dpcpp_nativecpu_get_local_id", 4 },
+    {"__dpcpp_nativecpu_get_num_groups", 5 },
+    {"__dpcpp_nativecpu_get_global_offset", 6}};
+  auto FCallee = M.getOrInsertFunction(Name, FTy);
+  auto* F = dyn_cast<Function>(FCallee.getCallee());
+  IRBuilder<> Builder(Ctx);
+  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
+  Builder.SetInsertPoint(BB);
+  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
+  auto *Zero = ConstantInt::get(I64Ty, 0);
+  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
+  auto *GEP = Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
+  auto *Load = Builder.CreateLoad(I64Ty, GEP);
+  Builder.CreateRet(Load);
+  return F;
+}
+
+Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *F = M.getFunction(Name);
+  if(!F)
+    return addReplaceFunc(M, Name, StateType);
   assert(F && "Error retrieving replace function");
   return F;
 }
@@ -247,7 +297,6 @@ Value *getStateArg(const Function *F) {
   return F->getArg(FT->getNumParams() - 1);
 }
 
-static constexpr unsigned int NativeCPUGlobalAS = 1;
 
 } // namespace
 
@@ -263,8 +312,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Materialize builtins
   // First we add a pointer to the Native CPU state as arg to all the
   // kernels.
-  Type *StateType =
-      StructType::getTypeByName(M.getContext(), "struct.__nativecpu_state");
+  Type *StateType = getStateType(M);
+  // Todo: fix this check since we are emitting the state type in the pass now
   if (!StateType)
     return PreservedAnalyses::all();
   Type *StatePtrType = PointerType::get(StateType, 1);
@@ -292,7 +341,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                     : Entry.first.first);
     if (!Glob)
       continue;
-    auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
+    auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first, StateType);
     SmallVector<Instruction *> ToRemove;
     for (const auto &Use : Glob->uses()) {
       auto I = dyn_cast<CallInst>(Use.getUser());

@@ -9,13 +9,13 @@
 #include <functional>
 
 struct __nativecpu_state {
-  alignas(16) size_t MGlobal_id[3];
-  alignas(16) size_t MGlobal_range[3];
-  alignas(16) size_t MWorkGroup_size[3];
-  alignas(16) size_t MWorkGroup_id[3];
-  alignas(16) size_t MLocal_id[3];
-  alignas(16) size_t MNumGroups[3];
-  alignas(16) size_t MGlobalOffset[3];
+   size_t MGlobal_id[3];
+   size_t MGlobal_range[3];
+   size_t MWorkGroup_size[3];
+   size_t MWorkGroup_id[3];
+   size_t MLocal_id[3];
+   size_t MNumGroups[3];
+   size_t MGlobalOffset[3];
   __nativecpu_state(size_t globalR0, size_t globalR1, size_t globalR2,
                     size_t localR0, size_t localR1, size_t localR2,
                     size_t globalO0, size_t globalO1, size_t globalO2)
