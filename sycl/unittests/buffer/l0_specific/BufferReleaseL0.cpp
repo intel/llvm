@@ -6,20 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
-#include <helpers/TestKernel.hpp>
-
-#include <sycl/accessor.hpp>
-#include <sycl/sycl.hpp>
-#include <sycl/usm/usm_allocator.hpp>
-
-#include <gtest/gtest.h>
-
-#include <detail/buffer_impl.hpp>
-#include <detail/global_handler.hpp>
-#include <detail/scheduler/scheduler.hpp>
-#include <gmock/gmock.h>
-
 #include "../BufferReleaseBase.hpp"
 
 class BufferDestructionCheckL0 : public BufferDestructionCheckCommon<
@@ -70,45 +56,51 @@ TEST_F(BufferDestructionCheckL0, BufferWithSizeOnlyInterop) {
       customMockContextGetInfo);
   Mock.redefineAfter<sycl::detail::PiApiKind::piDevicesGet>(
       customMockDevicesGet);
-  sycl::context ContextForInterop{Plt};
-  sycl::queue QueueForInterop =
-      sycl::queue{ContextForInterop, sycl::default_selector{}};
-  sycl::device DeviceForInterop = QueueForInterop.get_device();
 
-  sycl::backend_traits<sycl::backend::ext_oneapi_level_zero>::return_type<
-      sycl::context>
-      ZeContext;
-  sycl::backend_traits<sycl::backend::ext_oneapi_level_zero>::return_type<
-      sycl::device>
-      ZeDevice;
-  ZeContext =
-      sycl::get_native<sycl::backend::ext_oneapi_level_zero>(ContextForInterop);
-  ZeDevice =
-      sycl::get_native<sycl::backend::ext_oneapi_level_zero>(DeviceForInterop);
+  auto Test = [&](sycl::ext::oneapi::level_zero::ownership Ownership) {
+    sycl::context ContextForInterop{Plt};
+    sycl::queue QueueForInterop =
+        sycl::queue{ContextForInterop, sycl::default_selector{}};
+    sycl::device DeviceForInterop = QueueForInterop.get_device();
 
-  sycl::backend_input_t<sycl::backend::ext_oneapi_level_zero, sycl::device>
-      InteropDeviceInput{ZeDevice};
-  sycl::device InteropDevice =
-      sycl::make_device<sycl::backend::ext_oneapi_level_zero>(
-          InteropDeviceInput);
+    sycl::backend_traits<sycl::backend::ext_oneapi_level_zero>::return_type<
+        sycl::context>
+        ZeContext;
+    sycl::backend_traits<sycl::backend::ext_oneapi_level_zero>::return_type<
+        sycl::device>
+        ZeDevice;
+    ZeContext = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
+        ContextForInterop);
+    ZeDevice = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
+        DeviceForInterop);
 
-  sycl::backend_input_t<sycl::backend::ext_oneapi_level_zero, sycl::context>
-      InteropContextInput{ZeContext,
-                          std::vector<sycl::device>(1, InteropDevice),
-                          sycl::ext::oneapi::level_zero::ownership::keep};
-  sycl::context InteropContext =
-      sycl::make_context<sycl::backend::ext_oneapi_level_zero>(
-          InteropContextInput);
+    sycl::backend_input_t<sycl::backend::ext_oneapi_level_zero, sycl::device>
+        InteropDeviceInput{ZeDevice};
+    sycl::device InteropDevice =
+        sycl::make_device<sycl::backend::ext_oneapi_level_zero>(
+            InteropDeviceInput);
 
-  sycl::queue Q(InteropContext, sycl::default_selector{});
+    sycl::backend_input_t<sycl::backend::ext_oneapi_level_zero, sycl::context>
+        InteropContextInput{
+            ZeContext, std::vector<sycl::device>(1, InteropDevice), Ownership};
+    sycl::context InteropContext =
+        sycl::make_context<sycl::backend::ext_oneapi_level_zero>(
+            InteropContextInput);
 
-  MockCmdWithReleaseTracking *MockCmd = NULL;
-  {
-    using AllocatorTypeTest = sycl::buffer_allocator<int>;
-    AllocatorTypeTest allocator;
-    sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
-    MockCmd = addCommandToBuffer(Buf, Q);
-    EXPECT_CALL(*MockCmd, Release).Times(1);
-  }
-  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+    sycl::queue Q(InteropContext, sycl::default_selector{});
+
+    MockCmdWithReleaseTracking *MockCmd = NULL;
+    {
+      using AllocatorTypeTest = sycl::buffer_allocator<int>;
+      AllocatorTypeTest allocator;
+      sycl::buffer<int, 1, AllocatorTypeTest> Buf(1, allocator);
+      MockCmd = addCommandToBuffer(Buf, Q);
+      EXPECT_CALL(*MockCmd, Release).Times(1);
+    }
+    EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(),
+              Ownership == sycl::ext::oneapi::level_zero::ownership::transfer);
+  };
+
+  Test(sycl::ext::oneapi::level_zero::ownership::keep);
+  Test(sycl::ext::oneapi::level_zero::ownership::transfer);
 }

@@ -6,21 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
-#include <helpers/TestKernel.hpp>
-
-#include <sycl/accessor.hpp>
-#include <sycl/sycl.hpp>
-#include <sycl/usm/usm_allocator.hpp>
-
-#include <gtest/gtest.h>
-
-#include <detail/buffer_impl.hpp>
-#include <detail/global_handler.hpp>
-#include <detail/scheduler/scheduler.hpp>
-#include <gmock/gmock.h>
-
-#include "../scheduler/SchedulerTestUtils.hpp"
 #include "BufferReleaseBase.hpp"
 
 class BufferDestructionCheck
