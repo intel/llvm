@@ -17,7 +17,8 @@ bool compare(const combination &lhs, const combination &rhs) {
 int main() {
   sycl::queue q;
   sycl::device dev = q.get_device();
-  if (!dev.ext_oneapi_architecture_is(sycl::ext::oneapi::experimental::architecture::intel_cpu_spr)) {
+  if (!dev.ext_oneapi_architecture_is(
+          sycl::ext::oneapi::experimental::architecture::intel_cpu_spr)) {
     std::cout << "Not an SPR architecture. Skipped." << std::endl;
     return 0;
   }

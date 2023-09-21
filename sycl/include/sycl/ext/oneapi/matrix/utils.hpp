@@ -44,7 +44,7 @@ struct combination {
   matrix_type dtype;
 };
 
-} // ext::oneapi::experimental::matrix
+} // namespace ext::oneapi::experimental::matrix
 
 namespace detail {
 
