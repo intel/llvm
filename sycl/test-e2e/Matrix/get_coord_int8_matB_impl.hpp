@@ -103,45 +103,43 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
      auto v = sum_cols_v.get_access<access::mode::atomic>(cgh);
 
-     cgh.parallel_for(
-         r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
-           const auto global_idx = spmd_item.get_global_id(0);
-           const auto global_idy = spmd_item.get_global_id(1);
-           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+     cgh.parallel_for(r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(
+                             SG_SZ)]] {
+       const auto global_idx = spmd_item.get_global_id(0);
+       const auto global_idy = spmd_item.get_global_id(1);
+       const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+       const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           sycl::sub_group sg = spmd_item.get_sub_group();
+       sycl::sub_group sg = spmd_item.get_sub_group();
 
-           joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        layout::ext_intel_packed>
-               sub_b;
+       joint_matrix<sub_group, int8_t, use::b, TK, TN, layout::ext_intel_packed>
+           sub_b;
 
-           joint_matrix_load(
-               sg, sub_b,
-               accB.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * (TK / VF) * N) + sg_starty / SG_SZ * TN * VF,
-               N);
+       joint_matrix_load(sg, sub_b,
+                         accB.template get_multi_ptr<access::decorated::no>() +
+                             (sg_startx * (TK / VF) * N) +
+                             sg_starty / SG_SZ * TN * VF,
+                         N);
 
-           int32_t sum_local_cols[N] = {0};
-           auto wiData =
-               sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
+       int32_t sum_local_cols[N] = {0};
+       auto wiData = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
 
-           // each WI calculates local sum of cols
-           for (int i = 0; i < wiData.length(); ++i) {
-             // get the index of the element in the submatrix
-             auto dataItem = wiData[i];
-             auto [row, col] = dataItem.get_coord();
-             size_t global_index = col + global_idy / SG_SZ * TN * VF;
-             sum_local_cols[global_index] += dataItem;
-           }
+       // each WI calculates local sum of cols
+       for (int i = 0; i < wiData.length(); ++i) {
+         // get the index of the element in the submatrix
+         auto dataItem = wiData[i];
+         auto [row, col] = dataItem.get_coord();
+         size_t global_index = col + global_idy / SG_SZ * TN * VF;
+         sum_local_cols[global_index] += dataItem;
+       }
 
-           for (int i = 0; i < N; i++) {
-             sum_local_cols[i] =
-                 reduce_over_group(sg, sum_local_cols[i], sycl::plus<>());
-             if (global_idy % SG_SZ == 0)
-               atomic_fetch_add(v[i], sum_local_cols[i]);
-           }
-         }); // parallel for
+       for (int i = 0; i < N; i++) {
+         sum_local_cols[i] =
+             reduce_over_group(sg, sum_local_cols[i], sycl::plus<>());
+         if (global_idy % SG_SZ == 0)
+           atomic_fetch_add(v[i], sum_local_cols[i]);
+       }
+     }); // parallel for
    }).wait();
   sum_cols_ref<T, K, N>(bufB.get_host_access(), sum_cols_v.get_host_access());
 }

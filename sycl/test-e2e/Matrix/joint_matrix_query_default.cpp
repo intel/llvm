@@ -77,9 +77,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            sycl::sub_group sg = spmd_item.get_sub_group();
 
            myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a;
-           myparams2::joint_matrix_b<
-               sub_group, layout::ext_intel_packed>
-               sub_b;
+           myparams2::joint_matrix_b<sub_group, layout::ext_intel_packed> sub_b;
            myparams2::joint_matrix_accumulator<sub_group> sub_c;
 
            joint_matrix_load(
