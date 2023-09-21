@@ -179,7 +179,12 @@ The properties supported with `annotated_arg` may be defined in
 separate extensions. Please note that there cannot be duplicated property in a 
 properties list. Otherwise, a compiler time error is triggered.
 
-The type `annotated_arg<T, ...>` is device copyable given that the type `T` is device copyable.
+If the type `T` is trivially copyable, then `annotated_arg<T, ...>` is also
+trivially copyable.
+
+If the type `T` is device copyable, then `annotated_arg<T, ...>` is also device
+copyable and the implementation sets the `is_device_copyable_v` trait to `true`
+for this type.
 
 The section below describes the constructors and member functions for
 `annotated_arg`.
