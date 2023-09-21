@@ -30,21 +30,6 @@ int main() {
        matrix_type::fp32, matrix_type::fp32},
   };
 
-  std::vector<combination> aaa_combinations = {
-      {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
-       matrix_type::sint32, matrix_type::sint32},
-      {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
-       matrix_type::sint32, matrix_type::sint32},
-      {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
-       matrix_type::sint32, matrix_type::sint32},
-      {8, 0, 0, 0, 16, 16, matrix_type::sint8, matrix_type::sint8,
-       matrix_type::sint32, matrix_type::sint32},
-      {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
-       matrix_type::fp32, matrix_type::fp32},
-      {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
-       matrix_type::fp32, matrix_type::fp32},
-  };
-
   sycl::queue q;
   std::vector<combination> actual_combinations =
       q.get_device()

@@ -18,7 +18,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/matrix/static-query-use.hpp>
+#include <sycl/ext/oneapi/matrix/utils.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -729,7 +729,7 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
       };
-    else if (architecture::intel_gpu_cfl == DeviceArch)
+    else if (architecture::intel_gpu_pvc == DeviceArch)
       return {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
