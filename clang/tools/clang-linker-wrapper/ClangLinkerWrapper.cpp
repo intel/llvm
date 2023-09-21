@@ -368,9 +368,8 @@ static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
   if (Arg *A = Args.getLastArg(OPT_sycl_device_library_location_EQ))
     SYCLDeviceLibLoc = A->getValue();
   else
-    return createStringError(
-        inconvertibleErrorCode(),
-        "SYCL device library location is invalid.");
+    return createStringError(inconvertibleErrorCode(),
+                             "SYCL device library location is invalid.");
   if (Arg *A = Args.getLastArg(OPT_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
       return createStringError(
@@ -382,9 +381,9 @@ static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
       if (llvm::sys::fs::exists(LibName))
         DeviceLibFiles.push_back(std::string(LibName));
       else
-        return createStringError(
-            inconvertibleErrorCode(),
-            std::string(LibName) + " SYCL device library file is not found.");
+        return createStringError(inconvertibleErrorCode(),
+                                 std::string(LibName) +
+                                     " SYCL device library file is not found.");
     }
   }
   return Error::success();
@@ -528,7 +527,7 @@ runSYCLPostLink(SmallVectorImpl<StringRef> &InputFiles, const ArgList &Args) {
 
 // This table is used to manage the output table populated by sycl-post-link.
 struct Table {
-  struct SYCLTableEntry{
+  struct SYCLTableEntry {
     std::string IRFile;
     std::string PropFile;
     std::string SymFile;
@@ -610,7 +609,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
     return std::move(Err);
   auto InputFiles = LiveSYCLTable.getListOfIRFiles();
 
-  
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMToSPIRVPath);
   StringRef LLVMToSPIRVOptions;
