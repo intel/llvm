@@ -1315,7 +1315,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-#if HIP_VERSION_MAJOR >= 5
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
@@ -1342,12 +1341,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
+  // HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
+  // so we can't perform this check for such cases.
+#if HIP_VERSION_MAJOR >= 5
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
                                         (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
-
+#endif
   // flags is currently unused so fail if set
   if (flags != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1376,28 +1378,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   }
 
   return Result;
-#else
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t, ur_event_handle_t *phEvent) {
-#if HIP_VERSION_MAJOR >= 5
   void *HIPDevicePtr = const_cast<void *>(pMem);
+// HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
+// so we can't perform this check for such cases.
+#if HIP_VERSION_MAJOR >= 5
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
                                         (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
-
+#endif
   // TODO implement a mapping to hipMemAdvise once the expected behaviour
   // of urEnqueueUSMAdvise is detailed in the USM extension
   return urEnqueueEventsWait(hQueue, 0, nullptr, phEvent);
-#else
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(

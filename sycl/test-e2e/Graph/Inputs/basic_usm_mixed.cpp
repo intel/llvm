@@ -47,6 +47,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
+    Event.wait();
   }
 
   Queue.wait_and_throw();
