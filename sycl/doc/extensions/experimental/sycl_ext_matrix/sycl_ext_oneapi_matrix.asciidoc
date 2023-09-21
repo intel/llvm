@@ -742,12 +742,12 @@ descriptors that can be queried using `get_info` API.
 [frame="none",options="header"]
 |======================
 | Device descriptors | Return type| Description
-|`ext::oneapi::experimental::info::device::matrix::combinations` |
+|`ext::oneapi::experimental::info::device::matrix_combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
 and types on this device
 |======================
 
-The runtime query returns a vector of `combinations` of `combination`
+The runtime query returns a vector of `matrix_combinations` of `combination`
 type. Each combination includes the sizes and the types for the
 matrices A, B, C, and D. Note that for each matrix hardware,
 the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize,
@@ -791,7 +791,7 @@ struct combination {
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-Each combination of the `combinations` vector composes the types and
+Each combination of the `matrix_combinations` vector composes the types and
 sizes of A, B, C, and D matrices supported by the device
 implementation. The table below provides a description of each member
 of the `combination` struct.
@@ -833,7 +833,7 @@ the `T` template parameter as follows: +
 ```c++
 // Ta, Tb, Tc, and Td are the types used in applications
 std::vector<combination> combinations =
-           device.get_info<info::device::matrix::combinations>();
+           device.get_info<info::device::matrix_combinations>();
 for (int i = 0; sizeof(combinations); i++) {
   if (Ta == combinations[i].atype &&
       Tb == combinations[i].btype &&
@@ -850,7 +850,7 @@ for (int i = 0; sizeof(combinations); i++) {
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned using
-`ext::oneapi::experimental::info::device::matrix::combinations`.
+`ext::oneapi::experimental::info::device::matrix_combinations`.
 
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
@@ -864,11 +864,11 @@ table below.
 | A type | B type | C and D type | M | N | K
 | `matrix_type::uint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::uint8`  | `matrix_type::int8` |
+| `matrix_type::uint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::int8`  | `matrix_type::uint8` |
+| `matrix_type::sint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::int8`  | `matrix_type::int8` |
+| `matrix_type::sint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
@@ -876,32 +876,40 @@ table below.
 
 ==== Intel XMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_gpu_pvc` and `architecture::intel_gpu_dg2`. In
-these architectures' implementation, the type of the C matrix must be
-the same as the type of the D matrix. Therefore, that common type is
-shown in a single column in the table below.
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_dg2_g10`,
+`architecture::intel_gpu_dg2_g11`, and
+`architecture::intel_gpu_dg2_g12`. In these architectures'
+implementation, the type of the C matrix must be the same as the type
+of the D matrix. Therefore, that common type is shown in a single
+column in the table below.
 
 [frame="none",options="header"]
 |======================
 | A type | B type | C and D type | M | N | K | device
-| `matrix_type::uint8`  | `matrix_type::uint8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-| `matrix_type::uint8`  | `matrix_type::int8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-| `matrix_type::int8`  | `matrix_type::uint8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-| `matrix_type::int8`  | `matrix_type::int8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-|  `matrix_type::fp16`       |  `matrix_type::fp16`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  16 | architecture::intel_gpu_pvc
-| | | | |8|| architecture::intel_gpu_dg2
-|  `matrix_type::bf16`       |  `matrix_type::bf16`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  16 | architecture::intel_gpu_pvc
-| | | | |8|| architecture::intel_gpu_dg2
+.2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
+|`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+|`matrix_type::fp16`       .2+|  `matrix_type::fp16`   .2+|
+`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
+`architecture::intel_gpu_pvc`|8| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+|  `matrix_type::bf16`       .2+|  `matrix_type::bf16`   .2+|
+`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
+`architecture::intel_gpu_pvc` |8| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 |======================
 
 ==== Nvidia Tensor Cores Supported Combinations
@@ -933,11 +941,11 @@ supported parameter combination is specified in the following table.
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::int8`  .3+| `matrix_type::int32`
+.3+| `matrix_type::sint8`  .3+| `matrix_type::sint32`
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
-.3+|`matrix_type::uint8`  .3+|`matrix_type::int32`
+.3+|`matrix_type::uint8`  .3+|`matrix_type::sint32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
