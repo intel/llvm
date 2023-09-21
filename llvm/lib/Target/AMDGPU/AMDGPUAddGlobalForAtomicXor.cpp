@@ -37,9 +37,8 @@ bool moduleHasAtomicXor(Module &M) {
 
 PreservedAnalyses
 AMDGPUAddGlobalForAtomicXorPass::run(Module &M, ModuleAnalysisManager &AM) {
-  if (!moduleHasAtomicXor(M)) {
+  if (!moduleHasAtomicXor(M))
     return PreservedAnalyses::all();
-  }
   LLVMContext &Ctx = M.getContext();
   M.getOrInsertGlobal(NEW_GLOBAL_NAME, Type::getInt1Ty(Ctx), [&] {
     return new GlobalVariable(
