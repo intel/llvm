@@ -24,84 +24,6 @@ extern __DPCPP_SYCL_EXTERNAL long long int llabs(long long int x);
 extern __DPCPP_SYCL_EXTERNAL div_t div(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y);
 extern __DPCPP_SYCL_EXTERNAL lldiv_t lldiv(long long int x, long long int y);
-extern __DPCPP_SYCL_EXTERNAL float scalbnf(float x, int n);
-extern __DPCPP_SYCL_EXTERNAL double scalbn(double x, int n);
-extern __DPCPP_SYCL_EXTERNAL float logf(float x);
-extern __DPCPP_SYCL_EXTERNAL double log(double x);
-extern __DPCPP_SYCL_EXTERNAL float expf(float x);
-extern __DPCPP_SYCL_EXTERNAL double exp(double x);
-extern __DPCPP_SYCL_EXTERNAL float log10f(float x);
-extern __DPCPP_SYCL_EXTERNAL double log10(double x);
-extern __DPCPP_SYCL_EXTERNAL float modff(float x, float *intpart);
-extern __DPCPP_SYCL_EXTERNAL double modf(double x, double *intpart);
-extern __DPCPP_SYCL_EXTERNAL float exp2f(float x);
-extern __DPCPP_SYCL_EXTERNAL double exp2(double x);
-extern __DPCPP_SYCL_EXTERNAL float expm1f(float x);
-extern __DPCPP_SYCL_EXTERNAL double expm1(double x);
-extern __DPCPP_SYCL_EXTERNAL int ilogbf(float x);
-extern __DPCPP_SYCL_EXTERNAL int ilogb(double x);
-extern __DPCPP_SYCL_EXTERNAL float log1pf(float x);
-extern __DPCPP_SYCL_EXTERNAL double log1p(double x);
-extern __DPCPP_SYCL_EXTERNAL float log2f(float x);
-extern __DPCPP_SYCL_EXTERNAL double log2(double x);
-extern __DPCPP_SYCL_EXTERNAL float logbf(float x);
-extern __DPCPP_SYCL_EXTERNAL double logb(double x);
-extern __DPCPP_SYCL_EXTERNAL float sqrtf(float x);
-extern __DPCPP_SYCL_EXTERNAL double sqrt(double x);
-extern __DPCPP_SYCL_EXTERNAL float cbrtf(float x);
-extern __DPCPP_SYCL_EXTERNAL double cbrt(double x);
-extern __DPCPP_SYCL_EXTERNAL float erff(float x);
-extern __DPCPP_SYCL_EXTERNAL double erf(double x);
-extern __DPCPP_SYCL_EXTERNAL float erfcf(float x);
-extern __DPCPP_SYCL_EXTERNAL double erfc(double x);
-extern __DPCPP_SYCL_EXTERNAL float tgammaf(float x);
-extern __DPCPP_SYCL_EXTERNAL double tgamma(double x);
-extern __DPCPP_SYCL_EXTERNAL float lgammaf(float x);
-extern __DPCPP_SYCL_EXTERNAL double lgamma(double x);
-extern __DPCPP_SYCL_EXTERNAL float fmodf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double fmod(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float remainderf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double remainder(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float remquof(float x, float y, int *q);
-extern __DPCPP_SYCL_EXTERNAL double remquo(double x, double y, int *q);
-extern __DPCPP_SYCL_EXTERNAL float nextafterf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double nextafter(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float fdimf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double fdim(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float fmaf(float x, float y, float z);
-extern __DPCPP_SYCL_EXTERNAL double fma(double x, double y, double z);
-extern __DPCPP_SYCL_EXTERNAL float sinf(float x);
-extern __DPCPP_SYCL_EXTERNAL double sin(double x);
-extern __DPCPP_SYCL_EXTERNAL float cosf(float x);
-extern __DPCPP_SYCL_EXTERNAL double cos(double x);
-extern __DPCPP_SYCL_EXTERNAL float tanf(float x);
-extern __DPCPP_SYCL_EXTERNAL double tan(double x);
-extern __DPCPP_SYCL_EXTERNAL float asinf(float x);
-extern __DPCPP_SYCL_EXTERNAL double asin(double x);
-extern __DPCPP_SYCL_EXTERNAL float acosf(float x);
-extern __DPCPP_SYCL_EXTERNAL double acos(double x);
-extern __DPCPP_SYCL_EXTERNAL float atanf(float x);
-extern __DPCPP_SYCL_EXTERNAL double atan(double x);
-extern __DPCPP_SYCL_EXTERNAL float powf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double pow(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float atan2f(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double atan2(double x, double y);
-
-extern __DPCPP_SYCL_EXTERNAL float sinhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double sinh(double x);
-extern __DPCPP_SYCL_EXTERNAL float coshf(float x);
-extern __DPCPP_SYCL_EXTERNAL double cosh(double x);
-extern __DPCPP_SYCL_EXTERNAL float tanhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double tanh(double x);
-extern __DPCPP_SYCL_EXTERNAL float asinhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double asinh(double x);
-extern __DPCPP_SYCL_EXTERNAL float acoshf(float x);
-extern __DPCPP_SYCL_EXTERNAL double acosh(double x);
-extern __DPCPP_SYCL_EXTERNAL float atanhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double atanh(double x);
-extern __DPCPP_SYCL_EXTERNAL double frexp(double x, int *exp);
-extern __DPCPP_SYCL_EXTERNAL double ldexp(double x, int exp);
-extern __DPCPP_SYCL_EXTERNAL double hypot(double x, double y);
 
 extern __DPCPP_SYCL_EXTERNAL void *memcpy(void *dest, const void *src,
                                           size_t n);
@@ -599,9 +521,6 @@ extern __DPCPP_SYCL_EXTERNAL void __assert_fail(const char *expr,
                                                 const char *file,
                                                 unsigned int line,
                                                 const char *func);
-extern __DPCPP_SYCL_EXTERNAL float frexpf(float x, int *exp);
-extern __DPCPP_SYCL_EXTERNAL float ldexpf(float x, int exp);
-extern __DPCPP_SYCL_EXTERNAL float hypotf(float x, float y);
 
 // MS UCRT supports most of the C standard library but <complex.h> is
 // an exception.
