@@ -100,6 +100,7 @@ Basic/image/image_sample.cpp
 Basic/image/image_write.cpp
 Basic/image/image_write_fp16.cpp
 Basic/image/srgba-read.cpp
+Basic/large-range.cpp
 Basic/multi_ptr.cpp
 Basic/multi_ptr_legacy.cpp
 Basic/multi_ptr_legacy_usm_addr_ext.cpp
@@ -284,6 +285,7 @@ ESIMD/imulh_umulh.cpp
 ESIMD/kmeans/kmeans.cpp
 ESIMD/linear/linear.cpp
 ESIMD/local_accessor_block_load_store.cpp
+ESIMD/local_accessor_copy_to_from.cpp
 ESIMD/local_accessor_gather_scatter.cpp
 ESIMD/local_accessor_gather_scatter_rgba.cpp
 ESIMD/mandelbrot/mandelbrot.cpp
