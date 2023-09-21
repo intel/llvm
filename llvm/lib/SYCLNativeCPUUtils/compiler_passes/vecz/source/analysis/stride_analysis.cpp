@@ -49,8 +49,9 @@ OffsetInfo &StrideAnalysisResult::analyze(Value *V) {
 }
 
 StrideAnalysisResult::StrideAnalysisResult(llvm::Function &f,
-                                           UniformValueResult &uvr)
-    : F(f), UVR(uvr), assumptions(F) {
+                                           UniformValueResult &uvr,
+                                           AssumptionCache &AC)
+    : F(f), UVR(uvr), AC(AC) {
   for (auto &BB : F) {
     for (auto &I : BB) {
       if (!UVR.isVarying(&I)) {
@@ -83,6 +84,7 @@ Value *StrideAnalysisResult::buildMemoryStride(IRBuilder<> &B, llvm::Value *Ptr,
 
 StrideAnalysisResult StrideAnalysis::run(llvm::Function &F,
                                          llvm::FunctionAnalysisManager &AM) {
-  UniformValueResult &UVR = AM.getResult<UniformValueAnalysis>(F);
-  return Result(F, UVR);
+  auto &AC = AM.getResult<AssumptionAnalysis>(F);
+  auto &UVR = AM.getResult<UniformValueAnalysis>(F);
+  return Result(F, UVR, AC);
 }

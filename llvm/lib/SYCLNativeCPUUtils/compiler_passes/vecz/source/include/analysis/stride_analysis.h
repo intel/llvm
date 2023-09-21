@@ -46,9 +46,10 @@ class StrideAnalysisResult {
   /// @brief The Uniform Value Result to use during analysis
   UniformValueResult &UVR;
   /// @brief AssumptionCache for computing live bits of uniform values
-  llvm::AssumptionCache assumptions;
+  llvm::AssumptionCache &AC;
 
-  StrideAnalysisResult(llvm::Function &f, UniformValueResult &uvr);
+  StrideAnalysisResult(llvm::Function &f, UniformValueResult &uvr,
+                       llvm::AssumptionCache &AC);
 
   /// @brief generate stride `ConstantInt`s or `Instruction`s for all analyzed
   /// values.
