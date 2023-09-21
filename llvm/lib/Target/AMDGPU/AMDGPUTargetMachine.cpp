@@ -14,6 +14,7 @@
 
 #include "AMDGPUTargetMachine.h"
 #include "AMDGPU.h"
+#include "AMDGPUAddGlobalForAtomicXor.h"
 #include "AMDGPUAliasAnalysis.h"
 #include "AMDGPUCtorDtorLowering.h"
 #include "AMDGPUExportClustering.h"
@@ -616,6 +617,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
         }
         if (PassName == "amdgpu-always-inline") {
           PM.addPass(AMDGPUAlwaysInlinePass());
+          return true;
+        }
+        if (PassName == "amdgpu-add-global-for-atomic-xor") {
+          PM.addPass(AMDGPUAddGlobalForAtomicXorPass());
           return true;
         }
         if (PassName == "amdgpu-lower-module-lds") {

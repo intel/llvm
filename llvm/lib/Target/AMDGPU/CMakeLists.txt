@@ -41,6 +41,7 @@ tablegen(LLVM InstCombineTables.inc -gen-searchable-tables)
 add_public_tablegen_target(InstCombineTableGen)
 
 add_llvm_target(AMDGPUCodeGen
+  AMDGPUAddGlobalForAtomicXor.cpp
   AMDGPUAliasAnalysis.cpp
   AMDGPUAlwaysInlinePass.cpp
   AMDGPUAnnotateKernelFeatures.cpp
