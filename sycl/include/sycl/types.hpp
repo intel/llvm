@@ -59,8 +59,9 @@
 #include <variant>     // for tuple, variant
 
 #ifndef __SYCL_DEVICE_ONLY__
+#include <sycl/builtins_scalar_gen.hpp> // for ceil, floor, rint, trunc
+
 #include <cfenv> // for fesetround, fegetround
-#include <cmath> // for ceil, floor, rint, trunc
 #endif
 
 // 4.10.1: Scalar data types
@@ -307,7 +308,7 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     if (Err)
       throw sycl::exception(make_error_code(errc::runtime),
                             "Unable to set rounding mode to FE_TONEAREST");
-    R Result = std::rint(Value);
+    R Result = sycl::rint(Value);
     Err = std::fesetround(OldRoundingDirection);
     if (Err)
       throw sycl::exception(make_error_code(errc::runtime),
@@ -316,13 +317,13 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   }
     // Round toward zero.
   case rounding_mode::rtz:
-    return std::trunc(Value);
+    return sycl::trunc(Value);
     // Round toward positive infinity.
   case rounding_mode::rtp:
-    return std::ceil(Value);
+    return sycl::ceil(Value);
     // Round toward negative infinity.
   case rounding_mode::rtn:
-    return std::floor(Value);
+    return sycl::floor(Value);
   };
   assert(false && "Unsupported rounding mode!");
   return static_cast<R>(Value);
