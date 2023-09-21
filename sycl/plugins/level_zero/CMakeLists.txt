@@ -65,6 +65,9 @@ add_custom_command(
 
 find_package(Threads REQUIRED)
 
+# Get the L0 adapter sources so they can be shared with the L0 PI plugin
+get_target_property(UR_L0_ADAPTER_SOURCES ur_adapter_level_zero SOURCES)
+
 add_sycl_plugin(level_zero
   SOURCES
     # These are short-term shared with Unified Runtime
@@ -75,39 +78,7 @@ add_sycl_plugin(level_zero
     "ur_bindings.hpp"
     "../unified_runtime/pi2ur.hpp"
     "../unified_runtime/pi2ur.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/ur/ur.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/ur/ur.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/command_buffer.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/adapter.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/common.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/context.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/device.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/event.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/image.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/kernel.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/memory.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/platform.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/program.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/queue.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/sampler.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/usm.hpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/ur_level_zero.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/adapter.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/command_buffer.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/common.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/context.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/device.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/event.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/image.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/kernel.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/memory.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/platform.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/program.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/queue.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/sampler.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/usm.cpp"
-    "${UNIFIED_RUNTIME_SOURCE_DIR}/source/adapters/level_zero/usm_p2p.cpp"
+    ${UR_L0_ADAPTER_SOURCES}
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
