@@ -78,7 +78,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a;
            myparams2::joint_matrix_b<
-               sub_group, ext::intel::experimental::matrix::layout::packed>
+               sub_group, layout::ext_intel_packed>
                sub_b;
            myparams2::joint_matrix_accumulator<sub_group> sub_c;
 

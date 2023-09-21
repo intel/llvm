@@ -148,35 +148,35 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
             ;
 
             joint_matrix<sub_group, TOperand, use::b, tK, tN,
-                         ext::intel::experimental::matrix::layout::packed>
+                         layout::ext_intel_packed>
                 tB[NCACHE1 / tN][KCACHE2 / KCACHE1]
 #ifdef INIT_LIST
                 =
                     {
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                         joint_matrix<
                             sub_group, TOperand, use::b, tK, tN,
-                            ext::intel::experimental::matrix::layout::packed>(),
+                            layout::ext_intel_packed>(),
                     }
 #endif
             ;

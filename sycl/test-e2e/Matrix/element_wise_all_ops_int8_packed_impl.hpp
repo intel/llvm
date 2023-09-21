@@ -37,7 +37,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
@@ -74,7 +74,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
@@ -111,7 +111,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
@@ -148,7 +148,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 4);
@@ -185,7 +185,7 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);

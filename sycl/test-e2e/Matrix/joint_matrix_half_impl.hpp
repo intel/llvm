@@ -51,7 +51,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                    sub_a;
                // For B, we assume B has been already VNNIed.
                joint_matrix<sub_group, half, use::b, TK, TN,
-                            ext::intel::experimental::matrix::layout::packed>
+                            layout::ext_intel_packed>
                    sub_b;
                joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
