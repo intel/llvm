@@ -81,7 +81,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                    accA.template get_multi_ptr<access::decorated::no>() +
                        (sg_startx * TM * JM_ARRAY_SZ + TM * i) * K + k * TK,
                    K);
-               sub_c[i] = joint_matrix_mad(sg, sub_a[i], sub_b, sub_c[i]);
+               joint_matrix_mad(sg, sub_c[i], sub_a[i], sub_b, sub_c[i]);
              }
            }
 

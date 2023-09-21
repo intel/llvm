@@ -93,7 +93,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<sycl::access::decorated::no>() +
                      (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
                  N * 4);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            auto wi_data_c =
                sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);

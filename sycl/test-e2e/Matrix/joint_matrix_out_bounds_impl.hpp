@@ -58,7 +58,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
              joint_matrix_load_checked(
                  sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
                  N * vnniFactor, K / vnniFactor, N * vnniFactor);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            // bounds-checked store where width and height are added
            joint_matrix_store_checked(

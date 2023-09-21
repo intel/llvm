@@ -78,7 +78,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      (k * TK / vnniFactor) * (N * vnniFactor) +
                      sg_starty / SG_SZ * TN * vnniFactor,
                  N * vnniFactor);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

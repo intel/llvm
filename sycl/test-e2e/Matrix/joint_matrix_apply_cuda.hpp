@@ -71,7 +71,7 @@ void matrix_verify_lambda(queue q,
 
         joint_matrix_apply(sg, sub_a, lambda);
 
-        sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+        joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
 
         joint_matrix_store(
             sg, sub_c,
@@ -154,7 +154,7 @@ void matrix_verify_op(queue q, big_matrix<T2, M * nWGperDim, N * nWGperDim> &C,
                }
              }
 
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
 
              joint_matrix_store(
                  sg, sub_c,
