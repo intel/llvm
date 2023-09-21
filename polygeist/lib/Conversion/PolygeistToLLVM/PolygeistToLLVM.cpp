@@ -1103,10 +1103,13 @@ public:
     }
     for (LLVM::LLVMFuncOp func : toRemove) {
       auto iter = getEntry(func);
+      assert(iter != entries.end() && "Should always be found");
       // If this is a duplicate and a signature difference occurred, signal
       // error.
-      if (iter != entries.end() && iter->anyHadConflictingSignature)
-        return failure();
+      if (iter->anyHadConflictingSignature)
+        return func.emitError()
+               << "'" << func.getName()
+               << "' defined with conflicting signature w.r.t. stdlib function";
       func.erase();
     }
     return success();
