@@ -25,34 +25,26 @@ using namespace llvm;
 namespace {
 
 bool moduleHasAtomicXor(Module &M) {
-  for (auto &F : M) {
-    for (auto &I : instructions(F)) {
-      if (auto *AtomicInst = dyn_cast<AtomicRMWInst>(&I)) {
-        if (AtomicInst->getOperation() == AtomicRMWInst::Xor) {
-          return true;
-        }
-      }
-    }
-  }
+  for (auto &F : M)
+    for (auto &I : instructions(F))
+      if (auto *AtomicInst = dyn_cast<AtomicRMWInst>(&I);
+          AtomicInst && AtomicInst->getOperation() == AtomicRMWInst::Xor)
+        return true;
   return false;
 }
 
-bool runImpl(Module &M) {
-  if (moduleHasAtomicXor(M)) {
-    LLVMContext &Ctx = M.getContext();
-    new GlobalVariable(M, Type::getInt1Ty(Ctx), true,
-                       GlobalValue::InternalLinkage,
-                       Constant::getAllOnesValue(Type::getInt1Ty(Ctx)),
-                       NEW_GLOBAL_NAME); // FIXME: this seems wrong and bad, is
-                                         // there a better way to make a new
-                                         // GlobalVariable?
-    return true;
-  }
-  return false;
-}
 } // end anonymous namespace
 
 PreservedAnalyses
 AMDGPUAddGlobalForAtomicXorPass::run(Module &M, ModuleAnalysisManager &AM) {
-  return runImpl(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+  if (!moduleHasAtomicXor(M)) {
+    return PreservedAnalyses::all();
+  }
+  LLVMContext &Ctx = M.getContext();
+  M.getOrInsertGlobal(NEW_GLOBAL_NAME, Type::getInt1Ty(Ctx), [&] {
+    return new GlobalVariable(
+        M, Type::getInt1Ty(Ctx), true, GlobalValue::InternalLinkage,
+        Constant::getAllOnesValue(Type::getInt1Ty(Ctx)), NEW_GLOBAL_NAME);
+  });
+  return PreservedAnalyses::none();
 }
