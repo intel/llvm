@@ -17,7 +17,17 @@
 
 // Include real STL <complex> header - the next one from the include search
 // directories.
+#if defined(__has_include_next)
+// GCC/clang support go through this path.
 #include_next <complex>
+#else
+// MSVC doesn't support "#include_next", so we have to be creative.
+// Our header is located in "stl_wrappers/complex" so it won't be picked by the
+// following include. MSVC's installation, on the other hand, has the layout
+// where the following would result in the <complex> we want. This is obviously
+// hacky, but the best we can do...
+#include <../include/complex>
+#endif
 
 // Now that we have std::complex available, implement SYCL functionality related
 // to it.

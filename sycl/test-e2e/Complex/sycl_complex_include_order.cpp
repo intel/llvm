@@ -1,12 +1,17 @@
-// rUN: %{build} -DINCLUDE_BEFORE -o %t.out
-// rUN: %{run} %t.out
-// rUN: %{build} -o %t.out
-// rUN: %{run} %t.out
+// RUN: %{build} -DINCLUDE_BEFORE -o %t.out
+// RUN: %{run} %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -o %t.out %}
 // RUN: %if linux %{ %{run} %t.out %}
 // RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -o %t.out %}
 // RUN: %if linux %{ %{run} %t.out %}
+
+// RUN: %if windows %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t.out %}
+// RUN: %if windows %{ %{run} %t.out %}
+// RUN: %if windows %{ %{build} -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t.out %}
+// RUN: %if windows %{ %{run} %t.out %}
 
 // Test scenario when <complex> is included before SYCL headers.
 #ifdef INCLUDE_BEFORE
@@ -19,6 +24,7 @@
 #include <complex>
 #endif
 
+#include <iostream>
 using namespace sycl;
 
 int main() {
@@ -45,5 +51,6 @@ int main() {
      std::ignore = std::complex<float>{0.0f, 1.0f};
    }).wait();
 
+  std::cout << "Passed" << std::endl;
   return 0;
 }
