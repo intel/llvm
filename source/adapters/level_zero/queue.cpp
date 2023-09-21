@@ -290,7 +290,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   // for building to all the devices in the context.
   //
   { // Lock context for thread-safe update
-    std::scoped_lock Lock(Context->Mutex);
+    std::scoped_lock<ur_shared_mutex> Lock(Context->Mutex);
     UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
     auto MakeFirst = Context->Devices.begin();
