@@ -546,6 +546,14 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_intel_esimd: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT, sizeof(pi_bool),
+            &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
