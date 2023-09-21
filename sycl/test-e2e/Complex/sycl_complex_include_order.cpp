@@ -1,7 +1,12 @@
-// RUN: %{build} -DINCLUDE_BEFORE -o %t.out
-// RUN: %{run} %t.out
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// rUN: %{build} -DINCLUDE_BEFORE -o %t.out
+// rUN: %{run} %t.out
+// rUN: %{build} -o %t.out
+// rUN: %{run} %t.out
+
+// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -o %t.out %}
+// RUN: %if linux %{ %{run} %t.out %}
+// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -o %t.out %}
+// RUN: %if linux %{ %{run} %t.out %}
 
 // Test scenario when <complex> is included before SYCL headers.
 #ifdef INCLUDE_BEFORE
@@ -35,7 +40,7 @@ int main() {
                        float>);
   };
   test();
-  q.single_task([=] {
+  q.single_task<class KernelName>([=] {
      test();
      std::ignore = std::complex<float>{0.0f, 1.0f};
    }).wait();
