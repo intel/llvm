@@ -3,9 +3,11 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG b3cc9ae3f99ca7faff1ba765dd36652fef2cfddd)
+  # TODO: Update when L0 adapter source is merged
+  set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG b55201e7605618360a5a9b5839c38b5b0efa048e)
 
+  set(UR_BUILD_ADAPTER_L0 ON)
   set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -76,58 +78,7 @@ add_sycl_plugin(unified_runtime
     LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
-# Build level zero adapter
-add_sycl_library("ur_adapter_level_zero" SHARED
-  SOURCES
-    "ur/ur.hpp"
-    "ur/ur.cpp"
-    "ur/adapters/level_zero/ur_level_zero.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_interface_loader.cpp"
-    "ur/adapters/level_zero/adapter.hpp"
-    "ur/adapters/level_zero/command_buffer.hpp"
-    "ur/adapters/level_zero/common.hpp"
-    "ur/adapters/level_zero/context.hpp"
-    "ur/adapters/level_zero/device.hpp"
-    "ur/adapters/level_zero/event.hpp"
-    "ur/adapters/level_zero/image.cpp"
-    "ur/adapters/level_zero/image.hpp"
-    "ur/adapters/level_zero/memory.hpp"
-    "ur/adapters/level_zero/kernel.hpp"
-    "ur/adapters/level_zero/platform.hpp"
-    "ur/adapters/level_zero/program.hpp"
-    "ur/adapters/level_zero/queue.hpp"
-    "ur/adapters/level_zero/sampler.hpp"
-    "ur/adapters/level_zero/usm.hpp"
-    "ur/adapters/level_zero/adapter.cpp"
-    "ur/adapters/level_zero/command_buffer.cpp"
-    "ur/adapters/level_zero/common.cpp"
-    "ur/adapters/level_zero/context.cpp"
-    "ur/adapters/level_zero/device.cpp"
-    "ur/adapters/level_zero/event.cpp"
-    "ur/adapters/level_zero/memory.cpp"
-    "ur/adapters/level_zero/kernel.cpp"
-    "ur/adapters/level_zero/platform.cpp"
-    "ur/adapters/level_zero/program.cpp"
-    "ur/adapters/level_zero/queue.cpp"
-    "ur/adapters/level_zero/sampler.cpp"
-    "ur/adapters/level_zero/usm.cpp"
-    "ur/adapters/level_zero/usm_p2p.cpp"
-  INCLUDE_DIRS
-    ${sycl_inc_dir}
-  LIBRARIES
-    UnifiedRuntime-Headers
-    UnifiedRuntimeCommon
-    UnifiedMallocFramework
-    LevelZeroLoader-Headers
-    LevelZeroLoader
-    Threads::Threads
-)
-
-set_target_properties("ur_adapter_level_zero" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-)
+add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
 
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Build CUDA adapter
