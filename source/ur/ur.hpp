@@ -72,25 +72,29 @@ class ur_shared_mutex {
 
 public:
   void lock() {
-    if (!SingleThreadMode)
+    if (!SingleThreadMode) {
       Mutex.lock();
+    }
   }
   bool try_lock() { return SingleThreadMode ? true : Mutex.try_lock(); }
   void unlock() {
-    if (!SingleThreadMode)
+    if (!SingleThreadMode) {
       Mutex.unlock();
+    }
   }
 
   void lock_shared() {
-    if (!SingleThreadMode)
+    if (!SingleThreadMode) {
       Mutex.lock_shared();
+    }
   }
   bool try_lock_shared() {
     return SingleThreadMode ? true : Mutex.try_lock_shared();
   }
   void unlock_shared() {
-    if (!SingleThreadMode)
+    if (!SingleThreadMode) {
       Mutex.unlock_shared();
+    }
   }
 };
 
@@ -102,13 +106,15 @@ class ur_mutex {
 
 public:
   void lock() {
-    if (!SingleThreadMode)
+    if (!SingleThreadMode) {
       Mutex.lock();
+    }
   }
   bool try_lock() { return SingleThreadMode ? true : Mutex.try_lock(); }
   void unlock() {
-    if (!SingleThreadMode)
+    if (!SingleThreadMode) {
       Mutex.unlock();
+    }
   }
 };
 
@@ -123,8 +129,9 @@ public:
 class SpinLock {
 public:
   void lock() {
-    while (MLock.test_and_set(std::memory_order_acquire))
+    while (MLock.test_and_set(std::memory_order_acquire)) {
       std::this_thread::yield();
+    }
   }
   void unlock() { MLock.clear(std::memory_order_release); }
 
@@ -230,11 +237,13 @@ ur_result_t getInfoArray(size_t array_length, size_t param_value_size,
                          const T *value) {
   if (param_value) {
     memset(param_value, 0, param_value_size);
-    for (uint32_t I = 0; I < array_length; I++)
+    for (uint32_t I = 0; I < array_length; I++) {
       ((RetType *)param_value)[I] = (RetType)value[I];
+    }
   }
-  if (param_value_size_ret)
+  if (param_value_size_ret) {
     *param_value_size_ret = array_length * sizeof(RetType);
+  }
   return UR_RESULT_SUCCESS;
 }
 
