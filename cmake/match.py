@@ -30,7 +30,7 @@ opt = "{{OPT}}"
 for i, match_line in enumerate(match_lines):
     if match_line.startswith(opt):
         optional_line = True
-        match_line = match_line.removeprefix(opt)
+        match_line = match_line[len(opt):]
     else:
         optional_line = False
 
