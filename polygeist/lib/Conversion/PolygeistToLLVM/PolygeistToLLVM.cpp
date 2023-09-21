@@ -1056,8 +1056,87 @@ struct EraseSPIRVBuiltinPattern
   }
 };
 
-struct ConvertPolygeistToLLVMPass
+class DuplicateFuncCleaner {
+public:
+  struct Entry {
+    Entry(StringRef funcName, FunctionType funcType)
+        : funcName(funcName), signature(funcType) {}
+
+    StringRef funcName;
+    FunctionType signature;
+    bool anyHadConflictingSignature = false;
+    bool found = false;
+  };
+
+  explicit DuplicateFuncCleaner(std::initializer_list<Entry> init)
+      : entries(init) {
+    llvm::sort(entries, [](const Entry &lhs, const Entry &rhs) {
+      return lhs.funcName < rhs.funcName;
+    });
+  }
+
+  LogicalResult run(ModuleOp module) {
+    std::vector<LLVM::LLVMFuncOp> toRemove;
+    const auto getEntry = [this](LLVM::LLVMFuncOp func) {
+      auto iter = llvm::lower_bound(entries, func.getName(),
+                                    [](const Entry &entry, StringRef name) {
+                                      return name < entry.funcName;
+                                    });
+      if (iter == entries.end())
+        return iter;
+      return iter->funcName == func.getName() ? iter : entries.end();
+    };
+    for (auto func : module.getOps<LLVM::LLVMFuncOp>()) {
+      auto iter = getEntry(func);
+      if (iter == entries.end())
+        continue;
+      // If the type is different, annotate it in the entry. This will lead to
+      // an error only if more than one occurrence of the function is found.
+      iter->anyHadConflictingSignature |=
+          iter->signature != func.getFunctionType();
+      // If it was already found, the current function should be removed.
+      // Otherwise, set the function as already found.
+      if (iter->found)
+        toRemove.push_back(func);
+      else
+        iter->found = true;
+    }
+    for (LLVM::LLVMFuncOp func : toRemove) {
+      auto iter = getEntry(func);
+      // If this is a duplicate and a signature difference occurred, signal
+      // error.
+      if (iter != entries.end() && iter->anyHadConflictingSignature)
+        return failure();
+      func.erase();
+    }
+    return success();
+  }
+
+private:
+  std::vector<Entry> entries;
+};
+
+class ConvertPolygeistToLLVMPass
     : public impl::ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
+private:
+  // During conversion, duplicate malloc and free functions can be generated if
+  // the user calls either of these functions and also uses `new` while using
+  // "non-generic" allocation functions. Remove potential duplicates here.
+  void cleanDuplicateFunctions(unsigned bitwidth) {
+    constexpr StringLiteral freeFn("free");
+    constexpr StringLiteral mallocFn("malloc");
+    Builder builder(&getContext());
+    DuplicateFuncCleaner cleaner{
+        {freeFn,
+         builder.getFunctionType(builder.getType<LLVM::LLVMPointerType>(), {})},
+        {mallocFn,
+         builder.getFunctionType(builder.getIntegerType(bitwidth),
+                                 builder.getType<LLVM::LLVMPointerType>())}};
+    if (failed(cleaner.run(getOperation())))
+      signalPassFailure();
+  }
+
+public:
   using impl::ConvertPolygeistToLLVMBase<
       ConvertPolygeistToLLVMPass>::ConvertPolygeistToLLVMBase;
 
@@ -1211,33 +1290,8 @@ struct ConvertPolygeistToLLVMPass
                  m->dump(); llvm::dbgs() << "\n";);
     }
 
-    if (!options.useGenericFunctions) {
-      // During conversion, duplicate malloc and free functions can be generated
-      // if the user calls either of these functions and also uses `new` while
-      // using "non-generic" allocation functions. Remove potential duplicates
-      // here.
-      constexpr StringLiteral freeFn("free");
-      constexpr StringLiteral mallocFn("malloc");
-      std::array<std::pair<StringRef, bool>, 2> functionFound{
-          std::pair<StringRef, bool>{freeFn, false},
-          std::pair<StringRef, bool>{mallocFn, false}};
-      std::vector<LLVM::LLVMFuncOp> toRemove;
-      for (auto func : m.getOps<LLVM::LLVMFuncOp>()) {
-        StringRef name = func.getName();
-        auto *iter = llvm::find_if(functionFound,
-                                   [=](const std::pair<StringRef, bool> &el) {
-                                     return name == el.first;
-                                   });
-        if (iter == functionFound.end())
-          continue;
-        if (iter->second)
-          toRemove.push_back(func);
-        else
-          iter->second = true;
-      }
-      for (LLVM::LLVMFuncOp func : toRemove)
-        func.erase();
-    }
+    if (!options.useGenericFunctions)
+      cleanDuplicateFunctions(options.getIndexBitwidth());
   }
 };
 } // namespace
