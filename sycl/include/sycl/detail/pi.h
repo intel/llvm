@@ -145,7 +145,8 @@
 //         - piextSignalExternalSemaphore
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
-// 14.39 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
+// 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
+// 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 
 #define _PI_H_VERSION_MAJOR 14
 #define _PI_H_VERSION_MINOR 39
@@ -410,6 +411,7 @@ typedef enum {
   PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 0x20008,
   // The number of max registers per block (device specific)
   PI_EXT_CODEPLAY_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 0x20009,
+  PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT = 0x2000A,
 
   // Bindless images, mipmaps, interop
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT = 0x20100,

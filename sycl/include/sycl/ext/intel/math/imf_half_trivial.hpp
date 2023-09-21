@@ -252,7 +252,7 @@ sycl::half hmax(sycl::half x, sycl::half y) { return sycl::fmax(x, y); }
 
 sycl::half hmax_nan(sycl::half x, sycl::half y) {
   if (hisnan(x) || hisnan(y))
-    return sycl::half(NAN);
+    return sycl::half(std::numeric_limits<float>::quiet_NaN());
   else
     return sycl::fmax(x, y);
 }
@@ -269,7 +269,7 @@ sycl::half hmin(sycl::half x, sycl::half y) { return sycl::fmin(x, y); }
 
 sycl::half hmin_nan(sycl::half x, sycl::half y) {
   if (hisnan(x) || hisnan(y))
-    return sycl::half(NAN);
+    return sycl::half(std::numeric_limits<float>::quiet_NaN());
   else
     return sycl::fmin(x, y);
 }
