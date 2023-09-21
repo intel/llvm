@@ -1,10 +1,13 @@
-urEnqueueDeviceGetGlobalVariableReadTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEnqueueDeviceGetGlobalVariableReadTest.InvalidEventWaitInvalidEvent/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEnqueueKernelLaunchWithVirtualMemory.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__256__patternSize__256
-urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__1024__patternSize__256
-urEnqueueMemBufferMapTest.SuccessMultiMaps/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidEventWaitInvalidEvent/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueKernelLaunchWithVirtualMemory.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueMemBufferCopyRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__256__patternSize__256
+{{OPT}}urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__1024__patternSize__256
+{{OPT}}urEnqueueMemBufferMapTest.SuccessMultiMaps/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueMemBufferReadRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urEnqueueMemBufferWriteRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemImageCopyTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}___1D
 {{OPT}}urEnqueueMemImageCopyTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}___2D
 {{OPT}}urEnqueueMemImageCopyTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}___3D
@@ -53,4 +56,3 @@ urEnqueueMemBufferMapTest.SuccessMultiMaps/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueUSMMemcpy2DNegativeTest.InvalidEventWaitList/NVIDIA_CUDA_BACKEND___{{.*}}___pitch__1__width__1__height__1
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
 {{OPT}}urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/NVIDIA_CUDA_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
-{{OPT}}{{Aborted|Segmentation fault}}
