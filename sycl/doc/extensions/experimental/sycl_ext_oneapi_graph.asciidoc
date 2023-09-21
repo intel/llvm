@@ -901,7 +901,9 @@ ways:
    operation has an implicit dependency on the previous operation. However,
    a graph submitted to an in-order queue will keep its existing structure such
    that the complete graph executes in-order with respect to the other
-   command-groups submitted to the queue.
+   command-groups submitted to the queue. The sycl runtime automatically adds
+   implicit dependency before and after the graph execution, as if the graph
+   execution is one command-group submitted to the in-order queue.
 
 2. `property::queue::enable_profiling` - This property has no effect on graph
    recording. When set on the queue a graph is submitted to however, it allows
