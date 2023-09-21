@@ -2,7 +2,7 @@
 // REQUIRES: cuda || hip_amd
 // RUN: %{run} %t1.out
 
-//==---------------- memadvise_cuda.cpp ------------------------------------==//
+//==---------------- memadvise_flags.cpp -----------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
