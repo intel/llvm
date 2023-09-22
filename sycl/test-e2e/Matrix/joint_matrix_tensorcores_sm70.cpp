@@ -10,6 +10,8 @@
 #include "joint_matrix_apply_cuda.hpp"
 #include "joint_matrix_gemm_cuda.hpp"
 
+#include <cmath>
+
 static constexpr size_t M = 16;
 static constexpr size_t N = 16;
 static constexpr size_t MATRIX_M = M * nWGperDim;
