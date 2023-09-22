@@ -3,7 +3,7 @@
 !sycl_id_1 = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_1 = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_2 = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
-!sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_accessor_1_f32_rw_dev = !sycl.accessor<[1, f32, read_write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
 
 // COM: Test that the correct definition reaches a load.
 // CHECK-LABEL: test_tag: test1_load1
@@ -267,11 +267,11 @@ func.func @test14(%val: i64) {
 // CHECK: operand #1
 // CHECK-NEXT: - mods: test15_store1
 // CHECK-NEXT: - pMods: <none>
-func.func @test15(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+func.func @test15(%val: !sycl_id_1, %arg0 : memref<?x!sycl_accessor_1_f32_rw_dev, 4>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1> to memref<?x!sycl_id_1>  
   affine.store %val, %alloca[0] {tag_name = "test15_store1"}: memref<1x!sycl_id_1>
-  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test15_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
+  %1 = sycl.accessor.subscript %arg0[%cast] {tag = "test15_sub1", ArgumentTypes = [memref<?x!sycl_accessor_1_f32_rw_dev, 4>, memref<?x!sycl_id_1>], FunctionName = @"operator[]", MangledFunctionName = @subscript, TypeName = @accessor} : (memref<?x!sycl_accessor_1_f32_rw_dev, 4>, memref<?x!sycl_id_1>) -> memref<?xf32, 4>
   return
 }
 

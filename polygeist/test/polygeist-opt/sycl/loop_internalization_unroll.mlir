@@ -8,14 +8,14 @@
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
 !sycl_item_base_1_ = !sycl.item_base<[2, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
-!sycl_accessor_1_f32_r_gb = !sycl.accessor<[1, f32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_accessor_1_f32_r_dev = !sycl.accessor<[1, f32, read, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 2>)>)>
 !sycl_item_1_ = !sycl.item<[1, true], (!sycl_item_base_1_)>
 
 // CHECK-DAG:   [[MAP1:#map.*]] = affine_map<()[s0] -> (256 ceildiv s0)>
 // CHECK-DAG:   [[MAP2:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0)>
 // CHECK:       memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL: func.func private @affine(
-// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_1_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_item_1_>) {
+// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_1_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_item_1_>) {
 // CHECK-NEXT:    %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_1_1
 // CHECK-NEXT:    %[[VAL_3:.*]] = memref.alloca() : memref<1x!sycl_range_1_1>
 // CHECK-NEXT:    %[[VAL_4:.*]] = arith.constant 0 : index
@@ -50,7 +50,7 @@
 // CHECK-NEXT:        %[[VAL_30:.*]] = arith.index_cast %[[VAL_29]] : index to i64
 // CHECK-NEXT:        %[[VAL_31:.*]] = sycl.id.constructor(%[[VAL_29]]) : (index) -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_32:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_33:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_31]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
+// CHECK-NEXT:        %[[VAL_33:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_31]]] : (memref<?x!sycl_accessor_1_f32_r_dev>, memref<1x!sycl_id_1_>) -> memref<?xf32, 1>
 // CHECK-NEXT:        %[[VAL_34:.*]] = memref.load %[[VAL_33]]{{\[}}%[[VAL_32]]] : memref<?xf32, 1>
 // CHECK-NEXT:        memref.store %[[VAL_34]], %[[VAL_27]]{{\[}}%[[VAL_17]]] : memref<?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
@@ -107,14 +107,14 @@
 // CHECK-NEXT:      affine.for %[[VAL_70:.*]] = 0 to 256 {
 // CHECK-NEXT:        %[[VAL_71:.*]] = arith.index_cast %[[VAL_70]] : index to i64
 // CHECK-NEXT:        sycl.constructor @id(%[[VAL_19]], %[[VAL_71]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
-// CHECK-NEXT:        %[[VAL_72:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_19]]] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_id_1_>) -> memref<?xf32>
+// CHECK-NEXT:        %[[VAL_72:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_19]]] : (memref<?x!sycl_accessor_1_f32_r_dev>, memref<?x!sycl_id_1_>) -> memref<?xf32>
 // CHECK-NEXT:        %[[VAL_73:.*]] = affine.load %[[VAL_72]][0] : memref<?xf32>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 gpu.module @device_func {
-func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) {
+func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_dev>, %arg1: memref<?x!sycl_item_1_>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   %id = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
   %c0_i32 = arith.constant 0 : i32
@@ -123,13 +123,13 @@ func.func private @affine(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: mem
   affine.for %ii = 0 to 256 {
     %i = arith.index_cast %ii : index to i64
     sycl.constructor @id(%id, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_1_>, i64)
-    %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_id_1_>) -> memref<?xf32>
+    %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_1_f32_r_dev>, memref<?x!sycl_id_1_>) -> memref<?xf32>
     %load1 = affine.load %subscr1[0] : memref<?xf32>
   }
   return
 }
-gpu.func @kernel(%arg0: memref<?x!sycl_accessor_1_f32_r_gb>, %arg1: memref<?x!sycl_item_1_>) kernel {
-  func.call @affine(%arg0, %arg1) : (memref<?x!sycl_accessor_1_f32_r_gb>, memref<?x!sycl_item_1_>) -> ()
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_1_f32_r_dev>, %arg1: memref<?x!sycl_item_1_>) kernel {
+  func.call @affine(%arg0, %arg1) : (memref<?x!sycl_accessor_1_f32_r_dev>, memref<?x!sycl_item_1_>) -> ()
   gpu.return
 }
 }

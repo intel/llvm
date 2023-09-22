@@ -49,14 +49,14 @@ func.func @test_range.2(%arg0: !sycl_range_2_) {
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
 !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
-!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
-!sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<1>)>)>
-!sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
-!sycl_accessor_2_f32_rw_gb = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<1>)>)>
+!sycl_accessor_1_i32_rw_dev = !sycl.accessor<[1, i32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
+!sycl_accessor_2_i32_rw_dev = !sycl.accessor<[2, i32, read_write, device], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<1>)>)>
+!sycl_accessor_1_f32_rw_dev = !sycl.accessor<[1, f32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
+!sycl_accessor_2_f32_rw_dev = !sycl.accessor<[2, f32, read_write, device], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<1>)>)>
 !sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 !sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
 !sycl_accessor_1_i32_rw_1 = !sycl.accessor<[1, i32, read_write, local], (!sycl_local_accessor_base_1_i32_rw)>
-!sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<1>)>)>)>
+!sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl.accessor<[2, i32, read_write, device], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<1>)>)>)>
 // CHECK: llvm.func @test_accessor_common(%arg0: !llvm.struct<"class.sycl::_V1::detail::accessor_common", (i8)>)
 func.func @test_accessor_common(%arg0: !sycl.accessor_common) {
   return
@@ -66,19 +66,19 @@ func.func @test_accessorImplDevice(%arg0: !sycl_accessor_impl_device_1_) {
   return
 }
 // CHECK: llvm.func @test_accessor.1(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<1>)>[[SUFFIX]])
-func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_rw_gb) {
+func.func @test_accessor.1(%arg0: !sycl_accessor_1_i32_rw_dev) {
   return
 }
 // CHECK: llvm.func @test_accessor.2(%arg0: !llvm.[[ACCESSOR_2:struct<"class.sycl::_V1::accessor.*", \(]][[ACCESSORIMPLDEVICE_2:struct<"class.sycl::_V1::detail::AccessorImplDevice.*", \(]][[ID_2:struct<"class.sycl::_V1::id.*", \(]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<1>)>[[SUFFIX]])
-func.func @test_accessor.2(%arg0: !sycl_accessor_2_i32_rw_gb) {
+func.func @test_accessor.2(%arg0: !sycl_accessor_2_i32_rw_dev) {
   return
 }
 // CHECK: llvm.func @test_accessor.3(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_1]][[ID_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<1>)>[[SUFFIX]])
-func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_rw_gb) {
+func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_rw_dev) {
   return
 }
 // CHECK: llvm.func @test_accessor.4(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", ([[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<1>)>[[SUFFIX]])
-func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_rw_gb) {
+func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_rw_dev) {
   return
 }
 // CHECK: llvm.func @test_accessor.5(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", (struct<"class.sycl::_V1::local_accessor_base{{.*}}", ([[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], ptr<3>
@@ -218,9 +218,9 @@ func.func @test_sub_group(%arg0: !sycl.sub_group) {
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
-!sycl_accessor_1_i8_rw_gb = !sycl.accessor<[1, i8, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
-!sycl_stream = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
+!sycl_accessor_1_i32_ato_dev = !sycl.accessor<[1, i32, atomic, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
+!sycl_accessor_1_i8_rw_dev = !sycl.accessor<[1, i8, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
+!sycl_stream = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_dev, !sycl_accessor_1_i32_ato_dev, !sycl_accessor_1_i8_rw_dev, i32, i64, i32, i32, i32, i32)>
 // CHECK: llvm.func @test_stream(%arg0: !llvm.struct<"class.sycl::_V1::stream", (array<16 x i8>, struct<"class.sycl::_V1::accessor.1", (struct<"class.sycl::_V1::detail::AccessorImplDevice.1", (struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>)>, struct<(ptr<1>)>)>, struct<"class.sycl::_V1::accessor.1", (struct<"class.sycl::_V1::detail::AccessorImplDevice.1", (struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>)>, struct<(ptr<1>)>)>, struct<"class.sycl::_V1::accessor.1", (struct<"class.sycl::_V1::detail::AccessorImplDevice.1", (struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>)>, struct<(ptr<1>)>)>, i32, i64, i32, i32, i32, i32)>) {
 func.func @test_stream(%arg0: !sycl_stream) {
     return

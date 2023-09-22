@@ -52,8 +52,8 @@ def MemoryAccessModeAttr
 // Target
 ////////////////////////////////////////////////////////////////////////////////
 
-def GlobalBufferTarget
-    : I32EnumAttrCase<"GlobalBuffer", 2014, "global_buffer">;
+def DeviceTarget
+    : I32EnumAttrCase<"Device", 2014, "device">;
 def ConstantBufferTarget
     : I32EnumAttrCase<"ConstantBuffer", 2015, "constant_buffer">;
 def LocalTarget
@@ -66,12 +66,14 @@ def HostImageTarget
     : I32EnumAttrCase<"HostImage", 2019, "host_image">;
 def ImageArrayTarget
     : I32EnumAttrCase<"ImageArray", 2020, "image_array">;
+def HostTaskTarget
+    : I32EnumAttrCase<"HostTask", 2021, "host_task">;
 
 def TargetAttr
     : SYCL_I32EnumAttr<"Target", "valid SYCL Target", "target",
-                       [GlobalBufferTarget, ConstantBufferTarget, LocalTarget,
+                       [DeviceTarget, ConstantBufferTarget, LocalTarget,
 		       ImageTarget, HostBufferTarget, HostImageTarget,
-		       ImageArrayTarget]>;
+		       ImageArrayTarget, HostTaskTarget]>;
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccessAddrSpace

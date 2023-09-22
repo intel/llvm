@@ -104,10 +104,10 @@ llvm.func @raise_sub_buffer() -> !llvm.ptr attributes {personality = @__gxx_pers
 
 llvm.func @__gxx_personality_v0(...) -> i32
 
-// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_rw_dev = !sycl.accessor<[1, !llvm.void, read_write, device], (!llvm.void)>
 // CHECK:       !sycl_id_1_ = !sycl.id<[1], (!llvm.void)>
 // CHECK:       !sycl_range_1_ = !sycl.range<[1], (!llvm.void)>
-// CHECK:       !sycl_accessor_1_21llvm2Evoid_w_gb = !sycl.accessor<[1, !llvm.void, write, global_buffer], (!sycl_range_1_, !sycl_id_1_)>
+// CHECK:       !sycl_accessor_1_21llvm2Evoid_w_dev = !sycl.accessor<[1, !llvm.void, write, device], (!sycl_range_1_, !sycl_id_1_)>
 
 // CHECK-LABEL:   llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
 // CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
@@ -118,10 +118,10 @@ llvm.func @__gxx_personality_v0(...) -> i32
 // CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_7:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::accessor.5", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
-// CHECK:           sycl.host.constructor(%[[VAL_4]], %[[VAL_3]], %[[VAL_5]], %[[VAL_6]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_4]], %[[VAL_3]], %[[VAL_5]], %[[VAL_6]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb1
 // CHECK:         ^bb1:
-// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_3]], %[[VAL_1]], %[[VAL_2]], %[[VAL_5]], %[[VAL_6]]) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_3]], %[[VAL_1]], %[[VAL_2]], %[[VAL_5]], %[[VAL_6]]) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb2
 // CHECK:         ^bb2:
 // CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr
@@ -188,11 +188,11 @@ llvm.func @raise_local_accessor(%handler: !llvm.ptr) -> !llvm.ptr attributes {pe
 llvm.func @__gxx_personality_v0(...) -> i32
 llvm.func @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1024ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS2_13code_locationE(!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 
-// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_r_gb = !sycl.accessor<[1, !llvm.void, read, global_buffer], (!llvm.void)>
-// CHECK:       !sycl_accessor_1_21llvm2Evoid_w_gb = !sycl.accessor<[1, !llvm.void, write, global_buffer], (!llvm.void)>
+// CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_r_dev = !sycl.accessor<[1, !llvm.void, read, device], (!llvm.void)>
+// CHECK:       !sycl_accessor_1_21llvm2Evoid_w_dev = !sycl.accessor<[1, !llvm.void, write, device], (!llvm.void)>
 // CHECK:       !sycl_id_1_ = !sycl.id<[1], (!llvm.void)>
 // CHECK:       !sycl_range_1_ = !sycl.range<[1], (!llvm.void)>
-// CHECK:       !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!sycl_range_1_, !sycl_id_1_)>
+// CHECK:       !sycl_accessor_1_21llvm2Evoid_rw_dev = !sycl.accessor<[1, !llvm.void, read_write, device], (!sycl_range_1_, !sycl_id_1_)>
 
 // CHECK-LABEL:   llvm.func @raise_get_access() -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
 // CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i32
@@ -207,13 +207,13 @@ llvm.func @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_ac
 // CHECK:           %[[VAL_9:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_10:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // COM: Read-only
-// CHECK:           sycl.host.constructor(%[[VAL_6]], %[[VAL_3]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_6]], %[[VAL_3]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_r_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // COM: Read-write with range and offset
-// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_4]], %[[VAL_1]], %[[VAL_2]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_4]], %[[VAL_1]], %[[VAL_2]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb1
 // CHECK:         ^bb1:
 // COM: Write-only
-// CHECK:           sycl.host.constructor(%[[VAL_8]], %[[VAL_5]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_8]], %[[VAL_5]], %[[VAL_9]], %[[VAL_10]]) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb2
 // CHECK:         ^bb2:
 // CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr
@@ -775,7 +775,7 @@ gpu.module @device_functions {
 llvm.mlir.global private unnamed_addr constant @kernel_str("kernel\00") {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
 
 !lambda_class = !llvm.struct<"class.lambda", (i16, i32, !llvm.struct<"class.sycl::_V1::accessor", (ptr)>, !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>, !llvm.struct<"class.sycl::_V1::accessor", (ptr)>)>
-!sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+!sycl_accessor_1_21llvm2Evoid_rw_dev = !sycl.accessor<[1, !llvm.void, read_write, device], (!llvm.void)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_local_accessor_1_21llvm2Evoid = !sycl.local_accessor<[1, !llvm.void], (!sycl_range_1_)>
 
@@ -807,7 +807,7 @@ llvm.func @_ZN4sycl3_V17handler6unpackEv(%arg0: !llvm.ptr)
 // CHECK:           %[[VAL_15:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_16:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_17:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
-// CHECK:           sycl.host.constructor(%[[VAL_15]], %[[VAL_14]], %[[VAL_14]], %[[VAL_14]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_15]], %[[VAL_14]], %[[VAL_14]], %[[VAL_14]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           sycl.host.constructor(%[[VAL_16]], %[[VAL_14]], %[[VAL_14]], %[[VAL_14]]) {type = !sycl_local_accessor_1_21llvm2Evoid} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           %[[VAL_18:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>, struct<"class.sycl::_V1::accessor", (ptr)>)> : (i32) -> !llvm.ptr
 // CHECK:           llvm.store %[[VAL_9]], %[[VAL_18]] : i16, !llvm.ptr
@@ -818,7 +818,7 @@ llvm.func @_ZN4sycl3_V17handler6unpackEv(%arg0: !llvm.ptr)
 // CHECK:           %[[VAL_20:.*]] = llvm.getelementptr %[[VAL_18]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>, struct<"class.sycl::_V1::accessor", (ptr)>)>
 // CHECK:           %[[VAL_21:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr -> !llvm.ptr
 // CHECK:           llvm.store %[[VAL_21]], %[[VAL_20]] : !llvm.ptr, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_18]][2] = %[[VAL_15]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+// CHECK:           sycl.host.set_captured %[[VAL_18]][2] = %[[VAL_15]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_dev)
 // CHECK:           %[[VAL_22:.*]] = llvm.getelementptr %[[VAL_18]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>, struct<"class.sycl::_V1::accessor", (ptr)>)>
 // CHECK:           "llvm.intr.memcpy"(%[[VAL_22]], %[[VAL_17]], %[[VAL_10]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
 // CHECK:           sycl.host.set_captured %[[VAL_18]][3] = %[[VAL_17]] : !llvm.ptr, !llvm.ptr
@@ -878,7 +878,7 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   %vector = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
   
   // COM: ensure the accessors are actually detected as such
-  sycl.host.constructor(%accessor, %nullptr, %nullptr, %nullptr) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%accessor, %nullptr, %nullptr, %nullptr) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   sycl.host.constructor(%local_accessor, %nullptr, %nullptr, %nullptr) {type = !sycl_local_accessor_1_21llvm2Evoid} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 
   // COM: struct containing the captured values
@@ -1073,7 +1073,7 @@ gpu.module @device_functions {
 }
 
 !lambda_class = !llvm.struct<"class.lambda", opaque>
-!sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+!sycl_accessor_1_21llvm2Evoid_rw_dev = !sycl.accessor<[1, !llvm.void, read_write, device], (!llvm.void)>
 !kernel_signatures_type = !llvm.array<7 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>>
 
 llvm.mlir.global internal constant @_ZN4sycl3_V16detailL17kernel_signaturesE() : !kernel_signatures_type {
@@ -1130,8 +1130,8 @@ llvm.mlir.global private unnamed_addr constant @kernel_param_desc_str("kernel_pa
 // CHECK:           %[[VAL_7:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::accessor", opaque> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_8:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::property_list", opaque> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_9:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", opaque> : (i32) -> !llvm.ptr
-// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_6]], %[[VAL_8]], %[[VAL_9]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-// CHECK:           sycl.host.set_captured %[[VAL_5]][0] = %[[VAL_7]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+// CHECK:           sycl.host.constructor(%[[VAL_7]], %[[VAL_6]], %[[VAL_8]], %[[VAL_9]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.set_captured %[[VAL_5]][0] = %[[VAL_7]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_dev)
 // CHECK:           %[[VAL_10:.*]] = llvm.mlir.addressof @_ZN4sycl3_V16detailL17kernel_signaturesE : !llvm.ptr
 // CHECK:           %[[VAL_11:.*]] = llvm.mlir.addressof @kernel_num_params_str : !llvm.ptr
 // CHECK:           %[[VAL_12:.*]] = llvm.mlir.addressof @kernel_param_desc_str : !llvm.ptr
@@ -1143,7 +1143,7 @@ llvm.mlir.global private unnamed_addr constant @kernel_param_desc_str("kernel_pa
 // CHECK:           "llvm.intr.var.annotation"(%[[VAL_14]], %[[VAL_12]], %[[VAL_3]], %[[VAL_1]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb1
 // CHECK:         ^bb1:
-// CHECK:           sycl.host.schedule_kernel %[[VAL_0]] -> @device_functions::@foo[range %[[VAL_4]]](%[[VAL_7]]: !sycl_accessor_1_21llvm2Evoid_rw_gb) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.schedule_kernel %[[VAL_0]] -> @device_functions::@foo[range %[[VAL_4]]](%[[VAL_7]]: !sycl_accessor_1_21llvm2Evoid_rw_dev) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           llvm.return
 // CHECK:         }
 llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
@@ -1159,8 +1159,8 @@ llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
   %accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", opaque> : (i32) -> !llvm.ptr
   %pl = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::property_list", opaque> : (i32) -> !llvm.ptr
   %cl = llvm.alloca %c1 x !llvm.struct<"struct.sycl::_V1::detail::code_location", opaque> : (i32) -> !llvm.ptr
-  sycl.host.constructor(%accessor, %buffer, %pl, %cl) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> () 
-  sycl.host.set_captured %lambda[0] = %accessor : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+  sycl.host.constructor(%accessor, %buffer, %pl, %cl) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> () 
+  sycl.host.set_captured %lambda[0] = %accessor : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_dev)
 
   %kernel_signatures = llvm.mlir.addressof @_ZN4sycl3_V16detailL17kernel_signaturesE : !llvm.ptr
   %kernel_num_params_str = llvm.mlir.addressof @kernel_num_params_str : !llvm.ptr
@@ -1193,9 +1193,9 @@ llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
 // CHECK:           %[[VAL_9:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::accessor", opaque> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_10:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::property_list", opaque> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_11:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", opaque> : (i32) -> !llvm.ptr
-// CHECK:           sycl.host.constructor(%[[VAL_9]], %[[VAL_8]], %[[VAL_10]], %[[VAL_11]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           sycl.host.constructor(%[[VAL_9]], %[[VAL_8]], %[[VAL_10]], %[[VAL_11]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           sycl.host.set_captured %[[VAL_7]][0] = %[[VAL_1]] : !llvm.ptr, i32
-// CHECK:           sycl.host.set_captured %[[VAL_7]][1] = %[[VAL_9]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+// CHECK:           sycl.host.set_captured %[[VAL_7]][1] = %[[VAL_9]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_dev)
 // CHECK:           %[[VAL_12:.*]] = llvm.mlir.addressof @_ZN4sycl3_V16detailL17kernel_signaturesE : !llvm.ptr
 // CHECK:           %[[VAL_13:.*]] = llvm.getelementptr %[[VAL_12]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<7 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>>
 // CHECK:           %[[VAL_14:.*]] = llvm.mlir.addressof @kernel_num_params_str : !llvm.ptr
@@ -1208,7 +1208,7 @@ llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
 // CHECK:           "llvm.intr.var.annotation"(%[[VAL_17]], %[[VAL_15]], %[[VAL_4]], %[[VAL_1]], %[[VAL_4]]) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
 // CHECK:           llvm.br ^bb1
 // CHECK:         ^bb1:
-// CHECK:           sycl.host.schedule_kernel %[[VAL_0]] -> @device_functions::@foo[range %[[VAL_5]], offset %[[VAL_6]]](%[[VAL_1]], %[[VAL_9]]: !sycl_accessor_1_21llvm2Evoid_rw_gb) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+// CHECK:           sycl.host.schedule_kernel %[[VAL_0]] -> @device_functions::@foo[range %[[VAL_5]], offset %[[VAL_6]]](%[[VAL_1]], %[[VAL_9]]: !sycl_accessor_1_21llvm2Evoid_rw_dev) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
 // CHECK:           llvm.return
 // CHECK:         }
 llvm.func @raise_schedule_parallel_for_range_offset_std_layout_accessor(%handler: !llvm.ptr) {
@@ -1226,9 +1226,9 @@ llvm.func @raise_schedule_parallel_for_range_offset_std_layout_accessor(%handler
   %accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", opaque> : (i32) -> !llvm.ptr
   %pl = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::property_list", opaque> : (i32) -> !llvm.ptr
   %cl = llvm.alloca %c1 x !llvm.struct<"struct.sycl::_V1::detail::code_location", opaque> : (i32) -> !llvm.ptr
-  sycl.host.constructor(%accessor, %buffer, %pl, %cl) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> () 
+  sycl.host.constructor(%accessor, %buffer, %pl, %cl) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> () 
   sycl.host.set_captured %lambda[0] = %c0 : !llvm.ptr, i32
-  sycl.host.set_captured %lambda[1] = %accessor : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+  sycl.host.set_captured %lambda[1] = %accessor : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_dev)
 
   %kernel_signatures = llvm.mlir.addressof @_ZN4sycl3_V16detailL17kernel_signaturesE : !llvm.ptr
   %sig_offset = llvm.getelementptr %kernel_signatures[0, 1] : (!llvm.ptr) -> !llvm.ptr, !kernel_signatures_type

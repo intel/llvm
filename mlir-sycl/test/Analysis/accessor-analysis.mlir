@@ -4,8 +4,8 @@ llvm.func @__gxx_personality_v0(...) -> i32
 
 !sycl_id_1_ = !sycl.id<[1], (i64)>
 !sycl_range_1_ = !sycl.range<[1], (i64)>
-!sycl_accessor_1_21llvm2Evoid_w_gb = !sycl.accessor<[1, !llvm.void, write, global_buffer], (!sycl_range_1_, !sycl_id_1_)>
-!sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+!sycl_accessor_1_21llvm2Evoid_w_dev = !sycl.accessor<[1, !llvm.void, write, device], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_accessor_1_21llvm2Evoid_rw_dev = !sycl.accessor<[1, !llvm.void, read_write, device], (!llvm.void)>
 
 // CHECK-LABEL: test_tag: full_information:
 // CHECK:        operand #0
@@ -29,7 +29,7 @@ llvm.func @full_information() -> !llvm.ptr attributes {personality = @__gxx_pers
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   sycl.host.constructor(%1, %c256_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%0, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-   sycl.host.constructor(%acc, %0, %range, %offset, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+   sycl.host.constructor(%acc, %0, %range, %offset, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   %4 = llvm.load %acc {tag = "full_information"} : !llvm.ptr -> i32
@@ -56,7 +56,7 @@ llvm.func @no_information() -> !llvm.ptr attributes {personality = @__gxx_person
   %2 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %4 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
-  sycl.host.constructor(%acc, %0, %1, %2, %3, %4) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc, %0, %1, %2, %3, %4) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   %5 = llvm.load %acc {tag = "no_information"} : !llvm.ptr -> i32
@@ -92,13 +92,13 @@ llvm.func @join_accessor(%arg0 : i1) -> !llvm.ptr attributes {personality = @__g
   sycl.host.constructor(%buf1, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   sycl.host.constructor(%acc_range, %c128_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%acc_offset, %c64_i64) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
-  sycl.host.constructor(%acc, %buf1, %acc_range, %acc_offset, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc, %buf1, %acc_range, %acc_offset, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb3
 ^bb2:
   sycl.host.constructor(%buf2, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   sycl.host.constructor(%acc_range, %c64_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%acc_offset, %c128_i64) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
-  sycl.host.constructor(%acc, %buf2, %acc_range, %acc_offset, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc, %buf2, %acc_range, %acc_offset, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb3
 ^bb3:
   %4 = llvm.load %acc {tag = "join_accessor"} : !llvm.ptr -> i32
@@ -124,8 +124,8 @@ llvm.func @alias_same_buffer_no_range_info() -> !llvm.ptr attributes {personalit
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   sycl.host.constructor(%1, %c256_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%0, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc1, %0, %range1, %offset1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc2, %0, %range2, %offset2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc1, %0, %range1, %offset1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc2, %0, %range2, %offset2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   sycl.host.constructor(%1, %acc1, %acc2) {type = !sycl_range_1_, tag = "alias_same_buffer_no_range_info"} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
@@ -146,8 +146,8 @@ llvm.func @alias_same_buffer_no_range_required() -> !llvm.ptr attributes {person
   %1 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %2 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
-  sycl.host.constructor(%acc1, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc2, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc1, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc2, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   sycl.host.constructor(%1, %acc1, %acc2) {type = !sycl_range_1_, tag = "alias_same_buffer_no_range_required"} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
@@ -175,8 +175,8 @@ llvm.func @alias_same_buffer_no_overlap() -> !llvm.ptr attributes {personality =
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   sycl.host.constructor(%1, %c256_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%0, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc1, %0, %range1, %offset1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc2, %0, %range2, %offset2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc1, %0, %range1, %offset1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc2, %0, %range2, %offset2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   sycl.host.constructor(%1, %acc1, %acc2) {type = !sycl_range_1_, tag = "alias_same_buffer_no_overlap"} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
@@ -204,8 +204,8 @@ llvm.func @alias_same_buffer_full_overlap() -> !llvm.ptr attributes {personality
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   sycl.host.constructor(%1, %c256_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%0, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc1, %0, %range1, %offset1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc2, %0, %range2, %offset2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc1, %0, %range1, %offset1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc2, %0, %range2, %offset2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_w_dev} : (!llvm.ptr, !llvm.ptr, i64, i64, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   sycl.host.constructor(%1, %acc1, %acc2) {type = !sycl_range_1_, tag = "alias_same_buffer_full_overlap"} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
@@ -231,8 +231,8 @@ llvm.func @alias_two_buffers_with_info() -> !llvm.ptr attributes {personality = 
   sycl.host.constructor(%1, %c256_i64) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%buf1, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   sycl.host.constructor(%buf2, %1, %2, %3) {type = !sycl.buffer<[1, !llvm.void]>} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc1, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc2, %buf2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc1, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc2, %buf2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   sycl.host.constructor(%1, %acc1, %acc2) {type = !sycl_range_1_, tag = "alias_two_buffers_with_info"} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
@@ -254,8 +254,8 @@ llvm.func @alias_two_buffers_no_info() -> !llvm.ptr attributes {personality = @_
   %1 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %2 = llvm.alloca %c1_i32 x !llvm.struct<"class.sycl::_V1::property_list", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
   %3 = llvm.alloca %c1_i32 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
-  sycl.host.constructor(%acc1, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.constructor(%acc2, %buf2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc1, %buf1, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.constructor(%acc2, %buf2, %2, %3) {type = !sycl_accessor_1_21llvm2Evoid_rw_dev} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.br ^bb1
 ^bb1:
   sycl.host.constructor(%1, %acc1, %acc2) {type = !sycl_range_1_, tag = "alias_two_buffers_no_info"} : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()

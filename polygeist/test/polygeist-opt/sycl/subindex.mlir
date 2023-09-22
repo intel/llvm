@@ -21,7 +21,7 @@ func.func @test_1(%arg0: memref<?x!llvm.struct<(!sycl_id_1_)>>) -> memref<?x!syc
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_ = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_ = !sycl.accessor<[1, i32, read_write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
 
 func.func @test_2(%arg0: memref<?x!sycl_accessor_1_>) -> memref<?x!sycl_accessor_impl_device_1_> {
   %c0 = arith.constant 0 : index

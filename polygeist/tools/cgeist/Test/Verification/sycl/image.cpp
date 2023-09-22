@@ -27,7 +27,7 @@ static constexpr unsigned N = 8;
 // CHECK-NEXT:  }
 
 void testImage() {
-  const image_channel_order ChanOrder = image_channel_order::rgba;
+  const image_channel_order ChanOrder = image_channel_order::rgb;
   const image_channel_type ChanType = image_channel_type::fp32;
   const range<1> ImgSize_1D(N);
   std::vector<float4> data_from_1D(ImgSize_1D.size(), {1, 2, 3, 4});

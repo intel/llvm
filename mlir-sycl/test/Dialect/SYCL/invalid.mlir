@@ -88,11 +88,11 @@ func.func @test_non_sycl_arg_constructor(%i: memref<1xi32>) {
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i32_rw_dev = !sycl.accessor<[1, i32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 
-func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?xi64, 1> {
+func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_rw_dev>) -> memref<?xi64, 1> {
   // expected-error @+1 {{'sycl.accessor.get_pointer' op Expecting a reference to this accessor's value type}}
-  %0 = sycl.accessor.get_pointer(%acc) : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> memref<?xi64, 1>
+  %0 = sycl.accessor.get_pointer(%acc) : (memref<?x!sycl_accessor_1_i32_rw_dev>) -> memref<?xi64, 1>
   return %0 : memref<?xi64, 1>
 }
 
@@ -101,12 +101,12 @@ func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>)
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i32_rw_dev = !sycl.accessor<[1, i32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
 
-func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_2_ {
+func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_rw_dev>) -> !sycl_range_2_ {
   // expected-error @+1 {{'sycl.accessor.get_range' op Both the result and the accessor must have the same number of dimensions, but the accessor has 1 dimension(s) and the result has 2 dimension(s)}}
-  %0 = sycl.accessor.get_range(%acc) : (memref<?x!sycl_accessor_1_i32_rw_gb>) -> !sycl_range_2_
+  %0 = sycl.accessor.get_range(%acc) : (memref<?x!sycl_accessor_1_i32_rw_dev>) -> !sycl_range_2_
   return %0 : !sycl_range_2_
 }
 
@@ -115,15 +115,15 @@ func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_rw_gb>) -
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 3>)>)>
+!sycl_accessor_1_i32_ato_dev = !sycl.accessor<[1, i32, atomic, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 3>)>)>
 !sycl_atomic_i64_glo = !sycl.atomic<[i64, global], (memref<?xi64, 1>)>
 
 func.func @test_accessor_subscript_atomic(
-  %acc: memref<?x!sycl_accessor_1_i32_ato_gb>,
+  %acc: memref<?x!sycl_accessor_1_i32_ato_dev>,
   %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i64_glo {
   // expected-error @+1 {{'sycl.accessor.subscript' op Expecting a reference to this accessor's value type}}
   %0 = sycl.accessor.subscript %acc[%idx]
-      : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>)
+      : (memref<?x!sycl_accessor_1_i32_ato_dev>, memref<?x!sycl_id_1_>)
       -> !sycl_atomic_i64_glo
   return %0 : !sycl_atomic_i64_glo
 }

@@ -11,7 +11,7 @@
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 // CHECK-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-// CHECK-DAG: !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 // CHECK-DAG: ![[ITEM_BASE:.*]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
 // CHECK-DAG: ![[ITEM:.*]] = !sycl.item<[2, true], (![[ITEM_BASE]])>
 
@@ -176,7 +176,7 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 
 // CHECK-LABEL: func.func @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(
 // CHECK-SAME: {{.*}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
-// CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, index) -> memref<?x!sycl_accessor_impl_device_1_, 4>
+// CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, index) -> memref<?x!sycl_accessor_impl_device_1_, 4>
 // CHECK: sycl.constructor @AccessorImplDevice([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledFunctionName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_} : (memref<?x!sycl_accessor_impl_device_1_, 4>, memref<?x!sycl_id_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>)
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()

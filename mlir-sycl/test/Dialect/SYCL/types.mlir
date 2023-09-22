@@ -29,15 +29,15 @@ func.func @_Z4id_2N2cl4sycl2idILi2EEE(%arg0: !sycl_id_2_) attributes {llvm.linka
 !sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
-!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_2_i32_r_gb = !sycl.accessor<[2, i32, read, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_2_i32_r_dev = !sycl.accessor<[2, i32, read, device], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
 
-// CHECK: func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_w_gb)
-func.func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_w_gb) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_w_dev)
+func.func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_w_dev) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
-// CHECK: func @_Z5acc_2N2cl4sycl8accessorIiLi2ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_r_gb)
-func.func @_Z5acc_2N2cl4sycl8accessorIiLi2ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_r_gb) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK: func @_Z5acc_2N2cl4sycl8accessorIiLi2ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_r_dev)
+func.func @_Z5acc_2N2cl4sycl8accessorIiLi2ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_r_dev) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 
@@ -250,9 +250,9 @@ func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_1_i8_rw_gb = !sycl.accessor<[1, i8, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i8, 1>)>)>
-!sycl_stream = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
+!sycl_accessor_1_i32_ato_dev = !sycl.accessor<[1, i32, atomic, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i8_rw_dev = !sycl.accessor<[1, i8, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i8, 1>)>)>
+!sycl_stream = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_dev, !sycl_accessor_1_i32_ato_dev, !sycl_accessor_1_i8_rw_dev, i32, i64, i32, i32, i32, i32)>
 
 // CHECK: func @_Z6streamN4sycl3_V16streamE(%arg0: !sycl_stream)
 func.func @_Z6streamN4sycl3_V16streamE(%arg0: !sycl_stream) attributes {llvm.linkage = #llvm.linkage<external>} {

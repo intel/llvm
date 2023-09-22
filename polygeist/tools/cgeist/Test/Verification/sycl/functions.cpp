@@ -11,10 +11,10 @@
 // CHECK-MLIR-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 // CHECK-MLIR-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
 // CHECK-MLIR-DAG: !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
-// CHECK-MLIR-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-MLIR-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
-// CHECK-MLIR-DAG: ![[ACC_STRUCT:.*]] = !sycl.accessor<[1, !llvm.struct<(i32)>, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
-// CHECK-MLIR-DAG: ![[ACC_SUBSCRIPT:.*]] = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl_accessor_2_i32_rw_gb)>
+// CHECK-MLIR-DAG: !sycl_accessor_1_i32_rw_dev = !sycl.accessor<[1, i32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+// CHECK-MLIR-DAG: !sycl_accessor_2_i32_rw_dev = !sycl.accessor<[2, i32, read_write, device], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
+// CHECK-MLIR-DAG: ![[ACC_STRUCT:.*]] = !sycl.accessor<[1, !llvm.struct<(i32)>, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<1>)>)>
+// CHECK-MLIR-DAG: ![[ACC_SUBSCRIPT:.*]] = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl_accessor_2_i32_rw_dev)>
 // CHECK-MLIR-DAG: ![[ITEM_BASE1:.*]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)
 // CHECK-MLIR-DAG: ![[ITEM_BASE2:.*]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
 // CHECK-MLIR-DAG: ![[ITEM1:.*]] = !sycl.item<[1, true], (![[ITEM_BASE1]])>
@@ -28,50 +28,50 @@ template <typename T> SYCL_EXTERNAL void keep(T);
 // enable the checks below.
 
 // COM-MLIR-LABEL: func.func @_Z20accessor_get_pointerN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
-// COM-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef})
-// COM-MLIR: %{{.*}} = sycl.accessor.get_pointer(%{{.*}}) : (memref<?x!sycl_accessor_2_i32_rw_gb>) -> memref<?xi32, 1>
+// COM-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_dev> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_dev, llvm.noundef})
+// COM-MLIR: %{{.*}} = sycl.accessor.get_pointer(%{{.*}}) : (memref<?x!sycl_accessor_2_i32_rw_dev>) -> memref<?xi32, 1>
 
 SYCL_EXTERNAL void accessor_get_pointer(sycl::accessor<sycl::cl_int, 2> acc) {
   keep(acc.get_pointer());
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z18accessor_get_rangeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
-// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef})
-// CHECK-MLIR: %{{.*}} = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_2_i32_rw_gb>) -> !sycl_range_2_
+// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_dev> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_dev, llvm.noundef})
+// CHECK-MLIR: %{{.*}} = sycl.accessor.get_range(%arg0) : (memref<?x!sycl_accessor_2_i32_rw_dev>) -> !sycl_range_2_
 
 SYCL_EXTERNAL void accessor_get_range(sycl::accessor<sycl::cl_int, 2> acc) {
   keep(acc.get_range());
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z13accessor_sizeN4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
-// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef})
-// CHECK-MLIR: %{{.*}} = sycl.accessor.size(%arg0) : (memref<?x!sycl_accessor_2_i32_rw_gb>) -> i64
+// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_dev> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_dev, llvm.noundef})
+// CHECK-MLIR: %{{.*}} = sycl.accessor.size(%arg0) : (memref<?x!sycl_accessor_2_i32_rw_dev>) -> i64
 
 SYCL_EXTERNAL void accessor_size(sycl::accessor<sycl::cl_int, 2> acc) {
   keep(acc.size());
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_0N4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEENS0_2idILi2EEE(
-// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_gb, llvm.noundef}, 
+// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_dev> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_2_i32_rw_dev, llvm.noundef}, 
 // CHECK_MLIR_SAME:      %{{.*}}: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef})
-// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] : (memref<?x!sycl_accessor_2_i32_rw_gb>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] : (memref<?x!sycl_accessor_2_i32_rw_dev>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
 
 SYCL_EXTERNAL void accessor_subscript_operator_0(sycl::accessor<sycl::cl_int, 2> acc, sycl::id<2> index) {
   keep(acc[index]);
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_1N4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
-// CHECK_MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_gb>, %{{.*}}: i64)
-// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] : (memref<?x!sycl_accessor_2_i32_rw_gb>, i64) -> ![[ACC_SUBSCRIPT]]
+// CHECK_MLIR:           %{{.*}}: memref<?x!sycl_accessor_2_i32_rw_dev>, %{{.*}}: i64)
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] : (memref<?x!sycl_accessor_2_i32_rw_dev>, i64) -> ![[ACC_SUBSCRIPT]]
 
 SYCL_EXTERNAL void accessor_subscript_operator_1(sycl::accessor<sycl::cl_int, 2> acc, size_t index) {
   keep(acc[index]);
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_2N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
-// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_1_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_i32_rw_gb, llvm.noundef}, 
+// CHECK-MLIR:           %{{.*}}: memref<?x!sycl_accessor_1_i32_rw_dev> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_i32_rw_dev, llvm.noundef}, 
 // CHECK-MLIR-SAME:      %{{.*}}: i64 {llvm.noundef})
-// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] : (memref<?x!sycl_accessor_1_i32_rw_gb>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] : (memref<?x!sycl_accessor_1_i32_rw_dev>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 
 SYCL_EXTERNAL void accessor_subscript_operator_2(sycl::accessor<sycl::cl_int, 1> acc, size_t index) {
   keep(acc[index]);
