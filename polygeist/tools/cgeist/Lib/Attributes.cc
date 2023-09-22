@@ -21,7 +21,7 @@ using namespace mlir;
 
 namespace mlirclang {
 
-static constexpr StringLiteral PassThroughAttrName = "passthrough";
+constexpr StringLiteral AttributeList::PassThroughAttrName;
 
 //===----------------------------------------------------------------------===//
 // Helper functions.
@@ -29,13 +29,13 @@ static constexpr StringLiteral PassThroughAttrName = "passthrough";
 
 static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
                                  mlir::NamedAttribute Attr, MLIRContext &Ctx) {
-  assert(PassThroughAttr.getName() == PassThroughAttrName &&
+  assert(PassThroughAttr.getName() == AttributeList::PassThroughAttrName &&
          "PassThroughAttr is not valid");
   assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
          "PassThroughAttr should have an ArrayAttr as value");
 
   LLVM_DEBUG(llvm::dbgs() << "Adding attribute " << Attr.getName() << " to '"
-                          << PassThroughAttrName << "'.\n";);
+                          << AttributeList::PassThroughAttrName << "'.\n";);
 
   std::vector<mlir::Attribute> Vec =
       cast<ArrayAttr>(PassThroughAttr.getValue()).getValue().vec();
@@ -66,7 +66,7 @@ static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
   PassThroughAttr.setValue(ArrayAttr::get(&Ctx, Vec));
 
   LLVM_DEBUG({
-    llvm::dbgs().indent(2) << PassThroughAttrName << ": ( ";
+    llvm::dbgs().indent(2) << AttributeList::PassThroughAttrName << ": ( ";
     for (auto Item : Vec)
       llvm::dbgs() << Item << " ";
     llvm::dbgs() << ")\n";
@@ -75,7 +75,7 @@ static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
 
 static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
                                  mlir::ArrayAttr NewAttrs, MLIRContext &Ctx) {
-  assert(PassThroughAttr.getName() == PassThroughAttrName &&
+  assert(PassThroughAttr.getName() == AttributeList::PassThroughAttrName &&
          "PassThroughAttr is not valid");
   assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
          "PassThroughAttr should have an ArrayAttr as value");
@@ -212,9 +212,11 @@ AttrBuilder &AttrBuilder::addPassThroughAttribute(StringRef AttrName,
 }
 
 AttrBuilder &AttrBuilder::removeAttribute(llvm::StringRef AttrName) {
-  bool ContainsPassThroughAttr = getAttribute(PassThroughAttrName).has_value();
+  bool ContainsPassThroughAttr =
+      getAttribute(AttributeList::PassThroughAttrName).has_value();
   if (ContainsPassThroughAttr) {
-    NamedAttribute PassThroughAttr = getAttribute(PassThroughAttrName).value();
+    NamedAttribute PassThroughAttr =
+        getAttribute(AttributeList::PassThroughAttrName).value();
     auto ArrAttr = cast<ArrayAttr>(PassThroughAttr.getValue());
     std::vector<mlir::Attribute> Vec = ArrAttr.getValue().vec();
 
@@ -390,21 +392,25 @@ AttrBuilder::addPassThroughRawIntAttr(llvm::Attribute::AttrKind Kind,
 }
 
 NamedAttribute AttrBuilder::getOrCreatePassThroughAttr() const {
-  Optional<NamedAttribute> PassThroughAttr = getAttribute(PassThroughAttrName);
+  Optional<NamedAttribute> PassThroughAttr =
+      getAttribute(AttributeList::PassThroughAttrName);
   if (!PassThroughAttr) {
     LLVM_DEBUG(llvm::dbgs()
-               << "Creating empty '" << PassThroughAttrName << "' attribute\n");
-    PassThroughAttr = NamedAttribute(StringAttr::get(&Ctx, PassThroughAttrName),
-                                     ArrayAttr::get(&Ctx, {}));
+               << "Creating empty '" << AttributeList::PassThroughAttrName
+               << "' attribute\n");
+    PassThroughAttr = NamedAttribute(
+        StringAttr::get(&Ctx, AttributeList::PassThroughAttrName),
+        ArrayAttr::get(&Ctx, {}));
   }
   return *PassThroughAttr;
 }
 
 bool AttrBuilder::containsInPassThrough(StringRef AttrName) const {
-  if (!getAttribute(PassThroughAttrName).has_value())
+  if (!getAttribute(AttributeList::PassThroughAttrName).has_value())
     return false;
 
-  NamedAttribute PassThroughAttr = getAttribute(PassThroughAttrName).value();
+  NamedAttribute PassThroughAttr =
+      getAttribute(AttributeList::PassThroughAttrName).value();
   assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
          "passthrough attribute value should be an ArrayAttr");
 
