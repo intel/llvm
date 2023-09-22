@@ -19,11 +19,11 @@ ur_result_t mapErrorUR(CUresult Result);
 /// \return UR_RESULT_SUCCESS if \param Result was CUDA_SUCCESS.
 /// \throw ur_result_t exception (integer) if input was not success.
 ///
-ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
-                         const char *File);
+void checkErrorUR(CUresult Result, const char *Function, int Line,
+                  const char *File);
 
-ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
-                         const char *File);
+void checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                  const char *File);
 
 #define UR_CHECK_ERROR(Result)                                                 \
   checkErrorUR(Result, __func__, __LINE__, __FILE__)
