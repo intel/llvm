@@ -2405,6 +2405,27 @@ void MLIRASTConsumer::setMLIRFunctionAttributesForDefinition(
 #endif
 }
 
+static void removePassThroughAttr(FunctionOpInterface Function,
+                                  llvm::Attribute::AttrKind Kind) {
+  auto PassThroughAttr = Function->getAttrDictionary().getAs<ArrayAttr>(
+      mlirclang::AttributeList::PassThroughAttrName);
+  if (PassThroughAttr) {
+    std::vector<mlir::Attribute> Vec = PassThroughAttr.getValue();
+    StringRef Name = llvm::Attribute::getNameFromAttrKind(Kind);
+    auto it = llvm::remove_if(Vec, [Name](const mlir::Attribute &Attr) -> bool {
+      return TypeSwitch<mlir::Attribute, bool>(Attr)
+          .Case<StringAttr>([Name](auto SA) { return Name == SA.strref(); })
+          .Case<ArrayAttr>([Name](auto AA) {
+            assert(AA.size() == 2);
+            return Name == cast<StringAttr>(AA[0]).strref();
+          });
+    });
+    Vec.erase(it, Vec.end());
+    Function->setAttr(mlirclang::AttributeList::PassThroughAttrName,
+                      ArrayAttr::get(Function.getContext(), Vec));
+  }
+}
+
 void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
                                                 const FunctionToEmit &FTE) {
   using Attribute = llvm::Attribute;
@@ -2543,6 +2564,11 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
   // Set function result attributes.
   for (NamedAttribute Attr : PAL.getRetAttributes())
     Function.setResultAttr(0, Attr.getName(), Attr.getValue());
+
+  // SYCL does not support C++ exceptions or termination in device code, so all
+  // functions have to return.
+  if (getTypes().getCGM().getLangOpts().SYCLIsDevice)
+    removePassThroughAttr(Function, llvm::Attribute::NoReturn);
 }
 
 llvm::Optional<FunctionOpInterface>

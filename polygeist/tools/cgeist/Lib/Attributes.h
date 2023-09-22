@@ -23,6 +23,8 @@ class AttrBuilder;
 /// its parameters.
 class AttributeList {
 public:
+  static constexpr llvm::StringLiteral PassThroughAttrName = "passthrough";
+
   AttributeList() = default;
   AttributeList(const mlir::NamedAttrList &FnAttrs,
                 const mlir::NamedAttrList &RetAttrs,
