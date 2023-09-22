@@ -2148,10 +2148,12 @@ MLIRASTConsumer::createMLIRFunction(const FunctionToEmit &FTE,
     Module->push_back(Function);
     Functions[MangledName] = cast<func::FuncOp>(Function);
     break;
-  case InsertionContext::SYCLDevice:
-    mlirclang::getDeviceModule(*Module).push_back(Function);
+  case InsertionContext::SYCLDevice: {
+    gpu::GPUModuleOp deviceModule = mlirclang::getDeviceModule(*Module);
+    deviceModule.insert(deviceModule.getBody()->getTerminator(), Function);
     DeviceFunctions[MangledName] = Function;
     break;
+  }
   }
 
   LLVM_DEBUG(llvm::dbgs() << "Created MLIR function: " << Function << "\n");
