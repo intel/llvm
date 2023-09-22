@@ -252,7 +252,7 @@ Type *SPIRVTypeScavenger::substituteTypeVariables(Type *T) {
   }
   if (auto Index = isTypeVariable(T)) {
     unsigned TypeVarNum = *Index;
-    TypeVarNum = UnifiedTypeVars.join(TypeVarNum, TypeVarNum);
+    TypeVarNum = UnifiedTypeVars.findLeader(TypeVarNum);
     Type *&SubstTy = TypeVariables[TypeVarNum];
     // A value in TypeVariables may itself contain type variables that need to
     // be substituted. Substitute these as well.
@@ -273,9 +273,7 @@ bool SPIRVTypeScavenger::unifyType(Type *T1, Type *T2) {
     return true;
 
   auto SetTypeVar = [&](unsigned TypeVarNum, Type *ActualTy) {
-    // .findLeader doesn't work in uncompressed mode, so use .join with itself
-    // to find the leader.
-    unsigned Leader = UnifiedTypeVars.join(TypeVarNum, TypeVarNum);
+    unsigned Leader = UnifiedTypeVars.findLeader(TypeVarNum);
 
     // This method might be called with T1 as a concrete type containing
     // pointers, and we want to make sure those don't leak into type variables.
@@ -411,7 +409,7 @@ void SPIRVTypeScavenger::typeModule(Module &M) {
   // them as an i8* type.
   Type *Int8Ty = Type::getInt8Ty(M.getContext());
   for (const auto &[TypeVarNum, TypeVar] : enumerate(TypeVariables)) {
-    unsigned PrimaryVar = UnifiedTypeVars.join(TypeVarNum, TypeVarNum);
+    unsigned PrimaryVar = UnifiedTypeVars.findLeader(TypeVarNum);
     Type *LeaderTy = TypeVariables[PrimaryVar];
     if (TypeVar)
       TypeVar = substituteTypeVariables(TypeVar);

@@ -18,7 +18,7 @@ target triple = "spir64-unknown-unknown"
 
 @GRF = dso_local global %"class.sycl::_V1::ext::intel::esimd::simd.0" zeroinitializer, align 2048
 
-; // Compilation: clang++ -fsycl -Xclang -opaque-pointers src.cpp
+; // Compilation: clang++ -fsycl -Xclang src.cpp
 ; // Template for the source:
 ;
 ; #include <sycl/ext/intel/esimd.hpp>

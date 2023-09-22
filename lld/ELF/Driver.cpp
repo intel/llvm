@@ -52,6 +52,7 @@
 #include "llvm/Config/llvm-config.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Object/Archive.h"
+#include "llvm/Object/IRObjectFile.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
@@ -103,8 +104,12 @@ void Ctx::reset() {
   nonPrevailingSyms.clear();
   whyExtractRecords.clear();
   backwardReferences.clear();
+  auxiliaryFiles.clear();
   hasSympart.store(false, std::memory_order_relaxed);
+  hasTlsIe.store(false, std::memory_order_relaxed);
   needsTlsLd.store(false, std::memory_order_relaxed);
+  scriptSymOrderCounter = 1;
+  scriptSymOrder.clear();
 }
 
 llvm::raw_fd_ostream Ctx::openAuxiliaryFile(llvm::StringRef filename,
@@ -239,6 +244,19 @@ static bool isBitcode(MemoryBufferRef mb) {
   return identify_magic(mb.getBuffer()) == llvm::file_magic::bitcode;
 }
 
+bool LinkerDriver::tryAddFatLTOFile(MemoryBufferRef mb, StringRef archiveName,
+                                    uint64_t offsetInArchive, bool lazy) {
+  if (!config->fatLTOObjects)
+    return false;
+  Expected<MemoryBufferRef> fatLTOData =
+      IRObjectFile::findBitcodeInMemBuffer(mb);
+  if (errorToBool(fatLTOData.takeError()))
+    return false;
+  files.push_back(
+      make<BitcodeFile>(*fatLTOData, archiveName, offsetInArchive, lazy));
+  return true;
+}
+
 // Opens a file and create a file object. Path has to be resolved already.
 void LinkerDriver::addFile(StringRef path, bool withLOption) {
   using namespace sys::fs;
@@ -263,7 +281,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
       for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
         if (isBitcode(p.first))
           files.push_back(make<BitcodeFile>(p.first, path, p.second, false));
-        else
+        else if (!tryAddFatLTOFile(p.first, path, p.second, false))
           files.push_back(createObjFile(p.first, path));
       }
       return;
@@ -287,9 +305,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     InputFile::isInGroup = true;
     for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
       auto magic = identify_magic(p.first.getBuffer());
-      if (magic == file_magic::elf_relocatable)
-        files.push_back(createObjFile(p.first, path, true));
-      else if (magic == file_magic::bitcode)
+      if (magic == file_magic::elf_relocatable) {
+        if (!tryAddFatLTOFile(p.first, path, p.second, true))
+          files.push_back(createObjFile(p.first, path, true));
+      } else if (magic == file_magic::bitcode)
         files.push_back(make<BitcodeFile>(p.first, path, p.second, true));
       else
         warn(path + ": archive member '" + p.first.getBufferIdentifier() +
@@ -321,7 +340,8 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     files.push_back(make<BitcodeFile>(mbref, "", 0, inLib));
     break;
   case file_magic::elf_relocatable:
-    files.push_back(createObjFile(mbref, "", inLib));
+    if (!tryAddFatLTOFile(mbref, "", 0, inLib))
+      files.push_back(createObjFile(mbref, "", inLib));
     break;
   default:
     error(path + ": unknown file type");
@@ -1098,7 +1118,7 @@ static bool remapInputs(StringRef line, const Twine &location) {
   else if (Expected<GlobPattern> pat = GlobPattern::create(fields[0]))
     config->remapInputsWildcards.emplace_back(std::move(*pat), fields[1]);
   else {
-    error(location + ": " + toString(pat.takeError()));
+    error(location + ": " + toString(pat.takeError()) + ": " + fields[0]);
     return true;
   }
   return false;
@@ -1118,16 +1138,20 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_android_memtag_heap, OPT_no_android_memtag_heap, false);
   config->androidMemtagStack = args.hasFlag(OPT_android_memtag_stack,
                                             OPT_no_android_memtag_stack, false);
+  config->fatLTOObjects =
+      args.hasFlag(OPT_fat_lto_objects, OPT_no_fat_lto_objects, false);
   config->androidMemtagMode = getMemtagMode(args);
   config->auxiliaryList = args::getStrings(args, OPT_auxiliary);
   config->armBe8 = args.hasArg(OPT_be8);
-  if (opt::Arg *arg =
-          args.getLastArg(OPT_Bno_symbolic, OPT_Bsymbolic_non_weak_functions,
-                          OPT_Bsymbolic_functions, OPT_Bsymbolic)) {
+  if (opt::Arg *arg = args.getLastArg(
+          OPT_Bno_symbolic, OPT_Bsymbolic_non_weak_functions,
+          OPT_Bsymbolic_functions, OPT_Bsymbolic_non_weak, OPT_Bsymbolic)) {
     if (arg->getOption().matches(OPT_Bsymbolic_non_weak_functions))
       config->bsymbolic = BsymbolicKind::NonWeakFunctions;
     else if (arg->getOption().matches(OPT_Bsymbolic_functions))
       config->bsymbolic = BsymbolicKind::Functions;
+    else if (arg->getOption().matches(OPT_Bsymbolic_non_weak))
+      config->bsymbolic = BsymbolicKind::NonWeak;
     else if (arg->getOption().matches(OPT_Bsymbolic))
       config->bsymbolic = BsymbolicKind::All;
   }
@@ -1221,8 +1245,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->nostdlib = args.hasArg(OPT_nostdlib);
   config->oFormatBinary = isOutputFormatBinary(args);
   config->omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
-  config->opaquePointers = args.hasFlag(
-      OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, true);
   config->optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
   config->optStatsFilename = args.getLastArgValue(OPT_plugin_opt_stats_file);
 
@@ -1398,7 +1420,7 @@ static void readConfigs(opt::InputArgList &args) {
     else if (Expected<GlobPattern> pat = GlobPattern::create(kv.first))
       config->shuffleSections.emplace_back(std::move(*pat), uint32_t(v));
     else
-      error(errPrefix + toString(pat.takeError()));
+      error(errPrefix + toString(pat.takeError()) + ": " + kv.first);
   }
 
   auto reports = {std::make_pair("bti-report", &config->zBtiReport),
@@ -1436,7 +1458,7 @@ static void readConfigs(opt::InputArgList &args) {
     else if (Expected<GlobPattern> pat = GlobPattern::create(kv.first))
       config->deadRelocInNonAlloc.emplace_back(std::move(*pat), v);
     else
-      error(errPrefix + toString(pat.takeError()));
+      error(errPrefix + toString(pat.takeError()) + ": " + kv.first);
   }
 
   cl::ResetAllOptionOccurrences();
@@ -1593,7 +1615,8 @@ static void readConfigs(opt::InputArgList &args) {
     if (Expected<GlobPattern> pat = GlobPattern::create(pattern))
       config->warnBackrefsExclude.push_back(std::move(*pat));
     else
-      error(arg->getSpelling() + ": " + toString(pat.takeError()));
+      error(arg->getSpelling() + ": " + toString(pat.takeError()) + ": " +
+            pattern);
   }
 
   // For -no-pie and -pie, --export-dynamic-symbol specifies defined symbols
@@ -1945,7 +1968,7 @@ static void handleUndefined(Symbol *sym, const char *option) {
 static void handleUndefinedGlob(StringRef arg) {
   Expected<GlobPattern> pat = GlobPattern::create(arg);
   if (!pat) {
-    error("--undefined-glob: " + toString(pat.takeError()));
+    error("--undefined-glob: " + toString(pat.takeError()) + ": " + arg);
     return;
   }
 

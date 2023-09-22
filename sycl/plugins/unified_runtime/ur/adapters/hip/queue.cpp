@@ -193,6 +193,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   try {
     std::unique_ptr<ur_queue_handle_t_> QueueImpl(hQueue);
 
+    if (!hQueue->backendHasOwnership())
+      return UR_RESULT_SUCCESS;
+
     ScopedContext Active(hQueue->getContext()->getDevice());
 
     hQueue->forEachStream([](hipStream_t S) {
@@ -252,19 +255,44 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
 }
 
 /// Created a UR queue object from a HIP queue handle.
-/// TODO: Implement this.
-/// NOTE: The created UR object takes ownership of the native handle.
+/// NOTE: The created UR object doesn't takes ownership of the native handle.
 ///
 /// \param[in] hNativeQueue The native handle to create UR queue object from.
 /// \param[in] hContext is the UR context of the queue.
 /// \param[out] phQueue Set to the UR queue object created from native handle.
-/// \param pProperties->isNativeHandleOwned tells if SYCL RT should assume the
-/// ownership of
-///        the native handle, if it can.
-///
-/// \return UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t, ur_context_handle_t, ur_device_handle_t,
-    const ur_queue_native_properties_t *, ur_queue_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
+    ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
+    ur_queue_handle_t *phQueue) {
+  (void)hDevice;
+
+  unsigned int HIPFlags;
+  hipStream_t HIPStream = reinterpret_cast<hipStream_t>(hNativeQueue);
+
+  auto Return = UR_CHECK_ERROR(hipStreamGetFlags(HIPStream, &HIPFlags));
+
+  ur_queue_flags_t Flags = 0;
+  if (HIPFlags == hipStreamDefault)
+    Flags = UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
+  else if (HIPFlags == hipStreamNonBlocking)
+    Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
+  else
+    detail::ur::die("Unknown hip stream");
+
+  std::vector<hipStream_t> ComputeHIPStreams(1, HIPStream);
+  std::vector<hipStream_t> TransferHIPStreams(0);
+
+  // Create queue and set num_compute_streams to 1, as computeHIPStreams has
+  // valid stream
+  *phQueue =
+      new ur_queue_handle_t_{std::move(ComputeHIPStreams),
+                             std::move(TransferHIPStreams),
+                             hContext,
+                             hContext->getDevice(),
+                             HIPFlags,
+                             Flags,
+                             /*backend_owns*/ pProperties->isNativeHandleOwned};
+  (*phQueue)->NumComputeStreams = 1;
+
+  return Return;
 }

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "bolt/Rewrite/RewriteInstance.h"
+#include "bolt/Core/AddressMap.h"
 #include "bolt/Core/BinaryContext.h"
 #include "bolt/Core/BinaryEmitter.h"
 #include "bolt/Core/BinaryFunction.h"
@@ -1585,6 +1586,16 @@ void RewriteInstance::adjustFunctionBoundaries() {
       if (!Function.isSymbolValidInScope(Symbol, SymbolSize))
         break;
 
+      // Skip basic block labels. This happens on RISC-V with linker relaxation
+      // enabled because every branch needs a relocation and corresponding
+      // symbol. We don't want to add such symbols as entry points.
+      const auto PrivateLabelPrefix = BC->AsmInfo->getPrivateLabelPrefix();
+      if (!PrivateLabelPrefix.empty() &&
+          cantFail(Symbol.getName()).starts_with(PrivateLabelPrefix)) {
+        ++NextSymRefI;
+        continue;
+      }
+
       // This is potentially another entry point into the function.
       uint64_t EntryOffset = NextSymRefI->first - Function.getAddress();
       LLVM_DEBUG(dbgs() << "BOLT-DEBUG: adding entry point to function "
@@ -1844,8 +1855,9 @@ void RewriteInstance::adjustCommandLineOptions() {
     exit(1);
   }
 
-  if (opts::ReorderFunctions != ReorderFunctions::RT_NONE &&
-      !opts::HotText.getNumOccurrences()) {
+  if (opts::Instrument ||
+      (opts::ReorderFunctions != ReorderFunctions::RT_NONE &&
+       !opts::HotText.getNumOccurrences())) {
     opts::HotText = true;
   } else if (opts::HotText && !BC->HasRelocations) {
     errs() << "BOLT-WARNING: hot text is disabled in non-relocation mode\n";
@@ -3170,6 +3182,9 @@ void RewriteInstance::preregisterSections() {
                               ROFlags);
   BC->registerOrUpdateSection(getNewSecPrefix() + ".rodata.cold",
                               ELF::SHT_PROGBITS, ROFlags);
+  BC->registerOrUpdateSection(AddressMap::SectionName, ELF::SHT_PROGBITS,
+                              ROFlags)
+      .setLinkOnly();
 }
 
 void RewriteInstance::emitAndLink() {
@@ -3236,15 +3251,15 @@ void RewriteInstance::emitAndLink() {
   Linker->loadObject(ObjectMemBuffer->getMemBufferRef(),
                      [this](auto MapSection) { mapFileSections(MapSection); });
 
-  MCAsmLayout FinalLayout(
-      static_cast<MCObjectStreamer *>(Streamer.get())->getAssembler());
-
   // Update output addresses based on the new section map and
   // layout. Only do this for the object created by ourselves.
-  updateOutputValues(FinalLayout);
+  updateOutputValues(*Linker);
 
-  if (opts::UpdateDebugSections)
+  if (opts::UpdateDebugSections) {
+    MCAsmLayout FinalLayout(
+        static_cast<MCObjectStreamer *>(Streamer.get())->getAssembler());
     DebugInfoRewriter->updateLineTableOffsets(FinalLayout);
+  }
 
   if (RuntimeLibrary *RtLibrary = BC->getRuntimeLibrary())
     RtLibrary->link(*BC, ToolPath, *Linker, [this](auto MapSection) {
@@ -3575,6 +3590,9 @@ void RewriteInstance::mapAllocatableSections(
     }
 
     for (BinarySection &Section : BC->allocatableSections()) {
+      if (Section.isLinkOnly())
+        continue;
+
       if (!Section.hasValidSectionID())
         continue;
 
@@ -3636,9 +3654,15 @@ void RewriteInstance::mapAllocatableSections(
   }
 }
 
-void RewriteInstance::updateOutputValues(const MCAsmLayout &Layout) {
+void RewriteInstance::updateOutputValues(const BOLTLinker &Linker) {
+  if (auto MapSection = BC->getUniqueSectionByName(AddressMap::SectionName)) {
+    auto Map = AddressMap::parse(MapSection->getOutputContents(), *BC);
+    BC->setIOAddressMap(std::move(Map));
+    BC->deregisterSection(*MapSection);
+  }
+
   for (BinaryFunction *Function : BC->getAllBinaryFunctions())
-    Function->updateOutputValues(Layout);
+    Function->updateOutputValues(Linker);
 }
 
 void RewriteInstance::patchELFPHDRTable() {
@@ -5272,8 +5296,10 @@ void RewriteInstance::rewriteFile() {
       if (!BF.getFileOffset() || !BF.isEmitted())
         continue;
       OS.seek(BF.getFileOffset());
-      for (unsigned I = 0; I < BF.getMaxSize(); ++I)
-        OS.write((unsigned char)BC->MIB->getTrapFillValue());
+      StringRef TrapInstr = BC->MIB->getTrapFillValue();
+      unsigned NInstr = BF.getMaxSize() / TrapInstr.size();
+      for (unsigned I = 0; I < NInstr; ++I)
+        OS.write(TrapInstr.data(), TrapInstr.size());
     }
     OS.seek(SavedPos);
   }
@@ -5281,6 +5307,8 @@ void RewriteInstance::rewriteFile() {
   // Write all allocatable sections - reloc-mode text is written here as well
   for (BinarySection &Section : BC->allocatableSections()) {
     if (!Section.isFinalized() || !Section.getOutputData())
+      continue;
+    if (Section.isLinkOnly())
       continue;
 
     if (opts::Verbosity >= 1)

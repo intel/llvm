@@ -43,72 +43,68 @@ define spir_func void @_Z4testv() #0 {
 entry:
   %a = alloca [10 x i32], align 4
   %i = alloca i32, align 4
-  %0 = bitcast [10 x i32]* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 40, i8* %0) #4
-  %1 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #4
-  store i32 0, i32* %i, align 4, !tbaa !2
+  call void @llvm.lifetime.start.p0(i64 40, ptr %a) #4
+  call void @llvm.lifetime.start.p0(i64 4, ptr %i) #4
+  store i32 0, ptr %i, align 4, !tbaa !2
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
-  %2 = load i32, i32* %i, align 4, !tbaa !2
-  %cmp = icmp ne i32 %2, 10
+  %0 = load i32, ptr %i, align 4, !tbaa !2
+  %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %for.cond
-  %3 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #4
+  call void @llvm.lifetime.end.p0(i64 4, ptr %i) #4
   br label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %4 = load i32, i32* %i, align 4, !tbaa !2
-  %idxprom = sext i32 %4 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom, !llvm.index.group !6
-  store i32 0, i32* %arrayidx, align 4, !tbaa !2
+  %1 = load i32, ptr %i, align 4, !tbaa !2
+  %idxprom = sext i32 %1 to i64
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom, !llvm.index.group !6
+  store i32 0, ptr %arrayidx, align 4, !tbaa !2
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %5 = load i32, i32* %i, align 4, !tbaa !2
-  %inc = add nsw i32 %5, 1
-  store i32 %inc, i32* %i, align 4, !tbaa !2
+  %2 = load i32, ptr %i, align 4, !tbaa !2
+  %inc = add nsw i32 %2, 1
+  store i32 %inc, ptr %i, align 4, !tbaa !2
   br label %for.cond, !llvm.loop !7
 
 for.end:                                          ; preds = %for.cond.cleanup
-  %6 = bitcast [10 x i32]* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 40, i8* %6) #4
+  call void @llvm.lifetime.end.p0(i64 40, ptr %a) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse nounwind
 define i32 @main() #2 {
 entry:
   %retval = alloca i32, align 4
   %agg.tmp = alloca %class.anon, align 1
-  store i32 0, i32* %retval, align 4
-  call spir_func void @"_Z18kernel_single_taskIZ4mainE15kernel_functionZ4mainE3$_0EvT0_"(%class.anon* byval(%class.anon) align 1 %agg.tmp)
+  store i32 0, ptr %retval, align 4
+  call spir_func void @"_Z18kernel_single_taskIZ4mainE15kernel_functionZ4mainE3$_0EvT0_"(ptr byval(%class.anon) align 1 %agg.tmp)
   ret i32 0
 }
 
 ; Function Attrs: nounwind
-define internal spir_func void @"_Z18kernel_single_taskIZ4mainE15kernel_functionZ4mainE3$_0EvT0_"(%class.anon* byval(%class.anon) align 1 %kernelFunc) #0 {
+define internal spir_func void @"_Z18kernel_single_taskIZ4mainE15kernel_functionZ4mainE3$_0EvT0_"(ptr byval(%class.anon) align 1 %kernelFunc) #0 {
 entry:
-  %0 = addrspacecast %class.anon* %kernelFunc to %class.anon addrspace(4)*
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon addrspace(4)* %0)
+  %0 = addrspacecast ptr %kernelFunc to ptr addrspace(4)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %0)
   ret void
 }
 
 ; Function Attrs: inlinehint nounwind
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon addrspace(4)* %this) #3 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #3 align 2 {
 entry:
-  %this.addr = alloca %class.anon addrspace(4)*, align 8
-  store %class.anon addrspace(4)* %this, %class.anon addrspace(4)** %this.addr, align 8, !tbaa !13
-  %this1 = load %class.anon addrspace(4)*, %class.anon addrspace(4)** %this.addr, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !13
+  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
   call spir_func void @_Z4testv()
   ret void
 }

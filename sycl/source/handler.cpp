@@ -502,6 +502,13 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  if (getCommandGraph() &&
+      static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
+          ->needsWriteBack()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Accessors to buffers which have write_back enabled "
+                          "are not allowed to be used in command graphs.");
+  }
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
   if (Req->MAccessRange.size() != 0)
@@ -1386,6 +1393,20 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
+}
+
+std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
+  auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+  std::array<size_t, 3> PiResult = {};
+  auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+      Dev->getHandleRef(),
+      PiInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(PiResult), &PiResult, nullptr);
+  if (Ret == PI_SUCCESS) {
+    return PiResult;
+  }
+  return {};
 }
 
 } // namespace _V1

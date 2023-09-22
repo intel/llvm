@@ -32,6 +32,7 @@ namespace clang {
 /// that this large collection of bitfields is a trivial class type.
 class CodeGenOptionsBase {
   friend class CompilerInvocation;
+  friend class CompilerInvocationBase;
 
 public:
 #define CODEGENOPT(Name, Bits, Default) unsigned Name : Bits;
@@ -63,6 +64,12 @@ public:
     SLEEF,      // SLEEF SIMD Library for Evaluating Elementary Functions.
     Darwin_libsystem_m, // Use Darwin's libsytem_m vector functions.
     ArmPL               // Arm Performance Libraries.
+  };
+
+  enum AltMathLibrary {
+    NoAltMathLibrary,   // Don't use any alternate math library
+    SVMLAltMathLibrary, // Intel SVML Library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
   enum ObjCDispatchMethodKind {

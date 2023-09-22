@@ -272,6 +272,10 @@ bool NVPTXAsmPrinter::lowerOperand(const MachineOperand &MO,
       MCOp = MCOperand::createExpr(
         NVPTXFloatMCExpr::createConstantFPHalf(Val, OutContext));
       break;
+    case Type::BFloatTyID:
+      MCOp = MCOperand::createExpr(
+          NVPTXFloatMCExpr::createConstantBFPHalf(Val, OutContext));
+      break;
     case Type::FloatTyID:
       MCOp = MCOperand::createExpr(
         NVPTXFloatMCExpr::createConstantFPSingle(Val, OutContext));
@@ -330,6 +334,11 @@ MCOperand NVPTXAsmPrinter::GetSymbolRef(const MCSymbol *Symbol) {
   return MCOperand::createExpr(Expr);
 }
 
+static bool ShouldPassAsArray(Type *Ty) {
+  return Ty->isAggregateType() || Ty->isVectorTy() || Ty->isIntegerTy(128) ||
+         Ty->isHalfTy() || Ty->isBFloatTy();
+}
+
 void NVPTXAsmPrinter::printReturnValStr(const Function *F, raw_ostream &O) {
   const DataLayout &DL = getDataLayout();
   const NVPTXSubtarget &STI = TM.getSubtarget<NVPTXSubtarget>(*F);
@@ -341,11 +350,11 @@ void NVPTXAsmPrinter::printReturnValStr(const Function *F, raw_ostream &O) {
 
   if (Ty->getTypeID() == Type::VoidTyID)
     return;
-
   O << " (";
 
   if (isABI) {
-    if (Ty->isFloatingPointTy() || (Ty->isIntegerTy() && !Ty->isIntegerTy(128))) {
+    if ((Ty->isFloatingPointTy() || Ty->isIntegerTy()) &&
+        !ShouldPassAsArray(Ty)) {
       unsigned size = 0;
       if (auto *ITy = dyn_cast<IntegerType>(Ty)) {
         size = ITy->getBitWidth();
@@ -353,16 +362,12 @@ void NVPTXAsmPrinter::printReturnValStr(const Function *F, raw_ostream &O) {
         assert(Ty->isFloatingPointTy() && "Floating point type expected here");
         size = Ty->getPrimitiveSizeInBits();
       }
-      // PTX ABI requires all scalar return values to be at least 32
-      // bits in size.  fp16 normally uses .b16 as its storage type in
-      // PTX, so its size must be adjusted here, too.
       size = promoteScalarArgumentSize(size);
-
       O << ".param .b" << size << " func_retval0";
     } else if (isa<PointerType>(Ty)) {
       O << ".param .b" << TLI->getPointerTy(DL).getSizeInBits()
         << " func_retval0";
-    } else if (Ty->isAggregateType() || Ty->isVectorTy() || Ty->isIntegerTy(128)) {
+    } else if (ShouldPassAsArray(Ty)) {
       unsigned totalsz = DL.getTypeAllocSize(Ty);
       unsigned retAlignment = 0;
       if (!getAlign(*F, 0, retAlignment))
@@ -669,11 +674,11 @@ static bool usedInOneFunc(const User *U, Function const *&oneFunc) {
  * Currently, this is valid for CUDA shared variables, which have local
  * scope and global lifetime. So the conditions to check are :
  * 1. Is the global variable in shared address space?
- * 2. Does it have internal linkage?
+ * 2. Does it have local linkage?
  * 3. Is the global variable referenced only in one function?
  */
 static bool canDemoteGlobalVar(const GlobalVariable *gv, Function const *&f) {
-  if (!gv->hasInternalLinkage())
+  if (!gv->hasLocalLinkage())
     return false;
   PointerType *Pty = gv->getType();
   if (Pty->getAddressSpace() != ADDRESS_SPACE_SHARED)
@@ -1397,8 +1402,10 @@ NVPTXAsmPrinter::getPTXFundamentalTypeStr(Type *Ty, bool useB4PTR) const {
     }
     break;
   }
+  case Type::BFloatTyID:
   case Type::HalfTyID:
-    // fp16 is stored as .b16 for compatibility with pre-sm_53 PTX assembly.
+    // fp16 and bf16 are stored as .b16 for compatibility with pre-sm_53
+    // PTX assembly.
     return "b16";
   case Type::FloatTyID:
     return "f32";
@@ -1552,7 +1559,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
     };
 
     if (!PAL.hasParamAttr(paramIndex, Attribute::ByVal)) {
-      if (Ty->isAggregateType() || Ty->isVectorTy() || Ty->isIntegerTy(128)) {
+      if (ShouldPassAsArray(Ty)) {
         // Just print .param .align <a> .b8 .param[size];
         // <a>  = optimal alignment for the element type; always multiple of
         //        PAL.getParamAlignment
@@ -1623,12 +1630,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
       } else if (PTy) {
         assert(PTySizeInBits && "Invalid pointer size");
         sz = PTySizeInBits;
-      } else if (Ty->isHalfTy())
-        // PTX ABI requires all scalar parameters to be at least 32
-        // bits in size.  fp16 normally uses .b16 as its storage type
-        // in PTX, so its size must be adjusted here, too.
-        sz = 32;
-      else
+      } else
         sz = Ty->getPrimitiveSizeInBits();
       if (isABI)
         O << "\t.param .b" << sz << " ";
@@ -2198,9 +2200,9 @@ bool NVPTXAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
   return false;
 }
 
-void NVPTXAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
+void NVPTXAsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNum,
                                    raw_ostream &O) {
-  const MachineOperand &MO = MI->getOperand(opNum);
+  const MachineOperand &MO = MI->getOperand(OpNum);
   switch (MO.getType()) {
   case MachineOperand::MO_Register:
     if (MO.getReg().isPhysical()) {
@@ -2234,19 +2236,19 @@ void NVPTXAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
   }
 }
 
-void NVPTXAsmPrinter::printMemOperand(const MachineInstr *MI, int opNum,
+void NVPTXAsmPrinter::printMemOperand(const MachineInstr *MI, unsigned OpNum,
                                       raw_ostream &O, const char *Modifier) {
-  printOperand(MI, opNum, O);
+  printOperand(MI, OpNum, O);
 
   if (Modifier && strcmp(Modifier, "add") == 0) {
     O << ", ";
-    printOperand(MI, opNum + 1, O);
+    printOperand(MI, OpNum + 1, O);
   } else {
-    if (MI->getOperand(opNum + 1).isImm() &&
-        MI->getOperand(opNum + 1).getImm() == 0)
+    if (MI->getOperand(OpNum + 1).isImm() &&
+        MI->getOperand(OpNum + 1).getImm() == 0)
       return; // don't print ',0' or '+0'
     O << "+";
-    printOperand(MI, opNum + 1, O);
+    printOperand(MI, OpNum + 1, O);
   }
 }
 

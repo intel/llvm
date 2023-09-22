@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
     return 0;
@@ -44,6 +44,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
+    Event.wait();
   }
 
   Queue.wait_and_throw();

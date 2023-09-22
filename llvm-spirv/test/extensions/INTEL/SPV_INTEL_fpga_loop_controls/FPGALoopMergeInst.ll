@@ -129,61 +129,57 @@ target triple = "spir64-unknown-linux"
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %"class._ZTSZ4mainE3$_0.anon", align 1
-  %1 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #4
-  %2 = addrspacecast %"class._ZTSZ4mainE3$_0.anon"* %0 to %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %2)
-  %3 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #4
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %1)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint nounwind
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this) #2 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #2 align 2 {
 entry:
-  %this.addr = alloca %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, align 8
-    store %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %this.addr, align 8, !tbaa !5
-  %this1 = load %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %this.addr, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
+    store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !5
+  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
   call spir_func void @_Z3foov()
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z3foov() #3 {
 entry:
   %i = alloca i32, align 4
   %m = alloca i32, align 4
-  %0 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
-  store i32 0, i32* %i, align 4, !tbaa !9
-  %1 = bitcast i32* %m to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #4
-  store i32 42, i32* %m, align 4, !tbaa !9
+  call void @llvm.lifetime.start.p0(i64 4, ptr %i) #4
+  store i32 0, ptr %i, align 4, !tbaa !9
+  call void @llvm.lifetime.start.p0(i64 4, ptr %m) #4
+  store i32 42, ptr %m, align 4, !tbaa !9
   br label %while.cond
 ; CHECK-SPIRV: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond:                                       ; preds = %if.end, %if.then, %entry
-  %2 = load i32, i32* %i, align 4, !tbaa !9
-  %3 = load i32, i32* %m, align 4, !tbaa !9
-  %cmp = icmp slt i32 %2, %3
+  %0 = load i32, ptr %i, align 4, !tbaa !9
+  %1 = load i32, ptr %m, align 4, !tbaa !9
+  %cmp = icmp slt i32 %0, %1
   br i1 %cmp, label %while.body, label %while.end
 
 while.body:                                       ; preds = %while.cond
-  %4 = load i32, i32* %i, align 4, !tbaa !9
-  %rem = srem i32 %4, 2
+  %2 = load i32, ptr %i, align 4, !tbaa !9
+  %rem = srem i32 %2, 2
   %tobool = icmp ne i32 %rem, 0
   br i1 %tobool, label %if.then, label %if.end
 
 if.then:                                          ; preds = %while.body
-  %5 = load i32, i32* %i, align 4, !tbaa !9
-  %inc = add nsw i32 %5, 1
-  store i32 %inc, i32* %i, align 4, !tbaa !9
+  %3 = load i32, ptr %i, align 4, !tbaa !9
+  %inc = add nsw i32 %3, 1
+  store i32 %inc, ptr %i, align 4, !tbaa !9
   br label %while.cond, !llvm.loop !11
 
 if.end:                                           ; preds = %while.body
@@ -196,21 +192,21 @@ while.end:                                        ; preds = %while.cond
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 65536 2
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond1:                                      ; preds = %if.end8, %if.then6, %while.end
-  %6 = load i32, i32* %i, align 4, !tbaa !9
-  %7 = load i32, i32* %m, align 4, !tbaa !9
-  %cmp2 = icmp slt i32 %6, %7
+  %4 = load i32, ptr %i, align 4, !tbaa !9
+  %5 = load i32, ptr %m, align 4, !tbaa !9
+  %cmp2 = icmp slt i32 %4, %5
   br i1 %cmp2, label %while.body3, label %while.end9
 
 while.body3:                                      ; preds = %while.cond1
-  %8 = load i32, i32* %i, align 4, !tbaa !9
-  %rem4 = srem i32 %8, 3
+  %6 = load i32, ptr %i, align 4, !tbaa !9
+  %rem4 = srem i32 %6, 3
   %tobool5 = icmp ne i32 %rem4, 0
   br i1 %tobool5, label %if.then6, label %if.end8
 
 if.then6:                                         ; preds = %while.body3
-  %9 = load i32, i32* %i, align 4, !tbaa !9
-  %inc7 = add nsw i32 %9, 1
-  store i32 %inc7, i32* %i, align 4, !tbaa !9
+  %7 = load i32, ptr %i, align 4, !tbaa !9
+  %inc7 = add nsw i32 %7, 1
+  store i32 %inc7, ptr %i, align 4, !tbaa !9
   br label %while.cond1, !llvm.loop !13
 
 if.end8:                                          ; preds = %while.body3
@@ -223,28 +219,28 @@ while.end9:                                       ; preds = %while.cond1
 ; CHECK-SPIRV: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 131072 4
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 while.cond10:                                     ; preds = %if.end17, %if.then15, %while.end9
-  %10 = load i32, i32* %i, align 4, !tbaa !9
-  %11 = load i32, i32* %m, align 4, !tbaa !9
-  %cmp11 = icmp slt i32 %10, %11
+  %8 = load i32, ptr %i, align 4, !tbaa !9
+  %9 = load i32, ptr %m, align 4, !tbaa !9
+  %cmp11 = icmp slt i32 %8, %9
   br i1 %cmp11, label %while.body12, label %while.end18
 
 while.body12:                                     ; preds = %while.cond10
-  %12 = load i32, i32* %i, align 4, !tbaa !9
-  %rem13 = srem i32 %12, 5
+  %10 = load i32, ptr %i, align 4, !tbaa !9
+  %rem13 = srem i32 %10, 5
   %tobool14 = icmp ne i32 %rem13, 0
   br i1 %tobool14, label %if.then15, label %if.end17
 
 if.then15:                                        ; preds = %while.body12
-  %13 = load i32, i32* %i, align 4, !tbaa !9
-  %inc16 = add nsw i32 %13, 1
-  store i32 %inc16, i32* %i, align 4, !tbaa !9
+  %11 = load i32, ptr %i, align 4, !tbaa !9
+  %inc16 = add nsw i32 %11, 1
+  store i32 %inc16, ptr %i, align 4, !tbaa !9
   br label %while.cond10, !llvm.loop !15
 
 if.end17:                                         ; preds = %while.body12
   br label %while.cond10, !llvm.loop !15
 
 while.end18:                                      ; preds = %while.cond10
-  store i32 0, i32* %i, align 4, !tbaa !9
+  store i32 0, ptr %i, align 4, !tbaa !9
   br label %while.cond19
 ; CHECK-SPIRV: 3 LoopControlINTEL 8 2
 ; CHECK-SPIRV-NEXT: 2 Branch [[FOR]]
@@ -252,20 +248,20 @@ while.cond19:                                     ; preds = %if.end29, %if.then2
   br label %while.body20
 
 while.body20:                                     ; preds = %while.cond19
-  %14 = load i32, i32* %i, align 4, !tbaa !9
-  %rem21 = srem i32 %14, 2
+  %12 = load i32, ptr %i, align 4, !tbaa !9
+  %rem21 = srem i32 %12, 2
   %tobool22 = icmp ne i32 %rem21, 0
   br i1 %tobool22, label %if.then23, label %if.end25
 
 if.then23:                                        ; preds = %while.body20
-  %15 = load i32, i32* %i, align 4, !tbaa !9
-  %inc24 = add nsw i32 %15, 1
-  store i32 %inc24, i32* %i, align 4, !tbaa !9
+  %13 = load i32, ptr %i, align 4, !tbaa !9
+  %inc24 = add nsw i32 %13, 1
+  store i32 %inc24, ptr %i, align 4, !tbaa !9
   br label %while.cond19, !llvm.loop !17
 
 if.end25:                                         ; preds = %while.body20
-  %16 = load i32, i32* %i, align 4, !tbaa !9
-  %rem26 = srem i32 %16, 2
+  %14 = load i32, ptr %i, align 4, !tbaa !9
+  %rem26 = srem i32 %14, 2
   %cmp27 = icmp ne i32 %rem26, 0
   br i1 %cmp27, label %if.then28, label %if.end29
 
@@ -276,10 +272,8 @@ if.end29:                                         ; preds = %if.end25
   br label %while.cond19, !llvm.loop !17
 
 while.end30:                                      ; preds = %if.then28
-  %17 = bitcast i32* %m to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %17) #4
-  %18 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %18) #4
+  call void @llvm.lifetime.end.p0(i64 4, ptr %m) #4
+  call void @llvm.lifetime.end.p0(i64 4, ptr %i) #4
   ret void
 }
 
@@ -288,7 +282,7 @@ define spir_func void @loop_pipelining() #3 {
 entry:
   %a = alloca [10 x i32], align 4
   %i = alloca i32, align 4
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 ; Per SPIR-V spec, LoopControlPipelineEnableINTELMask = 0x80000 (524288)
@@ -296,21 +290,21 @@ entry:
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 524288 1
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
+  %0 = load i32, ptr %i, align 4
   %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %1 = load i32, i32* %i, align 4
+  %1 = load i32, ptr %i, align 4
   %idxprom = sext i32 %1 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
-  store i32 0, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom
+  store i32 0, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %inc = add nsw i32 %2, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond, !llvm.loop !19
 
 for.end:                                          ; preds = %for.cond
@@ -322,8 +316,8 @@ define spir_func void @loop_coalesce() #3 {
 entry:
   %i = alloca i32, align 4
   %m = alloca i32, align 4
-  store i32 0, i32* %i, align 4
-  store i32 42, i32* %m, align 4
+  store i32 0, ptr %i, align 4
+  store i32 42, ptr %m, align 4
   br label %while.cond
 
 ; Per SPIR-V spec, LoopControlLoopCoalesceINTELMask = 0x100000 (1048576)
@@ -331,28 +325,28 @@ entry:
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 4
 while.cond:                                       ; preds = %if.end, %if.then, %entry
-  %0 = load i32, i32* %i, align 4
-  %1 = load i32, i32* %m, align 4
+  %0 = load i32, ptr %i, align 4
+  %1 = load i32, ptr %m, align 4
   %cmp = icmp slt i32 %0, %1
   br i1 %cmp, label %while.body, label %while.end
 
 while.body:                                       ; preds = %while.cond
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %rem = srem i32 %2, 2
   %tobool = icmp ne i32 %rem, 0
   br i1 %tobool, label %if.then, label %if.end
 
 if.then:                                          ; preds = %while.body
-  %3 = load i32, i32* %i, align 4
+  %3 = load i32, ptr %i, align 4
   %inc = add nsw i32 %3, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %while.cond, !llvm.loop !21
 
 if.end:                                           ; preds = %while.body
   br label %while.cond, !llvm.loop !21
 
 while.end:                                        ; preds = %while.cond
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %while.cond1
 
 ; Per SPIR-V spec, LoopControlLoopCoalesceINTELMask = 0x100000 (1048576)
@@ -360,21 +354,21 @@ while.end:                                        ; preds = %while.cond
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 1048576 0
 while.cond1:                                      ; preds = %if.end8, %if.then6, %while.end
-  %4 = load i32, i32* %i, align 4
-  %5 = load i32, i32* %m, align 4
+  %4 = load i32, ptr %i, align 4
+  %5 = load i32, ptr %m, align 4
   %cmp2 = icmp slt i32 %4, %5
   br i1 %cmp2, label %while.body3, label %while.end9
 
 while.body3:                                      ; preds = %while.cond1
-  %6 = load i32, i32* %i, align 4
+  %6 = load i32, ptr %i, align 4
   %rem4 = srem i32 %6, 3
   %tobool5 = icmp ne i32 %rem4, 0
   br i1 %tobool5, label %if.then6, label %if.end8
 
 if.then6:                                         ; preds = %while.body3
-  %7 = load i32, i32* %i, align 4
+  %7 = load i32, ptr %i, align 4
   %inc7 = add nsw i32 %7, 1
-  store i32 %inc7, i32* %i, align 4
+  store i32 %inc7, ptr %i, align 4
   br label %while.cond1, !llvm.loop !23
 
 if.end8:                                          ; preds = %while.body3
@@ -389,7 +383,7 @@ define spir_func void @max_interleaving() #3 {
 entry:
   %a = alloca [10 x i32], align 4
   %i = alloca i32, align 4
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 ; Per SPIR-V spec, LoopControlMaxInterleavingINTELMask = 0x200000 (2097152)
@@ -397,21 +391,21 @@ entry:
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 2097152 3
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
+  %0 = load i32, ptr %i, align 4
   %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %1 = load i32, i32* %i, align 4
+  %1 = load i32, ptr %i, align 4
   %idxprom = sext i32 %1 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
-  store i32 0, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom
+  store i32 0, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %inc = add nsw i32 %2, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond, !llvm.loop !25
 
 for.end:                                          ; preds = %for.cond
@@ -423,7 +417,7 @@ define spir_func void @speculated_iterations() #3 {
 entry:
   %a = alloca [10 x i32], align 4
   %i = alloca i32, align 4
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 ; Per SPIR-V spec, LoopControlSpeculatedIterationsINTELMask = 0x400000 (4194304)
@@ -431,21 +425,21 @@ entry:
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 4194304 4
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
+  %0 = load i32, ptr %i, align 4
   %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %1 = load i32, i32* %i, align 4
+  %1 = load i32, ptr %i, align 4
   %idxprom = sext i32 %1 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
-  store i32 0, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom
+  store i32 0, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %inc = add nsw i32 %2, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond, !llvm.loop !27
 
 for.end:                                          ; preds = %for.cond
@@ -457,7 +451,7 @@ define spir_func void @nofusion() #3 {
 entry:
   %a = alloca [10 x i32], align 4
   %i = alloca i32, align 4
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 ; Per SPIR-V spec, LoopControlNoFusionINTELMask = 0x800000 (8388608)
@@ -465,21 +459,21 @@ entry:
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 4 LoopMerge {{[0-9]+}} {{[0-9]+}} 8388608
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
+  %0 = load i32, ptr %i, align 4
   %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %1 = load i32, i32* %i, align 4
+  %1 = load i32, ptr %i, align 4
   %idxprom = sext i32 %1 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
-  store i32 0, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom
+  store i32 0, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %inc = add nsw i32 %2, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond, !llvm.loop !29
 
 for.end:                                          ; preds = %for.cond
@@ -491,7 +485,7 @@ define spir_func void @max_reinvocation_delay() #3 {
 entry:
   %a = alloca [10 x i32], align 4
   %i = alloca i32, align 4
-  store i32 0, i32* %i, align 4
+  store i32 0, ptr %i, align 4
   br label %for.cond
 
 ; Per SPIR-V spec, LoopControlMaxReinvocationDelayINTELMask = 0x2000000 (33554432)
@@ -499,21 +493,21 @@ entry:
 ; CHECK-SPIRV-NEXT: 4 BranchConditional {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}
 ; CHECK-SPIRV-NEGATIVE-NOT: 5 LoopMerge {{[0-9]+}} {{[0-9]+}} 33554432 2
 for.cond:                                         ; preds = %for.inc, %entry
-  %0 = load i32, i32* %i, align 4
+  %0 = load i32, ptr %i, align 4
   %cmp = icmp ne i32 %0, 10
   br i1 %cmp, label %for.body, label %for.end
 
 for.body:                                         ; preds = %for.cond
-  %1 = load i32, i32* %i, align 4
+  %1 = load i32, ptr %i, align 4
   %idxprom = sext i32 %1 to i64
-  %arrayidx = getelementptr inbounds [10 x i32], [10 x i32]* %a, i64 0, i64 %idxprom
-  store i32 0, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds [10 x i32], ptr %a, i64 0, i64 %idxprom
+  store i32 0, ptr %arrayidx, align 4
   br label %for.inc
 
 for.inc:                                          ; preds = %for.body
-  %2 = load i32, i32* %i, align 4
+  %2 = load i32, ptr %i, align 4
   %inc = add nsw i32 %2, 1
-  store i32 %inc, i32* %i, align 4
+  store i32 %inc, ptr %i, align 4
   br label %for.cond, !llvm.loop !31
 
 for.end:                                          ; preds = %for.cond

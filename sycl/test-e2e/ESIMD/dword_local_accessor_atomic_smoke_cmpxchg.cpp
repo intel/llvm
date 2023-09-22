@@ -10,9 +10,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// UNSUPPORTED: gpu
-// UNSUPPORTED: esimd_emulator
 
 // This macro enables only cmpxchg tests. They may require more time to execute,
 // and have higher probablity to hit kernel execution time limit, so they are

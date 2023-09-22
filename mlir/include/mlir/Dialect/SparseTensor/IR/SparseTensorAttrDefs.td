@@ -194,13 +194,13 @@ def SparseTensorEncodingAttr : SparseTensor_Attr<"SparseTensorEncoding",
     ```mlir
     // Sparse vector.
     #SparseVector = #sparse_tensor.encoding<{
-      lvlTypes = [ "compressed" ]
+      map = (d0) -> (d0 : compressed)
     }>
     ... tensor<?xf32, #SparseVector> ...
 
     // Sorted Coordinate Scheme.
     #SortedCOO = #sparse_tensor.encoding<{
-      lvlTypes = [ "compressed-nu", "singleton" ]
+      lvlTypes = [ "compressed_nu", "singleton" ]
     }>
     ... tensor<?x?xf64, #SortedCOO> ...
 
@@ -437,6 +437,10 @@ class RankedSparseTensorOf<list<Type> allowedTypes>
   : RankedTensorOf<allowedTypes, [IsSparseTensorPred], "ranked sparse tensor">;
 
 def AnyRankedSparseTensor : RankedSparseTensorOf<[AnyType]>;
+
+class ScalarLikeOf<list<Type> allowedTypes>
+  : AnyTypeOf<[0DTensorOf<allowedTypes>, AnyTypeOf<allowedTypes>]>;
+
 
 //===----------------------------------------------------------------------===//
 // Sparse Tensor Sorting Algorithm Attribute.

@@ -31,7 +31,7 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir-unknown-unknown"
 
-@__const.main.funcs = private unnamed_addr constant [2 x i32 (i32, i32)*] [i32 (i32, i32)* @f1, i32 (i32, i32)* @f2], align 16
+@__const.main.funcs = private unnamed_addr constant [2 x ptr] [ptr @f1, ptr @f2], align 16
 
 ; Function Attrs: norecurse nounwind readnone uwtable
 define dso_local i32 @f1(i32 %a, i32 %b) #0 {
@@ -53,8 +53,8 @@ entry:
   %call = tail call i32 @rand() #3
   %rem = srem i32 %call, 2
   %idxprom = sext i32 %rem to i64
-  %arrayidx = getelementptr inbounds [2 x i32 (i32, i32)*], [2 x i32 (i32, i32)*]* @__const.main.funcs, i64 0, i64 %idxprom
-  %0 = load i32 (i32, i32)*, i32 (i32, i32)** %arrayidx, align 8
+  %arrayidx = getelementptr inbounds [2 x ptr], ptr @__const.main.funcs, i64 0, i64 %idxprom
+  %0 = load ptr, ptr %arrayidx, align 8
   %call1 = tail call i32 %0(i32 32, i32 2) #3
   ret i32 %call1
 }

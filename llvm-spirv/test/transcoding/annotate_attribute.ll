@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=1  %s -o %t.bc
+; RUN: llvm-as  %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -7,7 +7,7 @@
 
 ; Check that even when FPGA memory extensions are enabled - yet we have
 ; UserSemantic decoration be generated
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; Check SPIR-V versions in a format magic number + version

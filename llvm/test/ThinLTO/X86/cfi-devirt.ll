@@ -4,9 +4,8 @@
 
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t.o %s
 
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
-; RUN:   -opaque-pointers \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZN1A1nEi,p \
@@ -29,9 +28,8 @@
 ; that does not have a split LTO Unit. Use -thinlto-distributed-indexes
 ; to ensure it is being caught in the thin link.
 ; RUN: opt -thinlto-bc -o %t2.o %S/Inputs/empty.ll
-; RUN: not llvm-lto2 run -opaque-pointers %t.o %t2.o -thinlto-distributed-indexes \
+; RUN: not llvm-lto2 run %t.o %t2.o -thinlto-distributed-indexes \
 ; RUN:   -whole-program-visibility \
-; RUN:   -opaque-pointers \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZN1A1nEi,p \

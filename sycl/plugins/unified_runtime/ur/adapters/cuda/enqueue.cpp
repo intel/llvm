@@ -397,8 +397,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // Set up local memory requirements for kernel.
       auto Device = hQueue->getContext()->getDevice();
       if (Device->getMaxChosenLocalMem() < 0) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+        bool EnvVarHasURPrefix =
+            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
+        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -408,10 +412,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
+        bool EnvVarHasURPrefix =
+            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
         setErrorMessage(
-            "Local memory for kernel exceeds the amount requested using "
-            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
-            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
+            EnvVarHasURPrefix
+                ? "Local memory for kernel exceeds the amount requested using "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
+                : "Local memory for kernel exceeds the amount requested using "
+                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
+                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
             UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -719,19 +729,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
-            UR_RESULT_ERROR_INVALID_SIZE);
-
-  auto ArgsAreMultiplesOfPatternSize =
-      (offset % patternSize == 0) || (size % patternSize == 0);
-
-  auto PatternIsValid = (pPattern != nullptr);
-
-  auto PatternSizeIsValid =
-      ((patternSize & (patternSize - 1)) == 0) && // is power of two
-      (patternSize > 0) && (patternSize <= 128);  // falls within valid range
-
-  UR_ASSERT(ArgsAreMultiplesOfPatternSize && PatternIsValid &&
-                PatternSizeIsValid,
             UR_RESULT_ERROR_INVALID_SIZE);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};

@@ -201,7 +201,7 @@ CodeGenFunction::GenerateVarArgsThunk(llvm::Function *Fn,
   // Find the first store of "this", which will be to the alloca associated
   // with "this".
   Address ThisPtr =
-      Address(&*AI, ConvertTypeForMem(MD->getThisType()->getPointeeType()),
+      Address(&*AI, ConvertTypeForMem(MD->getThisObjectType()),
               CGM.getClassPointerAlignment(MD->getParent()));
   llvm::BasicBlock *EntryBB = &Fn->front();
   llvm::BasicBlock::iterator ThisStore =
@@ -690,7 +690,7 @@ bool CodeGenVTables::useRelativeLayout() const {
 llvm::Type *CodeGenModule::getVTableComponentType() const {
   if (UseRelativeLayout(*this))
     return Int32Ty;
-  return GlobalsInt8PtrTy;
+  return Int8PtrTy;
 }
 
 llvm::Type *CodeGenVTables::getVTableComponentType() const {
@@ -702,7 +702,7 @@ static void AddPointerLayoutOffset(const CodeGenModule &CGM,
                                    CharUnits offset) {
   builder.add(llvm::ConstantExpr::getIntToPtr(
       llvm::ConstantInt::get(CGM.PtrDiffTy, offset.getQuantity()),
-      CGM.GlobalsInt8PtrTy));
+      CGM.Int8PtrTy));
 }
 
 static void AddRelativeLayoutOffset(const CodeGenModule &CGM,
@@ -739,7 +739,7 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
                                   vtableHasLocalLinkage,
                                   /*isCompleteDtor=*/false);
     else
-      return builder.add(rtti);
+      return builder.add(llvm::ConstantExpr::getBitCast(rtti, CGM.Int8PtrTy));
 
   case VTableComponent::CK_FunctionPointer:
   case VTableComponent::CK_CompleteDtorPointer:
@@ -758,8 +758,7 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
               ? MD->hasAttr<CUDADeviceAttr>()
               : (MD->hasAttr<CUDAHostAttr>() || !MD->hasAttr<CUDADeviceAttr>());
       if (!CanEmitMethod)
-        return builder.add(
-            llvm::ConstantExpr::getNullValue(CGM.GlobalsInt8PtrTy));
+        return builder.add(llvm::ConstantExpr::getNullValue(CGM.Int8PtrTy));
       // Method is acceptable, continue processing as usual.
     }
 
@@ -772,20 +771,20 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
       // with the local symbol. As a temporary solution, fill these components
       // with zero. We shouldn't be calling these in the first place anyway.
       if (useRelativeLayout())
-        return llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
+        return llvm::ConstantPointerNull::get(CGM.Int8PtrTy);
 
       // For NVPTX devices in OpenMP emit special functon as null pointers,
       // otherwise linking ends up with unresolved references.
       if (CGM.getLangOpts().OpenMP && CGM.getLangOpts().OpenMPIsTargetDevice &&
           CGM.getTriple().isNVPTX())
-        return llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
+        return llvm::ConstantPointerNull::get(CGM.Int8PtrTy);
       llvm::FunctionType *fnTy =
           llvm::FunctionType::get(CGM.VoidTy, /*isVarArg=*/false);
       llvm::Constant *fn = cast<llvm::Constant>(
           CGM.CreateRuntimeFunction(fnTy, name).getCallee());
       if (auto f = dyn_cast<llvm::Function>(fn))
         f->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-      return fn;
+      return llvm::ConstantExpr::getBitCast(fn, CGM.Int8PtrTy);
     };
 
     llvm::Constant *fnPtr;
@@ -823,26 +822,15 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
       return addRelativeComponent(
           builder, fnPtr, vtableAddressPoint, vtableHasLocalLinkage,
           component.getKind() == VTableComponent::CK_CompleteDtorPointer);
-    } else {
-      // TODO: this icky and only exists due to functions being in the generic
-      //       address space, rather than the global one, even though they are
-      //       globals;  fixing said issue might be intrusive, and will be done
-      //       later.
-      unsigned FnAS = fnPtr->getType()->getPointerAddressSpace();
-      unsigned GVAS = CGM.GlobalsInt8PtrTy->getPointerAddressSpace();
-
-      if (FnAS != GVAS)
-        fnPtr =
-            llvm::ConstantExpr::getAddrSpaceCast(fnPtr, CGM.GlobalsInt8PtrTy);
-      return builder.add(fnPtr);
-    }
+    } else
+      return builder.add(llvm::ConstantExpr::getBitCast(fnPtr, CGM.Int8PtrTy));
   }
 
   case VTableComponent::CK_UnusedFunctionPointer:
     if (useRelativeLayout())
       return builder.add(llvm::ConstantExpr::getNullValue(CGM.Int32Ty));
     else
-      return builder.addNullPointer(CGM.GlobalsInt8PtrTy);
+      return builder.addNullPointer(CGM.Int8PtrTy);
   }
 
   llvm_unreachable("Unexpected vtable component kind");

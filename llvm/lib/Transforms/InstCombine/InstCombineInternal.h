@@ -155,9 +155,6 @@ public:
   Instruction *visitPHINode(PHINode &PN);
   Instruction *visitGetElementPtrInst(GetElementPtrInst &GEP);
   Instruction *visitGEPOfGEP(GetElementPtrInst &GEP, GEPOperator *Src);
-  #ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Instruction *visitGEPOfBitcast(BitCastInst *BCI, GetElementPtrInst &GEP);
-  #endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
   Instruction *visitFree(CallInst &FI, Value *FreedOp);
@@ -200,6 +197,27 @@ public:
 
   LoadInst *combineLoadToNewType(LoadInst &LI, Type *NewTy,
                                  const Twine &Suffix = "");
+
+  KnownFPClass computeKnownFPClass(Value *Val, FastMathFlags FMF,
+                                   FPClassTest Interested = fcAllFlags,
+                                   const Instruction *CtxI = nullptr,
+                                   unsigned Depth = 0) const {
+    return llvm::computeKnownFPClass(Val, FMF, DL, Interested, Depth, &TLI, &AC,
+                                     CtxI, &DT);
+  }
+
+  KnownFPClass computeKnownFPClass(Value *Val,
+                                   FPClassTest Interested = fcAllFlags,
+                                   const Instruction *CtxI = nullptr,
+                                   unsigned Depth = 0) const {
+    return llvm::computeKnownFPClass(Val, DL, Interested, Depth, &TLI, &AC,
+                                     CtxI, &DT);
+  }
+
+  /// Check if fmul \p MulVal, +0.0 will yield +0.0 (or signed zero is
+  /// ignorable).
+  bool fmulByZeroIsZero(Value *MulVal, FastMathFlags FMF,
+                        const Instruction *CtxI) const;
 
 private:
   bool annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI);
@@ -395,19 +413,17 @@ private:
   Instruction *foldAndOrOfSelectUsingImpliedCond(Value *Op, SelectInst &SI,
                                                  bool IsAnd);
 
+  Instruction *hoistFNegAboveFMulFDiv(Value *FNegOp, Instruction &FMFSource);
+
 public:
   /// Create and insert the idiom we use to indicate a block is unreachable
   /// without having to rewrite the CFG from within InstCombine.
   void CreateNonTerminatorUnreachable(Instruction *InsertAt) {
     auto &Ctx = InsertAt->getContext();
     auto *SI = new StoreInst(ConstantInt::getTrue(Ctx),
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-                             PoisonValue::get(Type::getInt1PtrTy(Ctx)),
-#else
                              PoisonValue::get(PointerType::getUnqual(Ctx)),
-#endif
                              /*isVolatile*/ false, Align(1));
-    InsertNewInstBefore(SI, *InsertAt);
+    InsertNewInstBefore(SI, InsertAt->getIterator());
   }
 
   /// Combiner aware instruction erasure.
@@ -547,6 +563,9 @@ public:
 
   Instruction *foldAddWithConstant(BinaryOperator &Add);
 
+  Instruction *foldSquareSumInt(BinaryOperator &I);
+  Instruction *foldSquareSumFP(BinaryOperator &I);
+
   /// Try to rotate an operation below a PHI node, using PHI nodes for
   /// its operands.
   Instruction *foldPHIArgOpIntoPHI(PHINode &PN);
@@ -592,6 +611,9 @@ public:
   Instruction *foldICmpInstWithConstantAllowUndef(ICmpInst &Cmp,
                                                   const APInt &C);
   Instruction *foldICmpBinOp(ICmpInst &Cmp, const SimplifyQuery &SQ);
+  Instruction *foldICmpWithMinMaxImpl(Instruction &I, MinMaxIntrinsic *MinMax,
+                                      Value *Z, ICmpInst::Predicate Pred);
+  Instruction *foldICmpWithMinMax(ICmpInst &Cmp);
   Instruction *foldICmpEquality(ICmpInst &Cmp);
   Instruction *foldIRemByPowerOfTwoToBitTest(ICmpInst &I);
   Instruction *foldSignBitTest(ICmpInst &I);
@@ -663,9 +685,6 @@ public:
 
   Value *insertRangeTest(Value *V, const APInt &Lo, const APInt &Hi,
                          bool isSigned, bool Inside);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Instruction *PromoteCastOfAllocation(BitCastInst &CI, AllocaInst &AI);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   bool mergeStoreIntoSuccessor(StoreInst &SI);
 
   /// Given an initial instruction, check to see if it is the root of a
@@ -678,13 +697,6 @@ public:
   Instruction *SimplifyAnyMemSet(AnyMemSetInst *MI);
 
   Value *EvaluateInDifferentType(Value *V, Type *Ty, bool isSigned);
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  /// Returns a value X such that Val = X * Scale, or null if none.
-  ///
-  /// If the multiplication is known not to overflow then NoSignedWrap is set.
-  Value *Descale(Value *Val, APInt Scale, bool &NoSignedWrap);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   bool tryToSinkInstruction(Instruction *I, BasicBlock *DestBlock);
 
@@ -726,13 +738,13 @@ class Negator final {
 
   std::array<Value *, 2> getSortedOperandsOfBinOp(Instruction *I);
 
-  [[nodiscard]] Value *visitImpl(Value *V, unsigned Depth);
+  [[nodiscard]] Value *visitImpl(Value *V, bool IsNSW, unsigned Depth);
 
-  [[nodiscard]] Value *negate(Value *V, unsigned Depth);
+  [[nodiscard]] Value *negate(Value *V, bool IsNSW, unsigned Depth);
 
   /// Recurse depth-first and attempt to sink the negation.
   /// FIXME: use worklist?
-  [[nodiscard]] std::optional<Result> run(Value *Root);
+  [[nodiscard]] std::optional<Result> run(Value *Root, bool IsNSW);
 
   Negator(const Negator &) = delete;
   Negator(Negator &&) = delete;
@@ -742,7 +754,7 @@ class Negator final {
 public:
   /// Attempt to negate \p Root. Retuns nullptr if negation can't be performed,
   /// otherwise returns negated value.
-  [[nodiscard]] static Value *Negate(bool LHSIsZero, Value *Root,
+  [[nodiscard]] static Value *Negate(bool LHSIsZero, bool IsNSW, Value *Root,
                                      InstCombinerImpl &IC);
 };
 

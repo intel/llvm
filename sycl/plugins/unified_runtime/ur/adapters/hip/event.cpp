@@ -15,10 +15,10 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_context_handle_t Context,
                                        ur_queue_handle_t Queue,
                                        hipStream_t Stream, uint32_t StreamToken)
-    : CommandType{Type}, RefCount{1}, HasBeenWaitedOn{false}, IsRecorded{false},
-      IsStarted{false}, StreamToken{StreamToken}, EvEnd{nullptr},
-      EvStart{nullptr}, EvQueued{nullptr}, Queue{Queue}, Stream{Stream},
-      Context{Context} {
+    : CommandType{Type}, RefCount{1}, HasOwnership{true},
+      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
+      StreamToken{StreamToken}, EvEnd{nullptr}, EvStart{nullptr},
+      EvQueued{nullptr}, Queue{Queue}, Stream{Stream}, Context{Context} {
 
   bool ProfilingEnabled = Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE;
 
@@ -33,6 +33,15 @@ ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
   if (Queue != nullptr) {
     urQueueRetain(Queue);
   }
+  urContextRetain(Context);
+}
+
+ur_event_handle_t_::ur_event_handle_t_(ur_context_handle_t Context,
+                                       hipEvent_t EventNative)
+    : CommandType{UR_COMMAND_EVENTS_WAIT}, RefCount{1}, HasOwnership{false},
+      HasBeenWaitedOn{false}, IsRecorded{false}, IsStarted{false},
+      StreamToken{std::numeric_limits<uint32_t>::max()}, EvEnd{EventNative},
+      EvStart{nullptr}, EvQueued{nullptr}, Queue{nullptr}, Context{Context} {
   urContextRetain(Context);
 }
 
@@ -160,6 +169,9 @@ ur_result_t ur_event_handle_t_::wait() {
 }
 
 ur_result_t ur_event_handle_t_::release() {
+  if (!backendHasOwnership())
+    return UR_RESULT_SUCCESS;
+
   assert(Queue != nullptr);
   UR_CHECK_ERROR(hipEventDestroy(EvEnd));
 
@@ -302,15 +314,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 /// Created a UR event object from a HIP event handle.
-/// TODO: Implement this.
-/// NOTE: The created UR object takes ownership of the native handle.
+/// NOTE: The created UR object doesn't take ownership of the native handle.
 ///
 /// \param[in] hNativeEvent The native handle to create UR event object from.
 /// \param[out] phEvent Set to the UR event object created from native handle.
-///
-/// \return UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t, ur_context_handle_t,
-    const ur_event_native_properties_t *, ur_event_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
+    const ur_event_native_properties_t *pProperties,
+    ur_event_handle_t *phEvent) {
+  std::ignore = pProperties;
+
+  *phEvent = ur_event_handle_t_::makeWithNative(
+      hContext, reinterpret_cast<hipEvent_t>(hNativeEvent));
+
+  return UR_RESULT_SUCCESS;
 }

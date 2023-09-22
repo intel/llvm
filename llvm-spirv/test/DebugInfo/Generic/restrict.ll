@@ -24,11 +24,11 @@ target triple = "spir64-unknown-unknown"
 
 
 ; Function Attrs: nounwind uwtable
-define void @_Z3fooPv(i8* noalias %dst) #0 !dbg !4 {
+define void @_Z3fooPv(ptr noalias %dst) #0 !dbg !4 {
 entry:
-  %dst.addr = alloca i8*, align 8
-  store i8* %dst, i8** %dst.addr, align 8
-  call void @llvm.dbg.declare(metadata i8** %dst.addr, metadata !13, metadata !DIExpression()), !dbg !14
+  %dst.addr = alloca ptr, align 8
+  store ptr %dst, ptr %dst.addr, align 8
+  call void @llvm.dbg.declare(metadata ptr %dst.addr, metadata !13, metadata !DIExpression()), !dbg !14
   ret void, !dbg !15
 }
 

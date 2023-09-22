@@ -15,8 +15,27 @@
 
 #include "mlir/IR/Attributes.h"
 
+namespace llvm {
+class IRBuilderBase;
+}
+
 namespace mlir {
+class SymbolTable;
+namespace LLVM {
+class ModuleTranslation;
+}
 namespace gpu {
+/// This class indicates that the attribute associated with this trait is a GPU
+/// offloading translation attribute. These kinds of attributes must implement
+/// an interface for handling the translation of GPU offloading operations like
+/// `gpu.binary` & `gpu.launch_func`.
+template <typename ConcreteType>
+class OffloadingTranslationAttrTrait
+    : public AttributeTrait::TraitBase<ConcreteType,
+                                       OffloadingTranslationAttrTrait> {
+  // TODO: Verify the attribute promises or implements the interface.
+};
+
 /// This class serves as an opaque interface for passing options to the
 /// `TargetAttrInterface` methods. Users of this class must implement the
 /// `classof` method as well as using the macros `MLIR_*_EXPLICIT_TYPE_ID` to
@@ -25,18 +44,25 @@ class TargetOptions {
 public:
   /// The target representation of the compilation process.
   typedef enum {
-    offload,  /// The process should produce an offloading representation. For
-              /// the NVVM & ROCDL targets this option produces LLVM IR.
-    assembly, /// The process should produce assembly code.
-    binary    /// The process should produce a binary.
+    offload = 1,  /// The process should produce an offloading representation.
+                  /// For the NVVM & ROCDL targets this option produces LLVM IR.
+    assembly = 2, /// The process should produce assembly code.
+    binary = 4,   /// The process should produce a binary.
+    fatbinary = 8, /// The process should produce a fat binary.
+    binOrFatbin =
+        binary |
+        fatbinary, /// The process should produce a binary or fatbinary. It's up
+                   /// to the target to decide which.
   } CompilationTarget;
 
   /// Constructor initializing the toolkit path, the list of files to link to,
-  /// extra command line options & the compilation target. The default
-  /// compilation target is `binary`.
+  /// extra command line options, the compilation target and a callback for
+  /// obtaining the parent symbol table. The default compilation target is
+  /// `binOrFatbin`.
   TargetOptions(StringRef toolkitPath = {},
                 ArrayRef<std::string> linkFiles = {}, StringRef cmdOptions = {},
-                CompilationTarget compilationTarget = binary);
+                CompilationTarget compilationTarget = binOrFatbin,
+                function_ref<SymbolTable *()> getSymbolTableCallback = {});
 
   /// Returns the typeID.
   TypeID getTypeID() const;
@@ -57,12 +83,20 @@ public:
   /// Returns the compilation target.
   CompilationTarget getCompilationTarget() const;
 
+  /// Returns the result of the `getSymbolTableCallback` callback or a nullptr
+  /// if no callback was provided.
+  /// Note: The callback itself can return nullptr. It is up to the target how
+  /// to react to getting a nullptr, e.g., emitting an error or constructing the
+  /// table.
+  SymbolTable *getSymbolTable() const;
+
 protected:
   /// Derived classes must use this constructor to initialize `typeID` to the
   /// appropiate value: ie. `TargetOptions(TypeID::get<DerivedClass>())`.
   TargetOptions(TypeID typeID, StringRef toolkitPath = {},
                 ArrayRef<std::string> linkFiles = {}, StringRef cmdOptions = {},
-                CompilationTarget compilationTarget = binary);
+                CompilationTarget compilationTarget = binOrFatbin,
+                function_ref<SymbolTable *()> getSymbolTableCallback = {});
 
   /// Path to the target toolkit.
   std::string toolkitPath;
@@ -76,6 +110,10 @@ protected:
 
   /// Compilation process target representation.
   CompilationTarget compilationTarget;
+
+  /// Callback for obtaining the parent symbol table of all the GPU modules
+  /// being serialized.
+  function_ref<SymbolTable *()> getSymbolTableCallback;
 
 private:
   TypeID typeID;

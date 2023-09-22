@@ -43,7 +43,8 @@ public:
 
   void Select(SDNode *Node) override;
 
-  bool SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
+  bool SelectInlineAsmMemoryOperand(const SDValue &Op,
+                                    InlineAsm::ConstraintCode ConstraintID,
                                     std::vector<SDValue> &OutOps) override;
 
   bool SelectAddrFrameIndex(SDValue Addr, SDValue &Base, SDValue &Offset);
@@ -187,6 +188,7 @@ private:
   bool doPeepholeSExtW(SDNode *Node);
   bool doPeepholeMaskedRVV(MachineSDNode *Node);
   bool doPeepholeMergeVVMFold();
+  bool doPeepholeNoRegPassThru();
   bool performVMergeToVMv(SDNode *N);
   bool performCombineVMergeAndVOps(SDNode *N);
 };

@@ -50,14 +50,18 @@ _CLC_TERNARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fma,
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fma(ushort x, ushort y, ushort z) {
-    return __nvvm_fma_rn_bf16(x, y, z);
+    ushort res;
+    __asm__("fma.rn.bf16 %0, %1, %2, %3;" : "=h"(res) : "h"(x), "h"(y), "h"(z));
+    return res;
 }
 _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma, ushort,
                        ushort, ushort)
 
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD uint __clc_fma(uint x, uint y, uint z) {
-    return __nvvm_fma_rn_bf16x2(x, y, z);
+    uint res;
+    __asm__("fma.rn.bf16x2 %0, %1, %2, %3;" : "=r"(res) : "r"(x), "r"(y), "r"(z));
+    return res;
 }
 _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fma, uint,
                        uint, uint)

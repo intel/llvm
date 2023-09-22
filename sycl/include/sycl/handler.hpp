@@ -318,44 +318,103 @@ checkValueRange(const T &V) {
 #endif
 }
 
+template <int Dims> class RoundedRangeIDGenerator {
+  id<Dims> Id;
+  id<Dims> InitId;
+  range<Dims> UserRange;
+  range<Dims> RoundedRange;
+  bool Done = false;
+
+public:
+  RoundedRangeIDGenerator(const id<Dims> &Id, const range<Dims> &UserRange,
+                          const range<Dims> &RoundedRange)
+      : Id(Id), InitId(Id), UserRange(UserRange), RoundedRange(RoundedRange) {
+    for (int i = 0; i < Dims; ++i)
+      if (Id[i] >= UserRange[i])
+        Done = true;
+  }
+
+  explicit operator bool() { return !Done; }
+
+  void updateId() {
+    for (int i = 0; i < Dims; ++i) {
+      Id[i] += RoundedRange[i];
+      if (Id[i] < UserRange[i])
+        return;
+      Id[i] = InitId[i];
+    }
+    Done = true;
+  }
+
+  id<Dims> getId() { return Id; }
+
+  template <typename KernelType> auto getItem() {
+    if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
+                  std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
+      return detail::Builder::createItem<Dims, true>(UserRange, getId(), {});
+    else {
+      static_assert(std::is_invocable_v<KernelType, item<Dims, false>> ||
+                        std::is_invocable_v<KernelType, item<Dims, false>,
+                                            kernel_handler>,
+                    "Kernel must be invocable with an item!");
+      return detail::Builder::createItem<Dims, false>(UserRange, getId());
+    }
+  }
+};
+
+// TODO: The wrappers can be optimized further so that the body
+// essentially looks like this:
+//   for (auto z = it[2]; z < UserRange[2]; z += it.get_range(2))
+//     for (auto y = it[1]; y < UserRange[1]; y += it.get_range(1))
+//       for (auto x = it[0]; x < UserRange[0]; x += it.get_range(0))
+//         KernelFunc({x,y,z});
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel {
 public:
-  RoundedRangeKernel(range<Dims> NumWorkItems, KernelType KernelFunc)
-      : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
-
-  void operator()(TransformedArgType Arg) const {
-    if (Arg[0] >= NumWorkItems[0])
-      return;
-    Arg.set_allowed_range(NumWorkItems);
-    KernelFunc(Arg);
-  }
-
-private:
-  range<Dims> NumWorkItems;
+  range<Dims> UserRange;
   KernelType KernelFunc;
+  void operator()(item<Dims> It) const {
+    auto RoundedRange = It.get_range();
+    for (RoundedRangeIDGenerator Gen(It.get_id(), UserRange, RoundedRange); Gen;
+         Gen.updateId())
+      KernelFunc(Gen.template getItem<KernelType>());
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH {
 public:
-  RoundedRangeKernelWithKH(range<Dims> NumWorkItems, KernelType KernelFunc)
-      : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
-
-  void operator()(TransformedArgType Arg, kernel_handler KH) const {
-    if (Arg[0] >= NumWorkItems[0])
-      return;
-    Arg.set_allowed_range(NumWorkItems);
-    KernelFunc(Arg, KH);
-  }
-
-private:
-  range<Dims> NumWorkItems;
+  range<Dims> UserRange;
   KernelType KernelFunc;
+  void operator()(item<Dims> It, kernel_handler KH) const {
+    auto RoundedRange = It.get_range();
+    for (RoundedRangeIDGenerator Gen(It.get_id(), UserRange, RoundedRange); Gen;
+         Gen.updateId())
+      KernelFunc(Gen.template getItem<KernelType>(), KH);
+  }
 };
 
 using std::enable_if_t;
 using sycl::detail::queue_impl;
+
+// Returns true if x*y will overflow in T;
+// otherwise, returns false and stores x*y in dst.
+template <typename T>
+static std::enable_if_t<std::is_unsigned_v<T>, bool>
+multiply_with_overflow_check(T &dst, T x, T y) {
+  dst = x * y;
+  return (y != 0) && (x > (std::numeric_limits<T>::max)() / y);
+}
+
+template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
+  size_t acc = 1;
+  for (int i = 0; i < Dims; ++i) {
+    bool did_overflow = multiply_with_overflow_check(acc, acc, r[i]);
+    if (did_overflow)
+      return false;
+  }
+  return true;
+}
 
 } // namespace detail
 
@@ -1042,6 +1101,104 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
+  std::optional<std::array<size_t, 3>> getMaxWorkGroups();
+
+  template <int Dims>
+  std::optional<range<Dims>> getRoundedRange(range<Dims> UserRange) {
+    range<Dims> RoundedRange = UserRange;
+    // Disable the rounding-up optimizations under these conditions:
+    // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
+    // 2. The kernel is provided via an interoperability method (this uses a
+    // different code path).
+    // 3. The range is already a multiple of the rounding factor.
+    //
+    // Cases 2 and 3 could be supported with extra effort.
+    // As an optimization for the common case it is an
+    // implementation choice to not support those scenarios.
+    // Note that "this_item" is a free function, i.e. not tied to any
+    // specific id or item. When concurrent parallel_fors are executing
+    // on a device it is difficult to tell which parallel_for the call is
+    // being made from. One could replicate portions of the
+    // call-graph to make this_item calls kernel-specific but this is
+    // not considered worthwhile.
+
+    // Perform range rounding if rounding-up is enabled.
+    if (this->DisableRangeRounding())
+      return {};
+
+    // Range should be a multiple of this for reasonable performance.
+    size_t MinFactorX = 16;
+    // Range should be a multiple of this for improved performance.
+    size_t GoodFactor = 32;
+    // Range should be at least this to make rounding worthwhile.
+    size_t MinRangeX = 1024;
+
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodFactor, MinRangeX);
+
+    // In SYCL, each dimension of a global range size is specified by
+    // a size_t, which can be up to 64 bits.  All backends should be
+    // able to accept a kernel launch with a 32-bit global range size
+    // (i.e. do not throw an error).  The OpenCL CPU backend will
+    // accept every 64-bit global range, but the GPU backends will not
+    // generally accept every 64-bit global range.  So, when we get a
+    // non-32-bit global range, we wrap the old kernel in a new kernel
+    // that has each work item peform multiple invocations the old
+    // kernel in a 32-bit global range.
+    auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+    id<Dims> MaxNWGs = [&] {
+      auto PiResult = getMaxWorkGroups();
+      if (!PiResult.has_value()) {
+        id<Dims> Default;
+        for (int i = 0; i < Dims; ++i)
+          Default[i] = (std::numeric_limits<int32_t>::max)();
+        return Default;
+      }
+
+      id<Dims> IdResult;
+      size_t Limit = (std::numeric_limits<int>::max)();
+      for (int i = 0; i < Dims; ++i)
+        IdResult[i] = (std::min)(Limit, (*PiResult)[Dims - i - 1]);
+      return IdResult;
+    }();
+    auto M = (std::numeric_limits<uint32_t>::max)();
+    range<Dims> MaxRange;
+    for (int i = 0; i < Dims; ++i) {
+      auto DesiredSize = MaxNWGs[i] * GoodFactor;
+      MaxRange[i] =
+          DesiredSize <= M ? DesiredSize : (M / GoodFactor) * GoodFactor;
+    }
+
+    bool DidAdjust = false;
+    auto Adjust = [&](int Dim, size_t Value) {
+      if (this->RangeRoundingTrace())
+        std::cout << "parallel_for range adjusted at dim " << Dim << " from "
+                  << RoundedRange[Dim] << " to " << Value << std::endl;
+      RoundedRange[Dim] = Value;
+      DidAdjust = true;
+    };
+
+    // Perform range rounding if there are sufficient work-items to
+    // need rounding and the user-specified range is not a multiple of
+    // a "good" value.
+    if (RoundedRange[0] % MinFactorX != 0 && RoundedRange[0] >= MinRangeX) {
+      // It is sufficient to round up just the first dimension.
+      // Multiplying the rounded-up value of the first dimension
+      // by the values of the remaining dimensions (if any)
+      // will yield a rounded-up value for the total range.
+      Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
+    }
+
+    for (int i = 0; i < Dims; ++i)
+      if (RoundedRange[i] > MaxRange[i])
+        Adjust(i, MaxRange[i]);
+
+    if (!DidAdjust)
+      return {};
+    return RoundedRange;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -1056,10 +1213,15 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  void parallel_for_lambda_impl(range<Dims> NumWorkItems, PropertiesT Props,
+  void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
     throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    if (!range_size_fits_in_size_t(UserRange))
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "The total number of work-items in "
+                            "a range must fit within size_t");
+
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
@@ -1086,64 +1248,26 @@ private:
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
-    // Range should be a multiple of this for reasonable performance.
-    size_t MinFactorX = 16;
-    // Range should be a multiple of this for improved performance.
-    size_t GoodFactorX = 32;
-    // Range should be at least this to make rounding worthwhile.
-    size_t MinRangeX = 1024;
-
-    // Check if rounding parameters have been set through environment:
-    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
-    this->GetRangeRoundingSettings(MinFactorX, GoodFactorX, MinRangeX);
-
-    // Disable the rounding-up optimizations under these conditions:
-    // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 2. The kernel is provided via an interoperability method (this uses a
-    // different code path).
-    // 3. The range is already a multiple of the rounding factor.
-    //
-    // Cases 2 and 3 could be supported with extra effort.
-    // As an optimization for the common case it is an
-    // implementation choice to not support those scenarios.
-    // Note that "this_item" is a free function, i.e. not tied to any
-    // specific id or item. When concurrent parallel_fors are executing
-    // on a device it is difficult to tell which parallel_for the call is
-    // being made from. One could replicate portions of the
-    // call-graph to make this_item calls kernel-specific but this is
-    // not considered worthwhile.
-
-    // Perform range rounding if rounding-up is enabled
-    // and there are sufficient work-items to need rounding
-    // and the user-specified range is not a multiple of a "good" value.
-    if (!this->DisableRangeRounding() && (NumWorkItems[0] >= MinRangeX) &&
-        (NumWorkItems[0] % MinFactorX != 0)) {
-      // It is sufficient to round up just the first dimension.
-      // Multiplying the rounded-up value of the first dimension
-      // by the values of the remaining dimensions (if any)
-      // will yield a rounded-up value for the total range.
-      size_t NewValX =
-          ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      if (this->RangeRoundingTrace())
-        std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
-                  << " to " << NewValX << std::endl;
-
+    if (auto RoundedRange = getRoundedRange(UserRange)) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
-              KernelFunc, NumWorkItems);
+              KernelFunc, UserRange);
 
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      range<Dims> AdjustedRange = NumWorkItems;
-      AdjustedRange.set_range_dim0(NewValX);
-      kernel_parallel_for_wrapper<KName, TransformedArgType, decltype(Wrapper),
+      kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      detail::checkValueRange<Dims>(AdjustedRange);
-      MNDRDesc.set(std::move(AdjustedRange));
-      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
+      // We are executing over the rounded range, but there are still
+      // items/ids that are are constructed in ther range rounded
+      // kernel use items/ids in the user range, which means that
+      // __SYCL_ASSUME_INT can still be violated. So check the bounds
+      // of the user range, instead of the rounded range.
+      detail::checkValueRange<Dims>(UserRange);
+      MNDRDesc.set(*RoundedRange);
+      StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
 #endif
@@ -1152,13 +1276,13 @@ private:
        // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&
        // SYCL_LANGUAGE_VERSION >= 202001
     {
-      (void)NumWorkItems;
+      (void)UserRange;
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       processProperties<PropertiesT>(Props);
-      detail::checkValueRange<Dims>(NumWorkItems);
-      MNDRDesc.set(std::move(NumWorkItems));
+      detail::checkValueRange<Dims>(UserRange);
+      MNDRDesc.set(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CG::Kernel);
@@ -1191,10 +1315,19 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+#ifdef SYCL2020_CONFORMANT_APIS
+    static_assert(
+        std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+        "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+        "must be either sycl::nd_item or be convertible from sycl::nd_item");
+    using TransformedArgType = sycl::nd_item<Dims>;
+#else
     // If user type is convertible from sycl::item/sycl::nd_item, use
     // sycl::item/sycl::nd_item to transport item information
     using TransformedArgType =
         typename TransformUserItemType<Dims, LambdaArgType>::type;
+#endif
+
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
@@ -2542,6 +2675,7 @@ public:
     CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
+public:
   /// Fills memory pointed by accessor with the pattern given.
   ///
   /// If the operation is submitted to queue associated with OpenCL device and
@@ -2567,28 +2701,30 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
+    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // data is contiguous. Thus we check range and offset when dim > 1
+    // Images don't allow ranged accessors and are fine.
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
-                  (Dims <= 1 || isImageOrImageArray(AccessTarget))) {
-      setType(detail::CG::Fill);
-
-      detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
-      detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-
-      MDstPtr = static_cast<void *>(AccImpl.get());
-      CGData.MRequirements.push_back(AccImpl.get());
-      CGData.MAccStorage.push_back(std::move(AccImpl));
-
-      MPattern.resize(sizeof(T));
-      auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
-      *PatternPtr = Pattern;
+                  ((Dims <= 1) || isImageOrImageArray(AccessTarget))) {
+      StageFillCG(Dst, Pattern);
     } else if constexpr (Dims == 0) {
       // Special case for zero-dim accessors.
       parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
-      range<Dims> Range = Dst.get_range();
-      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-          Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+      // Dim > 1
+      bool OffsetUsable = (Dst.get_offset() == sycl::id<Dims>{});
+      detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
+      bool RangesUsable =
+          (AccBase->getAccessRange() == AccBase->getMemoryRange());
+      if (OffsetUsable && RangesUsable &&
+          isBackendSupportedFillSize(sizeof(T))) {
+        StageFillCG(Dst, Pattern);
+      } else {
+        range<Dims> Range = Dst.get_range();
+        parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+            Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+      }
     }
   }
 
@@ -3264,10 +3400,9 @@ private:
             std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems) {
+                                   range<Dims> UserRange) {
     return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
-                                            KernelType>(NumWorkItems,
-                                                        KernelFunc);
+                                            KernelType>{UserRange, KernelFunc};
   }
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
@@ -3275,9 +3410,9 @@ private:
             std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems) {
-    return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>(
-        NumWorkItems, KernelFunc);
+                                   range<Dims> UserRange) {
+    return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
+        UserRange, KernelFunc};
   }
 
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
@@ -3334,6 +3469,28 @@ private:
         std::copy(SrcItBegin, SrcItBegin + Width, DestItBegin);
       }
     });
+  }
+
+  // StageFillCG()  Supporting function to fill()
+  template <typename T, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void StageFillCG(
+      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+          Dst,
+      const T &Pattern) {
+    setType(detail::CG::Fill);
+    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
+    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+
+    MDstPtr = static_cast<void *>(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
+    CGData.MAccStorage.push_back(std::move(AccImpl));
+
+    MPattern.resize(sizeof(T));
+    auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
+    *PatternPtr = Pattern;
   }
 
   // Common function for launching a 2D USM fill kernel to avoid redefinitions
