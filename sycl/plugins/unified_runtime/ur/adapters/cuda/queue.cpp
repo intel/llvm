@@ -204,7 +204,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
     ScopedContext active(hQueue->getContext());
 
     hQueue->syncStreams</*ResetUsed=*/true>(
-        [&Result](CUstream s) { UR_CHECK_ERROR(cuStreamSynchronize(s)); });
+        [](CUstream s) { UR_CHECK_ERROR(cuStreamSynchronize(s)); });
 
   } catch (ur_result_t Err) {
 
