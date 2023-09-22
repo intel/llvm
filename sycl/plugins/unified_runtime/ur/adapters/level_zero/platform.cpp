@@ -55,7 +55,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   // We must only initialize the driver once, even if urPlatformGet() is called
   // multiple times.  Declaring the return value as "static" ensures it's only
   // called once.
-  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
+  static ze_result_t ZeResult =
+      ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
