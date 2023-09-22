@@ -18,7 +18,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/matrix/utils.hpp>
+#include <sycl/ext/oneapi/matrix/static-query-use.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>

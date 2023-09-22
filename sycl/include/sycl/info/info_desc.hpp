@@ -17,7 +17,7 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/matrix/utils.hpp>
+#include <sycl/ext/oneapi/matrix/static-query-use.hpp>
 #include <sycl/range.hpp>
 
 namespace sycl {
