@@ -569,9 +569,6 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(InstCombinePass());
   FPM.addPass(AggressiveInstCombinePass());
 
-  if (EnableConstraintElimination)
-    FPM.addPass(ConstraintEliminationPass());
-
   if (!Level.isOptimizingForSize())
     FPM.addPass(LibCallsShrinkWrapPass());
 
@@ -597,6 +594,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
 
     // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
     // optimizations rely on TTI, which is not accurate for SPIR target.
+    if (EnableConstraintElimination)
+      FPM.addPass(ConstraintEliminationPass());
 
     // Add the primary loop simplification pipeline.
     // FIXME: Currently this is split into two loop pass pipelines because we
