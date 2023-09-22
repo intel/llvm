@@ -715,8 +715,6 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction({ISD::SMIN, ISD::SMAX, ISD::UMIN, ISD::UMAX}, VT,
                          Legal);
 
-      setOperationAction({ISD::VP_FSHL, ISD::VP_FSHR}, VT, Expand);
-
       // Custom-lower extensions and truncations from/to mask types.
       setOperationAction({ISD::ANY_EXTEND, ISD::SIGN_EXTEND, ISD::ZERO_EXTEND},
                          VT, Custom);
@@ -8629,6 +8627,18 @@ SDValue RISCVTargetLowering::lowerINSERT_SUBVECTOR(SDValue Op,
       ContainerVT = getContainerForFixedLengthVector(VecVT);
       Vec = convertToScalableVector(ContainerVT, Vec, DAG, Subtarget);
     }
+
+    // Shrink down Vec so we're performing the slideup on a smaller LMUL.
+    unsigned LastIdx = OrigIdx + SubVecVT.getVectorNumElements() - 1;
+    MVT OrigContainerVT = ContainerVT;
+    SDValue OrigVec = Vec;
+    if (auto ShrunkVT =
+            getSmallestVTForIndex(ContainerVT, LastIdx, DL, DAG, Subtarget)) {
+      ContainerVT = *ShrunkVT;
+      Vec = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, ContainerVT, Vec,
+                        DAG.getVectorIdxConstant(0, DL));
+    }
+
     SubVec = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, ContainerVT,
                          DAG.getUNDEF(ContainerVT), SubVec,
                          DAG.getConstant(0, DL, XLenVT));
@@ -8658,6 +8668,12 @@ SDValue RISCVTargetLowering::lowerINSERT_SUBVECTOR(SDValue Op,
       SubVec = getVSlideup(DAG, Subtarget, DL, ContainerVT, Vec, SubVec,
                            SlideupAmt, Mask, VL, Policy);
     }
+
+    // If we performed the slideup on a smaller LMUL, insert the result back
+    // into the rest of the vector.
+    if (ContainerVT != OrigContainerVT)
+      SubVec = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, OrigContainerVT, OrigVec,
+                           SubVec, DAG.getVectorIdxConstant(0, DL));
 
     if (VecVT.isFixedLengthVector())
       SubVec = convertFromScalableVector(VecVT, SubVec, DAG, Subtarget);
@@ -13623,10 +13639,11 @@ static bool matchIndexAsWiderOp(EVT VT, SDValue Index, SDValue Mask,
     // TODO: This offset check is too strict if we support fully
     // misaligned memory operations.
     uint64_t C = Index->getConstantOperandVal(i);
-    if (C % ElementSize != 0)
-      return false;
-    if (i % 2 == 0)
+    if (i % 2 == 0) {
+      if (C % WiderElementSize != 0)
+        return false;
       continue;
+    }
     uint64_t Last = Index->getConstantOperandVal(i-1);
     if (C != Last + ElementSize)
       return false;
@@ -14054,6 +14071,35 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
            MGN->getBasePtr(), Index, ScaleOp},
           MGN->getMemOperand(), IndexType, MGN->getExtensionType());
 
+    if (Index.getOpcode() == ISD::BUILD_VECTOR &&
+        MGN->getExtensionType() == ISD::NON_EXTLOAD) {
+      if (std::optional<VIDSequence> SimpleVID = isSimpleVIDSequence(Index);
+          SimpleVID && SimpleVID->StepDenominator == 1) {
+        const int64_t StepNumerator = SimpleVID->StepNumerator;
+        const int64_t Addend = SimpleVID->Addend;
+
+        // Note: We don't need to check alignment here since (by assumption
+        // from the existance of the gather), our offsets must be sufficiently
+        // aligned.
+
+        const EVT PtrVT = getPointerTy(DAG.getDataLayout());
+        assert(MGN->getBasePtr()->getValueType(0) == PtrVT);
+        assert(IndexType == ISD::UNSIGNED_SCALED);
+        SDValue BasePtr = DAG.getNode(ISD::ADD, DL, PtrVT, MGN->getBasePtr(),
+                                      DAG.getConstant(Addend, DL, PtrVT));
+
+        SDVTList VTs = DAG.getVTList({VT, MVT::Other});
+        SDValue IntID =
+          DAG.getTargetConstant(Intrinsic::riscv_masked_strided_load, DL,
+                                XLenVT);
+        SDValue Ops[] =
+          {MGN->getChain(), IntID, MGN->getPassThru(), BasePtr,
+           DAG.getConstant(StepNumerator, DL, XLenVT), MGN->getMask()};
+        return DAG.getMemIntrinsicNode(ISD::INTRINSIC_W_CHAIN, DL, VTs,
+                                       Ops, VT, MGN->getMemOperand());
+      }
+    }
+
     SmallVector<int> ShuffleMask;
     if (MGN->getExtensionType() == ISD::NON_EXTLOAD &&
         matchIndexAsShuffle(VT, Index, MGN->getMask(), ShuffleMask)) {
@@ -14465,6 +14511,24 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
                                  DAG.getUNDEF(XLenVT), Mask, PassThru,
                                  Load->getMemoryVT(), Load->getMemOperand(),
                                  ISD::UNINDEXED, ISD::NON_EXTLOAD);
+      return SDValue();
+    }
+    case Intrinsic::riscv_masked_strided_store: {
+      auto *Store = cast<MemIntrinsicSDNode>(N);
+      SDValue Value = N->getOperand(2);
+      SDValue Base = N->getOperand(3);
+      SDValue Stride = N->getOperand(4);
+      SDValue Mask = N->getOperand(5);
+
+      // If the stride is equal to the element size in bytes,  we can use
+      // a masked.store.
+      const unsigned ElementSize = Value.getValueType().getScalarStoreSize();
+      if (auto *StrideC = dyn_cast<ConstantSDNode>(Stride);
+          StrideC && StrideC->getZExtValue() == ElementSize)
+        return DAG.getMaskedStore(Store->getChain(), DL, Value, Base,
+                                  DAG.getUNDEF(XLenVT), Mask,
+                                  Store->getMemoryVT(), Store->getMemOperand(),
+                                  ISD::UNINDEXED, false);
       return SDValue();
     }
     case Intrinsic::riscv_vcpop:
