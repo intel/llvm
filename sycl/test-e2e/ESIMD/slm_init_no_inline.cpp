@@ -5,10 +5,6 @@
 // RUN: %{build} ${O0flags} -o %t0.out
 // RUN: %{run} %t0.out
 
-// TODO: gpu driver cannot yet handle the IR generated without
-// inlining and especially without optimizations.
-// XFAIL: gpu && !esimd_emulator
-
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
@@ -26,6 +22,12 @@ int main() {
   std::cout << "Running on " << D.get_info<info::device::name>()
             << ", driver=" << D.get_info<info::device::driver_version>()
             << std::endl;
+
+  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "26516",
+                     "101.4827")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26516 or newer.\n";
+    return 0;
+  }
 
   constexpr int Size = VL * 2;
   int *A = malloc_shared<int>(Size, Q);

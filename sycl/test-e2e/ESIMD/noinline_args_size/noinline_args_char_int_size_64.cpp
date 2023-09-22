@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: gpu && linux
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 
@@ -17,5 +16,7 @@ constexpr unsigned SIZE = 64;
 using a_data_t = int8_t;
 using b_data_t = int32_t;
 using c_data_t = int32_t;
+
+#define PERFORM_NEW_GPU_DRIVER_VERSION_CHECK 1
 
 #include "Inputs/noinline_args_size_common.hpp"

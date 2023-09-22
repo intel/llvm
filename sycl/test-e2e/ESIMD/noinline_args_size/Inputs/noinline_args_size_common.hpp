@@ -40,6 +40,14 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
+#ifdef PERFORM_NEW_GPU_DRIVER_VERSION_CHECK
+  if (!isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows, "26516",
+                     "101.4827")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26516 or newer.\n";
+    return 0;
+  }
+#endif
+
   a_data_t *A = sycl::malloc_shared<a_data_t>(SIZE, q);
   for (int i = 0; i < SIZE; i++)
     A[i] = (a_data_t)1;
