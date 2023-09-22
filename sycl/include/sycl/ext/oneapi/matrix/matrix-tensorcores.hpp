@@ -413,7 +413,7 @@ void store_layoutT(
 template <typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_cuda(
-    const joint_matrix_cuda<
+    joint_matrix_cuda<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
         NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
@@ -482,11 +482,11 @@ void joint_matrix_mad_cuda(
     joint_matrix_cuda<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
-    const joint_matrix_cuda<Tm, sycl::ext::oneapi::experimental::matrix::use::a,
-                            M, K, LayoutA> &A,
-    const joint_matrix_cuda<Tm, sycl::ext::oneapi::experimental::matrix::use::b,
-                            K, N, LayoutB> &B,
-    const joint_matrix_cuda<
+    joint_matrix_cuda<Tm, sycl::ext::oneapi::experimental::matrix::use::a, M, K,
+                      LayoutA> &A,
+    joint_matrix_cuda<Tm, sycl::ext::oneapi::experimental::matrix::use::b, K, N,
+                      LayoutB> &B,
+    joint_matrix_cuda<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
   if constexpr (M == 16 && N == 16 && K == 16) {
