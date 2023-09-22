@@ -21,21 +21,6 @@
 
 #include <cstdint>
 
-#ifndef __SYCL_DEVICE_ONLY__
-// ESIMD_CPU Emulation support using esimd_cpu plugin
-
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
-#include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
-
-// Channel Mask Array for scaled-gather/scatter
-const std::array<__ESIMD_NS::rgba_channel, 4> ChannelMaskArray{
-    __ESIMD_NS::rgba_channel::R, __ESIMD_NS::rgba_channel::G,
-    __ESIMD_NS::rgba_channel::B, __ESIMD_NS::rgba_channel::A};
-
-#endif // ifndef __SYCL_DEVICE_ONLY__
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -103,26 +88,7 @@ __ESIMD_INTRIN
         ;
 #else
 {
-  auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
-      V = 0;
-  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
-  if (sizeof(Ty) == 2)
-    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
-
-  for (int I = 0; I < N; I++) {
-    if (pred[I]) {
-      Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          V[I * NumBlkDecoded + J] = *(Addr + J);
-      } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          V[J * N + I] = *(Addr + J);
-      }
-    }
-  }
-  return V;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -138,23 +104,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
     ;
 #else
 {
-  auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
-  if (sizeof(Ty) == 2)
-    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
-
-  for (int I = 0; I < N; I++) {
-    if (pred[I]) {
-      Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          *(Addr + J) = vals[I * NumBlkDecoded + J];
-      } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          *(Addr + J) = vals[J * N + I];
-      }
-    }
-  }
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -166,82 +116,9 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // O-word/Block load for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
-      retv[i] = *SlmAddr;
-      offset += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (offset >= width) {
-        retv[idx] = 0;
-      } else {
-        retv[idx] = *((Ty *)(readBase + offset));
-      }
-      offset += (uint32_t)sizeof(Ty);
-    }
-  }
-  return retv;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
-
-#ifndef __SYCL_DEVICE_ONLY__
-template <typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN void
-__esimd_oword_st_unaligned(SurfIndAliasTy surf_ind, uint32_t offset,
-                           __ESIMD_DNS::vector_type_t<Ty, N> vals) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // O-word/Block store for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
-      *SlmAddr = vals[i];
-      offset += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block store for regular surface indexed by surf_ind
-    char *writeBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (offset < width) {
-        *((Ty *)(writeBase + offset)) = vals[idx];
-      } else {
-        break;
-      }
-      offset += (uint32_t)sizeof(Ty);
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-}
-#endif // !__SYCL_DEVICE_ONLY__
 
 // Writes given block of data to a surface with given index at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy>
@@ -252,7 +129,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind,
     ;
 #else
 {
-  __esimd_oword_st_unaligned<Ty, N>(surf_ind, owords_offset << 4, vals);
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -264,11 +141,7 @@ __esimd_svm_block_ld(const __ESIMD_DNS::vector_type_t<Ty, N> *addr)
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> V;
-  const Ty *Addr = reinterpret_cast<const Ty *>(addr);
-  for (int I = 0; I < N; I++)
-    V[I] = *(Addr + I);
-  return V;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -280,8 +153,7 @@ __ESIMD_INTRIN void __esimd_slm_block_st(uint32_t offset,
     ;
 #else
 {
-  auto SI = __ESIMD_NS::get_surface_index(__ESIMD_DNS::LocalAccessorMarker());
-  __esimd_oword_st_unaligned<Ty, N>(SI, offset, vals);
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -293,8 +165,7 @@ __esimd_slm_block_ld(uint32_t offset)
     ;
 #else
 {
-  auto SI = __ESIMD_NS::get_surface_index(__ESIMD_DNS::LocalAccessorMarker());
-  return __esimd_oword_ld_unaligned<Ty, N>(SI, offset);
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -307,9 +178,7 @@ __esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
     ;
 #else
 {
-  Ty *Addr = reinterpret_cast<Ty *>(addr);
-  for (int I = 0; I < N; I++)
-    *(Addr + I) = vals[I];
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -323,23 +192,7 @@ __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
         ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V = 0;
-  unsigned int Next = 0;
-  uint64_t Offset = 0;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
-          V[Next] = *Addr;
-        }
-      }
-    }
-    Offset += (uint64_t)sizeof(Ty);
-  }
-
-  return V;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -353,21 +206,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
-  unsigned int Next = 0;
-  uint64_t Offset = 0;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
-          *Addr = vals[Next];
-        }
-      }
-    }
-    Offset += (uint64_t)sizeof(Ty);
-  }
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -446,57 +285,7 @@ __esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
   static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
-
-  // determine the original element's type size (as __esimd_scatter_scaled
-  // requires vals to be a vector of 4-byte integers)
-  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
-
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals;
-  if constexpr (OrigSize == 4) {
-    TypeAdjustedVals = __ESIMD_DNS::bitcast<RestoredTy, Ty, N>(vals);
-  } else {
-    static_assert(OrigSize == 1 || OrigSize == 2);
-    TypeAdjustedVals = __ESIMD_DNS::convert_vector<RestoredTy, Ty, N>(vals);
-  }
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // Scattered-store for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      if (pred[i]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(elem_offsets[i] + SlmBase);
-        *addr = TypeAdjustedVals[i];
-      }
-    }
-  } else {
-    // Scattered-store for regular surface indexed by surf_ind
-    char *writeBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
-    writeBase += global_offset;
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(elem_offsets[idx] + writeBase);
-        *addr = TypeAdjustedVals[idx];
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -509,25 +298,7 @@ __esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> Oldval = 0;
-
-  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
-    if (pred[AddrIdx] == 0) {
-      // Skip Oldval vector elements correpsonding to
-      // predicates whose value is zero
-      continue;
-    }
-    if constexpr (Op == __ESIMD_NS::atomic_op::load) {
-      Oldval[AddrIdx] = __ESIMD_DNS::atomic_load<Ty>((Ty *)addrs[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::inc) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_add<Ty>((Ty *)addrs[AddrIdx], static_cast<Ty>(1));
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::dec) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], static_cast<Ty>(1));
-    }
-  }
-  return Oldval;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -540,49 +311,7 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> Oldval;
-
-  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
-    if (pred[AddrIdx] == 0) {
-      // Skip Output vector elements correpsonding to
-      // predicates whose value is zero
-      continue;
-    }
-
-    if constexpr (Op == __ESIMD_NS::atomic_op::store) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_store<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::add) ||
-                         (Op == __ESIMD_NS::atomic_op::fadd)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_add<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::sub) ||
-                         (Op == __ESIMD_NS::atomic_op::fsub)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smin) ||
-                         (Op == __ESIMD_NS::atomic_op::umin) ||
-                         (Op == __ESIMD_NS::atomic_op::fmin)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smax) ||
-                         (Op == __ESIMD_NS::atomic_op::umax) ||
-                         (Op == __ESIMD_NS::atomic_op::fmax)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_and) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_and<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_or) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_or<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_xor) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_xor<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    }
-  }
-
-  return Oldval;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -596,20 +325,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> Oldval;
-
-  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
-    if (pred[AddrIdx] == 0) {
-      // Skip Output vector elements correpsonding to
-      // predicates whose value is zero
-      continue;
-    }
-    static_assert((Op == __ESIMD_NS::atomic_op::cmpxchg) ||
-                  (Op == __ESIMD_NS::atomic_op::fcmpxchg));
-    Oldval[AddrIdx] = __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx],
-                                                  src0[AddrIdx], src1[AddrIdx]);
-  }
-  return Oldval;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -618,7 +334,7 @@ __ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
     ;
 #else
 {
-  sycl::detail::getESIMDDeviceInterface()->cm_slm_init_ptr(size);
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
@@ -628,7 +344,7 @@ __ESIMD_INTRIN void __esimd_barrier()
     ;
 #else
 {
-  sycl::detail::getESIMDDeviceInterface()->cm_barrier_ptr();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -638,9 +354,7 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
     ;
 #else
 {
-  // CM_EMU's 'cm_fence' is NOP. Disabled.
-  // sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
-  __ESIMD_DNS::atomic_fence();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -655,43 +369,7 @@ __esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // Scattered-load for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
-        retv[i] = *addr;
-      }
-    }
-  } else {
-    // Scattered-load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-    readBase += global_offset;
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[idx] + readBase);
-        retv[idx] = *addr;
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-
-  return retv;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -726,53 +404,7 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 #else
 {
   static_assert(Scale == 0);
-
-  // determine the original element's type size (as __esimd_scatter_scaled
-  // requires vals to be a vector of 4-byte integers)
-  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
-
-  __ESIMD_DNS::vector_type_t<RestoredTy, N> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int idx = 0; idx < N; ++idx) {
-      if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(offsets[idx] + SlmBase);
-        retv[idx] = *addr;
-      }
-    }
-  } else {
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-
-    readBase += global_offset;
-    std::lock_guard<std::mutex> lock(*mutexLock);
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(offsets[idx] + readBase);
-        retv[idx] = *addr;
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-
-  if constexpr (OrigSize == 4) {
-    return __ESIMD_DNS::bitcast<Ty, RestoredTy, N>(retv);
-  } else {
-    return __ESIMD_DNS::convert_vector<Ty, RestoredTy, N>(retv);
-  }
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -785,7 +417,7 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t owords_offset)
     ;
 #else
 {
-  return __esimd_oword_ld_unaligned<Ty, N>(surf_ind, owords_offset << 4);
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -802,36 +434,7 @@ __ESIMD_INTRIN
         ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *ReadBase;
-  unsigned int Next = 0;
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    ReadBase = I->__cm_emu_get_slm_ptr();
-  } else {
-    uint32_t width;
-    std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &ReadBase, &width, &mutexLock);
-    std::lock_guard<std::mutex> lock(*mutexLock);
-  }
-
-  ReadBase += global_offset;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(ReadBase + offsets[I]);
-          retv[Next] = *Addr;
-        }
-      }
-    }
-    ReadBase += (uint64_t)sizeof(Ty);
-  }
-
-  return retv;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -846,33 +449,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     ;
 #else
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *WriteBase;
-  unsigned int Next = 0;
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    WriteBase = I->__cm_emu_get_slm_ptr();
-  } else {
-    uint32_t width;
-    std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &WriteBase, &width, &mutexLock);
-    std::lock_guard<std::mutex> lock(*mutexLock);
-  }
-
-  WriteBase += global_offset;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(WriteBase + offsets[I]);
-          *Addr = vals[Next];
-        }
-      }
-    }
-    WriteBase += (uint64_t)sizeof(Ty);
-  }
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -886,29 +463,7 @@ __esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    char *WriteBase =
-        sycl::detail::getESIMDDeviceInterface()->__cm_emu_get_slm_ptr();
-
-    for (int i = 0; i < N; i++) {
-      if (pred[i]) {
-        Ty *p = reinterpret_cast<Ty *>(addrs[i] + WriteBase);
-
-        switch (Op) {
-        case __ESIMD_NS::atomic_op::inc:
-          retv[i] = __ESIMD_DNS::atomic_add<Ty>(p, 1);
-          break;
-        default:
-          __ESIMD_UNSUPPORTED_ON_HOST;
-        }
-      }
-    }
-  } else {
-    __ESIMD_UNSUPPORTED_ON_HOST;
-  }
-  return retv;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -964,109 +519,7 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
     ;
 #else
 {
-  __ESIMD_DNS::vector_type_t<Ty, M * N> vals;
-  char *readBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
-         "__esimd_media_ld cannot access SLM");
-
-  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_ptr(
-      handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
-
-  std::lock_guard<std::mutex> lock(*mutexLock);
-
-  int x_pos_a, y_pos_a, offset, index;
-
-  // TODO : Remove intermediate 'in' matrix
-  std::vector<std::vector<Ty>> in(M, std::vector<Ty>(N));
-  int R = M;
-  int C = N;
-  for (int i = 0; i < R; i++) {
-    for (int j = 0; j < C; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      // We should check the boundary condition based on sizeof(Ty), x_pos_a is
-      // 0-based Note: Use a signed variable; otherwise sizeof(Ty) is unsigned
-      if ((x_pos_a + sizeof(Ty)) > imgWidth) {
-        // If we're trying to read outside the boundary, limit the value of
-        // x_pos_a Assumption -- We don't this situation:
-        //         x_pos_a  width's boundary
-        //           |      |
-        //           <---type(Ty)--->
-        // At most x_pos_a+sizeof(Ty) is exactly at the boundary.
-        x_pos_a = imgWidth;
-      }
-      if (y_pos_a > imgHeight - 1) {
-        y_pos_a = imgHeight - 1;
-      }
-      if (y_pos_a < 0) {
-        y_pos_a = 0;
-      }
-      {
-        if (x_pos_a < 0) {
-          // Need to align x position to bbp
-          int offset = x % bpp;
-          x_pos_a -= offset;
-        }
-        while (x_pos_a < 0) {
-          // If we're trying to read outside the left boundary, increase x_pos_a
-          x_pos_a += bpp;
-        }
-      }
-
-      if (x_pos_a >= imgWidth) {
-        {
-          x_pos_a = x_pos_a - bpp;
-          for (uint byte_count = 0; byte_count < sizeof(Ty); byte_count++) {
-            if (x_pos_a >= imgWidth) {
-              x_pos_a = x_pos_a - bpp;
-            }
-            offset = y_pos_a * imgWidth + x_pos_a;
-
-            /*
-              If destination size per element is less then or equal pixel size
-              of the surface move the pixel value accross the destination
-              elements. If destination size per element is greater then pixel
-              size of the surface replicate pixel value in the destination
-              element.
-            */
-            if (sizeof(Ty) <= bpp) {
-              for (uint bpp_count = 0; j < C && bpp_count < bpp;
-                   j++, bpp_count += sizeof(Ty)) {
-                in[i][j] = *((Ty *)(readBase + offset + bpp_count));
-              }
-              j--;
-              break;
-            } else {
-              // ((unsigned char*)in.get_addr(i*C+j))[byte_count] = *((unsigned
-              // char*)((char*)buff_iter->p + offset));
-              unsigned char *pTempBase =
-                  ((unsigned char *)in[i].data()) + j * sizeof(Ty);
-              pTempBase[byte_count] = *((unsigned char *)(readBase + offset));
-            }
-
-            x_pos_a = x_pos_a + 1;
-          }
-          x_pos_a = imgWidth;
-        }
-      } else {
-        offset = y_pos_a * imgWidth + x_pos_a;
-        { in[i][j] = *((Ty *)(readBase + offset)); }
-      }
-    }
-  }
-
-  for (auto i = 0, k = 0; i < M; i++) {
-    for (auto j = 0; j < N; j++) {
-      vals[k++] = in[i][j];
-    }
-  }
-
-  return vals;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1092,61 +545,7 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
     ;
 #else
 {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *writeBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
-         "__esimd_media_ld cannot access SLM");
-
-  I->sycl_get_cm_image_params_ptr(handle, &writeBase, &imgWidth, &imgHeight,
-                                  &bpp, &mutexLock);
-
-  int x_pos_a, y_pos_a, offset;
-
-  assert((x % 4) == 0);
-  assert((N * sizeof(Ty)) % 4 == 0);
-
-  // TODO : Remove intermediate 'out' matrix
-  std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
-
-  std::lock_guard<std::mutex> lock(*mutexLock);
-
-  for (int i = 0, k = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      out[i][j] = vals[k++];
-    }
-  }
-
-  for (int i = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      if ((int)x_pos_a < 0) {
-        continue;
-      }
-      if ((int)y_pos_a < 0) {
-        continue;
-      }
-      if ((int)(x_pos_a + sizeof(Ty)) > imgWidth) {
-        continue;
-      }
-
-      if ((int)y_pos_a > imgHeight - 1) {
-        continue;
-      }
-      offset = y_pos_a * imgWidth + x_pos_a;
-      *((Ty *)(writeBase + offset)) = out[i][j];
-    }
-  }
-
-  // TODO : Optimize
-  I->cm_fence_ptr();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1178,8 +577,7 @@ ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 }
 #else  // __SYCL_DEVICE_ONLY__
 {
-  return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
-      __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
