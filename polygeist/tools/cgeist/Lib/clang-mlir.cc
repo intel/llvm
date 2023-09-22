@@ -2567,6 +2567,8 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
 
   // SYCL does not support C++ exceptions or termination in device code, so all
   // functions have to return.
+  //
+  // Adapted from `clang/lib/CodeGen/CGCall.cpp`
   if (getTypes().getCGM().getLangOpts().SYCLIsDevice)
     removePassThroughAttr(Function, llvm::Attribute::NoReturn);
 }
