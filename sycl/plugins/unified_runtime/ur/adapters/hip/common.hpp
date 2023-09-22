@@ -67,10 +67,10 @@ typedef hipArray *hipCUarray;
 
 ur_result_t mapErrorUR(hipError_t Result);
 
-ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
-                         const char *File);
-ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
-                         const char *File);
+void checkErrorUR(hipError_t Result, const char *Function, int Line,
+                  const char *File);
+void checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                  const char *File);
 
 #define UR_CHECK_ERROR(result)                                                 \
   checkErrorUR(result, __func__, __LINE__, __FILE__)
