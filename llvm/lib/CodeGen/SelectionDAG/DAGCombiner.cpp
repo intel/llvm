@@ -5432,34 +5432,18 @@ SDValue DAGCombiner::visitMULO(SDNode *N) {
     return DAG.getNode(IsSigned ? ISD::SADDO : ISD::UADDO, DL,
                        N->getVTList(), N0, N0);
 
-  if (IsSigned) {
-    // A 1 bit SMULO overflows if both inputs are 1.
-    if (VT.getScalarSizeInBits() == 1) {
-      SDValue And = DAG.getNode(ISD::AND, DL, VT, N0, N1);
-      return CombineTo(N, And,
-                       DAG.getSetCC(DL, CarryVT, And,
-                                    DAG.getConstant(0, DL, VT), ISD::SETNE));
-    }
-
-    // Multiplying n * m significant bits yields a result of n + m significant
-    // bits. If the total number of significant bits does not exceed the
-    // result bit width (minus 1), there is no overflow.
-    unsigned SignBits = DAG.ComputeNumSignBits(N0);
-    if (SignBits > 1)
-      SignBits += DAG.ComputeNumSignBits(N1);
-    if (SignBits > VT.getScalarSizeInBits() + 1)
-      return CombineTo(N, DAG.getNode(ISD::MUL, DL, VT, N0, N1),
-                       DAG.getConstant(0, DL, CarryVT));
-  } else {
-    KnownBits N1Known = DAG.computeKnownBits(N1);
-    KnownBits N0Known = DAG.computeKnownBits(N0);
-    bool Overflow;
-    (void)N0Known.getMaxValue().umul_ov(N1Known.getMaxValue(), Overflow);
-    if (!Overflow)
-      return CombineTo(N, DAG.getNode(ISD::MUL, DL, VT, N0, N1),
-                       DAG.getConstant(0, DL, CarryVT));
+  // A 1 bit SMULO overflows if both inputs are 1.
+  if (IsSigned && VT.getScalarSizeInBits() == 1) {
+    SDValue And = DAG.getNode(ISD::AND, DL, VT, N0, N1);
+    SDValue Cmp = DAG.getSetCC(DL, CarryVT, And,
+                               DAG.getConstant(0, DL, VT), ISD::SETNE);
+    return CombineTo(N, And, Cmp);
   }
 
+  // If it cannot overflow, transform into a mul.
+  if (DAG.willNotOverflowMul(IsSigned, N0, N1))
+    return CombineTo(N, DAG.getNode(ISD::MUL, DL, VT, N0, N1),
+                     DAG.getConstant(0, DL, CarryVT));
   return SDValue();
 }
 
@@ -11653,8 +11637,6 @@ static SDValue ConvertSelectToConcatVector(SDNode *N, SelectionDAG &DAG) {
 
 bool refineUniformBase(SDValue &BasePtr, SDValue &Index, bool IndexIsScaled,
                        SelectionDAG &DAG, const SDLoc &DL) {
-  if (Index.getOpcode() != ISD::ADD)
-    return false;
 
   // Only perform the transformation when existing operands can be reused.
   if (IndexIsScaled)
@@ -11664,21 +11646,27 @@ bool refineUniformBase(SDValue &BasePtr, SDValue &Index, bool IndexIsScaled,
     return false;
 
   EVT VT = BasePtr.getValueType();
+
+  if (SDValue SplatVal = DAG.getSplatValue(Index);
+      SplatVal && !isNullConstant(SplatVal) &&
+      SplatVal.getValueType() == VT) {
+    BasePtr = DAG.getNode(ISD::ADD, DL, VT, BasePtr, SplatVal);
+    Index = DAG.getSplat(Index.getValueType(), DL, DAG.getConstant(0, DL, VT));
+    return true;
+  }
+
+  if (Index.getOpcode() != ISD::ADD)
+    return false;
+
   if (SDValue SplatVal = DAG.getSplatValue(Index.getOperand(0));
       SplatVal && SplatVal.getValueType() == VT) {
-    if (isNullConstant(BasePtr))
-      BasePtr = SplatVal;
-    else
-      BasePtr = DAG.getNode(ISD::ADD, DL, VT, BasePtr, SplatVal);
+    BasePtr = DAG.getNode(ISD::ADD, DL, VT, BasePtr, SplatVal);
     Index = Index.getOperand(1);
     return true;
   }
   if (SDValue SplatVal = DAG.getSplatValue(Index.getOperand(1));
       SplatVal && SplatVal.getValueType() == VT) {
-    if (isNullConstant(BasePtr))
-      BasePtr = SplatVal;
-    else
-      BasePtr = DAG.getNode(ISD::ADD, DL, VT, BasePtr, SplatVal);
+    BasePtr = DAG.getNode(ISD::ADD, DL, VT, BasePtr, SplatVal);
     Index = Index.getOperand(0);
     return true;
   }
@@ -13287,7 +13275,8 @@ SDValue DAGCombiner::visitSIGN_EXTEND(SDNode *N) {
     return V;
 
   // fold (sext x) -> (zext x) if the sign bit is known zero.
-  if ((!LegalOperations || TLI.isOperationLegal(ISD::ZERO_EXTEND, VT)) &&
+  if (!TLI.isSExtCheaperThanZExt(N0.getValueType(), VT) &&
+      (!LegalOperations || TLI.isOperationLegal(ISD::ZERO_EXTEND, VT)) &&
       DAG.SignBitIsZero(N0))
     return DAG.getNode(ISD::ZERO_EXTEND, DL, VT, N0);
 

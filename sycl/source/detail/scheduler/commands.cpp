@@ -3159,11 +3159,22 @@ pi_int32 KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
+  // We need to release the queue here because KernelFusionCommands are
+  // held back by the scheduler thus prevent the deallocation of the queue.
+  resetQueue();
   return PI_SUCCESS;
 }
 
 void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
   MStatus = Status;
+}
+
+void KernelFusionCommand::resetQueue() {
+  assert(MStatus != FusionStatus::ACTIVE &&
+         "Cannot release the queue attached to the KernelFusionCommand if it "
+         "is active.");
+  MQueue.reset();
+  MWorkerQueue.reset();
 }
 
 void KernelFusionCommand::emitInstrumentationData() {

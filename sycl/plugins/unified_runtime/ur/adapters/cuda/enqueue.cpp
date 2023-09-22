@@ -31,7 +31,8 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
           if (Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
-            return UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
+            UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
+            return UR_RESULT_SUCCESS;
           }
         });
     return Result;
@@ -285,8 +286,12 @@ setKernelParams(const ur_context_handle_t Context,
       // Set up local memory requirements for kernel.
       auto Device = Context->getDevice();
       if (Device->getMaxChosenLocalMem() < 0) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+        bool EnvVarHasURPrefix =
+            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
+        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -296,10 +301,16 @@ setKernelParams(const ur_context_handle_t Context,
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
+        bool EnvVarHasURPrefix =
+            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
         setErrorMessage(
-            "Local memory for kernel exceeds the amount requested using "
-            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
-            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
+            EnvVarHasURPrefix
+                ? "Local memory for kernel exceeds the amount requested using "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
+                : "Local memory for kernel exceeds the amount requested using "
+                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
+                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
             UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -323,8 +334,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   // This function makes one stream work on the previous work (or work
   // represented by input events) and then all future work waits on that stream.
-  ur_result_t Result;
-
   try {
     ScopedContext Active(hQueue->getContext());
     uint32_t StreamToken;
@@ -358,22 +367,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                                   Event->getComputeStreamToken())) {
                             return UR_RESULT_SUCCESS;
                           } else {
-                            return UR_CHECK_ERROR(
+                            UR_CHECK_ERROR(
                                 cuStreamWaitEvent(CuStream, Event->get(), 0));
+                            return UR_RESULT_SUCCESS;
                           }
                         });
       }
 
-      Result = UR_CHECK_ERROR(cuEventRecord(hQueue->BarrierEvent, CuStream));
+      UR_CHECK_ERROR(cuEventRecord(hQueue->BarrierEvent, CuStream));
       for (unsigned int i = 0; i < hQueue->ComputeAppliedBarrier.size(); i++) {
         hQueue->ComputeAppliedBarrier[i] = false;
       }
       for (unsigned int i = 0; i < hQueue->TransferAppliedBarrier.size(); i++) {
         hQueue->TransferAppliedBarrier[i] = false;
       }
-    }
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
     }
 
     if (phEvent) {
@@ -454,7 +461,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     auto &ArgIndices = hKernel->getArgIndices();
-    Result = UR_CHECK_ERROR(cuLaunchKernel(
+    UR_CHECK_ERROR(cuLaunchKernel(
         CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
         CuStream, const_cast<void **>(ArgIndices.data()), nullptr));
@@ -542,7 +549,9 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
                     src_slice_pitch, DstPtr, DstType, dst_offset, dst_row_pitch,
                     dst_slice_pitch, params);
 
-  return UR_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
+  UR_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
@@ -580,7 +589,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     }
 
     if (blockingRead) {
-      Result = UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
+      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
     }
 
     if (phEvent) {
@@ -627,7 +636,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     }
 
     if (blockingWrite) {
-      Result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+      UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
 
     if (phEvent) {
@@ -654,7 +663,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
   try {
     ScopedContext Active(hQueue->getContext());
-    ur_result_t Result;
+    ur_result_t Result = UR_RESULT_SUCCESS;
 
     auto Stream = hQueue->getNextTransferStream();
     Result =
@@ -670,7 +679,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     auto Src = hBufferSrc->Mem.BufferMem.get() + srcOffset;
     auto Dst = hBufferDst->Mem.BufferMem.get() + dstOffset;
 
-    Result = UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
+    UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -745,10 +754,7 @@ ur_result_t commonMemSetLargePattern(CUstream Stream, uint32_t PatternSize,
 
   // Get 4-byte chunk of the pattern and call cuMemsetD32Async
   auto Value = *(static_cast<const uint32_t *>(pPattern));
-  auto Result = UR_CHECK_ERROR(cuMemsetD32Async(Ptr, Value, Count32, Stream));
-  if (Result != UR_RESULT_SUCCESS) {
-    return Result;
-  }
+  UR_CHECK_ERROR(cuMemsetD32Async(Ptr, Value, Count32, Stream));
   for (auto step = 4u; step < NumberOfSteps; ++step) {
     // take 1 byte of the pattern
     Value = *(static_cast<const uint8_t *>(pPattern) + step);
@@ -771,27 +777,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  auto ArgsAreMultiplesOfPatternSize =
-      (offset % patternSize == 0) || (size % patternSize == 0);
-
-  auto PatternIsValid = (pPattern != nullptr);
-
-  auto PatternSizeIsValid =
-      ((patternSize & (patternSize - 1)) == 0) && // is power of two
-      (patternSize > 0) && (patternSize <= 128);  // falls within valid range
-
-  UR_ASSERT(ArgsAreMultiplesOfPatternSize && PatternIsValid &&
-                PatternSizeIsValid,
-            UR_RESULT_ERROR_INVALID_SIZE);
-
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
     ScopedContext Active(hQueue->getContext());
 
     auto Stream = hQueue->getNextTransferStream();
-    ur_result_t Result;
-    Result =
+    ur_result_t Result =
         enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
 
     if (phEvent) {
@@ -808,17 +800,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     switch (patternSize) {
     case 1: {
       auto Value = *static_cast<const uint8_t *>(pPattern);
-      Result = UR_CHECK_ERROR(cuMemsetD8Async(DstDevice, Value, N, Stream));
+      UR_CHECK_ERROR(cuMemsetD8Async(DstDevice, Value, N, Stream));
       break;
     }
     case 2: {
       auto Value = *static_cast<const uint16_t *>(pPattern);
-      Result = UR_CHECK_ERROR(cuMemsetD16Async(DstDevice, Value, N, Stream));
+      UR_CHECK_ERROR(cuMemsetD16Async(DstDevice, Value, N, Stream));
       break;
     }
     case 4: {
       auto Value = *static_cast<const uint32_t *>(pPattern);
-      Result = UR_CHECK_ERROR(cuMemsetD32Async(DstDevice, Value, N, Stream));
+      UR_CHECK_ERROR(cuMemsetD32Async(DstDevice, Value, N, Stream));
       break;
     }
     default: {
@@ -896,7 +888,8 @@ static ur_result_t commonEnqueueMemImageNDCopy(
     }
     CpyDesc.WidthInBytes = Region.width;
     CpyDesc.Height = Region.height;
-    return UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, CuStream));
+    UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, CuStream));
+    return UR_RESULT_SUCCESS;
   }
   if (ImgType == UR_MEM_TYPE_IMAGE3D) {
     CUDA_MEMCPY3D CpyDesc;
@@ -922,7 +915,8 @@ static ur_result_t commonEnqueueMemImageNDCopy(
     CpyDesc.WidthInBytes = Region.width;
     CpyDesc.Height = Region.height;
     CpyDesc.Depth = Region.depth;
-    return UR_CHECK_ERROR(cuMemcpy3DAsync(&CpyDesc, CuStream));
+    UR_CHECK_ERROR(cuMemcpy3DAsync(&CpyDesc, CuStream));
+    return UR_RESULT_SUCCESS;
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
@@ -949,7 +943,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     CUarray Array = hImage->Mem.SurfaceMem.getArray();
 
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
-    Result = UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
+    UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
 
     int ElementByteSize = imageElementByteSize(ArrayDesc);
 
@@ -966,7 +960,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
-      Result = UR_CHECK_ERROR(
+      UR_CHECK_ERROR(
           cuMemcpyAtoHAsync(pDst, Array, ByteOffsetX, BytesToCopy, CuStream));
     } else {
       ur_rect_region_t AdjustedRegion = {BytesToCopy, region.height,
@@ -976,7 +970,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
       Result = commonEnqueueMemImageNDCopy(
           CuStream, ImgType, AdjustedRegion, &Array, CU_MEMORYTYPE_ARRAY,
           SrcOffset, pDst, CU_MEMORYTYPE_HOST, ur_rect_offset_t{});
-
       if (Result != UR_RESULT_SUCCESS) {
         return Result;
       }
@@ -988,7 +981,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     if (blockingRead) {
-      Result = UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
+      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1022,7 +1015,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     CUarray Array = hImage->Mem.SurfaceMem.getArray();
 
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
-    Result = UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
+    UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
 
     int ElementByteSize = imageElementByteSize(ArrayDesc);
 
@@ -1039,7 +1032,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
 
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
-      Result = UR_CHECK_ERROR(
+      UR_CHECK_ERROR(
           cuMemcpyHtoAAsync(Array, ByteOffsetX, pSrc, BytesToCopy, CuStream));
     } else {
       ur_rect_region_t AdjustedRegion = {BytesToCopy, region.height,
@@ -1094,9 +1087,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     CUarray DstArray = hImageDst->Mem.SurfaceMem.getArray();
 
     CUDA_ARRAY_DESCRIPTOR SrcArrayDesc;
-    Result = UR_CHECK_ERROR(cuArrayGetDescriptor(&SrcArrayDesc, SrcArray));
+    UR_CHECK_ERROR(cuArrayGetDescriptor(&SrcArrayDesc, SrcArray));
     CUDA_ARRAY_DESCRIPTOR DstArrayDesc;
-    Result = UR_CHECK_ERROR(cuArrayGetDescriptor(&DstArrayDesc, DstArray));
+    UR_CHECK_ERROR(cuArrayGetDescriptor(&DstArrayDesc, DstArray));
 
     UR_ASSERT(SrcArrayDesc.Format == DstArrayDesc.Format,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -1122,8 +1115,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     ur_mem_type_t ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
-      Result = UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
-                                           SrcByteOffsetX, BytesToCopy));
+      UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
+                                  SrcByteOffsetX, BytesToCopy));
     } else {
       ur_rect_region_t AdjustedRegion = {BytesToCopy, region.height,
                                          region.depth};
@@ -1133,7 +1126,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
       Result = commonEnqueueMemImageNDCopy(
           CuStream, ImgType, AdjustedRegion, &SrcArray, CU_MEMORYTYPE_ARRAY,
           SrcOffset, &DstArray, CU_MEMORYTYPE_ARRAY, DstOffset);
-
       if (Result != UR_RESULT_SUCCESS) {
         return Result;
       }
@@ -1335,13 +1327,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
               UR_COMMAND_USM_MEMCPY, hQueue, CuStream));
       UR_CHECK_ERROR(EventPtr->start());
     }
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
     }
     if (blocking) {
-      Result = UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
+      UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
     }
     if (phEvent) {
       *phEvent = EventPtr.release();
@@ -1400,7 +1392,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
               UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream));
       UR_CHECK_ERROR(EventPtr->start());
     }
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
@@ -1538,14 +1530,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     CpyDesc.WidthInBytes = width;
     CpyDesc.Height = height;
 
-    result = UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, cuStream));
+    UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, cuStream));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
     if (blocking) {
-      result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
+      UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
   } catch (ur_result_t err) {
     result = err;
@@ -1661,9 +1653,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   try {
     CUdeviceptr DeviceGlobal = 0;
     size_t DeviceGlobalSize = 0;
-    Result = UR_CHECK_ERROR(cuModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
-                                              hProgram->get(),
-                                              DeviceGlobalName.c_str()));
+    UR_CHECK_ERROR(cuModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
+                                     hProgram->get(),
+                                     DeviceGlobalName.c_str()));
 
     if (offset + count > DeviceGlobalSize)
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1693,9 +1685,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   try {
     CUdeviceptr DeviceGlobal = 0;
     size_t DeviceGlobalSize = 0;
-    Result = UR_CHECK_ERROR(cuModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
-                                              hProgram->get(),
-                                              DeviceGlobalName.c_str()));
+    UR_CHECK_ERROR(cuModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
+                                     hProgram->get(),
+                                     DeviceGlobalName.c_str()));
 
     if (offset + count > DeviceGlobalSize)
       return UR_RESULT_ERROR_INVALID_VALUE;

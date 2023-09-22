@@ -274,11 +274,11 @@ rows for the row major layout, or between columns for the column major layout.
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 
-template <typename Group, typename Ta, typename Tb, typename Tc,
-          std::size_t M, std::size_t K, std::size_t N, layout LayoutA, layout
-          LayoutB, typename Td = Tc>
-joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic>
-joint_matrix_mad(Group g,
+template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
+          std::size_t M, std::size_t K, std::size_t N,
+          layout LayoutA, layout LayoutB>
+void joint_matrix_mad(Group g,
+    joint_matrix<Group, Td, use::accumulator, M, N, layout::dynamic> &D,
     const joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
     const joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
     const joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> &C);
@@ -287,7 +287,7 @@ joint_matrix_mad(Group g,
 ```
 The matrix multiply and add function performs the multiply operation
 on the matrices `A` and `B`, accumulates the result with `C` and returns
-the result.
+the result into the matrix `D`.
 
 Each device supports only certain combinations of types for the `A`,
 `B`, and `C` matrices. The application must use the query operations
@@ -505,6 +505,12 @@ range<2> L = {1, SG_SIZE};
 int8_t *memA = malloc_shared<int8_t>(M*K, q);
 int8_t *memB = malloc_shared<int8_t>(K*N, q);
 int32_t *memC = malloc_shared<int32_t>(M*N, q);
+auto pA = address_space_cast<sycl::access::address_space::global_space,
+                             sycl::access::decorated::no>(memA);
+auto pB = address_space_cast<sycl::access::address_space::global_space,
+                             sycl::access::decorated::no>(memB);
+auto pC = address_space_cast<sycl::access::address_space::global_space,
+                             sycl::access::decorated::no>(memC);
 q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
   [[sycl::reqd_sub_group_size(SG_SIZE)]] {
    const auto global_idx = item.get_global_id(0);
@@ -517,20 +523,15 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
    joint_matrix_fill(sg, tC, 0);
    for (int k = 0; k < K; k += tK) {
-     joint_matrix_load(sg, tA,
-          multi_ptr<int8_t, sycl::access::address_space::global_space>(memA) +
-          sg_startx * tM * K + k, K);
-     joint_matrix_load(sg, tB,
-          multi_ptr<int8_t, sycl::access::address_space::global_space>(memB) +
-          k * N + sg_starty/SG_SIZE*tN, N);
-     tC = joint_matrix_mad(sg, tA, tB, tC);
+     joint_matrix_load(sg, tA, pA + sg_startx * tM * K + k, K);
+     joint_matrix_load(sg, tB, pB + k * N + sg_starty/SG_SIZE*tN, N);
+     joint_matrix_mad(sg, tC, tA, tB, tC);
    }
    joint_matrix_apply(sg, tC, [=](int8_t x) {
     x *= alpha;
    });
-   joint_matrix_store(sg, tC,
-        multi_ptr<int32_t, sycl::access::address_space::global_space>(memC) +
-        sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
+   joint_matrix_store(sg, tC, pC + sg_startx * tM * N + sg_starty/SG_SIZE*tN,
+                      N, layout::row_major);
 }).wait();
 ```
 
@@ -741,12 +742,12 @@ descriptors that can be queried using `get_info` API.
 [frame="none",options="header"]
 |======================
 | Device descriptors | Return type| Description
-|`ext::oneapi::experimental::info::device::matrix::combinations` |
+|`ext::oneapi::experimental::info::device::matrix_combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
 and types on this device
 |======================
 
-The runtime query returns a vector of `combinations` of `combination`
+The runtime query returns a vector of `matrix_combinations` of `combination`
 type. Each combination includes the sizes and the types for the
 matrices A, B, C, and D. Note that for each matrix hardware,
 the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize,
@@ -790,7 +791,7 @@ struct combination {
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-Each combination of the `combinations` vector composes the types and
+Each combination of the `matrix_combinations` vector composes the types and
 sizes of A, B, C, and D matrices supported by the device
 implementation. The table below provides a description of each member
 of the `combination` struct.
@@ -832,7 +833,7 @@ the `T` template parameter as follows: +
 ```c++
 // Ta, Tb, Tc, and Td are the types used in applications
 std::vector<combination> combinations =
-           device.get_info<info::device::matrix::combinations>();
+           device.get_info<info::device::matrix_combinations>();
 for (int i = 0; sizeof(combinations); i++) {
   if (Ta == combinations[i].atype &&
       Tb == combinations[i].btype &&
@@ -849,7 +850,7 @@ for (int i = 0; sizeof(combinations); i++) {
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned using
-`ext::oneapi::experimental::info::device::matrix::combinations`.
+`ext::oneapi::experimental::info::device::matrix_combinations`.
 
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
@@ -863,11 +864,11 @@ table below.
 | A type | B type | C and D type | M | N | K
 | `matrix_type::uint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::uint8`  | `matrix_type::int8` |
+| `matrix_type::uint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::int8`  | `matrix_type::uint8` |
+| `matrix_type::sint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
-| `matrix_type::int8`  | `matrix_type::int8` |
+| `matrix_type::sint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
@@ -875,32 +876,40 @@ table below.
 
 ==== Intel XMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_gpu_pvc` and `architecture::intel_gpu_dg2`. In
-these architectures' implementation, the type of the C matrix must be
-the same as the type of the D matrix. Therefore, that common type is
-shown in a single column in the table below.
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_dg2_g10`,
+`architecture::intel_gpu_dg2_g11`, and
+`architecture::intel_gpu_dg2_g12`. In these architectures'
+implementation, the type of the C matrix must be the same as the type
+of the D matrix. Therefore, that common type is shown in a single
+column in the table below.
 
 [frame="none",options="header"]
 |======================
 | A type | B type | C and D type | M | N | K | device
-| `matrix_type::uint8`  | `matrix_type::uint8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-| `matrix_type::uint8`  | `matrix_type::int8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-| `matrix_type::int8`  | `matrix_type::uint8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-| `matrix_type::int8`  | `matrix_type::int8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | architecture::intel_gpu_pvc
-| | | | |8||architecture::intel_gpu_dg2
-|  `matrix_type::fp16`       |  `matrix_type::fp16`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  16 | architecture::intel_gpu_pvc
-| | | | |8|| architecture::intel_gpu_dg2
-|  `matrix_type::bf16`       |  `matrix_type::bf16`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  16 | architecture::intel_gpu_pvc
-| | | | |8|| architecture::intel_gpu_dg2
+.2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
+|`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+|`matrix_type::fp16`       .2+|  `matrix_type::fp16`   .2+|
+`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
+`architecture::intel_gpu_pvc`|8| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.2+|  `matrix_type::bf16`       .2+|  `matrix_type::bf16`   .2+|
+`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
+`architecture::intel_gpu_pvc` |8| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 |======================
 
 ==== Nvidia Tensor Cores Supported Combinations
@@ -932,11 +941,11 @@ supported parameter combination is specified in the following table.
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::int8`  .3+| `matrix_type::int32`
+.3+| `matrix_type::sint8`  .3+| `matrix_type::sint32`
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
-.3+|`matrix_type::uint8`  .3+|`matrix_type::int32`
+.3+|`matrix_type::uint8`  .3+|`matrix_type::sint32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16

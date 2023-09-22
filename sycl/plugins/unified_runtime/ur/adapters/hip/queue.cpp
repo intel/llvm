@@ -220,7 +220,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
     ScopedContext Active(hQueue->getContext()->getDevice());
 
     hQueue->syncStreams<true>([&Result](hipStream_t S) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(S));
+      UR_CHECK_ERROR(hipStreamSynchronize(S));
+      Result = UR_RESULT_SUCCESS;
     });
 
   } catch (ur_result_t Err) {
@@ -269,7 +270,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   unsigned int HIPFlags;
   hipStream_t HIPStream = reinterpret_cast<hipStream_t>(hNativeQueue);
 
-  auto Return = UR_CHECK_ERROR(hipStreamGetFlags(HIPStream, &HIPFlags));
+  UR_CHECK_ERROR(hipStreamGetFlags(HIPStream, &HIPFlags));
 
   ur_queue_flags_t Flags = 0;
   if (HIPFlags == hipStreamDefault)
@@ -294,5 +295,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
                              /*backend_owns*/ pProperties->isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
-  return Return;
+  return UR_RESULT_SUCCESS;
 }

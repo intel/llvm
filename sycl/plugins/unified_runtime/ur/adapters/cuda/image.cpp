@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <cuda.h>
+#include <map>
+#include <utility>
 
 #include "common.hpp"
 #include "context.hpp"
@@ -52,30 +54,33 @@ ur_result_t urCalculateNumChannels(ur_image_channel_order_t order,
 /// Convert a UR image format to a CUDA image format and
 /// get the pixel size in bytes.
 /// /param image_channel_type is the ur_image_channel_type_t.
+/// /param image_channel_order is the ur_image_channel_order_t.
+///        this is used for normalized channel formats, as CUDA
+///        combines the channel format and order for normalized
+///        channel types.
 /// /param return_cuda_format will be set to the equivalent cuda
-/// format if not nullptr.
-/// /param return_pixel_types_size_bytes will be set to the pixel
-/// byte size if not nullptr.
+///        format if not nullptr.
+/// /param return_pixel_size_bytes will be set to the pixel
+///        byte size if not nullptr.
 ur_result_t
 urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
+                           ur_image_channel_order_t image_channel_order,
                            CUarray_format *return_cuda_format,
-                           size_t *return_pixel_types_size_bytes) {
+                           size_t *return_pixel_size_bytes) {
 
   CUarray_format cuda_format;
-  size_t PixelTypeSizeBytes;
+  size_t pixel_size_bytes = 0;
+  unsigned int num_channels = 0;
+  UR_CHECK_ERROR(urCalculateNumChannels(image_channel_order, &num_channels));
 
   switch (image_channel_type) {
 #define CASE(FROM, TO, SIZE)                                                   \
   case FROM: {                                                                 \
     cuda_format = TO;                                                          \
-    PixelTypeSizeBytes = SIZE;                                                 \
+    pixel_size_bytes = SIZE * num_channels;                                    \
     break;                                                                     \
   }
-// These new formats were brought in in CUDA 11.5
-#if CUDA_VERSION >= 11050
-    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, CU_AD_FORMAT_UNORM_INT8X1, 1)
-    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CU_AD_FORMAT_UNORM_INT16X1, 2)
-#endif
+
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8, CU_AD_FORMAT_UNSIGNED_INT8, 1)
     CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8, CU_AD_FORMAT_SIGNED_INT8, 1)
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16, CU_AD_FORMAT_UNSIGNED_INT16, 2)
@@ -84,16 +89,73 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32, CU_AD_FORMAT_UNSIGNED_INT32, 4)
     CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32, CU_AD_FORMAT_SIGNED_INT32, 4)
     CASE(UR_IMAGE_CHANNEL_TYPE_FLOAT, CU_AD_FORMAT_FLOAT, 4)
+
 #undef CASE
   default:
-    return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    break;
   }
+
+  // These new formats were brought in in CUDA 11.5
+#if CUDA_VERSION >= 11050
+
+  // If none of the above channel types were passed, check those below
+  if (pixel_size_bytes == 0) {
+
+    // We can't use a switch statement here because these single
+    // UR_IMAGE_CHANNEL_TYPEs can correspond to multiple [u/s]norm CU_AD_FORMATs
+    // depending on the number of channels. We use a std::map instead to
+    // retrieve the correct CUDA format
+
+    // map < <channel type, num channels> , <CUDA format, data type byte size> >
+    const std::map<std::pair<ur_image_channel_type_t, uint32_t>,
+                   std::pair<CUarray_format, uint32_t>>
+        norm_channel_type_map{
+            {{UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, 1},
+             {CU_AD_FORMAT_UNORM_INT8X1, 1}},
+            {{UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, 2},
+             {CU_AD_FORMAT_UNORM_INT8X2, 2}},
+            {{UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, 4},
+             {CU_AD_FORMAT_UNORM_INT8X4, 4}},
+
+            {{UR_IMAGE_CHANNEL_TYPE_SNORM_INT8, 1},
+             {CU_AD_FORMAT_SNORM_INT8X1, 1}},
+            {{UR_IMAGE_CHANNEL_TYPE_SNORM_INT8, 2},
+             {CU_AD_FORMAT_SNORM_INT8X2, 2}},
+            {{UR_IMAGE_CHANNEL_TYPE_SNORM_INT8, 4},
+             {CU_AD_FORMAT_SNORM_INT8X4, 4}},
+
+            {{UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, 1},
+             {CU_AD_FORMAT_UNORM_INT16X1, 2}},
+            {{UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, 2},
+             {CU_AD_FORMAT_UNORM_INT16X2, 4}},
+            {{UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, 4},
+             {CU_AD_FORMAT_UNORM_INT16X4, 8}},
+
+            {{UR_IMAGE_CHANNEL_TYPE_SNORM_INT16, 1},
+             {CU_AD_FORMAT_SNORM_INT16X1, 2}},
+            {{UR_IMAGE_CHANNEL_TYPE_SNORM_INT16, 2},
+             {CU_AD_FORMAT_SNORM_INT16X2, 4}},
+            {{UR_IMAGE_CHANNEL_TYPE_SNORM_INT16, 4},
+             {CU_AD_FORMAT_SNORM_INT16X4, 8}},
+        };
+
+    try {
+      auto cuda_format_and_size = norm_channel_type_map.at(
+          std::make_pair(image_channel_type, num_channels));
+      cuda_format = cuda_format_and_size.first;
+      pixel_size_bytes = cuda_format_and_size.second;
+    } catch (std::out_of_range &e) {
+      return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
+    }
+  }
+
+#endif
 
   if (return_cuda_format) {
     *return_cuda_format = cuda_format;
   }
-  if (return_pixel_types_size_bytes) {
-    *return_pixel_types_size_bytes = PixelTypeSizeBytes;
+  if (return_pixel_size_bytes) {
+    *return_pixel_size_bytes = pixel_size_bytes;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -125,10 +187,42 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_FLOAT,
                                   UR_IMAGE_CHANNEL_TYPE_FLOAT);
 #if CUDA_VERSION >= 11050
+
+    // Note that the CUDA UNORM and SNORM formats also encode the number of
+    // channels.
+    // Since UR does not encode this, we map different CUDA formats to the same
+    // UR channel type.
+    // Since this function is only called from `urBindlessImagesImageGetInfoExp`
+    // which has access to `CUDA_ARRAY3D_DESCRIPTOR`, we can determine the
+    // number of channels in the calling function.
+
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT8X1,
                                   UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT8X2,
+                                  UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT8X4,
+                                  UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
+
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT16X1,
                                   UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT16X2,
+                                  UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT16X4,
+                                  UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SNORM_INT8X1,
+                                  UR_IMAGE_CHANNEL_TYPE_SNORM_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SNORM_INT8X2,
+                                  UR_IMAGE_CHANNEL_TYPE_SNORM_INT8);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SNORM_INT8X4,
+                                  UR_IMAGE_CHANNEL_TYPE_SNORM_INT8);
+
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SNORM_INT16X1,
+                                  UR_IMAGE_CHANNEL_TYPE_SNORM_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SNORM_INT16X2,
+                                  UR_IMAGE_CHANNEL_TYPE_SNORM_INT16);
+    CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_SNORM_INT16X4,
+                                  UR_IMAGE_CHANNEL_TYPE_SNORM_INT16);
 #endif
 #undef MAP
   default:
@@ -237,9 +331,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hDevice->getContext());
-    Result =
-        UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
-                                       widthInBytes, height, elementSizeBytes));
+    UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
+                                   widthInBytes, height, elementSizeBytes));
   } catch (ur_result_t error) {
     Result = error;
   } catch (...) {
@@ -256,7 +349,8 @@ urBindlessImagesUnsampledImageHandleDestroyExp(ur_context_handle_t hContext,
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  return UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
+  UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -266,7 +360,8 @@ urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  return UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
+  UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
@@ -283,6 +378,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
                                         &array_desc.NumChannels));
 
   UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                            pImageFormat->channelOrder,
                                             &array_desc.Format, nullptr));
 
   array_desc.Flags = 0; // No flags required
@@ -365,9 +461,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
       urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
-  size_t PixelTypeSizeBytes;
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType, &format,
-                                            &PixelTypeSizeBytes));
+  size_t PixelSizeBytes;
+  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                            pImageFormat->channelOrder, &format,
+                                            &PixelSizeBytes));
 
   try {
 
@@ -418,9 +515,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
       urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
-  size_t PixelTypeSizeBytes;
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType, &format,
-                                            &PixelTypeSizeBytes));
+  size_t PixelSizeBytes;
+  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                            pImageFormat->channelOrder, &format,
+                                            &PixelSizeBytes));
 
   try {
     CUDA_RESOURCE_DESC image_res_desc = {};
@@ -451,7 +549,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         image_res_desc.res.linear.format = format;
         image_res_desc.res.linear.numChannels = NumChannels;
         image_res_desc.res.linear.sizeInBytes =
-            pImageDesc->width * PixelTypeSizeBytes * NumChannels;
+            pImageDesc->width * PixelSizeBytes;
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         image_res_desc.resType = CU_RESOURCE_TYPE_PITCH2D;
         image_res_desc.res.pitch2D.devPtr = (CUdeviceptr)hImageMem;
@@ -503,17 +601,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             UR_RESULT_ERROR_INVALID_VALUE);
 
   unsigned int NumChannels = 0;
-  size_t PixelTypeSizeBytes = 0;
+  size_t PixelSizeBytes = 0;
 
   UR_CHECK_ERROR(
       urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   // We need to get this now in bytes for calculating the total image size
   // later.
-  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType, nullptr,
-                                            &PixelTypeSizeBytes));
-
-  size_t PixelSizeBytes = PixelTypeSizeBytes * NumChannels;
+  UR_CHECK_ERROR(urToCudaImageChannelFormat(pImageFormat->channelType,
+                                            pImageFormat->channelOrder, nullptr,
+                                            &PixelSizeBytes));
 
   try {
     ScopedContext Active(hQueue->getContext());
@@ -789,8 +886,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
       urCalculateNumChannels(pImageFormat->channelOrder, &NumChannels));
 
   CUarray_format format;
-  UR_CHECK_ERROR(
-      urToCudaImageChannelFormat(pImageFormat->channelType, &format, nullptr));
+  UR_CHECK_ERROR(urToCudaImageChannelFormat(
+      pImageFormat->channelType, pImageFormat->channelOrder, &format, nullptr));
 
   try {
     ScopedContext Active(hDevice->getContext());

@@ -4853,8 +4853,15 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   llvm::sys::path::append(BaseDir, "..", "include");
   SmallString<128> SYCLDir(BaseDir);
   llvm::sys::path::append(SYCLDir, "sycl");
+  // This is used to provide our wrappers around STL headers that provide
+  // additional functions/template specializations when the user includes those
+  // STL headers in their programs (e.g., <complex>).
+  SmallString<128> STLWrappersDir(SYCLDir);
+  llvm::sys::path::append(STLWrappersDir, "stl_wrappers");
   HostCompileArgs.push_back("-I");
   HostCompileArgs.push_back(TCArgs.MakeArgString(SYCLDir));
+  HostCompileArgs.push_back("-I");
+  HostCompileArgs.push_back(TCArgs.MakeArgString(STLWrappersDir));
   HostCompileArgs.push_back("-I");
   HostCompileArgs.push_back(TCArgs.MakeArgString(BaseDir));
 
@@ -5429,6 +5436,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else {
       for (auto &Macro : D.getSYCLTargetMacroArgs())
         CmdArgs.push_back(Args.MakeArgString(Macro));
+      if (!Args.hasFlag(options::OPT_fsycl_esimd_build_host_code,
+                        options::OPT_fno_sycl_esimd_build_host_code, true))
+        CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
     if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))

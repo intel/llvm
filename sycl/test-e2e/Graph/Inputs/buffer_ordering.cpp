@@ -72,7 +72,8 @@ int main() {
   });
 
   // Buffer elements set to 10
-  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
+  auto Event =
+      Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
   // Buffer elements set to 20
   Queue.submit([&](handler &CGH) {
@@ -83,6 +84,7 @@ int main() {
     });
   });
 
+  Event.wait();
   // Buffer elements set to 22
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 

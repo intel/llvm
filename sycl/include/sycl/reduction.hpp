@@ -1349,7 +1349,10 @@ struct NDRangeReduction<
           // We're done.
           return;
 
-        // Signal this work-group has finished after all values are reduced
+        // Signal this work-group has finished after all values are reduced. We
+        // had an implicit work-group barrier in reduce_over_group and all the
+        // work since has been done in (LID == 0) work-item, so no extra sync is
+        // needed.
         if (LID == 0) {
           auto NFinished =
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
@@ -1561,7 +1564,10 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         }
       }
 
-      // Signal this work-group has finished after all values are reduced
+      // Signal this work-group has finished after all values are reduced. We
+      // had an implicit work-group barrier in doTreeReduction and all the
+      // work since has been done in (LID == 0) work-item, so no extra sync is
+      // needed.
       if (LID == 0) {
         auto NFinished =
             sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,

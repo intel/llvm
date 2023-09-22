@@ -16,8 +16,8 @@
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice)
-    : Context(hContext), Device(hDevice), CudaGraph{nullptr},
-      CudaGraphExec{nullptr}, RefCount{1} {
+    : Context(hContext),
+      Device(hDevice), CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1} {
   urContextRetain(hContext);
   urDeviceRetain(hDevice);
 }
@@ -179,9 +179,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   if (*pGlobalWorkSize == 0) {
     try {
       // Create a empty node if the kernel worload size is zero
-      Result = UR_CHECK_ERROR(
-          cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
-                              DepsList.data(), DepsList.size()));
+      UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                         DepsList.data(), DepsList.size()));
 
       // Get sync point and register the cuNode with it.
       *pSyncPoint = hCommandBuffer->AddSyncPoint(
@@ -223,9 +222,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     NodeParams.extra = nullptr;
 
     // Create and add an new kernel node to the Cuda graph
-    Result = UR_CHECK_ERROR(
-        cuGraphAddKernelNode(&GraphNode, hCommandBuffer->CudaGraph,
-                             DepsList.data(), DepsList.size(), &NodeParams));
+    UR_CHECK_ERROR(cuGraphAddKernelNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                        DepsList.data(), DepsList.size(),
+                                        &NodeParams));
 
     if (LocalSize != 0)
       hKernel->clearLocalSize();
@@ -255,7 +254,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     setCopyParams(pSrc, CU_MEMORYTYPE_HOST, pDst, CU_MEMORYTYPE_HOST, size,
                   NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -288,7 +287,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, &Dst, CU_MEMORYTYPE_DEVICE, size,
                   NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -324,7 +323,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
                       srcRowPitch, srcSlicePitch, &DstPtr, CU_MEMORYTYPE_DEVICE,
                       dstOrigin, dstRowPitch, dstSlicePitch, NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -357,7 +356,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     setCopyParams(pSrc, CU_MEMORYTYPE_HOST, &Dst, CU_MEMORYTYPE_DEVICE, size,
                   NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -389,7 +388,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, pDst, CU_MEMORYTYPE_HOST, size,
                   NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -426,7 +425,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
                       CU_MEMORYTYPE_DEVICE, bufferOffset, bufferRowPitch,
                       bufferSlicePitch, NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -463,7 +462,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
                       CU_MEMORYTYPE_HOST, hostOffset, hostRowPitch,
                       hostSlicePitch, NodeParams);
 
-    Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getContext()));
 
@@ -503,8 +502,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     }
 
     // Launch graph
-    Result =
-        UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
+    UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
 
     if (phEvent) {
       Result = RetImplEvent->record();

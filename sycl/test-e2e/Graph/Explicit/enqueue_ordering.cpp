@@ -70,6 +70,8 @@ int main() {
     });
   });
 
+  E4.wait();
+
   // Buffer elements set to 22
   Queue.submit([&](handler &CGH) {
     CGH.depends_on(E5);
