@@ -61,8 +61,8 @@ def AspectExt_oneapi_interop_semaphore_export : Aspect<"ext_oneapi_interop_semap
 def AspectExt_oneapi_mipmap : Aspect<"ext_oneapi_mipmap">;
 def AspectExt_oneapi_mipmap_anisotropy : Aspect<"ext_oneapi_mipmap_anisotropy">;
 def AspectExt_oneapi_mipmap_level_reference : Aspect<"ext_oneapi_mipmap_level_reference">;
-def AspectExt_oneapi_non_uniform_groups : Aspect<"ext_oneapi_non_uniform_groups">;
 def AspectExt_intel_esimd : Aspect<"ext_intel_esimd">;
+def AspectExt_oneapi_non_uniform_groups : Aspect<"ext_oneapi_non_uniform_groups">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
