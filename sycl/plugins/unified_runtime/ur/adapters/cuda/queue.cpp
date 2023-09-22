@@ -203,9 +203,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   try {
     ScopedContext active(hQueue->getContext());
 
-    hQueue->syncStreams</*ResetUsed=*/true>([&Result](CUstream s) {
-      Result = UR_CHECK_ERROR(cuStreamSynchronize(s));
-    });
+    hQueue->syncStreams</*ResetUsed=*/true>(
+        [](CUstream s) { UR_CHECK_ERROR(cuStreamSynchronize(s)); });
 
   } catch (ur_result_t Err) {
 
@@ -247,7 +246,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
 
-  auto Return = UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
+  UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
   ur_queue_flags_t Flags = 0;
   if (CuFlags == CU_STREAM_DEFAULT)
@@ -272,7 +271,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
                              /*backend_owns*/ pProperties->isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
-  return Return;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
@@ -311,9 +310,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
   }
-  default:
+  case UR_QUEUE_INFO_DEVICE_DEFAULT:
+  case UR_QUEUE_INFO_SIZE:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }

@@ -1207,7 +1207,7 @@ The `sycl::ext::codeplay::experimental::property::queue::enable_fusion` property
 defined by the extension is ignored by queue recording.
 
 To enable kernel fusion in a `command_graph` see the
-https://github.com/sommerlukas/llvm/blob/proposal/graph-fusion/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
+link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
 which is layered ontop of `sycl_ext_oneapi_graph`.
 
 ==== sycl_ext_oneapi_kernel_properties
@@ -1237,12 +1237,12 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
-=== sycl_ext_oneapi_bindless_images
+==== sycl_ext_oneapi_bindless_images
 
 The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
 cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph
+code `invalid` if a user tries to add them to a graph.
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.

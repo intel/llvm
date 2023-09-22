@@ -125,10 +125,6 @@ void LLVMContextSetDiscardValueNames(LLVMContextRef C, LLVMBool Discard) {
   unwrap(C)->setDiscardValueNames(Discard);
 }
 
-void LLVMContextSetOpaquePointers(LLVMContextRef C, LLVMBool OpaquePointers) {
-  unwrap(C)->setOpaquePointers(OpaquePointers);
-}
-
 void LLVMContextDispose(LLVMContextRef C) {
   delete unwrap(C);
 }

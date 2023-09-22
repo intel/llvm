@@ -70,16 +70,15 @@ UR_APIEXPORT ur_result_t UR_APICALL USMFreeImpl(ur_context_handle_t hContext,
   try {
     ScopedContext Active(hContext->getDevice());
     hipPointerAttribute_t hipPointerAttributeType;
-    Result =
-        UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+    UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
     unsigned int Type = hipPointerAttributeType.memoryType;
     UR_ASSERT(Type == hipMemoryTypeDevice || Type == hipMemoryTypeHost,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
     if (Type == hipMemoryTypeDevice) {
-      Result = UR_CHECK_ERROR(hipFree(pMem));
+      UR_CHECK_ERROR(hipFree(pMem));
     }
     if (Type == hipMemoryTypeHost) {
-      Result = UR_CHECK_ERROR(hipHostFree(pMem));
+      UR_CHECK_ERROR(hipHostFree(pMem));
     }
   } catch (ur_result_t Error) {
     Result = Error;
@@ -161,14 +160,15 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         // pointer not known to the HIP subsystem
         return ReturnValue(UR_USM_TYPE_UNKNOWN);
       }
-      Result = checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
+      // Direct usage of the function, instead of UR_CHECK_ERROR, so we can get
+      // the line offset.
+      checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
       Value = hipPointerAttributeType.isManaged;
       if (Value) {
         // pointer to managed memory
         return ReturnValue(UR_USM_TYPE_SHARED);
       }
-      Result = UR_CHECK_ERROR(
-          hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+      UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
       Value = hipPointerAttributeType.memoryType;
       UR_ASSERT(Value == hipMemoryTypeDevice || Value == hipMemoryTypeHost,
                 UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -193,8 +193,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       return UR_RESULT_ERROR_INVALID_VALUE;
     case UR_USM_ALLOC_INFO_DEVICE: {
       // get device index associated with this pointer
-      Result = UR_CHECK_ERROR(
-          hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+      UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
 
       int DeviceIdx = hipPointerAttributeType.device;
 
