@@ -118,6 +118,7 @@ Basic/sub_group_size_prop.cpp
 Basic/vec_bool.cpp
 Basic/vector_operators.cpp
 Basic/work_group_size_prop.cpp
+Complex/sycl_complex_include_order.cpp
 Complex/sycl_complex_math_test.cpp
 Complex/sycl_complex_operator_test.cpp
 Complex/sycl_complex_pow_test.cpp
