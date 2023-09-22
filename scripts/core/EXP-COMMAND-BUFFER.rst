@@ -101,6 +101,8 @@ Currently only the following commands are supported:
 * ${x}CommandBufferAppendMemBufferWriteExp
 * ${x}CommandBufferAppendMemBufferWriteRectExp
 * ${x}CommandBufferAppendMemBufferFillExp
+* ${x}CommandBufferAppendUSMPrefetchExp
+* ${x}CommandBufferAppendUSMAdviseExp
   
 It is planned to eventually support any command type from the Core API which can
 actually be appended to the equiavalent adapter native constructs.
@@ -178,6 +180,8 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
+    * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
 
 
 
@@ -204,6 +208,8 @@ Functions
 * ${x}CommandBufferAppendMemBufferWriteExp
 * ${x}CommandBufferAppendMemBufferWriteRectExp
 * ${x}CommandBufferAppendMemBufferFillExp
+* ${x}CommandBufferAppendUSMPrefetchExp
+* ${x}CommandBufferAppendUSMAdviseExp
 * ${x}CommandBufferEnqueueExp
 
 Changelog
@@ -217,6 +223,9 @@ Changelog
 | 1.1       | Add function definitions for buffer read and write    |
 +-----------+-------------------------------------------------------+
 | 1.2       | Add function definitions for fill commands            |
++-----------+-------------------------------------------------------+
+| 1.2       | Add function definitions for Prefetch and Advise      |
+|           | commands                                              |
 +-----------+-------------------------------------------------------+
 
 Contributors
