@@ -101,17 +101,17 @@ ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Pointer) {
     void *AttributeValues[2] = {&IsManaged, &Type};
     CUpointer_attribute Attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
-    Result = UR_CHECK_ERROR(cuPointerGetAttributes(
-        2, Attributes, AttributeValues, (CUdeviceptr)Pointer));
+    UR_CHECK_ERROR(cuPointerGetAttributes(2, Attributes, AttributeValues,
+                                          (CUdeviceptr)Pointer));
     UR_ASSERT(Type == CU_MEMORYTYPE_DEVICE || Type == CU_MEMORYTYPE_HOST,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
     if (IsManaged || Type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
       // with cuMemFree
-      Result = UR_CHECK_ERROR(cuMemFree((CUdeviceptr)Pointer));
+      UR_CHECK_ERROR(cuMemFree((CUdeviceptr)Pointer));
     } else {
       // Memory allocated with cuMemAllocHost must be freed with cuMemFreeHost
-      Result = UR_CHECK_ERROR(cuMemFreeHost(Pointer));
+      UR_CHECK_ERROR(cuMemFreeHost(Pointer));
     }
   } catch (ur_result_t Err) {
     Result = Err;
@@ -207,12 +207,12 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         // pointer not known to the CUDA subsystem
         return ReturnValue(UR_USM_TYPE_UNKNOWN);
       }
-      Result = checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
+      checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
       if (Value) {
         // pointer to managed memory
         return ReturnValue(UR_USM_TYPE_SHARED);
       }
-      Result = UR_CHECK_ERROR(cuPointerGetAttribute(
+      UR_CHECK_ERROR(cuPointerGetAttribute(
           &Value, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)pMem));
       UR_ASSERT(Value == CU_MEMORYTYPE_DEVICE || Value == CU_MEMORYTYPE_HOST,
                 UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -235,7 +235,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 #if CUDA_VERSION >= 10020
       // CU_POINTER_ATTRIBUTE_RANGE_START_ADDR was introduced in CUDA 10.2
       void *Base;
-      Result = UR_CHECK_ERROR(cuPointerGetAttribute(
+      UR_CHECK_ERROR(cuPointerGetAttribute(
           &Base, CU_POINTER_ATTRIBUTE_RANGE_START_ADDR, (CUdeviceptr)pMem));
       return ReturnValue(Base);
 #else
@@ -246,7 +246,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 #if CUDA_VERSION >= 10020
       // CU_POINTER_ATTRIBUTE_RANGE_SIZE was introduced in CUDA 10.2
       size_t Value;
-      Result = UR_CHECK_ERROR(cuPointerGetAttribute(
+      UR_CHECK_ERROR(cuPointerGetAttribute(
           &Value, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
       return ReturnValue(Value);
 #else
@@ -256,9 +256,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
     case UR_USM_ALLOC_INFO_DEVICE: {
       // get device index associated with this pointer
       unsigned int DeviceIndex;
-      Result = UR_CHECK_ERROR(cuPointerGetAttribute(
-          &DeviceIndex, CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
-          (CUdeviceptr)pMem));
+      UR_CHECK_ERROR(cuPointerGetAttribute(&DeviceIndex,
+                                           CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL,
+                                           (CUdeviceptr)pMem));
 
       // currently each device is in its own platform, so find the platform at
       // the same index

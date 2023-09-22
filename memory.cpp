@@ -39,49 +39,45 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
   try {
     ScopedContext Active(hContext);
-    CUdeviceptr Ptr;
+    CUdeviceptr Ptr = 0;
     auto HostPtr = pProperties ? pProperties->pHost : nullptr;
 
     ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
         ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic;
 
     if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && EnableUseHostPtr) {
-      Result = UR_CHECK_ERROR(
+      UR_CHECK_ERROR(
           cuMemHostRegister(HostPtr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
-      Result = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&Ptr, HostPtr, 0));
+      UR_CHECK_ERROR(cuMemHostGetDevicePointer(&Ptr, HostPtr, 0));
       AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-      Result = UR_CHECK_ERROR(cuMemAllocHost(&HostPtr, size));
-      Result = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&Ptr, HostPtr, 0));
+      UR_CHECK_ERROR(cuMemAllocHost(&HostPtr, size));
+      UR_CHECK_ERROR(cuMemHostGetDevicePointer(&Ptr, HostPtr, 0));
       AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
     } else {
-      Result = UR_CHECK_ERROR(cuMemAlloc(&Ptr, size));
+      UR_CHECK_ERROR(cuMemAlloc(&Ptr, size));
       if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
         AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::CopyIn;
       }
     }
 
-    if (Result == UR_RESULT_SUCCESS) {
-      ur_mem_handle_t parentBuffer = nullptr;
+    ur_mem_handle_t parentBuffer = nullptr;
 
-      auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
-          hContext, parentBuffer, flags, AllocMode, Ptr, HostPtr, size});
-      if (URMemObj != nullptr) {
-        MemObj = URMemObj.release();
-        if (PerformInitialCopy) {
-          // Operates on the default stream of the current CUDA context.
-          Result = UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
-          // Synchronize with default stream implicitly used by cuMemcpyHtoD
-          // to make buffer data available on device before any other UR call
-          // uses it.
-          if (Result == UR_RESULT_SUCCESS) {
-            CUstream defaultStream = 0;
-            Result = UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-          }
-        }
-      } else {
-        Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, parentBuffer, flags, AllocMode, Ptr, HostPtr, size});
+    if (URMemObj != nullptr) {
+      MemObj = URMemObj.release();
+      if (PerformInitialCopy) {
+        // Operates on the default stream of the current CUDA context.
+        UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
+        // Synchronize with default stream implicitly used by cuMemcpyHtoD
+        // to make buffer data available on device before any other UR call
+        // uses it.
+        CUstream defaultStream = 0;
+        UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
       }
+    } else {
+      Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
   } catch (ur_result_t Err) {
     Result = Err;
@@ -126,21 +122,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       switch (MemObjPtr->Mem.BufferMem.MemAllocMode) {
       case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::CopyIn:
       case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic:
-        Result = UR_CHECK_ERROR(cuMemFree(MemObjPtr->Mem.BufferMem.Ptr));
+        UR_CHECK_ERROR(cuMemFree(MemObjPtr->Mem.BufferMem.Ptr));
         break;
       case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::UseHostPtr:
-        Result = UR_CHECK_ERROR(
-            cuMemHostUnregister(MemObjPtr->Mem.BufferMem.HostPtr));
+        UR_CHECK_ERROR(cuMemHostUnregister(MemObjPtr->Mem.BufferMem.HostPtr));
         break;
       case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr:
-        Result =
-            UR_CHECK_ERROR(cuMemFreeHost(MemObjPtr->Mem.BufferMem.HostPtr));
+        UR_CHECK_ERROR(cuMemFreeHost(MemObjPtr->Mem.BufferMem.HostPtr));
       };
     } else if (hMem->MemType == ur_mem_handle_t_::Type::Surface) {
-      Result = UR_CHECK_ERROR(
+      UR_CHECK_ERROR(
           cuSurfObjectDestroy(MemObjPtr->Mem.SurfaceMem.getSurface()));
-      Result =
-          UR_CHECK_ERROR(cuArrayDestroy(MemObjPtr->Mem.SurfaceMem.getArray()));
+      UR_CHECK_ERROR(cuArrayDestroy(MemObjPtr->Mem.SurfaceMem.getArray()));
     }
 
   } catch (ur_result_t Err) {
@@ -324,7 +317,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   ScopedContext Active(hContext);
   CUarray ImageArray = nullptr;
   try {
-    Result = UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &ArrayDesc));
+    UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &ArrayDesc));
   } catch (ur_result_t Err) {
     if (Err == UR_RESULT_ERROR_INVALID_VALUE) {
       return UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
@@ -338,8 +331,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     if (PerformInitialCopy) {
       // We have to use a different copy function for each image dimensionality
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
-        Result =
-            UR_CHECK_ERROR(cuMemcpyHtoA(ImageArray, 0, pHost, ImageSizeBytes));
+        UR_CHECK_ERROR(cuMemcpyHtoA(ImageArray, 0, pHost, ImageSizeBytes));
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D CpyDesc;
         memset(&CpyDesc, 0, sizeof(CpyDesc));
@@ -349,7 +341,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
         CpyDesc.dstArray = ImageArray;
         CpyDesc.WidthInBytes = PixelSizeBytes * pImageDesc->width;
         CpyDesc.Height = pImageDesc->height;
-        Result = UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc));
+        UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc));
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         CUDA_MEMCPY3D CpyDesc;
         memset(&CpyDesc, 0, sizeof(CpyDesc));
@@ -360,7 +352,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
         CpyDesc.WidthInBytes = PixelSizeBytes * pImageDesc->width;
         CpyDesc.Height = pImageDesc->height;
         CpyDesc.Depth = pImageDesc->depth;
-        Result = UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc));
+        UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc));
       }
     }
 
@@ -379,7 +371,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ImageResDesc.flags = 0;
 
     CUsurfObject Surface;
-    Result = UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
+    UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
 
     auto MemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_(
         hContext, ImageArray, Surface, flags, pImageDesc->type, phMem));
