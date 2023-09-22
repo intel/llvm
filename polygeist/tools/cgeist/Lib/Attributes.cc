@@ -21,7 +21,7 @@ using namespace mlir;
 
 namespace mlirclang {
 
-constexpr llvm::StringLiteral AttributeList::PassThroughAttrName;
+constexpr StringLiteral AttributeList::PassThroughAttrName;
 
 //===----------------------------------------------------------------------===//
 // Helper functions.
