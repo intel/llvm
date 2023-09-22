@@ -25,7 +25,6 @@ static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
     for (auto Adapter : Vec) {
       urAdapterRelease(Adapter);
     }
-    urTearDown(nullptr);
   });
 }
 
@@ -1146,7 +1145,7 @@ __SYCL_EXPORT pi_result piextPeerAccessGetInfo(
 
 __SYCL_EXPORT pi_result piTearDown(void *) {
   releaseAdapters(Adapters.Vec);
-  urTearDown(nullptr);
+  urLoaderTearDown();
   return PI_SUCCESS;
 }
 
@@ -1303,7 +1302,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   // Initialize UR and discover adapters
-  HANDLE_ERRORS(urInit(0, nullptr));
+  HANDLE_ERRORS(urLoaderInit(0, nullptr));
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
   if (NumAdapters > 0) {
