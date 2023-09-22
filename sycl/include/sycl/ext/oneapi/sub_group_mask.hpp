@@ -12,6 +12,7 @@
 #include <sycl/exception.hpp>          // for errc, exception
 #include <sycl/id.hpp>                 // for id
 #include <sycl/marray.hpp>             // for marray
+#include <sycl/types.hpp>              // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
