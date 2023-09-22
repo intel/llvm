@@ -18,6 +18,7 @@ on:
     - '**.md'
     - '**.rst'
     - '.github/workflows/sycl_precommit_windows.yml'
+    - '.github/workflows/sycl_windows_build_and_test.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 

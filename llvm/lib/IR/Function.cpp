@@ -1495,19 +1495,6 @@ static bool matchIntrinsicType(
       PointerType *PT = dyn_cast<PointerType>(Ty);
       if (!PT || PT->getAddressSpace() != D.Pointer_AddressSpace)
         return true;
-      if (!PT->isOpaque()) {
-        /* Manually consume a pointer to empty struct descriptor, which is
-         * used for externref. We don't want to enforce that the struct is
-         * anonymous in this case. (This renders externref intrinsics
-         * non-unique, but this will go away with opaque pointers anyway.) */
-        if (Infos.front().Kind == IITDescriptor::Struct &&
-            Infos.front().Struct_NumElements == 0) {
-          Infos = Infos.slice(1);
-          return false;
-        }
-        return matchIntrinsicType(PT->getNonOpaquePointerElementType(), Infos,
-                                  ArgTys, DeferredChecks, IsDeferredCheck);
-      }
       // Consume IIT descriptors relating to the pointer element type.
       // FIXME: Intrinsic type matching of nested single value types or even
       // aggregates doesn't work properly with opaque pointers but hopefully

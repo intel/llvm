@@ -144,7 +144,8 @@ ur_result_t ur_event_handle_t_::record() {
       detail::ur::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    Result = UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
+    UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
+    Result = UR_RESULT_SUCCESS;
   } catch (ur_result_t Error) {
     Result = Error;
   }
@@ -157,9 +158,9 @@ ur_result_t ur_event_handle_t_::record() {
 }
 
 ur_result_t ur_event_handle_t_::wait() {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    Result = UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
+    UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
     HasBeenWaitedOn = true;
   } catch (ur_result_t Error) {
     Result = Error;

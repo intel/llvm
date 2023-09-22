@@ -26,6 +26,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <numeric>
 
@@ -151,6 +152,11 @@ static bool canWidenLoad(LoadInst *Load, const TargetTransformInfo &TTI) {
 }
 
 bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
+  // SPIR targets use the default TTI which may give
+  // a misleading view into the target (minimum vector size, etc).
+  // Skip load insert vectorization for SPIR targets.
+  if (Triple(I.getModule()->getTargetTriple()).isSPIR())
+    return false;
   // Match insert into fixed vector of scalar value.
   // TODO: Handle non-zero insert index.
   Value *Scalar;
