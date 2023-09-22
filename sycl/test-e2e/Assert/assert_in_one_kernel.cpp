@@ -5,7 +5,7 @@
 
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // Shouldn't fail on ACC as fallback assert isn't enqueued there
-// RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if acc %{ --check-prefix=CHECK-ACC %}
+// RUN: %{run} %t.out 2>&1 | FileCheck %s %if acc %{ --check-prefix=CHECK-ACC %}
 //
 // CHECK:      {{.*}}assert_in_one_kernel.hpp:10: void kernelFunc(int *, int): {{.*}} [{{[0-3]}},0,0], {{.*}} [0,0,0]
 // CHECK-SAME: Assertion `Buf[wiID] != 0 && "from assert statement"` failed.
