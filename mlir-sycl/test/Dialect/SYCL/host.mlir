@@ -34,9 +34,6 @@ gpu.module @kernels {
   }
 }
 
-// CHECK-LABEL:  sycl.host.kernel_name @kernel_ref -> @kernels::@k0
-sycl.host.kernel_name @kernel_ref -> @kernels::@k0
-
 // CHECK-LABEL:  func.func @f() -> !llvm.ptr {
 // CHECK-NEXT:     %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
 func.func @f() -> !llvm.ptr {

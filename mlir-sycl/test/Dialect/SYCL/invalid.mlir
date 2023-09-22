@@ -441,28 +441,10 @@ func.func @math_op_invalid_vector_type(%arg0 : !sycl_vec_i32_4_) {
 
 // COM: Check inexistent symbol.
 
-// expected-error @below {{'sycl.host.kernel_name' op '@kernels::@k0' does not reference a valid kernel}}
-sycl.host.kernel_name @kernel_ref -> @kernels::@k0
-
-// -----
-
-// COM: Check inexistent symbol.
-
 func.func @f() -> !llvm.ptr {
   // expected-error @below {{'sycl.host.get_kernel' op '@kernels::@k0' does not reference a valid kernel}}
   %0 = sycl.host.get_kernel @kernels::@k0 : !llvm.ptr
   func.return %0 : !llvm.ptr
-}
-
-// -----
-
-// COM: Check function is not a gpu.func
-
-// expected-error @below {{'sycl.host.kernel_name' op '@f0' does not reference a valid kernel}}
-sycl.host.kernel_name @kernel_ref -> @f0
-
-func.func @f0() {
-  func.return
 }
 
 // -----
@@ -478,19 +460,6 @@ func.func @f() -> !llvm.ptr {
 func.func @f0() {
   func.return
 }
-
-// -----
-
-// COM: Check function is not a kernel
-
-gpu.module @kernels {
-  gpu.func @k0() {
-    gpu.return
-  }
-}
-
-// expected-error @below {{'sycl.host.kernel_name' op '@kernels::@k0' does not reference a valid kernel}}
-sycl.host.kernel_name @kernel_ref -> @kernels::@k0
 
 // -----
 

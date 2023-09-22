@@ -527,11 +527,6 @@ void SYCLHostConstructorOp::getEffects(
 }
 
 LogicalResult
-SYCLHostKernelNameOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
-}
-
-LogicalResult
 SYCLHostGetKernelOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return verifyReferencesKernel(*this, symbolTable, getKernelNameAttr());
 }
