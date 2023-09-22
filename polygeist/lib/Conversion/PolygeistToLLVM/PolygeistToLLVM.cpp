@@ -1076,19 +1076,14 @@ public:
   }
 
   LogicalResult run(ModuleOp module) {
-    std::vector<LLVM::LLVMFuncOp> toRemove;
-    const auto getEntry = [this](LLVM::LLVMFuncOp func) {
-      auto iter = llvm::lower_bound(entries, func.getName(),
+    std::vector<std::pair<Entry &, LLVM::LLVMFuncOp>> toRemove;
+    for (auto func : module.getOps<LLVM::LLVMFuncOp>()) {
+      StringRef funcName = func.getName();
+      auto iter = llvm::lower_bound(entries, funcName,
                                     [](const Entry &entry, StringRef name) {
                                       return name < entry.funcName;
                                     });
-      if (iter == entries.end())
-        return iter;
-      return iter->funcName == func.getName() ? iter : entries.end();
-    };
-    for (auto func : module.getOps<LLVM::LLVMFuncOp>()) {
-      auto iter = getEntry(func);
-      if (iter == entries.end())
+      if (iter == entries.end() || iter->funcName != funcName)
         continue;
       // If the type is different, annotate it in the entry. This will lead to
       // an error only if more than one occurrence of the function is found.
@@ -1097,16 +1092,14 @@ public:
       // If it was already found, the current function should be removed.
       // Otherwise, set the function as already found.
       if (iter->found)
-        toRemove.push_back(func);
+        toRemove.emplace_back(*iter, func);
       else
         iter->found = true;
     }
-    for (LLVM::LLVMFuncOp func : toRemove) {
-      auto iter = getEntry(func);
-      assert(iter != entries.end() && "Should always be found");
+    for (auto &[entry, func] : toRemove) {
       // If this is a duplicate and a signature difference occurred, signal
       // error.
-      if (iter->anyHadConflictingSignature)
+      if (entry.anyHadConflictingSignature)
         return func.emitError()
                << "'" << func.getName()
                << "' defined with conflicting signature w.r.t. stdlib function";

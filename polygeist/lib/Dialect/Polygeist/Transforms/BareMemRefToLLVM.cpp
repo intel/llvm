@@ -89,8 +89,8 @@ private:
     SmallVector<Value, 4> strides;
     Value size;
 
-    this->getMemRefDescriptorSizes(loc, memRefType, operands, rewriter, sizes,
-                                   strides, size, !requiresNumElements);
+    getMemRefDescriptorSizes(loc, memRefType, operands, rewriter, sizes,
+                             strides, size, !requiresNumElements);
 
     // Return the final value of the descriptor.
     rewriter.replaceOp(op, allocateBuffer(rewriter, loc, size, op));
