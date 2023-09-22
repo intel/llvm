@@ -88,8 +88,7 @@ public:
     return jm.cuda_impl.wi_marray.size();
 #else
     throw runtime_error(
-        "get_wi_data is available using: ext::oneapi::detail::get_wi_data, but "
-        "intel users are expected to use joint_matrix_copy instead.",
+        "get_wi_data is unavailable, use joint_matrix_copy instead.",
         PI_ERROR_INVALID_DEVICE);
 #endif
   };
@@ -99,8 +98,7 @@ public:
     return (jm.cuda_impl.wi_marray[i]);
 #else
     throw runtime_error(
-        "get_wi_data is available using: ext::oneapi::detail::get_wi_data, but "
-        "intel users are expected to use joint_matrix_copy instead.",
+        "get_wi_data is unavailable, use joint_matrix_copy instead.",
         PI_ERROR_INVALID_DEVICE);
 #endif
   };

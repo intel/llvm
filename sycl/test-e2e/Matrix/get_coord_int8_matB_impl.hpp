@@ -122,16 +122,11 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
                          N);
 
        int32_t sum_local_cols[N] = {0};
-       auto wiData = sycl::ext::oneapi::detail::get_wi_data(sg, sub_b);
-
-       // each WI calculates local sum of cols
-       for (int i = 0; i < wiData.length(); ++i) {
-         // get the index of the element in the submatrix
-         auto dataItem = wiData[i];
-         auto [row, col] = dataItem.get_coord();
-         size_t global_index = col + global_idy / SG_SZ * TN * VF;
-         sum_local_cols[global_index] += dataItem;
-       }
+       ext::intel::experimental::matrix::joint_matrix_apply(
+           sg, sub_b, [&](int8_t &x, size_t row, size_t col) {
+             size_t global_index = col + global_idy / SG_SZ * TN * VF;
+             sum_local_cols[global_index] += x;
+           });
 
        for (int i = 0; i < N; i++) {
          sum_local_cols[i] =
