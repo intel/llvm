@@ -59,9 +59,9 @@
 // Create BC file with only Code in table
 // RUN: file-table-tform  --extract=Code  %t.table  -o %t_code_only.table
 
-// Generate BC file with only Code coming from the table but everything else coming through --wrapped-bc-input
+// Generate BC file with only Code coming from the table but everything else coming through --sym-prop-bc-files
 // Thus %t1.bc and %t2.bc should be the same except for their Code.
-// RUN: clang-offload-wrapper "-o=%t2.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %t_code_only.table --wrapped-bc-input=%t1.bc
+// RUN: clang-offload-wrapper "-o=%t2.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %t_code_only.table --sym-prop-bc-files=%t1.bc
 
 // RUN: llvm-dis %t1.bc
 // RUN: llvm-dis %t2.bc
