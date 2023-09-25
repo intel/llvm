@@ -224,7 +224,7 @@ Changelog
 +-----------+-------------------------------------------------------+
 | 1.2       | Add function definitions for fill commands            |
 +-----------+-------------------------------------------------------+
-| 1.2       | Add function definitions for Prefetch and Advise      |
+| 1.3       | Add function definitions for Prefetch and Advise      |
 |           | commands                                              |
 +-----------+-------------------------------------------------------+
 
