@@ -179,8 +179,6 @@ public:
                                                     bool GetDeviceStub = false);
   mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
                                                  InsertionContext FuncContext);
-  mlir::LLVM::LLVMFuncOp getOrCreateMallocFunction();
-  mlir::LLVM::LLVMFuncOp getOrCreateFreeFunction();
 
   mlir::LLVM::GlobalOp getOrCreateLLVMGlobal(const clang::ValueDecl *VD,
                                              std::string Prefix,

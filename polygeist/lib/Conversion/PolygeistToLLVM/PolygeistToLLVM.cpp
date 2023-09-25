@@ -1059,11 +1059,11 @@ struct EraseSPIRVBuiltinPattern
 class DuplicateFuncCleaner {
 public:
   struct Entry {
-    Entry(StringRef funcName, FunctionType funcType)
+    Entry(StringRef funcName, LLVM::LLVMFunctionType funcType)
         : funcName(funcName), signature(funcType) {}
 
     StringRef funcName;
-    FunctionType signature;
+    LLVM::LLVMFunctionType signature;
     bool anyHadConflictingSignature = false;
     bool anyIsDefinition = false;
     bool found = false;
@@ -1082,7 +1082,7 @@ public:
       StringRef funcName = func.getName();
       auto iter = llvm::lower_bound(entries, funcName,
                                     [](const Entry &entry, StringRef name) {
-                                      return name < entry.funcName;
+                                      return entry.funcName < name;
                                     });
       if (iter == entries.end() || iter->funcName != funcName)
         continue;
@@ -1090,7 +1090,7 @@ public:
       // an error only if more than one occurrence of the function is found.
       iter->anyHadConflictingSignature |=
           iter->signature != func.getFunctionType();
-      iter->anyIsDefinition |= !func.isDeclaration();
+      iter->anyIsDefinition |= !func.isExternal();
       // If it was already found, the current function should be removed.
       // Otherwise, set the function as already found.
       if (iter->found)
@@ -1129,11 +1129,12 @@ private:
     constexpr StringLiteral mallocFn("malloc");
     Builder builder(&getContext());
     DuplicateFuncCleaner cleaner{
-        {freeFn,
-         builder.getFunctionType(builder.getType<LLVM::LLVMPointerType>(), {})},
-        {mallocFn,
-         builder.getFunctionType(builder.getIntegerType(bitwidth),
-                                 builder.getType<LLVM::LLVMPointerType>())}};
+        {freeFn, LLVM::LLVMFunctionType::get(
+                     builder.getType<LLVM::LLVMVoidType>(),
+                     ArrayRef<Type>{builder.getType<LLVM::LLVMPointerType>()})},
+        {mallocFn, LLVM::LLVMFunctionType::get(
+                       builder.getType<LLVM::LLVMPointerType>(),
+                       ArrayRef<Type>{builder.getIntegerType(bitwidth)})}};
     if (failed(cleaner.run(getOperation())))
       signalPassFailure();
   }

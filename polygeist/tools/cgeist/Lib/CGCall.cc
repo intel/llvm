@@ -261,10 +261,19 @@ ValueCategory MLIRScanner::callHelper(
         } else
           Val = Arg.getValue(Builder);
 
-        if (isa<LLVM::LLVMPointerType>(Val.getType()) &&
-            isa<MemRefType>(ExpectedType))
-          Val = Builder.create<polygeist::Pointer2MemrefOp>(Loc, ExpectedType,
-                                                            Val);
+        if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
+          if (auto MT = dyn_cast<MemRefType>(ExpectedType)) {
+            Val = Builder.create<polygeist::Pointer2MemrefOp>(
+                Loc,
+                MemRefType::get(
+                    MT.getShape(), MT.getElementType(), MT.getLayout(),
+                    Builder.getI32IntegerAttr(PT.getAddressSpace())),
+                Val);
+            // We will run into issues if we use non-integer attributes as
+            // memory spaces in memrefs.
+            Val = castToMemSpaceOfType(Val, ExpectedType);
+          }
+        }
 
         if (auto PrevTy = dyn_cast<IntegerType>(Val.getType())) {
           auto IPostTy = cast<IntegerType>(ExpectedType);
@@ -279,15 +288,25 @@ ValueCategory MLIRScanner::callHelper(
           Glob.getCGM().getContext().getLValueReferenceType(AType));
 
       Val = Arg.val;
-      if (isa<LLVM::LLVMPointerType>(Val.getType()) &&
-          isa<MemRefType>(ExpectedType))
-        Val =
-            Builder.create<polygeist::Pointer2MemrefOp>(Loc, ExpectedType, Val);
-      else if (isa<MemRefType>(Val.getType()) &&
-               isa<LLVM::LLVMPointerType>(ExpectedType))
-        Val =
-            Builder.create<polygeist::Memref2PointerOp>(Loc, ExpectedType, Val);
-
+      if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
+        if (auto MT = dyn_cast<MemRefType>(ExpectedType)) {
+          Val = Builder.create<polygeist::Pointer2MemrefOp>(
+              Loc,
+              MemRefType::get(MT.getShape(), MT.getElementType(),
+                              MT.getLayout(),
+                              Builder.getI32IntegerAttr(PT.getAddressSpace())),
+              Val);
+        }
+      } else if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
+        if (auto PT = dyn_cast<LLVM::LLVMPointerType>(ExpectedType)) {
+          Val = Builder.create<polygeist::Memref2PointerOp>(
+              Loc,
+              Builder.getType<LLVM::LLVMPointerType>(MT.getMemorySpaceAsInt()),
+              Val);
+        }
+      }
+      // We will run into issues if we use non-integer attributes as memory
+      // spaces in memrefs.
       Val = castToMemSpaceOfType(Val, ExpectedType);
     }
     assert(Val);
@@ -1041,54 +1060,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
   const clang::FunctionDecl *Callee = EmitCallee(Expr->getCallee());
 
-  std::set<std::string> Funcs = {
-      "fread",
-      "read",
-      "strcmp",
-      "fputs",
-      "puts",
-      "memcpy",
-      "getenv",
-      "strrchr",
-      "mkdir",
-      "printf",
-      "fprintf",
-      "sprintf",
-      "fwrite",
-      "__builtin_memcpy",
-      "cudaMemcpy",
-      "cudaMemcpyAsync",
-      "cudaMalloc",
-      "cudaMallocHost",
-      "cudaFree",
-      "cudaFreeHost",
-      "open",
-      "gettimeofday",
-      "fopen",
-      "time",
-      "memset",
-      "cudaMemset",
-      "strcpy",
-      "close",
-      "fclose",
-      "atoi",
-      "malloc",
-      "calloc",
-      "free",
-      "fgets",
-      "__errno_location",
-      "__assert_fail",
-      "cudaEventElapsedTime",
-      "cudaEventSynchronize",
-      "cudaDeviceGetAttribute",
-      "cudaFuncGetAttributes",
-      "cudaGetDevice",
-      "cudaGetDeviceCount",
-      "cudaMemGetInfo",
-      "clock_gettime",
-      "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
-      "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
-      "cudaEventRecord"};
   if (auto *Ic = dyn_cast<clang::ImplicitCastExpr>(Expr->getCallee()))
     if (auto *Sr = dyn_cast<clang::DeclRefExpr>(Ic->getSubExpr())) {
       StringRef Name;
@@ -1104,50 +1075,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
                               clang::KernelReferenceKind::Kernel));
       else
         Name = Glob.getCGM().getMangledName(Sr->getDecl());
-      if (Funcs.count(Name.str()) || Name.startswith("mkl_") ||
-          Name.startswith("MKL_") || Name.startswith("cublas") ||
-          Name.startswith("cblas_")) {
-
-        std::vector<Value> Args;
-        for (auto *A : Expr->arguments())
-          Args.push_back(GetLLVM(A));
-
-        Value Called;
-
-        if (Callee) {
-          auto StrcmpF = Glob.getOrCreateLLVMFunction(Callee, FuncContext);
-          LLVM::LLVMFunctionType FuncTy = StrcmpF.getFunctionType();
-          for (unsigned I = 0; I < FuncTy.getNumParams(); ++I) {
-            Type CallerArgType = Args[I].getType();
-            if (isa<LLVM::LLVMPointerType>(CallerArgType)) {
-              Type CalleeArgType = FuncTy.getParamType(I);
-              Args[I] = castToMemSpaceOfType(Args[I], CalleeArgType);
-            }
-          }
-          Called = Builder.create<LLVM::CallOp>(Loc, StrcmpF, Args).getResult();
-        } else {
-          Args.insert(Args.begin(), GetLLVM(Expr->getCallee()));
-          SmallVector<Type> RTs = {
-              TypeTranslator.translateType(mlirclang::anonymize(
-                  mlirclang::getLLVMType(Expr->getType(), Glob.getCGM())))};
-          if (isa<LLVM::LLVMVoidType>(RTs[0]))
-            RTs.clear();
-          Called = Builder.create<LLVM::CallOp>(Loc, RTs, Args).getResult();
-        }
-        if (!Called)
-          return nullptr;
-
-        bool IsReference = Expr->isLValue() || Expr->isXValue();
-        std::optional<mlir::Type> ElementType = std::nullopt;
-        if (IsReference)
-          ElementType = Glob.getTypes().getMLIRType(
-              cast<clang::ReferenceType>(Expr->getType())->getPointeeType());
-        else if (const auto *PtTy =
-                     dyn_cast<clang::PointerType>(Expr->getType()))
-          ElementType = Glob.getTypes().getMLIRType(PtTy->getPointeeType());
-
-        return ValueCategory(Called, IsReference, ElementType);
-      }
     }
 
   if (!Callee || Callee->isVariadic()) {
@@ -1257,14 +1184,9 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
 
         if (isa<LLVM::LLVMPointerType>(Arg.getType())) {
           const clang::FunctionDecl *Callee = EmitCallee(Expr->getCallee());
-          LLVM::LLVMFuncOp StrcmpF =
-              Glob.getOrCreateLLVMFunction(Callee, FuncContext);
-          Builder.create<LLVM::CallOp>(
-              Loc, StrcmpF,
-              ValueRange({Builder.create<LLVM::BitcastOp>(
-                  Loc,
-                  Glob.getTypes().getPointerType(Builder.getIntegerType(8)),
-                  Arg)}));
+          FunctionToEmit FTE(*Callee, FuncContext);
+          auto StrcmpF = cast<func::FuncOp>(Glob.getOrCreateMLIRFunction(FTE));
+          Builder.create<func::CallOp>(Loc, StrcmpF, Arg);
         } else {
           Builder.create<memref::DeallocOp>(Loc, Arg);
         }

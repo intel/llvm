@@ -13,6 +13,6 @@ void metafree(void* x, void (*foo)(int), void (*bar)(void)) {
 // CHECK-NEXT:      %[[VAL_3:.*]] = arith.constant 0 : i32
 // CHECK-NEXT:      llvm.call %[[VAL_1]](%[[VAL_3]]) : !llvm.ptr, (i32) -> ()
 // CHECK-NEXT:      llvm.call %[[VAL_2]]() : !llvm.ptr, () -> ()
-// CHECK-NEXT:      llvm.call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
+// CHECK:           call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }

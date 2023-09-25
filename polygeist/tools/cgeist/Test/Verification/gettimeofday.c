@@ -13,7 +13,7 @@ double alloc() {
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i64, i64)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.call @gettimeofday(%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_4:.*]] = call @gettimeofday(%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i64, i64)>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> i64
 // CHECK-NEXT:      %[[VAL_7:.*]] = arith.sitofp %[[VAL_6]] : i64 to f64

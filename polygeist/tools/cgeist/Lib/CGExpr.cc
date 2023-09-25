@@ -770,14 +770,17 @@ ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
   Location Loc = getMLIRLocation(Expr->getExprLoc());
   mlir::Value ToDelete = Visit(Expr->getArgument()).getValue(Builder);
 
-  if (isa<mlir::MemRefType>(ToDelete.getType()))
-    Builder.create<mlir::memref::DeallocOp>(Loc, ToDelete);
-  else {
-    mlir::Value Args[1] = {Builder.create<LLVM::BitcastOp>(
-        Loc, Glob.getTypes().getPointerType(Builder.getI8Type()), ToDelete)};
-    Builder.create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateFreeFunction(),
-                                       Args);
-  }
+  if (auto PT = dyn_cast<LLVM::LLVMPointerType>(ToDelete.getType()))
+    ToDelete = Builder.create<polygeist::Pointer2MemrefOp>(
+        Loc,
+        MemRefType::get(
+            ShapedType::kDynamic,
+            Glob.getTypes().getMLIRTypeForMem(Expr->getDestroyedType()), {},
+            PT.getAddressSpace()),
+        ToDelete);
+  assert(isa<mlir::MemRefType>(ToDelete.getType()) && "Expecting memref");
+
+  Builder.create<mlir::memref::DeallocOp>(Loc, ToDelete);
 
   return nullptr;
 }
@@ -823,38 +826,28 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
             Alloc);
       }
     }
-  } else if (auto MT = dyn_cast<mlir::MemRefType>(Ty)) {
+  } else {
+    MemRefType MT =
+        TypeSwitch<mlir::Type, MemRefType>(Ty)
+            .Case<mlir::MemRefType>([](auto MT) { return MT; })
+            .Case<LLVM::LLVMPointerType>([&](auto PT) {
+              return MemRefType::get(
+                  ShapedType::kDynamic,
+                  Glob.getTypes().getMLIRTypeForMem(Expr->getAllocatedType()),
+                  {}, PT.getAddressSpace());
+            });
+
     ArrayCons = Alloc =
         Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange({Count}));
     ElemTy = MT.getElementType();
-    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(Alloc, ElemTy.value(),
-                                          Expr->getInitializer());
-  } else {
-    auto I64 = mlir::IntegerType::get(Count.getContext(), 64);
-    Value TypeSize = getTypeSize(Expr->getAllocatedType());
-    mlir::Value Args[1] = {Builder.create<arith::MulIOp>(Loc, TypeSize, Count)};
-    Args[0] = Builder.create<arith::IndexCastOp>(Loc, I64, Args[0]);
-    ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(
-        Loc, Ty,
-        Builder
-            .create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateMallocFunction(),
-                                        Args)
-            ->getResult(0));
-
-    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(Alloc, ElemTy.value(),
-                                          Expr->getInitializer());
-
-    if (Expr->isArray()) {
-      auto PT = cast<LLVM::LLVMPointerType>(Ty);
-      ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
-          Loc,
-          Glob.getTypes().getPointerType(
-              LLVM::LLVMArrayType::get(ElemTy.value(), 0),
-              PT.getAddressSpace()),
-          Alloc);
+    if (MT != Ty) {
+      assert(isa<LLVM::LLVMPointerType>(Ty) && "Expecting `llvm.ptr`");
+      ArrayCons = Alloc =
+          Builder.create<polygeist::Memref2PointerOp>(Loc, Ty, ArrayCons);
     }
+    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
+      (void)InitializeValueByInitListExpr(Alloc, ElemTy.value(),
+                                          Expr->getInitializer());
   }
   assert(Alloc);
 
@@ -1433,6 +1426,8 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     llvm::dbgs() << "\n";
   });
 
+  // FIXME: Getting a function pointer this way to a func we're also calling in
+  // the code breaks codegen. Use `func.constant` instead.
   if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl())) {
     auto Func = Glob.getOrCreateLLVMFunction(Tocall, FuncContext);
     return ValueCategory(

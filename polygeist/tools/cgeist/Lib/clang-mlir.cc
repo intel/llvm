@@ -1479,40 +1479,6 @@ Value MLIRScanner::reshapeRanklessGlobal(memref::GetGlobalOp GV) {
 /*                             MLIRASTConsumer                                */
 /******************************************************************************/
 
-LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateMallocFunction() {
-  std::string Name = "malloc";
-  if (LLVMFunctions.find(Name) != LLVMFunctions.end())
-    return LLVMFunctions[Name];
-
-  MLIRContext *Ctx = Module->getContext();
-  auto PtrTy = LLVM::LLVMPointerType::get(Ctx);
-  auto LLVMFnType = LLVM::LLVMFunctionType::get(
-      PtrTy, ArrayRef<Type>(IntegerType::get(Ctx, 64)), false);
-
-  LLVM::Linkage Lnk = LLVM::Linkage::External;
-  OpBuilder Builder(Module->getContext());
-  Builder.setInsertionPointToStart(Module->getBody());
-  return LLVMFunctions[Name] = Builder.create<LLVM::LLVMFuncOp>(
-             Module->getLoc(), Name, LLVMFnType, Lnk);
-}
-
-LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateFreeFunction() {
-  std::string Name = "free";
-  if (LLVMFunctions.find(Name) != LLVMFunctions.end())
-    return LLVMFunctions[Name];
-
-  MLIRContext *Ctx = Module->getContext();
-  auto PtrTy = LLVM::LLVMPointerType::get(Ctx);
-  auto LLVMFnType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(Ctx),
-                                                ArrayRef<Type>({PtrTy}), false);
-
-  LLVM::Linkage Lnk = LLVM::Linkage::External;
-  OpBuilder Builder(Module->getContext());
-  Builder.setInsertionPointToStart(Module->getBody());
-  return LLVMFunctions[Name] = Builder.create<LLVM::LLVMFuncOp>(
-             Module->getLoc(), Name, LLVMFnType, Lnk);
-}
-
 LLVM::LLVMFuncOp
 MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
                                          InsertionContext FuncContext) {
@@ -1834,7 +1800,6 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE,
                                        &FD, clang::KernelReferenceKind::Kernel))
                     .str()
           : PrefixABI + MLIRScanner::getMangledFuncName(FD, CGM);
-  assert(MangledName != "free");
 
   // Early exit if the function has already been generated.
   if (Optional<FunctionOpInterface> OptFunction =

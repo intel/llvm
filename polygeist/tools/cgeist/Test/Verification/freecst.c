@@ -14,6 +14,6 @@ void writeNStage2DDWT(struct dimensions* bandDims)
 
 // CHECK-LABEL:   func.func @writeNStage2DDWT(
 // CHECK-SAME:                                %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:      llvm.call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }

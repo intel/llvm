@@ -198,7 +198,6 @@ int main(int argc, char** argv)
 // CHECK:         llvm.func @fprintf(!llvm.ptr, !llvm.ptr, ...) -> i32
 // CHECK:         llvm.mlir.global internal constant @str1("==BEGIN DUMP_ARRAYS==\0A\00") {addr_space = 0 : i32}
 // CHECK:         llvm.mlir.global external @stderr() {addr_space = 0 : i32} : !llvm.ptr
-// CHECK:         llvm.func @strcmp(!llvm.ptr, !llvm.ptr) -> i32
 // CHECK:         llvm.mlir.global internal constant @str0("\00") {addr_space = 0 : i32}
 
 // CHECK-LABEL:   func.func @main(
@@ -225,11 +224,10 @@ int main(int argc, char** argv)
 // CHECK:           call @kernel_correlation(%[[VAL_4]], %[[VAL_5]], %[[VAL_13]], %[[VAL_12]], %[[VAL_14]], %[[VAL_15]], %[[VAL_16]]) : (i32, i32, f64, memref<?x1200xf64>, memref<?x1200xf64>, memref<?xf64>, memref<?xf64>) -> ()
 // CHECK:           %[[VAL_17:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_3]] : i32
 // CHECK:           scf.if %[[VAL_17]] {
-// CHECK:             %[[VAL_18:.*]] = affine.load %[[VAL_1]][0] : memref<?xmemref<?xi8>>
-// CHECK:             %[[VAL_19:.*]] = "polygeist.memref2pointer"(%[[VAL_18]]) : (memref<?xi8>) -> !llvm.ptr
+// CHECK:             %[[VAL_19:.*]] = affine.load %[[VAL_1]][0] : memref<?xmemref<?xi8>>
 // CHECK:             %[[VAL_20:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
-// CHECK:             %[[VAL_21:.*]] = llvm.getelementptr inbounds %[[VAL_20]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<1 x i8>
-// CHECK:             %[[VAL_22:.*]] = llvm.call @strcmp(%[[VAL_19]], %[[VAL_21]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:             %[[VAL_21:.*]] = "polygeist.pointer2memref"(%[[VAL_20]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK:             %[[VAL_22:.*]] = func.call @strcmp(%[[VAL_19]], %[[VAL_21]]) : (memref<?xi8>, memref<?xi8>) -> i32
 // CHECK:             %[[VAL_23:.*]] = arith.cmpi eq, %[[VAL_22]], %[[VAL_2]] : i32
 // CHECK:             scf.if %[[VAL_23]] {
 // CHECK:               func.call @print_array(%[[VAL_4]], %[[VAL_14]]) : (i32, memref<?x1200xf64>) -> ()
@@ -336,7 +334,7 @@ int main(int argc, char** argv)
 // CHECK:           affine.store %[[VAL_9]], %[[VAL_4]][symbol(%[[VAL_10]]) - 1, symbol(%[[VAL_10]]) - 1] : memref<?x1200xf64>
 // CHECK:           return
 // CHECK:         }
-
+// CHECK-LABEL:   func.func private @strcmp(memref<?xi8>, memref<?xi8>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>}
 // CHECK-LABEL:   func.func private @print_array(
 // CHECK-SAME:                                   %[[VAL_0:.*]]: i32,
 // CHECK-SAME:                                   %[[VAL_1:.*]]: memref<?x1200xf64>) attributes {llvm.linkage = #llvm.linkage<internal>} {
