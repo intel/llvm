@@ -335,7 +335,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
 
-  SmallVector<StringRef, 8> CmdArgs;
+  SmallVector<StringRef, 16> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back("-type=o");
   CmdArgs.push_back("-bundle-align=4096");
@@ -400,7 +400,7 @@ static bool isStaticArchiveFile(const StringRef Filename) {
 }
 
 // Find if section related to triple is present in a bundled file
-static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
+static Expected<bool> checkSection(StringRef Filename, StringRef TargetTriple,
                                    const ArgList &Args) {
   Expected<std::string> OffloadBundlerPath = findProgram(
       "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
@@ -410,7 +410,7 @@ static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
 
-  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str());
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + TargetTriple);
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back(Target);
@@ -430,11 +430,10 @@ static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
   if (!OffloadBundlerPath)
     return OffloadBundlerPath.takeError();
 
-  llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   // Check if section with Triple is available in input bundle
   // If no section is available, then we assume it's not a valid bundle and
   // return original file.
-  auto CheckSection = checkSection(Filename, Triple, Args);
+  auto CheckSection = checkSection(Filename, TargetTriple, Args);
   if (!CheckSection)
     return CheckSection.takeError();
   if (!(*CheckSection))
@@ -451,7 +450,7 @@ static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back("-type=o");
-  CmdArgs.push_back(Saver.save("-targets=sycl-" + Triple.str()));
+  CmdArgs.push_back(Saver.save("-targets=sycl-" + TargetTriple));
   CmdArgs.push_back(Saver.save("-input=" + Filename));
   CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
   CmdArgs.push_back("-unbundle");
@@ -618,8 +617,8 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
                            /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
 
-  int I = 0;
-  for (const auto &File : InputFiles) {
+  for (unsigned I = 0; I < InputFiles.size(); ++I) {
+    const auto &File = InputFiles[I];
     // Create a new file to write the translated file to.
     auto TempFileOrErr =
         createOutputFile(sys::path::filename(ExecutableName), "spv");
@@ -633,7 +632,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
     if (Error Err = executeCommands(*LLVMToSPIRVPath, CmdArgs))
       return std::move(Err);
     // Replace bc file in SYCL table with spv file
-    LiveSYCLTable.Entries[I++].IRFile = *TempFileOrErr;
+    LiveSYCLTable.Entries[I].IRFile = *TempFileOrErr;
     // Pop back last two items
     CmdArgs.pop_back_n(2);
   }
@@ -643,7 +642,7 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-// Run clang-offload-wrapper and llc
+// Run clang-offload-wrapper
 static Expected<StringRef> runWrapper(StringRef &InputFile,
                                       const ArgList &Args) {
   // Create a new file to write the wrapped file to.
@@ -651,54 +650,68 @@ static Expected<StringRef> runWrapper(StringRef &InputFile,
       createOutputFile(sys::path::filename(ExecutableName), "bc");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
+  Expected<std::string> ClangOffloadWrapperPath = findProgram(
+      "clang-offload-wrapper", {getMainExecutable("clang-offload-wrapper")});
+  if (!ClangOffloadWrapperPath)
+    return ClangOffloadWrapperPath.takeError();
+
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*ClangOffloadWrapperPath);
+  CmdArgs.push_back(Saver.save("-o=" + *TempFileOrErr));
+  llvm::Triple HostTriple(Args.getLastArgValue(
+      OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
+  CmdArgs.push_back(Saver.save("-target=" + TargetTriple));
+  CmdArgs.push_back("-kind=sycl");
+  CmdArgs.push_back("-batch");
+  CmdArgs.push_back(InputFile);
+  if (Error Err = executeCommands(*ClangOffloadWrapperPath, CmdArgs))
+    return std::move(Err);
+  return *TempFileOrErr;
+}
+
+// Run llc
+static Expected<StringRef> runCompile(StringRef &InputFile,
+                                      const ArgList &Args) {
   // Create a new file to write the output of llc to.
   auto OutputFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "o");
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
+  Expected<std::string> LLCPath =
+      findProgram("llc", {getMainExecutable("llc")});
+  if (!LLCPath)
+    return LLCPath.takeError();
+
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*LLCPath);
+  CmdArgs.push_back("-filetype=obj");
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(*OutputFileOrErr);
+  CmdArgs.push_back(InputFile);
+  if (Error Err = executeCommands(*LLCPath, CmdArgs))
+      return std::move(Err);
+  return *OutputFileOrErr;
+}
+
+// Run clang-offload-wrapper and llc
+static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
+                                      const ArgList &Args) {
   // call to clang-offload-wrapper
-  {
-    Expected<std::string> ClangOffloadWrapperPath = findProgram(
-        "clang-offload-wrapper", {getMainExecutable("clang-offload-wrapper")});
-    if (!ClangOffloadWrapperPath)
-      return ClangOffloadWrapperPath.takeError();
-
-    BumpPtrAllocator Alloc;
-    StringSaver Saver(Alloc);
-
-    SmallVector<StringRef, 8> CmdArgs;
-    CmdArgs.push_back(*ClangOffloadWrapperPath);
-    CmdArgs.push_back(Saver.save("-o=" + *TempFileOrErr));
-    llvm::Triple HostTriple(Args.getLastArgValue(
-        OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-    CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
-    CmdArgs.push_back(Saver.save("-target=" + TargetTriple));
-    CmdArgs.push_back("-kind=sycl");
-    CmdArgs.push_back("-batch");
-    CmdArgs.push_back(InputFile);
-    if (Error Err = executeCommands(*ClangOffloadWrapperPath, CmdArgs))
-      return std::move(Err);
-  }
+  auto OutputFile = sycl::runWrapper(InputFile, Args);
+  if (!OutputFile)
+    return OutputFile.takeError();
   // call to llc
-  {
-    Expected<std::string> LLCPath =
-        findProgram("llc", {getMainExecutable("llc")});
-    if (!LLCPath)
-      return LLCPath.takeError();
-
-    BumpPtrAllocator Alloc;
-    StringSaver Saver(Alloc);
-
-    SmallVector<StringRef, 8> CmdArgs;
-    CmdArgs.push_back(*LLCPath);
-    CmdArgs.push_back("-filetype=obj");
-    CmdArgs.push_back("-o");
-    CmdArgs.push_back(*OutputFileOrErr);
-    CmdArgs.push_back(*TempFileOrErr);
-    if (Error Err = executeCommands(*LLCPath, CmdArgs))
-      return std::move(Err);
-  }
+   auto OutputFileOrErr = sycl::runCompile(*OutputFile, Args);
+  if (!OutputFile)
+    return OutputFile.takeError();
   return *OutputFileOrErr;
 }
 
@@ -709,7 +722,8 @@ unbundleSYCLDeviceLibs(const SmallVector<std::string, 16> &Files,
                        SmallVector<std::string, 16> &UnbundledFiles,
                        const ArgList &Args) {
   for (auto &Filename : Files) {
-    if (!sys::fs::exists(Filename) || sys::fs::is_directory(Filename))
+    assert(sys::fs::is_directory(Filename) && "Filename cannot be directory");
+    if (!sys::fs::exists(Filename))
       continue;
     // Run unbundler
     auto UnbundledFile = sycl::unbundle(Filename, Args);
@@ -723,7 +737,7 @@ unbundleSYCLDeviceLibs(const SmallVector<std::string, 16> &Files,
 // Link all SYCL input files into one before adding device library files.
 Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
                                          const ArgList &Args) {
-  llvm::TimeTraceScope TimeScope("LinkDeviceInputFiles");
+  llvm::TimeTraceScope TimeScope("SYCL LinkDeviceInputFiles");
 
   Expected<std::string> LLVMLinkPath =
       findProgram("llvm-link", {getMainExecutable("llvm-link")});
@@ -935,7 +949,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
         return SPVFile.takeError();
       // TODO(NOM6): Add AOT support if needed
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-      auto OutputFile = sycl::runWrapper(*SPVFile, Args);
+      auto OutputFile = sycl::runWrapperAndCompile(*SPVFile, Args);
       if (!OutputFile)
         return OutputFile.takeError();
       return *OutputFile;
