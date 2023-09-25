@@ -630,6 +630,9 @@ type: function
 desc: "Append a USM Advise command to a command-buffer object"
 class: $xCommandBuffer
 name: AppendUSMAdviseExp
+details:
+    - "Not all memory advice hints may be supported for all devices or allocation types. 
+    If a memory advice hint is not supported, it will be ignored."
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
