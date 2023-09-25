@@ -1941,6 +1941,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     void *,
     size_t,
     ur_usm_advice_flags_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////

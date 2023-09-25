@@ -3628,9 +3628,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urCommandBufferAppendUSMAdviseExp
 if __use_win_types:
-    _urCommandBufferAppendUSMAdviseExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_size_t, ur_usm_advice_flags_t, POINTER(ur_exp_command_buffer_sync_point_t) )
+    _urCommandBufferAppendUSMAdviseExp_t = WINFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_size_t, ur_usm_advice_flags_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
 else:
-    _urCommandBufferAppendUSMAdviseExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_size_t, ur_usm_advice_flags_t, POINTER(ur_exp_command_buffer_sync_point_t) )
+    _urCommandBufferAppendUSMAdviseExp_t = CFUNCTYPE( ur_result_t, ur_exp_command_buffer_handle_t, c_void_p, c_size_t, ur_usm_advice_flags_t, c_ulong, POINTER(ur_exp_command_buffer_sync_point_t), POINTER(ur_exp_command_buffer_sync_point_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urCommandBufferEnqueueExp

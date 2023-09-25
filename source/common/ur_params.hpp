@@ -11425,6 +11425,16 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
     ur_params::serializeFlag<ur_usm_advice_flag_t>(os, *(params->padvice));
 
     os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
     os << ".pSyncPoint = ";
 
     ur_params::serializePtr(os, *(params->ppSyncPoint));

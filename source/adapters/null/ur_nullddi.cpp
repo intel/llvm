@@ -4934,6 +4934,10 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     void *pMemory,                ///< [in] pointer to the USM memory object.
     size_t size,                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice, ///< [in] USM memory advice
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint ///< [out][optional] sync point associated with this command.
     ) try {
@@ -4944,7 +4948,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         d_context.urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
     if (nullptr != pfnAppendUSMAdviseExp) {
         result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size, advice,
-                                       pSyncPoint);
+                                       numSyncPointsInWaitList,
+                                       pSyncPointWaitList, pSyncPoint);
     } else {
         // generic implementation
     }
