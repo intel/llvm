@@ -400,22 +400,16 @@ private:
       // Read a BC File that will provide SYM and Props information
       std::unique_ptr<MemoryBuffer> MB = SymProps_ExitOnErr(errorOrToExpected(
           MemoryBuffer::getFileOrSTDIN(Row.getCell("SymAndProps"))));
-
       Current_SymProps_M = SymProps_ExitOnErr(
           getOwningLazyBitcodeModule(std::move(MB), SymProps_C,
                                      /*ShouldLazyLoadMetadata=*/true));
-
       SymProps_ExitOnErr(Current_SymProps_M->materializeAll());
-
       auto DeviceImages_Var = Current_SymProps_M->getGlobalVariable(
           ".sycl_offloading.device_images", true);
-
       DeviceImages_Initializer = DeviceImages_Var->getInitializer();
-
       ImageIndex = 0;
       ImageCnt = getInitializerNumElements(DeviceImages_Initializer);
     }
-
     Current_DeviceImage_Initializer =
         DeviceImages_Initializer->getAggregateElement(ImageIndex++);
   }
@@ -834,7 +828,6 @@ private:
       Constant *Entries_Name =
           Current_DeviceImage_Initializer->getAggregateElement(
               10); // EntriesBegin field of struct __tgt_device_image
-
       auto Entries_Var =
           Current_SymProps_M->getGlobalVariable(Entries_Name->getName(), true);
       auto Entries_Initializer = Entries_Var->getInitializer();
@@ -845,7 +838,6 @@ private:
             Entries_Initializer->getAggregateElement(i);
         Constant *Entry_Name = Entry_Initializer->getAggregateElement(
             1); // name field of struct __tgt_offload_entry
-
         auto Entry_AsStringRef =
             getValueAsStringRef(Current_SymProps_M.get(), Entry_Name);
 
@@ -965,27 +957,21 @@ private:
       Constant *PropertySets_Name =
           Current_DeviceImage_Initializer->getAggregateElement(
               12); // PropertySetBegin field of struct __tgt_device_image
-
       auto PropertySets_Var = Current_SymProps_M->getGlobalVariable(
           PropertySets_Name->getName(), true);
-
       auto PropertySets_Initializer = PropertySets_Var->getInitializer();
 
       PropRegistry = std::make_unique<llvm::util::PropertySetRegistry>();
-
       for (uint64_t i = 0;
            i < getInitializerNumElements(PropertySets_Initializer); i++) {
-
         Constant *PropertySet_Initializer =
             PropertySets_Initializer->getAggregateElement(i);
-
         Constant *PropertySet_Name =
             PropertySet_Initializer->getAggregateElement(static_cast<unsigned>(
                 0)); // Name field of struct
                      // _pi_device_binary_property_set_struct
         auto PropertySet_Name_AsStringRef =
             getValueAsStringRef(Current_SymProps_M.get(), PropertySet_Name);
-
         Constant *Properties_Name =
             PropertySet_Initializer->getAggregateElement(static_cast<unsigned>(
                 1)); // PropertiesBegin field of struct
@@ -993,7 +979,6 @@ private:
         auto Properties_Var = Current_SymProps_M->getGlobalVariable(
             Properties_Name->getName(), true);
         auto Properties_Initializer = Properties_Var->getInitializer();
-
         llvm::util::PropertySet PropSet;
 
         for (uint64_t j = 0;
@@ -2046,7 +2031,6 @@ int main(int argc, const char **argv) {
 #endif
 
   WriteBitcodeToFile(**ModOrErr, Out.os());
-
   if (Out.os().has_error()) {
     reportError(createFileError(Output, Out.os().error()));
     return 1;
