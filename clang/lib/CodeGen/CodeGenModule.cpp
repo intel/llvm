@@ -48,6 +48,7 @@
 #include "clang/CodeGen/BackendUtil.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
+#include "clang/Sema/Sema.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -6062,6 +6063,19 @@ CodeGenModule::getLLVMLinkageForDeclarator(const DeclaratorDecl *D,
   // so we can use available_externally linkage.
   if (Linkage == GVA_AvailableExternally)
     return llvm::GlobalValue::AvailableExternallyLinkage;
+
+  // SYCL: Device code is not generally limited to one translation unit, but
+  // anything accessed from another translation unit is required to be annotated
+  // with the SYCL_EXTERNAL macro. For any function or variable that does not
+  // have this, linkonce_odr suffices. If -fno-sycl-rdc is passed, we know there
+  // is only one translation unit and can so mark them internal.
+  if (getLangOpts().SYCLIsDevice && !D->hasAttr<SYCLKernelAttr>() &&
+      !D->hasAttr<SYCLDeviceAttr>() &&
+      !Sema::isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          D->getType()))
+    return getLangOpts().GPURelocatableDeviceCode
+               ? llvm::Function::LinkOnceODRLinkage
+               : llvm::Function::InternalLinkage;
 
   // Note that Apple's kernel linker doesn't support symbol
   // coalescing, so we need to avoid linkonce and weak linkages there.
