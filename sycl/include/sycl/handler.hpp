@@ -2675,6 +2675,7 @@ public:
     CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
+public:
   /// Fills memory pointed by accessor with the pattern given.
   ///
   /// If the operation is submitted to queue associated with OpenCL device and
@@ -2700,28 +2701,30 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
+    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // data is contiguous. Thus we check range and offset when dim > 1
+    // Images don't allow ranged accessors and are fine.
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
-                  (Dims <= 1 || isImageOrImageArray(AccessTarget))) {
-      setType(detail::CG::Fill);
-
-      detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
-      detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-
-      MDstPtr = static_cast<void *>(AccImpl.get());
-      CGData.MRequirements.push_back(AccImpl.get());
-      CGData.MAccStorage.push_back(std::move(AccImpl));
-
-      MPattern.resize(sizeof(T));
-      auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
-      *PatternPtr = Pattern;
+                  ((Dims <= 1) || isImageOrImageArray(AccessTarget))) {
+      StageFillCG(Dst, Pattern);
     } else if constexpr (Dims == 0) {
       // Special case for zero-dim accessors.
       parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
-      range<Dims> Range = Dst.get_range();
-      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-          Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+      // Dim > 1
+      bool OffsetUsable = (Dst.get_offset() == sycl::id<Dims>{});
+      detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
+      bool RangesUsable =
+          (AccBase->getAccessRange() == AccBase->getMemoryRange());
+      if (OffsetUsable && RangesUsable &&
+          isBackendSupportedFillSize(sizeof(T))) {
+        StageFillCG(Dst, Pattern);
+      } else {
+        range<Dims> Range = Dst.get_range();
+        parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+            Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+      }
     }
   }
 
@@ -3466,6 +3469,28 @@ private:
         std::copy(SrcItBegin, SrcItBegin + Width, DestItBegin);
       }
     });
+  }
+
+  // StageFillCG()  Supporting function to fill()
+  template <typename T, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void StageFillCG(
+      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+          Dst,
+      const T &Pattern) {
+    setType(detail::CG::Fill);
+    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
+    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+
+    MDstPtr = static_cast<void *>(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
+    CGData.MAccStorage.push_back(std::move(AccImpl));
+
+    MPattern.resize(sizeof(T));
+    auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
+    *PatternPtr = Pattern;
   }
 
   // Common function for launching a 2D USM fill kernel to avoid redefinitions
