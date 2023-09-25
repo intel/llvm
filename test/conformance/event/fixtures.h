@@ -65,6 +65,7 @@ struct urEventReferenceTest : uur::urProfilingQueueTest {
         input.assign(count, 42);
         ASSERT_SUCCESS(urEnqueueMemBufferWrite(
             queue, buffer, false, 0, size, input.data(), 0, nullptr, &event));
+        ASSERT_SUCCESS(urEventWait(1, &event));
     }
 
     void TearDown() override {
