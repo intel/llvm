@@ -598,7 +598,7 @@ params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
       desc: "[in] handle of the command-buffer object."
-    - type: "void*"
+    - type: "const void*"
       name: pMemory
       desc: "[in] pointer to USM allocated memory to prefetch."
     - type: "size_t"
@@ -640,7 +640,7 @@ params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
       desc: "[in] handle of the command-buffer object."
-    - type: "void*"
+    - type: "const void*"
       name: pMemory
       desc: "[in] pointer to the USM memory object."
     - type: "size_t"
