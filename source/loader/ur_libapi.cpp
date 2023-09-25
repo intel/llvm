@@ -7614,6 +7614,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Append a USM Prefetch command to a command-buffer object
 ///
+/// @details
+///     - Prefetching may not be supported for all devices or allocation types.
+///       If memory prefetching is not supported, the prefetch hint will be
+///       ignored.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
@@ -7664,6 +7669,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Append a USM Advise command to a command-buffer object
+///
+/// @details
+///     - Not all memory advice hints may be supported for all devices or
+///       allocation types. If a memory advice hint is not supported, it will be
+///       ignored.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS

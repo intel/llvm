@@ -591,6 +591,9 @@ type: function
 desc: "Append a USM Prefetch command to a command-buffer object"
 class: $xCommandBuffer
 name: AppendUSMPrefetchExp
+details:
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching 
+    is not supported, the prefetch hint will be ignored."
 params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
