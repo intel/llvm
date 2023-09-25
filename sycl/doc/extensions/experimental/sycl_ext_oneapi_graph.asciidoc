@@ -763,8 +763,8 @@ Exceptions:
   already recording to a different graph.
 
 * Throws synchronously with error code `invalid` if `recordingQueue` is
-  associated with a device or context that is different from the device
-  and context used on creation of the graph.
+  associated with a context that is different from the context used on
+  creation of the graph.
 |
 [source, c++]
 ----
@@ -794,8 +794,8 @@ Exceptions:
   `recordingQueues` is already recording to a different graph.
 
 * Throws synchronously with error code `invalid` if any of `recordingQueues`
-  is associated with a device or context that is different from the device
-  and context used on creation of the graph.
+  is associated with a context that is different from the context used on
+  creation of the graph.
 
 |
 [source, c++]
