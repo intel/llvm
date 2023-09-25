@@ -649,6 +649,12 @@ params:
     - type: $x_usm_advice_flags_t
       name: advice
       desc: "[in] USM memory advice"
+    - type: uint32_t
+      name: numSyncPointsInWaitList
+      desc: "[in] The number of sync points in the provided dependency list."
+    - type: "const $x_exp_command_buffer_sync_point_t*"
+      name: pSyncPointWaitList
+      desc: "[in][optional] A list of sync points that this command depends on."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] sync point associated with this command."
