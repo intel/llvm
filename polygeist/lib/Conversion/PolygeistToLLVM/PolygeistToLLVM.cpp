@@ -1065,6 +1065,7 @@ public:
     StringRef funcName;
     FunctionType signature;
     bool anyHadConflictingSignature = false;
+    bool anyIsDefinition = false;
     bool found = false;
   };
 
@@ -1089,6 +1090,7 @@ public:
       // an error only if more than one occurrence of the function is found.
       iter->anyHadConflictingSignature |=
           iter->signature != func.getFunctionType();
+      iter->anyIsDefinition |= !func.isDeclaration();
       // If it was already found, the current function should be removed.
       // Otherwise, set the function as already found.
       if (iter->found)
@@ -1100,9 +1102,13 @@ public:
       // If this is a duplicate and a signature difference occurred, signal
       // error.
       if (entry.anyHadConflictingSignature)
-        return func.emitError()
-               << "'" << func.getName()
-               << "' defined with conflicting signature w.r.t. stdlib function";
+        return func.emitError() << "'" << func.getName()
+                                << "' declared with conflicting signature "
+                                   "w.r.t. stdlib function";
+      if (entry.anyIsDefinition)
+        return func.emitError() << "'" << func.getName()
+                                << "' with a definition might not be "
+                                   "compatible with stdlib function";
       func.erase();
     }
     return success();
