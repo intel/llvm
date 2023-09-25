@@ -72,17 +72,6 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
   let hasVerifier = true;
 }
 
-def SYCLHostKernelNameOp
-    : SYCL_HostOp<"kernel_name",
-        [Symbol, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = "Represents a constant holding the name of a SYCL kernel, " #
-                "i.e., a `gpu.func` with the `kernel` attribute.";
-  let arguments = (ins SymbolNameAttr:$sym_name, SymbolRefAttr:$kernel_name);
-  let assemblyFormat = [{
-    $sym_name `->` $kernel_name attr-dict
-  }];
-}
-
 def SYCLHostGetKernelOp
     : SYCL_HostOp<"get_kernel",
         [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
