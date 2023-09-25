@@ -72,6 +72,7 @@
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
+#include <sycl/ext/oneapi/experimental/auto_local_range.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>

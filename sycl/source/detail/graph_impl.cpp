@@ -583,6 +583,11 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   sycl::detail::EventImplPtr NewEvent;
 
   if (CommandBuffer) {
+    if (!previousSubmissionCompleted()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "This Graph cannot be submitted at the moment "
+                            "because the previous run has not yet completed.");
+    }
     NewEvent = CreateNewEvent();
     sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
     // Merge requirements from the nodes into requirements (if any) from the
