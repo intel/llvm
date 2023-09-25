@@ -129,7 +129,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     unsigned int Flags = CU_STREAM_NON_BLOCKING;
     ur_queue_flags_t URFlags = 0;
     // '0' is the default priority, per CUDA Toolkit 12.2 and earlier
-    int Priority = 0
+    int Priority = 0;
     bool IsOutOfOrder = false;
     if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
       URFlags = pProps->flags;
