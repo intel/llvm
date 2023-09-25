@@ -187,6 +187,8 @@ properties(PropertyValueTs... props)
     -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
 #endif
 
+using empty_properties_t = decltype(properties{});
+
 // Property list traits
 template <typename propertiesT> struct is_property_list : std::false_type {};
 template <typename... PropertyValueTs>

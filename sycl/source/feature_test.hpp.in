@@ -88,6 +88,7 @@ inline namespace _V1 {
 #define SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY 1
 #define SYCL_EXT_ONEAPI_DEVICE_GLOBAL 1
 #define SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST 1
+#define SYCL_EXT_ONEAPI_PREFETCH 1
 
 #ifndef __has_include
 #define __has_include(x) 0
