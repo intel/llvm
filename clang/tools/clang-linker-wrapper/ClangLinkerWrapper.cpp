@@ -84,9 +84,6 @@ static std::mutex TempFilesMutex;
 /// Temporary files created by the linker wrapper.
 static std::list<SmallString<128>> TempFiles;
 
-/// Target triple
-static std::string TargetTriple;
-
 /// Codegen flags for LTO backend.
 static codegen::RegisterCodeGenFlags CodeGenFlags;
 
@@ -400,17 +397,16 @@ static bool isStaticArchiveFile(const StringRef Filename) {
 }
 
 // Find if section related to triple is present in a bundled file
-static Expected<bool> checkSection(StringRef Filename, StringRef TargetTriple,
+static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
                                    const ArgList &Args) {
   Expected<std::string> OffloadBundlerPath = findProgram(
       "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
   if (!OffloadBundlerPath)
     return OffloadBundlerPath.takeError();
-
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
 
-  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + TargetTriple);
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str());
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back(Target);
@@ -430,10 +426,11 @@ static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
   if (!OffloadBundlerPath)
     return OffloadBundlerPath.takeError();
 
+  llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   // Check if section with Triple is available in input bundle
   // If no section is available, then we assume it's not a valid bundle and
   // return original file.
-  auto CheckSection = checkSection(Filename, TargetTriple, Args);
+  auto CheckSection = checkSection(Filename, Triple, Args);
   if (!CheckSection)
     return CheckSection.takeError();
   if (!(*CheckSection))
@@ -450,7 +447,7 @@ static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back("-type=o");
-  CmdArgs.push_back(Saver.save("-targets=sycl-" + TargetTriple));
+  CmdArgs.push_back(Saver.save("-targets=sycl-" + Triple.str()));
   CmdArgs.push_back(Saver.save("-input=" + Filename));
   CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
   CmdArgs.push_back("-unbundle");
@@ -664,7 +661,9 @@ static Expected<StringRef> runWrapper(StringRef &InputFile,
   llvm::Triple HostTriple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
   CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
-  CmdArgs.push_back(Saver.save("-target=" + TargetTriple));
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  SmallString<128> TargetTripleOpt = Triple.getArchName();
+  CmdArgs.push_back(Saver.save("-target=" + TargetTripleOpt));
   CmdArgs.push_back("-kind=sycl");
   CmdArgs.push_back("-batch");
   CmdArgs.push_back(InputFile);
@@ -710,8 +709,8 @@ static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
     return OutputFile.takeError();
   // call to llc
   auto OutputFileOrErr = sycl::runCompile(*OutputFile, Args);
-  if (!OutputFile)
-    return OutputFile.takeError();
+  if (!OutputFileOrErr)
+    return OutputFileOrErr.takeError();
   return *OutputFileOrErr;
 }
 
@@ -722,7 +721,7 @@ unbundleSYCLDeviceLibs(const SmallVector<std::string, 16> &Files,
                        SmallVector<std::string, 16> &UnbundledFiles,
                        const ArgList &Args) {
   for (auto &Filename : Files) {
-    assert(sys::fs::is_directory(Filename) && "Filename cannot be directory");
+    assert(!sys::fs::is_directory(Filename) && "Filename cannot be directory");
     if (!sys::fs::exists(Filename))
       continue;
     // Run unbundler
@@ -1553,7 +1552,6 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
           reportError(createStringError(inconvertibleErrorCode(), Err));
         });
     auto LinkerArgs = getLinkerArgs(Input, BaseArgs);
-
     DenseSet<OffloadKind> ActiveOffloadKinds;
     bool HasSYCLOffloadKind = false;
     for (const auto &File : Input) {
@@ -1993,7 +1991,6 @@ int main(int Argc, char **Argv) {
   SaveTemps = Args.hasArg(OPT_save_temps);
   ExecutableName = Args.getLastArgValue(OPT_o, "a.out");
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
-  TargetTriple = Args.getLastArgValue(OPT_triple_EQ).str();
   parallel::strategy = hardware_concurrency(1);
   if (auto *Arg = Args.getLastArg(OPT_wrapper_jobs)) {
     unsigned Threads = 0;
