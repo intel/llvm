@@ -1036,7 +1036,6 @@ private:
                           PropSet);
       }
     } else {
-
       if (PropRegistryFile.empty()) {
         auto *NullPtr =
             Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
