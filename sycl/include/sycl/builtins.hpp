@@ -15,6 +15,11 @@
 #include <sycl/builtins_scalar_gen.hpp>
 #include <sycl/builtins_vector_gen.hpp>
 
+// We don't use the same exception specifier as <cmath> so we get warnings if
+// our code is processed before STL's <cmath>.
+// TODO: We should remove this dependency alltogether in a subsequent patch.
+#include <cmath>
+
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
 extern __DPCPP_SYCL_EXTERNAL int abs(int x);

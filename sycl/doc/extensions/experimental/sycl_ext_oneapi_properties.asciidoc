@@ -195,6 +195,7 @@ template<typename... Ts>
 inline constexpr boo_key::value_t<Ts...> boo;
 
 } // namespace experimental::oneapi::ext::sycl
+```
 
 === Property traits
 

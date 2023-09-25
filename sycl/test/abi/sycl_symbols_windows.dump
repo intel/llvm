@@ -1133,6 +1133,7 @@
 ?getImageType@image_impl@detail@_V1@sycl@@AEAA?AW4_pi_mem_type@@XZ
 ?getInteropContext@SYCLMemObjT@detail@_V1@sycl@@UEBA?AV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getKernelName@handler@_V1@sycl@@AEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
+?getMaxWorkGroups@handler@_V1@sycl@@AEAA?AV?$optional@V?$array@_K$02@std@@@std@@XZ
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
