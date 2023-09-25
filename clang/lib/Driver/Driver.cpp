@@ -4828,7 +4828,16 @@ class OffloadingActionBuilder final {
       if (TT.getOS() != llvm::Triple::NVCL) {
         auto *AA = C.getDriver().ConstructPhaseAction(
             C, Args, phases::Assemble, BA, AssociatedOffloadKind);
-        ActionList DeviceActions = {BA, AA};
+        ActionList DeviceActions;
+        if (Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                          /*Default=*/false)) {
+          ActionList AL = {AA};
+          auto *LA = C.MakeAction<LinkJobAction>(AL, types::TY_Object);
+          DeviceActions.push_back(LA);
+        } else {
+          DeviceActions.push_back(AA);
+          DeviceActions.push_back(BA);
+        }
         return C.MakeAction<LinkJobAction>(DeviceActions,
                                            types::TY_CUDA_FATBIN);
       }

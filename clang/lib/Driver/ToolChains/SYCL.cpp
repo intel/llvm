@@ -70,7 +70,19 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   // The llvm-foreach command looks like this:
   // llvm-foreach --in-file-list=a.list --in-replace='{}' -- echo '{}'
   ArgStringList ForeachArgs;
+  // Assembling generates an object file, except when we're assembling CUDA,
+  // in which case we need to generate a .cubin file. Therefore, we must pass
+  // specifically .cubin outputs in -fgpu-rdc mode in order to be able to do
+  // device linking using the nvlink device linker because it relies on the
+  // file extension to be .cubin in order to generate a fully linked object.
+  // FIXME: This should hopefully be removed if NVIDIA updates their tooling.
   std::string OutputFileName(T->getToolChain().getInputFilename(Output));
+  if (T->getToolChain().getTriple().isNVPTX() &&
+      Output.getType() == types::TY_Object && isa<AssembleJobAction>(JA)) {
+    llvm::errs() << "CHANGE OUTPUT EXTENSION TO CUBIN FOR TOOL: "
+                 << T->getName() << " ( " << T->getShortName() << " )\n";
+    Ext = llvm::sys::path::extension(OutputFileName).ltrim('.');
+  }
   ForeachArgs.push_back(C.getArgs().MakeArgString("--out-ext=" + Ext));
   for (auto &I : InputFiles) {
     std::string Filename(T->getToolChain().getInputFilename(I));

@@ -662,7 +662,19 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
-    CmdArgs.push_back(Output.getFilename());
+    // For SYCL, we invoke `fatbinary` next in fgpu-rdc mode, and the expected
+    // input is a .cubin file. Hence, we need to rename it and save as a temp.
+    if (JA.isOffloading(Action::OFK_SYCL) &&
+        Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                     /*Default=*/false)) {
+      std::string OutputFileName = TC.getInputFilename(Output);
+      if (Output.isFilename() && OutputFileName != Output.getFilename())
+        C.addTempFile(Args.MakeArgString(OutputFileName));
+
+      CmdArgs.push_back(Args.MakeArgString(OutputFileName));
+    } else {
+      CmdArgs.push_back(Output.getFilename());
+    }
   } else {
     assert(Output.isNothing() && "Invalid output.");
   }
@@ -1148,12 +1160,12 @@ Tool *CudaToolChain::buildLinker() const {
 }
 
 Tool *CudaToolChain::SelectTool(const JobAction &JA) const {
-  if (OK == Action::OFK_SYCL) {
-    if (JA.getKind() == Action::LinkJobClass &&
-        JA.getType() == types::TY_LLVM_BC) {
+  if (OK == Action::OFK_SYCL && isa<LinkJobAction>(JA)) {
+    if (JA.getType() == types::TY_LLVM_BC)
       return static_cast<tools::NVPTX::SYCLLinker *>(ToolChain::SelectTool(JA))
           ->GetSYCLToolChainLinker();
-    }
+    if (JA.getType() == types::TY_Object)
+      return new tools::NVPTX::Linker(*this);
   }
   return ToolChain::SelectTool(JA);
 }
