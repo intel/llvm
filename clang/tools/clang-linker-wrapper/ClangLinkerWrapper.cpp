@@ -661,8 +661,8 @@ static Expected<StringRef> runWrapper(StringRef &InputFile,
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*ClangOffloadWrapperPath);
   CmdArgs.push_back(Saver.save("-o=" + *TempFileOrErr));
-  llvm::Triple HostTriple(Args.getLastArgValue(
-      OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  llvm::Triple HostTriple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
   CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
   CmdArgs.push_back(Saver.save("-target=" + TargetTriple));
   CmdArgs.push_back("-kind=sycl");
@@ -697,19 +697,19 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   CmdArgs.push_back(*OutputFileOrErr);
   CmdArgs.push_back(InputFile);
   if (Error Err = executeCommands(*LLCPath, CmdArgs))
-      return std::move(Err);
+    return std::move(Err);
   return *OutputFileOrErr;
 }
 
 // Run clang-offload-wrapper and llc
 static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
-                                      const ArgList &Args) {
+                                                const ArgList &Args) {
   // call to clang-offload-wrapper
   auto OutputFile = sycl::runWrapper(InputFile, Args);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to llc
-   auto OutputFileOrErr = sycl::runCompile(*OutputFile, Args);
+  auto OutputFileOrErr = sycl::runCompile(*OutputFile, Args);
   if (!OutputFile)
     return OutputFile.takeError();
   return *OutputFileOrErr;
