@@ -40,8 +40,8 @@ CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
       // The second check is done after mutex is locked so other threads can not
       // change NumComputeStreams after that
       if (NumComputeStreams < ComputeStreams.size()) {
-        UR_CHECK_ERROR(
-            cuStreamCreate(&ComputeStreams[NumComputeStreams++], Flags));
+        UR_CHECK_ERROR(cuStreamCreateWithPriority(
+            &ComputeStreams[NumComputeStreams++], Flags, Priority));
       }
     }
     Token = ComputeStreamIndex++;
@@ -101,8 +101,8 @@ CUstream ur_queue_handle_t_::getNextTransferStream() {
     // The second check is done after mutex is locked so other threads can not
     // change NumTransferStreams after that
     if (NumTransferStreams < TransferStreams.size()) {
-      UR_CHECK_ERROR(
-          cuStreamCreate(&TransferStreams[NumTransferStreams++], Flags));
+      UR_CHECK_ERROR(cuStreamCreateWithPriority(
+          &TransferStreams[NumTransferStreams++], Flags, Priority));
     }
   }
   uint32_t StreamI = TransferStreamIndex++ % TransferStreams.size();
@@ -128,6 +128,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     unsigned int Flags = CU_STREAM_NON_BLOCKING;
     ur_queue_flags_t URFlags = 0;
+    // '0' is the default priority, per CUDA Toolkit 12.2 and earlier
+    int Priority = 0
     bool IsOutOfOrder = false;
     if (pProps && pProps->stype == UR_STRUCTURE_TYPE_QUEUE_PROPERTIES) {
       URFlags = pProps->flags;
@@ -140,6 +142,11 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       if (URFlags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
         IsOutOfOrder = true;
       }
+      if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
+        UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(nullptr, &Priority));
+      } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
+        UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(&Priority, nullptr));
+      }
     }
 
     std::vector<CUstream> ComputeCuStreams(
@@ -149,7 +156,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
         std::move(ComputeCuStreams), std::move(TransferCuStreams), hContext,
-        hDevice, Flags, URFlags});
+        hDevice, Flags, URFlags, Priority});
 
     *phQueue = Queue.release();
 
