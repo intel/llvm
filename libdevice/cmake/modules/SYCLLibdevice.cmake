@@ -81,7 +81,7 @@ function(add_devicelib_spv spv_filename)
   cmake_parse_arguments(SPV  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
   set(devicelib-spv-file ${spv_binary_dir}/${spv_filename}.spv)
   add_custom_command(OUTPUT ${devicelib-spv-file}
-                     COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
+                     COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=spirv
                              ${compile_opts} ${SPV_EXTRA_ARGS}
                              ${CMAKE_CURRENT_SOURCE_DIR}/${SPV_SRC}
                              -o ${devicelib-spv-file}
@@ -185,7 +185,7 @@ add_custom_command(OUTPUT ${imf_bf16_fallback_src}
 
 add_custom_target(get_imf_fallback_fp32  DEPENDS ${imf_fp32_fallback_src})
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf.spv
-                   COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=spirv
                            ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp32_fallback_src}
                            -o ${spv_binary_dir}/libsycl-fallback-imf.spv
@@ -210,7 +210,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
 
 add_custom_target(get_imf_fallback_fp64  DEPENDS ${imf_fp64_fallback_src})
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
-                   COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=spirv
                            ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp64_fallback_src}
                            -o ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
@@ -235,7 +235,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
 
 add_custom_target(get_imf_fallback_bf16  DEPENDS ${imf_bf16_fallback_src})
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv
-                   COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
+                   COMMAND ${clang} -fsycl-device-only -fsycl-device-obj=spirv
                            ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_bf16_fallback_src}
                            -o ${spv_binary_dir}/libsycl-fallback-imf-bf16.spv
