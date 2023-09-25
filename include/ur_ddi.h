@@ -1927,7 +1927,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferFillExp_t)(
 /// @brief Function-pointer for urCommandBufferAppendUSMPrefetchExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMPrefetchExp_t)(
     ur_exp_command_buffer_handle_t,
-    void *,
+    const void *,
     size_t,
     ur_usm_migration_flags_t,
     uint32_t,
@@ -1938,7 +1938,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMPrefetchExp_t)(
 /// @brief Function-pointer for urCommandBufferAppendUSMAdviseExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     ur_exp_command_buffer_handle_t,
-    void *,
+    const void *,
     size_t,
     ur_usm_advice_flags_t,
     uint32_t,

@@ -8194,7 +8194,7 @@ urCommandBufferAppendMemBufferFillExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    void *pMemory,                                                ///< [in] pointer to USM allocated memory to prefetch.
+    const void *pMemory,                                          ///< [in] pointer to USM allocated memory to prefetch.
     size_t size,                                                  ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags,                               ///< [in] USM prefetch flags
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
@@ -8232,7 +8232,7 @@ urCommandBufferAppendUSMPrefetchExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    void *pMemory,                                                ///< [in] pointer to the USM memory object.
+    const void *pMemory,                                          ///< [in] pointer to the USM memory object.
     size_t size,                                                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice,                                 ///< [in] USM memory advice
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
@@ -10419,7 +10419,7 @@ typedef struct ur_command_buffer_append_mem_buffer_fill_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_append_usm_prefetch_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
-    void **ppMemory;
+    const void **ppMemory;
     size_t *psize;
     ur_usm_migration_flags_t *pflags;
     uint32_t *pnumSyncPointsInWaitList;
@@ -10433,7 +10433,7 @@ typedef struct ur_command_buffer_append_usm_prefetch_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
-    void **ppMemory;
+    const void **ppMemory;
     size_t *psize;
     ur_usm_advice_flags_t *padvice;
     uint32_t *pnumSyncPointsInWaitList;

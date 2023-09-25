@@ -7643,9 +7643,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    void *pMemory,      ///< [in] pointer to USM allocated memory to prefetch.
-    size_t size,        ///< [in] size in bytes to be fetched.
+        hCommandBuffer,  ///< [in] handle of the command-buffer object.
+    const void *pMemory, ///< [in] pointer to USM allocated memory to prefetch.
+    size_t size,         ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags, ///< [in] USM prefetch flags
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
@@ -7697,7 +7697,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    void *pMemory,                ///< [in] pointer to the USM memory object.
+    const void *pMemory,          ///< [in] pointer to the USM memory object.
     size_t size,                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     uint32_t
