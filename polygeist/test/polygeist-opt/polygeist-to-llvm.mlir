@@ -135,13 +135,10 @@ func.func private @reshape_dyn(%arg0: memref<4xi32>) -> memref<?xi32> {
 // -----
 
 // CHECK-LABEL:   llvm.func @alloca()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x i32 : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+// CHECK:           %[[VAL_0:.*]] = llvm.mlir.constant(2 : index) : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x i32 : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
 func.func private @alloca() {
   %0 = memref.alloca() : memref<2xi32>
@@ -151,13 +148,10 @@ func.func private @alloca() {
 // -----
 
 // CHECK-LABEL:   llvm.func @alloca_nd()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(60 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x i32 : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(60 : index) : i64
+// CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x i32 : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
 func.func private @alloca_nd() {
   %0 = memref.alloca() : memref<3x10x2xi32>
@@ -167,13 +161,10 @@ func.func private @alloca_nd() {
 // -----
 
 // CHECK-LABEL:   llvm.func @alloca_aligned()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x i32 {alignment = 8 : i64} : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+// CHECK:           %[[VAL_0:.*]] = llvm.mlir.constant(2 : index) : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_0]] x i32 {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
 func.func private @alloca_aligned() {
   %0 = memref.alloca() {alignment = 8} : memref<2xi32>
@@ -183,13 +174,10 @@ func.func private @alloca_aligned() {
 // -----
 
 // CHECK-LABEL:   llvm.func @alloca_nd_aligned()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(60 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x i32 {alignment = 8 : i64} : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(60 : index) : i64
+// CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x i32 {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
 func.func private @alloca_nd_aligned() {
   %0 = memref.alloca() {alignment = 8} : memref<3x10x2xi32>
@@ -198,17 +186,35 @@ func.func private @alloca_nd_aligned() {
 
 // -----
 
-// CHECK-LABEL:   llvm.func @malloc(i64) -> !llvm.ptr
+// CHECK-LABEL:   llvm.func @mixed_alloca(
+// CHECK-SAME:                            %[[VAL_0:.*]]: i64)
+// CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(42 : index) : i64
+// CHECK:           %[[VAL_3:.*]] = llvm.mul %[[VAL_1]], %[[VAL_0]]  : i64
+// CHECK:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x f32 : (i64) -> !llvm.ptr
+// CHECK:           %[[VAL_8:.*]] = llvm.mlir.constant(294 : index) : i64
+// CHECK:           %[[VAL_9:.*]] = llvm.mul %[[VAL_8]], %[[VAL_0]]  : i64
+// CHECK:           %[[VAL_10:.*]] = llvm.alloca %[[VAL_9]] x f32 {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
-// CHECK-LABEL:   llvm.func @alloc()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_0]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.call @malloc(%[[VAL_4]]) : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+func.func private @mixed_alloca(%arg0 : index) {
+  %0 = memref.alloca(%arg0) : memref<?x42xf32>
+  %1 = memref.alloca(%arg0) {alignment = 8} : memref<?x42x7xf32>
+  return
+}
+
+// -----
+
+// CHECK:         llvm.func @malloc(i64) -> !llvm.ptr
+
+// CHECK-LABEL:   llvm.func @alloc() attributes {sym_visibility = "private"} {
+// CHECK:           %[[VAL_0:.*]] = llvm.mlir.constant(2 : index) : i64
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_0]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
+// CHECK:           %[[VAL_4:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
+// CHECK:           %[[VAL_5:.*]] = llvm.call @malloc(%[[VAL_4]]) : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
 func.func private @alloc() {
   %0 = memref.alloc() : memref<2xi32>
@@ -217,19 +223,16 @@ func.func private @alloc() {
 
 // -----
 
-// CHECK-LABEL:   llvm.func @alloc_nd()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.constant(3 : index) : i64
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(10 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(20 : index) : i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(60 : index) : i64
-// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_5]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.call @malloc(%[[VAL_8]]) : (i64) -> !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+// CHECK:         llvm.func @malloc(i64) -> !llvm.ptr
+
+// CHECK-LABEL:   llvm.func @alloc_nd() attributes {sym_visibility = "private"} {
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(60 : index) : i64
+// CHECK:           %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_5]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
+// CHECK:           %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
+// CHECK:           %[[VAL_9:.*]] = llvm.call @malloc(%[[VAL_8]]) : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
 
 func.func private @alloc_nd() {
   %0 = memref.alloc() : memref<3x10x2xi32>
@@ -238,59 +241,24 @@ func.func private @alloc_nd() {
 
 // -----
 
-// CHECK-LABEL:   llvm.func @alloc_aligned()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_0]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(8 : index) : i64
-// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.add %[[VAL_4]], %[[VAL_5]]  : i64
-// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.call @malloc(%[[VAL_6]]) : (i64) -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.mlir.constant(1 : i64) : i64
-// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.sub %[[VAL_5]], %[[VAL_9]]  : i64
-// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.add %[[VAL_8]], %[[VAL_10]]  : i64
-// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.urem %[[VAL_11]], %[[VAL_5]]  : i64
-// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.sub %[[VAL_11]], %[[VAL_12]]  : i64
-// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.inttoptr %[[VAL_13]] : i64 to !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
+// CHECK:         llvm.func @malloc(i64) -> !llvm.ptr
 
-func.func private @alloc_aligned() {
-  %0 = memref.alloc() {alignment = 8} : memref<2xi32>
+// CHECK-LABEL:   llvm.func @mixed_alloc(
+// CHECK-SAME:                           %[[VAL_0:.*]]: i64)
+// CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(294 : index) : i64
+// CHECK:           %[[VAL_5:.*]] = llvm.mul %[[VAL_4]], %[[VAL_0]]  : i64
+// CHECK:           %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_5]]] : (!llvm.ptr, i64) -> !llvm.ptr, f32
+// CHECK:           %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
+// CHECK:           %[[VAL_9:.*]] = llvm.call @malloc(%[[VAL_8]]) : (i64) -> !llvm.ptr
+// CHECK:           llvm.return
+// CHECK:         }
+
+func.func private @mixed_alloc(%arg0 : index) {
+  %0 = memref.alloc(%arg0) : memref<?x42x7xf32>
   return
 }
 
-// -----
-
-// CHECK-LABEL:   llvm.func @alloc_nd_aligned()
-// CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.constant(3 : index) : i64
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(10 : index) : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(20 : index) : i64
-// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.constant(60 : index) : i64
-// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_5]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.mlir.constant(8 : index) : i64
-// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.add %[[VAL_8]], %[[VAL_9]]  : i64
-// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.call @malloc(%[[VAL_10]]) : (i64) -> !llvm.ptr
-// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.ptrtoint %[[VAL_11]] : !llvm.ptr to i64
-// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.mlir.constant(1 : i64) : i64
-// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.sub %[[VAL_9]], %[[VAL_13]]  : i64
-// CHECK-NEXT:      %[[VAL_15:.*]] = llvm.add %[[VAL_12]], %[[VAL_14]]  : i64
-// CHECK-NEXT:      %[[VAL_16:.*]] = llvm.urem %[[VAL_15]], %[[VAL_9]]  : i64
-// CHECK-NEXT:      %[[VAL_17:.*]] = llvm.sub %[[VAL_15]], %[[VAL_16]]  : i64
-// CHECK-NEXT:      %[[VAL_18:.*]] = llvm.inttoptr %[[VAL_17]] : i64 to !llvm.ptr
-// CHECK-NEXT:      llvm.return
-// CHECK-NEXT:    }
-
-func.func private @alloc_nd_aligned() {
-  %0 = memref.alloc() {alignment = 8} : memref<3x10x2xi32>
-  return
-}
 
 // -----
 
@@ -572,4 +540,57 @@ func.func private @ptr2memref(%arg0: !llvm.ptr) -> memref<?xf32> {
 func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index) -> memref<2xf32, 3> {
   %res = memref.view %arg0[%arg1][] : memref<8xi8, 3> to memref<2xf32, 3>
   return %res : memref<2xf32, 3>
+}
+
+// -----
+
+// CHECK:         llvm.func @malloc(i64) -> !llvm.ptr
+func.func private @malloc(i64) -> !llvm.ptr
+
+// CHECK-LABEL:   llvm.func @f0(
+// CHECK-SAME:                  %[[VAL_0:.*]]: i64) -> !llvm.ptr
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_0]]] : (!llvm.ptr, i64) -> !llvm.ptr, i8
+// CHECK:           %[[VAL_4:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
+// CHECK:           %[[VAL_5:.*]] = llvm.call @malloc(%[[VAL_4]]) : (i64) -> !llvm.ptr
+// CHECK:           llvm.return %[[VAL_5]] : !llvm.ptr
+// CHECK:         }
+func.func private @f0(%size: index) -> memref<?xi8> {
+  %res = memref.alloc(%size) : memref<?xi8>
+  return %res : memref<?xi8>
+}
+
+// CHECK-LABEL:   llvm.func @f1(
+// CHECK-SAME:                  %[[VAL_0:.*]]: i64) -> !llvm.ptr
+// CHECK:           %[[VAL_1:.*]] = llvm.call @malloc(%[[VAL_0]]) : (i64) -> !llvm.ptr
+// CHECK:           llvm.return %[[VAL_1]] : !llvm.ptr
+// CHECK:         }
+func.func private @f1(%size: i64) -> !llvm.ptr {
+  %res = func.call @malloc(%size) : (i64) -> !llvm.ptr
+  return %res : !llvm.ptr
+}
+
+// -----
+
+// CHECK:         llvm.func @free(!llvm.ptr)
+func.func private @free(!llvm.ptr)
+
+// CHECK-LABEL:   llvm.func @f0(
+// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr)
+// CHECK:           llvm.call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
+// CHECK:           llvm.return
+// CHECK:         }
+func.func private @f0(%ptr: memref<?xi8>) {
+  memref.dealloc %ptr : memref<?xi8>
+  return
+}
+
+// CHECK-LABEL:   llvm.func @f1(
+// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr)
+// CHECK:           llvm.call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
+// CHECK:           llvm.return
+// CHECK:         }
+func.func private @f1(%ptr: !llvm.ptr) {
+  func.call @free(%ptr) : (!llvm.ptr) -> ()
+  return
 }

@@ -25,11 +25,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:   llvm.func @test_num_work_items() -> !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_0:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalSize : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_1:.*]] = llvm.load %[[VAL_0]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_3:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_3]]] :  (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.1", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_5:.*]] = llvm.ptrtoint %[[VAL_4]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_6:.*]] = llvm.alloca %[[VAL_5]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_6:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_7:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_8:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_9:.*]] = llvm.mlir.constant(0 : i32) : i32
@@ -49,11 +47,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:     llvm.func @test_global_id() -> !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_32:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalInvocationId : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_33:.*]] = llvm.load %[[VAL_32]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_34:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_34:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_35:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_36:.*]] = llvm.getelementptr %[[VAL_34]]{{\[}}%[[VAL_35]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.2", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_37:.*]] = llvm.ptrtoint %[[VAL_36]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_38:.*]] = llvm.alloca %[[VAL_37]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_38:.*]] = llvm.alloca %[[VAL_34]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_39:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_40:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_41:.*]] = llvm.mlir.constant(1 : i32) : i32
@@ -79,11 +75,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:     llvm.func @test_local_id() -> !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_69:.*]] = llvm.mlir.addressof @__spirv_BuiltInLocalInvocationId : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_70:.*]] = llvm.load %[[VAL_69]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_71:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_71:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_72:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_73:.*]] = llvm.getelementptr %[[VAL_71]]{{\[}}%[[VAL_72]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.3", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_74:.*]] = llvm.ptrtoint %[[VAL_73]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_75:.*]] = llvm.alloca %[[VAL_74]] x !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_75:.*]] = llvm.alloca %[[VAL_71]] x !llvm.struct<"class.sycl::_V1::id.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_76:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_77:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_78:.*]] = llvm.mlir.constant(2 : i32) : i32
@@ -115,11 +109,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:     llvm.func @test_work_group_size() -> !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_111:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupSize : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_112:.*]] = llvm.load %[[VAL_111]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_113:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_113:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_114:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_115:.*]] = llvm.getelementptr %[[VAL_113]]{{\[}}%[[VAL_114]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.3", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_116:.*]] = llvm.ptrtoint %[[VAL_115]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_117:.*]] = llvm.alloca %[[VAL_116]] x !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_117:.*]] = llvm.alloca %[[VAL_113]] x !llvm.struct<"class.sycl::_V1::range.3", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_118:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_119:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_120:.*]] = llvm.mlir.constant(2 : i32) : i32
@@ -151,11 +143,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:     llvm.func @test_work_group_id() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_153:.*]] = llvm.mlir.addressof @__spirv_BuiltInWorkgroupId : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_154:.*]] = llvm.load %[[VAL_153]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_155:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_155:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_156:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_157:.*]] = llvm.getelementptr %[[VAL_155]]{{\[}}%[[VAL_156]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.1", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_158:.*]] = llvm.ptrtoint %[[VAL_157]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_159:.*]] = llvm.alloca %[[VAL_158]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_159:.*]] = llvm.alloca %[[VAL_155]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_160:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_161:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_162:.*]] = llvm.mlir.constant(0 : i32) : i32
@@ -205,11 +195,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:     llvm.func @test_global_offset() -> !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_194:.*]] = llvm.mlir.addressof @__spirv_BuiltInGlobalOffset : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_195:.*]] = llvm.load %[[VAL_194]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_196:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_196:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_197:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_198:.*]] = llvm.getelementptr %[[VAL_196]]{{\[}}%[[VAL_197]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::id.1", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_199:.*]] = llvm.ptrtoint %[[VAL_198]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_200:.*]] = llvm.alloca %[[VAL_199]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_200:.*]] = llvm.alloca %[[VAL_196]] x !llvm.struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_201:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_202:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_203:.*]] = llvm.mlir.constant(0 : i32) : i32
@@ -229,11 +217,9 @@ module attributes {gpu.container_module} {
     // CHECK-LABEL:     llvm.func @test_num_work_groups() -> !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> {
     // CHECK-NEXT:        %[[VAL_226:.*]] = llvm.mlir.addressof @__spirv_BuiltInNumWorkgroups : !llvm.ptr<1>
     // CHECK-NEXT:        %[[VAL_227:.*]] = llvm.load %[[VAL_226]] : !llvm.ptr<1> -> vector<3xi64>
-    // CHECK-NEXT:        %[[VAL_228:.*]] = llvm.mlir.null : !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_228:.*]] = llvm.mlir.constant(1 : index) : i64
     // CHECK-NEXT:        %[[VAL_229:.*]] = llvm.mlir.constant(1 : index) : i64
-    // CHECK-NEXT:        %[[VAL_230:.*]] = llvm.getelementptr %[[VAL_228]]{{\[}}%[[VAL_229]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::range.2", {{.*}}>
-    // CHECK-NEXT:        %[[VAL_231:.*]] = llvm.ptrtoint %[[VAL_230]] : !llvm.ptr to i64
-    // CHECK-NEXT:        %[[VAL_232:.*]] = llvm.alloca %[[VAL_231]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr
+    // CHECK-NEXT:        %[[VAL_232:.*]] = llvm.alloca %[[VAL_228]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.2", (array<2 x i64>)>)> : (i64) -> !llvm.ptr
     // CHECK-DAG:         %[[VAL_233:.*]] = llvm.mlir.constant(0 : index) : i64
     // CHECK-DAG:         %[[VAL_234:.*]] = llvm.mlir.constant(0 : i32) : i32
     // CHECK-DAG:         %[[VAL_235:.*]] = llvm.mlir.constant(1 : i32) : i32

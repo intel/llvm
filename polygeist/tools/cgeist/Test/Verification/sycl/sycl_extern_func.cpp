@@ -17,7 +17,7 @@
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_5()
 // CHECK-LLVM-SAME:  #[[FUNCATTRS0:[0-9]+]] {
-// CHECK-LLVM-NEXT:  [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", align 8
+// CHECK-LLVM-NEXT:  [[ACCESSOR:%.*]] = alloca %"class.sycl::_V1::accessor.1", i64 1, align 8
 // CHECK-LLVM-NEXT:  [[ACAST:%.*]] = addrspacecast ptr [[ACCESSOR]] to ptr addrspace(4)
 // CHECK-LLVM-NEXT:  call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) [[ACAST]])
 

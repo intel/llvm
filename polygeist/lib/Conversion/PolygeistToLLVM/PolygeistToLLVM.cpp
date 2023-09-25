@@ -1056,8 +1056,89 @@ struct EraseSPIRVBuiltinPattern
   }
 };
 
-struct ConvertPolygeistToLLVMPass
+class DuplicateFuncCleaner {
+public:
+  struct Entry {
+    Entry(StringRef funcName, FunctionType funcType)
+        : funcName(funcName), signature(funcType) {}
+
+    StringRef funcName;
+    FunctionType signature;
+    bool anyHadConflictingSignature = false;
+    bool anyIsDefinition = false;
+    bool found = false;
+  };
+
+  explicit DuplicateFuncCleaner(std::initializer_list<Entry> init)
+      : entries(init) {
+    llvm::sort(entries, [](const Entry &lhs, const Entry &rhs) {
+      return lhs.funcName < rhs.funcName;
+    });
+  }
+
+  LogicalResult run(ModuleOp module) {
+    std::vector<std::pair<Entry &, LLVM::LLVMFuncOp>> toRemove;
+    for (auto func : module.getOps<LLVM::LLVMFuncOp>()) {
+      StringRef funcName = func.getName();
+      auto iter = llvm::lower_bound(entries, funcName,
+                                    [](const Entry &entry, StringRef name) {
+                                      return name < entry.funcName;
+                                    });
+      if (iter == entries.end() || iter->funcName != funcName)
+        continue;
+      // If the type is different, annotate it in the entry. This will lead to
+      // an error only if more than one occurrence of the function is found.
+      iter->anyHadConflictingSignature |=
+          iter->signature != func.getFunctionType();
+      iter->anyIsDefinition |= !func.isDeclaration();
+      // If it was already found, the current function should be removed.
+      // Otherwise, set the function as already found.
+      if (iter->found)
+        toRemove.emplace_back(*iter, func);
+      else
+        iter->found = true;
+    }
+    for (auto &[entry, func] : toRemove) {
+      // If this is a duplicate and a signature difference occurred, signal
+      // error.
+      if (entry.anyHadConflictingSignature)
+        return func.emitError() << "'" << func.getName()
+                                << "' declared with conflicting signature "
+                                   "w.r.t. stdlib function";
+      if (entry.anyIsDefinition)
+        return func.emitError() << "'" << func.getName()
+                                << "' with a definition might not be "
+                                   "compatible with stdlib function";
+      func.erase();
+    }
+    return success();
+  }
+
+private:
+  std::vector<Entry> entries;
+};
+
+class ConvertPolygeistToLLVMPass
     : public impl::ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
+private:
+  // During conversion, duplicate malloc and free functions can be generated if
+  // the user calls either of these functions and also uses `new` while using
+  // "non-generic" allocation functions. Remove potential duplicates here.
+  void cleanDuplicateFunctions(unsigned bitwidth) {
+    constexpr StringLiteral freeFn("free");
+    constexpr StringLiteral mallocFn("malloc");
+    Builder builder(&getContext());
+    DuplicateFuncCleaner cleaner{
+        {freeFn,
+         builder.getFunctionType(builder.getType<LLVM::LLVMPointerType>(), {})},
+        {mallocFn,
+         builder.getFunctionType(builder.getIntegerType(bitwidth),
+                                 builder.getType<LLVM::LLVMPointerType>())}};
+    if (failed(cleaner.run(getOperation())))
+      signalPassFailure();
+  }
+
+public:
   using impl::ConvertPolygeistToLLVMBase<
       ConvertPolygeistToLLVMPass>::ConvertPolygeistToLLVMBase;
 
@@ -1210,6 +1291,9 @@ struct ConvertPolygeistToLLVMPass
       LLVM_DEBUG(llvm::dbgs() << "ConvertPolygeistToLLVMPass: Module after:\n";
                  m->dump(); llvm::dbgs() << "\n";);
     }
+
+    if (!options.useGenericFunctions)
+      cleanDuplicateFunctions(options.getIndexBitwidth());
   }
 };
 } // namespace
