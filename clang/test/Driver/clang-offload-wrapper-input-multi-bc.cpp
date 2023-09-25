@@ -91,8 +91,8 @@ y
 // ModuleID:                      filename is different
 // sycl_offloading.?.data:        fake AOCX were updated
 // sycl_offloading.device_images: pointer type to offloading data includes the length which is different
-// RUN: egrep -v '(ModuleID|^@.sycl_offloading.[0-9].data|^@.sycl_offloading.device_images)' %t1.ll > %tfiltered1.txt
-// RUN: egrep -v '(ModuleID|^@.sycl_offloading.[0-9].data|^@.sycl_offloading.device_images)' %t2.ll > %tfiltered2.txt
+// RUN: grep -v '\(ModuleID\|^@\.sycl_offloading\.[0-9]\.data\|^@\.sycl_offloading\.device_images\)' %t1.ll > %tfiltered1.txt
+// RUN: grep -v '\(ModuleID\|^@\.sycl_offloading\.[0-9]\.data\|^@\.sycl_offloading\.device_images\)' %t2.ll > %tfiltered2.txt
 
 // RUN: cmp %tfiltered1.txt %tfiltered2.txt
 
