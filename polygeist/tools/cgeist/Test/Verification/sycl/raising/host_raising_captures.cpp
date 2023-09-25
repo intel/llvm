@@ -16,8 +16,8 @@ class KernelName;
 // CHECK:         %[[cgf:.*]] = llvm.load %arg0 {{.*}} : !llvm.ptr -> !llvm.ptr
 
 // COM: check that we correctly identified the accessors.
-// CHECK:         sycl.host.set_captured %[[lambda]][0] = %[[accessor_1]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_w_gb)
-// CHECK:         sycl.host.set_captured %[[lambda]][1] = %[[accessor_2]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_r_gb)
+// CHECK:         sycl.host.set_captured %[[lambda]][0] = %[[accessor_1]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_w_dev)
+// CHECK:         sycl.host.set_captured %[[lambda]][1] = %[[accessor_2]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_r_dev)
 
 // COM: can't match the constant here because we don't propagate constants through the command group function object yet;
 // COM: just ensure that the value corresponds to the CGF's second capture.

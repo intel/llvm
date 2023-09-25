@@ -73,12 +73,12 @@ llvm.func internal @foo.1(%handler: !llvm.ptr, %ptr: !llvm.ptr) {
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
-!sycl_accessor_1_i64_w_gb = !sycl.accessor<[1, i64, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i64_w_dev = !sycl.accessor<[1, i64, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
 
 // COM: Check we can detect kernel argument %c is constant
 
 gpu.module @kernels {
-  func.func private @init(%acc: memref<1x!sycl_accessor_1_i64_w_gb>,
+  func.func private @init(%acc: memref<1x!sycl_accessor_1_i64_w_dev>,
                           %ptr: memref<?xi64, 1>,
                           %accRange: memref<?x!sycl_range_1_>,
                           %memRange: memref<?x!sycl_range_1_>,
@@ -89,9 +89,9 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_5:.*]] = llvm.mlir.constant(0 : i64) : i64
 // CHECK-NEXT:        %[[VAL_6:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_7:.*]] = arith.constant 0 : i64
-// CHECK-NEXT:        %[[VAL_8:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i64_w_gb>
-// CHECK-NEXT:        func.call @init(%[[VAL_8]], %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_3]]) : (memref<1x!sycl_accessor_1_i64_w_gb>, memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
-// CHECK-NEXT:        %[[VAL_9:.*]] = sycl.accessor.subscript %[[VAL_8]]{{\[}}%[[VAL_7]]] : (memref<1x!sycl_accessor_1_i64_w_gb>, i64) -> memref<?xi64>
+// CHECK-NEXT:        %[[VAL_8:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i64_w_dev>
+// CHECK-NEXT:        func.call @init(%[[VAL_8]], %[[VAL_0]], %[[VAL_1]], %[[VAL_2]], %[[VAL_3]]) : (memref<1x!sycl_accessor_1_i64_w_dev>, memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        %[[VAL_9:.*]] = sycl.accessor.subscript %[[VAL_8]]{{\[}}%[[VAL_7]]] : (memref<1x!sycl_accessor_1_i64_w_dev>, i64) -> memref<?xi64>
 // CHECK-NEXT:        memref.store %[[VAL_5]], %[[VAL_9]]{{\[}}%[[VAL_6]]] : memref<?xi64>
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
@@ -102,13 +102,13 @@ gpu.module @kernels {
                %c: i64) kernel {
     %c0 = arith.constant 0 : index
     %c0_i64 = arith.constant 0 : i64
-    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i64_w_gb>
+    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i64_w_dev>
     func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
-        : (memref<1x!sycl_accessor_1_i64_w_gb>, memref<?xi64, 1>,
+        : (memref<1x!sycl_accessor_1_i64_w_dev>, memref<?xi64, 1>,
            memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
            memref<?x!sycl_id_1_>) -> ()
     %res = sycl.accessor.subscript %acc[%c0_i64]
-        : (memref<1x!sycl_accessor_1_i64_w_gb>, i64) -> memref<?xi64>
+        : (memref<1x!sycl_accessor_1_i64_w_dev>, i64) -> memref<?xi64>
     memref.store %c, %res[%c0] : memref<?xi64>
     gpu.return
   }
@@ -116,7 +116,7 @@ gpu.module @kernels {
 
 llvm.func internal @foo(%handler: !llvm.ptr, %acc: !llvm.ptr) {
   %c = llvm.mlir.constant(0 : i64) : i64
-  sycl.host.schedule_kernel %handler -> @kernels::@k0(%acc: !sycl_accessor_1_i64_w_gb, %c)
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%acc: !sycl_accessor_1_i64_w_dev, %c)
       : (!llvm.ptr, !llvm.ptr, i64) -> ()
   llvm.return
 }
@@ -1270,13 +1270,13 @@ llvm.func internal @foo_constant_constant_global_local_size(
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
-!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_host = !sycl.accessor<[1, i32, write, global_buffer], (!llvm.void)>
-!sycl_accessor_host_range = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_range_1_)>
-!sycl_accessor_host_offset = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_range_1_, !sycl_id_1_)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_host = !sycl.accessor<[1, i32, write, device], (!llvm.void)>
+!sycl_accessor_host_range = !sycl.accessor<[1, i32, write, device], (!sycl_range_1_)>
+!sycl_accessor_host_offset = !sycl.accessor<[1, i32, write, device], (!sycl_range_1_, !sycl_id_1_)>
 
 gpu.module @kernels0 {
-  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_gb>,
+  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_dev>,
                           %ptr: memref<?xi32, 1>,
                           %accRange: memref<?x!sycl_range_1_>,
                           %memRange: memref<?x!sycl_range_1_>,
@@ -1292,17 +1292,17 @@ gpu.module @kernels0 {
 // CHECK-NEXT:        %[[VAL_7:.*]] = arith.constant 1 : index
 // CHECK-NEXT:        %[[VAL_8:.*]] = sycl.id.constructor(%[[VAL_7]]) : (index) -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_9:.*]] = memref.cast %[[VAL_8]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
-// CHECK-NEXT:        %[[VAL_10:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb2>
-// CHECK-NEXT:        func.call @init(%[[VAL_10]], %[[VAL_0]], %[[VAL_6]], %[[VAL_2]], %[[VAL_9]]) : (memref<1x!sycl_accessor_1_i32_w_gb2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        %[[VAL_10:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev2>
+// CHECK-NEXT:        func.call @init(%[[VAL_10]], %[[VAL_0]], %[[VAL_6]], %[[VAL_2]], %[[VAL_9]]) : (memref<1x!sycl_accessor_1_i32_w_dev2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
   gpu.func @k0(%ptr: memref<?xi32, 1>,
                %accRange: memref<?x!sycl_range_1_>,
                %memRange: memref<?x!sycl_range_1_>,
                %offset: memref<?x!sycl_id_1_>) kernel {
-    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb>
+    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev>
     func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
-        : (memref<1x!sycl_accessor_1_i32_w_gb>, memref<?xi32, 1>,
+        : (memref<1x!sycl_accessor_1_i32_w_dev>, memref<?xi32, 1>,
            memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
            memref<?x!sycl_id_1_>) -> ()
     gpu.return
@@ -1336,7 +1336,7 @@ llvm.func internal @constant_offset_and_range(
 // COM: No access range needed, unknown memory range and default offset.
 
 gpu.module @kernels1 {
-  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_gb>,
+  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_dev>,
                           %ptr: memref<?xi32, 1>,
                           %accRange: memref<?x!sycl_range_1_>,
                           %memRange: memref<?x!sycl_range_1_>,
@@ -1346,17 +1346,17 @@ gpu.module @kernels1 {
 // CHECK-SAME:                   %[[VAL_11:.*]]: memref<?xi32, 1>, %[[VAL_12:.*]]: memref<?x!sycl_range_1_>, %[[VAL_13:.*]]: memref<?x!sycl_range_1_>, %[[VAL_14:.*]]: memref<?x!sycl_id_1_>) kernel {
 // CHECK-NEXT:        %[[VAL_15:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_16:.*]] = memref.cast %[[VAL_15]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
-// CHECK-NEXT:        %[[VAL_17:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb2>
-// CHECK-NEXT:        func.call @init(%[[VAL_17]], %[[VAL_11]], %[[VAL_13]], %[[VAL_13]], %[[VAL_16]]) : (memref<1x!sycl_accessor_1_i32_w_gb2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        %[[VAL_17:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev2>
+// CHECK-NEXT:        func.call @init(%[[VAL_17]], %[[VAL_11]], %[[VAL_13]], %[[VAL_13]], %[[VAL_16]]) : (memref<1x!sycl_accessor_1_i32_w_dev2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
   gpu.func @k1(%ptr: memref<?xi32, 1>,
                %accRange: memref<?x!sycl_range_1_>,
                %memRange: memref<?x!sycl_range_1_>,
                %offset: memref<?x!sycl_id_1_>) kernel {
-    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb>
+    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev>
     func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
-        : (memref<1x!sycl_accessor_1_i32_w_gb>, memref<?xi32, 1>,
+        : (memref<1x!sycl_accessor_1_i32_w_dev>, memref<?xi32, 1>,
            memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
            memref<?x!sycl_id_1_>) -> ()
     gpu.return
@@ -1385,7 +1385,7 @@ llvm.func internal @unknown_buffer_range_default_offset(
 // COM: No access range needed, constant memory range and default offset.
 
 gpu.module @kernels2 {
-  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_gb>,
+  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_dev>,
                           %ptr: memref<?xi32, 1>,
                           %accRange: memref<?x!sycl_range_1_>,
                           %memRange: memref<?x!sycl_range_1_>,
@@ -1398,17 +1398,17 @@ gpu.module @kernels2 {
 // CHECK-NEXT:        %[[VAL_24:.*]] = memref.cast %[[VAL_23]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
 // CHECK-NEXT:        %[[VAL_25:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_26:.*]] = memref.cast %[[VAL_25]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
-// CHECK-NEXT:        %[[VAL_27:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb2>
-// CHECK-NEXT:        func.call @init(%[[VAL_27]], %[[VAL_18]], %[[VAL_24]], %[[VAL_24]], %[[VAL_26]]) : (memref<1x!sycl_accessor_1_i32_w_gb2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        %[[VAL_27:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev2>
+// CHECK-NEXT:        func.call @init(%[[VAL_27]], %[[VAL_18]], %[[VAL_24]], %[[VAL_24]], %[[VAL_26]]) : (memref<1x!sycl_accessor_1_i32_w_dev2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
   gpu.func @k2(%ptr: memref<?xi32, 1>,
                %accRange: memref<?x!sycl_range_1_>,
                %memRange: memref<?x!sycl_range_1_>,
                %offset: memref<?x!sycl_id_1_>) kernel {
-    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb>
+    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev>
     func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
-        : (memref<1x!sycl_accessor_1_i32_w_gb>, memref<?xi32, 1>,
+        : (memref<1x!sycl_accessor_1_i32_w_dev>, memref<?xi32, 1>,
            memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
            memref<?x!sycl_id_1_>) -> ()
     gpu.return
@@ -1442,7 +1442,7 @@ llvm.func internal @known_buffer_range_default_offset(
 // COM: Not enough info
 
 gpu.module @kernels3 {
-  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_gb>,
+  func.func private @init(%acc: memref<1x!sycl_accessor_1_i32_w_dev>,
                           %ptr: memref<?xi32, 1>,
                           %accRange: memref<?x!sycl_range_1_>,
                           %memRange: memref<?x!sycl_range_1_>,
@@ -1450,17 +1450,17 @@ gpu.module @kernels3 {
 
 // CHECK-LABEL:     gpu.func @k3(
 // CHECK-SAME:                   %[[VAL_28:.*]]: memref<?xi32, 1>, %[[VAL_29:.*]]: memref<?x!sycl_range_1_>, %[[VAL_30:.*]]: memref<?x!sycl_range_1_>, %[[VAL_31:.*]]: memref<?x!sycl_id_1_>) kernel {
-// CHECK-NEXT:        %[[VAL_32:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb2>
-// CHECK-NEXT:        func.call @init(%[[VAL_32]], %[[VAL_28]], %[[VAL_29]], %[[VAL_30]], %[[VAL_31]]) : (memref<1x!sycl_accessor_1_i32_w_gb2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        %[[VAL_32:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev2>
+// CHECK-NEXT:        func.call @init(%[[VAL_32]], %[[VAL_28]], %[[VAL_29]], %[[VAL_30]], %[[VAL_31]]) : (memref<1x!sycl_accessor_1_i32_w_dev2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
   gpu.func @k3(%ptr: memref<?xi32, 1>,
                %accRange: memref<?x!sycl_range_1_>,
                %memRange: memref<?x!sycl_range_1_>,
                %offset: memref<?x!sycl_id_1_>) kernel {
-    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb>
+    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev>
     func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
-        : (memref<1x!sycl_accessor_1_i32_w_gb>, memref<?xi32, 1>,
+        : (memref<1x!sycl_accessor_1_i32_w_dev>, memref<?xi32, 1>,
            memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
            memref<?x!sycl_id_1_>) -> ()
     gpu.return
@@ -1539,8 +1539,8 @@ llvm.func internal @propagate_array(%ptr: !llvm.ptr, %handler: !llvm.ptr) {
 !sycl_range_1_ = !sycl.range<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (memref<1xi64>)>
 !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
-!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
-!sycl_accessor_host = !sycl.accessor<[1, i32, write, global_buffer], (!llvm.void)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_host = !sycl.accessor<[1, i32, write, device], (!llvm.void)>
 
 gpu.module @kernels {
 
@@ -1623,7 +1623,7 @@ gpu.module @kernels {
   }
 
   func.func private @__init(
-      memref<1x!sycl_accessor_1_i32_w_gb>, memref<?xi32, 1>,
+      memref<1x!sycl_accessor_1_i32_w_dev>, memref<?xi32, 1>,
       memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
       memref<?x!sycl_id_1_>)
 
@@ -1633,8 +1633,8 @@ gpu.module @kernels {
 // CHECK-SAME:                   %[[VAL_30:.*]]: memref<?xi32, 1>, %[[VAL_31:.*]]: memref<?x!sycl_range_1_>, %[[VAL_32:.*]]: memref<?x!sycl_range_1_>, %[[VAL_33:.*]]: memref<?x!sycl_id_1_>) kernel {
 // CHECK-NEXT:        %[[VAL_34:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_35:.*]] = memref.cast %[[VAL_34]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
-// CHECK-NEXT:        %[[VAL_36:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb1>
-// CHECK-NEXT:        func.call @__init(%[[VAL_36]], %[[VAL_30]], %[[VAL_32]], %[[VAL_32]], %[[VAL_35]]) : (memref<1x!sycl_accessor_1_i32_w_gb1>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        %[[VAL_36:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev1>
+// CHECK-NEXT:        func.call @__init(%[[VAL_36]], %[[VAL_30]], %[[VAL_32]], %[[VAL_32]], %[[VAL_35]]) : (memref<1x!sycl_accessor_1_i32_w_dev1>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
 
@@ -1642,9 +1642,9 @@ gpu.module @kernels {
                %accRange: memref<?x!sycl_range_1_>,
                %memRange: memref<?x!sycl_range_1_>,
                %offset: memref<?x!sycl_id_1_>) kernel {
-    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb>
+    %acc = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_dev>
     func.call @__init(%acc, %ptr, %accRange, %memRange, %offset)
-        : (memref<1x!sycl_accessor_1_i32_w_gb>, memref<?xi32, 1>,
+        : (memref<1x!sycl_accessor_1_i32_w_dev>, memref<?xi32, 1>,
            memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
            memref<?x!sycl_id_1_>) -> ()
     gpu.return

@@ -10,9 +10,9 @@
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 !sycl_range_3_ = !sycl.range<[3], (!sycl_array_3_)>
-!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 3>)>)>
+!sycl_accessor_1_i32_ato_dev = !sycl.accessor<[1, i32, atomic, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 3>)>)>
 !sycl_atomic_i32_glo = !sycl.atomic<[i32, global], (memref<?xi32, 1>)>
 
 // CHECK-LABEL: test_addrspacecast_to_generic
@@ -48,8 +48,8 @@ func.func @test_cast_range(%arg: memref<1x!sycl_range_2_>) -> memref<1x!sycl_arr
 }
 
 // CHECK-LABEL: test_cast_accessor
-func.func @test_cast_accessor(%arg: memref<1x!sycl_accessor_1_i32_w_gb>) -> memref<1x!sycl.accessor_common> {
-  %0 = sycl.cast %arg : memref<1x!sycl_accessor_1_i32_w_gb> to memref<1x!sycl.accessor_common>
+func.func @test_cast_accessor(%arg: memref<1x!sycl_accessor_1_i32_w_dev>) -> memref<1x!sycl.accessor_common> {
+  %0 = sycl.cast %arg : memref<1x!sycl_accessor_1_i32_w_dev> to memref<1x!sycl.accessor_common>
   return %0 : memref<1x!sycl.accessor_common>
 }
 
@@ -178,23 +178,23 @@ func.func @test_sub_group_local_id() -> i32 {
 }
 
 // CHECK-LABEL: test_accessor_get_pointer
-func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1> {
-  %0 = sycl.accessor.get_pointer(%acc) : (memref<?x!sycl_accessor_1_i32_w_gb>) -> memref<?xi32, 1>
+func.func @test_accessor_get_pointer(%acc: memref<?x!sycl_accessor_1_i32_w_dev>) -> memref<?xi32, 1> {
+  %0 = sycl.accessor.get_pointer(%acc) : (memref<?x!sycl_accessor_1_i32_w_dev>) -> memref<?xi32, 1>
   return %0 : memref<?xi32, 1>
 }
 
 // CHECK-LABEL: test_accessor_get_range
-func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_ {
-  %0 = sycl.accessor.get_range(%acc) : (memref<?x!sycl_accessor_1_i32_w_gb>) -> !sycl_range_1_
+func.func @test_accessor_get_range(%acc: memref<?x!sycl_accessor_1_i32_w_dev>) -> !sycl_range_1_ {
+  %0 = sycl.accessor.get_range(%acc) : (memref<?x!sycl_accessor_1_i32_w_dev>) -> !sycl_range_1_
   return %0 : !sycl_range_1_
 }
 
 // CHECK-LABEL: test_accessor_subscript_atomic
 func.func @test_accessor_subscript_atomic(
-  %acc: memref<?x!sycl_accessor_1_i32_ato_gb>, 
+  %acc: memref<?x!sycl_accessor_1_i32_ato_dev>, 
   %idx: memref<?x!sycl_id_1_>) -> !sycl_atomic_i32_glo {
   %0 = sycl.accessor.subscript %acc[%idx]
-      : (memref<?x!sycl_accessor_1_i32_ato_gb>, memref<?x!sycl_id_1_>)
+      : (memref<?x!sycl_accessor_1_i32_ato_dev>, memref<?x!sycl_id_1_>)
       -> !sycl_atomic_i32_glo
   return %0 : !sycl_atomic_i32_glo
 }

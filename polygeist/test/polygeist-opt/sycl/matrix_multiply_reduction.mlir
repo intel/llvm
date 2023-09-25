@@ -1,9 +1,9 @@
 // RUN: polygeist-opt -arg-promotion -kernel-disjoint-specialization -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
 
 // CHECK-LABEL: func.func private @matrix_multiply_reduction
-// CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_gb, 4> {llvm.noalias, sycl.inner.disjoint},
-// CHECK-SAME:     %arg1: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias, sycl.inner.disjoint},
-// CHECK-SAME:     %arg2: memref<?x!sycl_accessor_1_f32_r_gb, 4> {llvm.noalias, sycl.inner.disjoint},
+// CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_dev, 4> {llvm.noalias, sycl.inner.disjoint},
+// CHECK-SAME:     %arg1: memref<?x!sycl_accessor_1_f32_r_dev, 4> {llvm.noalias, sycl.inner.disjoint},
+// CHECK-SAME:     %arg2: memref<?x!sycl_accessor_1_f32_r_dev, 4> {llvm.noalias, sycl.inner.disjoint},
 // CHECK-SAME:     %arg3: i32) attributes {llvm.linkage = #llvm.linkage<private>} {
 // CHECK-DAG: [[ALLOCA:%.*]] = memref.alloca()
 // CHECK-DAG: [[CAST:%.*]] = memref.cast [[ALLOCA]]
@@ -27,8 +27,8 @@
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_write_1_ = !sycl.accessor<[1, f32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 1>)>)>
-!sycl_accessor_read_1_ = !sycl.accessor<[1, f32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_accessor_write_1_ = !sycl.accessor<[1, f32, write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_accessor_read_1_ = !sycl.accessor<[1, f32, read, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xf32, 1>)>)>
 
 gpu.module @device_func {
   gpu.func @caller() kernel {

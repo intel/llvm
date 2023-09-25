@@ -6,7 +6,7 @@
 !sycl_accessor_impl_device_2 = !sycl.accessor_impl_device<[2], (!sycl_id_2, !sycl_range_2, !sycl_range_2)>
 !sycl_group_2 = !sycl.group<[2], (!sycl_range_2, !sycl_range_2, !sycl_range_2, !sycl_id_2)>
 !sycl_item_base_2 = !sycl.item_base<[2, true], (!sycl_range_2, !sycl_id_2, !sycl_id_2)>
-!sycl_accessor_2_f32_r_gb = !sycl.accessor<[2, f32, read, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_accessor_2_f32_r_dev = !sycl.accessor<[2, f32, read, device], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
 !sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
@@ -15,7 +15,7 @@
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> (d0 * s0 + s0, 256)>
 // CHECK:       memref.global "private" @WGLocalMem : memref<64xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL: func.func private @affine_2d(
-// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_item_2_>) {
+// CHECK-SAME:      %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_item_2_>) {
 
 // COM: Get local ids:
 // CHECK-NEXT:    %[[VAL_2:.*]] = sycl.local_id : !sycl_id_2_1
@@ -58,7 +58,7 @@
 // COM: Copy to shared local memory for 1st memref:
 // CHECK-NEXT:      %[[VAL_27:.*]] = sycl.id.constructor(%[[VAL_16]], %[[VAL_25]]) : (index, index) -> memref<1x!sycl_id_2_>
 // CHECK-NEXT:      %[[VAL_28:.*]] = arith.constant 0 : index
-// CHECK-NEXT:      %[[VAL_29:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_27]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+// CHECK-NEXT:      %[[VAL_29:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_27]]] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK-NEXT:      %[[VAL_30:.*]] = memref.load %[[VAL_29]]{{\[}}%[[VAL_28]]] : memref<?xf32, 1>
 // CHECK-NEXT:      memref.store %[[VAL_30]], %[[VAL_21]]{{\[}}%[[LOCALID0]], %[[LOCALID1]]] : memref<2x4xf32, #sycl.access.address_space<local>>
 
@@ -69,7 +69,7 @@
 // COM: Copy to shared local memory for 2nd memref:
 // CHECK-NEXT:      %[[VAL_31:.*]] = sycl.id.constructor(%[[VAL_16]], %[[VAL_23]]) : (index, index) -> memref<1x!sycl_id_2_>
 // CHECK-NEXT:      %[[VAL_32:.*]] = arith.constant 0 : index
-// CHECK-NEXT:      %[[VAL_33:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_31]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+// CHECK-NEXT:      %[[VAL_33:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_31]]] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK-NEXT:      %[[VAL_34:.*]] = memref.load %[[VAL_33]]{{\[}}%[[VAL_32]]] : memref<?xf32, 1>
 // CHECK-NEXT:      memref.store %[[VAL_34]], %[[VAL_37]]{{\[}}%[[LOCALID0]], %[[LOCALID1]]] : memref<2x4xf32, #sycl.access.address_space<local>>
 
@@ -89,7 +89,7 @@
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 gpu.module @device_func {
-func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_item_2>) {
+func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_item_2>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0_i32 = arith.constant 0 : i32
@@ -99,15 +99,15 @@ func.func private @affine_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: 
   affine.for %ii = 0 to 256 {
     %i = arith.index_cast %ii : index to i64
     sycl.constructor @id(%id, %tx, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2>, i64, i64)
-    %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2>) -> memref<?xf32>
+    %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_id_2>) -> memref<?xf32>
     %load1 = affine.load %subscr1[0] : memref<?xf32>
-    %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2>) -> memref<?xf32>
+    %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_id_2>) -> memref<?xf32>
     %load2 = affine.load %subscr2[0] : memref<?xf32>
   }
   return
 }
-gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_item_2>) kernel attributes {reqd_work_group_size = [4, 2]} {
-  func.call @affine_2d(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_item_2>) -> ()
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_item_2>) kernel attributes {reqd_work_group_size = [4, 2]} {
+  func.call @affine_2d(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_item_2>) -> ()
   gpu.return
 }
 }
@@ -119,7 +119,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 !sycl_accessor_impl_device_3 = !sycl.accessor_impl_device<[3], (!sycl_id_3, !sycl_range_3, !sycl_range_3)>
 !sycl_group_3 = !sycl.group<[3], (!sycl_range_3, !sycl_range_3, !sycl_range_3, !sycl_id_3)>
 !sycl_item_base_3 = !sycl.item_base<[3, true], (!sycl_range_3, !sycl_id_3, !sycl_id_3)>
-!sycl_accessor_3_f32_r_gb = !sycl.accessor<[3, f32, read, global_buffer], (!sycl_accessor_impl_device_3, !llvm.struct<(memref<?xf32, 3>)>)>
+!sycl_accessor_3_f32_r_dev = !sycl.accessor<[3, f32, read, device], (!sycl_accessor_impl_device_3, !llvm.struct<(memref<?xf32, 3>)>)>
 !sycl_item_3 = !sycl.item<[3, true], (!sycl_item_base_3)>
 !sycl_nd_item_3 = !sycl.nd_item<[3], (!sycl_item_3, !sycl_item_3, !sycl_group_3)>
 
@@ -128,7 +128,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-DAG:   [[MAP3:#map.*]] = affine_map<(d0)[s0] -> ((d0 - 1) * s0 + s0 + 1, 512)>
 // CHECK:       memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:  func.func private @affine_3d(
-// CHECK-SAME:       %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
+// CHECK-SAME:       %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
 
 // COM: Get work group sizes:
 // CHECK-NEXT:    %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_3_1
@@ -203,7 +203,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Copy to shared local memory for 1st memref:
 // CHECK-NEXT:        %[[VAL_52:.*]] = sycl.id.constructor(%[[VAL_40]], %[[VAL_43]], %[[VAL_50]]) : (index, index, index) -> memref<1x!sycl_id_3_>
 // CHECK-NEXT:        %[[VAL_53:.*]] = arith.constant 0 : index
-// CHECK-NEXT:        %[[VAL_54:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_52]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>
+// CHECK-NEXT:        %[[VAL_54:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_52]]] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>
 // CHECK-NEXT:        %[[VAL_55:.*]] = memref.load %[[VAL_54]]{{\[}}%[[VAL_53]]] : memref<?xf32, 1>
 // CHECK-NEXT:        memref.store %[[VAL_55]], %[[VAL_47]]{{\[}}%[[LOCALID0]], %[[LOCALID1]], %[[LOCALID2]]] : memref<?x?x?xf32, #sycl.access.address_space<local>>
 
@@ -215,7 +215,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:          sycl.constructor @id(%[[VAL_35]], %[[VAL_39]], %[[VAL_48]], %[[VAL_65]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
 // CHECK-NEXT:          %[[VAL_67:.*]] = memref.load %[[VAL_47]]{{\[}}%[[LOCALID0]], %[[LOCALID1]], %[[VAL_64]]] : memref<?x?x?xf32, #sycl.access.address_space<local>>
 // CHECK-NEXT:          sycl.constructor @id(%[[VAL_35]], %[[VAL_39]], %[[VAL_41]], %[[VAL_42]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
-// CHECK-NEXT:          %[[VAL_68:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:          %[[VAL_68:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3_>) -> memref<?xf32>
 // CHECK-NEXT:          %[[VAL_69:.*]] = affine.load %[[VAL_68]][0] : memref<?xf32>
 // CHECK-NEXT:        }
 // CHECK-NEXT:        spirv.ControlBarrier <Workgroup>, <Workgroup>, <SequentiallyConsistent|WorkgroupMemory>
@@ -225,17 +225,17 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:        %[[VAL_73:.*]] = arith.index_cast %[[VAL_43]] : index to i64
 // CHECK-NEXT:        %[[VAL_74:.*]] = arith.index_cast %[[VAL_72]] : index to i64
 // CHECK-NEXT:        sycl.constructor @id(%[[VAL_35]], %[[VAL_39]], %[[VAL_73]], %[[VAL_74]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
-// CHECK-NEXT:        %[[VAL_75:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:        %[[VAL_75:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3_>) -> memref<?xf32>
 // CHECK-NEXT:        %[[VAL_76:.*]] = affine.load %[[VAL_75]][0] : memref<?xf32>
 // CHECK-NEXT:        sycl.constructor @id(%[[VAL_35]], %[[VAL_39]], %[[VAL_41]], %[[VAL_42]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
-// CHECK-NEXT:        %[[VAL_77:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:        %[[VAL_77:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3_>) -> memref<?xf32>
 // CHECK-NEXT:        %[[VAL_78:.*]] = affine.load %[[VAL_77]][0] : memref<?xf32>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 gpu.module @device_func {
-func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) {
+func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %id = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
   %c0_i32 = arith.constant 0 : i32
@@ -252,19 +252,19 @@ func.func private @affine_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: 
 
       // Should use shared memory (access exhibits temporal locality).
       sycl.constructor @id(%id, %tx, %i, %j) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3>, i64, i64, i64)
-      %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3>) -> memref<?xf32>
+      %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3>) -> memref<?xf32>
       %load1 = affine.load %subscr1[0] : memref<?xf32>
 
       // Should use global memory (access is coalesced).
       sycl.constructor @id(%id, %tx, %ty, %tz) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3>, i64, i64, i64)
-      %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3>) -> memref<?xf32>      
+      %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3>) -> memref<?xf32>      
       %load2 = affine.load %subscr2[0] : memref<?xf32>      
     }
   }
   return
 }
-gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) kernel {
-  func.call @affine_3d(%arg0, %arg1) : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_nd_item_3>) -> ()
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) kernel {
+  func.call @affine_3d(%arg0, %arg1) : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_nd_item_3>) -> ()
   gpu.return
 }
 }
@@ -276,13 +276,13 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 !sycl_accessor_impl_device_2 = !sycl.accessor_impl_device<[2], (!sycl_id_2, !sycl_range_2, !sycl_range_2)>
 !sycl_group_2 = !sycl.group<[2], (!sycl_range_2, !sycl_range_2, !sycl_range_2, !sycl_id_2)>
 !sycl_item_base_2 = !sycl.item_base<[2, true], (!sycl_range_2, !sycl_id_2, !sycl_id_2)>
-!sycl_accessor_2_f32_r_gb = !sycl.accessor<[2, f32, read, global_buffer], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
+!sycl_accessor_2_f32_r_dev = !sycl.accessor<[2, f32, read, device], (!sycl_accessor_impl_device_2, !llvm.struct<(memref<?xf32, 2>)>)>
 !sycl_item_2 = !sycl.item<[2, true], (!sycl_item_base_2)>
 !sycl_nd_item_2 = !sycl.nd_item<[2], (!sycl_item_2, !sycl_item_2, !sycl_group_2)>
 
 // CHECK:           memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:     func.func private @scf_2d(
-// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_2_>) {
+// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_2_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_2_>) {
 
 // COM: Get work group sizes:
 // CHECK-NEXT:        %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_2_1
@@ -362,7 +362,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Copy to shared local memory for 1st memref:
 // CHECK-NEXT:            %[[VAL_54:.*]] = sycl.id.constructor(%[[VAL_35]], %[[VAL_47]]) : (index, index) -> memref<1x!sycl_id_2_>
 // CHECK-NEXT:            %[[VAL_55:.*]] = arith.constant 0 : index
-// CHECK-NEXT:            %[[VAL_56:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_54]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+// CHECK-NEXT:            %[[VAL_56:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_54]]] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK-NEXT:            %[[VAL_57:.*]] = memref.load %[[VAL_56]]{{\[}}%[[VAL_55]]] : memref<?xf32, 1>
 // CHECK-NEXT:            memref.store %[[VAL_57]], %[[VAL_50]]{{\[}}%[[LOCALID0]], %[[LOCALID1]]] : memref<?x?xf32, #sycl.access.address_space<local>>
 
@@ -378,7 +378,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // COM: Copy to local memory for 2nd memref:
 // CHECK:                 %[[VAL_68:.*]] = sycl.id.constructor(%[[GLOBALID1]], %[[VAL_45]]) : (index, index) -> memref<1x!sycl_id_2_>
 // CHECK:                 %[[VAL_69:.*]] = arith.constant 0 : index
-// CHECK:                 %[[VAL_70:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_68]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
+// CHECK:                 %[[VAL_70:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_68]]] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<1x!sycl_id_2_>) -> memref<?xf32, 1>
 // CHECK:                 %[[VAL_71:.*]] = memref.load %[[VAL_70]]{{\[}}%[[VAL_69]]] : memref<?xf32, 1>
 // CHECK:                 memref.store %[[VAL_71]], %[[VAL_67]]{{\[}}%[[LOCALID1]], %[[LOCALID0]]] : memref<?x?xf32, #sycl.access.address_space<local>>
 
@@ -399,17 +399,17 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:          scf.for %[[VAL_84:.*]] = %[[VAL_29]] to %[[VAL_31]] step %[[VAL_30]] {
 // CHECK-NEXT:            %[[VAL_85:.*]] = arith.index_cast %[[VAL_84]] : index to i64
 // CHECK-NEXT:            sycl.constructor @id(%[[VAL_28]], %[[VAL_34]], %[[VAL_85]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2_>, i64, i64)
-// CHECK-NEXT:            %[[VAL_86:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_28]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2_>) -> memref<?xf32>
+// CHECK-NEXT:            %[[VAL_86:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_28]]] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_id_2_>) -> memref<?xf32>
 // CHECK-NEXT:            %[[VAL_87:.*]] = affine.load %[[VAL_86]][0] : memref<?xf32>
 // CHECK-NEXT:            sycl.constructor @id(%[[VAL_28]], %[[VAL_36]], %[[VAL_85]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2_>, i64, i64)
-// CHECK-NEXT:            %[[VAL_88:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_28]]] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2_>) -> memref<?xf32>
+// CHECK-NEXT:            %[[VAL_88:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_28]]] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_id_2_>) -> memref<?xf32>
 // CHECK-NEXT:            %[[VAL_89:.*]] = affine.load %[[VAL_88]][0] : memref<?xf32>
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
 // CHECK-NEXT:        return
 // CHECK-NEXT:      }
 gpu.module @device_func {
-func.func private @scf_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2>) {
+func.func private @scf_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_2>
   %id = memref.cast %alloca : memref<1x!sycl_id_2> to memref<?x!sycl_id_2>
   %c0 = arith.constant 0 : index
@@ -423,17 +423,17 @@ func.func private @scf_2d(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: mem
   scf.for %ii = %c0 to %c256 step %c1 {
     %i = arith.index_cast %ii : index to i64    
     sycl.constructor @id(%id, %tx, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2>, i64, i64)
-    %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2>) -> memref<?xf32>
+    %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_id_2>) -> memref<?xf32>
     %load1 = affine.load %subscr1[0] : memref<?xf32>
 
     sycl.constructor @id(%id, %ty, %i) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_2>, i64, i64)    
-    %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_id_2>) -> memref<?xf32>
+    %subscr2 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_id_2>) -> memref<?xf32>
     %load2 = affine.load %subscr2[0] : memref<?xf32>
   }
   return
 }
-gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_2>) kernel {
-  func.call @scf_2d(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_gb>, memref<?x!sycl_nd_item_2>) -> ()
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_2>) kernel {
+  func.call @scf_2d(%arg0, %arg1) : (memref<?x!sycl_accessor_2_f32_r_dev>, memref<?x!sycl_nd_item_2>) -> ()
   gpu.return
 }
 }
@@ -445,13 +445,13 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 !sycl_accessor_impl_device_3 = !sycl.accessor_impl_device<[3], (!sycl_id_3, !sycl_range_3, !sycl_range_3)>
 !sycl_group_3 = !sycl.group<[3], (!sycl_range_3, !sycl_range_3, !sycl_range_3, !sycl_id_3)>
 !sycl_item_base_3 = !sycl.item_base<[3, true], (!sycl_range_3, !sycl_id_3, !sycl_id_3)>
-!sycl_accessor_3_f32_r_gb = !sycl.accessor<[3, f32, read, global_buffer], (!sycl_accessor_impl_device_3, !llvm.struct<(memref<?xf32, 3>)>)>
+!sycl_accessor_3_f32_r_dev = !sycl.accessor<[3, f32, read, device], (!sycl_accessor_impl_device_3, !llvm.struct<(memref<?xf32, 3>)>)>
 !sycl_item_3 = !sycl.item<[3, true], (!sycl_item_base_3)>
 !sycl_nd_item_3 = !sycl.nd_item<[3], (!sycl_item_3, !sycl_item_3, !sycl_group_3)>
 
 // CHECK:           memref.global "private" @WGLocalMem : memref<32000xi8, #sycl.access.address_space<local>>
 // CHECK-LABEL:     func.func private @scf_3d(
-// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_gb>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
+// CHECK-SAME:          %[[VAL_0:.*]]: memref<?x!sycl_accessor_3_f32_r_dev>, %[[VAL_1:.*]]: memref<?x!sycl_nd_item_3_>) {
 
 // COM: Get work group sizes:
 // CHECK-NEXT:        %[[VAL_2:.*]] = sycl.work_group_size : !sycl_range_3_1
@@ -530,7 +530,7 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            %[[VAL_56:.*]] = arith.index_cast %[[VAL_45]] : index to i64
 // CHECK-NEXT:            %[[VAL_57:.*]] = sycl.id.constructor(%[[VAL_44]], %[[VAL_45]], %[[VAL_49]]) : (index, index, index) -> memref<1x!sycl_id_3_>
 // CHECK-NEXT:            %[[VAL_58:.*]] = arith.constant 0 : index
-// CHECK-NEXT:            %[[VAL_59:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_57]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>
+// CHECK-NEXT:            %[[VAL_59:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_57]]] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<1x!sycl_id_3_>) -> memref<?xf32, 1>
 // CHECK-NEXT:            %[[VAL_60:.*]] = memref.load %[[VAL_59]]{{\[}}%[[VAL_58]]] : memref<?xf32, 1>
 // CHECK-NEXT:            memref.store %[[VAL_60]], %[[VAL_52]]{{\[}}%[[LOCALID0]], %[[LOCALID1]], %[[LOCALID2]]] : memref<?x?x?xf32, #sycl.access.address_space<local>>
 
@@ -549,14 +549,14 @@ gpu.func @kernel(%arg0: memref<?x!sycl_accessor_2_f32_r_gb>, %arg1: memref<?x!sy
 // CHECK-NEXT:            %[[VAL_76:.*]] = arith.index_cast %[[VAL_45]] : index to i64
 // CHECK-NEXT:            %[[VAL_77:.*]] = arith.index_cast %[[VAL_75]] : index to i64
 // CHECK-NEXT:            sycl.constructor @id(%[[VAL_35]], %[[VAL_43]], %[[VAL_76]], %[[VAL_77]]) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3_>, i64, i64, i64)
-// CHECK-NEXT:            %[[VAL_78:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3_>) -> memref<?xf32>
+// CHECK-NEXT:            %[[VAL_78:.*]] = sycl.accessor.subscript %[[VAL_0]]{{\[}}%[[VAL_35]]] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3_>) -> memref<?xf32>
 // CHECK-NEXT:            %[[VAL_79:.*]] = affine.load %[[VAL_78]][0] : memref<?xf32>
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
 // CHECK-NEXT:      }
 // CHECK-NEXT:      return
 gpu.module @device_func {
-func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) {
+func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) {
   %alloca = memref.alloca() : memref<1x!sycl_id_3>
   %id = memref.cast %alloca : memref<1x!sycl_id_3> to memref<?x!sycl_id_3>
   %c0 = arith.constant 0 : index
@@ -573,14 +573,14 @@ func.func private @scf_3d(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: mem
       %i = arith.index_cast %ii : index to i64
       %j = arith.index_cast %jj : index to i64
       sycl.constructor @id(%id, %tx, %i, %j) {MangledFunctionName = @dummy} : (memref<?x!sycl_id_3>, i64, i64, i64)
-      %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_id_3>) -> memref<?xf32>
+      %subscr1 = sycl.accessor.subscript %arg0[%id] : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_id_3>) -> memref<?xf32>
       %load1 = affine.load %subscr1[0] : memref<?xf32>
     }
   }
   return
 }
-gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_gb>, %arg1: memref<?x!sycl_nd_item_3>) kernel {
-  func.call @scf_3d(%arg0, %arg1) : (memref<?x!sycl_accessor_3_f32_r_gb>, memref<?x!sycl_nd_item_3>) -> ()
+gpu.func @kernel(%arg0: memref<?x!sycl_accessor_3_f32_r_dev>, %arg1: memref<?x!sycl_nd_item_3>) kernel {
+  func.call @scf_3d(%arg0, %arg1) : (memref<?x!sycl_accessor_3_f32_r_dev>, memref<?x!sycl_nd_item_3>) -> ()
   gpu.return
 }
 }

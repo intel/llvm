@@ -100,8 +100,8 @@ private:
 
   static llvm::StringRef getAlias(mlir::sycl::Target Target) {
     switch (Target) {
-    case mlir::sycl::Target::GlobalBuffer:
-      return "gb";
+    case mlir::sycl::Target::Device:
+      return "dev";
     case mlir::sycl::Target::ConstantBuffer:
       return "cb";
     case mlir::sycl::Target::Local:

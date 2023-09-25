@@ -26,7 +26,7 @@ namespace sycl {
 inline unsigned targetToAddressSpace(Target target) {
   switch (target) {
   case Target::ConstantBuffer:
-  case Target::GlobalBuffer:
+  case Target::Device:
     return 1;
   case Target::Local:
     return 3;

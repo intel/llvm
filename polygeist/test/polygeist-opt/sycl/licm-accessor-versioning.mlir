@@ -19,17 +19,17 @@
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
-!sycl_accessor_1_i32_r_gb = !sycl.accessor<[1, i32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+!sycl_accessor_1_i32_rw_dev = !sycl.accessor<[1, i32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+!sycl_accessor_1_i32_r_dev = !sycl.accessor<[1, i32, read, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 
 // CHECK-LABEL: testSCFLoopVersioning
-// CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_gb]], 4>) 
+// CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_dev]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_dev]], 4>) 
 
 // CHECK-DAG:  [[C0:%.*]] = arith.constant 0 : index
 // CHECK-DAG:  [[C8:%.*]] = arith.constant 8 : index
 // CHECK:      [[GUARD_COND:%.*]] = arith.cmpi slt, [[C0]], [[C8]] : index
 // CHECK-NEXT: scf.if [[GUARD_COND]] {
-// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_i32_r_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 
 // COM: Obtain a pointer to the beginning of the accessor %arg1.
 // CHECK-DAG:  [[C0_index:%.*]] = arith.constant 0 : index
@@ -66,7 +66,7 @@
 // CHECK: } else {
 // CHECK-NEXT: scf.for
 
-func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
+func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw_dev, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_dev, 4>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c8 = arith.constant 8 : index
@@ -86,12 +86,12 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw
     sycl.constructor @id(%memspacecast, %c0_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %3 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
     affine.store %3, %alloca_2[0] : memref<1x!sycl_id_1_>
-    %4 = sycl.accessor.subscript %arg1[%cast_3] : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %4 = sycl.accessor.subscript %arg1[%cast_3] : (memref<?x!sycl_accessor_1_i32_r_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     %5 = affine.load %4[0] : memref<?xi32, 4>
     sycl.constructor @id(%memspacecast_6, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %6 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
     affine.store %6, %alloca[0] : memref<1x!sycl_id_1_>
-    %7 = sycl.accessor.subscript %arg0[%cast] : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %7 = sycl.accessor.subscript %arg0[%cast] : (memref<?x!sycl_accessor_1_i32_rw_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     %8 = affine.load %7[0] : memref<?xi32, 4>
     %9 = arith.addi %8, %5 : i32
     affine.store %9, %7[0] : memref<?xi32, 4>
@@ -104,16 +104,16 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
-!sycl_accessor_1_i32_r_gb = !sycl.accessor<[1, i32, read, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+!sycl_accessor_1_i32_rw_dev = !sycl.accessor<[1, i32, read_write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+!sycl_accessor_1_i32_r_dev = !sycl.accessor<[1, i32, read, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 
 // CHECK: [[GUARD_COND:#.*]] = affine_set<() : (7 >= 0)>
 
 // CHECK-LABEL: testAffineLoopVersioning
-// CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_gb]], 4>)
+// CHECK-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_RW:!sycl_accessor_1_i32_rw_dev]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_R:!sycl_accessor_1_i32_r_dev]], 4>)
 
 // CHECK: affine.if [[GUARD_COND]]() {
-// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+// CHECK: [[ARG1_ACC:%.*]] = sycl.accessor.subscript %arg1[{{.*}}] : (memref<?x!sycl_accessor_1_i32_r_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 
 // COM: Version with condition: [[ARG1_END]] <= [[ARG0_BEGIN]] || [[ARG1_BEGIN]] >= [[ARG0_END]].
 // CHECK:      [[BEFORE_COND:%.*]] = llvm.icmp "ule" {{.*}}, {{.*}} : !llvm.ptr<1>
@@ -127,7 +127,7 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw
 // CHECK: } else {
 // CHECK-NEXT: affine.for
 
-func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_gb, 4>) {
+func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_rw_dev, 4>, %arg1: memref<?x!sycl_accessor_1_i32_r_dev, 4>) {
   %c0_i64 = arith.constant 0 : i64
   %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   %cast = memref.cast %alloca : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
@@ -144,12 +144,12 @@ func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32
     sycl.constructor @id(%memspacecast, %c0_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %3 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
     affine.store %3, %alloca_2[0] : memref<1x!sycl_id_1_>
-    %4 = sycl.accessor.subscript %arg1[%cast_3] : (memref<?x!sycl_accessor_1_i32_r_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %4 = sycl.accessor.subscript %arg1[%cast_3] : (memref<?x!sycl_accessor_1_i32_r_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     %5 = affine.load %4[0] : memref<?xi32, 4>
     sycl.constructor @id(%memspacecast_6, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %6 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
     affine.store %6, %alloca[0] : memref<1x!sycl_id_1_>
-    %7 = sycl.accessor.subscript %arg0[%cast] : (memref<?x!sycl_accessor_1_i32_rw_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %7 = sycl.accessor.subscript %arg0[%cast] : (memref<?x!sycl_accessor_1_i32_rw_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     %8 = affine.load %7[0] : memref<?xi32, 4>
     %9 = arith.addi %8, %5 : i32
     affine.store %9, %7[0] : memref<?xi32, 4>
@@ -187,23 +187,23 @@ func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
-!sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
 
 // COM: There is only one loop, i.e., the loop is not versioned.
 // 1PAIR-LABEL: testSCFLoopVersioning
-// 1PAIR-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
+// 1PAIR-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_dev]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
 // 1PAIR: [[C1_i32:%.*]] = arith.constant 1 : i32
-// 1PAIR: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+// 1PAIR: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 // 1PAIR: scf.for
 // 1PAIR: affine.store [[C1_i32]], [[ARG0_ACC]][0] : memref<?xi32, 4>
 // 1PAIR-NOT: } else {
 // 1PAIR-NOT: scf.for
 
 // 2PAIRS-LABEL: testSCFLoopVersioning
-// 2PAIRS-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_gb]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
+// 2PAIRS-SAME:  ([[ARG0:%.*]]: memref<?x[[ACC_W:!sycl_accessor_1_i32_w_dev]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>, [[ARG1:%.*]]: memref<?x[[ACC_W]], 4>) 
 
 // 2PAIRS: [[C1_i32:%.*]] = arith.constant 1 : i32
-// 2PAIRS: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+// 2PAIRS: [[ARG0_ACC:%.*]] = sycl.accessor.subscript %arg0[{{.*}}] : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
 
 // COM: Version with condition: ([[ARG0_END]] <= [[ARG1_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG1_END]])
 // COM:                          && ([[ARG0_END]] <= [[ARG2_BEGIN]] || [[ARG0_BEGIN]] >= [[ARG2_END]]).
@@ -222,7 +222,7 @@ func.func private @testAffineLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32
 // 2PAIRS: } else {
 // 2PAIRS-NEXT: scf.for
 
-func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg1: memref<?x!sycl_accessor_1_i32_w_gb, 4>, %arg2: memref<?x!sycl_accessor_1_i32_w_gb, 4>) {
+func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_w_dev, 4>, %arg1: memref<?x!sycl_accessor_1_i32_w_dev, 4>, %arg2: memref<?x!sycl_accessor_1_i32_w_dev, 4>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c8 = arith.constant 8 : index
@@ -250,17 +250,17 @@ func.func private @testSCFLoopVersioning(%arg0: memref<?x!sycl_accessor_1_i32_w_
     sycl.constructor @id(%memspacecast, %c0_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %3 = affine.load %alloca_8[0] : memref<1x!sycl_id_1_>
     affine.store %3, %alloca_6[0] : memref<1x!sycl_id_1_>
-    %4 = sycl.accessor.subscript %arg0[%cast_7] : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %4 = sycl.accessor.subscript %arg0[%cast_7] : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     affine.store %c1_i32, %4[0] : memref<?xi32, 4>
     sycl.constructor @id(%memspacecast_10, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %5 = affine.load %alloca_4[0] : memref<1x!sycl_id_1_>
     affine.store %5, %alloca_2[0] : memref<1x!sycl_id_1_>
-    %6 = sycl.accessor.subscript %arg1[%cast_3] : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %6 = sycl.accessor.subscript %arg1[%cast_3] : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     affine.store %c2_i32, %6[0] : memref<?xi32, 4>
     sycl.constructor @id(%memspacecast_11, %2) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
     %7 = affine.load %alloca_0[0] : memref<1x!sycl_id_1_>
     affine.store %7, %alloca[0] : memref<1x!sycl_id_1_>
-    %8 = sycl.accessor.subscript %arg2[%cast] : (memref<?x!sycl_accessor_1_i32_w_gb, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
+    %8 = sycl.accessor.subscript %arg2[%cast] : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xi32, 4>
     affine.store %c3_i32, %8[0] : memref<?xi32, 4>
   }
   return

@@ -79,13 +79,13 @@ module {
 
 module {
   func.func private @somethingA() -> () 
-  func.func private @somethingB() -> ()
+  func.func private @somethindev() -> ()
   func.func private @S(%arg0: i1) {
     func.call @somethingA() : () -> ()
     scf.if %arg0 {
         nvvm.barrier0
     }
-    func.call @somethingB() : () -> ()
+    func.call @somethindev() : () -> ()
     return 
   }
   func.func @meta(%arg: i1) {
@@ -112,7 +112,7 @@ module {
 // CHECK-NEXT:           scf.if %arg0 {
 // CHECK-NEXT:             "polygeist.barrier"(%arg4, %arg5, %arg6) : (index, index, index) -> ()
 // CHECK-NEXT:           }
-// CHECK-NEXT:           func.call @somethingB() : () -> ()
+// CHECK-NEXT:           func.call @somethindev() : () -> ()
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }

@@ -179,7 +179,7 @@ func.func @scf_parallel_nohoist1(%arg0: memref<?xf32>, %arg1: index, %arg2: inde
 // COM: Test LICM on affine.for loops.
 !sycl_id_1 = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 !sycl_range_1 = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
-!sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
+!sycl_accessor_1_f32_rw_dev = !sycl.accessor<[1, f32, read_write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1, !sycl_range_1, !sycl_range_1)>, !llvm.struct<(memref<?xf32, 1>)>)>
 
 module {
 
@@ -295,14 +295,14 @@ func.func @affine_for_hoist4(%arg0: memref<?xi32>) {
 
 // COM: Ensure accessor.subscript operation is hoisted and the load + store instructions before the 
 // COM: accessor.subscript operation are also hoisted (because %4 is not aliased with %alloca).
-func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
-  // CHECK:        func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_dev, 4>) {
+  // CHECK:        func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_dev, 4>) {
   // CHECK-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   // CHECK-DAG:      %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>  
   // CHECK:          affine.if #set1() {
   // CHECK-NEXT:       %0 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
   // CHECK-NEXT:       affine.store %0, %alloca_0[0] : memref<1x!sycl_id_1_>
-  // CHECK-NEXT:       %1 = sycl.accessor.subscript %arg0[%alloca_0] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
+  // CHECK-NEXT:       %1 = sycl.accessor.subscript %arg0[%alloca_0] : (memref<?x!sycl_accessor_1_f32_rw_dev, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
   // CHECK-NEXT:       affine.for %arg1 = 0 to 10 {
   // CHECK-NEXT:         %2 = affine.load %1[0] : memref<?xf32, 4>
   // CHECK-NEXT:         %3 = arith.addf %2, {{.*}} : f32
@@ -310,14 +310,14 @@ func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   // CHECK-NEXT:       }
   // CHECK-NEXT:     }    
 
-  // CHECK-RELAXED-ALIASING:         func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
+  // CHECK-RELAXED-ALIASING:         func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_dev, 4>) {
   // CHECK-RELAXED-ALIASING-DAG:      %alloca = memref.alloca() : memref<1x!sycl_id_1_>
   // CHECK-RELAXED-ALIASING-DAG:      %alloca_0 = memref.alloca() : memref<1x!sycl_id_1_>  
   // CHECK-RELAXED-ALIASING:          sycl.constructor @id(%memspacecast, %c64_i64) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ILi1EEENSt9enable_ifIXeqT_Li1EEmE4typeE} : (memref<?x!sycl_id_1_, 4>, i64)
   // CHECK-RELAXED-ALIASING-NEXT:     affine.for %arg1 = 0 to 10 {
   // CHECK-RELAXED-ALIASING-NEXT:      %0 = affine.load %alloca[0] : memref<1x!sycl_id_1_>
   // CHECK-RELAXED-ALIASING-NEXT:      affine.store %0, %alloca_0[0] : memref<1x!sycl_id_1_>
-  // CHECK-RELAXED-ALIASING-NEXT:      %1 = sycl.accessor.subscript %arg0[%alloca_0] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
+  // CHECK-RELAXED-ALIASING-NEXT:      %1 = sycl.accessor.subscript %arg0[%alloca_0] : (memref<?x!sycl_accessor_1_f32_rw_dev, 4>, memref<1x!sycl_id_1_>) -> memref<?xf32, 4>
   // CHECK-RELAXED-ALIASING-NEXT:      %2 = affine.load %1[0] : memref<?xf32, 4>
   // CHECK-RELAXED-ALIASING-NEXT:      %3 = arith.addf %2, %cst : f32
   // CHECK-RELAXED-ALIASING-NEXT:      affine.store %3, %1[0] : memref<?xf32, 4>
@@ -335,7 +335,7 @@ func.func @affine_for_hoist5(%arg0: memref<?x!sycl_accessor_1_f32_rw_gb, 4>) {
   affine.for %arg1 = 0 to 10 {    
     %2 = affine.load %alloca[0] : memref<1x!sycl_id_1>
     affine.store %2, %alloca_0[0] : memref<1x!sycl_id_1>
-    %3 = sycl.accessor.subscript %arg0[%alloca_0] : (memref<?x!sycl_accessor_1_f32_rw_gb, 4>, memref<1x!sycl_id_1>) -> memref<?xf32, 4>
+    %3 = sycl.accessor.subscript %arg0[%alloca_0] : (memref<?x!sycl_accessor_1_f32_rw_dev, 4>, memref<1x!sycl_id_1>) -> memref<?xf32, 4>
     %4 = affine.load %3[0] : memref<?xf32, 4>
     %5 = arith.addf %4, %cst : f32
     affine.store %5, %3[0] : memref<?xf32, 4>
