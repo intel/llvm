@@ -60,6 +60,11 @@ for i, match_line in enumerate(match_lines):
             print("Line " + str(i+1) + " does not match")
             print("is:       " + input_line)
             print("expected: " + match_line.strip())
+            print("--- Input Lines " + "-" * 64)
+            print("".join(input_lines).strip())
+            print("--- Match Lines " + "-" * 64)
+            print("".join(match_lines).strip())
+            print("-" * 80)
             sys.exit(1)
     else:
         if (input_idx == len(input_lines) - 1):

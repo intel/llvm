@@ -71,9 +71,7 @@ execute_process(
 )
 
 if(TEST_RESULT)
-    file(READ ${OUT_FILE} OUTPUT)
-    file(READ ${MATCH_FILE} MATCH_STRING)
-    message(FATAL_ERROR "Failed: The output of ${OUT_FILE}:\n  ${OUTPUT}\n does not match ${MATCH_FILE}:\n ${MATCH_STRING} (${TEST_RESULT})")
+    message(FATAL_ERROR "Failed (${TEST_RESULT}): The output of ${OUT_FILE} does not match ${MATCH_FILE}")
 elseif()
     message("Passed: The output ${OUT_FILE} matches ${MATCH_FILE}")
 endif()
