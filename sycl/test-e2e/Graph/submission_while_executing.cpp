@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+
+// https://github.com/intel/llvm/issues/11277:
+// UNSUPPORTED: windows
 //
 // CHECK-NOT: LEAK
 
