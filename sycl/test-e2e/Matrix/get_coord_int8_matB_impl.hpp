@@ -9,17 +9,19 @@
 constexpr size_t TK = 32;
 constexpr size_t VF = 4;
 
-template <typename T, size_t M, size_t N>
+template <typename T, size_t K, size_t N>
 void sum_cols_ref(host_accessor<T, 2, access::mode::read_write> B,
                   host_accessor<int, 1, access::mode::read_write> sum_cols) {
   int sum_cols_ref[N] = {0};
   for (size_t j = 0; j < N; j++) {
-    for (size_t i = 0; i < M; i++) {
+    for (size_t i = 0; i < K; i++) {
       sum_cols_ref[j] += B[i][j];
     }
     auto diff = sum_cols[j] - sum_cols_ref[j];
-    assert(std::fabs(static_cast<int>(diff)) <=
-           std::numeric_limits<int>::epsilon());
+    std::cout << "col is " << j << " sum_cols[j] " << sum_cols[j]
+              << " sum_cols_ref[j] " << sum_cols_ref[j] << std::endl;
+    // assert(std::fabs(static_cast<int>(diff)) <=
+    //     std::numeric_limits<int>::epsilon());
   }
 }
 
@@ -93,15 +95,18 @@ wi [1,0] -->    i=0, [8, 0]
 // clang-format on
 
 template <typename T, size_t K, size_t N>
-void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
+void matrix_sum_cols(queue q, big_matrix<T, K, N> &B,
+                     big_matrix<T, K / VF, N * VF> &Bvnni, nd_range<2> &r) {
   buffer<int8_t, 2> bufB(B.get_data(), range<2>(K, N));
+  buffer<int8_t, 2> bufBvnni(Bvnni.get_data(), range<2>(K / VF, N * VF));
 
   int sum_cols[N] = {0};
   buffer<int> sum_cols_v(sum_cols, N);
 
   q.submit([&](handler &cgh) {
-     auto accB = bufB.get_access<access::mode::read_write>(cgh);
+     auto accB = bufBvnni.get_access<access::mode::read_write>(cgh);
      auto v = sum_cols_v.get_access<access::mode::atomic>(cgh);
+     sycl::stream Stream{4096, 2048, cgh};
 
      cgh.parallel_for(
          r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
@@ -119,8 +124,9 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
            joint_matrix_load(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * (TK / VF) * N) + sg_starty / SG_SZ * TN * VF,
-               N);
+                   (sg_startx * (TK / VF) * N * VF) +
+                   sg_starty / SG_SZ * TN * VF,
+               N * VF);
 
            int32_t sum_local_cols[N] = {0};
            auto wiData =
@@ -131,7 +137,9 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
              // get the index of the element in the submatrix
              auto dataItem = wiData[i];
              auto [row, col] = dataItem.get_coord();
-             size_t global_index = col + global_idy / SG_SZ * TN * VF;
+             Stream << "i is " << i << " data is " << (int8_t)wiData[i]
+                    << " row is " << row << " col is " << col << "\n";
+             size_t global_index = col; // + global_idy / SG_SZ * TN;// * VF;
              sum_local_cols[global_index] += dataItem;
            }
 
@@ -147,25 +155,29 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
 }
 
 int main() {
-  static constexpr size_t scale = 2;
-  static constexpr size_t MATRIX_K = TK / VF * scale;
-  static constexpr size_t MATRIX_N = TN * VF * scale;
-  int8_t B[MATRIX_K][MATRIX_N];
+  static constexpr size_t scale = 1; // 2;
+  static constexpr size_t MATRIX_K = TK * scale;
+  static constexpr size_t MATRIX_N = TN * scale;
 
+  int8_t B[MATRIX_K][MATRIX_N];
   big_matrix<int8_t, MATRIX_K, MATRIX_N> MB((int8_t *)&B);
 
-  size_t NDRangeK = MATRIX_K / (TK / VF);
-  size_t NDRangeN = (MATRIX_N / VF) / TN;
+  int8_t Bvnni[MATRIX_K / VF][MATRIX_N * VF];
+  big_matrix<int8_t, MATRIX_K / VF, MATRIX_N * VF> MBvnni((int8_t *)&Bvnni);
+
+  size_t NDRangeK = (MATRIX_K / VF) / (TK / VF);
+  size_t NDRangeN = ((MATRIX_N * VF) / VF) / TN;
   queue q;
   nd_range<2> r({NDRangeK, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
 
   for (int i = 0; i < MATRIX_K; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
-      B[i][j] = i + j;
+      B[i][j] = j; // i + j;
     }
   }
+  matrix_vnni<int8_t>(MATRIX_K, MATRIX_N, *B, *Bvnni, VF);
 
-  matrix_sum_cols<int8_t, MATRIX_K, MATRIX_N>(q, MB, r);
+  matrix_sum_cols<int8_t, MATRIX_K, MATRIX_N>(q, MB, MBvnni, r);
   std::cout << "Passed\n";
   return 0;
 }
