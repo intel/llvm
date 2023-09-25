@@ -1,3 +1,5 @@
+// Ensure that --sym-prop-bc-files option works when multiple sym/prop bc files are listed
+
 // Generate fake AOCX files
 // RUN: echo 'pseudo-aocx-0' > %t0.aocx
 // RUN: echo 'pseudo-aocx-1' > %t1.aocx
@@ -42,14 +44,27 @@
 // RUN: echo '_ZTSZ4add4N4sycl3_V15queueEPiiiE10add4_dummy'                  >  %t1.sym
 // RUN: echo '_ZTSZ4add3N4sycl3_V15queueEPiiiE10add3_dummy'                  >  %t2.sym
 
-// Generate table file
+// Generate table file for reference BC file
 // RUN: echo '[Code|Properties|Symbols]'                                     >  %t.table
 // RUN: echo '%t0.aocx|%t0.prop|%t0.sym'                                     >> %t.table
 // RUN: echo '%t1.aocx|%t1.prop|%t1.sym'                                     >> %t.table
 // RUN: echo '%t2.aocx|%t2.prop|%t2.sym'                                     >> %t.table
 
-// Generate BC file with Code, Properties and Symbols
+// Generate reference BC file with Code, Properties and Symbols
 // RUN: clang-offload-wrapper "-o=%t1.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %t.table
+
+// Generate table files for SYM/PROP BC files
+// RUN: echo '[Code|Properties|Symbols]'                                     >  %tA.table
+// RUN: echo '%t0.aocx|%t0.prop|%t0.sym'                                     >> %tA.table
+// RUN: echo '[Code|Properties|Symbols]'                                     >  %tB.table
+// RUN: echo '%t1.aocx|%t1.prop|%t1.sym'                                     >> %tB.table
+// RUN: echo '[Code|Properties|Symbols]'                                     >  %tC.table
+// RUN: echo '%t2.aocx|%t2.prop|%t2.sym'                                     >> %tC.table
+y
+// Generate BC files with Properties and Symbols
+// RUN: clang-offload-wrapper "-o=%tA.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %tA.table
+// RUN: clang-offload-wrapper "-o=%tB.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %tB.table
+// RUN: clang-offload-wrapper "-o=%tC.bc" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch"  %tC.table
 
 // Update fake AOCX files
 // RUN: echo 'fake-aocx-0-updated'        > %t0.aocx
@@ -59,8 +74,11 @@
 // Create BC file with only Code in table
 // RUN: file-table-tform  --extract=Code  %t.table  -o %t_code_only.table
 
+// Create table file that lists symbol and property files
 // RUN: echo "[SymAndProps]" > %t_sym_prop_files.txt
-// RUN: echo %t1.bc >> %t_sym_prop_files.txt
+// RUN: echo %tA.bc >> %t_sym_prop_files.txt
+// RUN: echo %tB.bc >> %t_sym_prop_files.txt
+// RUN: echo %tC.bc >> %t_sym_prop_files.txt
 
 // Generate BC file with only Code coming from the table but everything else coming through --sym-prop-bc-files
 // Thus %t1.bc and %t2.bc should be the same except for their Code.

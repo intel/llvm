@@ -124,10 +124,12 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::value_desc("filename"),
                                    cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<std::string> SymPropBCFiles(
-    "sym-prop-bc-files", cl::Optional,
-    cl::desc("Wrapped BC input file to be updated with new code."),
-    cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
+static cl::opt<std::string>
+    SymPropBCFiles("sym-prop-bc-files", cl::Optional,
+                   cl::desc("File with list of wrapped BC input files that "
+                            "will be used to supply symbols and properties."),
+                   cl::value_desc("filename"),
+                   cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
@@ -379,10 +381,44 @@ public:
   std::vector<std::string> TempFiles;
 
 private:
+  std::string SymPropBCFiles;
+  std::unique_ptr<util::SimpleTable> SymProp_Table{nullptr};
   LLVMContext SymProps_C;
   ExitOnError SymProps_ExitOnErr;
-  std::unique_ptr<Module> SymProps_M;
-  std::string SymPropBCFiles;
+  std::unique_ptr<Module> Current_SymProps_M{nullptr};
+  Constant *Current_DeviceImage_Initializer;
+
+  void Set_Current_DeviceImage_Initializer() {
+    static Constant *DeviceImages_Initializer;
+    static int BCFileIndex{0};
+    static int ImageIndex{0};
+    static int ImageCnt{0};
+
+    if (ImageIndex == ImageCnt) {
+      const auto &Row = SymProp_Table->rows()[BCFileIndex++];
+
+      // Read a BC File that will provide SYM and Props information
+      std::unique_ptr<MemoryBuffer> MB = SymProps_ExitOnErr(errorOrToExpected(
+          MemoryBuffer::getFileOrSTDIN(Row.getCell("SymAndProps"))));
+
+      Current_SymProps_M = SymProps_ExitOnErr(
+          getOwningLazyBitcodeModule(std::move(MB), SymProps_C,
+                                     /*ShouldLazyLoadMetadata=*/true));
+
+      SymProps_ExitOnErr(Current_SymProps_M->materializeAll());
+
+      auto DeviceImages_Var = Current_SymProps_M->getGlobalVariable(
+          ".sycl_offloading.device_images", true);
+
+      DeviceImages_Initializer = DeviceImages_Var->getInitializer();
+
+      ImageIndex = 0;
+      ImageCnt = getInitializerNumElements(DeviceImages_Initializer);
+    }
+
+    Current_DeviceImage_Initializer =
+        DeviceImages_Initializer->getAggregateElement(ImageIndex++);
+  }
 
   IntegerType *getSizeTTy() {
     switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
@@ -782,7 +818,7 @@ private:
   // specified.
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
-    if (EntriesFile.empty() && !SymProps_M) {
+    if (EntriesFile.empty() && !SymProp_Table) {
       auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
@@ -794,27 +830,13 @@ private:
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
     // compatibility and new SYCL features
-    if (SymProps_M) {
-      static int imageCnt;
-
-      auto DeviceImages_Var =
-          SymProps_M->getGlobalVariable(".sycl_offloading.device_images", true);
-      auto DeviceImages_Initializer = DeviceImages_Var->getInitializer();
-      Type *SymProps_Ty = DeviceImages_Initializer->getType();
-      auto *SymProps_ArrTy = dyn_cast<ArrayType>(SymProps_Ty);
-
-      if (!SymProps_ArrTy)
-        return createStringError(errc::invalid_argument,
-                                 "Invalid --wrapped-bc-input file\n");
-
-      Constant *DeviceImage_Initializer =
-          DeviceImages_Initializer->getAggregateElement(imageCnt++);
-
-      Constant *Entries_Name = DeviceImage_Initializer->getAggregateElement(
-          10); // EntriesBegin field of struct __tgt_device_image
+    if (SymProp_Table) {
+      Constant *Entries_Name =
+          Current_DeviceImage_Initializer->getAggregateElement(
+              10); // EntriesBegin field of struct __tgt_device_image
 
       auto Entries_Var =
-          SymProps_M->getGlobalVariable(Entries_Name->getName(), true);
+          Current_SymProps_M->getGlobalVariable(Entries_Name->getName(), true);
       auto Entries_Initializer = Entries_Var->getInitializer();
 
       for (uint64_t i = 0; i < getInitializerNumElements(Entries_Initializer);
@@ -825,7 +847,7 @@ private:
             1); // name field of struct __tgt_offload_entry
 
         auto Entry_AsStringRef =
-            getValueAsStringRef(SymProps_M.get(), Entry_Name);
+            getValueAsStringRef(Current_SymProps_M.get(), Entry_Name);
 
         EntriesInits.push_back(ConstantStruct::get(
             getEntryTy(), NullPtr,
@@ -939,34 +961,21 @@ private:
 
     std::unique_ptr<llvm::util::PropertySetRegistry> PropRegistry;
 
-    if (SymProps_M) {
-      static int imageCnt;
-
-      auto DeviceImages_Var =
-          SymProps_M->getGlobalVariable(".sycl_offloading.device_images", true);
-      auto DeviceImages_Initializer = DeviceImages_Var->getInitializer();
-      Type *SymProps_Ty = DeviceImages_Initializer->getType();
-      auto *SymProps_ArrTy = dyn_cast<ArrayType>(SymProps_Ty);
-
-      if (!SymProps_ArrTy) {
-        return createStringError(errc::invalid_argument,
-                                 "Invalid --wrapped-bc-input file\n");
-      }
-      Constant *DeviceImage_Initializer =
-          DeviceImages_Initializer->getAggregateElement(imageCnt++);
-
+    if (SymProp_Table) {
       Constant *PropertySets_Name =
-          DeviceImage_Initializer->getAggregateElement(
+          Current_DeviceImage_Initializer->getAggregateElement(
               12); // PropertySetBegin field of struct __tgt_device_image
 
-      auto PropertySets_Var =
-          SymProps_M->getGlobalVariable(PropertySets_Name->getName(), true);
+      auto PropertySets_Var = Current_SymProps_M->getGlobalVariable(
+          PropertySets_Name->getName(), true);
+
       auto PropertySets_Initializer = PropertySets_Var->getInitializer();
 
       PropRegistry = std::make_unique<llvm::util::PropertySetRegistry>();
 
       for (uint64_t i = 0;
            i < getInitializerNumElements(PropertySets_Initializer); i++) {
+
         Constant *PropertySet_Initializer =
             PropertySets_Initializer->getAggregateElement(i);
 
@@ -975,14 +984,14 @@ private:
                 0)); // Name field of struct
                      // _pi_device_binary_property_set_struct
         auto PropertySet_Name_AsStringRef =
-            getValueAsStringRef(SymProps_M.get(), PropertySet_Name);
+            getValueAsStringRef(Current_SymProps_M.get(), PropertySet_Name);
 
         Constant *Properties_Name =
             PropertySet_Initializer->getAggregateElement(static_cast<unsigned>(
                 1)); // PropertiesBegin field of struct
                      // _pi_device_binary_property_set_struct
-        auto Properties_Var =
-            SymProps_M->getGlobalVariable(Properties_Name->getName(), true);
+        auto Properties_Var = Current_SymProps_M->getGlobalVariable(
+            Properties_Name->getName(), true);
         auto Properties_Initializer = Properties_Var->getInitializer();
 
         llvm::util::PropertySet PropSet;
@@ -1006,7 +1015,7 @@ private:
                   3)); // ValSize field of struct
                        // _pi_device_binary_property_struct
           auto Property_Name_AsStringRef =
-              getValueAsStringRef(SymProps_M.get(), Property_Name);
+              getValueAsStringRef(Current_SymProps_M.get(), Property_Name);
           auto Property_Type_AsUInt64 =
               static_cast<ConstantInt *>(Property_Type)->getZExtValue();
           auto Property_ValSize_AsUInt64 =
@@ -1019,7 +1028,7 @@ private:
           } else if (Property_Type_AsUInt64 ==
                      llvm::util::PropertyValue::BYTE_ARRAY) {
             auto Data_AsStringRef =
-                getValueAsStringRef(SymProps_M.get(), Property_ValAddr);
+                getValueAsStringRef(Current_SymProps_M.get(), Property_ValAddr);
 
             llvm::util::PropertyValue::SizeTy DataBitSize = 0;
             for (size_t I = 0; I < sizeof(llvm::util::PropertyValue::SizeTy);
@@ -1194,6 +1203,9 @@ private:
                                                            Twine("opts.link.") +
                                                            Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
+
+      if (SymProp_Table)
+        Set_Current_DeviceImage_Initializer();
 
       if (Img.Manif.empty()) {
         // no manifest - zero out the fields
@@ -1392,13 +1404,14 @@ public:
         SymPropBCFiles(SymPropBCFiles) {
 
     if (!SymPropBCFiles.empty()) {
-      // Read BC File that will provide SYM and Props information
-      std::unique_ptr<MemoryBuffer> MB = SymProps_ExitOnErr(
-          errorOrToExpected(MemoryBuffer::getFileOrSTDIN(SymPropBCFiles)));
-      SymProps_M = SymProps_ExitOnErr(
-          getOwningLazyBitcodeModule(std::move(MB), SymProps_C,
-                                     /*ShouldLazyLoadMetadata=*/true));
-      SymProps_ExitOnErr(SymProps_M->materializeAll());
+      Expected<std::unique_ptr<util::SimpleTable>> TPtr =
+          util::SimpleTable::read(SymPropBCFiles);
+
+      if (!TPtr) {
+        WithColor::warning(errs(), ToolName)
+            << "cannot open " << SymPropBCFiles << "\n";
+      }
+      SymProp_Table = std::move(*TPtr);
     }
 
     M.setTargetTriple(Target);
