@@ -29,17 +29,22 @@ UUR_TEST_SUITE_P(urQueueGetInfoTestWithInfoParam,
 TEST_P(urQueueGetInfoTestWithInfoParam, Success) {
     ur_queue_info_t info_type = getParam();
     size_t size = 0;
-    ASSERT_SUCCESS(urQueueGetInfo(queue, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
+    auto result = urQueueGetInfo(queue, info_type, 0, nullptr, &size);
 
-    if (const auto expected_size = queue_info_size_map.find(info_type);
-        expected_size != queue_info_size_map.end()) {
-        ASSERT_EQ(expected_size->second, size);
+    if (result == UR_RESULT_SUCCESS) {
+        ASSERT_NE(size, 0);
+
+        if (const auto expected_size = queue_info_size_map.find(info_type);
+            expected_size != queue_info_size_map.end()) {
+            ASSERT_EQ(expected_size->second, size);
+        }
+
+        std::vector<uint8_t> data(size);
+        ASSERT_SUCCESS(
+            urQueueGetInfo(queue, info_type, size, data.data(), nullptr));
+    } else {
+        ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
     }
-
-    std::vector<uint8_t> data(size);
-    ASSERT_SUCCESS(
-        urQueueGetInfo(queue, info_type, size, data.data(), nullptr));
 }
 
 using urQueueGetInfoTest = uur::urQueueTest;
