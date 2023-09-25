@@ -220,8 +220,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
                 for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 
 #endif
-                  tC[m][n] =
-                      joint_matrix_mad(sg, tA[m][k1], tB[n][k1], tC[m][n]);
+                  joint_matrix_mad(sg, tC[m][n], tA[m][k1], tB[n][k1],
+                                   tC[m][n]);
 #ifdef MANUAL_UNROLL
                 }); // n
               });   // m
