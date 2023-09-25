@@ -9,7 +9,7 @@ function(add_ur_adapter name)
         set(TARGET_LIBNAME ${name})
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
 
-        set(ADAPTER_VERSION_SCRIPT ${name}.def)
+        set(ADAPTER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/${name}.def)
 
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
         set_target_properties(${name} PROPERTIES
