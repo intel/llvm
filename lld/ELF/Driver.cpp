@@ -1078,6 +1078,15 @@ static void ltoValidateAllVtablesHaveTypeInfos(opt::InputArgList &args) {
   }
 }
 
+static CGProfileSortKind getCGProfileSortKind(opt::InputArgList &args) {
+  StringRef s = args.getLastArgValue(OPT_call_graph_profile_sort, "hfsort");
+  if (s == "hfsort")
+    return CGProfileSortKind::Hfsort;
+  if (s != "none")
+    error("unknown --call-graph-profile-sort= value: " + s);
+  return CGProfileSortKind::None;
+}
+
 static DebugCompressionType getCompressionType(StringRef s, StringRef option) {
   DebugCompressionType type = StringSwitch<DebugCompressionType>(s)
                                   .Case("zlib", DebugCompressionType::Zlib)
@@ -1213,6 +1222,7 @@ static void readConfigs(opt::InputArgList &args) {
     else if (arg->getOption().matches(OPT_Bsymbolic))
       config->bsymbolic = BsymbolicKind::All;
   }
+  config->callGraphProfileSort = getCGProfileSortKind(args);
   config->checkSections =
       args.hasFlag(OPT_check_sections, OPT_no_check_sections, true);
   config->chroot = args.getLastArgValue(OPT_chroot);
@@ -1233,8 +1243,6 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_eh_frame_hdr, OPT_no_eh_frame_hdr, false);
   config->emitLLVM = args.hasArg(OPT_plugin_opt_emit_llvm, false);
   config->emitRelocs = args.hasArg(OPT_emit_relocs);
-  config->callGraphProfileSort = args.hasFlag(
-      OPT_call_graph_profile_sort, OPT_no_call_graph_profile_sort, true);
   config->enableNewDtags =
       args.hasFlag(OPT_enable_new_dtags, OPT_disable_new_dtags, true);
   config->entry = args.getLastArgValue(OPT_entry);
@@ -1650,7 +1658,7 @@ static void readConfigs(opt::InputArgList &args) {
       config->symbolOrderingFile = getSymbolOrderingFile(*buffer);
       // Also need to disable CallGraphProfileSort to prevent
       // LLD order symbols with CGProfile
-      config->callGraphProfileSort = false;
+      config->callGraphProfileSort = CGProfileSortKind::None;
     }
   }
 
@@ -3042,7 +3050,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   }
 
   // Read the callgraph now that we know what was gced or icfed
-  if (config->callGraphProfileSort) {
+  if (config->callGraphProfileSort != CGProfileSortKind::None) {
     if (auto *arg = args.getLastArg(OPT_call_graph_ordering_file))
       if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
         readCallGraph(*buffer);
