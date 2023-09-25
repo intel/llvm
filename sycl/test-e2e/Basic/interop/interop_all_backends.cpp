@@ -1,5 +1,5 @@
-// RUN: %{build} %if ext_oneapi_hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %elif ext_oneapi_cuda %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} %elif ext_oneapi_level_zero %{ -DSYCL_EXT_ONEAPI_BACKEND_L0 %} -o test.out RUN:
-// %{run} test.out
+// RUN: %{build} %if ext_oneapi_hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %elif ext_oneapi_cuda %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} %elif ext_oneapi_level_zero %{ -DSYCL_EXT_ONEAPI_BACKEND_L0 %} -o test.out
+// RUN: %{run} test.out
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
