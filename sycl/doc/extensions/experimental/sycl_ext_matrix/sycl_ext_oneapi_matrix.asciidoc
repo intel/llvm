@@ -317,18 +317,18 @@ void joint_matrix_fill(Group g, joint_matrix<Group, T, Use, Rows,
 namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename T1, typename T2, size_t Rows,
-          size_t Cols, use Use1, use Use2, layout Layout> 
+          size_t Cols, use Use1, use Use2, layout Layout1, layout Layout2>
 void joint_matrix_copy(Group g,
-                       joint_matrix<Group, T1, Use1, Rows, Cols, Layout> &src,
-                       joint_matrix<Group, T2, Use2, Rows, Cols, Layout> &dest);
+                      joint_matrix<Group, T1, Use1, Rows, Cols, Layout1> &dest,
+                      joint_matrix<Group, T2, Use2, Rows, Cols, Layout2> &src);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
-This function copies `Rows x Cols` elements of type `T1` from joint
-matrix `src` to `Rows x Cols` elements of type `T2` of joint matrix
-`dest`. The two matrices must have the same scope, shape, and
-layout. Use and type can be different so this function converts
-between different `use` of matrices.
+This function copies `Rows x Cols` elements of type `T2` from joint
+matrix `src` to `Rows x Cols` elements of type `T1` of joint matrix
+`dest`. The two matrices must have the same scope and shape. Use,
+type, and layout can be different so this function converts between
+different `use` of matrices.
 
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
