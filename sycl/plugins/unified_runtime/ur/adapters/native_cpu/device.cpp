@@ -296,9 +296,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                             UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
     return ReturnValue(Capabilities);
   }
-  // Reenable when UR commit is updated
-  // case UR_DEVICE_INFO_ESIMD_SUPPORT:
-  //   return ReturnValue(false);
+    // Reenable when UR commit is updated
+    // case UR_DEVICE_INFO_ESIMD_SUPPORT:
+    //   return ReturnValue(false);
 
     CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
 
