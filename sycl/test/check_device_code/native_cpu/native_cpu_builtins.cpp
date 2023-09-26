@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o - %s | FileCheck %s
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -fno-inline -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o - %s | FileCheck --check-prefix=CHECK-TL %s
 
+// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -S -emit-llvm %s -o - | FileCheck --check-prefix=CHECK-TL %s
+
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins. We disable index flipping for SYCL Native
 // CPU, so id.get_global_id(1) maps to dimension 1 for a 2-D kernel (as opposed
