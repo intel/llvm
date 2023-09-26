@@ -66,9 +66,9 @@ struct ur_program_handle_t_ : _ur_object {
   // Construct a program in IL or Native state.
   ur_program_handle_t_(state St, ur_context_handle_t Context, const void *Input,
                        size_t Length)
-      : Context{Context}, OwnZeModule{true}, State{St},
-        Code{new uint8_t[Length]}, CodeLength{Length}, ZeModule{nullptr},
-        ZeBuildLog{nullptr} {
+      : Context{Context},
+        OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
+        CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
     std::memcpy(Code.get(), Input, Length);
   }
 
