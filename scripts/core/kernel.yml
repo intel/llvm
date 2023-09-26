@@ -19,7 +19,6 @@ name: Create
 decl: static
 ordinal: "0"
 details:
-    - "Multiple calls to this function will return identical device handles, in the same order."
     - "The application may call this function from simultaneous threads."
     - "The implementation of this function should be lock-free."
 params:

@@ -321,6 +321,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT);
     std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_ESIMD_SUPPORT);
+    std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice,
                                UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP);
     std::cout << prefix;
