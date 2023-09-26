@@ -98,8 +98,8 @@ struct _ur_buffer final : ur_mem_handle_t_ {
 
   // Sub-buffer constructor
   _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
-      : ur_mem_handle_t_(Parent->UrContext), Size(Size),
-        SubBuffer{Parent, Origin} {}
+      : ur_mem_handle_t_(Parent->UrContext),
+        Size(Size), SubBuffer{Parent, Origin} {}
 
   // Interop-buffer constructor
   _ur_buffer(ur_context_handle_t Context, size_t Size,
