@@ -1,4 +1,5 @@
-// RUN: %{build} %if ext_oneapi_hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %else %{ %if ext_oneapi_cuda %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} %else %{ %if ext_oneapi_level_zero %{ -DSYCL_EXT_ONEAPI_BACKEND_L0 %} %} %} -o %t.out
+// REQUIRES: CUDA || HIP
+// RUN: %{build} %if ext_oneapi_hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %else %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
@@ -7,13 +8,9 @@ using namespace sycl;
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_cuda;
-#elif defined(SYCL_EXT_ONEAPI_BACKEND_HIP)
+#else // defined(SYCL_EXT_ONEAPI_BACKEND_HIP)
 #include <sycl/ext/oneapi/backend/hip.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_hip;
-#elif defined(SYCL_EXT_ONEAPI_BACKEND_L0)
-constexpr auto BACKEND = backend::ext_oneapi_level_zero;
-#else
-constexpr auto BACKEND = backend::opencl;
 #endif
 
 constexpr int N = 100;
