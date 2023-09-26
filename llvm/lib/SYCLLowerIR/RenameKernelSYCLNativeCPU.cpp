@@ -29,39 +29,20 @@ static bool isSpirvSyclBuiltin(StringRef FName) {
 PreservedAnalyses
 RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
-  // Build the set of functions with sycl-module-id attr and functions
-  // called by them
-  std::set<Function *> CalledSet;
-  SmallVector<Function *> workList;
+  // Add NativeCPU suffix to module exports (kernels) and made other
+  // functions private
   for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
-      workList.push_back(&F);
-    }
-  }
-  while (!workList.empty()) {
-    auto *F = workList.pop_back_val();
-    // skip SPIRV builtins and LLVM intrinsics
-    if (isSpirvSyclBuiltin(F->getName()) || F->isIntrinsic())
+      F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
+      ModuleChanged = true;
+    } else if (isSpirvSyclBuiltin(F.getName()) || F.isIntrinsic())
       continue;
-    auto Inserted = CalledSet.insert(F);
-    if (!Inserted.second)
-      continue;
-
-    for (auto &BB : *F) {
-      for (auto &I : BB) {
-        if (auto *CBI = dyn_cast<CallBase>(&I)) {
-          auto *Called = CBI->getCalledOperand();
-          if (auto *CalledF = dyn_cast<Function>(Called)) {
-            workList.push_back(CalledF);
-          }
-        }
-      }
+    else if (!F.isDeclaration()) {
+      // todo: check what functions could be exported
+      F.setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+      ModuleChanged = true;
     }
   }
 
-  for (auto &F : CalledSet) {
-    F->setName(sycl::utils::addSYCLNativeCPUSuffix(F->getName()));
-    ModuleChanged |= true;
-  }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
