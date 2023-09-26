@@ -10079,6 +10079,14 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   assert(Output.isFilename() && "output must be a filename");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
+  // Handle -Xdevice-post-link
+  TC.TranslateTargetOpt(TCArgs, CmdArgs, options::OPT_Xdevice_post_link,
+                        options::OPT_Xdevice_post_link_EQ,
+                        JA.getOffloadingArch());
+
   // Add input file
   assert(Inputs.size() == 1 && Inputs.front().isFilename() &&
          "single input file expected");
