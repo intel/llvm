@@ -6,6 +6,13 @@
 //   -> <ios>
 //     -> <xlocnum>
 //       -> <cmath>
+//
+// <functional>
+//   -> <unordered_map>
+//     -> <xhash>
+//       -> <cmath>
+//
+// <vector> and <string> seem to include <cmath> implicitly as well.
 // XFAIL: windows
 
 #include <sycl/sycl.hpp>
