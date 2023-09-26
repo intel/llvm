@@ -68,14 +68,15 @@ void fixCallingConv(Function *F) {
 }
 
 // returns the indexes of the used arguments
-SmallVector<unsigned> getUsedIndexes(const Function *F) {
+SmallVector<unsigned> getUsedIndexes(const Function *F, bool useTLS) {
   SmallVector<unsigned> Res;
   auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
   if (!UsedNode) {
     // the metadata node is not available if -fenable-sycl-dae
     // was not set; set everything to true
     // Exclude one arg because we already added the state ptr
-    for (unsigned I = 0; I + 1 < F->getFunctionType()->getNumParams(); I++) {
+    const unsigned first = useTLS ? 0 : 1;
+    for (unsigned I = 0, NumP = F->getFunctionType()->getNumParams(); I + first < NumP; I++) {
       Res.push_back(I);
     }
     return Res;
@@ -122,7 +123,7 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   Function *SubhF = cast<Function>(SubhFCallee.getCallee());
 
   // Emit function body, unpack kernel args
-  auto UsedIndexes = getUsedIndexes(F);
+  auto UsedIndexes = getUsedIndexes(F, StateArgTLS);
   auto *KernelTy = F->getFunctionType();
   // assert(UsedIndexes.size() + 1 == KernelTy->getNumParams() && "mismatch
   // between number of params and used args");
