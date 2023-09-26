@@ -966,6 +966,13 @@ def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
   HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">;
+def Xdevice_post_link : Separate<["-"], "Xdevice-post-link">,
+  HelpText<"Pass <arg> to the device post-link tool.">, MetaVarName<"<arg>">,
+  Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption, DXCOption]>;
+def Xdevice_post_link_EQ : JoinedAndSeparate<["-"], "Xdevice-post-link=">,
+  HelpText<"Pass <arg> to the device post-link tool backend identified by <triple>.">,
+  MetaVarName<"<triple> <arg>">, Flags<[HelpHidden]>,
+  Visibility<[ClangOption, CLOption, DXCOption]>;
 def Xopenmp_target : Separate<["-"], "Xopenmp-target">, Group<CompileOnly_Group>,
   HelpText<"Pass <arg> to the target offloading toolchain.">, MetaVarName<"<arg>">;
 def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">, Group<CompileOnly_Group>,
