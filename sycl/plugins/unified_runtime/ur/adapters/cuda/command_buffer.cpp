@@ -243,7 +243,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -273,7 +273,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -308,7 +308,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -343,7 +343,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -375,7 +375,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -410,7 +410,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -447,7 +447,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
