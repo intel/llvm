@@ -42,6 +42,8 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
                      [&Aspect](const device &Dev) { return Dev.has(Aspect); });
 }
 
+namespace syclex = sycl::ext::oneapi::experimental;
+
 // The class is an impl counterpart of the sycl::kernel_bundle.
 // It provides an access and utilities to manage set of sycl::device_images
 // objects.
@@ -321,6 +323,13 @@ public:
     }
   }
 
+  // oneapi ext kernel_compiler
+  // construct from source string
+  kernel_bundle_impl(const context &Context, const syclex::source_language Lang,
+                     const std::string &Src)
+      : MContext(Context), MDevices(Context.get_devices()),
+        MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src) {}
+
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
   backend get_backend() const noexcept {
@@ -519,6 +528,9 @@ private:
   SpecConstMapT MSpecConstValues;
   bool MIsInterop = false;
   bundle_state MState;
+  // ext_oneapi_kernel_compiler : Source and Languauge
+  const syclex::source_language Language = syclex::source_language::opencl;
+  const std::string Source;
 };
 
 } // namespace detail

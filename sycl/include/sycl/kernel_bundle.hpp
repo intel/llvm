@@ -747,10 +747,11 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 namespace ext::oneapi::experimental {
-namespace syclex = ext::oneapi::experimental;
-kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &syclContext,
-                                 syclex::source_language, std::string &source);
+namespace syclex = sycl::ext::oneapi::experimental;
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 const syclex::source_language Language,
+                                 const std::string &Source);
 } // namespace ext::oneapi::experimental
 
 } // namespace _V1

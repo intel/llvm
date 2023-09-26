@@ -346,5 +346,25 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   return true;
 }
 
+/////////////////////////
+// syclex::create_kernel_bundle_from_source
+/////////////////////////
+namespace ext::oneapi::experimental {
+
+namespace syclex = sycl::ext::oneapi::experimental;
+using source_kb = kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
+
+source_kb
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 const syclex::source_language Language,
+                                 const std::string &Source) {
+  std::shared_ptr<kernel_bundle_impl> KBImpl =
+      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+}
+
+} // namespace ext::oneapi::experimental
+
 } // namespace _V1
 } // namespace sycl
