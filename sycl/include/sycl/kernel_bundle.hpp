@@ -743,6 +743,16 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
+/////////////////////////
+// syclex::create_kernel_bundle_from_source
+/////////////////////////
+namespace ext::oneapi::experimental {
+namespace syclex = ext::oneapi::experimental;
+kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &syclContext,
+                                 syclex::source_language, std::string &source);
+} // namespace ext::oneapi::experimental
+
 } // namespace _V1
 } // namespace sycl
 

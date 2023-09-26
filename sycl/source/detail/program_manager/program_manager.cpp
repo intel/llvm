@@ -1893,7 +1893,15 @@ void ProgramManager::bringSYCLDeviceImagesToState(
   for (device_image_plain &DevImage : DeviceImages) {
     const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
 
+    // At this time, there is no circumstance where a device image should ever
+    // be in the source state. That not good.
+    assert(DevImageState != bundle_state::ext_oneapi_source);
+
     switch (TargetState) {
+    case bundle_state::ext_oneapi_source:
+      // This case added for switch statement completion. We should not be here.
+      assert(DevImageState == bundle_state::ext_oneapi_source);
+      break;
     case bundle_state::input:
       // Do nothing since there is no state which can be upgraded to the input.
       assert(DevImageState == bundle_state::input);
@@ -1909,6 +1917,11 @@ void ProgramManager::bringSYCLDeviceImagesToState(
       break;
     case bundle_state::executable: {
       switch (DevImageState) {
+      case bundle_state::ext_oneapi_source:
+        // This case added for switch statement completion.
+        // We should not be here.
+        assert(DevImageState != bundle_state::ext_oneapi_source);
+        break;
       case bundle_state::input:
         DevImage = build(DevImage, getSyclObjImpl(DevImage)->get_devices(),
                          /*PropList=*/{});

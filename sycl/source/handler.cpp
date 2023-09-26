@@ -217,6 +217,7 @@ event handler::finalize() {
         // Nothing to do
         break;
       case bundle_state::object:
+      case bundle_state::ext_oneapi_source:
         assert(0 && "Expected that the bundle is either in input or executable "
                     "states.");
         break;
