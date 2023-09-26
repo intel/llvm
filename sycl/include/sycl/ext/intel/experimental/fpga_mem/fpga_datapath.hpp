@@ -30,20 +30,20 @@ protected:
 #endif
       ;
 
-  T *get_ptr() noexcept { return &val; }
-  constexpr const T *get_ptr() const noexcept { return &val; }
-
 public:
   // All the initialization
   // constexpr is used as a hint to the compiler to try and evaluate the
   // constructor at compile-time
   template <typename... S> constexpr fpga_datapath(S... args) : val{args...} {}
 
-  // Note: copy and move semantics should work for fpga_datapath
+  fpga_datapath(const fpga_datapath &) = default;
+  fpga_datapath(const fpga_datapath &&) = default;
+  fpga_datapath &operator=(const fpga_datapath &) = default;
+  fpga_datapath &operator=(const fpga_datapath &&) = default;
 
-  T &get() noexcept { return *this->get_ptr(); }
+  T &get() noexcept { return &val; }
 
-  constexpr const T &get() const noexcept { return *this->get_ptr(); }
+  constexpr const T &get() const noexcept { return &val; }
 
   // Allows for implicit conversion from this to T
   operator T &() noexcept { return get(); }

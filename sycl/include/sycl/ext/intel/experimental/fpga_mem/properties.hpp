@@ -19,8 +19,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
-namespace intel {
-namespace experimental {
+namespace intel::experimental {
 
 // Forward declare a class that these properties can be applied to
 template <typename T, typename PropertyListT> class fpga_mem;
@@ -41,21 +40,21 @@ struct resource_key {
 };
 
 struct num_banks_key {
-  template <size_t elements>
+  template <size_t Elements>
   using value_t =
-      property_value<num_banks_key, std::integral_constant<size_t, elements>>;
+      property_value<num_banks_key, std::integral_constant<size_t, Elements>>;
 };
 
 struct stride_size_key {
-  template <size_t elements>
+  template <size_t Elements>
   using value_t =
-      property_value<stride_size_key, std::integral_constant<size_t, elements>>;
+      property_value<stride_size_key, std::integral_constant<size_t, Elements>>;
 };
 
 struct word_size_key {
-  template <size_t elements>
+  template <size_t Elements>
   using value_t =
-      property_value<word_size_key, std::integral_constant<size_t, elements>>;
+      property_value<word_size_key, std::integral_constant<size_t, Elements>>;
 };
 
 struct bi_directional_ports_key {
@@ -72,65 +71,63 @@ struct clock_2x_key {
 enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
 struct ram_stitching_key {
-  template <ram_stitching_enum Ram_stritching>
+  template <ram_stitching_enum RamStitching>
   using value_t = property_value<
       ram_stitching_key,
-      std::integral_constant<ram_stitching_enum, Ram_stritching>>;
+      std::integral_constant<ram_stitching_enum, RamStitching>>;
 };
 
 struct max_private_copies_key {
-  template <size_t n>
+  template <size_t N>
   using value_t =
-      property_value<max_private_copies_key, std::integral_constant<size_t, n>>;
+      property_value<max_private_copies_key, std::integral_constant<size_t, N>>;
 };
 
 struct num_replicates_key {
-  template <size_t n>
+  template <size_t N>
   using value_t =
-      property_value<num_replicates_key, std::integral_constant<size_t, n>>;
+      property_value<num_replicates_key, std::integral_constant<size_t, N>>;
 };
 
 // Convenience aliases
-template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
+template <resource_enum R> inline constexpr resource_key::value_t<R> resource;
 inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
 inline constexpr resource_key::value_t<resource_enum::block_ram>
     resource_block_ram;
 
-template <size_t e> inline constexpr num_banks_key::value_t<e> num_banks;
+template <size_t E> inline constexpr num_banks_key::value_t<E> num_banks;
 
-template <size_t e> inline constexpr stride_size_key::value_t<e> stride_size;
+template <size_t E> inline constexpr stride_size_key::value_t<E> stride_size;
 
-template <size_t e> inline constexpr word_size_key::value_t<e> word_size;
+template <size_t E> inline constexpr word_size_key::value_t<E> word_size;
 
-template <bool b>
-inline constexpr bi_directional_ports_key::value_t<b> bi_directional_ports;
+template <bool B>
+inline constexpr bi_directional_ports_key::value_t<B> bi_directional_ports;
 inline constexpr bi_directional_ports_key::value_t<false>
     bi_directional_ports_false;
 inline constexpr bi_directional_ports_key::value_t<true>
     bi_directional_ports_true;
 
-template <bool b> inline constexpr clock_2x_key::value_t<b> clock_2x;
+template <bool B> inline constexpr clock_2x_key::value_t<B> clock_2x;
 inline constexpr clock_2x_key::value_t<true> clock_2x_true;
 inline constexpr clock_2x_key::value_t<false> clock_2x_false;
 
-template <ram_stitching_enum d>
-inline constexpr ram_stitching_key::value_t<d> ram_stitching;
+template <ram_stitching_enum D>
+inline constexpr ram_stitching_key::value_t<D> ram_stitching;
 inline constexpr ram_stitching_key::value_t<ram_stitching_enum::min_ram>
     ram_stitching_min_ram;
 inline constexpr ram_stitching_key::value_t<ram_stitching_enum::max_fmax>
     ram_stitching_max_fmax;
 
-template <size_t n>
-inline constexpr max_private_copies_key::value_t<n> max_private_copies;
+template <size_t N>
+inline constexpr max_private_copies_key::value_t<N> max_private_copies;
 
-template <size_t n>
-inline constexpr num_replicates_key::value_t<n> num_replicates;
+template <size_t N>
+inline constexpr num_replicates_key::value_t<N> num_replicates;
 
-} // namespace experimental
-} // namespace intel
+} // namespace intel::experimental
 
-namespace oneapi {
-namespace experimental {
+namespace oneapi::experimental {
 
 template <>
 struct is_property_key<intel::experimental::resource_key> : std::true_type {};
@@ -316,8 +313,7 @@ struct PropertyMetaInfo<
 };
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
+} // namespace oneapi::experimental
 } // namespace ext
 } // namespace _V1
 } // namespace sycl
