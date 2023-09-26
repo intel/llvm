@@ -49,7 +49,7 @@ ur_result_t mapErrorUR(hipError_t Result) {
 void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
                   const char *File) {
   if (Result == AMD_COMGR_STATUS_SUCCESS) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
   if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||

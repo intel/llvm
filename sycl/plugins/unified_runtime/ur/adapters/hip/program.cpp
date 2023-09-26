@@ -114,43 +114,22 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
   assert(IsRelocatable && "Not a relocatable input");
   amd_comgr_data_t ComgrData;
   amd_comgr_data_set_t RelocatableData;
-  if (UR_CHECK_ERROR(amd_comgr_create_data_set(&RelocatableData))) {
-    std::strcpy(ErrorLog,
-                "Failed to create comgr data set for the relocatable");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_create_data_set(&RelocatableData));
   COMgrDataSetTCleanUp RelocatableDataCleanup{RelocatableData};
 
-  if (UR_CHECK_ERROR(
-          amd_comgr_create_data(AMD_COMGR_DATA_KIND_RELOCATABLE, &ComgrData))) {
-    std::strcpy(ErrorLog, "Failed to create comgr data");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(
+          amd_comgr_create_data(AMD_COMGR_DATA_KIND_RELOCATABLE, &ComgrData));
   // RAII for auto clean-up
   COMgrDataTCleanUp DataCleanup{ComgrData};
+  UR_CHECK_ERROR(
+          amd_comgr_set_data(ComgrData, BinarySizeInBytes, Binary));
+  UR_CHECK_ERROR(amd_comgr_set_data_name(ComgrData, "jit_obj.o"));
 
-  if (UR_CHECK_ERROR(
-          amd_comgr_set_data(ComgrData, BinarySizeInBytes, Binary))) {
-    std::strcpy(ErrorLog, "Failed to create comgr data set");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
-
-  if (UR_CHECK_ERROR(amd_comgr_set_data_name(ComgrData, "jit_obj.o"))) {
-    std::strcpy(ErrorLog, "Failed to create comgr data set name");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
-
-  if (UR_CHECK_ERROR(amd_comgr_data_set_add(RelocatableData, ComgrData))) {
-    std::strcpy(ErrorLog, "Failed to add data to data set");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_data_set_add(RelocatableData, ComgrData));
 
   amd_comgr_action_info_t Action;
 
-  if (UR_CHECK_ERROR(amd_comgr_create_action_info(&Action))) {
-    std::strcpy(ErrorLog, "Failed to create comgr action info");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_create_action_info(&Action));
   COMgrActionInfoCleanUp ActionCleanUp{Action};
 
   std::string ISA = "amdgcn-amd-amdhsa--";
@@ -158,54 +137,34 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
   detail::ur::assertion(hipGetDeviceProperties(
                             &Props, Context->getDevice()->get()) == hipSuccess);
   ISA += Props.gcnArchName;
-  if (UR_CHECK_ERROR(amd_comgr_action_info_set_isa_name(Action, ISA.data()))) {
-    std::strcpy(ErrorLog, "Failed to set isa ");
-    std::strcat(ErrorLog, ISA.c_str());
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_action_info_set_isa_name(Action, ISA.data()));
 
-  if (UR_CHECK_ERROR(amd_comgr_action_info_set_logging(Action, true))) {
-    std::strcpy(ErrorLog, "Failed to set logging");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_action_info_set_logging(Action, true));
 
   amd_comgr_data_set_t Output;
-  if (UR_CHECK_ERROR(amd_comgr_create_data_set(&Output))) {
-    std::strcpy(ErrorLog, "Failed to create dataset for output");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_create_data_set(&Output));
   COMgrDataSetTCleanUp OutputDataCleanup{Output};
 
-  if (UR_CHECK_ERROR(
+  if(
           amd_comgr_do_action(AMD_COMGR_ACTION_LINK_RELOCATABLE_TO_EXECUTABLE,
-                              Action, RelocatableData, Output))) {
+                              Action, RelocatableData, Output) != AMD_COMGR_STATUS_SUCCESS) {
     getCoMgrBuildLog(Output, ErrorLog, MAX_LOG_SIZE);
     return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
   }
-
   amd_comgr_data_t binaryData;
 
-  if (UR_CHECK_ERROR(amd_comgr_action_data_get_data(
-          Output, AMD_COMGR_DATA_KIND_EXECUTABLE, 0, &binaryData))) {
-    std::strcpy(ErrorLog, "Failed to get link application");
-    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-  }
+  UR_CHECK_ERROR(amd_comgr_action_data_get_data(
+          Output, AMD_COMGR_DATA_KIND_EXECUTABLE, 0, &binaryData));
   {
     COMgrDataTCleanUp binaryDataCleanUp{binaryData};
 
     size_t binarySize = 0;
-    if (UR_CHECK_ERROR(amd_comgr_get_data(binaryData, &binarySize, NULL))) {
-      std::strcpy(ErrorLog, "Failed to get the executable size");
-      return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-    }
+    UR_CHECK_ERROR(amd_comgr_get_data(binaryData, &binarySize, NULL));
 
     ExecutableCache.resize(binarySize);
 
-    if (UR_CHECK_ERROR(amd_comgr_get_data(binaryData, &binarySize,
-                                          ExecutableCache.data()))) {
-      std::strcpy(ErrorLog, "Failed to get the executable");
-      return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
-    }
+    UR_CHECK_ERROR(amd_comgr_get_data(binaryData, &binarySize,
+                                          ExecutableCache.data()));
   }
   Binary = ExecutableCache.data();
   BinarySizeInBytes = ExecutableCache.size();
