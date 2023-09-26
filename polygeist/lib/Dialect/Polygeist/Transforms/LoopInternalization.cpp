@@ -892,8 +892,11 @@ void MemorySelector::analyze(LoopLikeOpInterface loop, AccessKind accessKind) {
 
     std::optional<MemoryAccess> memAccess =
         memAccessAnalysis.getMemoryAccess(memRefAccess);
-    assert(memAccess.has_value() &&
-           "Expecting valid memory access analysis result");
+    if (!memAccess.has_value()) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Could not obtain a valid memory access analysis result");
+      continue;
+    }
 
     memRefAccessToMemSpace[memRef] =
         selectMemorySpace(*memAccess, gridDimension, accessKind);
