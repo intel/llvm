@@ -17,11 +17,11 @@
 
 #include <sycl/sycl.hpp>
 
-#include <sycl/ext/intel/online_compiler.hpp>
-#include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/ext/intel/fpga_device_selector.hpp>
-#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
+#include <sycl/ext/intel/fpga_device_selector.hpp>
+#include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #if 0
 // <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp> includes <cmath>.
