@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=warning,note
 // expected-no-diagnostics
 
 // MSVC has the following includes:
@@ -16,6 +16,17 @@
 // XFAIL: windows
 
 #include <sycl/sycl.hpp>
+
+#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/ext/intel/fpga_device_selector.hpp>
+#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+#include <sycl/ext/intel/experimental/pipes.hpp>
+
+#if 0
+// <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp> includes <cmath>.
+#include <sycl/ext/intel/esimd.hpp>
+#endif
 
 using namespace sycl;
 
