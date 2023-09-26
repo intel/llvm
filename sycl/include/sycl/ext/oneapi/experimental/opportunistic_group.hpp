@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp>        // for is_group, is_user_cons...
 #include <sycl/exception.hpp>                 // for runtime_error
@@ -26,8 +27,13 @@ namespace ext::oneapi::experimental {
 class opportunistic_group;
 
 namespace this_kernel {
-inline opportunistic_group get_opportunistic_group();
-}
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_non_uniform_groups)]]
+#endif
+inline opportunistic_group
+get_opportunistic_group();
+} // namespace this_kernel
 
 class opportunistic_group {
 public:
