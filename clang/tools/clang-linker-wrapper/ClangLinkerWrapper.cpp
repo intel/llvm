@@ -487,8 +487,8 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
 }
 
 // Run sycl-post-link tool
-static Expected<StringRef>
-runSYCLPostLink(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+static Expected<StringRef> runSYCLPostLink(ArrayRef<StringRef> InputFiles,
+                                           const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
