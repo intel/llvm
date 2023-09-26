@@ -1226,6 +1226,12 @@ typedef enum ur_platform_backend_t {
 #endif // UR_DEVICE_BINARY_TARGET_AMDGCN
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_DEVICE_BINARY_TARGET_NATIVE_CPU
+/// @brief Native CPU
+#define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+#endif // UR_DEVICE_BINARY_TARGET_NATIVE_CPU
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Device Binary Type
 typedef struct ur_device_binary_t {
     ur_structure_type_t stype;     ///< [in] type of this structure, must be ::UR_STRUCTURE_TYPE_DEVICE_BINARY
@@ -1455,6 +1461,7 @@ typedef enum ur_device_info_t {
                                                                     ///< is implementation-defined, but newer devices should have a higher
                                                                     ///< version than older devices.
     UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT = 114,                    ///< [::ur_bool_t] return true if the device supports virtual memory.
+    UR_DEVICE_INFO_ESIMD_SUPPORT = 115,                             ///< [::ur_bool_t] return true if the device supports ESIMD.
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,            ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                     ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001, ///< [::ur_bool_t] returns true if the device supports the creation of
@@ -4408,8 +4415,6 @@ urProgramCreateWithNativeHandle(
 /// @brief Create kernel object from a program.
 ///
 /// @details
-///     - Multiple calls to this function will return identical device handles,
-///       in the same order.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function should be lock-free.
 ///

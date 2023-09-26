@@ -58,12 +58,15 @@ jobs:
         cd ..
 
     - name: Download DPC++
+      if: matrix.os == 'ubuntu-22.04'
       run: |
         sudo apt install libncurses5
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/sycl-nightly%2F20230626/dpcpp-compiler.tar.gz
-        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-09-21/sycl_linux.tar.gz
+        mkdir -p ${{github.workspace}}/dpcpp_compiler
+        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C ${{github.workspace}}/dpcpp_compiler
 
     - name: Configure CMake
+      if: matrix.os == 'ubuntu-22.04'
       run: >
         cmake
         -B${{github.workspace}}/build
@@ -74,6 +77,20 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+        ${{matrix.libbacktrace}}
+        ${{matrix.pool_tracking}}
+
+    - name: Configure CMake
+      if: matrix.os == 'ubuntu-20.04'
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DUR_ENABLE_TRACING=ON
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_BUILD_TESTS=ON
+        -DUR_FORMAT_CPP_STYLE=ON
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
 
@@ -159,7 +176,7 @@ jobs:
 
     - name: Download DPC++
       run: |
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-08-31/sycl_linux.tar.gz
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-09-21/sycl_linux.tar.gz
         mkdir dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
@@ -222,9 +239,10 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
 
-    - name: Generate source from spec, check for uncommitted diff
-      if: matrix.os == 'windows-2022'
-      run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
+    # TODO: re-enable when check-generated is fixed for windows runners see #888
+    # - name: Generate source from spec, check for uncommitted diff
+    #   if: matrix.os == 'windows-2022'
+    #   run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
 
     - name: Build all
       run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 2

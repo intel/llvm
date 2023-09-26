@@ -261,3 +261,16 @@ TEST_F(urEnqueueMemBufferCopyRectMultiDeviceTest, CopyRectReadDifferentQueues) {
 
     EXPECT_SUCCESS(urMemRelease(dst_buffer));
 }
+
+TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
+    // out-of-bounds access with potential overflow
+    ur_rect_region_t src_region{size, 1, 1};
+    ur_rect_offset_t src_origin{std::numeric_limits<uint64_t>::max(), 1, 1};
+    ur_rect_offset_t dst_origin{0, 0, 0};
+
+    ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(queue, src_buffer, dst_buffer,
+                                                src_origin, dst_origin,
+                                                src_region, size, size, size,
+                                                size, 0, nullptr, nullptr),
+                     UR_RESULT_ERROR_INVALID_SIZE);
+}
