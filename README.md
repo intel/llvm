@@ -23,7 +23,7 @@
     - [Adapter naming convention](#adapter-naming-convention)
     - [Source code generation](#source-code-generation)
     - [Documentation](#documentation)
-
+6. [Release Process](#release-process)
 
 ## Contents of the repo
 
@@ -166,3 +166,26 @@ Code is generated using included [Python scripts](/scripts/README.md).
 
 Documentation is generated from source code using Sphinx -
 see [scripts dir](/scripts/README.md) for details.
+
+## Release Process
+
+Unified Runtime releases are aligned with oneAPI releases. Once all changes
+planned for a release have been accepted, the release process is defined as:
+
+1. Create a new release branch based on the [main][main-branch] branch taking
+   the form `v<major>.<minor>.x` where `x` is a placeholder for the patch
+   version. This branch will always contain the latest patch version for a given
+   release.
+2. Create a PR to increment the CMake project version on the [main][main-branch]
+   and merge before accepting any other changes.
+3. Create a new tag based on the latest commit on the release branch taking the
+   form `v<major>.<minor>.<patch>`.
+4. Create a [new GitHub release][new-github-release] using the tag created in
+   the previous step.
+   * Prior to version 1.0, check the *Set as a pre-release* tick box.
+5. Update downstream projects to utilize the release tag. If any issues arise
+   from integration, apply any necessary hot fixes to `v<major>.<minor>.x`
+   branch and go back to step 3.
+
+[main-branch]: https://github.com/oneapi-src/unified-runtime/tree/main
+[new-github-release]: https://github.com/oneapi-src/unified-runtime/releases/new
