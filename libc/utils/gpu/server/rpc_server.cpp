@@ -19,7 +19,7 @@
 #include <variant>
 #include <vector>
 
-using namespace __llvm_libc;
+using namespace LIBC_NAMESPACE;
 
 static_assert(sizeof(rpc_buffer_t) == sizeof(rpc::Buffer),
               "Buffer size mismatch");
@@ -161,6 +161,26 @@ private:
     case RPC_CLEARERR: {
       port->recv_and_send([](rpc::Buffer *buffer) {
         clearerr(file::to_stream(buffer->data[0]));
+      });
+      break;
+    }
+    case RPC_FSEEK: {
+      port->recv_and_send([](rpc::Buffer *buffer) {
+        buffer->data[0] = fseek(file::to_stream(buffer->data[0]),
+                                static_cast<long>(buffer->data[1]),
+                                static_cast<int>(buffer->data[2]));
+      });
+      break;
+    }
+    case RPC_FTELL: {
+      port->recv_and_send([](rpc::Buffer *buffer) {
+        buffer->data[0] = ftell(file::to_stream(buffer->data[0]));
+      });
+      break;
+    }
+    case RPC_FFLUSH: {
+      port->recv_and_send([](rpc::Buffer *buffer) {
+        buffer->data[0] = fflush(file::to_stream(buffer->data[0]));
       });
       break;
     }
