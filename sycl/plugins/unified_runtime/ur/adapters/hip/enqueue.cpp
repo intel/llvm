@@ -49,7 +49,8 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue,
           if (Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
-            return UR_CHECK_ERROR(hipStreamWaitEvent(Stream, Event->get(), 0));
+            UR_CHECK_ERROR(hipStreamWaitEvent(Stream, Event->get(), 0));
+            return UR_RESULT_SUCCESS;
           }
         });
 
@@ -109,7 +110,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         hipMemcpyHtoDAsync(hBuffer->Mem.BufferMem.getWithOffset(offset),
                            const_cast<void *>(pSrc), size, HIPStream));
 
@@ -118,7 +119,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     }
 
     if (blockingWrite) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
@@ -155,7 +156,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = UR_CHECK_ERROR(hipMemcpyDtoHAsync(
+    UR_CHECK_ERROR(hipMemcpyDtoHAsync(
         pDst, hBuffer->Mem.BufferMem.getWithOffset(offset), size, HIPStream));
 
     if (phEvent) {
@@ -163,7 +164,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     }
 
     if (blockingRead) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
@@ -309,7 +310,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     if (LocalMemSzPtr) {
       int DeviceMaxLocalMem = 0;
-      Result = UR_CHECK_ERROR(hipDeviceGetAttribute(
+      UR_CHECK_ERROR(hipDeviceGetAttribute(
           &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
           HIPDev));
 
@@ -322,11 +323,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      Result = UR_CHECK_ERROR(hipFuncSetAttribute(
+      UR_CHECK_ERROR(hipFuncSetAttribute(
           HIPFunc, hipFuncAttributeMaxDynamicSharedMemorySize, EnvVal));
     }
 
-    Result = UR_CHECK_ERROR(hipModuleLaunchKernel(
+    UR_CHECK_ERROR(hipModuleLaunchKernel(
         HIPFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
         hKernel->getLocalSize(), HIPStream, ArgIndices.data(), nullptr));
@@ -370,8 +371,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
 
-  ur_result_t Result;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
@@ -405,22 +404,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                       Event->getComputeStreamToken())) {
                 return UR_RESULT_SUCCESS;
               } else {
-                return UR_CHECK_ERROR(
-                    hipStreamWaitEvent(HIPStream, Event->get(), 0));
+                UR_CHECK_ERROR(hipStreamWaitEvent(HIPStream, Event->get(), 0));
+                return UR_RESULT_SUCCESS;
               }
             });
       }
 
-      Result = UR_CHECK_ERROR(hipEventRecord(hQueue->BarrierEvent, HIPStream));
+      UR_CHECK_ERROR(hipEventRecord(hQueue->BarrierEvent, HIPStream));
       for (unsigned int i = 0; i < hQueue->ComputeAppliedBarrier.size(); i++) {
         hQueue->ComputeAppliedBarrier[i] = false;
       }
       for (unsigned int i = 0; i < hQueue->TransferAppliedBarrier.size(); i++) {
         hQueue->TransferAppliedBarrier[i] = false;
       }
-    }
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
     }
 
     if (phEvent) {
@@ -487,7 +483,8 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
   Params.dstPitch = DstRowPitch;
   Params.dstHeight = DstSlicePitch / DstRowPitch;
 
-  return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&Params, HipStream));
+  UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&Params, HipStream));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
@@ -546,7 +543,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     }
 
     if (blockingRead) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
@@ -593,7 +590,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     }
 
     if (blockingWrite) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
 
     if (phEvent) {
@@ -620,7 +617,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
   try {
     ScopedContext Active(hQueue->getDevice());
-    ur_result_t Result;
+    ur_result_t Result = UR_RESULT_SUCCESS;
     auto Stream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
@@ -638,7 +635,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     auto Src = hBufferSrc->Mem.BufferMem.getWithOffset(srcOffset);
     auto Dst = hBufferDst->Mem.BufferMem.getWithOffset(dstOffset);
 
-    Result = UR_CHECK_ERROR(hipMemcpyDtoDAsync(Dst, Src, size, Stream));
+    UR_CHECK_ERROR(hipMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -713,10 +710,7 @@ ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
 
   // Get 4-byte chunk of the pattern and call hipMemsetD32Async
   auto Value = *(static_cast<const uint32_t *>(pPattern));
-  auto Result = UR_CHECK_ERROR(hipMemsetD32Async(Ptr, Value, Count32, Stream));
-  if (Result != UR_RESULT_SUCCESS) {
-    return Result;
-  }
+  UR_CHECK_ERROR(hipMemsetD32Async(Ptr, Value, Count32, Stream));
   for (auto step = 4u; step < NumberOfSteps; ++step) {
     // take 1 byte of the pattern
     Value = *(static_cast<const uint8_t *>(pPattern) + step);
@@ -726,11 +720,8 @@ ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
                                               (step * sizeof(uint8_t)));
 
     // set all of the pattern chunks
-    Result = UR_CHECK_ERROR(hipMemset2DAsync(OffsetPtr, Pitch, Value,
-                                             sizeof(uint8_t), Height, Stream));
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+    UR_CHECK_ERROR(hipMemset2DAsync(OffsetPtr, Pitch, Value, sizeof(uint8_t),
+                                    Height, Stream));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -764,7 +755,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ScopedContext Active(hQueue->getDevice());
 
     auto Stream = hQueue->getNextTransferStream();
-    ur_result_t Result;
+    ur_result_t Result = UR_RESULT_SUCCESS;
     if (phEventWaitList) {
       Result = enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
                                  phEventWaitList);
@@ -784,17 +775,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     switch (patternSize) {
     case 1: {
       auto Value = *static_cast<const uint8_t *>(pPattern);
-      Result = UR_CHECK_ERROR(hipMemsetD8Async(DstDevice, Value, N, Stream));
+      UR_CHECK_ERROR(hipMemsetD8Async(DstDevice, Value, N, Stream));
       break;
     }
     case 2: {
       auto Value = *static_cast<const uint16_t *>(pPattern);
-      Result = UR_CHECK_ERROR(hipMemsetD16Async(DstDevice, Value, N, Stream));
+      UR_CHECK_ERROR(hipMemsetD16Async(DstDevice, Value, N, Stream));
       break;
     }
     case 4: {
       auto Value = *static_cast<const uint32_t *>(pPattern);
-      Result = UR_CHECK_ERROR(hipMemsetD32Async(DstDevice, Value, N, Stream));
+      UR_CHECK_ERROR(hipMemsetD32Async(DstDevice, Value, N, Stream));
       break;
     }
 
@@ -855,7 +846,8 @@ static ur_result_t commonEnqueueMemImageNDCopy(
     }
     CpyDesc.WidthInBytes = Region[0];
     CpyDesc.Height = Region[1];
-    return UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc, HipStream));
+    UR_CHECK_ERROR(hipMemcpyParam2DAsync(&CpyDesc, HipStream));
+    return UR_RESULT_SUCCESS;
   }
 
   if (ImgType == UR_MEM_TYPE_IMAGE3D) {
@@ -884,8 +876,8 @@ static ur_result_t commonEnqueueMemImageNDCopy(
     CpyDesc.WidthInBytes = Region[0];
     CpyDesc.Height = Region[1];
     CpyDesc.Depth = Region[2];
-    return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&CpyDesc, HipStream));
-    return UR_RESULT_ERROR_UNKNOWN;
+    UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&CpyDesc, HipStream));
+    return UR_RESULT_SUCCESS;
   }
 
   return UR_RESULT_ERROR_INVALID_VALUE;
@@ -948,7 +940,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     if (blockingRead) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1243,19 +1235,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     auto N = size / patternSize;
     switch (patternSize) {
     case 1:
-      Result = UR_CHECK_ERROR(
-          hipMemsetD8Async(reinterpret_cast<hipDeviceptr_t>(ptr),
-                           *(const uint8_t *)pPattern & 0xFF, N, HIPStream));
+      UR_CHECK_ERROR(hipMemsetD8Async(reinterpret_cast<hipDeviceptr_t>(ptr),
+                                      *(const uint8_t *)pPattern & 0xFF, N,
+                                      HIPStream));
       break;
     case 2:
-      Result = UR_CHECK_ERROR(hipMemsetD16Async(
-          reinterpret_cast<hipDeviceptr_t>(ptr),
-          *(const uint16_t *)pPattern & 0xFFFF, N, HIPStream));
+      UR_CHECK_ERROR(hipMemsetD16Async(reinterpret_cast<hipDeviceptr_t>(ptr),
+                                       *(const uint16_t *)pPattern & 0xFFFF, N,
+                                       HIPStream));
       break;
     case 4:
-      Result = UR_CHECK_ERROR(hipMemsetD32Async(
-          reinterpret_cast<hipDeviceptr_t>(ptr),
-          *(const uint32_t *)pPattern & 0xFFFFFFFF, N, HIPStream));
+      UR_CHECK_ERROR(hipMemsetD32Async(reinterpret_cast<hipDeviceptr_t>(ptr),
+                                       *(const uint32_t *)pPattern & 0xFFFFFFFF,
+                                       N, HIPStream));
       break;
 
     default:
@@ -1265,7 +1257,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     }
 
     if (phEvent) {
-      Result = UR_CHECK_ERROR(EventPtr->record());
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
@@ -1294,13 +1286,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
               UR_COMMAND_USM_MEMCPY, hQueue, HIPStream));
       UR_CHECK_ERROR(EventPtr->start());
     }
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         hipMemcpyAsync(pDst, pSrc, size, hipMemcpyDefault, HIPStream));
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
     }
     if (blocking) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
     if (phEvent) {
       *phEvent = EventPtr.release();
@@ -1315,7 +1307,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-#if HIP_VERSION_MAJOR >= 5
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
@@ -1342,12 +1333,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
+  // HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
+  // so we can't perform this check for such cases.
+#if HIP_VERSION_MAJOR >= 5
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
                                         (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
-
+#endif
   // flags is currently unused so fail if set
   if (flags != 0)
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1365,7 +1359,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
               UR_COMMAND_USM_PREFETCH, hQueue, HIPStream));
       UR_CHECK_ERROR(EventPtr->start());
     }
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         hipMemPrefetchAsync(pMem, size, hQueue->getDevice()->get(), HIPStream));
     if (phEvent) {
       UR_CHECK_ERROR(EventPtr->record());
@@ -1376,28 +1370,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   }
 
   return Result;
-#else
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t, ur_event_handle_t *phEvent) {
-#if HIP_VERSION_MAJOR >= 5
   void *HIPDevicePtr = const_cast<void *>(pMem);
+// HIP_POINTER_ATTRIBUTE_RANGE_SIZE is not an attribute in ROCM < 5,
+// so we can't perform this check for such cases.
+#if HIP_VERSION_MAJOR >= 5
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
                                         (hipDeviceptr_t)HIPDevicePtr));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
-
+#endif
   // TODO implement a mapping to hipMemAdvise once the expected behaviour
   // of urEnqueueUSMAdvise is detailed in the USM extension
   return urEnqueueEventsWait(hQueue, 0, nullptr, phEvent);
-#else
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
@@ -1441,16 +1431,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result =
-        UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
-                                        height, hipMemcpyDefault, HIPStream));
+    UR_CHECK_ERROR(hipMemcpy2DAsync(pDst, dstPitch, pSrc, srcPitch, width,
+                                    height, hipMemcpyDefault, HIPStream));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
     if (blocking) {
-      Result = UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
+      UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
   } catch (ur_result_t Err) {
     Result = Err;

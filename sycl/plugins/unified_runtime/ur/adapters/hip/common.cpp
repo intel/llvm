@@ -46,8 +46,8 @@ ur_result_t mapErrorUR(hipError_t Result) {
 }
 
 #ifdef SYCL_ENABLE_KERNEL_FUSION
-ur_result_t checkErrorUR(amd_comgr_status_t Result, const char *Function,
-                         int Line, const char *File) {
+void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == AMD_COMGR_STATUS_SUCCESS) {
     return UR_RESULT_SUCCESS;
   }
@@ -91,10 +91,10 @@ ur_result_t checkErrorUR(amd_comgr_status_t Result, const char *Function,
 }
 #endif
 
-ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
-                         const char *File) {
+void checkErrorUR(hipError_t Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == hipSuccess) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
   if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
@@ -119,10 +119,10 @@ ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
   throw mapErrorUR(Result);
 }
 
-ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
-                         const char *File) {
+void checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == UR_RESULT_SUCCESS) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
   if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||

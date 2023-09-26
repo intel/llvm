@@ -966,6 +966,13 @@ def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
   HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">;
+def Xdevice_post_link : Separate<["-"], "Xdevice-post-link">,
+  HelpText<"Pass <arg> to the device post-link tool.">, MetaVarName<"<arg>">,
+  Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption, DXCOption]>;
+def Xdevice_post_link_EQ : JoinedAndSeparate<["-"], "Xdevice-post-link=">,
+  HelpText<"Pass <arg> to the device post-link tool identified by <triple>.">,
+  MetaVarName<"<triple> <arg>">, Flags<[HelpHidden]>,
+  Visibility<[ClangOption, CLOption, DXCOption]>;
 def Xopenmp_target : Separate<["-"], "Xopenmp-target">, Group<CompileOnly_Group>,
   HelpText<"Pass <arg> to the target offloading toolchain.">, MetaVarName<"<arg>">;
 def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">, Group<CompileOnly_Group>,
@@ -3641,12 +3648,9 @@ defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-me
     BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], "">>;
 // TODO: Remove this option once ESIMD headers are updated to
 // guard vectors to be device only.
-defm sycl_esimd_build_host_code : BoolFOption<"sycl-esimd-build-host-code",
-    LangOpts<"SYCLESIMDBuildHostCode">, DefaultTrue,
-    PosFlag<SetTrue, [], [ClangOption], "Build the host implementation of ESIMD functions."
-            "Enabled by default.">,
-    NegFlag<SetFalse, [], [ClangOption], "Don't build the host implementation of ESIMD functions.">,
-    BothFlags<[HelpHidden], [ClangOption, CLOption, DXCOption, CC1Option], "">>;    
+def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, Flags<[HelpHidden]>,
+  HelpText<"Don't build the host implementation of ESIMD functions.">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;

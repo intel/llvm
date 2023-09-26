@@ -28,7 +28,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     if (FunctionResult == CUDA_ERROR_NOT_FOUND) {
       throw UR_RESULT_ERROR_INVALID_KERNEL_NAME;
     } else {
-      Result = UR_CHECK_ERROR(FunctionResult);
+      UR_CHECK_ERROR(FunctionResult);
     }
 
     std::string KernelNameWithOffset =
@@ -41,7 +41,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     if (OffsetRes == CUDA_ERROR_NOT_FOUND) {
       CuFuncWithOffsetParam = nullptr;
     } else {
-      Result = UR_CHECK_ERROR(OffsetRes);
+      UR_CHECK_ERROR(OffsetRes);
     }
     Kernel = std::unique_ptr<ur_kernel_handle_t_>(
         new ur_kernel_handle_t_{CuFunc, CuFuncWithOffsetParam, pKernelName,
