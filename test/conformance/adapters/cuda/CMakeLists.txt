@@ -16,7 +16,7 @@ add_conformance_test_with_devices_environment(adapter-cuda
     memory_tests.cpp
 )
 target_link_libraries(test-adapter-cuda PRIVATE cudadrv ur_adapter_cuda)
-target_include_directories(test-adapter-cuda PRIVATE  ${CUDA_DIR} "${CUDA_DIR}/../../../" )
+target_include_directories(test-adapter-cuda PRIVATE  ${CUDA_DIR} "${CUDA_DIR}/../../" )
 
 set_tests_properties(adapter-cuda PROPERTIES
         LABELS "conformance:cuda"
