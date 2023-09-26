@@ -118,11 +118,10 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
   COMgrDataSetTCleanUp RelocatableDataCleanup{RelocatableData};
 
   UR_CHECK_ERROR(
-          amd_comgr_create_data(AMD_COMGR_DATA_KIND_RELOCATABLE, &ComgrData));
+      amd_comgr_create_data(AMD_COMGR_DATA_KIND_RELOCATABLE, &ComgrData));
   // RAII for auto clean-up
   COMgrDataTCleanUp DataCleanup{ComgrData};
-  UR_CHECK_ERROR(
-          amd_comgr_set_data(ComgrData, BinarySizeInBytes, Binary));
+  UR_CHECK_ERROR(amd_comgr_set_data(ComgrData, BinarySizeInBytes, Binary));
   UR_CHECK_ERROR(amd_comgr_set_data_name(ComgrData, "jit_obj.o"));
 
   UR_CHECK_ERROR(amd_comgr_data_set_add(RelocatableData, ComgrData));
@@ -145,16 +144,16 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
   UR_CHECK_ERROR(amd_comgr_create_data_set(&Output));
   COMgrDataSetTCleanUp OutputDataCleanup{Output};
 
-  if(
-          amd_comgr_do_action(AMD_COMGR_ACTION_LINK_RELOCATABLE_TO_EXECUTABLE,
-                              Action, RelocatableData, Output) != AMD_COMGR_STATUS_SUCCESS) {
+  if (amd_comgr_do_action(AMD_COMGR_ACTION_LINK_RELOCATABLE_TO_EXECUTABLE,
+                          Action, RelocatableData,
+                          Output) != AMD_COMGR_STATUS_SUCCESS) {
     getCoMgrBuildLog(Output, ErrorLog, MAX_LOG_SIZE);
     return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
   }
   amd_comgr_data_t binaryData;
 
   UR_CHECK_ERROR(amd_comgr_action_data_get_data(
-          Output, AMD_COMGR_DATA_KIND_EXECUTABLE, 0, &binaryData));
+      Output, AMD_COMGR_DATA_KIND_EXECUTABLE, 0, &binaryData));
   {
     COMgrDataTCleanUp binaryDataCleanUp{binaryData};
 
@@ -163,8 +162,8 @@ ur_result_t ur_program_handle_t_::finalizeRelocatable() {
 
     ExecutableCache.resize(binarySize);
 
-    UR_CHECK_ERROR(amd_comgr_get_data(binaryData, &binarySize,
-                                          ExecutableCache.data()));
+    UR_CHECK_ERROR(
+        amd_comgr_get_data(binaryData, &binarySize, ExecutableCache.data()));
   }
   Binary = ExecutableCache.data();
   BinarySizeInBytes = ExecutableCache.size();
