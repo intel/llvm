@@ -93,7 +93,7 @@ extension introduces a sub-kernel task-level parallelism interface to SYCL for
 use in device code. It provides the class
 `sycl::ext::intel::experimental::task_sequence`, which is an
 abstraction of an asynchronous sequence of invocations of a callable that can be
-executed asynchronously from the caller.  A single object of this class can map
+executed asynchronously from the caller. A single object of this class can map
 naturally to a single hardware instance on spatial targets.
 
 NOTE: In this document, we use `task_sequence` to indicate the proposed
@@ -124,7 +124,7 @@ int vectorSum(float *v, size_t s, size_t sz) {
     task_sequence<vectorSum> secondHalf;
     constexpr int halfCount = kCount/2;
     firstHalf.async(in.data(), 0, halfCount);
-    secondHalf.async(in.data(), halfCount, halfCount);
+    secondHalf.async(in.data(), halfCount+1, kCount-1);
     *out = firstHalf.get() + secondHalf.get();
   }).wait();
   ...
@@ -161,15 +161,6 @@ supports.
 ----
 namespace sycl::ext::intel::experimental {
 
-template<auto &f> struct task_sequence_checker : std::false_type {};
-
-template<typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...)>
-struct task_sequence_checker<f> : std::true_type {};
-
-template<auto& f, class propertiesT =
-  decltype(oneapi::experimental::properties{})>
-class task_sequence{ static_assert(task_sequence_checker<f>::value); };
-
 template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
           class propertiesT>
 class task_sequence<f, propertiesT> {
@@ -197,10 +188,7 @@ public:
   ~task_sequence();
 };
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::intel::experimental
 
 ----
 
@@ -211,14 +199,8 @@ associated with the `task_sequence`, and requiring an auto reference ensures
 that each `f` is statically resolvable at compile time.  Static resolvability by
 the compiler is desirable when compiling for spatial architectures as it can
 enable the generation of more efficient hardware. Furthermore, the partial
-specialization:
-
-```c++
-template<typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...)>
-struct task_sequence_checker<f> : std::true_type {};
-```
-
-helps make it easier to write the class member functions (eg: `get`).
+specialization helps make it easier to write the class member functions (eg:
+`get`).
 
 The `task_sequence` interface consists of two member functions, `async` and
 `get`. The `async` function asynchronously invokes `f`. By calling `async` on a
@@ -360,10 +342,7 @@ template <typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
 struct is_property_key_of<response_capacity_key,
   task_sequence<f, propertiesT>> : std::true_type {};
 
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
+} // namespace sycl::ext::intel::experimental
 ----
 
 --
@@ -408,44 +387,169 @@ supports applying the properties to task sequences.
 
 C{plus}{plus} defines a framework for describing the
 http://eel.is/c++draft/intro.progress[forward progress] of individual threads
-with respect to one another in a multi-threaded program.
+of execution in a multi-threaded program. Here are the terms and definitions
+from the C{plus}{plus} specification that will be used to define progress
+guarantees for task threads:
 
-Applying this framework to `task_sequence`, `async` tasks belonging to the same
-`task_sequence` object provide a http://eel.is/c++draft/intro.progress#11[
-weakly parallel forward progress guarantee]. That is, tasks belonging to a
-`task_sequence` object are not guaranteed to make forward progress with respect
-to each other.
+1. Weakly parallel forward progress guarantee: the implementation does not
+ensure that the thread will eventually make progress.
 
-Tasks belonging to different `task_sequence` objects provide a
-http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee]
-with respect to each other. That is, tasks belonging to different
-`task_sequence` objects are guaranteed to make forward progress with respect to
-each other once they have been initiated.
+2. Concurrent forward progress guarantee: the implementation ensures that the
+thread will eventually make progress for as long as it has not terminated.
 
-Tasks belonging to a `task_sequence` object provide a
-http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee]
-with respect to their caller. That is, a task sequence's tasks are guaranteed
-to make forward progress with respect to their caller (that invoked `async`).
+3. Blocking with forward progress guarantee delegation: When a thread of
+execution _A_ is specified to block with forward progress guarantee delegation
+on the completion of a set _M_ of threads of execution, then throughout the
+whole time of _A_ being blocked on _M_, the implementation shall ensure that the
+forward progress guarantees provided by at least one thread of execution in _M_
+is at least as strong as _A_'s forward progress guarantees. It is unspecified
+which thread or threads of execution in _M_ are chosen and for which number of
+execution steps. The strengthening is not necessarily in place for the rest of
+the lifetime of the affected thread of execution.
 
-The task sequence property `response_capacity` guarantees the user that at least
-one outstanding invocation of `async` will make forward progress as long as the
-number of outstanding invocations of `async` is less than or equal to
-`response_capacity`.
-An outstanding invocation of `async` is one whose corresponding `get` has not
-been invoked. Note that if there are more than `response_capacity` number of
-outstanding invocations, none of them are guaranteed to make progress until at
-least one more `get` is called. This is analogous to the concept of blocking
-with forward progress guarantee delegation used by parallel algorithms in the
-C++ standard library:
+Using the above definitions, the progress guarantees for task threads are
+defined as follows:
 
-If a thread offers weakly parallel forward progress guarantee, it does not
-guarantee to eventually make progress, regardless of whether other threads make
-progress or not. Such threads can still be guaranteed to make progress by
-blocking with forward progress guarantee delegation: if a thread P blocks in
-this manner on the completion of a set of threads S, then at least one thread in
-S will offer a forward progress guarantee that is same or stronger than P. Once
-that thread completes, another thread in S will be similarly strengthened. Once
-the set is empty, P will unblock.
+ - When a task sequence object _O_ is constructed, a task sequence object thread
+ is also created.
+
+ - At any point in time, the progress guarantee of all task sequence object
+ threads created by a kernel _K_ matches that of _K_. For example,
+ if _K_ is strengthened to have a stronger progress guarantee than its
+ initial guarantee, all of the task sequence object threads created by _K_
+ are also strengthened.
+
+  - An `O.async(...)` call will result in creation of a task thread.
+ `O.async(...)` can be called multiple times to create multiple task threads for
+ _O_. A task thread has weakly parallel forward progress guarantee.
+
+ - Upon creation, a task sequence object thread _P_ immediately blocks on the
+ set _S_ of task threads that belong to _O_ with forward progress guarantee
+ delegation.
+
+ - If a task thread with concurrent forward progress guarantee has finished
+ executing the task function and if it can write its results to the output data
+ structure _D_, then it does so and some other task thread in _S_ is
+ strengthened to have concurrent forward progress guarantee. If a task thread
+ cannot write its results to _D_, the task thread blocks until space is
+ available.
+
+The two examples below, respectively, show the following:
+
+1. How strengthening of a kernel strengthens the task threads.
+
+2. How a task thread delegates its progress guarantee to other task threads in
+the same task sequence object.
+
+Example 1 uses the following program:
+
+```
+// A kernel K
+{
+  ...
+  task_sequence<some_function, ...> task_obj1; // Object_1_Thread
+  task_obj1.async(...); // Object_1_Task_1_Thread
+  task_obj1.async(...); // Object_1_Task_2_Thread
+  ...
+  task_sequence<some_function, ...> task_obj2; // Object_2_Thread
+  task_obj2.async(...); // Object_2_Task_1_Thread
+  task_obj2.async(...); // Object_2_Task_2_Thread
+}
+```
+The call to the task_sequence constructor creates the task object threads
+_Object_1_Thread_ and _Object_2_Thread_. The first two `async` calls create task
+threads _Object_1_Task_1_Thread_ and _Object_1_Task_2_Thread_. Similarly the
+next two calls create _Object_2_Task_1_Thread_ and _Object_2_Task_2_Thread_.
+
+The table below provides a view of the hierarchy of task threads that will be
+generated.
+
+.Hierarchy of task threads.
+[cols="s,,,,"]
+|=====
+// row 1, cells 2 spans 4 cells hence the '4+' before '|'
+| Kernel 4+^| _K_
+// row 2, cells after the first one span 2 cells each
+|Task Sequence Object Thread
+2+^|_Object_1_Thread_
+2+^| _Object_2_Thread_
+// row 3
+| Task Thread
+^| _Task_1_1_
+^|__Task_1_2__
+^|_Task_2_1_
+^|_Task_2_2_
+|=====
+
+At some initial stage, all task threads have weakly parallel forward progress
+guarantee. If _K_ is strengthened to have concurrent forward progress
+guarantee, then all of the object threads are also strengthened. Next, in this
+example one task thread for each task sequence is also strengthened. This is
+depicted in the table below (progress guarantee for each thread is in
+parenthesis):
+
+.Possible Progress Guarantees at some time after _WI_ is strengthened.
+[cols="s,,,,"]
+|=====
+// row 1, cells 2 spans 4 cells hence the '4+' before '|'
+| Kernel
+4+^| _K_ (concurrently parallel)
+// row 2, cells after the first one span 2 cells each
+|Task Sequence Object Thread
+2+^|_Object_1_Thread_ (concurrent)
+2+^| _Object_2_Thread_ (concurrent)
+// row 3
+| Task Thread
+^| _Task_1_1_ (weakly parallel)
+^|__Task_1_2__ (concurrent)
+^|_Task_2_1_ (concurrent)
+^|_Task_2_2_ (weakly parallel)
+|=====
+
+The next example shows how a task thread delegates its progress
+guarantee to another task thread:
+
+Assume that we have a task sequence object _TS_ templated on the function `f`
+with `response_capacity` of 1 and `invocation_capacity` of 5. Four `async` calls
+create the following task threads: _T1_, _T2_, _T3_ and _T4_, for _TS_. _T1_ has
+concurrent forward progress guarantee after getting strengthened, while _T2_,
+_T3_ and _T4_ have weakly parallel forward progress guarantees. The task threads
+go through the following execution flow:
+
+ - _T1_ finishes executing the function `f` associated with _TS_.
+
+ - For _TS_, the output data structure _D_ can store the output of only one
+ task thread since `response_capacity` is one. _T1_ writes its output.
+
+ - Any task thread can now be picked to be strengthened to have concurrent
+ forward progress guarantee. Let's say _T2_ is picked.
+
+ - At some point _T2_ finishes executing `f`. _T1_'s results are still in the
+ output data structure.
+
+ - _T2_ cannot write its results until space is available in _D_. Hence
+ , none of the other task threads can be picked to be strengthened to the
+ stronger progress guarantee.
+
+ - `get` is invoked. _T1_'s results get removed from _D_.
+
+ - _T2_ can write its results and some other task thread can be picked to be
+ strengthened.
+
+=== Memory Order Semantics
+
+- `async`` is a *Release* operation scoped to include the kernel that called it
+and the task thread that the `async` call creates.
+
+- The beginning of a task thread _T_ is an *Acquire* operation scoped to include
+the kernel that called `async` to create _T_ and the task thread _T_.
+
+- The end of a task thread _T_ is a *Release* operation scoped to include _T_
+and the kernel that called `async` to create _T_.
+
+- `get` is an *Acquire* operation scoped to include the task thread that is
+being retrieved by `get` and the kernel that is calling `get`.
+
 
 == Revision History
 
@@ -454,7 +558,7 @@ the set is empty, P will unblock.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2023-03-22|Robert Ho|*Initial revision*
+|A|2023-09-26|Robert Ho|*Initial revision*
 |========================================
 
 //************************************************************************
