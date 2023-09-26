@@ -392,7 +392,8 @@ static bool isStaticArchiveFile(const StringRef Filename) {
     return false;
   llvm::file_magic Magic;
   llvm::identify_magic(Filename, Magic);
-  // Only .lib and archive files are to be considered.
+  // Only archive files are to be considered.
+  // TODO: .lib check to be added
   return (Magic == llvm::file_magic::archive);
 }
 
@@ -471,9 +472,6 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
-
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*SPIRVToIRWrapperPath);
   CmdArgs.push_back(Filename);
@@ -490,7 +488,7 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
 
 // Run sycl-post-link tool
 static Expected<StringRef>
-runSYCLPostLink(SmallVectorImpl<StringRef> &InputFiles, const ArgList &Args) {
+runSYCLPostLink(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
   if (!SYCLPostLinkPath)
@@ -502,9 +500,6 @@ runSYCLPostLink(SmallVectorImpl<StringRef> &InputFiles, const ArgList &Args) {
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
-
   StringRef SYCLPostLinkOptions;
   if (Arg *A = Args.getLastArg(OPT_sycl_post_link_options_EQ))
     SYCLPostLinkOptions = A->getValue();
@@ -515,7 +510,8 @@ runSYCLPostLink(SmallVectorImpl<StringRef> &InputFiles, const ArgList &Args) {
                             /* KeepEmpty = */ false);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*TempFileOrErr);
-  CmdArgs.append(InputFiles);
+  for (auto &File : InputFiles)
+    CmdArgs.push_back(File);
   if (Error Err = executeCommands(*SYCLPostLinkPath, CmdArgs))
     return std::move(Err);
   return *TempFileOrErr;
@@ -621,8 +617,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
         createOutputFile(sys::path::filename(ExecutableName), "spv");
     if (!TempFileOrErr)
       return TempFileOrErr.takeError();
-    BumpPtrAllocator Alloc;
-    StringSaver Saver(Alloc);
 
     CmdArgs.push_back(*TempFileOrErr);
     CmdArgs.push_back(File);
@@ -685,9 +679,6 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
       findProgram("llc", {getMainExecutable("llc")});
   if (!LLCPath)
     return LLCPath.takeError();
-
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLCPath);
@@ -937,10 +928,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::spir:
   case Triple::spir64: {
     if (IsSYCLKind) {
-      SmallVector<StringRef, 16> InputFilesVec;
-      for (StringRef InputFile : InputFiles)
-        InputFilesVec.push_back(InputFile);
-      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFilesVec, Args);
+      auto SYCLPostLinkFile = sycl::runSYCLPostLink(InputFiles, Args);
       if (!SYCLPostLinkFile)
         return SYCLPostLinkFile.takeError();
       auto SPVFile = sycl::runLLVMToSPIRVTranslation(*SYCLPostLinkFile, Args);
@@ -1591,6 +1579,10 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
         return SYCLOutputOrErr.takeError();
 
       // SYCL offload kind images are all ready to be sent to host linker.
+      // TODO: Currently, device code wrapping for SYCL offload happens in a
+      // separate path inside 'linkDevice' call seen above.
+      // This will eventually be refactored to use the 'common' wrapping logic
+      // that is used for other offload kinds.
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
 
@@ -1881,6 +1873,8 @@ Expected<SmallVector<OffloadFile>> getDeviceInput(const ArgList &Args) {
     auto UnbundledFile = sycl::unbundle(*Filename, Args);
     if (!UnbundledFile)
       return UnbundledFile.takeError();
+    // In some cases, fat objects are created with SPIR-V files embedded.
+    // e.g. when fat object is created using `-fsycl-device-obj=spirv` option.
     auto IRFile = (*UnbundledFile == *Filename)
                       ? *Filename
                       : sycl::convertSPIRVToIR(*UnbundledFile, Args);
@@ -1991,6 +1985,7 @@ int main(int Argc, char **Argv) {
   SaveTemps = Args.hasArg(OPT_save_temps);
   ExecutableName = Args.getLastArgValue(OPT_o, "a.out");
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
+
   parallel::strategy = hardware_concurrency(1);
   if (auto *Arg = Args.getLastArg(OPT_wrapper_jobs)) {
     unsigned Threads = 0;

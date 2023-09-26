@@ -10,4 +10,4 @@
 // LLVM-SPIRV is not called in dry-run
 // CHK-CMDS-NEXT: "[[PATH]]/clang-offload-wrapper" -o=[[WRAPPEROUT:.*]].bc -host=x86_64-unknown-linux-gnu -target=spir64 -kind=sycl -batch [[LLVMSPIRVOUT:.*]].table
 // CHK-CMDS-NEXT: "[[PATH]]/llc" -filetype=obj -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
-// CHK-CMDS-NEXT: "[[LOADER_PATH:.*]]/ld" HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}test-sycl.o
+// CHK-CMDS-NEXT: "{{.*}}/ld" HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}test-sycl.o
