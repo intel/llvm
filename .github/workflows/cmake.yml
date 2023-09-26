@@ -111,6 +111,13 @@ jobs:
     - name: Install prerequisites
       run: python3 -m pip install -r third_party/requirements.txt
 
+    - name: Install doxygen
+      run: |
+        $WorkingDir = $PWD.Path
+        Invoke-WebRequest -Uri https://github.com/doxygen/doxygen/releases/download/Release_1_9_8/doxygen-1.9.8.windows.x64.bin.zip -OutFile "$WorkingDir\doxygen.zip"
+        Expand-Archive -Path "$WorkingDir\doxygen.zip"
+        Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
+
     - name: Configure CMake
       run: >
         cmake
@@ -123,10 +130,9 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
 
-    # TODO: re-enable when check-generated is fixed for windows runners see #888
-    # - name: Generate source from spec, check for uncommitted diff
-    #   if: matrix.os == 'windows-2022'
-    #   run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
+    - name: Generate source from spec, check for uncommitted diff
+      if: matrix.os == 'windows-2022'
+      run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
 
     - name: Build all
       run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j 2
