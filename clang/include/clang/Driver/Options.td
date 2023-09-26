@@ -970,7 +970,7 @@ def Xdevice_post_link : Separate<["-"], "Xdevice-post-link">,
   HelpText<"Pass <arg> to the device post-link tool.">, MetaVarName<"<arg>">,
   Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption, DXCOption]>;
 def Xdevice_post_link_EQ : JoinedAndSeparate<["-"], "Xdevice-post-link=">,
-  HelpText<"Pass <arg> to the device post-link tool backend identified by <triple>.">,
+  HelpText<"Pass <arg> to the device post-link tool identified by <triple>.">,
   MetaVarName<"<triple> <arg>">, Flags<[HelpHidden]>,
   Visibility<[ClangOption, CLOption, DXCOption]>;
 def Xopenmp_target : Separate<["-"], "Xopenmp-target">, Group<CompileOnly_Group>,
