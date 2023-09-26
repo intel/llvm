@@ -30,7 +30,7 @@ endfunction()
 
 add_subdirectory(null)
 
-set(INTEL_LLVM_TAG nightly-2023-08-20)
+set(INTEL_LLVM_TAG nightly-2023-09-20)
 
 if(UR_BUILD_ADAPTER_L0)
     set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/level_zero")

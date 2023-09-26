@@ -22,6 +22,7 @@ see cmake options for details.
     - [Weekly tags](#weekly-tags)
   - [Third-Party tools](#third-party-tools)
   - [Building](#building)
+    - [Requirements](#requirements)
     - [Windows](#windows)
     - [Linux](#linux)
     - [CMake standard options](#cmake-standard-options)
@@ -79,9 +80,14 @@ Tools can be acquired via instructions in [third_party](/third_party/README.md).
 
 ## Building
 
-Requirements:
+### Requirements
+
+Required packages:
 - C++ compiler with C++17 support
 - [CMake](https://cmake.org/) >= 3.14.0
+- Python v3.6.6 or later
+
+For development and contributions:
 - clang-format-15.0 (can be installed with `python -m pip install clang-format==15.0.7`)
 
 ### Windows
