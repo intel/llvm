@@ -221,14 +221,14 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized values.
   ValuePacket packetizeCall(CallInst *CI);
-  /// @brief Packetize a subgroup scan.
+  /// @brief Packetize a subgroup/workgroup scan.
   ///
   /// @param[in] CI CallInst to packetize.
-  /// @param[in] Scan type of subgroup scan to packetized.
+  /// @param[in] Scan type of scan to packetized.
   ///
   /// @return Packetized values.
-  ValuePacket packetizeSubgroupScan(CallInst *CI,
-                                    compiler::utils::GroupCollective Scan);
+  ValuePacket packetizeGroupScan(CallInst *CI,
+                                 compiler::utils::GroupCollective Scan);
   /// @brief Perform post-packetization tasks for the given scalar value.
   ///
   /// @param[in] Scalar Scalar value to assign a vectorized value.
@@ -1520,10 +1520,10 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
 
   auto const Builtin = Ctx.builtins().analyzeBuiltin(*Callee);
 
-  // Handle subgroup scans, which defer to internal builtins.
+  // Handle scans, which defer to internal builtins.
   if (auto Info = Ctx.builtins().isMuxGroupCollective(Builtin.ID)) {
-    if (Info->isSubGroupScope() && Info->isScan()) {
-      return packetizeSubgroupScan(CI, *Info);
+    if (Info->isScan()) {
+      return packetizeGroupScan(CI, *Info);
     }
   }
 
@@ -1626,7 +1626,7 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
   return results;
 }
 
-ValuePacket Packetizer::Impl::packetizeSubgroupScan(
+ValuePacket Packetizer::Impl::packetizeGroupScan(
     CallInst *CI, compiler::utils::GroupCollective Scan) {
   ValuePacket results;
 
@@ -1637,8 +1637,11 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
 
   compiler::utils::NameMangler mangler(&CI->getContext());
 
+  unsigned ArgOffset = Scan.isWorkGroupScope() ? 1 : 0;
+
   // The operands and types for the internal builtin
-  SmallVector<Value *, 2> Ops = {packetize(CI->getArgOperand(0)).getAsValue()};
+  SmallVector<Value *, 2> Ops = {
+      packetize(CI->getArgOperand(ArgOffset)).getAsValue()};
   SmallVector<Type *, 2> Tys = {getWideType(CI->getType(), SimdWidth)};
 
   bool isInclusive =
@@ -1723,22 +1726,23 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
     }
   }
 
-  auto *SubgroupScanFnTy = FunctionType::get(Tys[0], Tys, /*isVarArg*/ false);
-  auto *const SubgroupFn =
-      Ctx.getOrCreateInternalBuiltin(NameSV, SubgroupScanFnTy);
+  auto *VecgroupScanFnTy = FunctionType::get(Tys[0], Tys, /*isVarArg*/ false);
+  auto *const VecgroupFn =
+      Ctx.getOrCreateInternalBuiltin(NameSV, VecgroupScanFnTy);
 
   IRBuilder<> B(CI);
 
-  auto *VectorScan = B.CreateCall(SubgroupFn, Ops);
+  auto *VectorScan = B.CreateCall(VecgroupFn, Ops);
 
-  // We've currently got a scan over each vector group, but the full sub-group
-  // is further multiplied by the mux sub-group size. For example, we may have
-  // a vectorization factor sized group of 4 and a mux sub-group size of 2.
-  // Together the full sub-group size to the user is 4*2 = 8.
+  // We've currently got a scan over each vector group, but the full group scan
+  // is further multiplied by the group size (either the work-group size or the
+  // 'mux' hardware sub-group size). For example, we may have a vectorization
+  // factor sized group of 4 and a group size of 2. Together the full group
+  // size to the user is 4*2 = 8.
   // In terms of invocations, we've essentially currently got:
   //   <a0, a0+a1, a0+a1+a2, a0+a1+a2+a3> (invocation 0)
   //   <a4, a4+a5, a4+a5+a6, a4+a5+a6+a7> (invocation 1)
-  // These two iterations need to be further scanned over the mux sub-group
+  // These two iterations need to be further scanned over the group
   // size. We do this by adding the identity to the first invocation, the
   // result of the scan over the first invocation to the second, etc. This is
   // an exclusive scan over the *reduction* of the input vector:
@@ -1747,7 +1751,7 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
   // -> reduction
   //   (a0+a1+a2+a3) (invocation 0)
   //   (a4+a5+a6+a7) (invocation 1)
-  // -> exclusive mux sub-group scan
+  // -> exclusive group scan
   //               I (invocation 0)
   //   (a0+a1+a2+a3) (invocation 1)
   // -> adding that to the result of the vector scan:
@@ -1755,8 +1759,8 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
   //   <(a0+a1+a2+a3)+a4, (a0+a1+a2+a3)+a4+a5,             (invocation 1)
   //    (a0+a1+a2+a3)+a4+a5+a6, (a0+a1+a2+a3)+a4+a5+a6+a7>
   // When viewed as a full 8-element vector, this is our final scan.
-  // Thus we essentially keep the original mux sub-group scan, but change it to
-  // be an exclusive one.
+  // Thus we essentially keep the original group scan, but change it to be an
+  // exclusive one.
   auto *Reduction = Ops.front();
   if (VL) {
     Reduction = sanitizeVPReductionInput(B, Reduction, VL, Scan.Recurrence);
@@ -1766,7 +1770,7 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
   }
   Reduction = createSimpleTargetReduction(B, &TTI, Reduction, Scan.Recurrence);
 
-  // Now we defer to an *exclusive* scan over the mux sub-group.
+  // Now we defer to an *exclusive* scan over the group.
   auto ExclScan = Scan;
   ExclScan.Op = compiler::utils::GroupCollective::OpKind::ScanExclusive;
 
@@ -1777,7 +1781,12 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
       ExclScanID, *F.getParent(), {CI->getType()});
   assert(ExclScanFn);
 
-  auto *const ExclScanCI = B.CreateCall(ExclScanFn, {Reduction});
+  SmallVector<Value *, 2> ExclScanOps = {Reduction};
+  if (Scan.isWorkGroupScope()) {
+    // Forward on the current barrier ID.
+    ExclScanOps.insert(ExclScanOps.begin(), CI->getArgOperand(0));
+  }
+  auto *const ExclScanCI = B.CreateCall(ExclScanFn, ExclScanOps);
 
   Value *const Splat = B.CreateVectorSplat(SimdWidth, ExclScanCI);
 
