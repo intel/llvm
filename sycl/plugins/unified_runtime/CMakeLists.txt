@@ -3,9 +3,9 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  # TODO: Update when L0 adapter source is merged
-  set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 649873b30f784c1f6d019517cb179ee5599a2984)
+  # The UR tag should be from the 'adapters' branch
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG ed395be86ba2018d3d87c79098c24589f50d222f)
 
   set(UR_BUILD_ADAPTER_L0 ON)
   set(UMF_ENABLE_POOL_TRACKING ON)
