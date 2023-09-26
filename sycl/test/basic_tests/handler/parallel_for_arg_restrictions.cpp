@@ -71,6 +71,18 @@ int main() {
     CGH.parallel_for(sycl::nd_range{sycl::range{1, 1, 1}, sycl::range{1, 1, 1}},
                      [=](ConvertibleFromItem<3>) {});
   });
+  Q.submit([&](sycl::handler &CGH) {
+    // expected-error@sycl/handler.hpp:* {{Kernel should be invocable with a sycl::item}}
+    CGH.parallel_for(sycl::range{1}, [=](auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    // expected-error@sycl/handler.hpp:* {{Kernel should be invocable with a sycl::item}}
+    CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    // expected-error@sycl/handler.hpp:* {{Kernel should be invocable with a sycl::item}}
+    CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
+  });
 #endif // SYCL2020_CONFORMANT_APIS
 
   // Range parallel_for with nd_item.

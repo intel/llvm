@@ -349,12 +349,12 @@ public:
   id<Dims> getId() { return Id; }
 
   template <typename KernelType> auto getItem() {
-    if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
-                  std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
+    if constexpr (std::is_invocable_v<KernelType, item<Dims> &> ||
+                  std::is_invocable_v<KernelType, item<Dims> &, kernel_handler>)
       return detail::Builder::createItem<Dims, true>(UserRange, getId(), {});
     else {
-      static_assert(std::is_invocable_v<KernelType, item<Dims, false>> ||
-                        std::is_invocable_v<KernelType, item<Dims, false>,
+      static_assert(std::is_invocable_v<KernelType, item<Dims, false> &> ||
+                        std::is_invocable_v<KernelType, item<Dims, false> &,
                                             kernel_handler>,
                     "Kernel must be invocable with an item!");
       return detail::Builder::createItem<Dims, false>(UserRange, getId());
@@ -376,8 +376,10 @@ public:
   void operator()(item<Dims> It) const {
     auto RoundedRange = It.get_range();
     for (RoundedRangeIDGenerator Gen(It.get_id(), UserRange, RoundedRange); Gen;
-         Gen.updateId())
-      KernelFunc(Gen.template getItem<KernelType>());
+         Gen.updateId()) {
+      auto item = Gen.template getItem<KernelType>();
+      KernelFunc(item);
+    }
   }
 };
 
@@ -389,8 +391,10 @@ public:
   void operator()(item<Dims> It, kernel_handler KH) const {
     auto RoundedRange = It.get_range();
     for (RoundedRangeIDGenerator Gen(It.get_id(), UserRange, RoundedRange); Gen;
-         Gen.updateId())
-      KernelFunc(Gen.template getItem<KernelType>(), KH);
+         Gen.updateId()) {
+      auto item = Gen.template getItem<KernelType>();
+      KernelFunc(item, KH);
+    }
   }
 };
 
@@ -1234,6 +1238,19 @@ private:
     static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
+
+#ifdef SYCL2020_CONFORMANT_APIS
+    static_assert(
+        (std::is_invocable_v<KernelType, item<Dims>> ||
+         std::is_invocable_v<
+             KernelType, item<Dims>,
+             kernel_handler>)&&(std::is_invocable_v<KernelType,
+                                                    item<Dims, false>> ||
+                                std::is_invocable_v<KernelType,
+                                                    item<Dims, false>,
+                                                    kernel_handler>),
+        "Kernel should be invocable with a sycl::item");
+#endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
