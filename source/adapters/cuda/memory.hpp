@@ -150,8 +150,8 @@ struct ur_mem_handle_t_ {
   ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_handle_t Parent,
                    ur_mem_flags_t MemFlags, MemImpl::BufferMem::AllocMode Mode,
                    CUdeviceptr Ptr, void *HostPtr, size_t Size)
-      : Context{Context}, RefCount{1}, MemType{Type::Buffer},
-        MemFlags{MemFlags} {
+      : Context{Context}, RefCount{1}, MemType{Type::Buffer}, MemFlags{
+                                                                  MemFlags} {
     Mem.BufferMem.Ptr = Ptr;
     Mem.BufferMem.Parent = Parent;
     Mem.BufferMem.HostPtr = HostPtr;
@@ -172,8 +172,8 @@ struct ur_mem_handle_t_ {
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
                    CUsurfObject Surf, ur_mem_flags_t MemFlags,
                    ur_mem_type_t ImageType, void *HostPtr)
-      : Context{Context}, RefCount{1}, MemType{Type::Surface},
-        MemFlags{MemFlags} {
+      : Context{Context}, RefCount{1}, MemType{Type::Surface}, MemFlags{
+                                                                   MemFlags} {
     (void)HostPtr;
 
     Mem.SurfaceMem.Array = Array;
