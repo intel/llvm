@@ -342,12 +342,13 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
     ImgString.assign((const char *)Img.getRawData().BinaryStart, Img.getSize());
 
   std::string_view ImgStringView(ImgString);
-  std::string_view DeviceString{getDeviceIDString(Device)};
+  std::string DeviceString = getDeviceIDString(Device);
+  std::string_view DeviceStringView (DeviceString);
   std::string_view SpecConstsString{(const char *)SpecConsts.data(),
                                     SpecConsts.size()};
   std::hash<std::string_view> StringHasher{};
 
-  return cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
+  return cache_root + "/" + std::to_string(StringHasher(DeviceStringView)) + "/" +
          std::to_string(StringHasher(ImgStringView)) + "/" +
          std::to_string(StringHasher(SpecConstsString)) + "/" +
          std::to_string(StringHasher(BuildOptionsString));
