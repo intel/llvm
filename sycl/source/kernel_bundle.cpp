@@ -11,7 +11,7 @@
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-// #include <sycl/ext/intel/experimental/online_compiler.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 
 #include <set>
 
@@ -396,6 +396,9 @@ exe_kb build(source_kb &SourceKB, const property_list &PropList) {
   // std::vector<byte> SpirVec = Compiler.compile(sourceImpl->Source, flags);
 
   backend BE = SourceKB.get_backend();
+
+  std::vector<byte> spirv = detail::OpenCLC_to_SPIRV(s, flags);
+  std::cout << "spirv byte count: " << spirv.size() << std::endl;
 
   // CP fake code to compile for the nonce.  This constructor is empty.
   std::shared_ptr<kernel_bundle_impl> KBImpl =
