@@ -1079,7 +1079,7 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     }
 
     // Convert sycl_explicit_simd attribute to metadata.
-    if (isa<UnitAttr>(function->getAttr("sycl_explicit_simd"))) {
+    if (isa_and_nonnull<UnitAttr>(function->getAttr("sycl_explicit_simd"))) {
       llvmFunc->setMetadata("sycl_explicit_simd",
                             llvm::MDNode::get(llvmModule->getContext(), {}));
     }
