@@ -18,7 +18,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-template<class...T> using type_list = boost::mp11::mp_list<T...>;
+template <class... T> using type_list = boost::mp11::mp_list<T...>;
 
 using empty_type_list = type_list<>;
 
@@ -28,7 +28,8 @@ using is_empty_type_list = std::is_same<T, empty_type_list>;
 // is_contained
 template <typename T, typename TypeList>
 using is_contained = boost::mp11::mp_contains<TypeList, T>;
-// unclear whether TypeList can contain duplicates. If so mp_set_contains can be used.
+// unclear whether TypeList can contain duplicates. If so mp_set_contains can be
+// used.
 
 using boost::mp11::mp_append;
 
@@ -73,9 +74,10 @@ struct is_type_size_double_of
 template <typename TypeList, template <typename, typename> class Comp,
           typename T>
 struct find_type {
-  template<class T2> using C = Comp<T2,T>; //bind back
+  template <class T2> using C = Comp<T2, T>; // bind back
   using l = boost::mp11::mp_copy_if<TypeList, C>;
-  using type = boost::mp11::mp_eval_if<is_empty_type_list<l>, void, boost::mp11::mp_front, l>;
+  using type = boost::mp11::mp_eval_if<is_empty_type_list<l>, void,
+                                       boost::mp11::mp_front, l>;
 };
 
 template <typename TypeList, template <typename, typename> class Comp,
