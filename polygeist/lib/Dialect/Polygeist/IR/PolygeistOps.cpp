@@ -1260,14 +1260,14 @@ public:
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
         c1);
 
-    rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+    rewriter.setInsertionPointToStart(&forOp.getRegion().front());
     idxs.push_back(forOp.getInductionVar());
 
     for (auto bound : bounds) {
       auto forOp = rewriter.create<scf::ForOp>(
           op.getLoc(), c0, rewriter.create<ConstantIndexOp>(op.getLoc(), bound),
           c1);
-      rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+      rewriter.setInsertionPointToStart(&forOp.getRegion().front());
       idxs.push_back(forOp.getInductionVar());
     }
 
@@ -1367,14 +1367,14 @@ public:
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
         c1);
 
-    rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+    rewriter.setInsertionPointToStart(&forOp.getRegion().front());
     idxs.push_back(forOp.getInductionVar());
 
     for (auto bound : bounds) {
       auto forOp = rewriter.create<scf::ForOp>(
           op.getLoc(), c0, rewriter.create<ConstantIndexOp>(op.getLoc(), bound),
           c1);
-      rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+      rewriter.setInsertionPointToStart(&forOp.getRegion().front());
       idxs.push_back(forOp.getInductionVar());
     }
 
@@ -2331,7 +2331,7 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
                                 PatternRewriter &rewriter) const override {
     bool changed = false;
     for (auto tup : llvm::zip(forOp.getResults(), forOp.getRegionIterArgs(),
-                              forOp.getIterOperands())) {
+                              forOp.getInitArgs())) {
       if (!std::get<0>(tup).use_empty() || std::get<1>(tup).use_empty()) {
         continue;
       }

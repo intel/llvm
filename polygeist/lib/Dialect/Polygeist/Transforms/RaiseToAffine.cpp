@@ -138,7 +138,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     ConstantIndexOp cstOp = loop.getStep().getDefiningOp<ConstantIndexOp>();
     AffineForOp affineLoop = rewriter.create<AffineForOp>(
         loop.getLoc(), lbs, lbMap, ubs, ubMap, cstOp ? cstOp.value() : 1,
-        loop.getIterOperands());
+        loop.getInitArgs());
 
     auto mergedYieldOp =
         cast<scf::YieldOp>(loop.getRegion().front().getTerminator());

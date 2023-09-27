@@ -546,7 +546,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
   // processed.
   SmallVector<LICMCandidate> LICMPotentialCandidates;
   SmallPtrSet<Operation *, 8> willBeMoved;
-  for (Block &block : loop.getLoopBody()) {
+  for (Block &block : *loop.getLoopRegions().front()) {
     for (Operation &op : block.without_terminator()) {
       LICMCandidate candidate(op);
       if (!canBeHoisted(candidate, loop, willBeMoved, aliasAnalysis, domInfo))

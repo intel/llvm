@@ -145,13 +145,13 @@ protected:
   Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
     assert(Loop.getSingleInductionVar() != std::nullopt &&
            "Expecting one induction variable");
-    return Loop.getLoopBody().getArguments().drop_front(1);
+    return Loop.getLoopRegions().front()->getArguments().drop_front(1);
   }
 
   unsigned getNumRegionIterArgs(LoopLikeOpInterface Loop) const {
     assert(Loop.getSingleInductionVar() != std::nullopt &&
            "Expecting one induction variable");
-    return Loop.getLoopBody().getNumArguments() - 1;
+    return Loop.getLoopRegions().front()->getNumArguments() - 1;
   }
 
   virtual void cloneFilteredTerminator(
@@ -201,13 +201,15 @@ protected:
     size_t ArgNo = 0, OrigNumRegionArgs = getNumRegionIterArgs(Loop);
     for (const ReductionOp &Op : ReductionOps) {
       Op.getLoad()->getResult(0).replaceAllUsesWith(
-          NewLoop.getLoopBody().getArguments()[ArgNo + OrigNumRegionArgs + 1]);
+          NewLoop.getLoopRegions()
+              .front()
+              ->getArguments()[ArgNo + OrigNumRegionArgs + 1]);
       Rewriter.eraseOp(Op.getLoad());
       ++ArgNo;
     }
 
-    Region &NewBody = NewLoop.getLoopBody();
-    Region &OldBody = Loop.getLoopBody();
+    Region &NewBody = *NewLoop.getLoopRegions().front();
+    Region &OldBody = *Loop.getLoopRegions().front();
     Block &NewBlock = NewBody.front();
     Block &OldBlock = OldBody.front();
     assert((NewBody.hasOneBlock() && OldBody.hasOneBlock()) &&
@@ -245,8 +247,9 @@ protected:
         for (const affine::AffineLoadOp &Load : Op.getOtherLoads()) {
           if (PDT.postDominates(Op.getStore(), Load))
             Load->getResult(0).replaceAllUsesWith(
-                NewLoop.getLoopBody()
-                    .getArguments()[ArgNo + OrigNumRegionArgs + 1]);
+                NewLoop.getLoopRegions()
+                    .front()
+                    ->getArguments()[ArgNo + OrigNumRegionArgs + 1]);
           else if (DT.dominates(Op.getStore(), Load))
             Load->getResult(0).replaceAllUsesWith(Op.getStore().getOperand(0));
           else
@@ -370,112 +373,115 @@ private:
     });
 
     unsigned NumVersion = 0;
-    WalkResult Result = Loop.getLoopBody().walk([&](affine::AffineLoadOp Load) {
-      LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
+    WalkResult Result =
+        Loop.getLoopRegions().front()->walk([&](affine::AffineLoadOp Load) {
+          LLVM_DEBUG(llvm::dbgs() << "Load: " << Load << "\n");
 
-      // Ensure operands are loop invariant.
-      if (llvm::any_of(Load.getOperands(), [&Loop](Value value) {
-            return !Loop.isDefinedOutsideOfLoop(value);
-          })) {
-        LLVM_DEBUG({
-          llvm::dbgs().indent(2) << "Skip: operand(s) not loop invariant\n";
-        });
-        return WalkResult::advance();
-      }
-
-      // Locate possible compatible stores (stores that have the same base
-      // operand and subscript indices as the load), and collect all other loads
-      // that have the same subscript and base symbol.
-      SmallVector<affine::AffineStoreOp> CandidateStores;
-      SmallVector<affine::AffineLoadOp> OtherLoads;
-      for (Operation *User : Load.getMemRef().getUsers()) {
-        bool InterruptWalk = false;
-        TypeSwitch<Operation *>(User)
-            .Case<affine::AffineLoadOp>([&](auto OtherLoad) {
-              if (areCompatible(Load, OtherLoad) && Load != OtherLoad &&
-                  Loop->isProperAncestor(OtherLoad))
-                OtherLoads.push_back(OtherLoad);
-            })
-            .Case<affine::AffineStoreOp>([&](auto Store) {
-              if (areCompatible(Load, Store)) {
-                if (areInSameLoop(Load, Store, Loop))
-                  CandidateStores.push_back(Store);
-                else if (Loop->isProperAncestor(Store)) {
-                  LLVM_DEBUG(llvm::dbgs().indent(2)
-                             << "Interrupting - found incompatible store: "
-                             << Store << "\n");
-                  InterruptWalk = true;
-                }
-              }
+          // Ensure operands are loop invariant.
+          if (llvm::any_of(Load.getOperands(), [&Loop](Value value) {
+                return !Loop.isDefinedOutsideOfLoop(value);
+              })) {
+            LLVM_DEBUG({
+              llvm::dbgs().indent(2) << "Skip: operand(s) not loop invariant\n";
             });
+            return WalkResult::advance();
+          }
 
-        if (InterruptWalk)
-          return WalkResult::interrupt();
-      }
+          // Locate possible compatible stores (stores that have the same base
+          // operand and subscript indices as the load), and collect all other
+          // loads that have the same subscript and base symbol.
+          SmallVector<affine::AffineStoreOp> CandidateStores;
+          SmallVector<affine::AffineLoadOp> OtherLoads;
+          for (Operation *User : Load.getMemRef().getUsers()) {
+            bool InterruptWalk = false;
+            TypeSwitch<Operation *>(User)
+                .Case<affine::AffineLoadOp>([&](auto OtherLoad) {
+                  if (areCompatible(Load, OtherLoad) && Load != OtherLoad &&
+                      Loop->isProperAncestor(OtherLoad))
+                    OtherLoads.push_back(OtherLoad);
+                })
+                .Case<affine::AffineStoreOp>([&](auto Store) {
+                  if (areCompatible(Load, Store)) {
+                    if (areInSameLoop(Load, Store, Loop))
+                      CandidateStores.push_back(Store);
+                    else if (Loop->isProperAncestor(Store)) {
+                      LLVM_DEBUG(llvm::dbgs().indent(2)
+                                 << "Interrupting - found incompatible store: "
+                                 << Store << "\n");
+                      InterruptWalk = true;
+                    }
+                  }
+                });
 
-      if (CandidateStores.empty()) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Skip - no compatible store found\n");
-        return WalkResult::advance();
-      }
+            if (InterruptWalk)
+              return WalkResult::interrupt();
+          }
 
-      // Require a single store within the current loop.
-      if (CandidateStores.size() != 1) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Interrupting - more than one compatible store found\n");
-        return WalkResult::interrupt();
-      }
+          if (CandidateStores.empty()) {
+            LLVM_DEBUG(llvm::dbgs().indent(2)
+                       << "Skip - no compatible store found\n");
+            return WalkResult::advance();
+          }
 
-      ReductionOp Candidate(Load, CandidateStores[0], OtherLoads);
-      Operation *MayAliasOp = nullptr;
-      if (Loop.getLoopBody()
-              .walk([&](Operation *Op) {
-                if (Op == Load || Op == CandidateStores[0] ||
-                    llvm::find(OtherLoads, Op) != OtherLoads.end())
-                  return WalkResult::advance();
-                if (hasMayAliasEffects(Load, *Op, aliasAnalysis)) {
-                  if (DetectReductionEnableSYCLAccessorVersioning &&
-                      NumVersion < DetectReductionVersionLimit)
-                    if (canVersion(Load, *Op, Loop, Candidate))
+          // Require a single store within the current loop.
+          if (CandidateStores.size() != 1) {
+            LLVM_DEBUG(
+                llvm::dbgs().indent(2)
+                << "Interrupting - more than one compatible store found\n");
+            return WalkResult::interrupt();
+          }
+
+          ReductionOp Candidate(Load, CandidateStores[0], OtherLoads);
+          Operation *MayAliasOp = nullptr;
+          if (Loop.getLoopRegions()
+                  .front()
+                  ->walk([&](Operation *Op) {
+                    if (Op == Load || Op == CandidateStores[0] ||
+                        llvm::find(OtherLoads, Op) != OtherLoads.end())
                       return WalkResult::advance();
-                  MayAliasOp = Op;
-                  return WalkResult::interrupt();
-                }
-                return WalkResult::advance();
-              })
-              .wasInterrupted()) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Interrupting - loop contains may alias operation: "
-                   << *MayAliasOp << "\n");
-        return WalkResult::interrupt();
-      }
+                    if (hasMayAliasEffects(Load, *Op, aliasAnalysis)) {
+                      if (DetectReductionEnableSYCLAccessorVersioning &&
+                          NumVersion < DetectReductionVersionLimit)
+                        if (canVersion(Load, *Op, Loop, Candidate))
+                          return WalkResult::advance();
+                      MayAliasOp = Op;
+                      return WalkResult::interrupt();
+                    }
+                    return WalkResult::advance();
+                  })
+                  .wasInterrupted()) {
+            LLVM_DEBUG(llvm::dbgs().indent(2)
+                       << "Interrupting - loop contains may alias operation: "
+                       << *MayAliasOp << "\n");
+            return WalkResult::interrupt();
+          }
 
-      // The load must dominate the single store.
-      if (!properlyDominates(Load, CandidateStores[0])) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Interrupting - load doesn't dominate store: "
-                   << CandidateStores[0] << "\n");
-        return WalkResult::interrupt();
-      }
+          // The load must dominate the single store.
+          if (!properlyDominates(Load, CandidateStores[0])) {
+            LLVM_DEBUG(llvm::dbgs().indent(2)
+                       << "Interrupting - load doesn't dominate store: "
+                       << CandidateStores[0] << "\n");
+            return WalkResult::interrupt();
+          }
 
-      unsigned NumSYCLAccessorPairs =
-          Candidate.getRequireNoOverlapAccessorPairs().size();
-      if (NumSYCLAccessorPairs > DetectReductionSYCLAccessorPairsLimit) {
-        LLVM_DEBUG(llvm::dbgs().indent(2)
-                   << "Interrupting - exceed SYCL accessor pairs limit: "
-                   << NumSYCLAccessorPairs << "\n");
-        return WalkResult::interrupt();
-      }
-      if (NumSYCLAccessorPairs != 0)
-        ++NumVersion;
+          unsigned NumSYCLAccessorPairs =
+              Candidate.getRequireNoOverlapAccessorPairs().size();
+          if (NumSYCLAccessorPairs > DetectReductionSYCLAccessorPairsLimit) {
+            LLVM_DEBUG(llvm::dbgs().indent(2)
+                       << "Interrupting - exceed SYCL accessor pairs limit: "
+                       << NumSYCLAccessorPairs << "\n");
+            return WalkResult::interrupt();
+          }
+          if (NumSYCLAccessorPairs != 0)
+            ++NumVersion;
 
-      LLVM_DEBUG(llvm::dbgs().indent(2)
-                 << "Found compatible store: " << CandidateStores[0] << "\n");
+          LLVM_DEBUG(llvm::dbgs().indent(2) << "Found compatible store: "
+                                            << CandidateStores[0] << "\n");
 
-      CandidateOps.push_back(Candidate);
+          CandidateOps.push_back(Candidate);
 
-      return WalkResult::advance();
-    });
+          return WalkResult::advance();
+        });
 
     return Result;
   }

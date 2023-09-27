@@ -1608,6 +1608,13 @@ static void loadValues(Location loc, ArrayRef<Value> pointers,
     loaded.push_back(rewriter.create<T>(loc, alloc, ValueRange()));
 }
 
+static void getOperands(scf::ForOp op, SmallVector<Value> &operands) {
+  operands = op.getInitArgs();
+}
+static void getOperands(affine::AffineForOp op, SmallVector<Value> &operands) {
+  operands = op.getIterOperands();
+}
+
 template <typename T, bool UseMinCut>
 struct Reg2MemFor : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
@@ -1623,8 +1630,10 @@ struct Reg2MemFor : public OpRewritePattern<T> {
     }
 
     SmallVector<Value> allocated;
-    allocated.reserve(op.getNumIterOperands());
-    for (Value operand : op.getIterOperands()) {
+    allocated.reserve(op.getNumOperands());
+    SmallVector<Value> operands;
+    getOperands(op, operands);
+    for (Value operand : operands) {
       Value alloc = rewriter.create<memref::AllocaOp>(
           op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()),
           ValueRange());

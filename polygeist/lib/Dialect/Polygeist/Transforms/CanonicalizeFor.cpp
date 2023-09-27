@@ -40,13 +40,13 @@ struct PropagateInLoopBody : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp forOp,
                                 PatternRewriter &rewriter) const final {
-    if (!forOp.hasIterOperands())
+    if (forOp.getInitArgs().empty())
       return failure();
 
     Block &block = forOp.getRegion().front();
     auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
     bool didSomething = false;
-    for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
+    for (auto it : llvm::zip(forOp.getInitArgs(), forOp.getRegionIterArgs(),
                              yieldOp.getOperands())) {
       Value iterOperand = std::get<0>(it);
       Value regionArg = std::get<1>(it);
@@ -76,7 +76,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
     Block &block = forOp.getRegion().front();
     auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
 
-    for (auto it : llvm::zip(forOp.getIterOperands(),   // iter from outside
+    for (auto it : llvm::zip(forOp.getInitArgs(),       // iter from outside
                              forOp.getRegionIterArgs(), // iter inside region
                              forOp.getResults(),        // op results
                              yieldOp.getOperands()      // iter yield
@@ -201,7 +201,7 @@ struct RemoveUnusedArgs : public OpRewritePattern<scf::ForOp> {
     }
 
     // no work to do.
-    if (usedOperands.size() == forOp.getIterOperands().size())
+    if (usedOperands.size() == forOp.getInitArgs().size())
       return failure();
 
     auto newForOp = rewriter.create<scf::ForOp>(
