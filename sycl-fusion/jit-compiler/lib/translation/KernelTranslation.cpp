@@ -345,7 +345,7 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
   // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
       TargetTriple, TargetCPU, TargetFeatures, {}, llvm::Reloc::PIC_,
-      std::nullopt, llvm::CodeGenOpt::Default);
+      std::nullopt, llvm::CodeGenOptLevel::Default);
 
   std::string AMDObj;
   {
@@ -354,7 +354,7 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
     llvm::buffer_ostream BufferedOBJ{OBJStream};
 
     if (TargetMachine->addPassesToEmitFile(PM, BufferedOBJ, nullptr,
-                                           llvm::CGFT_ObjectFile)) {
+                                           llvm::CodeGenFileType::ObjectFile)) {
       return createStringError(
           inconvertibleErrorCode(),
           "Failed to construct pass pipeline to emit output");
