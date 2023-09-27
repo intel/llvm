@@ -2,6 +2,9 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 // Test complete fusion with a combination of kernels that require a work-group
 // barrier to be inserted by fusion.
 
