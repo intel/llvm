@@ -2445,8 +2445,9 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
                                LLVM::LinkageAttr::get(Ctx, Lnk));
 
       if (FD.hasAttr<clang::SYCLKernelAttr>()) {
+        Builder Builder(Ctx);
         AttrBuilder.addAttribute(gpu::GPUDialect::getKernelFuncAttrName(),
-                                 UnitAttr::get(Ctx));
+                                 Builder.getUnitAttr());
         const auto &Triple = CGM.getTarget().getTriple();
         if (Triple.isSPIR() || Triple.isSPIRV()) {
           AttrBuilder.addAttribute(spirv::getEntryPointABIAttrName(),
@@ -2467,9 +2468,47 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
             AttrArgs.push_back(YDimVal->getExtValue());
           AttrArgs.push_back(XDimVal->getExtValue());
 
-          OpBuilder Builder(Ctx);
           AttrBuilder.addAttribute("reqd_work_group_size",
                                    Builder.getI64ArrayAttr(AttrArgs));
+        }
+
+        const clang::IntelReqdSubGroupSizeAttr *ReqSubGroup =
+            FD.getAttr<clang::IntelReqdSubGroupSizeAttr>();
+
+        if (ReqSubGroup) {
+          const auto *CE = cast<clang::ConstantExpr>(ReqSubGroup->getValue());
+          std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+          AttrBuilder.addAttribute(
+              "intel_reqd_sub_group_size",
+              Builder.getI32IntegerAttr(ArgVal->getSExtValue()));
+        } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
+                   clang::LangOptions::SubGroupSizeType::Integer) {
+          AttrBuilder.addAttribute(
+              "intel_reqd_sub_group_size",
+              Builder.getI32IntegerAttr(CGM.getLangOpts().DefaultSubGroupSize));
+        }
+
+        if (const auto *A = FD.getAttr<clang::IntelNamedSubGroupSizeAttr>()) {
+          AttrBuilder.addAttribute(
+              "intel_reqd_sub_group_size",
+              Builder.getStringAttr(
+                  A->getType() == clang::IntelNamedSubGroupSizeAttr::Primary
+                      ? "primary"
+                      : "automatic"));
+        } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
+                   clang::LangOptions::SubGroupSizeType::Auto) {
+          AttrBuilder.addAttribute("intel_reqd_sub_group_size",
+                                   Builder.getStringAttr("automatic"));
+        } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
+                   clang::LangOptions::SubGroupSizeType::Primary) {
+          AttrBuilder.addAttribute("intel_reqd_sub_group_size",
+                                   Builder.getStringAttr("primary"));
+        }
+
+        if (FD.hasAttr<clang::SYCLSimdAttr>()) {
+          AttrBuilder.addAttribute("sycl_explicit_simd", Builder.getUnitAttr());
+          AttrBuilder.addAttribute("intel_reqd_sub_group_size",
+                                   Builder.getI32IntegerAttr(1));
         }
       }
 

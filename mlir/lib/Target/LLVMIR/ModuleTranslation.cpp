@@ -1056,6 +1056,31 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
                             llvm::MDNode::get(ctx, AttrMDArgs));
     }
 
+    // Convert intel_reqd_sub_group_size attribute to metadata.
+    if (Attribute sgSize = function->getAttr("intel_reqd_sub_group_size");
+        isa_and_nonnull<IntegerAttr, StringAttr>(sgSize)) {
+      llvm::LLVMContext &ctx = llvmModule->getContext();
+      llvmFunc->setMetadata(
+          "intel_reqd_sub_group_size",
+          llvm::MDNode::get(
+              ctx, {TypeSwitch<Attribute, llvm::Metadata *>(sgSize)
+                        .template Case<IntegerAttr>([&](auto intAttr) {
+                          llvm::IntegerType *i32Ty =
+                              llvm::IntegerType::get(ctx, 32);
+                          return llvm::ConstantAsMetadata::get(
+                              llvm::ConstantInt::get(i32Ty, intAttr.getInt()));
+                        })
+                        .template Case<StringAttr>([&](auto strAttr) {
+                          return llvm::MDString::get(ctx, strAttr.getValue());
+                        })}));
+    }
+
+    // Convert sycl_explicit_simd attribute to metadata.
+    if (isa_and_nonnull<UnitAttr>(function->getAttr("sycl_explicit_simd"))) {
+      llvmFunc->setMetadata("sycl_explicit_simd",
+                            llvm::MDNode::get(llvmModule->getContext(), {}));
+    }
+
     // Convert result attributes.
     if (ArrayAttr allResultAttrs = function.getAllResultAttrs()) {
       DictionaryAttr resultAttrs = cast<DictionaryAttr>(allResultAttrs[0]);
