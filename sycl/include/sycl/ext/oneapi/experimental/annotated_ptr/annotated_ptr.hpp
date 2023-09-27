@@ -31,10 +31,6 @@ namespace experimental {
 //===----------------------------------------------------------------------===//
 //        Specific properties of annotated_ptr
 //===----------------------------------------------------------------------===//
-struct alignment_key {
-  template <int K>
-  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
-};
 
 struct usm_kind_key {
   template <sycl::usm::alloc Kind>
@@ -42,26 +38,16 @@ struct usm_kind_key {
       property_value<usm_kind_key, std::integral_constant<sycl::usm::alloc, Kind>>;
 };
 
-template <int K> inline constexpr alignment_key::value_t<K> alignment;
 template <sycl::usm::alloc Kind> inline constexpr usm_kind_key::value_t<Kind> usm_kind;
 inline constexpr usm_kind_key::value_t<sycl::usm::alloc::device> usm_kind_device;
 inline constexpr usm_kind_key::value_t<sycl::usm::alloc::host> usm_kind_host;
 inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared> usm_kind_shared;
 
-template <> struct is_property_key<alignment_key> : std::true_type {};
 template <> struct is_property_key<usm_kind_key> : std::true_type {};
-
-template <typename T, int W>
-struct is_valid_property<T, alignment_key::value_t<W>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, sycl::usm::alloc Kind>
 struct is_valid_property<T, usm_kind_key::value_t<Kind>>
     : std::bool_constant<std::is_pointer<T>::value> {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<usm_kind_key, annotated_ptr<T, PropertyListT>>
@@ -73,17 +59,7 @@ template <> struct PropertyToKind<usm_kind_key> {
   static constexpr PropKind Kind = PropKind::UsmKind;
 };
 
-template <> struct PropertyToKind<alignment_key> {
-  static constexpr PropKind Kind = PropKind::Alignment;
-};
-
-template <> struct IsCompileTimeProperty<alignment_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<usm_kind_key> : std::true_type {};
-
-template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
-  static constexpr const char *name = "sycl-alignment";
-  static constexpr int value = N;
-};
 
 template <sycl::usm::alloc Kind> struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr const char *name = "sycl-usm-kind";
