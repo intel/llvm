@@ -1,6 +1,8 @@
-// RUN: %{build} -fno-inline-functions -o %t.out
+// DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
+// RUN: %{build} %{inlineflags} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -O0 -o %t0.out
+// DEFINE: %{O0flags} = %if cl_options %{/clang:-O0%} %else %{-O0%}
+// RUN: %{build} %{O0flags} -o %t0.out
 // RUN: %{run} %t0.out
 
 // TODO: gpu driver cannot yet handle the IR generated without

@@ -18,19 +18,39 @@ constexpr unsigned int testIterations = 100;
 // start recording time after X iterations
 constexpr unsigned int recordThresh = 10;
 
+#ifndef MATRIX_SIZE
 #define MATRIX_SIZE 256
+#endif
 
+#ifndef tM
 #define tM 8
+#endif
+#ifndef tN
+#define tN TN
+#endif
+#ifndef tK
 #define tK 16
-constexpr size_t tN = TN;
+#endif
 
+#ifndef MCACHE1
 #define MCACHE1 32
+#endif
+#ifndef NCACHE1
 #define NCACHE1 (SG_SZ * 4)
+#endif
+#ifndef KCACHE1
 #define KCACHE1 16
+#endif
 
+#ifndef MCACHE2
 #define MCACHE2 256
+#endif
+#ifndef NCACHE2
 #define NCACHE2 256
+#endif
+#ifndef KCACHE2
 #define KCACHE2 32
+#endif
 
 #define BF16_EPSILON 0.00781250
 
