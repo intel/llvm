@@ -970,6 +970,13 @@ def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
   HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">;
+def Xdevice_post_link : Separate<["-"], "Xdevice-post-link">,
+  HelpText<"Pass <arg> to the device post-link tool.">, MetaVarName<"<arg>">,
+  Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption, DXCOption]>;
+def Xdevice_post_link_EQ : JoinedAndSeparate<["-"], "Xdevice-post-link=">,
+  HelpText<"Pass <arg> to the device post-link tool identified by <triple>.">,
+  MetaVarName<"<triple> <arg>">, Flags<[HelpHidden]>,
+  Visibility<[ClangOption, CLOption, DXCOption]>;
 def Xopenmp_target : Separate<["-"], "Xopenmp-target">, Group<CompileOnly_Group>,
   HelpText<"Pass <arg> to the target offloading toolchain.">, MetaVarName<"<arg>">;
 def Xopenmp_target_EQ : JoinedAndSeparate<["-"], "Xopenmp-target=">, Group<CompileOnly_Group>,
@@ -2738,6 +2745,12 @@ def fno_experimental_relative_cxx_abi_vtables :
   Flag<["-"], "fno-experimental-relative-c++-abi-vtables">,
   Group<f_clang_Group>, Visibility<[ClangOption, CC1Option]>,
   HelpText<"Do not use the experimental C++ class ABI for classes with virtual tables">;
+
+defm experimental_omit_vtable_rtti : BoolFOption<"experimental-omit-vtable-rtti",
+  LangOpts<"OmitVTableRTTI">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Omit">,
+  NegFlag<SetFalse, [], [CC1Option], "Do not omit">,
+  BothFlags<[], [CC1Option], " the RTTI component from virtual tables">>;
 
 def fcxx_abi_EQ : Joined<["-"], "fc++-abi=">,
                   Group<f_clang_Group>, Visibility<[ClangOption, CC1Option]>,
