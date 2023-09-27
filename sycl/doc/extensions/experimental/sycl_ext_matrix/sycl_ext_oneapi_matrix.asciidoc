@@ -57,7 +57,8 @@ optional kernel features as defined in section 5.7 of the core SYCL
 specification.  Each device supports only certain values for the `M`,
 `N`, and `K` template parameters and only certain types for the `Ta`,
 `Tb`, and `Tc` template parameters. Applications can use the query API
-in `matrix_params` or `get_info<experimental::info::device::matrix_combinations>`
+in `matrix_params` or 
+`get_info<ext::oneapi::experimental::info::device::matrix_combinations>` 
 to determine the set of legal parameters for each device.  If the
 application submits a kernel using an unsupported `joint_matrix` type
 or calls `joint_matrix_mad` with an unsupported combination, the
