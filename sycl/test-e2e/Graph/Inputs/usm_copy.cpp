@@ -46,7 +46,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeA);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+        CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
           auto LinID = id.get_linear_id();
           PtrA[LinID] += ModValue;
         });
@@ -58,7 +58,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeA);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+        CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
           auto LinID = id.get_linear_id();
           PtrB[LinID] += ModValue;
         });
@@ -79,7 +79,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeC);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+        CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
           auto LinID = id.get_linear_id();
           PtrB[LinID] += ModValue;
         });

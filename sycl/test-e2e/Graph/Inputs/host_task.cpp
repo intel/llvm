@@ -38,7 +38,7 @@ int main() {
 
   // Vector add to output
   auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>(Size),
+    CGH.parallel_for(range<1>{Size},
                      [=](item<1> id) { PtrC[id] += PtrA[id] + PtrB[id]; });
   });
 
@@ -60,7 +60,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeB);
-        CGH.parallel_for(range<1>(Size), [=](item<1> id) { PtrC[id] += 1; });
+        CGH.parallel_for(range<1>{Size}, [=](item<1> id) { PtrC[id] += 1; });
       },
       NodeB);
 

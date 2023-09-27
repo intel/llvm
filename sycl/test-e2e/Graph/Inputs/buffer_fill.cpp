@@ -8,23 +8,23 @@ int main() {
   const size_t N = 10;
   const float Pattern = 3.14f;
   std::vector<float> Data(N);
-  buffer<float> Buffer(Data);
+  buffer<float> Buffer{Data};
 
   const uint64_t PatternI64 = 0x3333333355555555;
   std::vector<uint64_t> DataI64(N);
-  buffer<uint64_t> BufferI64(DataI64);
+  buffer<uint64_t> BufferI64{DataI64};
 
   const uint32_t PatternI32 = 888;
   std::vector<uint32_t> DataI32(N);
-  buffer<uint32_t> BufferI32(DataI32);
+  buffer<uint32_t> BufferI32{DataI32};
 
   const uint16_t PatternI16 = 777;
   std::vector<uint16_t> DataI16(N);
-  buffer<uint16_t> BufferI16(DataI16);
+  buffer<uint16_t> BufferI16{DataI16};
 
   const uint8_t PatternI8 = 33;
   std::vector<uint8_t> DataI8(N);
-  buffer<uint8_t> BufferI8(DataI8);
+  buffer<uint8_t> BufferI8{DataI8};
 
   Buffer.set_write_back(false);
   BufferI64.set_write_back(false);

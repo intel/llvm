@@ -19,7 +19,7 @@ int main() {
   }
 
   // Make the buffers 2D so we can test the rect read path
-  buffer BufferA{DataA.data(), range<2>(Size, Size)};
+  buffer BufferA{DataA.data(), range<2>{Size, Size}};
   BufferA.set_write_back(false);
 
   {

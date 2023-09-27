@@ -20,7 +20,7 @@ int main() {
       ReferenceA[i] = DataB[i - Offset];
   }
 
-  buffer<T, 1> BufferA(DataA.data(), range<1>(Size + Offset));
+  buffer<T, 1> BufferA{DataA.data(), range<1>{Size + Offset}};
   BufferA.set_write_back(false);
 
   {
@@ -30,8 +30,8 @@ int main() {
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
     auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-      auto AccA = BufferA.get_access<access::mode::write>(CGH, range<1>(Size),
-                                                          id<1>(Offset));
+      auto AccA = BufferA.get_access<access::mode::write>(CGH, range<1>{Size},
+                                                          id<1>{Offset});
       CGH.copy(DataB.data(), AccA);
     });
 

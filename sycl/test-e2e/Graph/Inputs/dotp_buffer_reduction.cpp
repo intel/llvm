@@ -13,14 +13,14 @@ int main() {
   std::vector<int> YData(N);
   std::vector<int> ZData(N);
 
-  buffer DotpBuf(&DotpData, range<1>(1));
+  buffer DotpBuf(&DotpData, range<1>{1});
   DotpBuf.set_write_back(false);
 
-  buffer XBuf(XData);
+  buffer XBuf{XData};
   XBuf.set_write_back(false);
-  buffer YBuf(YData);
+  buffer YBuf{YData};
   YBuf.set_write_back(false);
-  buffer ZBuf(ZData);
+  buffer ZBuf{ZData};
   ZBuf.set_write_back(false);
   {
     exp_ext::command_graph Graph{

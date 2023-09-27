@@ -28,11 +28,11 @@ int main() {
   }
 
   // Make the buffers 2D so we can test the rect copy path
-  buffer BufferA{DataA.data(), range<2>(Size, Size)};
+  buffer BufferA{DataA.data(), range<2>{Size, Size}};
   BufferA.set_write_back(false);
-  buffer BufferB{DataB.data(), range<2>(Size, Size)};
+  buffer BufferB{DataB.data(), range<2>{Size, Size}};
   BufferB.set_write_back(false);
-  buffer BufferC{DataC.data(), range<2>(Size, Size)};
+  buffer BufferC{DataC.data(), range<2>{Size, Size}};
   BufferC.set_write_back(false);
   {
     exp_ext::command_graph Graph{
@@ -52,7 +52,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccA = BufferA.get_access(CGH);
-          CGH.parallel_for(range<2>(Size, Size),
+          CGH.parallel_for(range<2>{Size, Size},
                            [=](item<2> id) { AccA[id] += ModValue; });
         },
         NodeA);
@@ -62,7 +62,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
-          CGH.parallel_for(range<2>(Size, Size),
+          CGH.parallel_for(range<2>{Size, Size},
                            [=](item<2> id) { AccB[id] += ModValue; });
         },
         NodeA);
@@ -82,7 +82,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
-          CGH.parallel_for(range<2>(Size, Size),
+          CGH.parallel_for(range<2>{Size, Size},
                            [=](item<2> id) { AccB[id] += ModValue; });
         },
         NodeC);

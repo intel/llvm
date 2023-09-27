@@ -39,9 +39,9 @@ int main() {
     // Copy from A to B
     auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
       auto AccA = BufferA.get_access<access::mode::read_write>(
-          CGH, range<1>(Size - OffsetSrc), id<1>(OffsetSrc));
+          CGH, range<1>{Size - OffsetSrc}, id<1>{OffsetSrc});
       auto AccB = BufferB.get_access<access::mode::read_write>(
-          CGH, range<1>(Size - OffsetDst), id<1>(OffsetDst));
+          CGH, range<1>{Size - OffsetDst}, id<1>{OffsetDst});
       CGH.copy(AccA, AccB);
     });
 

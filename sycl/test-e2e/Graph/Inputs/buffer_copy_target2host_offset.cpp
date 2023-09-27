@@ -21,7 +21,7 @@ int main() {
       ReferenceB[i] = DataB[i];
   }
 
-  buffer<T, 1> BufferA(DataA.data(), range<1>(Size));
+  buffer<T, 1> BufferA{DataA.data(), range<1>{Size}};
   BufferA.set_write_back(false);
 
   {
@@ -32,7 +32,7 @@ int main() {
 
     auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
       auto AccA = BufferA.get_access<access::mode::read>(
-          CGH, range<1>(Size - Offset), id<1>(Offset));
+          CGH, range<1>{Size - Offset}, id<1>{Offset});
       CGH.copy(AccA, DataB.data());
     });
 

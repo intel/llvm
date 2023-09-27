@@ -17,7 +17,7 @@ int main() {
     ReferenceA[i] = DataB[i];
   }
 
-  buffer<T, 1> BufferA(DataA.data(), range<1>(Size));
+  buffer<T, 1> BufferA{DataA.data(), range<1>{Size}};
   BufferA.set_write_back(false);
 
   {

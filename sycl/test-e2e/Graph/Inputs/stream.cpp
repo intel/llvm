@@ -20,7 +20,7 @@ int main() {
 
   add_node(Graph, Queue, [&](handler &CGH) {
     sycl::stream Out(WorkItems * 16, 16, CGH);
-    CGH.parallel_for(range<1>(WorkItems), [=](item<1> id) {
+    CGH.parallel_for(range<1>{WorkItems}, [=](item<1> id) {
       Out << "Val: " << PtrIn[id.get_linear_id()] << sycl::endl;
     });
   });

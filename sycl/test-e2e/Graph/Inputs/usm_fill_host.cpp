@@ -14,7 +14,7 @@ int main() {
   const size_t N = 10;
   int *Arr = malloc_host<int>(N, Queue);
 
-  int Pattern = 3.14f;
+  int Pattern = 314;
   auto NodeA =
       add_node(Graph, Queue, [&](handler &CGH) { CGH.fill(Arr, Pattern, N); });
 

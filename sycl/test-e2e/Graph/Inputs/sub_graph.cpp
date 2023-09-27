@@ -50,7 +50,7 @@ int main() {
 
   // Vector add two values
   auto NodeSubA = add_node(SubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>(Size),
+    CGH.parallel_for(range<1>{Size},
                      [=](item<1> id) { PtrC[id] = PtrA[id] + PtrB[id]; });
   });
 
@@ -59,7 +59,7 @@ int main() {
       SubGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeSubA);
-        CGH.parallel_for(range<1>(Size),
+        CGH.parallel_for(range<1>{Size},
                          [=](item<1> id) { PtrC[id] -= ModValue; });
       },
       NodeSubA);
@@ -70,7 +70,7 @@ int main() {
 
   // Modify the input values.
   auto NodeMainA = add_node(MainGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+    CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
       PtrA[id] += ModValue;
       PtrB[id] += ModValue;
     });
@@ -89,7 +89,7 @@ int main() {
       MainGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeMainB);
-        CGH.parallel_for(range<1>(Size),
+        CGH.parallel_for(range<1>{Size},
                          [=](item<1> id) { PtrOut[id] = PtrC[id] + ModValue; });
       },
       NodeMainB);

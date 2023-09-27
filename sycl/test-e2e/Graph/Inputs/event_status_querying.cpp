@@ -78,7 +78,7 @@ int main() {
     // Read & write A
     auto Node1 = add_node(Graph, Queue, [&](handler &CGH) {
       auto AccA = BufferA.get_access(CGH);
-      CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+      CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
         auto LinID = id.get_linear_id();
         AccA[LinID] += ModValue;
       });
@@ -87,7 +87,7 @@ int main() {
     // Read & write B
     auto Node2 = add_node(Graph, Queue, [&](handler &CGH) {
       auto AccB = BufferB.get_access(CGH);
-      CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+      CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
         auto LinID = id.get_linear_id();
         AccB[LinID] += ModValue;
       });
@@ -103,7 +103,7 @@ int main() {
     // Read and write B
     auto Node4 = add_node(Graph, Queue, [&](handler &CGH) {
       auto AccB = BufferB.get_access(CGH);
-      CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+      CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
         auto LinID = id.get_linear_id();
         AccB[LinID] += ModValue;
       });

@@ -51,7 +51,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccA = BufferA.get_access(CGH);
-          CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+          CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
             auto LinID = id.get_linear_id();
             AccA[LinID] += ModValue;
           });
@@ -63,7 +63,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
-          CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+          CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
             auto LinID = id.get_linear_id();
             AccB[LinID] += ModValue;
           });
@@ -85,7 +85,7 @@ int main() {
         Graph, Queue,
         [&](handler &CGH) {
           auto AccB = BufferB.get_access(CGH);
-          CGH.parallel_for(range<1>(Size), [=](item<1> id) {
+          CGH.parallel_for(range<1>{Size}, [=](item<1> id) {
             auto LinID = id.get_linear_id();
             AccB[LinID] += ModValue;
           });
