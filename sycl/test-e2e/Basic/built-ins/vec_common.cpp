@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES // To use math constants
 #endif

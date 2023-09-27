@@ -2,6 +2,9 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 // Test complete fusion with private internalization specified on the
 // accessors for a device kernel using multi_ptr to global address space.
 

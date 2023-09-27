@@ -23,6 +23,9 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #include <cassert>
 #include <numeric>
 
