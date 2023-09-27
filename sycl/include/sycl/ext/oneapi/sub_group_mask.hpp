@@ -96,10 +96,7 @@ struct sub_group_mask {
 
   sub_group_mask(unsigned long long val)
       : sub_group_mask(0, GetMaxLocalRangeSize()) {
-    constexpr size_t BytesToCopy =
-        sizeof(Bits) < sizeof(val) ? sizeof(Bits) : sizeof(val);
-    // TODO: memcpy is not guaranteed to work in kernels. Find alternative.
-    std::memcpy(&Bits, &val, BytesToCopy);
+    Bits = val;
   };
 
   template <typename T, std::size_t K,
