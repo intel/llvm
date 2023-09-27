@@ -8,9 +8,11 @@ endforeach()
 
 # level_zero, cuda, hip, and native_cpu plugins depends today on unified_runtime plugin
 # and unified_runtime plugin is not an independent plugin, adding it explicitly
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS OR
-        "hip" IN_LIST SYCL_ENABLE_PLUGINS OR
-        "cuda" IN_LIST SYCL_ENABLE_PLUGINS OR
-        "native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_subdirectory(unified_runtime)
+if (NOT "unified_runtime" IN_LIST SYCL_ENABLE_PLUGINS)
+  if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS OR
+          "hip" IN_LIST SYCL_ENABLE_PLUGINS OR
+          "cuda" IN_LIST SYCL_ENABLE_PLUGINS OR
+          "native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_subdirectory(unified_runtime)
+  endif()
 endif()
