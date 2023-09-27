@@ -385,19 +385,14 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
 
 exe_kb build(source_kb &SourceKB, const property_list &PropList) {
 
-  // CP gross test code.  Using existing OnlineCompiler as placeholder.
+  // CP gross test code.
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  // sycl::ext::intel::experimental::online_compiler<sycl::ext::intel::experimental::source_language::opencl_c>
-  // Compiler;
   std::vector<std::string> flags{"-cl-fast-relaxed-math",
                                  "-cl-finite-math-only"};
-  std::string s = sourceImpl->Source;
-  std::cout << "sourcey: " << s << std::endl;
-  // std::vector<byte> SpirVec = Compiler.compile(sourceImpl->Source, flags);
 
-  backend BE = SourceKB.get_backend();
-
-  std::vector<byte> spirv = detail::OpenCLC_to_SPIRV(s, flags);
+  // if successful, the log is empty. if failed, throws an error with the
+  // compilation log.
+  std::vector<byte> spirv = detail::OpenCLC_to_SPIRV(sourceImpl->Source, flags);
   std::cout << "spirv byte count: " << spirv.size() << std::endl;
 
   // CP fake code to compile for the nonce.  This constructor is empty.

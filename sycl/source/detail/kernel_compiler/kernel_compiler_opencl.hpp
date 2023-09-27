@@ -127,18 +127,18 @@ OpenCLC_to_SPIRV(const std::string &Source,
   // gather the results ( the SpirV and the Log)
   std::vector<byte> SpirV;
   std::string CompileLog;
-  for (uint32_t I = 0; I < NumOutputs; I++) {
-    size_t NameLen = strlen(OutputNames[I]);
-    if (NameLen >= 4 && strstr(OutputNames[I], ".spv") != nullptr &&
-        Outputs[I] != nullptr) {
+  for (uint32_t i = 0; i < NumOutputs; i++) {
+    size_t NameLen = strlen(OutputNames[i]);
+    if (NameLen >= 4 && strstr(OutputNames[i], ".spv") != nullptr &&
+        Outputs[i] != nullptr) {
       assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
-      SpirV = std::vector<byte>(Outputs[I], Outputs[I] + OutputLengths[I]);
-    } else if (!strcmp(OutputNames[I], "stdout.log")) {
-      CompileLog = std::string(reinterpret_cast<const char *>(Outputs[I]));
+      SpirV = std::vector<byte>(Outputs[i], Outputs[i] + OutputLengths[i]);
+    } else if (!strcmp(OutputNames[i], "stdout.log")) {
+      CompileLog = std::string(reinterpret_cast<const char *>(Outputs[i]));
     }
   }
-
-  std::cout << "Compilation Log: " << CompileLog << std::endl;
+  // std::cout << "Compile Log: " << std::endl << CompileLog << std::endl <<
+  // "=============" << std::endl;
 
   // Try to free memory before reporting possible error.
   decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
