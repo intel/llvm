@@ -18,14 +18,22 @@ namespace experimental {
 
 template <typename T, typename ListA, typename ListB>
 using CheckHostPtrTAndPropLists =
-    CheckTAndPropListsWithUsmKind<alloc::host, T, ListA, ListB>;
+    CheckTAndPropListsWithUsmKind<sycl::usm::alloc::host, T, ListA, ListB>;
 
 template <typename PropertyListT>
 using GetAnnotatedHostPtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<alloc::host, PropertyListT>;
+    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::host, PropertyListT>;
 
 ////
-//  Aligned host USM allocation functions with properties support
+//  "aligned_alloc_host_annotated": Aligned host USM allocation functions with
+//  properties support
+//
+//  This the base form of all the annotated USM host allocation functions, which
+//  are implemented by calling the more generic "aligned_alloc_annotated"
+//  functions with the USM kind as an argument. Note that when calling
+//  "aligned_alloc_annotated", the template parameter `propertyListA` should
+//  include the `usm_kind<alloc::host>` property to make it appear on the
+//  returned annotated_ptr of "aligned_alloc_annotated"
 ////
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -37,9 +45,9 @@ std::enable_if_t<
 aligned_alloc_host_annotated(size_t alignment, size_t numBytes,
                              const context &syclContext,
                              const propertyListA &propList = properties{}) {
-
-  return aligned_alloc_annotated<propertyListB>(alignment, numBytes, {},
-                                                syclContext, alloc::host);
+  auto tmp = aligned_alloc_annotated(alignment, numBytes, {}, syclContext,
+                                     sycl::usm::alloc::host, propList);
+  return {tmp.get()};
 }
 
 template <typename T, typename propertyListA = detail::empty_properties_t,
@@ -49,13 +57,11 @@ std::enable_if_t<
     CheckHostPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 aligned_alloc_host_annotated(size_t alignment, size_t count,
-
                              const context &syclContext,
                              const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(aligned_alloc_host_annotated(alignment,
-                                                        count * sizeof(T),
-                                                        syclContext, propList)
-                               .get())};
+  auto tmp = aligned_alloc_annotated<T>(alignment, count, {}, syclContext,
+                                        sycl::usm::alloc::host, propList);
+  return {tmp.get()};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -86,6 +92,9 @@ aligned_alloc_host_annotated(size_t alignment, size_t count,
 
 ////
 //  Host USM allocation functions with properties support
+//
+//  Note: "malloc_host_annotated" functions call "aligned_alloc_host_annotated"
+//  with alignment 0
 ////
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -107,8 +116,7 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 malloc_host_annotated(size_t count, const context &syclContext,
                       const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(
-      malloc_host_annotated(count * sizeof(T), syclContext, propList).get())};
+  return aligned_alloc_host_annotated<T>(0, count, syclContext, propList);
 }
 
 template <typename propertyListA = detail::empty_properties_t,

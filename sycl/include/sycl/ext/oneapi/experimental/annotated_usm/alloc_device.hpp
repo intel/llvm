@@ -18,16 +18,23 @@ namespace experimental {
 
 template <typename T, typename ListA, typename ListB>
 using CheckDevicePtrTAndPropLists =
-    CheckTAndPropListsWithUsmKind<alloc::device, T, ListA, ListB>;
+    CheckTAndPropListsWithUsmKind<sycl::usm::alloc::device, T, ListA, ListB>;
 
 template <typename PropertyListT>
 using GetAnnotatedDevicePtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<alloc::device, PropertyListT>;
+    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::device, PropertyListT>;
 
 ////
-//  Aligned device USM allocation functions with properties support
+//  "aligned_alloc_device_annotated": aligned device USM allocation functions
+//  with properties support
+//
+//  This the base form of all the annotated USM device allocation functions,
+//  which are implemented by calling the more generic "aligned_alloc_annotated"
+//  functions with the USM kind as an argument. Note that the returned
+//  annotated_ptr of "aligned_alloc_annotated" may not contain  the
+//  `usm_kind<alloc::device>`, so reconstruct the real annotated_ptr that
+//  contains usm_kind using the raw pointer of "aligned_alloc_annotated" result
 ////
-
 template <typename propertyListA = detail::empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
@@ -38,8 +45,9 @@ aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  return aligned_alloc_annotated<propertyListB>(alignment, numBytes, syclDevice,
-                                                syclContext, alloc::device);
+  auto tmp = aligned_alloc_annotated(alignment, numBytes, syclDevice,
+                                     syclContext, sycl::usm::alloc::device, propList);
+  return {tmp.get()};
 }
 
 template <typename T, typename propertyListA = detail::empty_properties_t,
@@ -52,10 +60,9 @@ aligned_alloc_device_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(
-      aligned_alloc_device_annotated(alignment, count * sizeof(T), syclDevice,
-                                     syclContext, propList)
-          .get())};
+  auto tmp = aligned_alloc_annotated<T>(alignment, count, syclDevice,
+                                        syclContext, sycl::usm::alloc::device, propList);
+  return {tmp.get()};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -87,9 +94,12 @@ aligned_alloc_device_annotated(size_t alignment, size_t count,
 }
 
 ////
-//  Device USM allocation functions with properties support
+//  "malloc_device_annotated": device USM allocation functions with properties
+//  support
+//
+//  Note: "malloc_device_annotated" functions call
+//  "aligned_alloc_device_annotated" with alignment 0
 ////
-
 template <typename propertyListA = detail::empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
@@ -112,10 +122,8 @@ std::enable_if_t<
 malloc_device_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
                         const propertyListA &propList = properties{}) {
-  return {
-      static_cast<T *>(malloc_device_annotated(count * sizeof(T), syclDevice,
-                                               syclContext, propList)
-                           .get())};
+  return aligned_alloc_device_annotated<T>(0, count, syclDevice, syclContext,
+                                           propList);
 }
 
 template <typename propertyListA = detail::empty_properties_t,

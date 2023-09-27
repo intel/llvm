@@ -18,14 +18,21 @@ namespace experimental {
 
 template <typename T, typename ListA, typename ListB>
 using CheckSharedPtrTAndPropLists =
-    CheckTAndPropListsWithUsmKind<alloc::shared, T, ListA, ListB>;
+    CheckTAndPropListsWithUsmKind<sycl::usm::alloc::shared, T, ListA, ListB>;
 
 template <typename PropertyListT>
 using GetAnnotatedSharedPtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<alloc::shared, PropertyListT>;
+    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::shared, PropertyListT>;
 
 ////
 //  Aligned shared USM allocation functions with properties support
+//
+//  This the base form of all the annotated USM shared allocation functions,
+//  which are implemented by calling the more generic "aligned_alloc_annotated"
+//  functions with the USM kind as an argument. Note that when calling
+//  "aligned_alloc_annotated", the template parameter `propertyListA` should
+//  include the `usm_kind<alloc::shared>` property to make it appear on the
+//  returned annotated_ptr of "aligned_alloc_annotated"
 ////
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -38,9 +45,9 @@ aligned_alloc_shared_annotated(size_t alignment, size_t numBytes,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-
-  return aligned_alloc_annotated<propertyListB>(alignment, numBytes, syclDevice,
-                                                syclContext, alloc::shared);
+  auto tmp = aligned_alloc_annotated(alignment, numBytes, syclDevice,
+                                     syclContext, sycl::usm::alloc::shared, propList);
+  return {tmp.get()};
 }
 
 template <typename T, typename propertyListA = detail::empty_properties_t,
@@ -53,10 +60,9 @@ aligned_alloc_shared_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(
-      aligned_alloc_shared_annotated(alignment, count * sizeof(T), syclDevice,
-                                     syclContext, propList)
-          .get())};
+  auto tmp = aligned_alloc_annotated<T>(alignment, count, syclDevice,
+                                        syclContext, sycl::usm::alloc::shared, propList);
+  return {tmp.get()};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -89,6 +95,9 @@ aligned_alloc_shared_annotated(size_t alignment, size_t count,
 
 ////
 //  Shared USM allocation functions with properties support
+//
+//  Note: "malloc_shared_annotated" functions call
+//  "aligned_alloc_shared_annotated" with alignment 0
 ////
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -113,10 +122,8 @@ std::enable_if_t<
 malloc_shared_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
                         const propertyListA &propList = properties{}) {
-  return {
-      static_cast<T *>(malloc_shared_annotated(count * sizeof(T), syclDevice,
-                                               syclContext, propList)
-                           .get())};
+  return aligned_alloc_shared_annotated<T>(0, count, syclDevice, syclContext,
+                                           propList);
 }
 
 template <typename propertyListA = detail::empty_properties_t,

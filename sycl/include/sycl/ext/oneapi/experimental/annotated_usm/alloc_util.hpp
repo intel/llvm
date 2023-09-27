@@ -17,116 +17,97 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-using alloc = sycl::usm::alloc;
-using usm_buffer_location =
-    ext::intel::experimental::property::usm::buffer_location;
-using namespace ext::intel::experimental;
-
-//===----------------------------------------------------------------------===//
-//        Specific properties of annotated_ptr
-//===----------------------------------------------------------------------===//
-struct usm_kind_key {
-  template <alloc Kind>
-  using value_t =
-      property_value<usm_kind_key, std::integral_constant<alloc, Kind>>;
-};
-
-template <alloc Kind> inline constexpr usm_kind_key::value_t<Kind> usm_kind;
-
-template <> struct is_property_key<usm_kind_key> : std::true_type {};
-
-template <typename T, alloc Kind>
-struct is_valid_property<T, usm_kind_key::value_t<Kind>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<usm_kind_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
-
-namespace detail {
-
-template <> struct PropertyToKind<usm_kind_key> {
-  static constexpr PropKind Kind = PropKind::UsmKind;
-};
-
-template <> struct IsCompileTimeProperty<usm_kind_key> : std::true_type {};
-
-template <alloc Kind> struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
-  static constexpr const char *name = "sycl-usm-kind";
-  static constexpr alloc value = Kind;
-};
-
-} // namespace detail
-
 ////
 //  Type traits for USM allocation with property support
 ////
 
-// Check if a property list contains the compile-time property alignment
-template <typename... Props>
-struct HasAlign
-    : detail::ContainsProperty<alignment_key, std::tuple<Props...>> {};
+// Merge a property list with the usm_kind property
+template <sycl::usm::alloc Kind, typename PropertyListT>
+using MergeUsmKind =
+    detail::merged_properties_t<PropertyListT,
+                                decltype(properties{usm_kind<Kind>})>;
 
-// Get the value of compile-time constant alignment from a property list
-// The alignement is 0 by default
-template <typename PropertyListT> struct GetAlignFromPropList {};
+// Check if a property list contains the a certain property
+template <typename PropKey, typename PropertyListT> struct HasProperty {};
 
-template <typename... Props>
-struct GetAlignFromPropList<detail::properties_t<Props...>> {
-  using prop_val_t =
-      std::conditional_t<HasAlign<Props...>::value,
-                         typename detail::FindCompileTimePropertyValueType<
-                             alignment_key, std::tuple<Props...>>::type,
-                         decltype(alignment<0>)>;
-  static constexpr size_t value =
-      detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
-};
+template <typename PropKey, typename... Props>
+struct HasProperty<PropKey, detail::properties_t<Props...>>
+    : detail::ContainsProperty<PropKey, std::tuple<Props...>> {};
 
-// Check if a property list contains the compile-time property usm_kind
-template <typename PropertyListT> struct HasUsmKind : std::false_type {};
+template <typename PropertyListT>
+using HasAlign = HasProperty<alignment_key, PropertyListT>;
+template <typename PropertyListT>
+using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
+template <typename PropertyListT>
+using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 
-template <typename... Props>
-struct HasUsmKind<detail::properties_t<Props...>>
-    : detail::ContainsProperty<usm_kind_key, std::tuple<Props...>> {};
+// Get the value of a property from a property list
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename PropertyListT>
+struct GetPropertyValueFromPropList {};
 
-// Get the value of compile-time constant usm_kind from a property list
-// The usm_kind is sycl::usm::alloc::unknown by default
-template <typename PropertyListT> struct GetUsmKindFromPropList {};
-
-template <typename... Props>
-struct GetUsmKindFromPropList<detail::properties_t<Props...>> {
-  using prop_val_t =
-      std::conditional_t<HasUsmKind<detail::properties_t<Props...>>::value,
-                         typename detail::FindCompileTimePropertyValueType<
-                             usm_kind_key, std::tuple<Props...>>::type,
-                         decltype(usm_kind<alloc::unknown>)>;
-  static constexpr alloc value =
-      detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
-};
-
-// Check if a property list contains the compile-time property buffer_location
-template <typename PropertyListT> struct HasBufferLocation : std::false_type {};
-
-template <typename... Props>
-struct HasBufferLocation<detail::properties_t<Props...>>
-    : detail::ContainsProperty<buffer_location_key, std::tuple<Props...>> {};
-
-// Get the value of compile-time constant buffer_location from a property list
-// The buffer location is -1 by default
-template <typename PropertyListT> struct GetBufferLocationFromPropList {};
-
-template <typename... Props>
-struct GetBufferLocationFromPropList<detail::properties_t<Props...>> {
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename... Props>
+struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                    detail::properties_t<Props...>> {
   using prop_val_t = std::conditional_t<
-      HasBufferLocation<detail::properties_t<Props...>>::value,
+      detail::ContainsProperty<PropKey, std::tuple<Props...>>::value,
       typename detail::FindCompileTimePropertyValueType<
-          buffer_location_key, std::tuple<Props...>>::type,
-      decltype(buffer_location<-1>)>;
-  static constexpr int value =
+          PropKey, std::tuple<Props...>>::type,
+      DefaultPropVal>;
+  static constexpr ConstType value =
       detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
 };
 
-// Filter the compile-time properties from a property list
+// Get the value of alignment from a property list
+// If alignment is not present in the property list, set to default value 0
+template <typename PropertyListT>
+using GetAlignFromPropList =
+    GetPropertyValueFromPropList<alignment_key, size_t, decltype(alignment<0>),
+                                 PropertyListT>;
+// Get the value of usm_kind from a property list
+// The usm_kind is sycl::usm::alloc::unknown by default
+template <typename PropertyListT>
+using GetUsmKindFromPropList = GetPropertyValueFromPropList<
+    usm_kind_key, sycl::usm::alloc, decltype(usm_kind<sycl::usm::alloc::unknown>), PropertyListT>;
+// Get the value of buffer_location from a property list
+// The buffer location is -1 by default
+template <typename PropertyListT>
+using GetBufferLocationFromPropList =
+    GetPropertyValueFromPropList<buffer_location_key, int,
+                                 decltype(sycl::ext::intel::experimental::buffer_location<-1>), PropertyListT>;
+
+// Check if a runtime property is valid
+template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
+
+// Validate the property list of annotated USM allocations by checking each
+// property is
+// 1. a valid compile-time property for annotated_ptr, or
+// 2. a valid runtime property for annotated USM allocations
+template <typename T, typename propertyList>
+struct ValidAllocPropertyList : std::false_type {};
+template <typename T>
+struct ValidAllocPropertyList<T, detail::empty_properties_t> : std::true_type {
+};
+template <typename T, typename Prop, typename... Props>
+struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
+    : std::integral_constant<
+          bool, (is_valid_property<T *, Prop>::value ||
+                 IsRuntimePropertyValid<Prop>::value) &&
+                    ValidAllocPropertyList<
+                        T, detail::properties_t<Props...>>::value> {
+  // check if a compile-time property is valid for annotated_ptr
+  static_assert(!detail::IsCompileTimePropertyValue<Prop>::value ||
+                    is_valid_property<T *, Prop>::value,
+                "Found invalid compile-time property in the property list.");
+  // check if a runtime property is valid for malloc
+  static_assert(!detail::IsRuntimeProperty<Prop>::value ||
+                    IsRuntimePropertyValid<Prop>::value,
+                "Found invalid runtime property in the property list.");
+};
+
+// The utility to filter a given property list to get the properties for
+// annotated_ptr
 template <typename PropertyListT> struct GetCompileTimeProperties {};
 
 template <> struct GetCompileTimeProperties<detail::empty_properties_t> {
@@ -153,13 +134,18 @@ struct GetCompileTimeProperties<detail::properties_t<Prop, Props...>> {
                                            filtered_other_properties_t>;
 };
 
-// Given the input property list of annotated USM allocation functions, generate
-// the property list for the annotated_ptr output of
-template <alloc Kind, typename PropertyListT>
+// Given the input property list `PropertyListT` and the usm kind `Kind` of
+// annotated USM allocation functions, generate the property list for the
+// returned annotated_ptr by following the rules:
+// 1. all the compile-time properties in PropertyListT should appear in the
+// output properties
+// 2. if PropertyListT contains usm_kind, the value should be the same as
+// `Kind`, usm_kind property should appear in the ouput properties
+// 3. if PropertyListT does not contain usm_kind, a usm_kind property with value
+// `Kind` is inserted in the ouput properties
+template <sycl::usm::alloc Kind, typename PropertyListT>
 struct GetAnnotatedPtrPropertiesWithUsmKind {};
-
-// Partial specialization
-template <alloc Kind, typename... Props>
+template <sycl::usm::alloc Kind, typename... Props>
 struct GetAnnotatedPtrPropertiesWithUsmKind<Kind,
                                             detail::properties_t<Props...>> {
   using input_properties_t = detail::properties_t<Props...>;
@@ -175,35 +161,53 @@ struct GetAnnotatedPtrPropertiesWithUsmKind<Kind,
                                   decltype(properties{usm_kind<Kind>})>;
 };
 
-// Validate the template arguments for annotated USM allocation functions, which
-// consist of
-//   allocated data type: T
-//   input property list: propertyListA
-//   property list for output anntoated_ptr: propertyListB
+// Check if the 3 template parameters of annotated USM allocation functions,
+// i.e.
+//   T: allocated data type
+//   propertyListA: input property list
+//   propertyListB: property list for output anntoated_ptr
+// meet the following conditions:
+//  1. T is not a property list
+//  2. propertyListB == all the compile-time properties in propertyListA
 template <typename T, typename propertyListA, typename propertyListB>
 struct CheckTAndPropLists : std::false_type {};
 
 template <typename T, typename... PropsA, typename... PropsB>
 struct CheckTAndPropLists<T, detail::properties_t<PropsA...>,
                           detail::properties_t<PropsB...>>
-    : std::conditional_t<
-          is_property_list<T>::value, std::false_type,
-          std::is_same<detail::properties_t<PropsB...>,
-                       typename GetCompileTimeProperties<
-                           detail::properties_t<PropsA...>>::type>> {};
+    : std::integral_constant<
+          bool,
+          !is_property_list<T>::value &&
+              std::is_same_v<detail::properties_t<PropsB...>,
+                             typename GetCompileTimeProperties<
+                                 detail::properties_t<PropsA...>>::type>> {};
 
-template <alloc Kind, typename T, typename propertyListA,
+// Check if the 3 template parameters of annotated USM allocation functions of a
+// certain usm kind:
+//   T: allocated data type
+//   propertyListA: input property list
+//   propertyListB: property list for output anntoated_ptr
+// meet the following conditions:
+//  1. T is not a property list
+//  2. if propertyListA contains usm_kind, the usm_kind must match with the
+//  specified usm kind.
+//     propertyListB is all the compile-time properties in propertyListA
+//  3. if propertyListA does not contain usm_kind, propertyListB is all the
+//  compile-time
+//     properties in propertyListA with the usm_kind property inserted
+template <sycl::usm::alloc Kind, typename T, typename propertyListA,
           typename propertyListB>
 struct CheckTAndPropListsWithUsmKind : std::false_type {};
 
-template <alloc Kind, typename T, typename... PropsA, typename... PropsB>
+template <sycl::usm::alloc Kind, typename T, typename... PropsA, typename... PropsB>
 struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
                                      detail::properties_t<PropsB...>>
-    : std::conditional_t<
-          is_property_list<T>::value, std::false_type,
-          std::is_same<detail::properties_t<PropsB...>,
-                       typename GetAnnotatedPtrPropertiesWithUsmKind<
-                           Kind, detail::properties_t<PropsA...>>::type>> {};
+    : std::integral_constant<
+          bool, !is_property_list<T>::value &&
+                    std::is_same_v<
+                        detail::properties_t<PropsB...>,
+                        typename GetAnnotatedPtrPropertiesWithUsmKind<
+                            Kind, detail::properties_t<PropsA...>>::type>> {};
 
 ////
 //  Utility functions for USM allocation with property support
@@ -215,7 +219,7 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 template <typename PropertyListT>
 inline property_list get_usm_property_list(const PropertyListT &propList) {
   if constexpr (HasBufferLocation<PropertyListT>::value) {
-    return property_list{usm_buffer_location(
+    return property_list{sycl::ext::intel::experimental::property::usm::buffer_location(
         GetBufferLocationFromPropList<PropertyListT>::value)};
   }
   return {};
