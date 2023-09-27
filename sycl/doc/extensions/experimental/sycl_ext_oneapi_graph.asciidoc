@@ -952,6 +952,9 @@ The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
 |
 [source,c++]
 ----
@@ -968,6 +971,9 @@ The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
 |
 [source,c++]
 ----
@@ -984,6 +990,9 @@ The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
 |===
 
 ==== New Handler Member Functions
@@ -1011,8 +1020,8 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if the handler is submitted
-  to a queue which doesn't have a SYCL context which matches the context of
-  the executable graph.
+  to a queue which is associated with a device or context that is different
+  from the device and context used on creation of the graph.
 
 * Throws synchronously with error code `invalid` if a previous submission of
   `graph` has yet to complete execution.
