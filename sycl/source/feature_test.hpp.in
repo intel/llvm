@@ -101,9 +101,5 @@ inline namespace _V1 {
 #include "detail/plugins/hip/features.hpp"
 #endif
 
-#if __has_include("detail/plugins/esimd_emulator/features.hpp")
-#include "detail/plugins/esimd_emulator/features.hpp"
-#endif
-
 } // namespace _V1
 } // namespace sycl
