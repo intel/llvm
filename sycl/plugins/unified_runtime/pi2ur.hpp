@@ -1254,9 +1254,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
-    // TODO: Re-enable when UR 'adapters' branch is updated
-    // PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
-    //                          UR_DEVICE_INFO_ESIMD_SUPPORT)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
+                             UR_DEVICE_INFO_ESIMD_SUPPORT)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
