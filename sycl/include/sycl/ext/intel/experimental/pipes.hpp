@@ -183,8 +183,7 @@ public:
   // Writing to pipe is lowered to SPIR-V instruction OpWritePipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
-  static void write(const _dataT &Data, bool &Success,
-                    _functionPropertiesT) {
+  static void write(const _dataT &Data, bool &Success, _functionPropertiesT) {
 #ifdef __SYCL_DEVICE_ONLY__
     // Get latency control properties
     using _latency_anchor_id_prop = typename detail::GetOrDefaultValT<
