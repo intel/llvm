@@ -610,32 +610,23 @@ device_image_scope
 ----
 a|
 This property is most useful for kernels that are submitted to an FPGA device,
-but it may be used with any kernel.  Normally, a single instance of a device
+but it may be used with any kernel. Normally, a single instance of a device
 global variable is allocated for each device, and that instance is shared by
-all kernels that belong to the same context and are submitted to the same device,
-regardless of which _device image_ contains the kernel.  When this property is
-specified, it is an assertion by the user that the device global is referenced
-only from kernels that are contained by the same _device image_ instance, a _device image_ loaded onto a specific device. An
+all kernels that belong to the same context and are submitted to the same device,regardless of which _device image_ contains the kernel.
+When this property is specified, it is an assertion by the user that on a given device a given device_global decorated with this property is only ever accessed in a single _device_image_. An
 implementation may be able to optimize accesses to the device global when this
 property is specified (especially on an FPGA device), but the user must be aware
-of which _device image_ instance contains the kernels that use the variable.
+of which _device image_ contains the kernels that use the variable.
 
 A device global that is decorated with this property may not be accessed from
-kernels that reside in different _device images_ instances, either by direct reference
+kernels that reside in different _device images_, either by direct reference
 to the variable or indirectly by passing the variable's address to another
 kernel.  The implementation is required to diagnose an error if the kernels
-that directly access a variable do not all reside in the same _device image_ instance,
+that directly access a variable do not all reside in the same _device image_,
 however no diagnostic is required for an indirect access from another _device
-image_ instance.
+image_.
 
-When a device global is decorated with this property, the implementation
-re-initializes it whenever the _device image_ is loaded onto the device.  As a
-result, the application can only be guaranteed that a device global retains its
-value between kernel invocations if it understands when the _device image_ is
-loaded onto the device.  For an FPGA, this happens whenever the device is
-reprogrammed.  Other devices typically load the _device image_ once before the
-first invocation of any kernel in that _device image_, and then it remains
-loaded onto the device until the program terminates.
+When a device global is decorated with this property, in addition to the general device_global rules about initialization mentioned previously, the implementation may also re-initialize it at implementation-defined times. However, the implementation is guaranteed not to re-initialize the device_global on a given device if all kernels run and all copied to/from device_globals decorated with this property on that device are from the same _device image_.
 
 The application may copy to or from a device global even before any kernel in
 the _device image_ is submitted to the device.  Doing so causes the device
@@ -643,7 +634,7 @@ global to be initialized immediately before the copy happens.  (Typically, the
 copy operation causes the _device image_ to be loaded onto the device also.)
 As a result, copying from a device global returns the initial value if the
 _device image_ that contains the variable is not currently loaded onto the
-device. It is undefined behavior to copy to or from a device global on a queue whose device cannot load a _device image_ that references the device global.
+device.
 
 a|
 [source,c++]
@@ -1039,6 +1030,8 @@ the variable _dest_, the implementation throws an `exception` with the
 If `PropertyListT` contains the `device_image_scope` property and the _dest_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property, kernels in the _device image_ containing the _dest_ variable must be compatible with the device that is associated with the `handler`. If this is not the case, the implementation throws an `exception` with the `errc::kernel_not_supported` error code.
 a| 
 [source, c++]
 ----
@@ -1063,6 +1056,8 @@ If `PropertyListT` contains the `device_image_scope` property and the _src_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
+If `PropertyListT` contains the `device_image_scope` property, kernels in the _device image_ containing the _src_ variable must be compatible with the device that is associated with the `handler`. If this is not the case, the implementation throws an `exception` with the `errc::kernel_not_supported` error code.
+
 a| 
 [source, c++]
 ----
@@ -1085,6 +1080,7 @@ If `PropertyListT` contains the `device_image_scope` property and the _dest_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
+If `PropertyListT` contains the `device_image_scope` property, kernels in the _device image_ containing the _dest_ variable must be compatible with the device that is associated with the `handler`. If this is not the case, the implementation throws an `exception` with the `errc::kernel_not_supported` error code.
 a| 
 [source, c++]
 ----
@@ -1107,6 +1103,8 @@ the variable _src_, the implementation throws an `exception` with the
 If `PropertyListT` contains the `device_image_scope` property and the _src_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property, kernels in the _device image_ containing the _src_ variable must be compatible with the device that is associated with the `handler`. If this is not the case, the implementation throws an `exception` with the `errc::kernel_not_supported` error code.
 |====
 --
 
