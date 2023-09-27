@@ -120,6 +120,8 @@
 ??$get_info@Ukernel_kernel_pipe_support@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Ulocal_mem_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Ulocal_mem_type@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4local_mem_type@info@12@XZ
+??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Umax_clock_frequency@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAHXZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
@@ -1087,6 +1089,8 @@
 ?free@_V1@sycl@@YAXPEAXAEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVqueue@45@@Z
+?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@W4image_type@12345@AEBVdevice@45@AEBVcontext@45@@Z
+?free_image_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@W4image_type@12345@AEBVqueue@45@@Z
 ?free_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?free_mipmap_mem@experimental@oneapi@ext@_V1@sycl@@YAXUimage_mem_handle@12345@AEBVqueue@45@@Z
 ?get@context@_V1@sycl@@QEBAPEAU_cl_context@@XZ
@@ -1131,6 +1135,7 @@
 ?getImageType@image_impl@detail@_V1@sycl@@AEAA?AW4_pi_mem_type@@XZ
 ?getInteropContext@SYCLMemObjT@detail@_V1@sycl@@UEBA?AV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getKernelName@handler@_V1@sycl@@AEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
+?getMaxWorkGroups@handler@_V1@sycl@@AEAA?AV?$optional@V?$array@_K$02@std@@@std@@XZ
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
