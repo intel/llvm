@@ -3,7 +3,7 @@
 
 // The test checks that:
 // 1. !sycl_explicit_simd metadata is generated for functions
-// 2. !intel_reqd_sub_group_size !1 is added to explicit SIMD
+// 2. !intel_reqd_sub_group_size 1 is added to explicit SIMD
 //    kernel
 
 template <typename name, typename Func>
