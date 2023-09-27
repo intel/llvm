@@ -166,7 +166,12 @@ created on UR command-buffer enqueue.
 There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
 
-![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
+If a command-buffer is about to be submitted to a queue with the profiling 
+property enabled, a profiling *StartEvent* is added to the end of the prefix.
+This event is used to get the command-buffer execution start time on the 
+device. 
+
+![L0 command-buffer diagram](images/L0_UR_command-buffer-v2.jpg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit two

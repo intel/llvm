@@ -11,6 +11,7 @@
 #include <mutex>
 #include <string.h>
 
+#include "command_buffer.hpp"
 #include "common.hpp"
 #include "event.hpp"
 #include "ur_level_zero.hpp"
@@ -446,6 +447,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
                              ///< bytes returned in propValue
 ) {
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
+
+  // A Command-buffer consists of three command-lists.
+  // The start time should therefore be taken from an event associated
+  // to the first command-list.
+  if ((Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) &&
+      (PropName == UR_PROFILING_INFO_COMMAND_START) && (Event->CommandData)) {
+    auto StartEvent = static_cast<ur_event_handle_t>(Event->CommandData);
+    return urEventGetProfilingInfo(StartEvent, UR_PROFILING_INFO_COMMAND_END,
+                                   PropValueSize, PropValue, PropValueSizeRet);
+  }
+
   if (Event->UrQueue &&
       (Event->UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) == 0) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
@@ -753,6 +765,13 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
     // Free the memory allocated in the urEnqueueMemBufferMap.
     if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
       return Res;
+    Event->CommandData = nullptr;
+  }
+  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP &&
+      Event->CommandData) {
+    // Free the memory extra event allocated for profiling purposed.
+    auto AssociateEvent = static_cast<ur_event_handle_t>(Event->CommandData);
+    urEventRelease(AssociateEvent);
     Event->CommandData = nullptr;
   }
   if (Event->OwnNativeHandle) {

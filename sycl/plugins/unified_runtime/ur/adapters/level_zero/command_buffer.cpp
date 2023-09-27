@@ -816,6 +816,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ZE2UR_CALL(zeCommandListAppendBarrier,
                (SignalCommandList->first, RetEvent->ZeEvent, 1,
                 &(CommandBuffer->SignalEvent->ZeEvent)));
+
+    if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
+      // We create an additional signal specific to the current execution of the
+      // CommandBuffer. This signal is needed for profiling the execution time
+      // of the CommandBuffer. It waits for the WaitEvent to be signaled
+      // which indicates the start of the CommandBuffer actual execution.
+      // This event is embedded into the Event return to the user to allow
+      // the profiling engine to retrieve it.
+      ur_event_handle_t StartEvent{};
+      UR_CALL(createEventAndAssociateQueue(
+          Queue, &StartEvent, UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
+          WaitCommandList, false));
+
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (WaitCommandList->first, StartEvent->ZeEvent, 1,
+                  &(CommandBuffer->WaitEvent->ZeEvent)));
+
+      RetEvent->CommandData = StartEvent;
+    }
   }
 
   // Execution our command-lists asynchronously
