@@ -19,8 +19,8 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <string_view>
 #include <type_traits>
-#include<string_view>
 
 #include <boost/unordered/unordered_flat_map.hpp>
 #include <boost/unordered_map.hpp>

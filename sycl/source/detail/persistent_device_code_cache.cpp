@@ -344,7 +344,7 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
   std::string_view ImgStringView(ImgString);
   std::string_view DeviceString{getDeviceIDString(Device)};
   std::string_view SpecConstsString{(const char *)SpecConsts.data(),
-                               SpecConsts.size()};
+                                    SpecConsts.size()};
   std::hash<std::string_view> StringHasher{};
 
   return cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
