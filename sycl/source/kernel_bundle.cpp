@@ -11,6 +11,8 @@
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+// #include <sycl/ext/intel/experimental/online_compiler.hpp>
+
 #include <set>
 
 namespace sycl {
@@ -347,21 +349,58 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
 }
 
 /////////////////////////
-// syclex::create_kernel_bundle_from_source
+// * kernel_compiler extension *
 /////////////////////////
 namespace ext::oneapi::experimental {
 
 namespace syclex = sycl::ext::oneapi::experimental;
 using source_kb = kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+using exe_kb = kernel_bundle<bundle_state::executable>;
 using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
 
-source_kb
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 const syclex::source_language Language,
-                                 const std::string &Source) {
+/////////////////////////
+// syclex::is_source_kernel_bundle_supported
+/////////////////////////
+bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
+  // TODO - maybe return false?
+  return true;
+}
+
+/////////////////////////
+// syclex::create_kernel_bundle_from_source
+/////////////////////////
+source_kb create_kernel_bundle_from_source(const context &SyclContext,
+                                           syclex::source_language Language,
+                                           const std::string &Source) {
+  // TODO -- throw errc::invalid if lang is not supported by BE.
+  // use syclex::is_source_kernel_bundle_supported(BE, Lang)
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source);
   return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+}
+
+/////////////////////////
+// syclex::build(source_kb) => exe_kb
+/////////////////////////
+
+exe_kb build(source_kb &SourceKB, const property_list &PropList) {
+
+  // CP gross test code.  Using existing OnlineCompiler as placeholder.
+  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
+  // sycl::ext::intel::experimental::online_compiler<sycl::ext::intel::experimental::source_language::opencl_c>
+  // Compiler;
+  std::vector<std::string> flags{"-cl-fast-relaxed-math",
+                                 "-cl-finite-math-only"};
+  std::string s = sourceImpl->Source;
+  std::cout << "sourcey: " << s << std::endl;
+  // std::vector<byte> SpirVec = Compiler.compile(sourceImpl->Source, flags);
+
+  backend BE = SourceKB.get_backend();
+
+  // CP fake code to compile for the nonce.  This constructor is empty.
+  std::shared_ptr<kernel_bundle_impl> KBImpl =
+      std::make_shared<kernel_bundle_impl>(SourceKB);
+  return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
 }
 
 } // namespace ext::oneapi::experimental

@@ -743,15 +743,29 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
+namespace ext::oneapi::experimental {
+namespace syclex = sycl::ext::oneapi::experimental;
+/////////////////////////
+// syclex::is_source_kernel_bundle_supported
+/////////////////////////
+__SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
+                                                     source_language Language);
+
 /////////////////////////
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
-namespace ext::oneapi::experimental {
-namespace syclex = sycl::ext::oneapi::experimental;
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
-                                 const syclex::source_language Language,
+                                 syclex::source_language Language,
                                  const std::string &Source);
+
+/////////////////////////
+// syclex::build(source_kb) => exe_kb
+/////////////////////////
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+      const property_list &PropList = {});
+
 } // namespace ext::oneapi::experimental
 
 } // namespace _V1

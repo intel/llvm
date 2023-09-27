@@ -44,7 +44,7 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
-// The class is an impl counterpart of the sycl::kernel_bundle.
+/// The class is an impl counterpart of the sycl::kernel_bundle.
 // It provides an access and utilities to manage set of sycl::device_images
 // objects.
 class kernel_bundle_impl {
@@ -325,10 +325,20 @@ public:
 
   // oneapi ext kernel_compiler
   // construct from source string
-  kernel_bundle_impl(const context &Context, const syclex::source_language Lang,
+  kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::string &Src)
       : MContext(Context), MDevices(Context.get_devices()),
         MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src) {}
+
+  // oneapi ext kernel_compiler
+  // construct exe from source kb.
+  kernel_bundle_impl(
+      const kernel_bundle<bundle_state::ext_oneapi_source> &SourceBundle)
+      : MContext(SourceBundle.get_context()),
+        MDevices(SourceBundle.get_devices()), MState(bundle_state::executable) {
+
+    // sourceImpl = getSyclObjImpl(SourceBundle);
+  }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
@@ -531,6 +541,12 @@ private:
   // ext_oneapi_kernel_compiler : Source and Languauge
   const syclex::source_language Language = syclex::source_language::opencl;
   const std::string Source;
+
+  // friend declaration for build(source_kb) is a wee ungainly
+  friend kernel_bundle<bundle_state::executable>
+  sycl::ext::oneapi::experimental::build(
+      kernel_bundle<sycl::bundle_state::ext_oneapi_source> &SourceKB,
+      const property_list &PropList);
 };
 
 } // namespace detail
