@@ -35,13 +35,17 @@ namespace experimental {
 struct usm_kind_key {
   template <sycl::usm::alloc Kind>
   using value_t =
-      property_value<usm_kind_key, std::integral_constant<sycl::usm::alloc, Kind>>;
+      property_value<usm_kind_key,
+                     std::integral_constant<sycl::usm::alloc, Kind>>;
 };
 
-template <sycl::usm::alloc Kind> inline constexpr usm_kind_key::value_t<Kind> usm_kind;
-inline constexpr usm_kind_key::value_t<sycl::usm::alloc::device> usm_kind_device;
+template <sycl::usm::alloc Kind>
+inline constexpr usm_kind_key::value_t<Kind> usm_kind;
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::device>
+    usm_kind_device;
 inline constexpr usm_kind_key::value_t<sycl::usm::alloc::host> usm_kind_host;
-inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared> usm_kind_shared;
+inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared>
+    usm_kind_shared;
 
 template <> struct is_property_key<usm_kind_key> : std::true_type {};
 
@@ -61,7 +65,8 @@ template <> struct PropertyToKind<usm_kind_key> {
 
 template <> struct IsCompileTimeProperty<usm_kind_key> : std::true_type {};
 
-template <sycl::usm::alloc Kind> struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
+template <sycl::usm::alloc Kind>
+struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
   static constexpr const char *name = "sycl-usm-kind";
   static constexpr sycl::usm::alloc value = Kind;
 };

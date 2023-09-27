@@ -68,14 +68,17 @@ using GetAlignFromPropList =
 // Get the value of usm_kind from a property list
 // The usm_kind is sycl::usm::alloc::unknown by default
 template <typename PropertyListT>
-using GetUsmKindFromPropList = GetPropertyValueFromPropList<
-    usm_kind_key, sycl::usm::alloc, decltype(usm_kind<sycl::usm::alloc::unknown>), PropertyListT>;
+using GetUsmKindFromPropList =
+    GetPropertyValueFromPropList<usm_kind_key, sycl::usm::alloc,
+                                 decltype(usm_kind<sycl::usm::alloc::unknown>),
+                                 PropertyListT>;
 // Get the value of buffer_location from a property list
 // The buffer location is -1 by default
 template <typename PropertyListT>
-using GetBufferLocationFromPropList =
-    GetPropertyValueFromPropList<buffer_location_key, int,
-                                 decltype(sycl::ext::intel::experimental::buffer_location<-1>), PropertyListT>;
+using GetBufferLocationFromPropList = GetPropertyValueFromPropList<
+    buffer_location_key, int,
+    decltype(sycl::ext::intel::experimental::buffer_location<-1>),
+    PropertyListT>;
 
 // Check if a runtime property is valid
 template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
@@ -199,7 +202,8 @@ template <sycl::usm::alloc Kind, typename T, typename propertyListA,
           typename propertyListB>
 struct CheckTAndPropListsWithUsmKind : std::false_type {};
 
-template <sycl::usm::alloc Kind, typename T, typename... PropsA, typename... PropsB>
+template <sycl::usm::alloc Kind, typename T, typename... PropsA,
+          typename... PropsB>
 struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
                                      detail::properties_t<PropsB...>>
     : std::integral_constant<
@@ -219,8 +223,9 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 template <typename PropertyListT>
 inline property_list get_usm_property_list(const PropertyListT &propList) {
   if constexpr (HasBufferLocation<PropertyListT>::value) {
-    return property_list{sycl::ext::intel::experimental::property::usm::buffer_location(
-        GetBufferLocationFromPropList<PropertyListT>::value)};
+    return property_list{
+        sycl::ext::intel::experimental::property::usm::buffer_location(
+            GetBufferLocationFromPropList<PropertyListT>::value)};
   }
   return {};
 }

@@ -22,7 +22,8 @@ using CheckDevicePtrTAndPropLists =
 
 template <typename PropertyListT>
 using GetAnnotatedDevicePtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::device, PropertyListT>;
+    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::device,
+                                         PropertyListT>;
 
 ////
 //  "aligned_alloc_device_annotated": aligned device USM allocation functions
@@ -45,8 +46,9 @@ aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  auto tmp = aligned_alloc_annotated(alignment, numBytes, syclDevice,
-                                     syclContext, sycl::usm::alloc::device, propList);
+  auto tmp =
+      aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
+                              sycl::usm::alloc::device, propList);
   return {tmp.get()};
 }
 
@@ -60,8 +62,9 @@ aligned_alloc_device_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  auto tmp = aligned_alloc_annotated<T>(alignment, count, syclDevice,
-                                        syclContext, sycl::usm::alloc::device, propList);
+  auto tmp =
+      aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
+                                 sycl::usm::alloc::device, propList);
   return {tmp.get()};
 }
 

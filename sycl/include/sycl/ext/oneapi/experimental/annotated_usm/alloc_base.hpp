@@ -48,7 +48,8 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
   const property_list &usmPropList = get_usm_property_list(propList);
 
   if constexpr (HasUsmKind<propertyListA>::value) {
-    constexpr sycl::usm::alloc usmKind = GetUsmKindFromPropList<propertyListA>::value;
+    constexpr sycl::usm::alloc usmKind =
+        GetUsmKindFromPropList<propertyListA>::value;
     if (usmKind != kind) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::invalid),
@@ -181,7 +182,8 @@ std::enable_if_t<CheckTAndPropLists<void, propertyListA, propertyListB>::value,
                  annotated_ptr<void, propertyListB>>
 malloc_annotated(size_t numBytes, const device &syclDevice,
                  const context &syclContext, const propertyListA &propList) {
-  constexpr sycl::usm::alloc usmKind = GetUsmKindFromPropList<propertyListA>::value;
+  constexpr sycl::usm::alloc usmKind =
+      GetUsmKindFromPropList<propertyListA>::value;
   static_assert(usmKind != sycl::usm::alloc::unknown,
                 "USM kind is not specified. Please specify it as an argument "
                 "or in the input property list.");
@@ -195,7 +197,8 @@ std::enable_if_t<CheckTAndPropLists<T, propertyListA, propertyListB>::value,
                  annotated_ptr<T, propertyListB>>
 malloc_annotated(size_t count, const device &syclDevice,
                  const context &syclContext, const propertyListA &propList) {
-  constexpr sycl::usm::alloc usmKind = GetUsmKindFromPropList<propertyListA>::value;
+  constexpr sycl::usm::alloc usmKind =
+      GetUsmKindFromPropList<propertyListA>::value;
   static_assert(usmKind != sycl::usm::alloc::unknown,
                 "USM kind is not specified. Please specify it as an argument "
                 "or in the input property list.");

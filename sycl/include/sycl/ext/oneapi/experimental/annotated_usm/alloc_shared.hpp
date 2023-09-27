@@ -22,7 +22,8 @@ using CheckSharedPtrTAndPropLists =
 
 template <typename PropertyListT>
 using GetAnnotatedSharedPtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::shared, PropertyListT>;
+    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::shared,
+                                         PropertyListT>;
 
 ////
 //  Aligned shared USM allocation functions with properties support
@@ -45,8 +46,9 @@ aligned_alloc_shared_annotated(size_t alignment, size_t numBytes,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  auto tmp = aligned_alloc_annotated(alignment, numBytes, syclDevice,
-                                     syclContext, sycl::usm::alloc::shared, propList);
+  auto tmp =
+      aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
+                              sycl::usm::alloc::shared, propList);
   return {tmp.get()};
 }
 
@@ -60,8 +62,9 @@ aligned_alloc_shared_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  auto tmp = aligned_alloc_annotated<T>(alignment, count, syclDevice,
-                                        syclContext, sycl::usm::alloc::shared, propList);
+  auto tmp =
+      aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
+                                 sycl::usm::alloc::shared, propList);
   return {tmp.get()};
 }
 
