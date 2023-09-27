@@ -507,31 +507,19 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
-static std::string_view applyCompileOptionsFromEnvironment() {
+static std::string_view getCompileOptionsFromEnvironment() {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  std::string_view CompileOpts;
-  if (CompileOptsEnv) {
-    CompileOpts = std::string_view(CompileOptsEnv);
-  } else {
-    CompileOpts = std::string_view{};
-  }
-  return CompileOpts;
+  return CompileOptsEnv ? std::string_view(CompileOptsEnv) : std::string_view();
 }
 
-static std::string_view applyLinkOptionsFromEnvironment() {
+static std::string_view getLinkOptionsFromEnvironment() {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
-  std::string_view LinkOpts;
-  if (LinkOptsEnv) {
-    LinkOpts = std::string_view(LinkOptsEnv);
-  } else {
-    LinkOpts = std::string_view{};
-  }
-  return LinkOpts;
+  return LinkOptsEnv ? std::string_view(LinkOptsEnv) : std::string_view();
 }
 
 std::pair<sycl::detail::pi::PiProgram, bool>
@@ -572,22 +560,24 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const program_impl *Prg,
+    const std::string &KernelName,const program_impl *Prg,
     bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string_view CompileOpts, LinkOpts;
-  if (Prg) {
+
+   if (Prg) {
     CompileOpts = Prg->get_build_options();
-  }
+   }
 
-  CompileOpts = applyCompileOptionsFromEnvironment();
-  LinkOpts = applyLinkOptionsFromEnvironment();
-
+  CompileOpts = getCompileOptionsFromEnvironment();
+  LinkOpts = getLinkOptionsFromEnvironment();
+  
   SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
+   if (Prg)
+     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
+ 
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
   DeviceImplPtr RootDevImpl = DeviceImpl;
@@ -615,15 +605,12 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
-  std::string CompileOptsString, LinkOptsString;
-  if (!CompileOpts.empty())
-    CompileOptsString = std::string(CompileOpts);
-  if (!LinkOpts.empty())
-    LinkOptsString = std::string(LinkOpts);
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg,
-                 &CompileOptsString, &LinkOptsString, SpecConsts] {
+                 &CompileOpts, &LinkOpts, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
+    std::string CompileOptsString = CompileOpts.empty() ? "" : std::string(CompileOpts);
+    std::string LinkOptsString = LinkOpts.empty() ? "" : std::string(LinkOpts);
     applyOptionsFromImage(CompileOptsString, LinkOptsString, Img, {Device},
                           Plugin);
     std::string_view CompileOptsupdated(CompileOptsString);
@@ -680,12 +667,12 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   };
 
   uint32_t ImgId = Img.getImageID();
-  std::string_view CompileOptsUpdated =
-      CompileOptsString.empty() ? CompileOpts
-                                : std::string_view(CompileOptsString);
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
+  /*Drop LinkOptions from CacheKey since they are only used when debugging 
+   * environment variables are set and we can just ignore them 
+   * since all kernels will have their build options overridden with the same string*/
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 std::make_pair(PiDevice, CompileOptsUpdated));
+                                 std::make_pair(PiDevice, CompileOpts));
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -720,8 +707,8 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     CompileOpts = Prg->get_build_options();
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
-  CompileOpts = applyCompileOptionsFromEnvironment();
-  LinkOpts = applyLinkOptionsFromEnvironment();
+  CompileOpts = getCompileOptionsFromEnvironment();
+  LinkOpts = getLinkOptionsFromEnvironment();
 
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
@@ -2143,7 +2130,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   // TODO: Handle zero sized Device list.
-  std::string_view CompileOptions = applyCompileOptionsFromEnvironment();
+  std::string_view CompileOptions = getCompileOptionsFromEnvironment();
   std::string CompileOptionsStr(CompileOptions);
   appendCompileOptionsFromImage(
       CompileOptionsStr, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
@@ -2177,7 +2164,7 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
-  std::string_view LinkOptions = applyLinkOptionsFromEnvironment();
+  std::string_view LinkOptions = getLinkOptionsFromEnvironment();
   std::string LinkOptionsStr(LinkOptions);
   if (LinkOptionsStr.empty()) {
     const std::shared_ptr<device_image_impl> &InputImpl =
@@ -2280,26 +2267,22 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
-  std::string_view CompileOpts = applyCompileOptionsFromEnvironment();
-  std::string_view LinkOpts = applyLinkOptionsFromEnvironment();
+  std::string_view CompileOpts = getCompileOptionsFromEnvironment();
+  std::string_view LinkOpts = getLinkOptionsFromEnvironment();
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
 
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
-  std::string CompileOptsString;
-  std::string LinkOptsString;
-  if (!CompileOpts.empty())
-    CompileOptsString = std::string(CompileOpts);
-  if (!LinkOpts.empty())
-    LinkOptsString = std::string(LinkOpts);
-
+ 
   // TODO: Unify this code with getBuiltPIProgram
 
-  auto BuildF = [this, &Context, &Img, &Devs, CompileOpts, &InputImpl,
-                 SpecConsts, &CompileOptsString, &LinkOptsString] {
+  auto BuildF = [this, &Context, &Img, &Devs, &InputImpl,
+                 SpecConsts, &CompileOpts, &LinkOpts] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
+    std::string CompileOptsString = CompileOpts.empty() ? "" : std::string(CompileOpts);
+    std::string LinkOptsString = LinkOpts.empty() ? "" : std::string(LinkOpts);
     applyOptionsFromImage(CompileOptsString, LinkOptsString, Img, Devs, Plugin);
     std::string_view CompileOptsUpdated(CompileOptsString);
     std::string_view LinkOptsUpdated(LinkOptsString);
@@ -2360,14 +2343,15 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
-  std::string_view CompileOptsUpdated =
-      CompileOptsString.empty() ? CompileOpts
-                                : std::string_view(CompileOptsString);
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
+  /*Drop LinkOptions from CacheKey since they are only used when debugging
+ * environment variables are set and we can just ignore them
+ * since all kernels will have their build options overridden with the same string*/
+
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 std::make_pair(PiDevice, CompileOptsUpdated));
+                                 std::make_pair(PiDevice, CompileOpts));
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.

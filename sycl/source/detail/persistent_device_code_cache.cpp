@@ -341,15 +341,16 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
   if (Img.getRawData().BinaryStart)
     ImgString.assign((const char *)Img.getRawData().BinaryStart, Img.getSize());
 
-  std::string DeviceString{getDeviceIDString(Device)};
-  std::string SpecConstsString{(const char *)SpecConsts.data(),
+  std::string_view ImgStringView(ImgString);
+  std::string_view DeviceString{getDeviceIDString(Device)};
+  std::string_view SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
-  std::hash<std::string> StringHasher{};
+  std::hash<std::string_view> StringHasher{};
 
   return cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
-         std::to_string(StringHasher(ImgString)) + "/" +
+         std::to_string(StringHasher(ImgStringView)) + "/" +
          std::to_string(StringHasher(SpecConstsString)) + "/" +
-         std::to_string(StringHasher(std::string(BuildOptionsString)));
+         std::to_string(StringHasher(BuildOptionsString));
 }
 
 /* Returns true if persistent cache is enabled.
