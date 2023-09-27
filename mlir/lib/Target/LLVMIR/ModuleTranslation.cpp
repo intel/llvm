@@ -1057,25 +1057,22 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     }
 
     // Convert intel_reqd_sub_group_size attribute to metadata.
-    if (Attribute sgSize = function->getAttr("intel_reqd_sub_group_size")) {
-      TypeSwitch<Attribute>(sgSize).Case<IntegerAttr, StringAttr>(
-          [&](auto sgSize) {
-            llvm::LLVMContext &ctx = llvmModule->getContext();
-            llvmFunc->setMetadata(
-                "intel_reqd_sub_group_size",
-                llvm::MDNode::get(
-                    ctx,
-                    {TypeSwitch<Attribute, llvm::Metadata *>(sgSize)
-                         .template Case<IntegerAttr>([&](auto intAttr) {
-                           llvm::IntegerType *i32Ty =
-                               llvm::IntegerType::get(ctx, 32);
-                           return llvm::ConstantAsMetadata::get(
-                               llvm::ConstantInt::get(i32Ty, intAttr.getInt()));
-                         })
-                         .template Case<StringAttr>([&](auto strAttr) {
-                           return llvm::MDString::get(ctx, strAttr.getValue());
-                         })}));
-          });
+    if (Attribute sgSize = function->getAttr("intel_reqd_sub_group_size");
+        isa_and_nonnull<IntegerAttr, StringAttr>(sgSize)) {
+      llvm::LLVMContext &ctx = llvmModule->getContext();
+      llvmFunc->setMetadata(
+          "intel_reqd_sub_group_size",
+          llvm::MDNode::get(
+              ctx, {TypeSwitch<Attribute, llvm::Metadata *>(sgSize)
+                        .template Case<IntegerAttr>([&](auto intAttr) {
+                          llvm::IntegerType *i32Ty =
+                              llvm::IntegerType::get(ctx, 32);
+                          return llvm::ConstantAsMetadata::get(
+                              llvm::ConstantInt::get(i32Ty, intAttr.getInt()));
+                        })
+                        .template Case<StringAttr>([&](auto strAttr) {
+                          return llvm::MDString::get(ctx, strAttr.getValue());
+                        })}));
     }
 
     // Convert sycl_explicit_simd attribute to metadata.
