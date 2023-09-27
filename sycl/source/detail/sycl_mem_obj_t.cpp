@@ -223,6 +223,14 @@ void SYCLMemObjT::detachMemoryObject(
     Scheduler::getInstance().deferMemObjRelease(Self);
 }
 
+void SYCLMemObjT::handleWriteAccessorCreation() {
+  MCreateShadowCopy();
+  MCreateShadowCopy = []() -> void {};
+  for (auto &it : MRecord->MAllocaCommands) {
+    it->MMemAllocation = MUserPtr;
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
