@@ -622,8 +622,18 @@
 // Verify header search dirs are added with -fsycl
 // RUN: %clang -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // RUN: %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
-// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
-// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"{{.*}}
+// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// CHECK-HEADER-DIR-NOT: -internal-isystem
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-NOT: -internal-isystem
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
+// CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// CHECK-HEADER-DIR-NOT: -internal-isystem
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-NOT: -internal-isystem
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
 
 /// Check for option incompatibility with -fsycl
 // RUN:   not %clang -### -fsycl -ffreestanding %s 2>&1 \
@@ -644,30 +654,3 @@
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
 // RUN: %clang_cl -### -fsycl  %s 2>&1 | FileCheck -check-prefix FSYCL-CHECK %s
 // FSYCL-CHECK: warning: treating 'c' input as 'c++' when -fsycl is used [-Wexpected-file-type]
-
-/// ###########################################################################
-
-/// Verify --offload-new-driver option phases
-// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64 --offload-new-driver -ccc-print-phases %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=OFFLOAD-NEW-DRIVER %s
-// OFFLOAD-NEW-DRIVER: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 1: append-footer, {0}, c++, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 3: compiler, {2}, ir, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 4: input, "[[INPUT]]", c++, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 6: compiler, {5}, ir, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 7: backend, {6}, assembler, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 8: assembler, {7}, object, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 9: offload, "device-sycl (nvptx64-nvidia-cuda)" {8}, object
-// OFFLOAD-NEW-DRIVER: 10: input, "[[INPUT]]", c++, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 11: preprocessor, {10}, c++-cpp-output, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 12: compiler, {11}, ir, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 13: backend, {12}, assembler, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 14: assembler, {13}, object, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 15: offload, "device-sycl (spir64-unknown-unknown)" {14}, object
-// OFFLOAD-NEW-DRIVER: 16: clang-offload-packager, {9, 15}, image, (device-sycl)
-// OFFLOAD-NEW-DRIVER: 17: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (x86_64-unknown-linux-gnu)" {16}, ir
-// OFFLOAD-NEW-DRIVER: 18: backend, {17}, assembler, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 19: assembler, {18}, object, (host-sycl)
-// OFFLOAD-NEW-DRIVER: 20: clang-linker-wrapper, {19}, image, (host-sycl)

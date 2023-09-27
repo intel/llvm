@@ -24,34 +24,34 @@ using namespace sycl::ext::intel::esimd;
 template <unsigned VL, class T, class F>
 bool test(queue q, std::string str, F funcUnderTest) {
   std::cout << "Testing " << str << ", VL = " << VL << " ...\n";
-  T A[VL];
-  T B[VL];
+  size_t Size = 4 * VL;
+  T A[Size];
+  T B[Size];
   constexpr unsigned HalfVL = VL > 1 ? (VL / 2) : 1;
 
   // The expected result gets the first half of values from B,
-  int gold[VL];
-  for (int i = 0; i < VL; ++i) {
+  int gold[Size];
+  for (int i = 0; i < Size; ++i) {
     A[i] = -i - 1;
     B[i] = i + 1;
-    gold[i] = ((VL > 1) && (i < HalfVL)) ? B[i] : A[i];
+    gold[i] = ((VL > 1) && ((i % VL) < HalfVL)) ? B[i] : A[i];
   }
 
   try {
-    buffer<T, 1> bufA(A, range<1>(VL));
-    buffer<T, 1> bufB(B, range<1>(VL));
-    range<1> glob_range{1};
+    buffer<T, 1> BufA(A, range<1>(Size));
+    buffer<T, 1> BufB(B, range<1>(Size));
 
     q.submit([&](handler &cgh) {
-       auto PA = bufA.template get_access<access::mode::read_write>(cgh);
-       auto PB = bufB.template get_access<access::mode::read>(cgh);
-       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
+       auto PA = BufA.template get_access<access::mode::read_write>(cgh);
+       auto PB = BufB.template get_access<access::mode::read_write>(cgh);
+       cgh.parallel_for(range<1>{Size / VL}, [=](id<1> i) SYCL_ESIMD_KERNEL {
          using namespace sycl::ext::intel::esimd;
          unsigned int offset = i * VL * sizeof(T);
          simd<T, VL> va;
          simd<T, VL> vb;
          if constexpr (VL == 1) {
-           va[0] = scalar_load<T>(PA, 0);
-           vb[0] = scalar_load<T>(PB, 0);
+           va[0] = scalar_load<T>(PA, offset);
+           vb[0] = scalar_load<T>(PB, offset);
          } else {
            va.copy_from(PA, offset);
            vb.copy_from(PB, offset);
@@ -62,7 +62,7 @@ bool test(queue q, std::string str, F funcUnderTest) {
          funcUnderTest(va_view, vb_view);
 
          if constexpr (VL == 1) {
-           scalar_store(PB, 0, (T)va[0]);
+           scalar_store(PB, offset, (T)va[0]);
          } else {
            va.copy_to(PA, offset);
          }
@@ -74,7 +74,7 @@ bool test(queue q, std::string str, F funcUnderTest) {
   }
 
   int err_cnt = 0;
-  for (unsigned i = 0; i < VL; ++i) {
+  for (unsigned i = 0; i < Size; ++i) {
     if (A[i] != gold[i]) {
       err_cnt++;
       std::cout << "failed at index " << i << ": " << A[i] << " != " << gold[i]
@@ -157,8 +157,7 @@ template <class T> bool testT(queue &q) {
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  esimd_test::printTestLabel(q);
   bool passed = true;
   passed &= testT<char>(q);
   passed &= testT<float>(q);

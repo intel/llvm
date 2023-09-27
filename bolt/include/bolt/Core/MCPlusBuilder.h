@@ -170,6 +170,7 @@ protected:
   /// MCPlusBuilder classes must use convert/lower/create* interfaces instead.
   void setTailCall(MCInst &Inst);
 
+public:
   /// Transfer annotations from \p SrcInst to \p DstInst.
   void moveAnnotations(MCInst &&SrcInst, MCInst &DstInst) const {
     assert(!getAnnotationInst(DstInst) &&
@@ -182,7 +183,6 @@ protected:
     removeAnnotationInst(SrcInst);
   }
 
-public:
   /// Return iterator range covering def operands.
   iterator_range<MCInst::iterator> defOperands(MCInst &Inst) const {
     return make_range(Inst.begin(),
@@ -437,7 +437,7 @@ public:
   virtual bool isUnsupportedBranch(const MCInst &Inst) const { return false; }
 
   /// Return true of the instruction is of pseudo kind.
-  bool isPseudo(const MCInst &Inst) const {
+  virtual bool isPseudo(const MCInst &Inst) const {
     return Info->get(Inst.getOpcode()).isPseudo();
   }
 
@@ -613,14 +613,12 @@ public:
 
   virtual bool isMoveMem2Reg(const MCInst &Inst) const { return false; }
 
-  virtual bool isLoad(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
+  virtual bool mayLoad(const MCInst &Inst) const {
+    return Info->get(Inst.getOpcode()).mayLoad();
   }
 
-  virtual bool isStore(const MCInst &Inst) const {
-    llvm_unreachable("not implemented");
-    return false;
+  virtual bool mayStore(const MCInst &Inst) const {
+    return Info->get(Inst.getOpcode()).mayStore();
   }
 
   virtual bool isCleanRegXOR(const MCInst &Inst) const {

@@ -139,6 +139,7 @@ def LLVM_ICmpOp : LLVM_ArithmeticCmpOp<"icmp", [Pure]> {
   // Set the $predicate index to -1 to indicate there is no matching operand
   // and decrement the following indices.
   list<int> llvmArgIndices = [-1, 0, 1];
+  let hasFolder = 1;
 }
 
 // Other floating-point operations.
@@ -325,9 +326,10 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure,
 }
 
 def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
-    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     DeclareOpInterfaceMethods<PromotableMemOpInterface>,
      DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
-  dag args = (ins Arg<LLVM_PointerTo<LLVM_LoadableType>, "", [MemRead]>:$addr,
+  dag args = (ins LLVM_PointerTo<LLVM_LoadableType>:$addr,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_,
               UnitAttr:$nontemporal,
@@ -398,10 +400,11 @@ def LLVM_LoadOp : LLVM_MemAccessOpBase<"load",
 }
 
 def LLVM_StoreOp : LLVM_MemAccessOpBase<"store",
-    [DeclareOpInterfaceMethods<PromotableMemOpInterface>,
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+     DeclareOpInterfaceMethods<PromotableMemOpInterface>,
      DeclareOpInterfaceMethods<SafeMemorySlotAccessOpInterface>]> {
   dag args = (ins LLVM_LoadableType:$value,
-              Arg<LLVM_PointerTo<LLVM_LoadableType>,"",[MemWrite]>:$addr,
+              LLVM_PointerTo<LLVM_LoadableType>:$addr,
               OptionalAttr<I64Attr>:$alignment,
               UnitAttr:$volatile_,
               UnitAttr:$nontemporal,
@@ -1462,6 +1465,31 @@ def LLVM_NullOp
   let assemblyFormat = "attr-dict `:` qualified(type($res))";
 }
 
+def LLVM_NoneTokenOp
+    : LLVM_Op<"mlir.none", [Pure]> {
+  let summary = "Defines a value containing an empty token to LLVM type.";
+  let description = [{
+    Unlike LLVM IR, MLIR does not have first-class token values. They must be
+    explicitly created as SSA values using `llvm.mlir.none`. This operation has
+    no operands or attributes, and returns a none token value of a wrapped LLVM IR
+    pointer type.
+
+    Examples:
+
+    ```mlir
+    %0 = llvm.mlir.none : !llvm.token
+    ```
+  }];
+
+  string llvmBuilder = [{
+    $res = llvm::ConstantTokenNone::get(builder.getContext());
+  }];
+
+  let results = (outs LLVM_TokenType:$res);
+  let builders = [LLVM_OneResultOpBuilder];
+  let assemblyFormat = "attr-dict `:` type($res)";
+}
+
 def LLVM_UndefOp : LLVM_Op<"mlir.undef", [Pure]>,
                    LLVM_Builder<"$res = llvm::UndefValue::get($_resultType);"> {
   let summary = "Creates an undefined value of LLVM dialect type.";
@@ -1503,6 +1531,31 @@ def LLVM_PoisonOp : LLVM_Op<"mlir.poison", [Pure]>,
   let results = (outs LLVM_Type:$res);
   let builders = [LLVM_OneResultOpBuilder];
   let assemblyFormat = "attr-dict `:` type($res)";
+}
+
+def LLVM_ZeroOp
+    : LLVM_Op<"mlir.zero", [Pure]>,
+      LLVM_Builder<"$res = llvm::Constant::getNullValue($_resultType);">
+{
+  let summary = "Creates a zero-initialized value of LLVM dialect type.";
+  let description = [{
+    Unlike LLVM IR, MLIR does not have first-class zero-initialized values.
+    Such values must be created as SSA values using `llvm.mlir.zero`. This
+    operation has no operands or attributes. It creates a zero-initialized
+    value of the specified LLVM IR dialect type.
+
+    Example:
+
+    ```mlir
+    // Create a zero-initialized value for a structure with a 32-bit integer
+    // followed by a float.
+    %0 = llvm.mlir.zero : !llvm.struct<(i32, f32)>
+    ```
+  }];
+  let results = (outs LLVM_Type:$res);
+  let builders = [LLVM_OneResultOpBuilder];
+  let assemblyFormat = "attr-dict `:` type($res)";
+  let hasVerifier = 1;
 }
 
 def LLVM_ConstantOp
@@ -1560,6 +1613,17 @@ def LLVM_ConstantOp
       build($_builder, $_state, value.getType(), value);
     }]>
   ];
+
+  let extraClassDeclaration = [{
+    /// Whether the constant op can be constructed with a particular value and
+    /// type.
+    static bool isBuildableWith(Attribute value, Type type);
+
+    /// Build the constant op with `value` and `type` if possible, otherwise
+    /// returns null.
+    static ConstantOp materialize(OpBuilder &builder, Attribute value,
+                                  Type type, Location loc);
+  }];
 
   let hasFolder = 1;
   let hasVerifier = 1;

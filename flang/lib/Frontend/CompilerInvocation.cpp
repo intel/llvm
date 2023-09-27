@@ -98,12 +98,12 @@ static bool parseShowColorsArgs(const llvm::opt::ArgList &args,
 /// Extracts the optimisation level from \a args.
 static unsigned getOptimizationLevel(llvm::opt::ArgList &args,
                                      clang::DiagnosticsEngine &diags) {
-  unsigned defaultOpt = llvm::CodeGenOpt::None;
+  unsigned defaultOpt = 0;
 
   if (llvm::opt::Arg *a =
           args.getLastArg(clang::driver::options::OPT_O_Group)) {
     if (a->getOption().matches(clang::driver::options::OPT_O0))
-      return llvm::CodeGenOpt::None;
+      return 0;
 
     assert(a->getOption().matches(clang::driver::options::OPT_O));
 
@@ -266,6 +266,21 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
   opts.OptimizationRemarkAnalysis = parseOptimizationRemark(
       diags, args, clang::driver::options::OPT_Rpass_analysis_EQ,
       /*remarkOptName=*/"pass-analysis");
+
+  if (opts.getDebugInfo() == llvm::codegenoptions::NoDebugInfo) {
+    // If the user requested a flag that requires source locations available in
+    // the backend, make sure that the backend tracks source location
+    // information.
+    bool needLocTracking = !opts.OptRecordFile.empty() ||
+                           !opts.OptRecordPasses.empty() ||
+                           !opts.OptRecordFormat.empty() ||
+                           opts.OptimizationRemark.hasValidPattern() ||
+                           opts.OptimizationRemarkMissed.hasValidPattern() ||
+                           opts.OptimizationRemarkAnalysis.hasValidPattern();
+
+    if (needLocTracking)
+      opts.setDebugInfo(llvm::codegenoptions::LocTrackingOnly);
+  }
 
   if (auto *a = args.getLastArg(clang::driver::options::OPT_save_temps_EQ))
     opts.SaveTempsDir = a->getValue();
@@ -1222,7 +1237,8 @@ void CompilerInvocation::setSemanticsOpts(
       .set_searchDirectories(fortranOptions.searchDirectories)
       .set_intrinsicModuleDirectories(fortranOptions.intrinsicModuleDirectories)
       .set_warningsAreErrors(getWarnAsErr())
-      .set_moduleFileSuffix(getModuleFileSuffix());
+      .set_moduleFileSuffix(getModuleFileSuffix())
+      .set_underscoring(getCodeGenOpts().Underscoring);
 
   llvm::Triple targetTriple{llvm::Triple(this->targetOpts.triple)};
   // FIXME: Handle real(3) ?
@@ -1247,6 +1263,7 @@ void CompilerInvocation::setLoweringOptions() {
 
   // Lower TRANSPOSE as a runtime call under -O0.
   loweringOpts.setOptimizeTranspose(codegenOpts.OptimizationLevel > 0);
+  loweringOpts.setUnderscoring(codegenOpts.Underscoring);
 
   const LangOptions &langOptions = getLangOpts();
   Fortran::common::MathOptionsBase &mathOpts = loweringOpts.getMathOptions();

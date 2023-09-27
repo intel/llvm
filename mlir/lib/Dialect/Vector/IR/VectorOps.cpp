@@ -42,9 +42,9 @@
 #include <cstdint>
 #include <numeric>
 
-#include "mlir/Dialect/Vector/IR/VectorOpsDialect.cpp.inc"
+#include "mlir/Dialect/Vector/IR/VectorDialect.cpp.inc"
 // Pull in all enum type and utility function definitions.
-#include "mlir/Dialect/Vector/IR/VectorOpsEnums.cpp.inc"
+#include "mlir/Dialect/Vector/IR/VectorEnums.cpp.inc"
 
 using namespace mlir;
 using namespace mlir::vector;
@@ -125,6 +125,8 @@ static bool isSupportedCombiningKind(CombiningKind combiningKind,
     return elementType.isIntOrIndex();
   case CombiningKind::MINF:
   case CombiningKind::MAXF:
+  case CombiningKind::MINIMUMF:
+  case CombiningKind::MAXIMUMF:
     return llvm::isa<FloatType>(elementType);
   }
   return false;
@@ -172,24 +174,21 @@ bool mlir::vector::isDisjointTransferIndices(
     return false;
   unsigned rankOffset = transferA.getLeadingShapedRank();
   for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
-    auto indexA = transferA.indices()[i].getDefiningOp<arith::ConstantOp>();
-    auto indexB = transferB.indices()[i].getDefiningOp<arith::ConstantOp>();
+    auto indexA = getConstantIntValue(transferA.indices()[i]);
+    auto indexB = getConstantIntValue(transferB.indices()[i]);
     // If any of the indices are dynamic we cannot prove anything.
-    if (!indexA || !indexB)
+    if (!indexA.has_value() || !indexB.has_value())
       continue;
 
     if (i < rankOffset) {
       // For leading dimensions, if we can prove that index are different we
       // know we are accessing disjoint slices.
-      if (llvm::cast<IntegerAttr>(indexA.getValue()).getInt() !=
-          llvm::cast<IntegerAttr>(indexB.getValue()).getInt())
+      if (*indexA != *indexB)
         return true;
     } else {
       // For this dimension, we slice a part of the memref we need to make sure
       // the intervals accessed don't overlap.
-      int64_t distance =
-          std::abs(llvm::cast<IntegerAttr>(indexA.getValue()).getInt() -
-                   llvm::cast<IntegerAttr>(indexB.getValue()).getInt());
+      int64_t distance = std::abs(*indexA - *indexB);
       if (distance >= transferA.getVectorType().getDimSize(i - rankOffset))
         return true;
     }
@@ -257,7 +256,7 @@ struct BitmaskEnumStorage : public AttributeStorage {
 void VectorDialect::initialize() {
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "mlir/Dialect/Vector/IR/VectorOpsAttrDefs.cpp.inc"
+#include "mlir/Dialect/Vector/IR/VectorAttributes.cpp.inc"
       >();
 
   addOperations<
@@ -416,15 +415,17 @@ void MultiDimReductionOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 void vector::ReductionOp::build(OpBuilder &builder, OperationState &result,
-                                CombiningKind kind, Value vector) {
-  build(builder, result, kind, vector, /*acc=*/Value());
+                                CombiningKind kind, Value vector,
+                                arith::FastMathFlags fastMathFlags) {
+  build(builder, result, kind, vector, /*acc=*/Value(), fastMathFlags);
 }
 
 void vector::ReductionOp::build(OpBuilder &builder, OperationState &result,
-                                CombiningKind kind, Value vector, Value acc) {
+                                CombiningKind kind, Value vector, Value acc,
+                                arith::FastMathFlags fastMathFlags) {
   build(builder, result,
         llvm::cast<VectorType>(vector.getType()).getElementType(), kind, vector,
-        acc);
+        acc, fastMathFlags);
 }
 
 LogicalResult ReductionOp::verify() {
@@ -448,9 +449,13 @@ ParseResult ReductionOp::parse(OpAsmParser &parser, OperationState &result) {
   Type redType;
   Type resType;
   CombiningKindAttr kindAttr;
+  arith::FastMathFlagsAttr fastMathAttr;
   if (parser.parseCustomAttributeWithFallback(kindAttr, Type{}, "kind",
                                               result.attributes) ||
       parser.parseComma() || parser.parseOperandList(operandsInfo) ||
+      (succeeded(parser.parseOptionalKeyword("fastmath")) &&
+       parser.parseCustomAttributeWithFallback(fastMathAttr, Type{}, "fastmath",
+                                               result.attributes)) ||
       parser.parseColonType(redType) ||
       parser.parseKeywordType("into", resType) ||
       (!operandsInfo.empty() &&
@@ -471,6 +476,12 @@ void ReductionOp::print(OpAsmPrinter &p) {
   p << ", " << getVector();
   if (getAcc())
     p << ", " << getAcc();
+
+  if (getFastmathAttr() &&
+      getFastmathAttr().getValue() != arith::FastMathFlags::none) {
+    p << ' ' << getFastmathAttrName().getValue();
+    p.printStrippedAttrOrType(getFastmathAttr());
+  }
   p << " : " << getVector().getType() << " into " << getDest().getType();
 }
 
@@ -496,18 +507,18 @@ Value mlir::vector::getVectorReductionOp(arith::AtomicRMWKind op,
   case arith::AtomicRMWKind::muli:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
                                                CombiningKind::MUL, vector);
-  case arith::AtomicRMWKind::minf:
+  case arith::AtomicRMWKind::minimumf:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
-                                               CombiningKind::MINF, vector);
+                                               CombiningKind::MINIMUMF, vector);
   case arith::AtomicRMWKind::mins:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
                                                CombiningKind::MINSI, vector);
   case arith::AtomicRMWKind::minu:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
                                                CombiningKind::MINUI, vector);
-  case arith::AtomicRMWKind::maxf:
+  case arith::AtomicRMWKind::maximumf:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
-                                               CombiningKind::MAXF, vector);
+                                               CombiningKind::MAXIMUMF, vector);
   case arith::AtomicRMWKind::maxs:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
                                                CombiningKind::MAXSI, vector);
@@ -820,7 +831,8 @@ static LogicalResult verifyOutputShape(
           return e.cast<AffineConstantExpr>().getValue();
         }));
     auto expected =
-        VectorType::get(expectedShape, resVectorType.getElementType());
+        VectorType::get(expectedShape, resVectorType.getElementType(),
+                        resVectorType.getScalableDims());
     if (resVectorType != expected || accVectorType != expected)
       return op.emitOpError(
                  "invalid accumulator/result vector shape, expected: ")
@@ -911,22 +923,27 @@ Type ContractionOp::getExpectedMaskType() {
 
   unsigned numVecDims = lhsIdxMap.getNumDims();
   SmallVector<int64_t> maskShape(numVecDims, ShapedType::kDynamic);
+  SmallVector<bool> maskShapeScalableDims(numVecDims, false);
 
   // Using the information in the indexing maps, extract the size of each
   // dimension in the vector.contract operation from the two input operands.
-  for (auto [dimIdx, dimSize] : llvm::enumerate(lhsType.getShape()))
+  for (auto [dimIdx, dimSize] : llvm::enumerate(lhsType.getShape())) {
     maskShape[lhsIdxMap.getDimPosition(dimIdx)] = dimSize;
-  for (auto [dimIdx, dimSize] : llvm::enumerate(rhsType.getShape()))
+    maskShapeScalableDims[lhsIdxMap.getDimPosition(dimIdx)] =
+        lhsType.getScalableDims()[dimIdx];
+  }
+  for (auto [dimIdx, dimSize] : llvm::enumerate(rhsType.getShape())) {
     maskShape[rhsIdxMap.getDimPosition(dimIdx)] = dimSize;
+    maskShapeScalableDims[rhsIdxMap.getDimPosition(dimIdx)] =
+        rhsType.getScalableDims()[dimIdx];
+  }
 
   assert(!ShapedType::isDynamicShape(maskShape) &&
          "Mask shape couldn't be computed");
-  // TODO: Extend the scalable vector type representation with a bit map.
-  assert(!lhsType.isScalable() && !rhsType.isScalable() &&
-         "Scalable vectors are not supported yet");
 
   return VectorType::get(maskShape,
-                         IntegerType::get(lhsType.getContext(), /*width=*/1));
+                         IntegerType::get(lhsType.getContext(), /*width=*/1),
+                         maskShapeScalableDims);
 }
 
 SmallVector<StringRef> ContractionOp::getTraitAttrNames() {
@@ -1522,7 +1539,7 @@ static Value foldExtractFromShapeCast(ExtractOp extractOp) {
     auto destinationType =
         llvm::cast<VectorType>(extractOp.getResult().getType());
     for (int64_t i = 0; i < destinationRank; i++) {
-      // The lowest dimension of of the destination must match the lowest
+      // The lowest dimension of the destination must match the lowest
       // dimension of the shapecast op source.
       // TODO: This case could be support in a canonicalization pattern.
       if (getDimReverse(shapeCastOp.getSourceVectorType(), i) !=
@@ -2756,7 +2773,7 @@ void OuterProductOp::build(OpBuilder &builder, OperationState &result,
 
 void OuterProductOp::print(OpAsmPrinter &p) {
   p << " " << getLhs() << ", " << getRhs();
-  if (!getAcc().empty()) {
+  if (getAcc()) {
     p << ", " << getAcc();
     p.printOptionalAttrDict((*this)->getAttrs());
   }
@@ -5315,13 +5332,18 @@ LogicalResult ConstantMaskOp::verify() {
   // Verify that each array attr element is in bounds of corresponding vector
   // result dimension size.
   auto resultShape = resultType.getShape();
+  auto resultScalableDims = resultType.getScalableDims();
   SmallVector<int64_t, 4> maskDimSizes;
-  for (const auto &it : llvm::enumerate(getMaskDimSizes())) {
-    int64_t attrValue = llvm::cast<IntegerAttr>(it.value()).getInt();
-    if (attrValue < 0 || attrValue > resultShape[it.index()])
+  for (const auto [index, intAttr] : llvm::enumerate(getMaskDimSizes())) {
+    int64_t maskDimSize = llvm::cast<IntegerAttr>(intAttr).getInt();
+    if (maskDimSize < 0 || maskDimSize > resultShape[index])
       return emitOpError(
           "array attr of size out of bounds of vector result dimension size");
-    maskDimSizes.push_back(attrValue);
+    if (resultScalableDims[index] && maskDimSize != 0 &&
+        maskDimSize != resultShape[index])
+      return emitOpError(
+          "only supports 'none set' or 'all set' scalable dimensions");
+    maskDimSizes.push_back(maskDimSize);
   }
   // Verify that if one mask dim size is zero, they all should be zero (because
   // the mask region is a conjunction of each mask dimension interval).
@@ -5330,14 +5352,6 @@ LogicalResult ConstantMaskOp::verify() {
   if (anyZeros && !allZeros)
     return emitOpError("expected all mask dim sizes to be zeros, "
                        "as a result of conjunction with zero mask dim");
-  // Verify that if the mask type is scalable, dimensions should be zero because
-  // constant scalable masks can only be defined for the "none set" or "all set"
-  // cases, and there is no VLA way to define an "all set" case for
-  // `vector.constant_mask`. In the future, a convention could be established
-  // to decide if a specific dimension value could be considered as "all set".
-  if (resultType.isScalable() &&
-      llvm::cast<IntegerAttr>(getMaskDimSizes()[0]).getInt() != 0)
-    return emitOpError("expected mask dim sizes for scalable masks to be 0");
   return success();
 }
 
@@ -5944,14 +5958,16 @@ Value mlir::vector::makeArithReduction(OpBuilder &b, Location loc,
     result = b.createOrFold<arith::AndIOp>(loc, v1, acc);
     break;
   case CombiningKind::MAXF:
+  case CombiningKind::MAXIMUMF:
     assert(llvm::isa<FloatType>(t1) && llvm::isa<FloatType>(tAcc) &&
            "expected float values");
-    result = b.createOrFold<arith::MaxFOp>(loc, v1, acc);
+    result = b.createOrFold<arith::MaximumFOp>(loc, v1, acc);
     break;
   case CombiningKind::MINF:
+  case CombiningKind::MINIMUMF:
     assert(llvm::isa<FloatType>(t1) && llvm::isa<FloatType>(tAcc) &&
            "expected float values");
-    result = b.createOrFold<arith::MinFOp>(loc, v1, acc);
+    result = b.createOrFold<arith::MinimumFOp>(loc, v1, acc);
     break;
   case CombiningKind::MAXSI:
     assert(t1.isIntOrIndex() && tAcc.isIntOrIndex() && "expected int values");
@@ -6045,7 +6061,7 @@ Value mlir::vector::selectPassthru(OpBuilder &builder, Value mask,
 //===----------------------------------------------------------------------===//
 
 #define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/Vector/IR/VectorOpsAttrDefs.cpp.inc"
+#include "mlir/Dialect/Vector/IR/VectorAttributes.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Vector/IR/VectorOps.cpp.inc"

@@ -373,16 +373,8 @@ LoadInst *AtomicExpand::convertAtomicLoadToIntegerType(LoadInst *LI) {
   ReplacementIRBuilder Builder(LI, *DL);
 
   Value *Addr = LI->getPointerOperand();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PT = PointerType::get(NewTy, Addr->getType()->getPointerAddressSpace());
-  Value *NewAddr = Builder.CreateBitCast(Addr, PT);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   auto *NewLI = Builder.CreateLoad(NewTy, Addr);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *NewLI = Builder.CreateLoad(NewTy, NewAddr);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   NewLI->setAlignment(LI->getAlign());
   NewLI->setVolatile(LI->isVolatile());
   NewLI->setAtomic(LI->getOrdering(), LI->getSyncScopeID());
@@ -404,21 +396,12 @@ AtomicExpand::convertAtomicXchgToIntegerType(AtomicRMWInst *RMWI) {
 
   Value *Addr = RMWI->getPointerOperand();
   Value *Val = RMWI->getValOperand();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PT = PointerType::get(NewTy, RMWI->getPointerAddressSpace());
-  Value *NewAddr = Builder.CreateBitCast(Addr, PT);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Value *NewVal = Val->getType()->isPointerTy()
                       ? Builder.CreatePtrToInt(Val, NewTy)
                       : Builder.CreateBitCast(Val, NewTy);
 
-  auto *NewRMWI =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      Builder.CreateAtomicRMW(AtomicRMWInst::Xchg, Addr, NewVal,
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      Builder.CreateAtomicRMW(AtomicRMWInst::Xchg, NewAddr, NewVal,
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-                              RMWI->getAlign(), RMWI->getOrdering());
+  auto *NewRMWI = Builder.CreateAtomicRMW(
+      AtomicRMWInst::Xchg, Addr, NewVal, RMWI->getAlign(), RMWI->getOrdering());
   NewRMWI->setVolatile(RMWI->isVolatile());
   LLVM_DEBUG(dbgs() << "Replaced " << *RMWI << " with " << *NewRMWI << "\n");
 
@@ -520,16 +503,8 @@ StoreInst *AtomicExpand::convertAtomicStoreToIntegerType(StoreInst *SI) {
   Value *NewVal = Builder.CreateBitCast(SI->getValueOperand(), NewTy);
 
   Value *Addr = SI->getPointerOperand();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PT = PointerType::get(NewTy, Addr->getType()->getPointerAddressSpace());
-  Value *NewAddr = Builder.CreateBitCast(Addr, PT);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   StoreInst *NewSI = Builder.CreateStore(NewVal, Addr);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  StoreInst *NewSI = Builder.CreateStore(NewVal, NewAddr);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   NewSI->setAlignment(SI->getAlign());
   NewSI->setVolatile(SI->isVolatile());
   NewSI->setAtomic(SI->getOrdering(), SI->getSyncScopeID());
@@ -1200,20 +1175,12 @@ AtomicExpand::convertCmpXchgToIntegerType(AtomicCmpXchgInst *CI) {
   ReplacementIRBuilder Builder(CI, *DL);
 
   Value *Addr = CI->getPointerOperand();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PT = PointerType::get(NewTy, Addr->getType()->getPointerAddressSpace());
-  Value *NewAddr = Builder.CreateBitCast(Addr, PT);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *NewCmp = Builder.CreatePtrToInt(CI->getCompareOperand(), NewTy);
   Value *NewNewVal = Builder.CreatePtrToInt(CI->getNewValOperand(), NewTy);
 
   auto *NewCI = Builder.CreateAtomicCmpXchg(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Addr, NewCmp, NewNewVal, CI->getAlign(), CI->getSuccessOrdering(),
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      NewAddr, NewCmp, NewNewVal, CI->getAlign(), CI->getSuccessOrdering(),
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       CI->getFailureOrdering(), CI->getSyncScopeID());
   NewCI->setVolatile(CI->isVolatile());
   NewCI->setWeak(CI->isWeak());

@@ -118,7 +118,6 @@ class PseudoToVInst<string PseudoInst> {
                         ["FPR64", "F"],
                         ["FPR32", "F"],
                         ["FPR16", "F"],
-                        ["_TU", ""],
                         ["_TIED", ""],
                         ["_MASK", ""],
                         ["_B64", ""],
@@ -528,11 +527,13 @@ class RISCVVPseudo {
   Instruction BaseInstr = !cast<Instruction>(PseudoToVInst<NAME>.VInst);
   // SEW = 0 is used to denote that the Pseudo is not SEW specific (or unknown).
   bits<8> SEW = 0;
+  bit NeedBeInPseudoTable = 1;
 }
 
 // The actual table.
 def RISCVVPseudosTable : GenericTable {
   let FilterClass = "RISCVVPseudo";
+  let FilterClassField = "NeedBeInPseudoTable";
   let CppTypeName = "PseudoInfo";
   let Fields = [ "Pseudo", "BaseInstr" ];
   let PrimaryKey = [ "Pseudo" ];
@@ -999,6 +1000,8 @@ class VPseudoNullaryPseudoM<string BaseInst> :
   // BaseInstr is not used in RISCVExpandPseudoInsts pass.
   // Just fill a corresponding real v-inst to pass tablegen check.
   let BaseInstr = !cast<Instruction>(BaseInst);
+  // We exclude them from RISCVVPseudoTable.
+  let NeedBeInPseudoTable = 0;
 }
 
 class VPseudoUnaryNoMask<DAGOperand RetClass,
@@ -3143,7 +3146,7 @@ multiclass VPseudoTernaryWithTailPolicy<VReg RetClass,
                                           int sew,
                                           string Constraint = "",
                                           bit Commutable = 0> {
-  let VLMul = MInfo.value in {
+  let VLMul = MInfo.value, SEW=sew in {
     defvar mx = MInfo.MX;
     let isCommutable = Commutable in
     def "_" # mx # "_E" # sew : VPseudoTernaryNoMaskWithPolicy<RetClass, Op1Class, Op2Class, Constraint>;
@@ -3158,7 +3161,7 @@ multiclass VPseudoTernaryWithTailPolicyRoundingMode<VReg RetClass,
                                           int sew,
                                           string Constraint = "",
                                           bit Commutable = 0> {
-  let VLMul = MInfo.value in {
+  let VLMul = MInfo.value, SEW=sew in {
     defvar mx = MInfo.MX;
     let isCommutable = Commutable in
     def "_" # mx # "_E" # sew
@@ -3515,6 +3518,18 @@ multiclass VPseudoVFWRED_VS_RM {
           : VPseudoTernaryWithTailPolicyRoundingMode<V_M1.vrclass, m.vrclass,
                                                      V_M1.vrclass, m, e>,
             SchedReduction<"WriteVFWRedV_From", "ReadVFWRedV", mx, e>;
+    }
+  }
+}
+
+multiclass VPseudoVFWREDO_VS_RM {
+  foreach m = MxListFWRed in {
+    defvar mx = m.MX;
+    foreach e = SchedSEWSet<mx, isF=1, isWidening=1>.val in {
+      defm _VS
+          : VPseudoTernaryWithTailPolicyRoundingMode<V_M1.vrclass, m.vrclass,
+                                                     V_M1.vrclass, m, e>,
+            SchedReduction<"WriteVFWRedOV_From", "ReadVFWRedV", mx, e>;
     }
   }
 }
@@ -6602,7 +6617,7 @@ let IsRVVWideningReduction = 1,
     hasSideEffects = 0,
     mayRaiseFPException = true in {
 defm PseudoVFWREDUSUM  : VPseudoVFWRED_VS_RM;
-defm PseudoVFWREDOSUM  : VPseudoVFWRED_VS_RM;
+defm PseudoVFWREDOSUM  : VPseudoVFWREDO_VS_RM;
 }
 
 } // Predicates = [HasVInstructionsAnyF]

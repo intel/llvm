@@ -76,6 +76,7 @@
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/dealloc.hpp>
+#include <sycl/ext/oneapi/experimental/auto_local_range.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>

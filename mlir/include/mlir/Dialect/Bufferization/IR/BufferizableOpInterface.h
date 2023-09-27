@@ -361,10 +361,6 @@ struct BufferizationOptions {
   /// used.
   UnknownTypeConverterFn unknownTypeConverterFn = nullptr;
 
-  /// Specifies whether dealloc ops should be generated along with alloc ops. If
-  /// not, new memory allocations will leak.
-  bool createDeallocs = true;
-
   /// Seed for the analysis fuzzer. If set to `0`, the fuzzer is deactivated.
   /// Should be used only with `testAnalysisOnly = true`.
   unsigned analysisFuzzerSeed = 0;
@@ -588,12 +584,8 @@ private:
 /// undefined contents is allocated.
 FailureOr<Value>
 allocateTensorForShapedValue(OpBuilder &b, Location loc, Value shapedValue,
-                             bool escape, const BufferizationOptions &options,
+                             const BufferizationOptions &options,
                              bool copy = true);
-
-/// Return `true` if the allocation of the given op is guaranteed to not escape
-/// the containing block.
-bool allocationDoesNotEscape(OpResult opResult);
 
 /// Lookup the buffer for the given value. If the value was not bufferized
 /// yet, wrap it in a ToMemrefOp. Otherwise, it is the result of a ToTensorOp,
@@ -641,12 +633,6 @@ OpTy replaceOpWithNewBufferizedOp(RewriterBase &rewriter, Operation *op,
   return newOp;
 }
 
-/// Return `true` if the buffer of given OpResult should be deallocated. This
-/// function should be called during `BufferizableOpInterface::bufferize`
-/// implementations that allocate a new buffer for the given OpResult.
-bool shouldDeallocateOpResult(OpResult opResult,
-                              const BufferizationOptions &options);
-
 /// Return a MemRefType to which the type of the given value can be bufferized.
 ///
 /// If possible, op bufferization implementations should not use this function
@@ -683,6 +669,14 @@ Operation *getOwnerOfValue(Value value);
 /// repetitive region.
 Region *getNextEnclosingRepetitiveRegion(Region *region,
                                          const BufferizationOptions &options);
+
+/// If `region` is a parallel region, return `region`. Otherwise, find the first
+/// enclosing parallel region of `region`. If there is no such region, return
+/// "nullptr".
+///
+/// Note: Whether a region is parallel or sequential is queried from the
+/// `BufferizableOpInterface`.
+Region *getParallelRegion(Region *region, const BufferizationOptions &options);
 
 namespace detail {
 /// This is the default implementation of

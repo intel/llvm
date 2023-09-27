@@ -9,9 +9,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "../esimd_test_utils.hpp"
@@ -100,6 +97,11 @@ int main() {
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << ", Local memory size available : " << DeviceSLMSize << std::endl;
+  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "26690",
+                     "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
+    return 0;
+  }
 
   constexpr uint32_t LocalRange = 16;
   constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.

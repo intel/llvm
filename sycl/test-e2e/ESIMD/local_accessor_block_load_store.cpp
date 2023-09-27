@@ -7,11 +7,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
-// UNSUPPORTED: esimd_emulator
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "esimd_test_utils.hpp"
@@ -102,6 +97,12 @@ int main() {
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
+
+  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "27202",
+                     "101.4677")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.27202 or newer.\n";
+    return 0;
+  }
 
   constexpr size_t Align4 = 4;
   constexpr size_t Align8 = 8;

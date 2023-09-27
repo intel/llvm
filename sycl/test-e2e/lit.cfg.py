@@ -223,8 +223,14 @@ else:
 config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
 config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
 
-vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
+if platform.system() == "Windows":
+    config.substitutions.append(
+        ('%link-vulkan',
+         '-l %s -I %s' % (config.vulkan_lib, config.vulkan_include_dir)))
+else:
+    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+    config.substitutions.append(('%link-vulkan', '-L %s -lvulkan -I %s' %
+                                 (vulkan_lib_path, config.vulkan_include_dir)))
 
 if config.vulkan_found == "TRUE":
     config.available_features.add('vulkan')
@@ -258,18 +264,11 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu'),
                      'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:
           lit_config.error('Unsupported device {}'.format(d))
-
-# Run only tests in ESIMD subforlder for the ext_intel_esimd_emulator
-# TODO: Can it work in multiple devices configuration at all?
-if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'ext_intel_esimd_emulator:gpu':
-     config.test_source_root += "/ESIMD"
-     config.test_exec_root += "/ESIMD"
 
 # If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
 supported_hip_platforms=["AMD", "NVIDIA"]

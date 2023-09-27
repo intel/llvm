@@ -108,7 +108,7 @@ public:
   /// Returns the base register operator of a load/store.
   static const MachineOperand &getLdStBaseOp(const MachineInstr &MI);
 
-  /// Returns the the immediate offset operator of a load/store.
+  /// Returns the immediate offset operator of a load/store.
   static const MachineOperand &getLdStOffsetOp(const MachineInstr &MI);
 
   /// Returns whether the instruction is FP or NEON.
@@ -343,7 +343,7 @@ public:
   std::optional<ParamLoadedValue>
   describeLoadedValue(const MachineInstr &MI, Register Reg) const override;
 
-  unsigned int getTailDuplicateSize(CodeGenOpt::Level OptLevel) const override;
+  unsigned int getTailDuplicateSize(CodeGenOptLevel OptLevel) const override;
 
   bool isExtendLikelyToBeFolded(MachineInstr &ExtMI,
                                 MachineRegisterInfo &MRI) const override;
@@ -355,6 +355,8 @@ public:
   static void decomposeStackOffsetForDwarfOffsets(const StackOffset &Offset,
                                                   int64_t &ByteSized,
                                                   int64_t &VGSized);
+
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 #define GET_INSTRINFO_HELPER_DECLS
 #include "AArch64GenInstrInfo.inc"
 

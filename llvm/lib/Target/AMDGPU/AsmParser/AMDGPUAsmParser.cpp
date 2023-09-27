@@ -1462,6 +1462,12 @@ public:
     return AMDGPU::getNSAMaxSize(getSTI());
   }
 
+  unsigned getMaxNumUserSGPRs() const {
+    return AMDGPU::getMaxNumUserSGPRs(getSTI());
+  }
+
+  bool hasKernargPreload() const { return AMDGPU::hasKernargPreload(getSTI()); }
+
   AMDGPUTargetStreamer &getTargetStreamer() {
     MCTargetStreamer &TS = *getParser().getStreamer().getTargetStreamer();
     return static_cast<AMDGPUTargetStreamer &>(TS);
@@ -1495,10 +1501,9 @@ public:
   std::unique_ptr<AMDGPUOperand> parseRegister(bool RestoreOnFailure = false);
   bool ParseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc,
                      bool RestoreOnFailure);
-  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
-                     SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
-                                        SMLoc &EndLoc) override;
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override;
+  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
+                               SMLoc &EndLoc) override;
   unsigned checkTargetMatchPredicate(MCInst &Inst) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
@@ -2427,23 +2432,21 @@ bool AMDGPUAsmParser::ParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
   return false;
 }
 
-bool AMDGPUAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+bool AMDGPUAsmParser::parseRegister(MCRegister &Reg, SMLoc &StartLoc,
                                     SMLoc &EndLoc) {
-  return ParseRegister(RegNo, StartLoc, EndLoc, /*RestoreOnFailure=*/false);
+  return ParseRegister(Reg, StartLoc, EndLoc, /*RestoreOnFailure=*/false);
 }
 
-OperandMatchResultTy AMDGPUAsmParser::tryParseRegister(MCRegister &RegNo,
-                                                       SMLoc &StartLoc,
-                                                       SMLoc &EndLoc) {
-  bool Result =
-      ParseRegister(RegNo, StartLoc, EndLoc, /*RestoreOnFailure=*/true);
+ParseStatus AMDGPUAsmParser::tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
+                                              SMLoc &EndLoc) {
+  bool Result = ParseRegister(Reg, StartLoc, EndLoc, /*RestoreOnFailure=*/true);
   bool PendingErrors = getParser().hasPendingError();
   getParser().clearPendingErrors();
   if (PendingErrors)
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
   if (Result)
-    return MatchOperand_NoMatch;
-  return MatchOperand_Success;
+    return ParseStatus::NoMatch;
+  return ParseStatus::Success;
 }
 
 bool AMDGPUAsmParser::AddNextRegisterToList(unsigned &Reg, unsigned &RegWidth,
@@ -4480,11 +4483,17 @@ bool AMDGPUAsmParser::validateCoherencyBits(const MCInst &Inst,
   }
 
   if (isGFX90A() && !isGFX940() && (CPol & CPol::SCC)) {
-    SMLoc S = getImmLoc(AMDGPUOperand::ImmTyCPol, Operands);
-    StringRef CStr(S.getPointer());
-    S = SMLoc::getFromPointer(&CStr.data()[CStr.find("scc")]);
-    Error(S, "scc is not supported on this GPU");
-    return false;
+    const uint64_t AllowSCCModifier = SIInstrFlags::MUBUF |
+                                      SIInstrFlags::MTBUF | SIInstrFlags::MIMG |
+                                      SIInstrFlags::FLAT;
+    if (!(TSFlags & AllowSCCModifier)) {
+      SMLoc S = getImmLoc(AMDGPUOperand::ImmTyCPol, Operands);
+      StringRef CStr(S.getPointer());
+      S = SMLoc::getFromPointer(&CStr.data()[CStr.find("scc")]);
+      Error(S,
+            "scc modifier is not supported for this instruction on this GPU");
+      return false;
+    }
   }
 
   if (!(TSFlags & (SIInstrFlags::IsAtomicNoRet | SIInstrFlags::IsAtomicRet)))
@@ -4928,6 +4937,8 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
   uint64_t NextFreeVGPR = 0;
   uint64_t AccumOffset = 0;
   uint64_t SharedVGPRCount = 0;
+  uint64_t PreloadLength = 0;
+  uint64_t PreloadOffset = 0;
   SMRange SGPRRange;
   uint64_t NextFreeSGPR = 0;
 
@@ -4996,6 +5007,28 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
                        Val, ValRange);
       if (Val)
         ImpliedUserSGPRCount += 4;
+    } else if (ID == ".amdhsa_user_sgpr_kernarg_preload_length") {
+      if (!hasKernargPreload())
+        return Error(IDRange.Start, "directive requires gfx90a+", IDRange);
+
+      if (Val > getMaxNumUserSGPRs())
+        return OutOfRangeError(ValRange);
+      PARSE_BITS_ENTRY(KD.kernarg_preload, KERNARG_PRELOAD_SPEC_LENGTH, Val,
+                       ValRange);
+      if (Val) {
+        ImpliedUserSGPRCount += Val;
+        PreloadLength = Val;
+      }
+    } else if (ID == ".amdhsa_user_sgpr_kernarg_preload_offset") {
+      if (!hasKernargPreload())
+        return Error(IDRange.Start, "directive requires gfx90a+", IDRange);
+
+      if (Val >= 1024)
+        return OutOfRangeError(ValRange);
+      PARSE_BITS_ENTRY(KD.kernarg_preload, KERNARG_PRELOAD_SPEC_OFFSET, Val,
+                       ValRange);
+      if (Val)
+        PreloadOffset = Val;
     } else if (ID == ".amdhsa_user_sgpr_dispatch_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR, Val,
@@ -5240,6 +5273,11 @@ bool AMDGPUAsmParser::ParseDirectiveAMDHSAKernel() {
     return TokError("too many user SGPRs enabled");
   AMDHSA_BITS_SET(KD.compute_pgm_rsrc2, COMPUTE_PGM_RSRC2_USER_SGPR_COUNT,
                   UserSGPRCount);
+
+  if (PreloadLength && KD.kernarg_size &&
+      (PreloadLength * 4 + PreloadOffset * 4 > KD.kernarg_size))
+    return TokError("Kernarg preload length + offset is larger than the "
+                    "kernarg segment size");
 
   if (isGFX90A()) {
     if (!Seen.contains(".amdhsa_accum_offset"))

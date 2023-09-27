@@ -203,11 +203,7 @@ Value *RandomIRBuilder::newSource(BasicBlock &BB, ArrayRef<Instruction *> Insts,
   RS.sample(Pred.generate(Srcs, KnownTypes));
 
   // If we can find a pointer to load from, use it half the time.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *Ptr = findPointer(BB, Insts);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *Ptr = findPointer(BB, Insts, Srcs, Pred);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   if (Ptr) {
     // Create load from the chosen pointer
     auto IP = BB.getFirstInsertionPt();
@@ -215,15 +211,8 @@ Value *RandomIRBuilder::newSource(BasicBlock &BB, ArrayRef<Instruction *> Insts,
       IP = ++I->getIterator();
       assert(IP != BB.end() && "guaranteed by the findPointer");
     }
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     // Pick the type independently.
     Type *AccessTy = RS.getSelection()->getType();
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    // For opaque pointers, pick the type independently.
-    Type *AccessTy = Ptr->getType()->isOpaquePointerTy()
-                         ? RS.getSelection()->getType()
-                         : Ptr->getType()->getNonOpaquePointerElementType();
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewLoad = new LoadInst(AccessTy, Ptr, "L", &*IP);
 
     // Only sample this load if it really matches the descriptor
@@ -374,11 +363,7 @@ Instruction *RandomIRBuilder::connectToSink(BasicBlock &BB,
 
 Instruction *RandomIRBuilder::newSink(BasicBlock &BB,
                                       ArrayRef<Instruction *> Insts, Value *V) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *Ptr = findPointer(BB, Insts);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *Ptr = findPointer(BB, Insts, {V}, matchFirstType());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   if (!Ptr) {
     if (uniform(Rand, 0, 1)) {
       Type *Ty = V->getType();
@@ -391,7 +376,6 @@ Instruction *RandomIRBuilder::newSink(BasicBlock &BB,
   return new StoreInst(V, Ptr, Insts.back());
 }
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
 Value *RandomIRBuilder::findPointer(BasicBlock &BB,
                                     ArrayRef<Instruction *> Insts) {
   auto IsMatchingPtr = [](Instruction *Inst) {
@@ -406,35 +390,6 @@ Value *RandomIRBuilder::findPointer(BasicBlock &BB,
     return RS.getSelection();
   return nullptr;
 }
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-Value *RandomIRBuilder::findPointer(BasicBlock &BB,
-                                    ArrayRef<Instruction *> Insts,
-                                    ArrayRef<Value *> Srcs, SourcePred Pred) {
-  auto IsMatchingPtr = [&Srcs, &Pred](Instruction *Inst) {
-    // Invoke instructions sometimes produce valid pointers but currently
-    // we can't insert loads or stores from them
-    if (Inst->isTerminator())
-      return false;
-
-    if (auto *PtrTy = dyn_cast<PointerType>(Inst->getType())) {
-      if (PtrTy->isOpaque())
-        return true;
-
-      // We can never generate loads from non first class or non sized types
-      Type *ElemTy = PtrTy->getNonOpaquePointerElementType();
-      if (!ElemTy->isSized() || !ElemTy->isFirstClassType())
-        return false;
-
-      // TODO: Check if this is horribly expensive.
-      return Pred.matches(Srcs, UndefValue::get(ElemTy));
-    }
-    return false;
-  };
-  if (auto RS = makeSampler(Rand, make_filter_range(Insts, IsMatchingPtr)))
-    return RS.getSelection();
-  return nullptr;
-}
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 Type *RandomIRBuilder::randomType() {
   uint64_t TyIdx = uniform<uint64_t>(Rand, 0, KnownTypes.size() - 1);

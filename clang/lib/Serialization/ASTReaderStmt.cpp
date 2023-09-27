@@ -930,6 +930,8 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
   }
   std::copy(Requirements.begin(), Requirements.end(),
             E->getTrailingObjects<concepts::Requirement *>());
+  E->LParenLoc = Record.readSourceLocation();
+  E->RParenLoc = Record.readSourceLocation();
   E->RBraceLoc = Record.readSourceLocation();
 }
 
@@ -3928,7 +3930,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CXX_THIS:
-      S = new (Context) CXXThisExpr(Empty);
+      S = CXXThisExpr::CreateEmpty(Context);
       break;
 
     case EXPR_CXX_THROW:

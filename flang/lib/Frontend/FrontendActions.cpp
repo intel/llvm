@@ -48,6 +48,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/IR/LLVMRemarkStreamer.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
@@ -68,6 +69,8 @@
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <memory>
 #include <system_error>
+
+#include "flang/Tools/CLOptions.inc"
 
 using namespace Fortran::frontend;
 
@@ -312,12 +315,10 @@ bool CodeGenAction::beginSourceFileAction() {
     if (auto offloadMod = llvm::dyn_cast<mlir::omp::OffloadModuleInterface>(
             mlirModule->getOperation()))
       isDevice = offloadMod.getIsTargetDevice();
-
-    pm.addPass(fir::createOMPMarkDeclareTargetPass());
-    if (isDevice) {
-      pm.addPass(fir::createOMPEarlyOutliningPass());
-      pm.addPass(fir::createOMPFunctionFilteringPass());
-    }
+    // WARNING: This pipeline must be run immediately after the lowering to
+    // ensure that the FIR is correct with respect to OpenMP operations/
+    // attributes.
+    fir::createOpenMPFIRPassPipeline(pm, isDevice);
   }
 
   pm.enableVerifier(/*verifyPasses=*/true);
@@ -650,8 +651,6 @@ void GetSymbolsSourcesAction::executeAction() {
 
 CodeGenAction::~CodeGenAction() = default;
 
-#include "flang/Tools/CLOptions.inc"
-
 static llvm::OptimizationLevel
 mapToLevel(const Fortran::frontend::CodeGenOptions &opts) {
   switch (opts.OptimizationLevel) {
@@ -776,10 +775,10 @@ bool CodeGenAction::setUpTargetMachine() {
 
   // Create `TargetMachine`
   const auto &CGOpts = ci.getInvocation().getCodeGenOpts();
-  std::optional<llvm::CodeGenOpt::Level> OptLevelOrNone =
+  std::optional<llvm::CodeGenOptLevel> OptLevelOrNone =
       llvm::CodeGenOpt::getLevel(CGOpts.OptimizationLevel);
   assert(OptLevelOrNone && "Invalid optimization level!");
-  llvm::CodeGenOpt::Level OptLevel = *OptLevelOrNone;
+  llvm::CodeGenOptLevel OptLevel = *OptLevelOrNone;
   std::string featuresStr = getTargetFeatures(ci);
   tm.reset(theTarget->createTargetMachine(
       theTriple, /*CPU=*/targetOpts.cpu,
@@ -847,8 +846,8 @@ static void generateMachineCodeOrAssemblyImpl(clang::DiagnosticsEngine &diags,
   codeGenPasses.add(new llvm::TargetLibraryInfoWrapperPass(*tlii));
 
   llvm::CodeGenFileType cgft = (act == BackendActionTy::Backend_EmitAssembly)
-                                   ? llvm::CodeGenFileType::CGFT_AssemblyFile
-                                   : llvm::CodeGenFileType::CGFT_ObjectFile;
+                                   ? llvm::CodeGenFileType::AssemblyFile
+                                   : llvm::CodeGenFileType::ObjectFile;
   if (tm.addPassesToEmitFile(codeGenPasses, os, nullptr, cgft)) {
     unsigned diagID =
         diags.getCustomDiagID(clang::DiagnosticsEngine::Error,
@@ -956,6 +955,19 @@ public:
 
     std::string msg;
     llvm::raw_string_ostream msgStream(msg);
+
+    if (diagInfo.isLocationAvailable()) {
+      // Clang contains a SourceManager class which handles loading
+      // and caching of source files into memory and it can be used to
+      // query SourceLocation data. The SourceLocation data is what is
+      // needed here as it contains the full include stack which gives
+      // line and column number as well as file name and location.
+      // Since Flang doesn't have SourceManager, send file name and absolute
+      // path through msgStream, to use for printing.
+      msgStream << diagInfo.getLocationStr() << ";;"
+                << diagInfo.getAbsolutePath() << ";;";
+    }
+
     msgStream << diagInfo.getMsg();
 
     // Emit message.
@@ -1013,6 +1025,18 @@ public:
     case llvm::DK_OptimizationRemarkAnalysis:
       optimizationRemarkHandler(
           llvm::cast<llvm::OptimizationRemarkAnalysis>(di));
+      break;
+    case llvm::DK_MachineOptimizationRemark:
+      optimizationRemarkHandler(
+          llvm::cast<llvm::MachineOptimizationRemark>(di));
+      break;
+    case llvm::DK_MachineOptimizationRemarkMissed:
+      optimizationRemarkHandler(
+          llvm::cast<llvm::MachineOptimizationRemarkMissed>(di));
+      break;
+    case llvm::DK_MachineOptimizationRemarkAnalysis:
+      optimizationRemarkHandler(
+          llvm::cast<llvm::MachineOptimizationRemarkAnalysis>(di));
       break;
     default:
       break;

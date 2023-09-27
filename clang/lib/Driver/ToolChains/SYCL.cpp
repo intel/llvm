@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "CommonArgs.h"
+#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -170,6 +171,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
+        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -190,12 +193,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
 
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      if (this->getToolChain().getTriple().isNVPTX()) {
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        LibPostfix = ".cubin";
+        if (IsNVPTX)
+          LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.startswith(LibSyclPrefix) ||
@@ -1117,16 +1122,24 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
-  // Add ../include/sycl and ../include (in that order)
-  SmallString<128> P(Driver.getInstalledDir());
-  llvm::sys::path::append(P, "..");
-  llvm::sys::path::append(P, "include");
-  SmallString<128> SYCLP(P);
-  llvm::sys::path::append(SYCLP, "sycl");
+  // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
+  // order).
+  SmallString<128> IncludePath(Driver.getInstalledDir());
+  llvm::sys::path::append(IncludePath, "..");
+  llvm::sys::path::append(IncludePath, "include");
+  SmallString<128> SYCLPath(IncludePath);
+  llvm::sys::path::append(SYCLPath, "sycl");
+  // This is used to provide our wrappers around STL headers that provide
+  // additional functions/template specializations when the user includes those
+  // STL headers in their programs (e.g., <complex>).
+  SmallString<128> STLWrappersPath(SYCLPath);
+  llvm::sys::path::append(STLWrappersPath, "stl_wrappers");
   CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(SYCLP));
+  CC1Args.push_back(DriverArgs.MakeArgString(SYCLPath));
   CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(P));
+  CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

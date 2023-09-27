@@ -8,8 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: gpu
-// UNSUPPORTED: esimd_emulator
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
 
@@ -102,6 +100,11 @@ int main() {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  if (!isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows, "27202",
+                     "101.4677")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.27202 or newer.\n";
+    return 0;
+  }
 
   bool passed = true;
   passed &= test<char, 1>(q);

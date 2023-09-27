@@ -3359,9 +3359,9 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
 This attribute applies to a loop or a function. Takes no arguments and
 disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``max_interleaving``,
-``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-``ivdep``, ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
+function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
+``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
+``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -3427,14 +3427,13 @@ This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
 mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and shall be non-negative integer. Cannot be
-used on the same loop in conjunction with disable_loop_pipelining.
+Parameter N is mandatory, and may either be 0, or 1.
 
 .. code-block:: c++
 
   void foo() {
     int a[10];
-    [[intel::max_interleaving(4)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+    [[intel::max_interleaving(1)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
   template<int N>
@@ -6446,6 +6445,54 @@ Marking virtual functions as ``disable_tail_calls`` is legal.
     };
 
   }];
+}
+
+def AnyX86InterruptDocs : Documentation {
+    let Category = DocCatFunction;
+    let Heading = "interrupt (X86)";
+    let Content = [{
+Clang supports the GNU style ``__attribute__((interrupt))`` attribute on X86
+targets. This attribute may be attached to a function definition and instructs
+the backend to generate appropriate function entry/exit code so that it can be
+used directly as an interrupt service routine.
+
+Interrupt handlers have access to the stack frame pushed onto the stack by the processor,
+and return using the ``IRET`` instruction. All registers in an interrupt handler are callee-saved.
+Exception handlers also have access to the error code pushed onto the stack by the processor,
+when applicable.
+
+An interrupt handler must take the following arguments:
+
+  .. code-block:: c
+
+   __attribute__ ((interrupt))
+   void f (struct stack_frame *frame) {
+       ...
+   }
+
+  Where ``struct stack_frame`` is a suitable struct matching the stack frame pushed by the
+  processor.
+
+An exception handler must take the following arguments:
+
+  .. code-block:: c
+
+   __attribute__ ((interrupt))
+   void g (struct stack_frame *frame, unsigned long code) {
+       ...
+   }
+
+  On 32-bit targets, the ``code`` argument should be of type ``unsigned int``.
+
+Exception handlers should only be used when an error code is pushed by the processor.
+Using the incorrect handler type will crash the system.
+
+Interrupt and exception handlers cannot be called by other functions and must have return type ``void``.
+
+Interrupt and exception handlers should only call functions with the 'no_caller_saved_registers'
+attribute, or should be compiled with the '-mgeneral-regs-only' flag to avoid saving unused
+non-GPR registers.
+    }];
 }
 
 def AnyX86NoCallerSavedRegistersDocs : Documentation {

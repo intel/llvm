@@ -88,6 +88,7 @@
 #include "llvm/Transforms/Scalar/Float2Int.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
+#include "llvm/Transforms/Scalar/InferAlignment.h"
 #include "llvm/Transforms/Scalar/InstSimplifyPass.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
 #include "llvm/Transforms/Scalar/LICM.h"
@@ -277,6 +278,8 @@ static cl::opt<AttributorRunOption> AttributorRun(
 cl::opt<bool> EnableMemProfContextDisambiguation(
     "enable-memprof-context-disambiguation", cl::init(false), cl::Hidden,
     cl::ZeroOrMore, cl::desc("Enable MemProf context disambiguation"));
+
+extern cl::opt<bool> EnableInferAlignmentPass;
 
 PipelineTuningOptions::PipelineTuningOptions() {
   LoopInterleaving = true;
@@ -880,11 +883,13 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
 
   // Require the GlobalsAA analysis for the module so we can query it within
   // the CGSCC pipeline.
-  MIWP.addModulePass(RequireAnalysisPass<GlobalsAA, Module>());
-  // Invalidate AAManager so it can be recreated and pick up the newly available
-  // GlobalsAA.
-  MIWP.addModulePass(
-      createModuleToFunctionPassAdaptor(InvalidateAnalysisPass<AAManager>()));
+  if (EnableGlobalAnalyses) {
+    MIWP.addModulePass(RequireAnalysisPass<GlobalsAA, Module>());
+    // Invalidate AAManager so it can be recreated and pick up the newly
+    // available GlobalsAA.
+    MIWP.addModulePass(
+        createModuleToFunctionPassAdaptor(InvalidateAnalysisPass<AAManager>()));
+  }
 
   // Require the ProfileSummaryAnalysis for the module so we can query it within
   // the inliner pass.
@@ -1162,6 +1167,8 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
   FPM.addPass(LoopVectorizePass(
       LoopVectorizeOptions(!PTO.LoopInterleaving, !PTO.LoopVectorization)));
 
+  if (EnableInferAlignmentPass)
+    FPM.addPass(InferAlignmentPass());
   if (IsFullLTO) {
     // The vectorizer may have significantly shortened a loop body; unroll
     // again. Unroll small loops to hide loop backedge latency and saturate any
@@ -1279,6 +1286,8 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     FPM.addPass(SROAPass(SROAOptions::PreserveCFG));
   }
 
+  if (EnableInferAlignmentPass)
+    FPM.addPass(InferAlignmentPass());
   FPM.addPass(InstCombinePass());
 
   // This is needed for two reasons:
@@ -1352,7 +1361,8 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // information for all local globals here, the late loop passes and notably
   // the vectorizer will be able to use them to help recognize vectorizable
   // memory operations.
-  MPM.addPass(RecomputeGlobalsAAPass());
+  if (EnableGlobalAnalyses)
+    MPM.addPass(RecomputeGlobalsAAPass());
 
   invokeOptimizerEarlyEPCallbacks(MPM, Level);
 
@@ -1847,11 +1857,13 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   // Require the GlobalsAA analysis for the module so we can query it within
   // MainFPM.
-  MPM.addPass(RequireAnalysisPass<GlobalsAA, Module>());
-  // Invalidate AAManager so it can be recreated and pick up the newly available
-  // GlobalsAA.
-  MPM.addPass(
-      createModuleToFunctionPassAdaptor(InvalidateAnalysisPass<AAManager>()));
+  if (EnableGlobalAnalyses) {
+    MPM.addPass(RequireAnalysisPass<GlobalsAA, Module>());
+    // Invalidate AAManager so it can be recreated and pick up the newly
+    // available GlobalsAA.
+    MPM.addPass(
+        createModuleToFunctionPassAdaptor(InvalidateAnalysisPass<AAManager>()));
+  }
 
   FunctionPassManager MainFPM;
   MainFPM.addPass(createFunctionToLoopPassAdaptor(

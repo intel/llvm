@@ -94,7 +94,8 @@ bool RISCVMergeBaseOffsetOpt::detectFoldable(MachineInstr &Hi,
   if (HiOp1.getTargetFlags() != ExpectedFlags)
     return false;
 
-  if (!(HiOp1.isGlobal() || HiOp1.isCPI()) || HiOp1.getOffset() != 0)
+  if (!(HiOp1.isGlobal() || HiOp1.isCPI() || HiOp1.isBlockAddress()) ||
+      HiOp1.getOffset() != 0)
     return false;
 
   Register HiDestReg = Hi.getOperand(0).getReg();
@@ -108,7 +109,8 @@ bool RISCVMergeBaseOffsetOpt::detectFoldable(MachineInstr &Hi,
   const MachineOperand &LoOp2 = Lo->getOperand(2);
   if (Hi.getOpcode() == RISCV::LUI) {
     if (LoOp2.getTargetFlags() != RISCVII::MO_LO ||
-        !(LoOp2.isGlobal() || LoOp2.isCPI()) || LoOp2.getOffset() != 0)
+        !(LoOp2.isGlobal() || LoOp2.isCPI() || LoOp2.isBlockAddress()) ||
+        LoOp2.getOffset() != 0)
       return false;
   } else {
     assert(Hi.getOpcode() == RISCV::AUIPC);
@@ -120,8 +122,10 @@ bool RISCVMergeBaseOffsetOpt::detectFoldable(MachineInstr &Hi,
   if (HiOp1.isGlobal()) {
     LLVM_DEBUG(dbgs() << "  Found lowered global address: "
                       << *HiOp1.getGlobal() << "\n");
-  } else {
-    assert(HiOp1.isCPI());
+  } else if (HiOp1.isBlockAddress()) {
+    LLVM_DEBUG(dbgs() << "  Found lowered basic address: "
+                      << *HiOp1.getBlockAddress() << "\n");
+  } else if (HiOp1.isCPI()) {
     LLVM_DEBUG(dbgs() << "  Found lowered constant pool: " << HiOp1.getIndex()
                       << "\n");
   }
@@ -357,8 +361,6 @@ bool RISCVMergeBaseOffsetOpt::foldIntoMemoryOps(MachineInstr &Hi,
   // Tail: lw vreg3, 8(vreg2)
 
   std::optional<int64_t> CommonOffset;
-  DenseMap<const MachineInstr *, SmallVector<unsigned>>
-      InlineAsmMemoryOpIndexesMap;
   for (const MachineInstr &UseMI : MRI->use_instructions(DestReg)) {
     switch (UseMI.getOpcode()) {
     default:
@@ -393,44 +395,6 @@ bool RISCVMergeBaseOffsetOpt::foldIntoMemoryOps(MachineInstr &Hi,
       if (CommonOffset && Offset != CommonOffset)
         return false;
       CommonOffset = Offset;
-      break;
-    }
-    case RISCV::INLINEASM:
-    case RISCV::INLINEASM_BR: {
-      SmallVector<unsigned> InlineAsmMemoryOpIndexes;
-      unsigned NumOps = 0;
-      for (unsigned I = InlineAsm::MIOp_FirstOperand;
-           I < UseMI.getNumOperands(); I += 1 + NumOps) {
-        const MachineOperand &FlagsMO = UseMI.getOperand(I);
-        // Should be an imm.
-        if (!FlagsMO.isImm())
-          continue;
-
-        unsigned Flags = FlagsMO.getImm();
-        NumOps = InlineAsm::getNumOperandRegisters(Flags);
-
-        // Memory constraints have two operands.
-        if (NumOps != 2 || !InlineAsm::isMemKind(Flags))
-          continue;
-
-        const MachineOperand &AddrMO = UseMI.getOperand(I + 1);
-        if (!AddrMO.isReg() || AddrMO.getReg() != DestReg)
-          continue;
-
-        const MachineOperand &OffsetMO = UseMI.getOperand(I + 2);
-        if (!OffsetMO.isImm())
-          continue;
-
-        // All inline asm memory operands must use the same offset.
-        int64_t Offset = OffsetMO.getImm();
-        if (CommonOffset && Offset != CommonOffset)
-          return false;
-        CommonOffset = Offset;
-        InlineAsmMemoryOpIndexes.push_back(I + 1);
-      }
-      InlineAsmMemoryOpIndexesMap.insert(
-          std::make_pair(&UseMI, InlineAsmMemoryOpIndexes));
-      break;
     }
     }
   }
@@ -455,32 +419,13 @@ bool RISCVMergeBaseOffsetOpt::foldIntoMemoryOps(MachineInstr &Hi,
   // Update the immediate in the load/store instructions to add the offset.
   for (MachineInstr &UseMI :
        llvm::make_early_inc_range(MRI->use_instructions(DestReg))) {
-    if (UseMI.getOpcode() == RISCV::INLINEASM ||
-        UseMI.getOpcode() == RISCV::INLINEASM_BR) {
-      auto &InlineAsmMemoryOpIndexes = InlineAsmMemoryOpIndexesMap[&UseMI];
-      for (unsigned I : InlineAsmMemoryOpIndexes) {
-        MachineOperand &MO = UseMI.getOperand(I + 1);
-        switch (ImmOp.getType()) {
-        case MachineOperand::MO_GlobalAddress:
-          MO.ChangeToGA(ImmOp.getGlobal(), ImmOp.getOffset(),
-                        ImmOp.getTargetFlags());
-          break;
-        case llvm::MachineOperand::MachineOperandType::MO_MCSymbol:
-          MO.ChangeToMCSymbol(ImmOp.getMCSymbol(), ImmOp.getTargetFlags());
-          MO.setOffset(ImmOp.getOffset());
-          break;
-        default:
-          report_fatal_error("unsupported machine operand type");
-          break;
-        }
-      }
-    } else {
-      UseMI.removeOperand(2);
-      UseMI.addOperand(ImmOp);
-    }
+    UseMI.removeOperand(2);
+    UseMI.addOperand(ImmOp);
+    // Update the base reg in the Tail instruction to feed from LUI.
+    // Output of Hi is only used in Lo, no need to use MRI->replaceRegWith().
+    UseMI.getOperand(1).setReg(Hi.getOperand(0).getReg());
   }
 
-  MRI->replaceRegWith(Lo.getOperand(0).getReg(), Hi.getOperand(0).getReg());
   Lo.eraseFromParent();
   return true;
 }

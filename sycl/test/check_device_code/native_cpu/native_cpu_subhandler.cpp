@@ -32,29 +32,29 @@ __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
 void test() {
   queue q;
   gen_test<int>(q);
-  //CHECK:  define weak void @_ZTS6init_aIiE(ptr %{{.*}}, ptr %[[STATE:.*]]) #{{.*}} {
-  //CHECK:       %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK-NEXT:  %[[ARG1:.*]] = load ptr, ptr %{{.*}}
-  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK-NEXT:  %[[ARG2:.*]] = load ptr, ptr %{{.*}}
-  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK-NEXT:  %{{.*}} = load ptr, ptr %{{.*}}
-  //CHECK-NEXT:  %[[ARG3:.*]] = load i32, ptr %{{.*}}
-  //CHECK-NEXT:  call void @_ZTS6init_aIiE.NativeCPUKernel(ptr %[[ARG1]], ptr %[[ARG2]], i32 %[[ARG3]], ptr %[[STATE]])
-  //CHECK-NEXT:  ret void
-  //CHECK-NEXT:}
+  //CHECK:  define void @_ZTS6init_aIiE(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
+  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
+  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK:  %{{.*}} = load i32, ptr %{{.*}}
+  //CHECK:  call void @_ZTS6init_aIiE.NativeCPUKernel(ptr {{.*}}, ptr {{.*}}, i32 {{.*}}, ptr {{.*}})
+  //CHECK:  ret void
+  //CHECK:}
   gen_test<float>(q);
-  //CHECK:  define weak void @_ZTS6init_aIfE(ptr %{{.*}}, ptr %[[STATE1:.*]]) #{{.*}} {
-  //CHECK:       %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK-NEXT:  %[[ARGF1:.*]] = load ptr, ptr %{{.*}}
-  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK-NEXT:  %[[ARGF2:.*]] = load ptr, ptr %{{.*}}, align 8
-  //CHECK-NEXT:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK-NEXT:  %{{.*}} = load ptr, ptr %{{.*}}
-  //CHECK-NEXT:  %[[ARGF3:.*]] = load float, ptr %{{.*}}
-  //CHECK-NEXT:  call void @_ZTS6init_aIfE.NativeCPUKernel(ptr %[[ARGF1]], ptr %[[ARGF2]], float %[[ARGF3]], ptr %[[STATE1]])
-  //CHECK-NEXT:  ret void
-  //CHECK-NEXT:}
+  //CHECK:  define void @_ZTS6init_aIfE(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
+  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
+  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}, align 8
+  //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
+  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK:  %{{.*}} = load float, ptr %{{.*}}
+  //CHECK:  call void @_ZTS6init_aIfE.NativeCPUKernel(ptr {{.*}}, ptr {{.*}}, float {{.*}}, ptr {{.*}})
+  //CHECK:  ret void
+  //CHECK:}
 
   // Check that subhandler is emitted correctly for kernels with no
   // args:deviceQueue.submit([&](sycl::handler &h) {
@@ -64,14 +64,14 @@ void test() {
       acc[id[0]]; // all kernel arguments are removed
     });
   });
-  //CHECK:define weak void @_ZTS5Test1(ptr %{{.*}}, ptr %[[STATE2:.*]]) #{{.*}} {
-  //CHECK:       call void @_ZTS5Test1.NativeCPUKernel(ptr %[[STATE2]])
+  //CHECK:define void @_ZTS5Test1(ptr %{{.*}}, ptr addrspace(1) %[[STATE2:.*]]) #{{.*}} {
+  //CHECK:       call void @_ZTS5Test1.NativeCPUKernel(ptr addrspace(1) %[[STATE2]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 
   launch<class TestKernel>([]() {});
-  //CHECK:define weak void @_ZTSZ4testvE10TestKernel(ptr %{{.*}}, ptr %[[STATE3:.*]]) #{{.*}} {
-  //CHECK:       call void @_ZTSZ4testvE10TestKernel.NativeCPUKernel(ptr %[[STATE3]])
+  //CHECK:define void @_ZTSZ4testvE10TestKernel(ptr %{{.*}}, ptr addrspace(1) %[[STATE3:.*]]) #{{.*}} {
+  //CHECK:       call void @_ZTSZ4testvE10TestKernel.NativeCPUKernel(ptr addrspace(1) %[[STATE3]])
   //CHECK-NEXT:  ret void
   //CHECK-NEXT:}
 }

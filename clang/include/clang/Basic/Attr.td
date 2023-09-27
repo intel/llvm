@@ -304,10 +304,13 @@ class Spelling<string name, string variety, int version = 1> {
 }
 
 class GNU<string name> : Spelling<name, "GNU">;
-class Declspec<string name> : Spelling<name, "Declspec">;
+class Declspec<string name> : Spelling<name, "Declspec"> {
+  bit PrintOnLeft = 1;
+}
 class Microsoft<string name> : Spelling<name, "Microsoft">;
 class CXX11<string namespace, string name, int version = 1>
     : Spelling<name, "CXX11", version> {
+  bit CanPrintOnLeft = 0;
   string Namespace = namespace;
 }
 class C23<string namespace, string name, int version = 1>
@@ -427,7 +430,7 @@ class TargetArch<list<string> arches> : TargetSpec {
   let Arches = arches;
 }
 def TargetARM : TargetArch<["arm", "thumb", "armeb", "thumbeb"]>;
-def TargetAArch64 : TargetArch<["aarch64"]>;
+def TargetAArch64 : TargetArch<["aarch64", "aarch64_be", "aarch64_32"]>;
 def TargetAnyArm : TargetArch<!listconcat(TargetARM.Arches, TargetAArch64.Arches)>;
 def TargetAVR : TargetArch<["avr"]>;
 def TargetBPF : TargetArch<["bpfel", "bpfeb"]>;
@@ -571,6 +574,12 @@ class AttrSubjectMatcherAggregateRule<AttrSubject subject> {
 def SubjectMatcherForNamed : AttrSubjectMatcherAggregateRule<Named>;
 
 class Attr {
+  // Specifies that when printed, this attribute is meaningful on the
+  // 'left side' of the declaration.
+  bit CanPrintOnLeft = 1;
+  // Specifies that when printed, this attribute is required to be printed on
+  // the 'left side' of the declaration.
+  bit PrintOnLeft = 0;
   // The various ways in which an attribute can be spelled in source
   list<Spelling> Spellings;
   // The things to which an attribute can appertain
@@ -933,6 +942,7 @@ def AVRSignal : InheritableAttr, TargetSpecificAttr<TargetAVR> {
 }
 
 def AsmLabel : InheritableAttr {
+  let CanPrintOnLeft = 0;
   let Spellings = [CustomKeyword<"asm">, CustomKeyword<"__asm__">];
   let Args = [
     // Label specifies the mangled name for the decl.
@@ -2057,6 +2067,7 @@ def AllocSize : InheritableAttr {
 }
 
 def EnableIf : InheritableAttr {
+  let CanPrintOnLeft = 0;
   // Does not have a [[]] spelling because this attribute requires the ability
   // to parse function arguments but the attribute is not written in the type
   // position.
@@ -2493,8 +2504,6 @@ def SYCLIntelMaxInterleaving : StmtAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
-def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
-                        SYCLIntelMaxInterleaving]>;
 
 def SYCLIntelSpeculatedIterations : StmtAttr {
   let Spellings = [CXX11<"intel", "speculated_iterations">];
@@ -3971,6 +3980,7 @@ def Unavailable : InheritableAttr {
 }
 
 def DiagnoseIf : InheritableAttr {
+  let CanPrintOnLeft = 0;
   // Does not have a [[]] spelling because this attribute requires the ability
   // to parse function arguments but the attribute is not written in the type
   // position.
@@ -4164,7 +4174,7 @@ def AnyX86Interrupt : InheritableAttr, TargetSpecificAttr<TargetAnyX86> {
   let Subjects = SubjectList<[HasFunctionProto]>;
   let ParseKind = "Interrupt";
   let HasCustomParsing = 1;
-  let Documentation = [Undocumented];
+  let Documentation = [AnyX86InterruptDocs];
 }
 
 def AnyX86NoCallerSavedRegisters : InheritableAttr,

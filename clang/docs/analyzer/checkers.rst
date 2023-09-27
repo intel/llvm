@@ -2481,13 +2481,13 @@ input refers to a valid file and removing any invalid user input.
     if (!filename[0])
       return -1;
     strcat(cmd, filename);
-    system(cmd); // Superflous Warning: Untrusted data is passed to a system call
+    system(cmd); // Superfluous Warning: Untrusted data is passed to a system call
   }
 
 Unfortunately, the checker cannot discover automatically that the programmer
 have performed data sanitation, so it still emits the warning.
 
-One can get rid of this superflous warning by telling by specifying the
+One can get rid of this superfluous warning by telling by specifying the
 sanitation functions in the taint configuration file (see
 :doc:`user-docs/TaintAnalysisConfiguration`).
 
@@ -2599,8 +2599,8 @@ Default propagations rules:
  ``memcpy``, ``memmem``, ``memmove``, ``mbtowc``, ``pread``, ``qsort``,
  ``qsort_r``, ``rawmemchr``, ``read``, ``recv``, ``recvfrom``, ``rindex``,
  ``strcasestr``, ``strchr``, ``strchrnul``, ``strcasecmp``, ``strcmp``,
- ``strcspn``, ``strlen``, ``strncasecmp``, ``strncmp``, ``strndup``,
- ``strndupa``, ``strnlen``, ``strpbrk``, ``strrchr``, ``strsep``, ``strspn``,
+ ``strcspn``, ``strncasecmp``, ``strncmp``, ``strndup``,
+ ``strndupa``, ``strpbrk``, ``strrchr``, ``strsep``, ``strspn``,
  ``strstr``, ``strtol``, ``strtoll``, ``strtoul``, ``strtoull``, ``tolower``,
  ``toupper``, ``ttyname``, ``ttyname_r``, ``wctomb``, ``wcwidth``
 
