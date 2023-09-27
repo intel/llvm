@@ -2313,6 +2313,168 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
                                        __ESIMD_DNS::localAccessorToOffset(acc),
                                    vals, mask);
 }
+
+/// @addtogroup sycl_esimd_raw_send
+/// @{
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
+///
+/// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam numSrc0 is the number of GRFs for source-0.
+/// @tparam numSrc1 is the number of GRFs for source-1.
+/// @tparam numDst is the number of GRFs for destination.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msgDst is the old value of the destination operand.
+/// @param msgSrc0 is the first source operand of send message.
+/// @param msgSrc1 is the second source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+/// @return the vector value read from memory.
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+          uint8_t numDst, raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1,
+          typename T2, int n2, typename T3, int n3>
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+          __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+          __ESIMD_NS::simd_mask<execSize> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
+  constexpr unsigned _Width3 = n3 * sizeof(T3);
+  static_assert(_Width3 % 32 == 0, "Invalid size for raw send msgSrc1");
+
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+  using ElemT3 = __ESIMD_DNS::__raw_t<T3>;
+
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+
+  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, execSize>(
+      modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
+      msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
+}
+
+/// Raw send.
+///
+/// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam numSrc0 is the number of GRFs for source-0.
+/// @tparam numDst is the number of GRFs for destination.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msgDst is the old value of the destination operand.
+/// @param msgSrc0 is the first source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+/// @return the vector value read from memory
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numDst,
+          raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1,
+          typename T2, int n2>
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+         uint32_t exDesc, uint32_t msgDesc,
+         __ESIMD_NS::simd_mask<execSize> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc0");
+
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, execSize>(
+      modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
+      msgSrc0.data(), msgDst.data());
+}
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
+///
+/// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam numSrc0 is the number of GRFs for source-0.
+/// @tparam numSrc1 is the number of GRFs for source-1.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msgSrc0 is the first source operand of send message.
+/// @param msgSrc1 is the second source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
+          raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1,
+          typename T2, int n2>
+__ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
+                           __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
+                           uint32_t msgDesc,
+                           __ESIMD_NS::simd_mask<execSize> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msgSrc1");
+
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, execSize>(
+      modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
+      msgSrc0.data(), msgSrc1.data());
+}
+
+/// Raw send. Generates a \c send or \c sendc instruction for the message
+/// gateway.
+///
+/// @tparam execSize is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam numSrc0 is the number of GRFs for source-0.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msgSrc0 is the first source operand of send message.
+/// @param exDesc is the extended message descriptor.
+/// @param msgDesc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0,
+          raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1>
+__ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
+                          uint32_t msgDesc,
+                          __ESIMD_NS::simd_mask<execSize> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+  __esimd_raw_send2_noresult<ElemT1, n1, execSize>(
+      modifier, execSize, mask.data(), numSrc0, sfid, exDesc, msgDesc,
+      msgSrc0.data());
+}
+
+/// @} sycl_esimd_raw_send
+
 /// @} sycl_esimd_memory
 
 /// @cond EXCLUDE
