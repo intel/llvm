@@ -306,6 +306,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
                                     {Arg, getStateArg(I->getFunction())},
                                     "ncpu_call", I);
+      if (I->getMetadata("dbg"))
+        NewI->setDebugLoc(I->getDebugLoc());
       I->replaceAllUsesWith(NewI);
       ToRemove.push_back(I);
     }

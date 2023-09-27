@@ -559,7 +559,9 @@ pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
 }
 
 void queue_impl::cleanup_fusion_cmd() {
-  detail::Scheduler::getInstance().cleanUpCmdFusion(this);
+  // Clean up only if a scheduler instance exits.
+  if (detail::Scheduler::isInstanceAlive())
+    detail::Scheduler::getInstance().cleanUpCmdFusion(this);
 }
 
 bool queue_impl::ext_oneapi_empty() const {
