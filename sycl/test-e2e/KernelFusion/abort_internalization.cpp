@@ -2,9 +2,6 @@
 // RUN: %{build} -O2 -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 SYCL_ENABLE_FUSION_CACHING=0 %{run} %t.out 2>&1 | FileCheck %s
 
-// https://github.com/intel/llvm/issues/7585 to fix the failure:
-// XFAIL: gpu
-
 // Test incomplete internalization: Different scenarios causing the JIT compiler
 // to abort internalization due to target or parameter mismatch. Also check that
 // warnings are printed when SYCL_RT_WARNING_LEVEL=1.

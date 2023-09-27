@@ -2,9 +2,6 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/7585 to fix the failure:
-// XFAIL: gpu
-
 // Test internalization of a nested array type.
 
 #include <array>
