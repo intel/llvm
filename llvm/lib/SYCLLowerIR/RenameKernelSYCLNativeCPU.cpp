@@ -60,7 +60,13 @@ RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   }
 
   for (auto &F : CalledSet) {
-    F->setName(sycl::utils::addSYCLNativeCPUSuffix(F->getName()));
+    auto NewName = sycl::utils::addSYCLNativeCPUSuffix(F->getName());
+    F->setName(NewName);
+    auto Comdat = F->getComdat();
+    if (Comdat) {
+      auto NewComdat = M.getOrInsertComdat(NewName.str());
+      F->setComdat(NewComdat);
+    }
     ModuleChanged |= true;
   }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();

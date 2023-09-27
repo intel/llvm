@@ -245,8 +245,6 @@ Value *getStateArg(const Function *F) {
   return F->getArg(FT->getNumParams() - 1);
 }
 
-static constexpr unsigned int NativeCPUGlobalAS = 1;
-
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,

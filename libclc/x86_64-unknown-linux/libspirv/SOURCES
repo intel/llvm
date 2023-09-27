@@ -16,3 +16,4 @@ math/native_sqrt.cl
 math/rint.cl
 math/round.cl
 math/trunc.cl
+shared/helpers.ll
