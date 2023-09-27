@@ -2342,18 +2342,22 @@ namespace detail {
 #ifndef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
 #define __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE (1)
 #endif
+
+enum class block_2d_op { prefetch, load, store };
+
 // Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
 template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
-          bool Transposed, bool Transformed, bool IsStore = false>
+          bool Transposed, bool Transformed, block_2d_op Op>
 constexpr void check_lsc_block_2d_restrictions() {
   constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
   static_assert(BlockWidth > 0, "Block width must be positive");
   static_assert(BlockHeight > 0, "Block height must be positive");
   // Restrictions based on documentation.
-  static_assert(!IsStore || GRFByteSize <= 512,
-                "2D store supports 512 bytes max");
-  static_assert(IsStore || GRFByteSize <= 2048,
-                "2D load supports 2048 bytes max");
+  if constexpr (Op == block_2d_op::store)
+    static_assert(GRFByteSize <= 512, "2D store supports 512 bytes max");
+  else
+    static_assert(GRFByteSize <= 2048,
+                  "2D load/prefetch supports 2048 bytes max");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
   static_assert((sizeof(T) * BlockWidth) % 4 == 0,
@@ -2382,7 +2386,7 @@ constexpr void check_lsc_block_2d_restrictions() {
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
   } else {
-    if constexpr (IsStore) {
+    if constexpr (Op == block_2d_op::store) {
       static_assert(NBlocks == 1, "Unsupported number of blocks for 2D store");
       static_assert(BlockHeight <= 8, "Unsupported block height for store");
     } else {
@@ -2439,7 +2443,8 @@ lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
             unsigned SurfacePitch, int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed>();
+                                          Transposed, Transformed,
+                                          detail::block_2d_op::load>();
   // For Load BlockWidth is padded up to the next power-of-two value.
   // For Load with Transpose the pre-operation BlockHeight is padded up
   // to the next power-of-two value.
@@ -2546,7 +2551,8 @@ __ESIMD_API void lsc_prefetch_2d(const T *Ptr, unsigned SurfaceWidth,
                                  int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          false, false>();
+                                          false, false,
+                                          detail::block_2d_op::prefetch>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -2591,7 +2597,7 @@ __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
                               int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
-                                          false, true /*IsStore*/>();
+                                          false, detail::block_2d_op::store>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
@@ -2850,7 +2856,8 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed, false>();
+                                          Transposed, Transformed,
+                                          detail::block_2d_op::load>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed    ? BlockHeight
@@ -2935,7 +2942,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed, false>();
+                                          Transposed, Transformed,
+                                          detail::block_2d_op::prefetch>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
@@ -2975,7 +2983,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void
 lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
              __ESIMD_NS::simd<T, N> Data) {
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          false, false, true>();
+                                          false, false,
+                                          detail::block_2d_op::store>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
 
   constexpr uint32_t cache_mask = detail::get_lsc_store_cache_mask<L1H, L3H>()

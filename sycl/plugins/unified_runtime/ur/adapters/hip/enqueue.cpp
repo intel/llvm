@@ -371,8 +371,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
 
-  ur_result_t Result;
-
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
@@ -419,9 +417,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       for (unsigned int i = 0; i < hQueue->TransferAppliedBarrier.size(); i++) {
         hQueue->TransferAppliedBarrier[i] = false;
       }
-    }
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
     }
 
     if (phEvent) {
@@ -622,7 +617,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
   try {
     ScopedContext Active(hQueue->getDevice());
-    ur_result_t Result;
+    ur_result_t Result = UR_RESULT_SUCCESS;
     auto Stream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
