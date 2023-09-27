@@ -12,26 +12,22 @@
 using namespace sycl;
 constexpr sycl::access::mode sycl_read_write = sycl::access::mode::read_write;
 
-template <typename T>
-class Test;
+template <typename T> class Test;
 
-template <typename T>
-class TestInt;
+template <typename T> class TestInt;
 
-static constexpr int NumMathBuiltins = 16; 
+static constexpr int NumMathBuiltins = 16;
 static constexpr float eps = 0.01;
 
-template <typename T>
-using ResultT = std::array<T, NumMathBuiltins>;
+template <typename T> using ResultT = std::array<T, NumMathBuiltins>;
 
-template <typename T>
-ResultT<T> do_test(T in) {
+template <typename T> ResultT<T> do_test(T in) {
   ResultT<T> res;
   unsigned i = 0;
   res[i++] = sycl::native::sqrt(in);
   res[i++] = sycl::sqrt(in);
   res[i++] = sycl::fabs(in);
-  res[i++] = sycl::fma(in,in,in);
+  res[i++] = sycl::fma(in, in, in);
   res[i++] = sycl::trunc(in);
   res[i++] = sycl::rint(in);
   res[i++] = sycl::round(in);
@@ -47,28 +43,27 @@ ResultT<T> do_test(T in) {
   return res;
 }
 
-template <typename T>
-bool check(T& res, T& exp) {
-  bool correct = std::abs(static_cast<float>(res) - static_cast<float>(exp)) < eps;
-  if(!correct) {
-    std::cout << "Value mismatch; Expected: " << exp << " actual: " << res << "\n";
+template <typename T> bool check(T &res, T &exp) {
+  bool correct =
+      std::abs(static_cast<float>(res) - static_cast<float>(exp)) < eps;
+  if (!correct) {
+    std::cout << "Value mismatch; Expected: " << exp << " actual: " << res
+              << "\n";
     return false;
   }
   return true;
 }
 
 template <typename T, int N>
-bool check(sycl::vec<T,N>& res, sycl::vec<T, N>& exp) {
+bool check(sycl::vec<T, N> &res, sycl::vec<T, N> &exp) {
   bool correct = true;
-  for(int i = 0; i < N; i++) {
+  for (int i = 0; i < N; i++) {
     correct &= check(res[i], exp[i]);
   }
   return correct;
 }
 
-
-template<typename T>
-bool test(queue deviceQueue) {
+template <typename T> bool test(queue deviceQueue) {
   const size_t N = 1;
   const T Init{1};
   std::array<T, N> A = {Init};
@@ -81,26 +76,24 @@ bool test(queue deviceQueue) {
     deviceQueue
         .submit([&](sycl::handler &cgh) {
           auto accessorA = bufferA.template get_access<sycl_read_write>(cgh);
-          auto accessorRes = bufferRes.template get_access<sycl_read_write>(cgh);
+          auto accessorRes =
+              bufferRes.template get_access<sycl_read_write>(cgh);
 
-          auto kern = [=]() {
-            accessorRes[0] = do_test(accessorA[0]);
-          };
+          auto kern = [=]() { accessorRes[0] = do_test(accessorA[0]); };
           cgh.single_task<Test<T>>(kern);
         })
         .wait();
   }
   ResultT<T> expected = do_test(Init);
-  for(int i = 0; i < NumMathBuiltins; i++) {
-     if(!check(Res[0][i], expected[i])) {
-       return false;
-     }
+  for (int i = 0; i < NumMathBuiltins; i++) {
+    if (!check(Res[0][i], expected[i])) {
+      return false;
+    }
   }
- return true; 
+  return true;
 }
 
-template <typename T>
-bool test_int(queue deviceQueue) {
+template <typename T> bool test_int(queue deviceQueue) {
   const size_t N = 1;
   const T Init{10};
   std::array<T, N> A = {Init};
@@ -112,18 +105,16 @@ bool test_int(queue deviceQueue) {
         .submit([&](sycl::handler &cgh) {
           auto accessorA = bufferA.template get_access<sycl_read_write>(cgh);
 
-          auto kern = [=]() {
-            accessorA[0] = sycl::popcount<T>(accessorA[0]);
-          };
+          auto kern = [=]() { accessorA[0] = sycl::popcount<T>(accessorA[0]); };
           cgh.single_task<TestInt<T>>(kern);
         })
         .wait();
   }
   T expected = sycl::popcount(Init);
-  if(!(A[0] == expected)) {
+  if (!(A[0] == expected)) {
     return false;
   }
- return true; 
+  return true;
 }
 
 int main() {
@@ -134,7 +125,7 @@ int main() {
   success &= test_int<int>(q);
   success &= test_int<char>(q);
 
-  if(!success) {
+  if (!success) {
     std::cout << "Test failed\n";
     return 1;
   }
