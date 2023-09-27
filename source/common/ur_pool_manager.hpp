@@ -52,8 +52,8 @@ urGetSubDevices(ur_device_handle_t hDevice) {
     }
 
     ur_device_partition_property_t prop;
-    prop.type = UR_DEVICE_PARTITION_EQUALLY;
-    prop.value.equally = nComputeUnits;
+    prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
+    prop.value.affinity_domain = 0;
 
     ur_device_partition_properties_t properties{
         UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
@@ -117,6 +117,11 @@ urGetAllDevicesAndSubDevices(ur_context_handle_t hContext) {
     for (size_t i = 0; i < deviceCount; i++) {
         ret = addPoolsForDevicesRec(devices[i]);
         if (ret != UR_RESULT_SUCCESS) {
+            if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+                // Return main devices when sub-devices are unsupported.
+                return {ret, std::move(devices)};
+            }
+
             return {ret, {}};
         }
     }
