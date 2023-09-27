@@ -7095,7 +7095,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.
-  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+  const llvm::opt::OptTable &Opts = getOpts();
+  Arg *SYCLFpgaArg = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
+  bool HasFsycl = Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false);
+  if(SYCLFpgaArg)
+      Args.AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
+  if (HasFsycl) {
     const bool IsSaveTemps = isSaveTempsEnabled();
     SmallString<128> OutFileDir;
     if (IsSaveTemps) {
