@@ -549,7 +549,7 @@ bool InstCombinerImpl::SimplifyAssociativeOrCommutative(BinaryOperator &I) {
                                  Op1->getFastMathFlags();
            NewBO->setFastMathFlags(Flags);
         }
-        InsertNewInstWith(NewBO, I);
+        InsertNewInstWith(NewBO, I.getIterator());
         NewBO->takeName(Op1);
         replaceOperand(I, 0, NewBO);
         replaceOperand(I, 1, CRes);
@@ -1295,7 +1295,7 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, SelectInst *SI,
                                              Value *NewOp, InstCombiner &IC) {
   Instruction *Clone = I.clone();
   Clone->replaceUsesOfWith(SI, NewOp);
-  IC.InsertNewInstBefore(Clone, *SI);
+  IC.InsertNewInstBefore(Clone, SI->getIterator());
   return Clone;
 }
 
@@ -1467,7 +1467,7 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
 
   // Okay, we can do the transformation: create the new PHI node.
   PHINode *NewPN = PHINode::Create(I.getType(), PN->getNumIncomingValues());
-  InsertNewInstBefore(NewPN, *PN);
+  InsertNewInstBefore(NewPN, PN->getIterator());
   NewPN->takeName(PN);
   NewPN->setDebugLoc(PN->getDebugLoc());
 
@@ -1482,7 +1482,7 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
       else
         U = U->DoPHITranslation(PN->getParent(), NonSimplifiedBB);
     }
-    InsertNewInstBefore(Clone, *NonSimplifiedBB->getTerminator());
+    InsertNewInstBefore(Clone, NonSimplifiedBB->getTerminator()->getIterator());
   }
 
   for (unsigned i = 0; i != NumPHIValues; ++i) {
@@ -2006,7 +2006,7 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
     APInt Offset(DL.getIndexTypeSizeInBits(PtrTy), 0);
     if (NumVarIndices != Src->getNumIndices()) {
       // FIXME: getIndexedOffsetInType() does not handled scalable vectors.
-      if (isa<ScalableVectorType>(BaseType))
+      if (BaseType->isScalableTy())
         return nullptr;
 
       SmallVector<Value *> ConstantIndices;
@@ -2119,7 +2119,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   SmallVector<Value *, 8> Indices(GEP.indices());
   Type *GEPType = GEP.getType();
   Type *GEPEltType = GEP.getSourceElementType();
-  bool IsGEPSrcEleScalable = isa<ScalableVectorType>(GEPEltType);
+  bool IsGEPSrcEleScalable = GEPEltType->isScalableTy();
   if (Value *V = simplifyGEPInst(GEPEltType, PtrOp, Indices, GEP.isInBounds(),
                                  SQ.getWithInstruction(&GEP)))
     return replaceInstUsesWith(GEP, V);
@@ -2287,7 +2287,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
       NewGEP->setOperand(DI, NewPN);
     }
 
-    NewGEP->insertInto(GEP.getParent(), GEP.getParent()->getFirstInsertionPt());
+    NewGEP->insertBefore(*GEP.getParent(), GEP.getParent()->getFirstInsertionPt());
     return replaceOperand(GEP, 0, NewGEP);
   }
 
@@ -2678,7 +2678,7 @@ static Instruction *tryToMoveFreeBeforeNullTest(CallInst &FI,
   for (Instruction &Instr : llvm::make_early_inc_range(*FreeInstrBB)) {
     if (&Instr == FreeInstrBBTerminator)
       break;
-    Instr.moveBefore(TI);
+    Instr.moveBeforePreserving(TI);
   }
   assert(FreeInstrBB->size() == 1 &&
          "Only the branch instruction should remain");
@@ -3681,7 +3681,7 @@ bool InstCombinerImpl::freezeOtherUses(FreezeInst &FI) {
 
   bool Changed = false;
   if (&FI != MoveBefore) {
-    FI.moveBefore(MoveBefore);
+    FI.moveBefore(*MoveBefore->getParent(), MoveBefore->getIterator());
     Changed = true;
   }
 
@@ -3884,7 +3884,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   /// the new position.
 
   BasicBlock::iterator InsertPos = DestBlock->getFirstInsertionPt();
-  I->moveBefore(&*InsertPos);
+  I->moveBefore(*DestBlock, InsertPos);
   ++NumSunkInst;
 
   // Also sink all related debug uses from the source basic block. Otherwise we

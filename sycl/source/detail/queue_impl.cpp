@@ -558,6 +558,12 @@ pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
   return Handle;
 }
 
+void queue_impl::cleanup_fusion_cmd() {
+  // Clean up only if a scheduler instance exits.
+  if (detail::Scheduler::isInstanceAlive())
+    detail::Scheduler::getInstance().cleanUpCmdFusion(this);
+}
+
 bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.

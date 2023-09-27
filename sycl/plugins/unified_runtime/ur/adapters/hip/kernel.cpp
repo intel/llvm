@@ -20,7 +20,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     ScopedContext Active(hProgram->getContext()->getDevice());
 
     hipFunction_t HIPFunc;
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         hipModuleGetFunction(&HIPFunc, hProgram->get(), pKernelName));
 
     std::string KernelNameWoffset = std::string(pKernelName) + "_with_offset";
@@ -32,7 +32,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     if (OffsetRes == hipErrorNotFound) {
       HIPFuncWithOffsetParam = nullptr;
     } else {
-      Result = UR_CHECK_ERROR(OffsetRes);
+      UR_CHECK_ERROR(OffsetRes);
     }
     RetKernel = std::unique_ptr<ur_kernel_handle_t_>(
         new ur_kernel_handle_t_{HIPFunc, HIPFuncWithOffsetParam, pKernelName,

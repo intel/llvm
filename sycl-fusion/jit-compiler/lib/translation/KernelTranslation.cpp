@@ -263,7 +263,7 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
   // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
       TargetTriple, TargetCPU, TargetFeatures, {}, llvm::Reloc::PIC_,
-      std::nullopt, llvm::CodeGenOpt::Default);
+      std::nullopt, llvm::CodeGenOptLevel::Default);
 
   llvm::legacy::PassManager PM;
 
@@ -273,8 +273,8 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
     llvm::raw_string_ostream ASMStream{PTXASM};
     llvm::buffer_ostream BufferedASM{ASMStream};
 
-    if (TargetMachine->addPassesToEmitFile(PM, BufferedASM, nullptr,
-                                           llvm::CGFT_AssemblyFile)) {
+    if (TargetMachine->addPassesToEmitFile(
+            PM, BufferedASM, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
       return createStringError(
           inconvertibleErrorCode(),
           "Failed to construct pass pipeline to emit output");

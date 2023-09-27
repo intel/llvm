@@ -65,8 +65,6 @@ void fixCallingConv(Function *F) {
   }
   F->setAttributes(AttList);
   F->addFnAttr("frame-pointer", "none");
-  if (!F->isDeclaration())
-    F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
 }
 
 // returns the indexes of the used arguments
@@ -308,6 +306,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
                                     {Arg, getStateArg(I->getFunction())},
                                     "ncpu_call", I);
+      if (I->getMetadata("dbg"))
+        NewI->setDebugLoc(I->getDebugLoc());
       I->replaceAllUsesWith(NewI);
       ToRemove.push_back(I);
     }
