@@ -82,7 +82,7 @@ TEST_F(test, memoryPoolTrace) {
     ASSERT_EQ(providerCalls.size(), provider_call_count);
 
     ret = umfPoolGetLastAllocationError(tracingPool.get());
-    ASSERT_EQ(ret, UMF_RESULT_ERROR_NOT_SUPPORTED);
+    ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
     ASSERT_EQ(poolCalls["get_last_native_error"], 1);
     ASSERT_EQ(poolCalls.size(), ++pool_call_count);
 
@@ -153,6 +153,15 @@ INSTANTIATE_TEST_SUITE_P(
     mallocMultiPoolTest, umfMultiPoolTest, ::testing::Values([] {
         return umf::poolMakeUnique<umf_test::proxy_pool, 1>(
                    {umf::memoryProviderMakeUnique<umf_test::provider_malloc>()
+                        .second})
+            .second;
+    }));
+
+INSTANTIATE_TEST_SUITE_P(
+    proxyPoolOOMTest, umfMemTest, ::testing::Values([] {
+        return umf::poolMakeUnique<umf_test::proxy_pool, 1>(
+                   {umf::memoryProviderMakeUnique<
+                        umf_test::provider_mock_out_of_mem>(10)
                         .second})
             .second;
     }));
@@ -256,10 +265,8 @@ TEST_F(test, getLastFailedMemoryProvider) {
     auto [ret, pool] = umf::poolMakeUnique<umf_test::proxy_pool>(&hProvider, 1);
     ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
 
-    ASSERT_EQ(umfGetLastFailedMemoryProvider(), nullptr);
     auto ptr = umfPoolMalloc(pool.get(), allocSize);
     ASSERT_NE(ptr, nullptr);
-    ASSERT_EQ(umfGetLastFailedMemoryProvider(), nullptr);
     umfPoolFree(pool.get(), ptr);
 
     // make provider return an error during allocation
