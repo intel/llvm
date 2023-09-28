@@ -149,5 +149,5 @@ else()
 endif()
 
 target_include_directories(${TARGET_NAME} PRIVATE
-    ${HIP_DIR}/../../../
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
