@@ -560,8 +560,7 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName,
-    bool JITCompilationIsRequired) {
+    const std::string &KernelName, bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string_view CompileOpts, LinkOpts;
