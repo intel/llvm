@@ -541,6 +541,12 @@ etors:
 - name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP
   desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCountExp
   value: '194'
+- name: COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMPrefetchExp
+  value: '195'
+- name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
+  value: '196'
 ---
 type: enum
 desc: Defines structure types

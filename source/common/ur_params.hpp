@@ -1194,6 +1194,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
         os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
         break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -11353,6 +11361,88 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_usm_prefetch_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".pMemory = ";
+
+    ur_params::serializePtr(os, *(params->ppMemory));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".flags = ";
+
+    ur_params::serializeFlag<ur_usm_migration_flag_t>(os, *(params->pflags));
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_usm_advise_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".pMemory = ";
+
+    ur_params::serializePtr(os, *(params->ppMemory));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".advice = ";
+
+    ur_params::serializeFlag<ur_usm_advice_flag_t>(os, *(params->padvice));
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_command_buffer_enqueue_exp_params_t
                *params) {
@@ -15842,6 +15932,14 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP: {
         os << (const struct
                ur_command_buffer_append_mem_buffer_fill_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP: {
+        os << (const struct ur_command_buffer_append_usm_prefetch_exp_params_t
+                   *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP: {
+        os << (const struct ur_command_buffer_append_usm_advise_exp_params_t *)
+                params;
     } break;
     case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP: {
         os << (const struct ur_command_buffer_enqueue_exp_params_t *)params;
