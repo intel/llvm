@@ -336,9 +336,9 @@ void diagnostics()
   //expected-warning@+1 {{unknown attribute 'force_pow2_depth' ignored}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0_var[64];
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(2)]] unsigned int force_p2d_above_max[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
@@ -459,7 +459,7 @@ void check_template_parameters() {
   //expected-note@-1 {{conflicting attribute is here}}
   [[intel::bankwidth(C)]] unsigned int max_bankwidth_reg;
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(A)]] unsigned int force_p2d_below_min[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
