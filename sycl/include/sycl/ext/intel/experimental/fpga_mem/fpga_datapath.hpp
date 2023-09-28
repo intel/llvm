@@ -37,9 +37,9 @@ public:
   template <typename... S> constexpr fpga_datapath(S... args) : val{args...} {}
 
   fpga_datapath(const fpga_datapath &) = default;
-  fpga_datapath(const fpga_datapath &&) = default;
+  fpga_datapath(fpga_datapath &&) = default;
   fpga_datapath &operator=(const fpga_datapath &) = default;
-  fpga_datapath &operator=(const fpga_datapath &&) = default;
+  fpga_datapath &operator=(fpga_datapath &&) = default;
 
   T &get() noexcept { return val; }
 

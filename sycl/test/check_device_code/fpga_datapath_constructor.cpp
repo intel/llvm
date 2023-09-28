@@ -21,7 +21,7 @@ public:
     secret = 0;
 
     for (int i = 0; i < val; i++) {
-      secret += std::sqrt(i);
+      secret += (int)sqrt((float)i);
     }
   }
 };
