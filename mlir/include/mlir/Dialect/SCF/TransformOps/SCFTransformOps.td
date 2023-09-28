@@ -142,9 +142,9 @@ def LoopPeelOp : Op<Transform_Dialect, "loop.peel",
 
      This operation ignores non-scf::ForOp ops and drops them in the return.
 
-     This operation returns two scf::ForOp, with the first Op satisfying the
-     postcondition: "the loop trip count is divisible by the step". The second
-     loop Op contains the remaining iteration. Note that even though the
+     This operation returns two scf::ForOp Ops, with the first Op satisfying
+     the postcondition: "the loop trip count is divisible by the step". The
+     second loop Op contains the remaining iteration. Note that even though the
      Payload IR modification may be performed in-place, this operation consumes
      the operand handle and produces a new one.
 
