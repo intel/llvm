@@ -278,6 +278,11 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_intel_esimd__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_non_uniform_groups__
+// __SYCL_ASPECT(ext_oneapi_non_uniform_groups, 54)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_non_uniform_groups__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_host__ 0
@@ -546,4 +551,9 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_esimd__
 //__SYCL_ASPECT(ext_intel_esimd, 53)
 #define __SYCL_ANY_DEVICE_HAS_ext_intel_esimd__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_non_uniform_groups__
+// __SYCL_ASPECT(ext_oneapi_non_uniform_groups, 54)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_non_uniform_groups__ 0
 #endif

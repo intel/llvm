@@ -331,9 +331,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hDevice->getContext());
-    Result =
-        UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
-                                       widthInBytes, height, elementSizeBytes));
+    UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
+                                   widthInBytes, height, elementSizeBytes));
   } catch (ur_result_t error) {
     Result = error;
   } catch (...) {
@@ -350,7 +349,8 @@ urBindlessImagesUnsampledImageHandleDestroyExp(ur_context_handle_t hContext,
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  return UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
+  UR_CHECK_ERROR(cuSurfObjectDestroy((CUsurfObject)hImage));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -360,7 +360,8 @@ urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
   UR_ASSERT((hContext->getDevice()->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  return UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
+  UR_CHECK_ERROR(cuTexObjectDestroy((CUtexObject)hImage));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
