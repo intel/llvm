@@ -82,6 +82,28 @@ struct provider_malloc : public provider_base {
     const char *get_name() noexcept { return "malloc"; }
 };
 
+struct provider_mock_out_of_mem : public provider_base {
+    provider_malloc helper_prov;
+    int allocNum = 0;
+    umf_result_t initialize(int allocNum) noexcept {
+        this->allocNum = allocNum;
+        return UMF_RESULT_SUCCESS;
+    }
+    enum umf_result_t alloc(size_t size, size_t align, void **ptr) noexcept {
+        if (allocNum <= 0) {
+            *ptr = nullptr;
+            return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        allocNum--;
+
+        return helper_prov.alloc(size, align, ptr);
+    }
+    enum umf_result_t free(void *ptr, size_t size) noexcept {
+        return helper_prov.free(ptr, size);
+    }
+    const char *get_name() noexcept { return "mock_out_of_mem"; }
+};
+
 } // namespace umf_test
 
 #endif /* UMF_TEST_PROVIDER_HPP */

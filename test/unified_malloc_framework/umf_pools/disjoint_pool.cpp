@@ -33,6 +33,16 @@ static auto makePool() {
     return std::move(pool);
 }
 
+static auto makePoolOOMProvider() {
+    auto [ret, provider] =
+        umf::memoryProviderMakeUnique<umf_test::provider_mock_out_of_mem>(10);
+    EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+    auto [retp, pool] = umf::poolMakeUnique<usm::DisjointPool, 1>(
+        {std::move(provider)}, poolConfig());
+    EXPECT_EQ(retp, UMF_RESULT_SUCCESS);
+    return std::move(pool);
+}
+
 using umf_test::test;
 
 TEST_F(test, freeErrorPropagation) {
@@ -72,6 +82,9 @@ TEST_F(test, freeErrorPropagation) {
 
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
                          ::testing::Values(makePool));
+
+INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfMemTest,
+                         ::testing::Values(makePoolOOMProvider));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfMultiPoolTest);
 INSTANTIATE_TEST_SUITE_P(disjointMultiPoolTests, umfMultiPoolTest,
