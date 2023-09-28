@@ -142,17 +142,14 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
     }
   }
 
-  auto result = UR_CHECK_ERROR(
-      cuModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
-                         Options.size(), Options.data(), OptionVals.data()));
+  UR_CHECK_ERROR(cuModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
+                                    Options.size(), Options.data(),
+                                    OptionVals.data()));
 
-  const auto Success = (result == UR_RESULT_SUCCESS);
-
-  BuildStatus =
-      Success ? UR_PROGRAM_BUILD_STATUS_SUCCESS : UR_PROGRAM_BUILD_STATUS_ERROR;
+  BuildStatus = UR_PROGRAM_BUILD_STATUS_SUCCESS;
 
   // If no exception, result is correct
-  return Success ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
@@ -226,17 +223,17 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
     std::unique_ptr<ur_program_handle_t_> RetProgram{
         new ur_program_handle_t_{hContext}};
 
-    Result = UR_CHECK_ERROR(cuLinkCreate(0, nullptr, nullptr, &State));
+    UR_CHECK_ERROR(cuLinkCreate(0, nullptr, nullptr, &State));
     try {
       for (size_t i = 0; i < count; ++i) {
         ur_program_handle_t Program = phPrograms[i];
-        Result = UR_CHECK_ERROR(cuLinkAddData(
+        UR_CHECK_ERROR(cuLinkAddData(
             State, CU_JIT_INPUT_PTX, const_cast<char *>(Program->Binary),
             Program->BinarySizeInBytes, nullptr, 0, nullptr, nullptr));
       }
       void *CuBin = nullptr;
       size_t CuBinSize = 0;
-      Result = UR_CHECK_ERROR(cuLinkComplete(State, &CuBin, &CuBinSize));
+      UR_CHECK_ERROR(cuLinkComplete(State, &CuBin, &CuBinSize));
 
       Result =
           RetProgram->setBinary(static_cast<const char *>(CuBin), CuBinSize);
@@ -248,7 +245,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
       throw;
     }
 
-    Result = UR_CHECK_ERROR(cuLinkDestroy(State));
+    UR_CHECK_ERROR(cuLinkDestroy(State));
     *phProgram = RetProgram.release();
 
   } catch (ur_result_t Err) {
@@ -315,7 +312,11 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->Binary, 1);
   case UR_PROGRAM_INFO_KERNEL_NAMES:
-    return getKernelNames(hProgram);
+    /* TODO: Add implementation for getKernelNames */
+    UR_ASSERT(getKernelNames(hProgram), UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_PROGRAM_INFO_NUM_KERNELS:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }
@@ -353,7 +354,8 @@ urProgramRelease(ur_program_handle_t hProgram) {
       // actually loaded a module and need to unload it is to look at the build
       // status.
       if (hProgram->BuildStatus == UR_PROGRAM_BUILD_STATUS_SUCCESS) {
-        Result = UR_CHECK_ERROR(cuModuleUnload(cuModule));
+        UR_CHECK_ERROR(cuModuleUnload(cuModule));
+        Result = UR_RESULT_SUCCESS;
       } else if (hProgram->BuildStatus == UR_PROGRAM_BUILD_STATUS_NONE) {
         // Nothing to free.
         Result = UR_RESULT_SUCCESS;
@@ -440,7 +442,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   if (Ret != CUDA_SUCCESS && Ret != CUDA_ERROR_NOT_FOUND)
-    Result = UR_CHECK_ERROR(Ret);
+    UR_CHECK_ERROR(Ret);
   if (Ret == CUDA_ERROR_NOT_FOUND) {
     *ppFunctionPointer = 0;
     Result = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;

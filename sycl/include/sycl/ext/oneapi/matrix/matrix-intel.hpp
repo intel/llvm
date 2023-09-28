@@ -269,7 +269,7 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(static_cast<float>(
+    return sycl::fabs(static_cast<float>(
                __spirv_VectorExtractDynamic<
                    sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16,
                    NumRows, NumCols, spv_matrix_use_traits<Use>::value,

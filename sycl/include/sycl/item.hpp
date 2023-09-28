@@ -133,12 +133,6 @@ protected:
   friend class detail::Builder;
 
 private:
-  // Friend to get access to private method set_allowed_range().
-  template <typename, int, typename> friend class detail::RoundedRangeKernel;
-  template <typename, int, typename>
-  friend class detail::RoundedRangeKernelWithKH;
-  void set_allowed_range(const range<Dimensions> rnwi) { MImpl.MExtent = rnwi; }
-
   template <int Dims>
   friend item<Dims, false>
   detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);

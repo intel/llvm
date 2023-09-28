@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>         // for complex_double, comple...
 #include <sycl/access/access.hpp>             // for decorated, address_space
 #include <sycl/aliases.hpp>                   // for half, cl_char, cl_double
 #include <sycl/detail/generic_type_lists.hpp> // for nonconst_address_space...
@@ -18,7 +17,6 @@
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
-#include <complex>     // for complex
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
 #include <limits>      // for numeric_limits
@@ -485,13 +483,16 @@ using select_cl_scalar_float_t =
     select_apply_cl_scalar_t<T, std::false_type, sycl::opencl::cl_half,
                              sycl::opencl::cl_float, sycl::opencl::cl_double>;
 
+// Use SFINAE so that std::complex specialization could be implemented in
+// include/sycl/stl_wrappers/complex that would only be available if STL's
+// <complex> is included by users.
+template <typename T, typename = void> struct select_cl_scalar_complex_or_T {
+  using type = T;
+};
+
 template <typename T>
-using select_cl_scalar_complex_or_T_t = std::conditional_t<
-    std::is_same_v<T, std::complex<float>>, __spv::complex_float,
-    std::conditional_t<std::is_same_v<T, std::complex<double>>,
-                       __spv::complex_double,
-                       std::conditional_t<std::is_same_v<T, std::complex<half>>,
-                                          __spv::complex_half, T>>>;
+using select_cl_scalar_complex_or_T_t =
+    typename select_cl_scalar_complex_or_T<T>::type;
 
 template <typename T>
 using select_cl_scalar_integral_t =

@@ -901,7 +901,9 @@ ways:
    operation has an implicit dependency on the previous operation. However,
    a graph submitted to an in-order queue will keep its existing structure such
    that the complete graph executes in-order with respect to the other
-   command-groups submitted to the queue.
+   command-groups submitted to the queue. The SYCL runtime automatically adds
+   an implicit dependency before and after the graph execution, as if the graph
+   execution is one command-group submitted to the in-order queue.
 
 2. `property::queue::enable_profiling` - This property has no effect on graph
    recording. When set on the queue a graph is submitted to however, it allows
@@ -952,6 +954,9 @@ The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
 |
 [source,c++]
 ----
@@ -968,6 +973,9 @@ The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
 |
 [source,c++]
 ----
@@ -984,6 +992,9 @@ The command status of the event returned will be
 `info::event_command_status::running` once any command group node starts
 executing on a device, and status `info::event_command_status::complete` once
 all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
 |===
 
 ==== New Handler Member Functions
@@ -1011,8 +1022,8 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if the handler is submitted
-  to a queue which doesn't have a SYCL context which matches the context of
-  the executable graph.
+  to a queue which is associated with a device or context that is different
+  from the device and context used on creation of the graph.
 
 * Throws synchronously with error code `invalid` if a previous submission of
   `graph` has yet to complete execution.
@@ -1207,7 +1218,7 @@ The `sycl::ext::codeplay::experimental::property::queue::enable_fusion` property
 defined by the extension is ignored by queue recording.
 
 To enable kernel fusion in a `command_graph` see the
-https://github.com/sommerlukas/llvm/blob/proposal/graph-fusion/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
+link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
 which is layered ontop of `sycl_ext_oneapi_graph`.
 
 ==== sycl_ext_oneapi_kernel_properties
@@ -1237,12 +1248,12 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
-=== sycl_ext_oneapi_bindless_images
+==== sycl_ext_oneapi_bindless_images
 
 The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
 cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph
+code `invalid` if a user tries to add them to a graph.
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
