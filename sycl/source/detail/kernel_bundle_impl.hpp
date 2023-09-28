@@ -10,6 +10,7 @@
 
 #include <detail/device_image_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -17,6 +18,8 @@
 #include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
+
+
 
 #include <algorithm>
 #include <cassert>
@@ -332,12 +335,49 @@ public:
 
   // oneapi ext kernel_compiler
   // construct exe from source kb.
+  // CP   - TEMPORARY EMPTY
   kernel_bundle_impl(
       const kernel_bundle<bundle_state::ext_oneapi_source> &SourceBundle)
       : MContext(SourceBundle.get_context()),
         MDevices(SourceBundle.get_devices()), MState(bundle_state::executable) {
 
     // sourceImpl = getSyclObjImpl(SourceBundle);
+  }
+
+  //std::shared_ptr<kernel_bundle_impl> 
+  void lets_do_this(){
+    assert(MState == bundle_state::ext_oneapi_source);
+
+    // CP temp
+    std::vector<std::string> flags{"-cl-fast-relaxed-math", "-cl-finite-math-only"};
+
+    // if successful, the log is empty. if failed, throws an error with the
+    // compilation log.
+    //std::vector<byte>
+    auto  spirv = syclex::detail::OpenCLC_to_SPIRV(this->Source, flags);
+    std::cout << "spirv byte count: " << spirv.size() << std::endl;
+
+    // copy/paste from program_manager.cpp::createSpirvProgram()
+    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    sycl::detail::pi::PiProgram Program = nullptr;
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    Plugin->call<PiApiKind::piProgramCreate>(ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &Program);
+
+    using exe_kb = kernel_bundle<bundle_state::executable>;
+    sycl::backend Backend = get_backend();
+
+    std::shared_ptr<detail::kernel_bundle_impl> ExeImpl = sycl::detail::make_kernel_bundle(detail::pi::cast<pi_native_handle>(Program), MContext, bundle_state::executable, Backend);
+    std::vector<kernel_id> kIDs = ExeImpl->get_kernel_ids();
+    std::cout << "kernel_ids size: " << kIDs.size() << std::endl; // 0
+
+    //exe_kb ExecKB = make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>( { Program, sycl::ext::oneapi::level_zero::ownership::keep}, MContext);
+
+    // can't do this here. Could maybe do it in level_zero PI .
+    // sycl::kernel_bundle<sycl::bundle_state::executable> SyclKB =
+    //   sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
+    //                            sycl::bundle_state::executable>(
+    //       {Program, sycl::ext::oneapi::level_zero::ownership::keep}, MContext);
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }

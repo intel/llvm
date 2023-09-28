@@ -191,6 +191,7 @@ set(SYCL_SOURCES
     "detail/image_impl.cpp"
     "detail/jit_compiler.cpp"
     "detail/jit_device_binaries.cpp"
+    "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
