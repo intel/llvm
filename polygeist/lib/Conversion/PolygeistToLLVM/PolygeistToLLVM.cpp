@@ -1332,6 +1332,12 @@ public:
 
   void runOnOperation() override {
     ModuleOp m = getOperation();
+    // Early check we would not be breaking ABI due to LLVM conversion
+    if (failed(verifyABI(m))) {
+      signalPassFailure();
+      return;
+    }
+
     const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
 
     LowerToLLVMOptions options(&getContext(),

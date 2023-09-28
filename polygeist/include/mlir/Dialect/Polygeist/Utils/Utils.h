@@ -155,6 +155,9 @@ inline LLVM::LLVMFuncOp getAllocFn(const LLVMTypeConverter &typeConverter,
                                             /* opaquePointers */ true);
 }
 
+/// Returns whether any public symbol in the module has a non-bare convertible
+/// type.
+LogicalResult verifyABI(ModuleOp module);
 } // namespace mlir
 
 #endif // MLIR_DIALECT_POLYGEIST_UTILS_UTILS_H

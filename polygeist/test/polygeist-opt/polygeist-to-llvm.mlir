@@ -532,7 +532,7 @@ func.func private @ptr2memref(%arg0: !llvm.ptr) -> memref<?xf32> {
 
 #layout = affine_map<(s0) -> (s0 - 1)>
 
-// CHECK-LABEL:   llvm.func @non_bare_due_to_layout(
+// CHECK-LABEL:   llvm.func private @non_bare_due_to_layout(
 // CHECK-SAME:                                      %[[VAL_0:.*]]: !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)>,
 // CHECK-SAME:                                      %[[VAL_1:.*]]: i64) -> i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.extractvalue %[[VAL_0]][1] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)> 
@@ -543,7 +543,7 @@ func.func private @ptr2memref(%arg0: !llvm.ptr) -> memref<?xf32> {
 // CHECK-NEXT:      llvm.return %[[VAL_6]] : i64
 // CHECK-NEXT:    }
 
-func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1: index) -> i64 {
+func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1: index) -> i64 attributes {llvm.linkage = #llvm.linkage<private>} {
   %res = memref.load %arg0[%arg1] : memref<100xi64, #layout>
   return %res : i64
 }
@@ -617,9 +617,9 @@ func.func private @f1(%ptr: !llvm.ptr) {
 
 // -----
 
-// CHECK-LABEL:   llvm.func @view(
+// CHECK-LABEL:   llvm.func private @view(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<3>,
-// CHECK-SAME:                    %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) -> !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)> attributes {sym_visibility = "private"} {
+// CHECK-SAME:                    %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) -> !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<3>, i64) -> !llvm.ptr<3>, i8
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_5]][0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
@@ -635,7 +635,7 @@ func.func private @f1(%ptr: !llvm.ptr) {
 // CHECK-NEXT:      llvm.return %[[VAL_15]] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
 // CHECK-NEXT:    }
 
-func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index, %arg2: index, %arg3: index) -> memref<?x?xf32, 3> {
+func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index, %arg2: index, %arg3: index) -> memref<?x?xf32, 3> attributes {llvm.linkage = #llvm.linkage<private>} {
   %res = memref.view %arg0[%arg1][%arg2, %arg3] : memref<8xi8, 3> to memref<?x?xf32, 3>
   return %res : memref<?x?xf32, 3>
 }
