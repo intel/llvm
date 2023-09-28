@@ -167,7 +167,7 @@ void MLIRScanner::buildAffineLoopImpl(
       Builder.getSymbolIdentityMap(), Descr.getStep(),
       /*iterArgs=*/std::nullopt);
 
-  auto &Reg = AffineOp.getLoopBody();
+  auto &Reg = AffineOp.getRegion();
 
   auto Val = (Value)AffineOp.getInductionVar();
 

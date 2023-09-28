@@ -823,7 +823,7 @@ bool LoopTools::arePerfectlyNested(LoopLikeOpInterface outer,
   if (outer == inner)
     return true;
 
-  Block &outerLoopBody = outer.getLoopBody().front();
+  Block &outerLoopBody = outer.getLoopRegions().front()->front();
   if (outerLoopBody.begin() != std::prev(outerLoopBody.end(), 2))
     return false;
 

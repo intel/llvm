@@ -1,5 +1,4 @@
 Annotated_arg_ptr/annotated_ptr.cpp
-Assert/assert_in_simultaneously_multiple_tus.cpp
 AtomicRef/accessor.cpp
 AtomicRef/add.cpp
 AtomicRef/add_generic.cpp

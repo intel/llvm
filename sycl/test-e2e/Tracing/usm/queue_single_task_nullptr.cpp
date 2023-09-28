@@ -2,9 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: not env SYCL_TRACE_TERMINATE_ON_WARNING=1 %{run} sycl-trace --verify %t.out | FileCheck %s
 
-// https://github.com/intel/llvm/issues/7585 to fix the failure:
-// XFAIL: gpu
-
 // Test parameter analysis of USM usage
 
 #include <sycl/sycl.hpp>

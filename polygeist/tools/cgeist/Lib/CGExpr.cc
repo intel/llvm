@@ -575,7 +575,7 @@ ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *Expr,
   Block::iterator OldPoint = Builder.getInsertionPoint();
   Block *OldBlock = Builder.getInsertionBlock();
 
-  Builder.setInsertionPointToStart(&AffineOp.getLoopBody().front());
+  Builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
   ArrayInit.push_back(AffineOp.getInductionVar());
 
@@ -969,7 +969,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
       auto ForOp = Builder.create<scf::ForOp>(Loc, getConstantIndex(0), Size,
                                               getConstantIndex(1));
 
-      Builder.setInsertionPointToStart(&ForOp.getLoopBody().front());
+      Builder.setInsertionPointToStart(&ForOp.getRegion().front());
       assert(Obj.isReference);
       Obj = CommonArrayToPointer(Obj);
       Obj = CommonArrayLookup(Obj, ForOp.getInductionVar(),
