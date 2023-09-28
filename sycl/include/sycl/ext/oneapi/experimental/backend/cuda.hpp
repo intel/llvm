@@ -35,9 +35,6 @@ inline __SYCL_EXPORT bool has_native_event(event sycl_event) {
 
 // CUDA context specialization
 template <>
-__SYCL_DEPRECATED(
-    "Context interop is deprecated for CUDA. If a native context is required,"
-    " use cuDevicePrimaryCtxRetain with a native device")
 inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
     -> backend_return_t<backend::ext_oneapi_cuda, context> {
   // create a vector to be returned
