@@ -143,8 +143,10 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         IsOutOfOrder = true;
       }
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
+        ScopedContext Active(hContext);
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
+        ScopedContext Active(hContext);
         UR_CHECK_ERROR(cuCtxGetStreamPriorityRange(&Priority, nullptr));
       }
     }
