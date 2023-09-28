@@ -33,12 +33,19 @@ constexpr int VAL = 3;
 
 int main() {
 
-  assert(static_cast<bool>(std::is_same_v<backend_traits<BACKEND>::return_type<device>, nativeDevice>));
-  assert(static_cast<bool>(std::is_same_v<backend_traits<BACKEND>::return_type<queue>, nativeQueue>));
-  assert(static_cast<bool>(std::is_same_v<backend_traits<BACKEND>::return_type<event>, nativeEvent>));
+  assert(static_cast<bool>(
+      std::is_same_v<backend_traits<BACKEND>::return_type<device>,
+                     nativeDevice>));
+  assert(static_cast<bool>(
+      std::is_same_v<backend_traits<BACKEND>::return_type<queue>,
+                     nativeQueue>));
+  assert(static_cast<bool>(
+      std::is_same_v<backend_traits<BACKEND>::return_type<event>,
+                     nativeEvent>));
 
   device Device;
-  backend_traits<BACKEND>::return_type<device> NativeDevice = get_native<BACKEND>(Device);
+  backend_traits<BACKEND>::return_type<device> NativeDevice =
+      get_native<BACKEND>(Device);
   // Create sycl device with a native device.
   auto InteropDevice = make_device<BACKEND>(NativeDevice);
 
@@ -46,7 +53,8 @@ int main() {
 
   // Create sycl queue with device created from a native device.
   queue Queue(InteropDevice, {sycl::property::queue::in_order()});
-  backend_traits<BACKEND>::return_type<queue> NativeQueue = get_native<BACKEND>(Queue);
+  backend_traits<BACKEND>::return_type<queue> NativeQueue =
+      get_native<BACKEND>(Queue);
   auto InteropQueue = make_queue<BACKEND>(NativeQueue, Context);
 
   auto A = (int *)malloc_device(N * sizeof(int), InteropQueue);
@@ -57,7 +65,8 @@ int main() {
                                 [=](id<1> item) { A[item] = VAL; });
   });
 
-  backend_traits<BACKEND>::return_type<event> NativeEvent = get_native<BACKEND>(Event);
+  backend_traits<BACKEND>::return_type<event> NativeEvent =
+      get_native<BACKEND>(Event);
   // Create sycl event with a native event.
   event InteropEvent = make_event<BACKEND>(NativeEvent, Context);
 
