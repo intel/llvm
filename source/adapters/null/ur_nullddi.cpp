@@ -4894,6 +4894,72 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendUSMPrefetchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,  ///< [in] handle of the command-buffer object.
+    const void *pMemory, ///< [in] pointer to USM allocated memory to prefetch.
+    size_t size,         ///< [in] size in bytes to be fetched.
+    ur_usm_migration_flags_t flags, ///< [in] USM prefetch flags
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendUSMPrefetchExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendUSMPrefetchExp;
+    if (nullptr != pfnAppendUSMPrefetchExp) {
+        result = pfnAppendUSMPrefetchExp(hCommandBuffer, pMemory, size, flags,
+                                         numSyncPointsInWaitList,
+                                         pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendUSMAdviseExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,           ///< [in] handle of the command-buffer object.
+    const void *pMemory,          ///< [in] pointer to the USM memory object.
+    size_t size,                  ///< [in] size in bytes to be advised.
+    ur_usm_advice_flags_t advice, ///< [in] USM memory advice
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAppendUSMAdviseExp =
+        d_context.urDdiTable.CommandBufferExp.pfnAppendUSMAdviseExp;
+    if (nullptr != pfnAppendUSMAdviseExp) {
+        result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size, advice,
+                                       numSyncPointsInWaitList,
+                                       pSyncPointWaitList, pSyncPoint);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferEnqueueExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t
@@ -5301,6 +5367,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
     pDdiTable->pfnAppendMemBufferFillExp =
         driver::urCommandBufferAppendMemBufferFillExp;
+
+    pDdiTable->pfnAppendUSMPrefetchExp =
+        driver::urCommandBufferAppendUSMPrefetchExp;
+
+    pDdiTable->pfnAppendUSMAdviseExp =
+        driver::urCommandBufferAppendUSMAdviseExp;
 
     pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
 

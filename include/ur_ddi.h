@@ -1924,6 +1924,28 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferFillExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendUSMPrefetchExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMPrefetchExp_t)(
+    ur_exp_command_buffer_handle_t,
+    const void *,
+    size_t,
+    ur_usm_migration_flags_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendUSMAdviseExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
+    ur_exp_command_buffer_handle_t,
+    const void *,
+    size_t,
+    ur_usm_advice_flags_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferEnqueueExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
     ur_exp_command_buffer_handle_t,
@@ -1949,6 +1971,8 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferAppendMemBufferWriteRectExp_t pfnAppendMemBufferWriteRectExp;
     ur_pfnCommandBufferAppendMemBufferReadRectExp_t pfnAppendMemBufferReadRectExp;
     ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
+    ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
+    ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
     ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
 } ur_command_buffer_exp_dditable_t;
 
