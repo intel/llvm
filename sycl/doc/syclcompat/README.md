@@ -361,7 +361,16 @@ In each case we provide a template and non-templated interface for allocating
 memory, taking the number of elements or number of bytes respectively.
 
 The interface includes both synchronous and asynchronous `malloc`, `memcpy`,
-`memset`, `fill`, and `free` operations.
+`memset`, and `free` operations.
+
+The `syclcompat::memset` free function is templated and requires the size of the
+memory to be provided as a number of elements. The templated argument T has
+been encapsulated using a helper to prevent automatic type deduction, creating a
+clear distinction from the standard `std::memset` interface.
+
+Additionally, specialized interfaces such as `memset_d8`, `memset_d16`, and
+`memset_d32` have been implemented to cater to fixed-size 1-byte, 2-byte, and
+4-byte memset operations, respectively.
 
 There is a helper class `pointer_attributes` to query allocation type for memory
 pointers using SYCLcompat, through `sycl::usm::alloc` and
@@ -372,78 +381,151 @@ namespace syclcompat {
 
 // Expects number of elements
 template <typename T>
-T *malloc(size_t count, sycl::queue q = get_default_queue());
+static inline T *malloc(size_t count,
+                             sycl::queue q = get_default_queue());
 template <typename T>
-T *malloc_host(size_t count, sycl::queue q = get_default_queue());
+static inline T *malloc_host(size_t count,
+                                  sycl::queue q = get_default_queue());
 template <typename T>
-T *malloc_shared(size_t count, sycl::queue q = get_default_queue());
+static inline T *malloc_shared(size_t count,
+                                    sycl::queue q = get_default_queue());
 
 // Expects size of the memory in bytes
-void *malloc(size_t num_bytes, sycl::queue q = get_default_queue());
-void *malloc_host(size_t num_bytes, sycl::queue q = get_default_queue());
-void *malloc_shared(size_t num_bytes, sycl::queue q = get_default_queue());
+static inline void *malloc(size_t num_bytes,
+                           sycl::queue q = get_default_queue());
+static inline void *malloc_host(size_t num_bytes,
+                                sycl::queue q = get_default_queue());
+static inline void *malloc_shared(size_t num_bytes,
+                                  sycl::queue q = get_default_queue());
 
 // 2D, 3D memory allocation wrappers
-void *malloc(size_t &pitch, size_t x, size_t y,
-             sycl::queue q = get_default_queue())
-pitched_data malloc(sycl::range<3> size, sycl::queue q = get_default_queue());
+static inline void *malloc(size_t &pitch, size_t x, size_t y, size_t z,
+                           sycl::queue q = get_default_queue())
+static inline pitched_data malloc(sycl::range<3> size,
+                                  sycl::queue q = get_default_queue());
 
 // Blocking memcpy
-void memcpy(void *to_ptr, const void *from_ptr, size_t size,
-            sycl::queue q = get_default_queue());
-void memcpy(T *to_ptr, const T *from_ptr, size_t count,
-            sycl::queue q = get_default_queue());
-void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
-            size_t from_pitch, size_t x, size_t y,
-            sycl::queue q = get_default_queue()); // 2D matrix
-void memcpy(pitched_data to, sycl::id<3> to_pos,
-            pitched_data from, sycl::id<3> from_pos,
-            sycl::range<3> size,
-            sycl::queue q = get_default_queue()); // 3D matrix
-
-// Non-blocking memcpy
-sycl::event memcpy_async(void *to_ptr, const void *from_ptr, size_t size,
-                         sycl::queue q = get_default_queue());
-template <typename T>
-sycl::event memcpy_async(T *to_ptr, T void *from_ptr, size_t count,
-                         sycl::queue q = get_default_queue());
-sycl::event memcpy_async(void *to_ptr, size_t to_pitch,
-                         const void *from_ptr, size_t from_pitch,
-                         size_t x, size_t y,
-                         sycl::queue q = get_default_queue()); // 2D matrix
-sycl::event memcpy_async(pitched_data to, sycl::id<3> to_pos,
-                         pitched_data from, sycl::id<3> from_pos,
-                         sycl::range<3> size,
-                         sycl::queue q = get_default_queue()); // 3D matrix
-
-// Fill
-template <class T>
-void fill(void *dev_ptr, const T &pattern, size_t count,
-          sycl::queue q = get_default_queue());
-template <typename T>
-sycl::event fill_async(void *dev_ptr, const T &pattern,
-                       size_t count, sycl::queue q = get_default_queue());
-
-// Memset
-void memset(void *dev_ptr, int value, size_t size,
+static void memcpy(void *to_ptr, const void *from_ptr, size_t size,
                    sycl::queue q = get_default_queue());
-void memset(void *ptr, size_t pitch, int val, size_t x, size_t y,
-            sycl::queue q = get_default_queue()); // 2D matrix
-void memset(pitched_data pitch, int val, sycl::range<3> size,
-                          sycl::queue q = get_default_queue()); // 3D matrix
-sycl::event memset_async(void *dev_ptr, int value, size_t size,
-                         sycl::queue q = get_default_queue());
-sycl::event memset_async(void *ptr, size_t pitch, int val,
-                         size_t x, size_t y,
-                         sycl::queue q = get_default_queue()); // 2D matrix
-sycl::event memset_async(pitched_data pitch, int val,
-                         sycl::range<3> size,
-                         sycl::queue q = get_default_queue()); // 3D matrix
+// Expects number of elements
+template <typename T>
+static void memcpy(T *to_ptr, const T *from_ptr, size_t count,
+                   sycl::queue q = get_default_queue());
+// 2D matrix
+static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
+                          size_t from_pitch, size_t x, size_t y,
+                          sycl::queue q = get_default_queue());
+// 3D matrix
+static inline void memcpy(pitched_data to, sycl::id<3> to_pos,
+                          pitched_data from, sycl::id<3> from_pos,
+                          sycl::range<3> size,
+                          sycl::queue q = get_default_queue());
+// Non-blocking memcpy
+static sycl::event memcpy_async(void *to_ptr, const void *from_ptr, size_t size,
+                                sycl::queue q = get_default_queue());
+template <typename T>
+static sycl::event memcpy_async(T *to_ptr, const T *from_ptr,
+                                size_t count, 
+                                sycl::queue q = get_default_queue());
+// 2D matrix
+static inline sycl::event memcpy_async(void *to_ptr, size_t to_pitch,
+                                       const void *from_ptr, size_t from_pitch,
+                                       size_t x, size_t y,
+                                       sycl::queue q = get_default_queue());
+// 3D matrix
+static inline sycl::event memcpy_async(pitched_data to, sycl::id<3> to_pos,
+                                       pitched_data from, sycl::id<3> from_pos,
+                                       sycl::range<3> size,
+                                       sycl::queue q = get_default_queue()); 
 
-void free(void *ptr, sycl::queue q = get_default_queue());
-sycl::event free_async(const std::vector<void *> &pointers,
-                       const std::vector<sycl::event> &events,
-                       sycl::queue q = get_default_queue());
+// Templated memset
+// Expects sizes in number of elements
+// T has to be explicitly defined with the template argument.
+template <typename T>
+static inline void memset(void *dev_ptr, T value, size_t size,
+                          sycl::queue q = get_default_queue());
+template <typename T>
+static inline void memset(void *ptr, size_t pitch, T val, size_t x,
+                          size_t y,
+                          sycl::queue q = get_default_queue());
+template <typename T>
+static inline void memset(pitched_data pitch, T val, sycl::range<3> size,
+                          sycl::queue q = get_default_queue());
+template <typename T>
+static inline sycl::event memset_async(void *dev_ptr, T value, size_t size,
+                                       sycl::queue q = get_default_queue());
+template <typename T>
+static inline sycl::event
+memset_async(void *ptr, size_t pitch, T val, size_t x, size_t y,
+             sycl::queue q = get_default_queue());
+template <typename T>
+static inline sycl::event
+memset_async(pitched_data pitch, T val, sycl::range<3> size,
+             sycl::queue q = get_default_queue());
+
+// 1 byte data memset
+static inline void memset_d8(void *dev_ptr, unsigned char value, size_t size,
+                             sycl::queue q = get_default_queue());
+static inline void memset_d8(void *ptr, size_t pitch, unsigned char val,
+                             size_t x, size_t y,
+                             sycl::queue q = get_default_queue());
+static inline void memset_d8(pitched_data pitch, unsigned char val,
+                             sycl::range<3> size,
+                             sycl::queue q = get_default_queue());
+static inline sycl::event memset_d8_async(void *dev_ptr, unsigned char value,
+                                          size_t size,
+                                          sycl::queue q = get_default_queue());
+static inline sycl::event memset_d8_async(void *ptr, size_t pitch,
+                                          unsigned char val, size_t x, size_t y,
+                                          sycl::queue q = get_default_queue());
+static inline sycl::event memset_d8_async(pitched_data pitch, unsigned char val,
+                                          sycl::range<3> size,
+                                          sycl::queue q = get_default_queue());
+
+// 2 byte data memset
+static inline void memset_d16(void *dev_ptr, unsigned short value, size_t size,
+                              sycl::queue q = get_default_queue());
+static inline void memset_d16(void *ptr, size_t pitch, unsigned short val,
+                              size_t x, size_t y,
+                              sycl::queue q = get_default_queue());
+static inline void memset_d16(pitched_data pitch, unsigned short val,
+                              sycl::range<3> size,
+                              sycl::queue q = get_default_queue());
+static inline sycl::event memset_d16_async(void *dev_ptr, unsigned short value,
+                                           size_t size,
+                                           sycl::queue q = get_default_queue());
+static inline sycl::event memset_d16_async(void *ptr, size_t pitch,
+                                           unsigned short val, size_t x,
+                                           size_t y,
+                                           sycl::queue q = get_default_queue());
+static inline sycl::event memset_d16_async(pitched_data pitch,
+                                           unsigned short val,
+                                           sycl::range<3> size,
+                                           sycl::queue q = get_default_queue());
+
+// 4 byte data memset
+static inline void memset_d32(void *dev_ptr, unsigned int value, size_t size,
+                              sycl::queue q = get_default_queue());
+static inline void memset_d32(void *ptr, size_t pitch, unsigned int val,
+                              size_t x, size_t y,
+                              sycl::queue q = get_default_queue());
+static inline void memset_d32(pitched_data pitch, unsigned int val,
+                              sycl::range<3> size,
+                              sycl::queue q = get_default_queue());
+static inline sycl::event memset_d32_async(void *dev_ptr, unsigned int value,
+                                           size_t size,
+                                           sycl::queue q = get_default_queue());
+static inline sycl::event memset_d32_async(void *ptr, size_t pitch,
+                                           unsigned int val, size_t x, size_t y,
+                                           sycl::queue q = get_default_queue());
+static inline sycl::event memset_d32_async(pitched_data pitch, unsigned int val,
+                                           sycl::range<3> size,
+                                           sycl::queue q = get_default_queue());
+
+static inline void free(void *ptr, sycl::queue q = get_default_queue());
+inline sycl::event free_async(const std::vector<void *> &pointers,
+                                     const std::vector<sycl::event> &events,
+                                     sycl::queue q = get_default_queue());
 
 // Queries pointer allocation type
 class pointer_attributes {

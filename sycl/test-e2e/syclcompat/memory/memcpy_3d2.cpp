@@ -125,7 +125,8 @@ void test_memcpy3D_async_pitchedAPI() {
   check(h_data, h_ref, width * height * depth);
   // memset device data.
   // test_feature:memset_async
-  syclcompat::memset_async(d_data, 0x1, extent);
+  auto extent_elements = sycl::range<3>(width, height, depth);
+  syclcompat::memset_d32_async(d_data, 0x1, extent_elements);
   syclcompat::get_default_queue().wait_and_throw();
   // copy back to host
   cpyParm_from_data_ct1 = d_data;
@@ -199,7 +200,8 @@ void test_memcpy3D_async_pitchedAPI_q() {
   check(h_data, h_ref, width * height * depth);
   // memset device data.
   // test_feature:memset_async
-  syclcompat::memset_async(d_data, 0x1, extent, q);
+  auto extent_elements = sycl::range<3>(width, height, depth);
+  syclcompat::memset_d32_async(d_data, 0x1, extent_elements, q);
   q.wait_and_throw();
   // copy back to host
   cpyParm_from_data_ct1 = d_data;

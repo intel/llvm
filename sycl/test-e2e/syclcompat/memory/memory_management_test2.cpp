@@ -74,7 +74,7 @@ void test_memcpy_pitched() {
   check(h_data, h_ref, width * height);
 
   // memset device data.
-  syclcompat::memset(d_data, d_pitch, 0x1, sizeof(float) * width, height);
+  syclcompat::memset_d32(d_data, d_pitch, 0x1, width, height);
 
   // copy back to host
   syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width,
@@ -344,7 +344,7 @@ void test_memcpy_pitched_q() {
   check(h_data, h_ref, width * height);
 
   // memset device data.
-  syclcompat::memset(d_data, d_pitch, 0x1, sizeof(float) * width, height, q);
+  syclcompat::memset_d32(d_data, d_pitch, 0x1, width, height, q);
 
   // copy back to host
   syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width,

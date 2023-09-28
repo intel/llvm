@@ -87,7 +87,8 @@ void test_memcpy3D_memset() {
 
   check(h_data, h_ref, width * height * depth);
   // memset device data.
-  syclcompat::memset(d_data, 0x1, extent);
+  auto extent_elements = sycl::range<3>(width, height, depth);
+  syclcompat::memset_d32(d_data, 0x1, extent_elements);
 
   // copy back to host
   cpyParm_from_data_ct1 = d_data;
@@ -153,7 +154,8 @@ void test_memcpy3D_memset_q() {
 
   check(h_data, h_ref, width * height * depth);
   // memset device data.
-  syclcompat::memset(d_data, 0x1, extent, q);
+  auto extent_elements = sycl::range<3>(width, height, depth);
+  syclcompat::memset_d32(d_data, 0x1, extent_elements, q);
 
   // copy back to host
   cpyParm_from_data_ct1 = d_data;

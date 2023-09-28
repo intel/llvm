@@ -40,7 +40,7 @@ public:
       : grid_{grid}, threads_{threads}, size_{grid_.size() * threads_.size()},
         host_data_(size_) {
     data_ = (int *)syclcompat::malloc(size_ * sizeof(int));
-    syclcompat::memset(data_, 0, size_ * sizeof(int));
+    syclcompat::memset<int>(data_, 0, size_);
   };
   ~QueryLauncher() { syclcompat::free(data_); }
   template <typename... Args>
