@@ -629,13 +629,14 @@ that directly access a variable do not all reside in the same _device image_,
 however no diagnostic is required for an indirect access from another _device
 image_.
 
-When a device global is decorated with this property, in addition to the 
-general device_global rules about initialization mentioned previously, the 
-implementation may also re-initialize it at implementation-defined times. 
-However, the implementation is guaranteed not to re-initialize the 
-device_global on a given device if all kernels run and all copied to/from 
-device_globals decorated with this property on that device are from the same 
-_device image_.
+A device global variable is guaranteed to be initialized for a device prior to 
+the first time it is accessed (whether from a kernel or a copy operation). 
+Device globals may also be re-initialized at implementation-defined times if 
+multiple _device images_ are used on the same device. To avoid unexpected 
+re-initializations, applications should ensure that all kernels that are 
+enqueued to a device D come from the same _device image_. In addition, 
+applications should ensure that all device global copy operation enqueued to 
+device D correspond to that same _device image_.
 
 The application may copy to or from a device global even before any kernel in
 the _device image_ is submitted to the device.  Doing so causes the device
