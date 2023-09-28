@@ -37,12 +37,18 @@ add_clang_executable(cgeist
   Lib/ValueCategory.cc
   Lib/utils.cc
 )
+
+option(CGEIST_DEFAULT_ALLOW_UNDEFINED_SYCL_TYPES
+  "Whether to allow undefined SYCL types by default" OFF)
+configure_file(CgeistConfig.h.in CgeistConfig.h)
+
 install(TARGETS cgeist
 EXPORT PolygeistTargets
 RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}
 COMPONENT cgeist)
 
 target_include_directories(cgeist PRIVATE
+  "${PROJECT_BINARY_DIR}"
   "${LLVM_SOURCE_DIR}/../clang/include"
   "${CMAKE_BINARY_DIR}/tools/clang/include"
 )
