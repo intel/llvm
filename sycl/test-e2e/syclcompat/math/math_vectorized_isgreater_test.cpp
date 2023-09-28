@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  util_vectorized_isgreater_test.cpp
+ *  math_vectorized_isgreater_test.cpp
  *
  *  Description:
  *    vectorized_isgreater tests
@@ -98,10 +98,7 @@ void test_vec_gt_1() {
 
   unsigned int ref_data[num_data] = {0, 0, 0, 0, 1, 1, 1};
   for (unsigned int i = 0; i < num_data; i++) {
-    if (h_out_data[i] != ref_data[i]) {
-      printf("vec_max_test_1 failed!\n");
-      exit(-1);
-    }
+    assert(h_out_data[i] == ref_data[i]);
   }
 
   free(h_out_data);
@@ -179,10 +176,7 @@ void test_vec_gt_2() {
   unsigned int ref_data[num_data] = {0xffff0000, 0x0,    0x0,   0x0,
                                      0xffff,     0xffff, 0xffff};
   for (unsigned int i = 0; i < num_data; i++) {
-    if (h_out_data[i] != ref_data[i]) {
-      printf("vec_max_test_2 failed!\n");
-      exit(-1);
-    }
+    assert(h_out_data[i] == ref_data[i]);
   }
 
   free(h_out_data);
