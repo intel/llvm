@@ -530,6 +530,26 @@ func.func private @ptr2memref(%arg0: !llvm.ptr) -> memref<?xf32> {
 
 // -----
 
+#layout = affine_map<(s0) -> (s0 - 1)>
+
+// CHECK-LABEL:   llvm.func @non_bare_due_to_layout(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)>,
+// CHECK-SAME:                                      %[[VAL_1:.*]]: i64) -> i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.extractvalue %[[VAL_0]][1] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)> 
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(-1 : index) : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_2]][%[[VAL_3]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_4]][%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr
+// CHECK-NEXT:      llvm.return %[[VAL_6]] : i64
+// CHECK-NEXT:    }
+
+func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1: index) -> i64 {
+  %res = memref.load %arg0[%arg1] : memref<100xi64, #layout>
+  return %res : i64
+}
+
+// -----
+
 // CHECK-LABEL:   llvm.func @view(
 // CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<3>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: i64) -> !llvm.ptr<3> attributes {sym_visibility = "private"} {
@@ -593,4 +613,29 @@ func.func private @f0(%ptr: memref<?xi8>) {
 func.func private @f1(%ptr: !llvm.ptr) {
   func.call @free(%ptr) : (!llvm.ptr) -> ()
   return
+}
+
+// -----
+
+// CHECK-LABEL:   llvm.func @view(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !llvm.ptr<3>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: i64, %[[VAL_2:.*]]: i64, %[[VAL_3:.*]]: i64) -> !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)> attributes {sym_visibility = "private"} {
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr<3>, i64) -> !llvm.ptr<3>, i8
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_5]][0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.insertvalue %[[VAL_4]], %[[VAL_6]][1] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_7]][2] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.insertvalue %[[VAL_3]], %[[VAL_9]][3, 1] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.insertvalue %[[VAL_11]], %[[VAL_10]][4, 1] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_13:.*]] = llvm.insertvalue %[[VAL_2]], %[[VAL_12]][3, 0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      %[[VAL_14:.*]] = llvm.mul %[[VAL_11]], %[[VAL_3]]  : i64
+// CHECK-NEXT:      %[[VAL_15:.*]] = llvm.insertvalue %[[VAL_14]], %[[VAL_13]][4, 0] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:      llvm.return %[[VAL_15]] : !llvm.struct<(ptr<3>, ptr<3>, i64, array<2 x i64>, array<2 x i64>)>
+// CHECK-NEXT:    }
+
+func.func private @view(%arg0: memref<8xi8, 3>, %arg1: index, %arg2: index, %arg3: index) -> memref<?x?xf32, 3> {
+  %res = memref.view %arg0[%arg1][%arg2, %arg3] : memref<8xi8, 3> to memref<?x?xf32, 3>
+  return %res : memref<?x?xf32, 3>
 }
