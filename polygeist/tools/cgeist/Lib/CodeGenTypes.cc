@@ -1292,7 +1292,7 @@ static bool isAllowedUndefinedSYCLType(StringRef TypeName) {
       // it can pass through its use to the runtime.
       //
       // For others: These should be semantically correct when lowered to
-      // llvm.struct. Use that untill the dialect is expanded.
+      // llvm.struct. Use that until the dialect is expanded.
       "atomic_ref",
       "device_event",
       "h_item",
