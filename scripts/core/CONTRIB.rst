@@ -13,9 +13,19 @@ accepted into the project.
 
 .. important::
 
-    Before making a contribution you *should* determine if the change should be
-    made directly to the core specification or introduced as an experimental
-    feature. The criteria we use to make this distinction are as follows:
+    Any contributions that fall into the following criteria *must* follow the
+    `Adapter Change Process`_:
+
+    *   Changing the API/ABI of the specification and or loader.
+
+    *   Changing the implementation of an adapter.
+
+    *   Changing the implementation of shared/common code used by an adapter.
+
+    Before making a contribution to the specification you *should* determine if
+    the change should be made directly to the core specification or introduced
+    as an experimental feature. The criteria we use to make this distinction
+    are as follows:
 
     *   The feature exists to enable an experimental feature in a parallel
         language runtime being built on top of Unified Runtime.
@@ -38,6 +48,54 @@ accepted into the project.
     please seek the advice of an appropriate stakeholder or ask the Unified
     Runtime team via the `GitHub issue tracker
     <https://github.com/oneapi-src/unified-runtime/issues/new>`_.
+
+Adapter Change Process
+======================
+
+1.  Create a pull request containing the adapter changes in the
+    `oneapi-src/unified-runtime`_ project targeting the `adapters
+    <https://github.com/oneapi-src/unified-runtime/tree/adapters>`_ branch.
+
+2.  Create a draft pull request in the `intel/llvm`_ project to take advantage
+    of the pre-merge testing. Add any required implementation changes in
+    addition to changing:
+
+    *   `UNIFIED_RUNTIME_REPO`_ to point at your fork of Unified Runtime.
+
+    *   `UNIFIED_RUNTIME_TAG`_ to point at your development branch name used to
+        create the Unified Runtime pull request in step 1.
+
+3.  Add a comment in the *oneapi-src/unified-runtime* pull request linking to
+    the *intel/llvm* pull request created in step 2.
+
+4.  Code reviews for the adapter changes are carried out in the
+    *oneapi-src/unified-runtime* pull request.
+
+5.  Any new commits to the *oneapi-src/unified-runtime* pull request *must* be
+    accompanied by a corresponding update in the *intel/llvm* pull request as
+    indicated in step 2, so the testing is always up-to-date.
+
+6.  The Unified Runtime maintainers *must* ensure that step 5 has been carried
+    out and that all pre-merge testing has passed before accepting the
+    *oneapi-src/unified-runtime* pull request.
+
+7.  Once the *oneapi-src/unified-runtime* pull request is accepted:
+
+    *   Reverse the change to `UNIFIED_RUNTIME_REPO`_ made in step 2.
+    *   Update the `UNIFIED_RUNTIME_TAG`_ to point at the
+        *oneapi-src/unified-runtime* commit/tag containing the merged adapter
+        changes.
+    *   Mark the *intel/llvm* pull request as ready for review and follow their
+        review process.
+
+.. _oneapi-src/unified-runtime:
+   https://github.com/oneapi-src/unified-runtime
+.. _intel/llvm:
+   https://github.com/intel/llvm
+.. _UNIFIED_RUNTIME_REPO:
+   https://github.com/intel/llvm/blob/sycl/sycl/plugins/unified_runtime/CMakeLists.txt#L7
+.. _UNIFIED_RUNTIME_TAG:
+   https://github.com/intel/llvm/blob/sycl/sycl/plugins/unified_runtime/CMakeLists.txt#L8
 
 Build Environment
 =================
