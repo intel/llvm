@@ -54,11 +54,8 @@ inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
 
 // Specialisation of interop_handles get_native_context
 template <>
-__SYCL_DEPRECATED(
-    "Context interop is deprecated for CUDA. If a native context is required,"
-    " use cuDevicePrimaryCtxRetain with a native device")
-inline backend_return_t<backend::ext_oneapi_cuda, context> interop_handle::
-    get_native_context<backend::ext_oneapi_cuda>() const {
+inline backend_return_t<backend::ext_oneapi_cuda, context>
+interop_handle::get_native_context<backend::ext_oneapi_cuda>() const {
 #ifndef __SYCL_DEVICE_ONLY__
   return std::vector{reinterpret_cast<CUcontext>(getNativeContext())};
 #else

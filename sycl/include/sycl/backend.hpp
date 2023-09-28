@@ -229,24 +229,6 @@ inline backend_return_t<backend::ext_oneapi_cuda, context> get_native<
       Obj.getNative());
 }
 
-template <>
-__SYCL_DEPRECATED("Context interop is deprecated for CUDA. If a native context"
-                  " is required, use cuDevicePrimaryCtxRetain with a native"
-                  " device")
-inline backend_return_t<backend::ext_oneapi_cuda, context> interop_handle::
-    get_native_context<backend::ext_oneapi_cuda>() const {
-  if (get_backend() != backend::ext_oneapi_cuda) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
-  }
-#ifndef __SYCL_DEVICE_ONLY__
-  return reinterpret_cast<backend_return_t<backend::ext_oneapi_cuda, context>>(
-      getNativeContext());
-#else
-  return 0;
-#endif // __SYCL_DEVICE_ONLY__
-}
-
 #endif // SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 #endif // SYCL_EXT_ONEAPI_BACKEND_CUDA
 
@@ -264,24 +246,6 @@ inline backend_return_t<backend::ext_oneapi_hip, context> get_native<
   }
   return reinterpret_cast<backend_return_t<backend::ext_oneapi_hip, context>>(
       Obj.getNative());
-}
-
-template <>
-__SYCL_DEPRECATED("Context interop is deprecated for HIP. If a native context"
-                  " is required, use hipDevicePrimaryCtxRetain with a native"
-                  " device")
-inline backend_return_t<backend::ext_oneapi_hip, context> interop_handle::
-    get_native_context<backend::ext_oneapi_hip>() const {
-  if (get_backend() != backend::ext_oneapi_hip) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
-  }
-#ifndef __SYCL_DEVICE_ONLY__
-  return reinterpret_cast<backend_return_t<backend::ext_oneapi_hip, context>>(
-      getNativeContext());
-#else
-  return 0;
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 #endif // SYCL_EXT_ONEAPI_BACKEND_HIP
