@@ -572,21 +572,16 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const program_impl *Prg,
+    const std::string &KernelName,
     bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
   std::string LinkOpts;
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-  }
-
+ 
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
 
   SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
@@ -616,7 +611,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
 
-  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
@@ -625,8 +620,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache) {
-      if (Prg)
-        flushSpecConstants(*Prg, NativePrg, &Img);
       if (Img.supportsSpecConstants())
         enableITTAnnotationsIfNeeded(NativePrg, Plugin);
     }
@@ -670,7 +663,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+                     PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -688,8 +681,7 @@ std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName,
-                                  const program_impl *Prg) {
+                                  const std::string &KernelName) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -701,10 +693,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
-  }
+  
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
@@ -715,7 +704,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return ret_tuple;
 
   sycl::detail::pi::PiProgram Program =
-      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, Prg);
+      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     sycl::detail::pi::PiKernel Kernel = nullptr;
@@ -2274,7 +2263,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       getRawSyclObjImpl(Devs[0])->getHandleRef();
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+                     PiDevice);
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
@@ -2307,7 +2296,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
-    CacheKey.second.first = PiDeviceAdd;
+    CacheKey.second = PiDeviceAdd;
     getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
         Cache, GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr

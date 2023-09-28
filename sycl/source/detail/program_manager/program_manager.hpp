@@ -133,15 +133,11 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  /// \param Prg provides build context information, such as
-  ///        current specialization constants settings; can be nullptr.
-  ///        Passing as a raw pointer is OK, since it is not captured anywhere
-  ///        once the function returns.
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   sycl::detail::pi::PiProgram getBuiltPIProgram(
       const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName, const program_impl *Prg = nullptr,
+      const std::string &KernelName,
       bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
@@ -154,7 +150,7 @@ public:
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName, const program_impl *Prg);
+                    const std::string &KernelName);
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,

@@ -73,9 +73,8 @@ public:
   };
 
   using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
-  using ProgramCacheKeyT =
-      std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                std::pair<sycl::detail::pi::PiDevice, std::string>>;
+  using ProgramCacheKeyT =  std::pair<std::pair<SerializedObj, std::uintptr_t>,
+                                     sycl::detail::pi::PiDevice>;
   using CommonProgramKeyT =
       std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
 
@@ -131,7 +130,7 @@ public:
     if (Inserted.second) {
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
-          std::make_pair(CacheKey.first.second, CacheKey.second.first);
+          std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(std::piecewise_construct,
                                std::forward_as_tuple(CommonKey),
                                std::forward_as_tuple(CacheKey));

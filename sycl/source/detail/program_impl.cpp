@@ -238,23 +238,6 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
   MState = program_state::compiled;
 }
 
-void program_impl::build_with_kernel_name(std::string KernelName,
-                                          std::string BuildOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  if (!is_host()) {
-    MProgramAndKernelCachingAllowed = true;
-    MBuildOptions = BuildOptions;
-    MProgram = ProgramManager::getInstance().getBuiltPIProgram(
-        detail::getSyclObjImpl(get_context()),
-        detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
-        /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call<PiApiKind::piProgramRetain>(MProgram);
-  }
-  MState = program_state::linked;
-}
-
 void program_impl::link(std::string LinkOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::compiled);
@@ -410,7 +393,7 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
     std::tie(Result.first, std::ignore, Result.second, std::ignore) =
         ProgramManager::getInstance().getOrCreateKernel(
             detail::getSyclObjImpl(get_context()),
-            detail::getSyclObjImpl(get_devices()[0]), KernelName, this);
+            detail::getSyclObjImpl(get_devices()[0]), KernelName);
     getPlugin()->call<PiApiKind::piKernelRetain>(Result.first);
   } else {
     const PluginPtr &Plugin = getPlugin();
