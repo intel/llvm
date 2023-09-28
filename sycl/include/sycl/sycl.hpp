@@ -91,3 +91,9 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+
+#ifndef SYCL2020_CONFORMANT_APIS
+// We used to include those and some code might be reliant on that.
+#include <cmath>
+#include <complex>
+#endif
