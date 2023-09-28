@@ -227,6 +227,9 @@ Changelog
 | 1.3       | Add function definitions for Prefetch and Advise      |
 |           | commands                                              |
 +-----------+-------------------------------------------------------+
+| 1.3       | Add function definitions for Prefetch and Advise      |
+|           | commands                                              |
++-----------+-------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
