@@ -1,7 +1,9 @@
 //===--------- ur_interface_loader.cpp - Unified Runtime  -----------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Copyright (C) 2023 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -301,6 +303,44 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
   pDdiTable->pfnEnablePeerAccessExp = urUsmP2PEnablePeerAccessExp;
   pDdiTable->pfnDisablePeerAccessExp = urUsmP2PDisablePeerAccessExp;
   pDdiTable->pfnPeerAccessGetInfoExp = urUsmP2PPeerAccessGetInfoExp;
+
+  return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+
+  pDdiTable->pfnFree = nullptr;
+  pDdiTable->pfnGetInfo = nullptr;
+  pDdiTable->pfnGranularityGetInfo = nullptr;
+  pDdiTable->pfnMap = nullptr;
+  pDdiTable->pfnReserve = nullptr;
+  pDdiTable->pfnSetAccess = nullptr;
+  pDdiTable->pfnUnmap = nullptr;
+
+  return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_physical_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+
+  pDdiTable->pfnCreate = nullptr;
+  pDdiTable->pfnRelease = nullptr;
+  pDdiTable->pfnRetain = nullptr;
 
   return retVal;
 }

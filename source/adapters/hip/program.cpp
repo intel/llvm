@@ -1,7 +1,9 @@
 //===--------- program.cpp - HIP Adapter ----------------------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Copyright (C) 2023 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -9,8 +11,8 @@
 #include "program.hpp"
 
 ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Ctxt)
-    : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-      Context{Ctxt} {
+    : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1}, Context{
+                                                                        Ctxt} {
   urContextRetain(Context);
 }
 
