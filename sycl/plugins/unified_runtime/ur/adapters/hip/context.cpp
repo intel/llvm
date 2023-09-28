@@ -107,7 +107,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
   if (hContext->decrementReferenceCount() == 0) {
     hContext->invokeExtendedDeleters();
-    std::unique_ptr<ur_context_handle_t_> WillDeleteContext{hContext};
+    delete hContext;
   }
   return UR_RESULT_SUCCESS;
 }
