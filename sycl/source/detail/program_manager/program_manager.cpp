@@ -662,8 +662,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
    * environment variables are set and we can just ignore them
    * since all kernels will have their build options overridden with the same
    * string*/
-  auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 PiDevice);
+  auto CacheKey =
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -2342,8 +2342,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
    * since all kernels will have their build options overridden with the same
    * string*/
 
-  auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 PiDevice);
+  auto CacheKey =
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
