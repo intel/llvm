@@ -155,9 +155,11 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
+    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
     SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
+    SPIRSubArch_x86_64_image,
 
     PPCSubArch_spe,
 

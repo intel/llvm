@@ -4950,12 +4950,15 @@ class OffloadingActionBuilder final {
               OutputType = types::TY_Nothing;
             A = C.MakeAction<CompileJobAction>(A, OutputType);
           }
-          // Add any of the device linking steps when -ftarget-device-link is
-          // specified. Device linking is only available for spir64_gen at this
+          // Add any of the device linking steps when -fno-sycl-rdc is
+          // specified. Device linking is only available for AOT at this
           // time.
-          bool IsGen = TargetInfo.TC->getTriple().getSubArch() ==
-                       llvm::Triple::SPIRSubArch_gen;
-          if (Args.hasArg(options::OPT_ftarget_device_link) && IsGen &&
+          llvm::Triple TargetTriple = TargetInfo.TC->getTriple();
+          bool IsAOT =
+              TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+              TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+              TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+          if (tools::SYCL::shouldDoPerObjectFileLinking(C) && IsAOT &&
               FinalPhase != phases::Link) {
             ActionList CAList;
             CAList.push_back(A);
@@ -6575,7 +6578,7 @@ public:
     CanUseBundler =
         ValidBuilders && ValidBuilders == ValidBuildersSupportingBundling;
 
-    LinkDevice = Args.hasArg(options::OPT_ftarget_device_link);
+    LinkDevice = tools::SYCL::shouldDoPerObjectFileLinking(C);
   }
 
   ~OffloadingActionBuilder() {
@@ -9107,8 +9110,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
         BaseInput = FinalOutput->getValue();
-      // Do not use the default image name when using -ftarget-device-link
-      else if (!C.getArgs().hasArg(options::OPT_ftarget_device_link))
+      // Do not use the default image name when using -fno-sycl-rdc
+      else if (!tools::SYCL::shouldDoPerObjectFileLinking(C))
         BaseInput = getDefaultImageName();
       BaseInput =
           C.getArgs().MakeArgString(std::string(BaseInput) + "-wrapper");

@@ -9161,26 +9161,15 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     // Incoming DeviceArch is set, break down the Current triple and add the
     // device arch value to it.
+    // This is done for AOT targets only.
     std::string DeviceArch;
-    if (CurKind == Action::OFK_SYCL &&
-        CurTC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-        TCArgs.hasArg(options::OPT_ftarget_device_link)) {
-      ArgStringList TargetArgs;
-      const toolchains::SYCLToolChain &TC =
-          static_cast<const toolchains::SYCLToolChain &>(*CurTC);
-      TC.TranslateBackendTargetArgs(TC.getTriple(), C.getInputArgs(),
-                                    TargetArgs);
-      for (auto Cur = TargetArgs.begin(), Prev = Cur++; Cur != TargetArgs.end();
-           Cur++, Prev++) {
-        std::string PrevArg(*Prev);
-        std::string CurArg(*Cur);
-        if (PrevArg.compare("-device") == 0) {
-          // Previous arg is -device, the current arg is considered the target
-          // extension. Use the string 'image' as a designator string to return.
-          DeviceArch = std::string("image");
-        }
-      }
-    }
+    llvm::Triple TargetTriple(CurTC->getTriple());
+    bool IsAOT = TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                 TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                 TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+    if (CurKind == Action::OFK_SYCL && IsAOT &&
+        tools::SYCL::shouldDoPerObjectFileLinking(C))
+      DeviceArch = std::string("image");
     if (CurKind != Action::OFK_Host && !DeviceArch.empty()) {
       llvm::Triple T(CurTC->getTriple());
       SmallString<128> ArchName(CurTC->getArchName());
