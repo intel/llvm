@@ -228,16 +228,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     size_t InputFileNum = InputFiles.size();
     bool LinkSYCLDeviceLibs = (InputFileNum >= 2);
-    // Per-object compilation (or non-relocatable device code mode) requires a
-    // change in the link dependencies, such that the first input file is no
-    // longer the prepended kernel BC module. The SYCL device libs are linked
-    // first and the single output is linked with the kernel module separately.
-    if (IsRDC) {
-      LinkSYCLDeviceLibs =
-          LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
-    } else {
-      LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[0]);
-    }
+    LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
