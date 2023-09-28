@@ -8,7 +8,7 @@
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if acc %{ --check-prefix=CHECK-ACC %}
 //
 // CHECK:      {{.*}}assert_in_one_kernel.hpp:10: void kernelFunc(int *, int): {{.*}} [{{[0-3]}},0,0], {{.*}} [0,0,0]
-// CHECK-SAME: Assertion `Buf[wiID] != 0 && "from assert statement"` failed.
+// CHECK-SAME: Assertion `Buf[wiID] != 0 && "from assert statement"` failed
 // CHECK-NOT:  The test ended.
 //
 // CHECK-ACC-NOT: {{.*}}assert_in_one_kernel.hpp:10: void kernelFunc(int *, int): {{.*}} [{{[0-3]}},0,0], {{.*}} [0,0,0]

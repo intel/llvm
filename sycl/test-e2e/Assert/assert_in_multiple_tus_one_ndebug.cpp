@@ -11,7 +11,7 @@
 // CUDA uses block/thread vs global/local id for SYCL, also it shows the
 // position of a thread within the block, not the absolute ID.
 // CHECK:      {{.*}}assert_in_multiple_tus.hpp:20: int checkFunction(): {{global id: \[5|block: \[1}},0,0],
-// CHECK-SAME: {{.*}} [1,0,0] Assertion `X && "Nil in result"` failed.
+// CHECK-SAME: {{.*}} [1,0,0] Assertion `X && "Nil in result"` failed
 // CHECK-NOT:  this message from file2
 // CHECK-NOT:  The test ended.
 //
