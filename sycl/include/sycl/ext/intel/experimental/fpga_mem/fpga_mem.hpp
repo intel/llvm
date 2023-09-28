@@ -54,9 +54,9 @@ public:
   fpga_mem_base &operator=(const fpga_mem_base &) = default;
   fpga_mem_base &operator=(const fpga_mem_base &&) = default;
 
-  T &get() noexcept { return &val; }
+  T &get() noexcept { return val; }
 
-  constexpr const T &get() const noexcept { return &val; }
+  constexpr const T &get() const noexcept { return val; }
 
   // Allows for implicit conversion from this to T
   operator T &() noexcept { return get(); }
@@ -65,7 +65,7 @@ public:
   constexpr operator const T &() const noexcept { return get(); }
 
   fpga_mem_base &operator=(const T &newValue) noexcept {
-    *this->get_ptr() = newValue;
+    val = newValue;
     return *this;
   }
 
