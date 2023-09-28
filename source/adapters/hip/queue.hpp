@@ -1,7 +1,9 @@
 //===--------- queue.hpp - HIP Adapter ------------------------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Copyright (C) 2023 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -56,8 +58,8 @@ struct ur_queue_handle_t_ {
                      ur_context_handle_t Context, ur_device_handle_t Device,
                      unsigned int Flags, ur_queue_flags_t URFlags,
                      bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)},
-        TransferStreams{std::move(TransferStreams)},
+      : ComputeStreams{std::move(ComputeStreams)}, TransferStreams{std::move(
+                                                       TransferStreams)},
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
