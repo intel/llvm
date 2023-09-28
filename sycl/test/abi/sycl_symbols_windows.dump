@@ -1289,6 +1289,7 @@
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXPEAX_K@Z
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXPEBX_K@Z
 ?handleRelease@buffer_plain@detail@_V1@sycl@@IEBAXXZ
+?handleWriteAccessorCreation@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?hasUserDataPtr@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
