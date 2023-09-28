@@ -26,7 +26,7 @@
   _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
 
 // Share code between this PI L0 Plugin and UR L0 Adapter
+#include <adapters/level_zero/ur_level_zero.hpp>
 #include <pi2ur.hpp>
-#include <ur/adapters/level_zero/ur_level_zero.hpp>
 
 #endif // PI_LEVEL_ZERO_HPP
