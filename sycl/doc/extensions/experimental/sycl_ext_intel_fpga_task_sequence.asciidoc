@@ -385,38 +385,15 @@ supports applying the properties to task sequences.
 
 == Forward Progress Guarantees and Execution Model
 
-C{plus}{plus} defines a framework for describing the
-http://eel.is/c++draft/intro.progress[forward progress] of individual threads
-of execution in a multi-threaded program. Here are the terms and definitions
-from the C{plus}{plus} specification that will be used to define progress
-guarantees for task threads:
-
-1. Weakly parallel forward progress guarantee: the implementation does not
-ensure that the thread will eventually make progress.
-
-2. Concurrent forward progress guarantee: the implementation ensures that the
-thread will eventually make progress for as long as it has not terminated.
-
-3. Blocking with forward progress guarantee delegation: When a thread of
-execution _A_ is specified to block with forward progress guarantee delegation
-on the completion of a set _M_ of threads of execution, then throughout the
-whole time of _A_ being blocked on _M_, the implementation shall ensure that the
-forward progress guarantees provided by at least one thread of execution in _M_
-is at least as strong as _A_'s forward progress guarantees. It is unspecified
-which thread or threads of execution in _M_ are chosen and for which number of
-execution steps. The strengthening is not necessarily in place for the rest of
-the lifetime of the affected thread of execution.
-
-Using the above definitions, the progress guarantees for task threads are
-defined as follows:
+The progress guarantees for task threads are defined as follows:
 
  - When a task sequence object _O_ is constructed, a task sequence object thread
  is also created.
 
  - At any point in time, the progress guarantee of all task sequence object
- threads created by a kernel _K_ matches that of _K_. For example,
- if _K_ is strengthened to have a stronger progress guarantee than its
- initial guarantee, all of the task sequence object threads created by _K_
+ threads created by a work-item _WI_ matches that of _WI_. For example,
+ if _WI_ is strengthened to have a stronger progress guarantee than its
+ initial guarantee, all of the task sequence object threads created by _WI_
  are also strengthened.
 
   - An `O.async(...)` call will result in creation of a task thread.
@@ -436,7 +413,7 @@ defined as follows:
 
 The two examples below, respectively, show the following:
 
-1. How strengthening of a kernel strengthens the task threads.
+1. How strengthening of a work item strengthens the task threads.
 
 2. How a task thread delegates its progress guarantee to other task threads in
 the same task sequence object.
@@ -468,7 +445,7 @@ generated.
 [cols="s,,,,"]
 |=====
 // row 1, cells 2 spans 4 cells hence the '4+' before '|'
-| Kernel 4+^| _K_
+| Work Item 4+^| _WI_
 // row 2, cells after the first one span 2 cells each
 |Task Sequence Object Thread
 2+^|_Object_1_Thread_
@@ -492,8 +469,8 @@ parenthesis):
 [cols="s,,,,"]
 |=====
 // row 1, cells 2 spans 4 cells hence the '4+' before '|'
-| Kernel
-4+^| _K_ (concurrently parallel)
+| Work Item
+4+^| _WI_ (concurrently parallel)
 // row 2, cells after the first one span 2 cells each
 |Task Sequence Object Thread
 2+^|_Object_1_Thread_ (concurrent)
@@ -538,17 +515,18 @@ go through the following execution flow:
 
 === Memory Order Semantics
 
-- `async`` is a *Release* operation scoped to include the kernel that called it
-and the task thread that the `async` call creates.
+- `async`` is a *Release* operation; No reads or writes in the kernel can be
+reordered after the creation of the task thread
 
-- The beginning of a task thread _T_ is an *Acquire* operation scoped to include
-the kernel that called `async` to create _T_ and the task thread _T_.
+- The beginning of a task thread _T_ is an *Acquire* operation; no reads or
+writes in the task thread can be reordered before the start of the task thread.
 
-- The end of a task thread _T_ is a *Release* operation scoped to include _T_
-and the kernel that called `async` to create _T_.
+- The end of a task thread _T_ is a *Release* operation; no reads or writes in
+the task thread can be reordered after the end of the task thread where the
+output is written to the output data structure _D_.
 
-- `get` is an *Acquire* operation scoped to include the task thread that is
-being retrieved by `get` and the kernel that is calling `get`.
+- `get` is an *Acquire* operation; no reads or writes in the kernel can be
+reordered before the retrieval of the return data for the particular task thread
 
 
 == Revision History
