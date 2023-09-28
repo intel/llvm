@@ -23,7 +23,9 @@
 #pragma once
 
 #include <sycl/sycl.hpp>
-#include <syclcompat.hpp>
+#include <syclcompat/id_query.hpp>
+#include <syclcompat/launch.hpp>
+#include <syclcompat/memory.hpp>
 
 // Class to launch a kernel and run a lambda on output data
 template <auto F> class QueryLauncher {
@@ -40,7 +42,7 @@ public:
       : grid_{grid}, threads_{threads}, size_{grid_.size() * threads_.size()},
         host_data_(size_) {
     data_ = (int *)syclcompat::malloc(size_ * sizeof(int));
-    syclcompat::memset(data_, 0, size_ * sizeof(int));
+    syclcompat::memset(data_, 0, size_);
   };
   ~QueryLauncher() { syclcompat::free(data_); }
   template <typename... Args>

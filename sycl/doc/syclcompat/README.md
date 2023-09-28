@@ -72,9 +72,9 @@ namespace syclcompat {
 class dim3 {
 public:
   const size_t x, y, z;
-  constexpr dim3(const sycl::range<3> &r);
-  constexpr dim3(const sycl::range<2> &r);
-  constexpr dim3(const sycl::range<1> &r);
+  dim3(const sycl::range<3> &r);
+  dim3(const sycl::range<2> &r);
+  dim3(const sycl::range<1> &r);
   constexpr dim3(size_t x, size_t y = 1, size_t z = 1);
 
   constexpr size_t size();
@@ -85,9 +85,9 @@ public:
 };
 
 // Element-wise operators
-dim3 operator*(const dim3 &a, const dim3 &b);
-dim3 operator+(const dim3 &a, const dim3 &b);
-dim3 operator-(const dim3 &a, const dim3 &b);
+inline dim3 operator*(const dim3 &a, const dim3 &b);
+inline dim3 operator+(const dim3 &a, const dim3 &b);
+inline dim3 operator-(const dim3 &a, const dim3 &b);
 
 } // syclcompat
 ```
@@ -103,39 +103,39 @@ addition to the global range, the following helper functions are also provided:
 namespace syclcompat {
 
 namespace local_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace local_id
 
 namespace local_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace local_range
 
 namespace work_group_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace work_group_id
 
 namespace work_group_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace work_group_range
 
 namespace global_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace global_range
 
 namespace global_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace global_id
 
 } // syclcompat
@@ -298,12 +298,13 @@ group size in each dimension.
 ```c++
 namespace syclcompat {
 
-void wg_barrier();
+inline void wg_barrier();
 
 template <int Dim>
-sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
-                                     sycl::range<Dim> work_group_size);
-sycl::nd_range<1> compute_nd_range(int global_size_in, int work_group_size);
+inline sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
+                                            sycl::range<Dim> work_group_size);
+inline sycl::nd_range<1> compute_nd_range(int global_size_in, 
+                                          int work_group_size);
 
 } // syclcompat
 ```
@@ -320,8 +321,8 @@ out-of-order queue, either created manually or retrieved via a call to
 ```c++
 namespace syclcompat {
 
-sycl::queue create_queue(bool print_on_async_exceptions = false,
-                         bool in_order = true);
+inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                bool in_order = true);
 
 } // syclcompat
 ```
@@ -670,17 +671,18 @@ class device_info {
 public:
   const char *get_name();
   char *get_name();
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
             std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                  std::is_same_v<WorkItemSizesTy, int *>,
                              int> = 0>
   auto get_max_work_item_sizes() const;
 
-  template <typename WorkItemSizesTy = sycl::id<3>,
+  template <typename WorkItemSizesTy = sycl::range<3>,
           std::enable_if_t<std::is_same_v<WorkItemSizesTy, sycl::id<3>> ||
                                 std::is_same_v<WorkItemSizesTy, int *>,
                             int> = 0>
   auto get_max_work_item_sizes() const;
+  bool get_host_unified_memory() const;
   int get_major_version() const;
   int get_minor_version() const;
   int get_integrated() const;
@@ -689,6 +691,7 @@ public:
   int get_max_work_group_size() const;
   int get_max_sub_group_size() const;
   int get_max_work_items_per_compute_unit() const;
+  int get_max_register_size_per_work_group() const;
   template <typename NDRangeSizeTy = size_t *,
             std::enable_if_t<std::is_same_v<NDRangeSizeTy, size_t *> ||
                                  std::is_same_v<NDRangeSizeTy, int *>,
@@ -702,8 +705,17 @@ public:
   size_t get_global_mem_size() const;
   size_t get_local_mem_size() const;
 
-void set_name(const char *name);
-  void set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  unsigned int get_memory_clock_rate() const;
+  unsigned int get_memory_bus_width() const;
+  uint32_t get_device_id() const;
+  std::array<unsigned char, 16> get_uuid() const;
+  unsigned int get_global_mem_cache_size() const;
+
+  void set_name(const char *name);
+  void set_max_work_item_sizes(const sycl::range<3> max_work_item_sizes);
+  [[deprecated]] void
+  set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes);
+  void set_host_unified_memory(bool host_unified_memory);
   void set_major_version(int major);
   void set_minor_version(int minor);
   void set_integrated(int integrated);
@@ -716,6 +728,13 @@ void set_name(const char *name);
   void
   set_max_work_items_per_compute_unit(int max_work_items_per_compute_unit);
   void set_max_nd_range_size(int max_nd_range_size[]);
+  void set_memory_clock_rate(unsigned int memory_clock_rate);
+  void set_memory_bus_width(unsigned int memory_bus_width);
+  void 
+  set_max_register_size_per_work_group(int max_register_size_per_work_group);
+  void set_device_id(uint32_t device_id);
+  void set_uuid(std::array<unsigned char, 16> uuid);
+  void set_global_mem_cache_size(unsigned int global_mem_cache_size);
 };
 ```
 
@@ -729,38 +748,38 @@ follows:
 namespace syclcompat {
 
 // Util function to create a new queue for the current device
-sycl::queue create_queue(bool print_on_async_exceptions = false,
-                         bool in_order = true);
+static inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                       bool in_order = true);
 
 // Util function to get the default queue of current device in
 // device manager.
-sycl::queue get_default_queue();
+static inline sycl::queue get_default_queue();
 
 // Util function to wait for the queued kernels.
-void wait(sycl::queue q = get_default_queue());
+static inline void wait(sycl::queue q = get_default_queue());
 
 // Util function to wait for the queued kernels and throw unhandled errors.
-void wait_and_throw(sycl::queue q = get_default_queue());
+static inline void wait_and_throw(sycl::queue q = get_default_queue());
 
 // Util function to get the id of current device in
 // device manager.
-unsigned int get_current_device_id();
+static inline unsigned int get_current_device_id();
 
 // Util function to get the current device.
-device_ext &get_current_device();
+static inline device_ext &get_current_device();
 
 // Util function to get a device by id.
-device_ext &get_device(unsigned int id);
+static inline device_ext &get_device(unsigned int id);
 
 // Util function to get the context of the default queue of current
 // device in device manager.
-sycl::context get_default_context();
+static inline sycl::context get_default_context();
 
 // Util function to get a CPU device.
-device_ext &cpu_device();
+static inline device_ext &cpu_device();
 
 // Util function to select a device by its id
-unsigned int select_device(unsigned int id);
+static inline unsigned int select_device(unsigned int id);
 
 } // syclcompat
 ```
@@ -778,6 +797,9 @@ destructor waits on a set of `sycl::event` which can be added to via
 `add_event`. This is used, for example, to implement `syclcompat::free_async` to
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
+`device_ext` also provides the `has_capability_or_fail` member function, which
+throws a `std::runtime_error` if the device does not have the specified list of
+`sycl::aspect`.
 
 The class is exposed as follows:
 
@@ -786,19 +808,26 @@ namespace syclcompat {
 
 class device_ext : public sycl::device {
   device_ext();
-  device_ext(const sycl::device &base);
+  device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
+             bool in_order = true);
   ~device_ext();
 
   bool is_native_host_atomic_supported();
-  int get_major_version();
-  int get_minor_version();
-  int get_max_compute_units();
-  int get_max_clock_frequency();
-  int get_integrated();
-  void get_device_info(device_info &out);
+  int get_major_version() const;
+  int get_minor_version() const;
+  int get_max_compute_units() const;
+  int get_max_clock_frequency() const;
+  int get_integrated() const;
+  int get_max_sub_group_size() const;
+  int get_max_register_size_per_work_group() const;
+  int get_max_work_group_size() const;
+  int get_mem_base_addr_align() const;
+  size_t get_global_mem_size() const;
+  void get_memory_info(size_t &free_memory, size_t &total_memory);
 
-  device_info get_device_info();
-  void reset();
+  void get_device_info(device_info &out) const;
+  device_info get_device_info() const;
+  void reset(bool print_on_async_exceptions = false, bool in_order = true);
 
   sycl::queue *default_queue();
   void queues_wait_and_throw();
@@ -808,6 +837,12 @@ class device_ext : public sycl::device {
   void set_saved_queue(sycl::queue *q);
   sycl::queue *get_saved_queue();
   sycl::context get_context();
+
+  // Util function to check whether a device supports some kinds of 
+  // sycl::aspect.
+  // A std::runtime_error is thrown if the aspect is not supported
+  void
+  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props);
 };
 
 } // syclcompat
@@ -1114,29 +1149,63 @@ kernel names during machine translation.
 `get_sycl_language_version` returns an integer representing the version of the
 SYCL spec supported by the current SYCL compiler.
 
+The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
+expressions that might throw exceptions. If no exceptions are thrown, it returns
+`syclcompat::error_code::SUCCESS`. If an exception is caught, it prints the
+error message to the standard error stream and returns
+`syclcompat::error_code::DEFAULT_ERROR`.
+
 ``` c++
 namespace syclcompat {
 
-#define __sycl_compat_align__(n) __attribute__((aligned(n)))
-#define __sycl_compat_inline__ __inline__ __attribute__((always_inline))
+template <class... Args> class syclcompat_kernel_name;
+template <int Arg> class syclcompat_kernel_scalar;
 
-#define __sycl_compat_noinline__ __attribute__((noinline))
+#if defined(_MSC_VER)
+#define __syclcompat_align__(n) __declspec(align(n))
+#define __syclcompat_inline__ __forceinline
+#else
+#define __syclcompat_align__(n) __attribute__((aligned(n)))
+#define __syclcompat_inline__ __inline__ __attribute__((always_inline))
+#endif
 
-template <class... Args> class sycl_compat_kernel_name;
-template <int Arg> class sycl_compat_kernel_scalar;
+#if defined(_MSC_VER)
+#define __syclcompat_noinline__ __declspec(noinline)
+#else
+#define __syclcompat_noinline__ __attribute__((noinline))
+#endif
+
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+
+#ifdef _WIN32
+#define SYCLCOMPAT_EXPORT __declspec(dllexport)
+#else
+#define SYCLCOMPAT_EXPORT
+#endif
+
+namespace syclcompat {
+enum error_code { SUCCESS = 0, DEFAULT_ERROR = 999 };
+}
+
+#define SYCLCOMPAT_CHECK_ERROR(expr)
 
 int get_sycl_language_version();
 
 } // namespace syclcompat
 ```
 
-#### Kernel Helper Functions
+### Kernel Helper Functions
 
 Kernel helper functions provide a structure `kernel_function_info` to keep SYCL
 kernel information, and provide a utility function `get_kernel_function_info()`
 to get the kernel information. Overloads are provided to allow either returning
 a `kernel_function_info` object, or to return by pointer argument. In the
 current version, `kernel_function_info` describes only maximum work-group size.
+
+SYCLcompat also provides the `kernel_library` and `kernel_function` classes.
+`kernel_library` facilitates the loading and unloading of kernel libraries.
+`kernel_function` represents a specific kernel function within a loaded librariy
+and can be invoked with specified arguments.
 
 ``` c++
 namespace syclcompat {
@@ -1148,6 +1217,34 @@ struct kernel_function_info {
 static void get_kernel_function_info(kernel_function_info *kernel_info,
                                      const void *function);
 static kernel_function_info get_kernel_function_info(const void *function);
+
+class kernel_library {
+  kernel_library();
+  kernel_library(void *ptr);
+  operator void *() const;
+};
+
+static kernel_library load_kernel_library(const std::string &name);
+static kernel_library load_kernel_library_mem(char const *const image);
+static void unload_kernel_library(const kernel_library &library);
+
+class kernel_function {
+    kernel_function();
+    kernel_function(kernel_functor ptr);
+    operator void *() const;
+    void operator()(sycl::queue &q, const sycl::nd_range<3> &range,
+                    unsigned int a, void **args, void **extra);
+};
+
+static kernel_function get_kernel_function(kernel_library &library,
+                                           const std::string &name);
+static void invoke_kernel_function(kernel_function &function,
+                                   sycl::queue &queue,
+                                   sycl::range<3> groupRange,
+                                   sycl::range<3> localRange,
+                                   unsigned int localMemSize,
+                                   void **kernelParams, void **extra);
+
 } // namespace syclcompat
 ```
 
