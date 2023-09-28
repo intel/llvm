@@ -73,7 +73,7 @@ public:
   };
 
   using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
-  using ProgramCacheKeyT =  std::pair<std::pair<SerializedObj, std::uintptr_t>,
+  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      sycl::detail::pi::PiDevice>;
   using CommonProgramKeyT =
       std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;

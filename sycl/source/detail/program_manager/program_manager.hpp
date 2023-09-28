@@ -137,8 +137,7 @@ public:
   ///        add a check that kernel is compiled, otherwise don't add the check.
   sycl::detail::pi::PiProgram getBuiltPIProgram(
       const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName,
-      bool JITCompilationIsRequired = false);
+      const std::string &KernelName, bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
   getBuiltPIProgram(const context &Context, const device &Device,
