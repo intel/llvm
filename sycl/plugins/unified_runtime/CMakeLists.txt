@@ -8,7 +8,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   set(UNIFIED_RUNTIME_TAG 9265d33b3b1e538bb1d27aea29d30f2ed47859be)
 
   set(UR_BUILD_ADAPTER_L0 ON)
-  set(UR_BUILD_ADAPTER_HIP ON)
+  if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_HIP ON)
+  endif()
   set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -79,7 +81,10 @@ add_sycl_plugin(unified_runtime
     LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
-add_dependencies(sycl-runtime-libraries ur_adapter_level_zero ur_adapter_hip)
+add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_hip)
+endif()
 
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Build CUDA adapter
