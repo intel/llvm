@@ -72,9 +72,9 @@ enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
 struct ram_stitching_key {
   template <ram_stitching_enum RamStitching>
-  using value_t = property_value<
-      ram_stitching_key,
-      std::integral_constant<ram_stitching_enum, RamStitching>>;
+  using value_t =
+      property_value<ram_stitching_key,
+                     std::integral_constant<ram_stitching_enum, RamStitching>>;
 };
 
 struct max_private_copies_key {
