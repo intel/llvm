@@ -41,8 +41,6 @@ if(UR_BUILD_ADAPTER_CUDA)
 endif()
 
 if(UR_BUILD_ADAPTER_HIP)
-    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/hip")
-    FetchSource(https://github.com/intel/llvm.git ${INTEL_LLVM_TAG} "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
     add_subdirectory(hip)
 endif()
 
