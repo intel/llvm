@@ -54,17 +54,11 @@ struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
 };
 
 template <typename T>
-struct GroupOpTag<
-    T, std::enable_if_t<std::is_same<T, std::complex<half>>::value ||
-                        std::is_same<T, std::complex<float>>::value ||
-                        std::is_same<T, std::complex<double>>::value>> {
-  using type = GroupOpC;
-};
-
-template <typename T>
 struct GroupOpTag<T, std::enable_if_t<detail::is_genbool<T>::value>> {
   using type = GroupOpBool;
 };
+
+// GroupOpC (std::complex) is handled in sycl/stl_wrappers/complex.
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <__spv::GroupOperation O, typename Group, typename T>               \

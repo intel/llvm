@@ -88,3 +88,34 @@ TEST_F(NodeCreation, QueueParallelForWithNoGraphNode) {
   EXPECT_EQ(TraceType, xpti::trace_node_create);
   EXPECT_THAT(Message, HasSubstr("TestKernel"));
 }
+
+TEST_F(NodeCreation, QueueMemcpyNode) {
+  sycl::queue Q;
+
+  constexpr int n = 10 * sizeof(double);
+  double HostPtr[n];
+  double *DeviceUSMPtr = (double *)sycl::malloc_device(n, Q);
+  Q.memcpy(DeviceUSMPtr, HostPtr, n).wait();
+  sycl::free(DeviceUSMPtr, Q);
+
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_node_create);
+  EXPECT_THAT(Message, HasSubstr("memory_transfer_node"));
+}
+
+TEST_F(NodeCreation, QueueMemsetNode) {
+  sycl::queue Q;
+
+  constexpr int n = 10 * sizeof(double);
+  double *DeviceUSMPtr = (double *)sycl::malloc_device(n, Q);
+  Q.memset(DeviceUSMPtr, 0, n).wait();
+  sycl::free(DeviceUSMPtr, Q);
+
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_node_create);
+  EXPECT_THAT(Message, HasSubstr("memory_transfer_node"));
+}
