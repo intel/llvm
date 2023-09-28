@@ -247,7 +247,7 @@ void program_impl::build_with_kernel_name(std::string KernelName,
     MBuildOptions = BuildOptions;
     MProgram = ProgramManager::getInstance().getBuiltPIProgram(
         detail::getSyclObjImpl(get_context()),
-        detail::getSyclObjImpl(get_devices()[0]), KernelName, this,
+        detail::getSyclObjImpl(get_devices()[0]), KernelName,
         /*JITCompilationIsRequired=*/(!BuildOptions.empty()));
     const PluginPtr &Plugin = getPlugin();
     Plugin->call<PiApiKind::piProgramRetain>(MProgram);

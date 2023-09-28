@@ -560,22 +560,15 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const program_impl *Prg,
+    const std::string &KernelName,
     bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string_view CompileOpts, LinkOpts;
 
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-  }
-
   CompileOpts = getCompileOptionsFromEnvironment();
   LinkOpts = getLinkOptionsFromEnvironment();
-
   SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
@@ -605,7 +598,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
 
-  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     std::string CompileOptsString =
@@ -621,8 +614,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         std::string_view(CompileOptsString + LinkOptsString), SpecConsts);
 
     if (!DeviceCodeWasInCache) {
-      if (Prg)
-        flushSpecConstants(*Prg, NativePrg, &Img);
       if (Img.supportsSpecConstants())
         enableITTAnnotationsIfNeeded(NativePrg, Plugin);
     }
@@ -705,7 +696,6 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   SerializedObj SpecConsts;
   std::string_view CompileOpts, LinkOpts;
   if (Prg) {
-    CompileOpts = Prg->get_build_options();
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
   CompileOpts = getCompileOptionsFromEnvironment();
@@ -720,7 +710,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return ret_tuple;
 
   sycl::detail::pi::PiProgram Program =
-      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, Prg);
+      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     sycl::detail::pi::PiKernel Kernel = nullptr;
