@@ -50,6 +50,11 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 * [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
 
+If available, the following extensions extend SYCLcompat functionality:
+
+* [sycl_ext_intel_device_info](../extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+* [sycl_ext_oneapi_bfloat16_math_functions](sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) \[Optional\]
+
 ## Usage
 
 All functionality is available under the `syclcompat::` namespace, imported
@@ -1068,16 +1073,6 @@ Functionality is provided to represent a pair of integers as a `double`.
 in the high & low 32-bits respectively. `cast_double_to_int` casts the high or
 low 32-bits back into an integer.
 
-`syclcompat::fast_length` provides a wrapper to SYCL's
-`fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
-length.
-
-`vectorized_max` and `vectorized_min` are binary operations returning the
-max/min of two arguments, where each argument is treated as a `sycl::vec` type.
-`vectorized_isgreater` performs elementwise `isgreater`, treating each argument
-as a vector of elements, and returning `0` for vector components for which
-`isgreater` is false, and `-1` when true.
-
 `reverse_bits` reverses the bits of a 32-bit unsigned integer, `ffs` returns the
 position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
@@ -1093,8 +1088,11 @@ functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
 
-The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
-which accept `sycl::vec<T,2>` arguments representing complex values.
+`int_as_queue_ptr` returns a pointer to the default queue if `x <= 2`, while
+returning `x` reinterpreted as a `sycl::queue *` otherwise.
+
+The class `args_selector` serves as a helper for extracting argumens from an
+array of pointers for manipulating the arguments passed to a kernel function.
 
 ```c++
 namespace syclcompat {
@@ -1103,50 +1101,52 @@ inline int cast_double_to_int(double d, bool use_high32 = true);
 
 inline double cast_ints_to_double(int high32, int low32);
 
-inline float fast_length(const float *a, int len);
-
-template <typename S, typename T> inline T vectorized_max(T a, T b);
-
-template <typename S, typename T> inline T vectorized_min(T a, T b);
-
-template <typename S, typename T> inline T vectorized_isgreater(T a, T b);
-
-template <>
-inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
-                                                              unsigned b);
-
-template <typename T> inline T reverse_bits(T a);
+template <typename ValueT> inline ValueT reverse_bits(ValueT a);
 
 inline unsigned int byte_level_permute(unsigned int a, unsigned int b,
                                        unsigned int s);
 
-template <typename T> inline int ffs(T a);
+template <typename ValueT> inline int ffs(ValueT a);
 
-template <typename T>
-T select_from_sub_group(sycl::sub_group g, T x, int remote_local_id,
+template <typename ValueT>
+ValueT select_from_sub_group(sycl::sub_group g, ValueT x, int remote_local_id,
                         int logical_sub_group_size = 32);
 
-template <typename T>
-T shift_sub_group_left(sycl::sub_group g, T x, unsigned int delta,
+template <typename ValueT>
+ValueT shift_sub_group_left(sycl::sub_group g, ValueT x, unsigned int delta,
                        int logical_sub_group_size = 32);
 
-template <typename T>
-T shift_sub_group_right(sycl::sub_group g, T x, unsigned int delta,
+template <typename ValueT>
+ValueT shift_sub_group_right(sycl::sub_group g, ValueT x, unsigned int delta,
                         int logical_sub_group_size = 32);
 
-template <typename T>
-T permute_sub_group_by_xor(sycl::sub_group g, T x, unsigned int mask,
+template <typename ValueT>
+ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
                            int logical_sub_group_size = 32);
 
-template <typename T>
-sycl::vec<T, 2> cmul(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
+inline queue_ptr int_as_queue_ptr(uintptr_t x);
 
-template <typename T>
-sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
+template <int n_nondefault_params, int n_default_params, typename ValueT>
+class args_selector;
 
-template <typename T> T cabs(sycl::vec<T, 2> x);
+template <int n_nondefault_params, int n_default_params, typename R,
+          typename... Ts>
+class args_selector<n_nondefault_params, n_default_params, R(Ts...)> {
+  // Get the type of the ith argument of R(Ts...)
+  template <int i>
+  using arg_type =
+      std::tuple_element_t<account_for_default_params<i>(), std::tuple<Ts...>>;
 
-template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
+  // If kernel_params is nonnull, then args_selector will
+  // extract arguments from kernel_params. Otherwise, it
+  // will extract them from extra.
+  args_selector(void **kernel_params, void **extra)
+      : kernel_params(kernel_params), args_buffer(get_args_buffer(extra)) {}
+
+  // Get a reference to the ith argument extracted from kernel_params
+  // or extra.
+  template <int i> arg_type<i> &get();
+};
 
 } // namespace syclcompat
 ```
@@ -1154,6 +1154,12 @@ template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 The function `experimental::nd_range_barrier` synchronizes work items from all
 work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
+`experimental::calculate_max_active_wg_per_xecore` and
+`experimental::calculate_max_potential_wg` are used for occupancy calculation.
+
+The `group_type` enum defines different types of groups. The `group_base` class
+serves dispatches group interfaces based on the `group_type`. The `group` class
+is a container that can store supported group types.
 
 ```c++
 namespace syclcompat {
@@ -1162,14 +1168,14 @@ namespace experimental {
 template <int dimensions = 3>
 inline void nd_range_barrier(
     sycl::nd_item<dimensions> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, sycl::memory_order::seq_cst,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
 template <>
 inline void nd_range_barrier(
     sycl::nd_item<1> item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::acq_rel,
+    sycl::atomic_ref<unsigned int, sycl::memory_order::seq_cst,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
@@ -1183,35 +1189,100 @@ public:
   uint32_t get_group_linear_range() const;
 };
 
+inline int calculate_max_active_wg_per_xecore(int *num_wg, int wg_size,
+                                              int slm_size = 0,
+                                              int sg_size = 32,
+                                              bool used_barrier = false,
+                                              bool used_large_grf = false);
+
+inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
+                                      int max_ws_size_for_device_code,
+                                      int slm_size = 0, int sg_size = 32,
+                                      bool used_barrier = false,
+                                      bool used_large_grf = false);
+
+enum class group_type { work_group, sub_group, logical_group, root_group };
+
+template <int dimensions = 3> class group_base {
+  group_base(sycl::nd_item<dimensions> item)
+      : nd_item(item), logical_group(item) {}
+  ~group_base() {}
+
+  // Returns the number of work-items in the group.
+  size_t get_local_linear_range();
+
+  // Returns the index of the work-item within the group.
+  size_t get_local_linear_id();
+
+  // Wait for all the elements within the group to complete their execution
+  // before proceeding.
+  void barrier();
+};
+
+template <typename ValueT, int dimensions = 3>
+class group : public group_base<dimensions> {
+  group(ValueT g, sycl::nd_item<dimensions> item);
+};
+
+
 } // namespace experimental
 } // namespace syclcompat
 ```
 
 To assist machine translation, helper aliases are provided for inlining and
-alignment attributes. The class template declarations `sycl_compat_kernel_name`
-and `sycl_compat_kernel_scalar` are used to assist automatic generation of
+alignment attributes. The class template declarations `syclcompat_kernel_name`
+and `syclcompat_kernel_scalar` are used to assist automatic generation of
 kernel names during machine translation.
 
 `get_sycl_language_version` returns an integer representing the version of the
 SYCL spec supported by the current SYCL compiler.
 
+The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
+expressions that might throw exceptions. If no exceptions are thrown, it returns
+`syclcompat::error_code::SUCCESS`. If an exception is caught, it prints the
+error message to the standard error stream and returns
+`syclcompat::error_code::DEFAULT_ERROR`.
+
 ``` c++
 namespace syclcompat {
 
-#define __sycl_compat_align__(n) __attribute__((aligned(n)))
-#define __sycl_compat_inline__ __inline__ __attribute__((always_inline))
+template <class... Args> class syclcompat_kernel_name;
+template <int Arg> class syclcompat_kernel_scalar;
 
-#define __sycl_compat_noinline__ __attribute__((noinline))
+#if defined(_MSC_VER)
+#define __syclcompat_align__(n) __declspec(align(n))
+#define __syclcompat_inline__ __forceinline
+#else
+#define __syclcompat_align__(n) __attribute__((aligned(n)))
+#define __syclcompat_inline__ __inline__ __attribute__((always_inline))
+#endif
 
-template <class... Args> class sycl_compat_kernel_name;
-template <int Arg> class sycl_compat_kernel_scalar;
+#if defined(_MSC_VER)
+#define __syclcompat_noinline__ __declspec(noinline)
+#else
+#define __syclcompat_noinline__ __attribute__((noinline))
+#endif
+
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+
+#ifdef _WIN32
+#define SYCLCOMPAT_EXPORT __declspec(dllexport)
+#else
+#define SYCLCOMPAT_EXPORT
+#endif
+
+namespace syclcompat {
+enum error_code { SUCCESS = 0, DEFAULT_ERROR = 999 };
+}
+
+#define SYCLCOMPAT_CHECK_ERROR(expr)
 
 int get_sycl_language_version();
 
 } // namespace syclcompat
 ```
 
-#### Kernel Helper Functions
+### Kernel Helper Functions
 
 Kernel helper functions provide a structure `kernel_function_info` to keep SYCL
 kernel information, and provide a utility function `get_kernel_function_info()`
@@ -1230,6 +1301,339 @@ static void get_kernel_function_info(kernel_function_info *kernel_info,
                                      const void *function);
 static kernel_function_info get_kernel_function_info(const void *function);
 } // namespace syclcompat
+```
+
+### Math Functions
+
+This library provides also a number of small math functions which exist to
+facilitate machine translation of code from other programming models to SYCL.
+These functions are part of the public API, but they are not expected to be
+useful to developers either.
+
+`syclcompat::fast_length` provides a wrapper to SYCL's
+`fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
+length. `syclcompat::lenght` is the templated version.
+
+There are warppers and overloads for `clamp`, `isnan`, `cbrt`,
+`min`, `max`, `fmax_nan`, `fmin_nan` and `pow`.
+
+`compare`, `unordered_compare`, `compare_both`, `unordered_compare_both`,
+`compare_mask`, and `unordered_compare_mask`, handle both ordered and unordered
+comparisons.
+
+`vectorized_isgreater` performs elementwise `isgreater`, treating each argument
+as a vector of elements, and returning `0` for vector components for which
+`isgreater` is false, and `-1` when true.
+`vectorized_max` and `vectorized_min` are binary operations returning the
+max/min of two arguments, where each argument is treated as a `sycl::vec` type.
+`vectorized_sum_abs_diff` computes the vectorized absolute difference for two
+values without modulo overflow.
+
+An implementation of `relu` saturation is also provided.
+
+The functions `cmul`,`cdiv`,`cabs`, `conj`, and `complex_mul_add` define complex
+math operations which accept `sycl::vec<ValueT,2>` arguments representing
+complex values.
+
+```cpp
+
+inline float fast_length(const float *a, int len);
+template <typename ValueT>
+inline ValueT length(const ValueT *a, const int len);
+
+template <typename ValueT>
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<std::not_equal_to<>, ValueT, ValueT>,
+                   bool>,
+    bool>
+compare(const ValueT a, const ValueT b, const std::not_equal_to<> binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+compare(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<
+    std::is_same_v<std::invoke_result_t<BinaryOperation, ValueT, ValueT>, bool>,
+    bool>
+
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, ValueT>
+unordered_compare(const ValueT a, const ValueT b,
+                  const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline std::enable_if_t<ValueT::size() == 2, bool>
+compare_both(const ValueT a, const ValueT b, const BinaryOperation binary_op);
+template <typename ValueT, class BinaryOperation>
+
+inline std::enable_if_t<ValueT::size() == 2, bool>
+unordered_compare_both(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
+                             const sycl::vec<ValueT, 2> b,
+                             const BinaryOperation binary_op);
+
+template <typename ValueT, class BinaryOperation>
+inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
+                                       const sycl::vec<ValueT, 2> b,
+                                       const BinaryOperation binary_op);
+
+template <typename ValueT>
+inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
+
+template <typename ValueT> inline ValueT cbrt(ValueT val);
+
+inline double min(const double a, const float b);
+inline double min(const float a, const double b);
+inline float min(const float a, const float b);
+inline double min(const double a, const double b);
+inline std::uint32_t min(const std::uint32_t a, const std::int32_t b);
+inline std::uint32_t min(const std::int32_t a, const std::uint32_t b);
+inline std::int32_t min(const std::int32_t a, const std::int32_t b);
+inline std::uint32_t min(const std::uint32_t a, const std::uint32_t b);
+inline std::uint64_t min(const std::uint64_t a, const std::int64_t b);
+inline std::uint64_t min(const std::int64_t a, const std::uint64_t b);
+inline std::int64_t min(const std::int64_t a, const std::int64_t b);
+inline std::uint64_t min(const std::uint64_t a, const std::uint64_t b);
+inline std::uint64_t min(const std::uint64_t a, const std::int32_t b);
+inline std::uint64_t min(const std::int32_t a, const std::uint64_t b);
+inline std::uint64_t min(const std::uint64_t a, const std::uint32_t b);
+inline std::uint64_t min(const std::uint32_t a, const std::uint64_t b);
+
+inline double max(const double a, const float b);
+inline double max(const float a, const double b);
+inline float max(const float a, const float b);
+inline double max(const double a, const double b);
+inline std::uint32_t max(const std::uint32_t a, const std::int32_t b);
+inline std::uint32_t max(const std::int32_t a, const std::uint32_t b);
+inline std::int32_t max(const std::int32_t a, const std::int32_t b);
+inline std::uint32_t max(const std::uint32_t a, const std::uint32_t b);
+inline std::uint64_t max(const std::uint64_t a, const std::int64_t b);
+inline std::uint64_t max(const std::int64_t a, const std::uint64_t b);
+inline std::int64_t max(const std::int64_t a, const std::int64_t b);
+inline std::uint64_t max(const std::uint64_t a, const std::uint64_t b);
+inline std::uint64_t max(const std::uint64_t a, const std::int32_t b);
+inline std::uint64_t max(const std::int32_t a, const std::uint64_t b);
+inline std::uint64_t max(const std::uint64_t a, const std::uint32_t b);
+inline std::uint64_t max(const std::uint32_t a, const std::uint64_t b)
+
+inline float pow(const float a, const int b);
+inline double pow(const double a, const int b);
+inline float pow(const float a, const float b);
+inline double pow(const double a, const double b);
+template <typename ValueT, typename U>
+inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
+pow(const ValueT a, const U b);
+template <typename ValueT, typename U>
+inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
+pow(const ValueT a, const U b);
+
+template <typename ValueT> inline ValueT relu(const ValueT a);
+template <class ValueT>
+inline sycl::vec<ValueT, 2> relu(const sycl::vec<ValueT, 2> a);
+template <class ValueT>
+inline sycl::marray<ValueT, 2> relu(const sycl::marray<ValueT, 2> a);
+
+template <typename ValueT>
+sycl::vec<ValueT, 2> cmul(sycl::vec<ValueT, 2> x, sycl::vec<ValueT, 2> y);
+
+template <typename ValueT>
+sycl::vec<ValueT, 2> cdiv(sycl::vec<ValueT, 2> x, sycl::vec<ValueT, 2> y);
+
+template <typename ValueT> ValueT cabs(sycl::vec<ValueT, 2> x);
+
+template <typename ValueT> sycl::vec<ValueT, 2> conj(sycl::vec<ValueT, 2> x);
+
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> complex_mul_add(const sycl::vec<ValueT, 2> a,
+                                            const sycl::vec<ValueT, 2> b,
+                                            const sycl::vec<ValueT, 2> c);
+
+template <typename ValueT>
+inline sycl::marray<ValueT, 2>
+complex_mul_add(const sycl::marray<ValueT, 2> a,
+                const sycl::marray<ValueT, 2> b,
+                const sycl::marray<ValueT, 2> c);
+
+template <typename ValueT>
+inline ValueT fmax_nan(const ValueT a, const ValueT b);
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> fmax_nan(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b);
+
+template <typename ValueT>
+inline ValueT fmin_nan(const ValueT a, const ValueT b);
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> fmin_nan(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b);
+
+template <typename ValueU, typename ValueT>
+inline ValueT vectorized_isgreater(ValueT a, ValueT b);
+
+template <>
+inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
+                                                              unsigned b);
+
+template <typename ValueU, typename ValueT> inline ValueT vectorized_max(ValueT a, ValueT b);
+
+template <typename ValueU, typename ValueT> inline ValueT vectorized_min(ValueT a, ValueT b);
+
+template <typename VecT>
+inline unsigned vectorized_sum_abs_diff(unsigned a, unsigned b);
+
+```
+
+`vectorized_binary` computes the `BinaryOperation` for two operands,
+with each value treated as a vector type. `vectorized_unary` offers the same
+interface for operations with a single operand.
+The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`, `maximum`, `minimum`, and `sub_sat`.
+
+```cpp
+namespace syclcompat {
+  
+template <typename VecT, class BinaryOperation>
+inline unsigned vectorized_binary(unsigned a, unsigned b,
+                                  const BinaryOperation binary_op);
+template <typename VecT, class UnaryOperation>
+inline unsigned vectorized_unary(unsigned a, const UnaryOperation unary_op);
+
+// A sycl::abs wrapper functor.
+struct abs {
+  template <typename ValueT> auto operator()(const ValueT x) const;
+};
+// A sycl::abs_diff wrapper functor.
+struct abs_diff {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::add_sat wrapper functor.
+struct add_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::rhadd wrapper functor.
+struct rhadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::hadd wrapper functor.
+struct hadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::max wrapper functor.
+struct maximum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::min wrapper functor.
+struct minimum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::sub_sat wrapper functor.
+struct sub_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+
+} // namespace syclcompat
+```
+
+Finally, the math header provides a set of functions to extend 32-bit operations
+to 33 bit, and handle sign extension internally. There is support for `add`,
+`sub`, `absdiff`, `min` and `max` operations. Each operation provides overloads
+to include a second, separate, `BinaryOperation` after the first, and include
+the `_sat` variation, which calls `clamp` internally to ensure the returning
+value is within a valid numeric limit for the datatype.
+
+```cpp
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_add_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_add_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_sub_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_sub_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_absdiff_sat(AT a, BT b, CT c,
+                                         BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_min_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_min_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max(AT a, BT b, CT c, BinaryOperation second_op);
+
+template <typename RetT, typename AT, typename BT>
+inline constexpr RetT extend_max_sat(AT a, BT b);
+
+template <typename RetT, typename AT, typename BT, typename CT,
+          typename BinaryOperation>
+inline constexpr RetT extend_max_sat(AT a, BT b, CT c,
+                                     BinaryOperation second_op);
 ```
 
 ## Sample Code
