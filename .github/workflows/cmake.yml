@@ -215,6 +215,52 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
 
+  examples-build-hw:
+    name: Build - examples on HW
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    strategy:
+      matrix:
+        adapter: [
+          {name: L0}
+        ]
+        build_type: [Debug, Release]
+        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
+
+    runs-on: ${{matrix.adapter.name}}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install pip packages
+      run: pip install -r third_party/requirements.txt
+    
+    - name: Init conda env
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+          miniconda-version: "latest"
+          activate-environment: examples
+          environment-file: third_party/deps.yml
+          auto-activate-base: false
+
+    - name: Configure CMake
+      shell: bash -el {0}
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+        -DUR_BUILD_EXAMPLE_CODEGEN=ON
+        -DUR_DEVELOPER_MODE=ON
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+
+    - name: Test codegen example
+      working-directory: ${{github.workspace}}/build
+      run: bin/codegen
+
   windows-build:
     name: Build - Windows
     strategy:
