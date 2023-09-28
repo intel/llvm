@@ -63,6 +63,15 @@ inline void atomic_fetch_compare_inc_kernel(T *data, T operand) {
   }
 }
 template <typename T, bool orderArg = false>
+inline void atomic_fetch_compare_dec_kernel(T *data, T operand) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_compare_dec(data, operand,
+                                         sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_compare_dec(data, operand);
+  }
+}
+template <typename T, bool orderArg = false>
 inline void atomic_exchange_kernel(T *data, T operand) {
   if constexpr (orderArg) {
     syclcompat::atomic_exchange(data, operand, sycl::memory_order::relaxed);
@@ -80,8 +89,26 @@ inline void atomic_compare_exchange_strong_kernel(T *data, T expected,
     syclcompat::atomic_compare_exchange_strong(data, expected, desired);
   }
 }
+template <typename T1, typename T2, bool orderArg = false>
+inline void atomic_exchange_kernel(T1 *data, T2 operand) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_exchange(data, operand, sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_exchange(data, operand);
+  }
+}
+template <typename T1, typename T2, typename T3, bool orderArg = false>
+inline void atomic_compare_exchange_strong_kernel(T1 *data, T2 expected,
+                                                  T3 desired) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_compare_exchange_strong(data, expected, desired,
+                                               sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_compare_exchange_strong(data, expected, desired);
+  }
+}
 
-void test_atomic_comp() {
+void test_atomic_comp_inc() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
@@ -100,6 +127,27 @@ void test_atomic_comp() {
   AtomicLauncher<atomic_fetch_compare_inc_kernel<unsigned int, true>,
                  unsigned int>(grid, threads)
       .launch_test(1, 0, 6);
+}
+
+void test_atomic_comp_dec() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{6};
+
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int>, unsigned int>(
+      grid, threads)
+      .launch_test(6, 0, 0);
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int>, unsigned int>(
+      grid, threads)
+      .launch_test(0, 6, 11);
+
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int, true>,
+                 unsigned int>(grid, threads)
+      .launch_test(6, 0, 0);
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int, true>,
+                 unsigned int>(grid, threads)
+      .launch_test(0, 6, 11);
 }
 
 template <typename T> void test_atomic_exch() {
@@ -188,6 +236,52 @@ template <typename T> void test_atomic_ptr_exch_strong() {
   syclcompat::free(ptr3);
 }
 
+void test_atomic_exch_t1_t2() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{4};
+  constexpr syclcompat::dim3 threads{32};
+
+  AtomicLauncher<atomic_exchange_kernel<float, int>, float>(grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(1),
+                   static_cast<int>(1));
+  AtomicLauncher<atomic_exchange_kernel<float, int>, float>(grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(0),
+                   static_cast<int>(0));
+  AtomicLauncher<atomic_exchange_kernel<float, int, true>, float>(grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(1),
+                   static_cast<int>(1));
+  AtomicLauncher<atomic_exchange_kernel<float, int, true>, float>(grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(0),
+                   static_cast<int>(0));
+}
+
+void test_atomic_exch_strong_t1_t2_t3() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{4};
+  constexpr syclcompat::dim3 threads{32};
+
+  AtomicLauncher<atomic_compare_exchange_strong_kernel<float, int, unsigned>,
+                 float>(grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(1),
+                   static_cast<int>(0), static_cast<unsigned>(1));
+  AtomicLauncher<atomic_compare_exchange_strong_kernel<float, int, unsigned>,
+                 float>(grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(0),
+                   static_cast<int>(1), static_cast<unsigned>(2));
+  AtomicLauncher<
+      atomic_compare_exchange_strong_kernel<float, int, unsigned, true>, float>(
+      grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(1),
+                   static_cast<int>(0), static_cast<unsigned>(1));
+  AtomicLauncher<
+      atomic_compare_exchange_strong_kernel<float, int, unsigned, true>, float>(
+      grid, threads)
+      .launch_test(static_cast<float>(0), static_cast<float>(0),
+                   static_cast<int>(1), static_cast<unsigned>(2));
+}
+
 int main() {
   INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_exch);
   INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_exch_strong);
@@ -195,5 +289,9 @@ int main() {
   INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_ptr_exch);
   INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_ptr_exch_strong);
 
-  test_atomic_comp();
+  test_atomic_comp_inc();
+  test_atomic_comp_dec();
+  test_atomic_exch_t1_t2();
+  test_atomic_exch_strong_t1_t2_t3();
+  return 0;
 }

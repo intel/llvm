@@ -75,6 +75,28 @@ inline void atomic_fetch_max_kernel(T *data, T operand, T operand0) {
         data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
   }
 }
+template <typename T1, typename T2, bool orderArg = false>
+inline void atomic_fetch_min_kernel(T1 *data, T2 operand, T2 operand0) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_min(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
+        sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_min(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  }
+}
+template <typename T1, typename T2, bool orderArg = false>
+inline void atomic_fetch_max_kernel(T1 *data, T2 operand, T2 operand0) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_max(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
+        sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_max(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  }
+}
 
 template <typename T> void test_atomic_minmax() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -116,8 +138,31 @@ template <typename T> void test_signed_atomic_minmax() {
                    static_cast<T>(-30), static_cast<T>(-100));
 }
 
+void test_signed_atomic_minmax_t1_t2() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{4};
+  constexpr syclcompat::dim3 threads{32};
+
+  AtomicLauncher<atomic_fetch_min_kernel<float, int>, float>(grid, threads)
+      .launch_test(static_cast<float>(-1), static_cast<float>(-4),
+                   static_cast<int>(-4), static_cast<int>(100));
+  AtomicLauncher<atomic_fetch_max_kernel<float, int>, float>(grid, threads)
+      .launch_test(static_cast<float>(-40), static_cast<float>(-30),
+                   static_cast<int>(-30), static_cast<int>(-100));
+  AtomicLauncher<atomic_fetch_min_kernel<float, int, true>, float>(grid,
+                                                                   threads)
+      .launch_test(static_cast<float>(-1), static_cast<float>(-4),
+                   static_cast<int>(-4), static_cast<int>(100));
+  AtomicLauncher<atomic_fetch_max_kernel<float, int, true>, float>(grid,
+                                                                   threads)
+      .launch_test(static_cast<float>(-40), static_cast<float>(-30),
+                   static_cast<int>(-30), static_cast<int>(-100));
+}
+
 int main() {
   INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_minmax);
-
   INSTANTIATE_ALL_TYPES(signed_type_list, test_signed_atomic_minmax);
+
+  test_signed_atomic_minmax_t1_t2();
 }

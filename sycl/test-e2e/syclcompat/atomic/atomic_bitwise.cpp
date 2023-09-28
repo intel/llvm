@@ -90,6 +90,40 @@ void atomic_fetch_xor_kernel(T *data, T operand, T operand0) {
   }
 }
 
+template <typename T, typename T2, bool orderArg = false>
+void atomic_fetch_and_kernel(T *data, T2 operand, T2 operand0) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_and(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
+        sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_and(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  }
+}
+template <typename T, typename T2, bool orderArg = false>
+void atomic_fetch_or_kernel(T *data, T2 operand, T2 operand0) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_or(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
+        sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_or(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  }
+}
+template <typename T, typename T2, bool orderArg = false>
+void atomic_fetch_xor_kernel(T *data, T2 operand, T2 operand0) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_xor(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
+        sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_xor(
+        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  }
+}
+
 template <typename T> void test_atomic_and() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -207,8 +241,161 @@ template <typename T> void test_atomic_xor() {
                    static_cast<T>(0));
 }
 
+void test_atomic_and_t1_t2() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{4};
+  constexpr syclcompat::dim3 threads{32};
+
+  using data_t = long;
+  using operand_t = unsigned int;
+
+  // All 0 -> 0
+  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+
+  // All 1 -> 1
+  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(1));
+  // Most 1, one 0 -> 0
+  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(0),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+
+  // All 0 -> 0
+  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+
+  // All 1 -> 1
+  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(1));
+  // Most 1, one 0 -> 0
+  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<operand_t>(0),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+}
+
+void test_atomic_or_t1_t2() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{4};
+  constexpr syclcompat::dim3 threads{32};
+
+  using data_t = long;
+  using operand_t = unsigned int;
+
+  // All 0 -> 0
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t>, data_t>(grid,
+                                                                    threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+  // All 1 -> 1
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t>, data_t>(grid,
+                                                                    threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(1));
+  // Most 1, one 0 -> 1
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t>, data_t>(grid,
+                                                                    threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+  // Init 1, all 0 -> 1
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t>, data_t>(grid,
+                                                                    threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+
+  // All 0 -> 0
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+  // All 1 -> 1
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(1));
+  // Most 1, one 0 -> 1
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+  // Init 1, all 0 -> 1
+  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+}
+
+void test_atomic_xor_t1_t2() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{2}; // 2 threads, 3 values inc. init
+
+  using data_t = long;
+  using operand_t = unsigned int;
+
+  // 000 -> 0
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+  // 111 -> 1
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(1));
+  // 110 -> 0
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(0),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+  // 010 -> 1
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t>, data_t>(grid,
+                                                                     threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+
+  // 000 -> 0
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
+                   static_cast<operand_t>(0), static_cast<operand_t>(0));
+  // 111 -> 1
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(1));
+  // 110 -> 0
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(1), static_cast<data_t>(0),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+  // 010 -> 1
+  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
+      grid, threads)
+      .launch_test(static_cast<data_t>(0), static_cast<data_t>(1),
+                   static_cast<operand_t>(1), static_cast<operand_t>(0));
+}
+
 int main() {
   INSTANTIATE_ALL_TYPES(integral_type_list, test_atomic_and);
   INSTANTIATE_ALL_TYPES(integral_type_list, test_atomic_or);
   INSTANTIATE_ALL_TYPES(integral_type_list, test_atomic_xor);
+
+  // Avoid combinatorial explosion by only testing the interface
+  test_atomic_and_t1_t2();
+  test_atomic_or_t1_t2();
+  test_atomic_xor_t1_t2();
 }
