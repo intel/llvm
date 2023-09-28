@@ -564,6 +564,15 @@ inline int get_sycl_language_version() {
 }
 
 namespace experimental {
+
+#ifdef __AMDGPU__
+// AMDGPU does not support seq_cst.
+// nd_range_barriers are still not guaranteed to work
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
+#else
+constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
+#endif
+
 /// Synchronize work items from all work groups within a SYCL kernel.
 /// \param [in] item:  Represents a work group.
 /// \param [in] counter: An atomic object defined on a device memory which can
@@ -574,7 +583,7 @@ namespace experimental {
 template <int dimensions = 3>
 inline void nd_range_barrier(
     const sycl::nd_item<dimensions> &item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::seq_cst,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter) {
 
@@ -614,7 +623,7 @@ inline void nd_range_barrier(
 template <>
 inline void nd_range_barrier(
     const sycl::nd_item<1> &item,
-    sycl::atomic_ref<unsigned int, sycl::memory_order::seq_cst,
+    sycl::atomic_ref<unsigned int, barrier_memory_order,
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter) {
   unsigned int num_groups = item.get_group_range(0);
