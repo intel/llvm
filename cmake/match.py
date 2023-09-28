@@ -11,6 +11,16 @@
 import sys
 import re
 
+
+## @brief print the whole content of input and match files
+def print_content(input_lines, match_lines):
+    print("--- Input Lines " + "-" * 64)
+    print("".join(input_lines).strip())
+    print("--- Match Lines " + "-" * 64)
+    print("".join(match_lines).strip())
+    print("-" * 80)
+
+
 if len(sys.argv) != 3:
     print("Usage: python match.py <input_file> <match_file>")
     sys.exit(1)
@@ -23,7 +33,9 @@ with open(input_file, 'r') as input, open(match_file, 'r') as match:
     match_lines = match.readlines()
 
 if len(match_lines) < len(input_lines):
-    sys.exit(f"Match length < input length (input: {len(input_lines)}, match: {len(match_lines)})")
+    print(f"Match length < input length (input: {len(input_lines)}, match: {len(match_lines)})")
+    print_content(input_lines, match_lines)
+    sys.exit(1)
 
 input_idx = 0
 opt = "{{OPT}}"
@@ -60,11 +72,7 @@ for i, match_line in enumerate(match_lines):
             print("Line " + str(i+1) + " does not match")
             print("is:       " + input_line)
             print("expected: " + match_line.strip())
-            print("--- Input Lines " + "-" * 64)
-            print("".join(input_lines).strip())
-            print("--- Match Lines " + "-" * 64)
-            print("".join(match_lines).strip())
-            print("-" * 80)
+            print_content(input_lines, match_lines)
             sys.exit(1)
     else:
         if (input_idx == len(input_lines) - 1):
