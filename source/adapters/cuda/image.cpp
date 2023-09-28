@@ -1,7 +1,9 @@
 //===--------- image.cpp - CUDA Adapter -----------------------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Copyright (C) 2023 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -778,6 +780,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     case 4:
       ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGBA;
       break;
+    default:
+      die("Unexpected NumChannels returned by CUDA");
     }
     if (pPropValue) {
       ((ur_image_format_t *)pPropValue)->channelType = ChannelType;
