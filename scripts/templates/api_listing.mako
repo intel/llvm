@@ -115,7 +115,7 @@ ${title}
 ## -------------------------
  <%isempty = True%>
 %for obj in objects:
-%if re.match(r"typedef", obj['type']):
+%if re.match(r"typedef", obj['type']) or re.match(r"fptr_typedef", obj['type']):
 %if isempty: # only display section title if there is content.
 %if needstitle:
 <%needstitle = False%>
@@ -245,7 +245,7 @@ ${th.make_type_name(n, tags, obj)}
 ## -------------------------
  <%isempty = True%>
 %for obj in objects:
-%if re.match(r"typedef", obj['type']):
+%if re.match(r"typedef", obj['type']) or re.match(r"fptr_typedef", obj['type']):
 %if isempty: # only display section title if there is content.
 ${title} Typedefs
 --------------------------------------------------------------------------------
