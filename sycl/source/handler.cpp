@@ -510,6 +510,10 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                           "are not allowed to be used in command graphs.");
   }
   detail::Requirement *Req = AccImpl.get();
+  if (Req->MAccessMode != sycl::access_mode::read) {
+    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    SYCLMemObj->handleWriteAccessorCreation();
+  }
   // Add accessor to the list of requirements.
   if (Req->MAccessRange.size() != 0)
     CGData.MRequirements.push_back(Req);

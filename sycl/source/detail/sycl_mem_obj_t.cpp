@@ -224,10 +224,15 @@ void SYCLMemObjT::detachMemoryObject(
 }
 
 void SYCLMemObjT::handleWriteAccessorCreation() {
+  const auto InitialUserPtr = MUserPtr;
   MCreateShadowCopy();
   MCreateShadowCopy = []() -> void {};
-  for (auto &it : MRecord->MAllocaCommands) {
-    it->MMemAllocation = MUserPtr;
+  if (MRecord != nullptr && MUserPtr != InitialUserPtr) {
+    for (auto &it : MRecord->MAllocaCommands) {
+      if (it->MMemAllocation == InitialUserPtr) {
+        it->MMemAllocation = MUserPtr;
+      }
+    }
   }
 }
 
