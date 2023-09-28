@@ -663,7 +663,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
    * since all kernels will have their build options overridden with the same
    * string*/
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 std::make_pair(PiDevice, CompileOpts));
+                                 PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -2343,7 +2343,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
    * string*/
 
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 std::make_pair(PiDevice, CompileOpts));
+                                 PiDevice);
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
@@ -2376,7 +2376,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
-    CacheKey.second.first = PiDeviceAdd;
+    CacheKey.second = PiDeviceAdd;
     getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
         Cache, GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr
