@@ -98,6 +98,13 @@ Below is a list of new compile-time constant properties supported with
 ```c++
 namespace sycl::ext::intel::experimental {
 
+enum class cache_level {
+  L1,
+  L2,
+  L3,
+  L4,
+};
+
 enum class cache_control_read_type : /* unspecified */ {
     cached,
     uncached,
@@ -114,19 +121,19 @@ enum class cache_control_write_type : /* unspecified */ {
 };
 
 struct cache_control_read_key {
-  template<cache_control_read_type C, int L>
-  using value_t = property_value<cache_control_read, C, std::integral_constant<int, L>>;
+  template<cache_control_read_type C, cache_level L>
+  using value_t = property_value<cache_control_read, C, std::integral_constant<cache_level, L>>;
 };
 
 struct cache_control_write_key {
-  template<cache_control_write_type C, int L>
-  using value_t = property_value<cache_control_write, C, std::integral_constant<int, L>>;
+  template<cache_control_write_type C, cache_level L>
+  using value_t = property_value<cache_control_write, C, std::integral_constant<cache_level, L>>;
 };
 
-template<cache_control_read_type C, int L>
+template<cache_control_read_type C, cache_level L>
 inline constexpr cache_control_read_key::value_t<C, L> cache_control_read;
 
-template<cache_control_write_type C, int L>
+template<cache_control_write_type C, cache_level L>
 inline constexpr cache_control_write_key::value_t<C, L> cache_control_write;
 
 template<>
@@ -143,32 +150,32 @@ template<typename T, typename PropertyListT>
 struct is_property_key_of<
   cache_control_write_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_read_key::value_t<cache_control_read_type::cached, L>
 cache_control_read_cached;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_read_key::value_t<cache_control_read_type::uncached, L> cache_control_read_uncached;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_read_key::value_t<cache_control_read_type::streaming, L> cache_control_read_streaming;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_read_key::value_t<cache_control_read_type::invalidate_after_read, L> cache_control_invalidate_after_read;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_read_key::value_t<cache_control_read_type::const_cached, L> cache_control_read_const_cached;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_write_key::value_t<cache_control_write_type::uncached, L> cache_control_write_uncached;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_streaming, L> cache_control_write_streaming;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_through, L> cache_control_write_through;
 
-template<int L>
+template<cache_level L>
 inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_back, L> cache_control_write_back;
 
 } // namespace sycl::ext::intel::experimental
