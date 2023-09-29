@@ -2531,6 +2531,40 @@ piextCommandBufferFillUSM(pi_ext_command_buffer command_buffer, void *ptr,
   return PI_ERROR_INVALID_OPERATION;
 }
 
+pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)ptr;
+  (void)size;
+  (void)flags;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)ptr;
+  (void)length;
+  (void)advice;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
                                     pi_queue queue,
                                     pi_uint32 num_events_in_wait_list,
@@ -2776,6 +2810,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          piextCommandBufferMemBufferWriteRect)
   _PI_CL(piextCommandBufferMemBufferFill, piextCommandBufferMemBufferFill)
   _PI_CL(piextCommandBufferFillUSM, piextCommandBufferFillUSM)
+  _PI_CL(piextCommandBufferPrefetchUSM, piextCommandBufferPrefetchUSM)
+  _PI_CL(piextCommandBufferAdviseUSM, piextCommandBufferAdviseUSM)
   _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

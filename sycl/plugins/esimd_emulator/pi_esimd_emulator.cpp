@@ -2199,6 +2199,20 @@ pi_result piextCommandBufferFillUSM(pi_ext_command_buffer, void *, const void *,
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextCommandBufferPrefetchUSM(pi_ext_command_buffer, const void *,
+                                        size_t, pi_usm_migration_flags,
+                                        pi_uint32, const pi_ext_sync_point *,
+                                        pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferAdviseUSM(pi_ext_command_buffer, const void *,
+                                      size_t, pi_mem_advice, pi_uint32,
+                                      const pi_ext_sync_point *,
+                                      pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
                                     const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;

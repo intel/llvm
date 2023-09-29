@@ -334,6 +334,19 @@ public:
                              std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
                              sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
 
+  static void ext_oneapi_prefetch_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
+      size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
+  static void ext_oneapi_advise_usm_cmd_buffer(
+      sycl::detail::ContextImplPtr Context,
+      sycl::detail::pi::PiExtCommandBuffer CommandBuffer, const void *Mem,
+      size_t Length, pi_mem_advice Advice,
+      std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+      sycl::detail::pi::PiExtSyncPoint *OutSyncPoint);
+
   static void
   copy_image_bindless(void *Src, QueueImplPtr Queue, void *Dst,
                       const sycl::detail::pi::PiMemImageDesc &Desc,

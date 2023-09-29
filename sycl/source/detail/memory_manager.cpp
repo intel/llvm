@@ -1646,6 +1646,33 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
                       PI_ERROR_INVALID_OPERATION);
 }
 
+void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
+    size_t Length, std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(!Context->is_host() && "Host queue not supported in prefetch_usm.");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferPrefetchUSM>(
+      CommandBuffer, Mem, Length, _pi_usm_migration_flags(0), Deps.size(),
+      Deps.data(), OutSyncPoint);
+}
+
+void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
+    sycl::detail::ContextImplPtr Context,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer, const void *Mem,
+    size_t Length, pi_mem_advice Advice,
+    std::vector<sycl::detail::pi::PiExtSyncPoint> Deps,
+    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint) {
+  assert(!Context->is_host() && "Host queue not supported in advise_usm.");
+
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piextCommandBufferAdviseUSM>(
+      CommandBuffer, Mem, Length, Advice, Deps.size(), Deps.data(),
+      OutSyncPoint);
+}
+
 void MemoryManager::copy_image_bindless(
     void *Src, QueueImplPtr Queue, void *Dst,
     const sycl::detail::pi::PiMemImageDesc &Desc,

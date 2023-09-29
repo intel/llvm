@@ -34,6 +34,7 @@ piQueueCreate
 piQueueGetInfo
 piSamplerCreate
 piTearDown
+piextCommandBufferAdviseUSM
 piextCommandBufferCreate
 piextCommandBufferFillUSM
 piextCommandBufferFinalize
@@ -46,6 +47,7 @@ piextCommandBufferMemBufferWrite
 piextCommandBufferMemBufferWriteRect
 piextCommandBufferMemcpyUSM
 piextCommandBufferNDRangeKernel
+piextCommandBufferPrefetchUSM
 piextCommandBufferRelease
 piextCommandBufferRetain
 piextContextCreateWithNativeHandle
