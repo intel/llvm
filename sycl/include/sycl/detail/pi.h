@@ -2461,6 +2461,38 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
+/// API to append a USM Prefetch command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr points to the memory to migrate.
+/// \param size is the number of bytes to migrate.
+/// \param flags is a bitfield used to specify memory migration options.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM Advise command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr is the data to be advised.
+/// \param length is the size in bytes of the memory to advise.
+/// \param advice is device specific advice.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
 /// API to submit the command-buffer to queue for execution, returns an error if
 /// the command-buffer is not finalized or another instance of the same
 /// command-buffer is currently executing.
