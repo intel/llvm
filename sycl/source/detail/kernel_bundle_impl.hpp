@@ -46,6 +46,8 @@ static bool checkAllDevicesHaveAspect(const std::vector<device> &Devices,
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
+class kernel_impl;
+
 /// The class is an impl counterpart of the sycl::kernel_bundle.
 // It provides an access and utilities to manage set of sycl::device_images
 // objects.
@@ -325,22 +327,21 @@ public:
     }
   }
 
-  // oneapi ext kernel_compiler
+  // oneapi_ext_kernel_compiler
   // construct from source string
   kernel_bundle_impl(const context &Context, syclex::source_language Lang,
                      const std::string &Src)
       : MContext(Context), MDevices(Context.get_devices()),
         MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src) {}
 
-  // oneapi ext kernel_compiler
-  // construct exe from source kb.
-  // CP   - TEMPORARY EMPTY
-  kernel_bundle_impl(
-      const kernel_bundle<bundle_state::ext_oneapi_source> &SourceBundle)
-      : MContext(SourceBundle.get_context()),
-        MDevices(SourceBundle.get_devices()), MState(bundle_state::executable) {
-
-    // sourceImpl = getSyclObjImpl(SourceBundle);
+  // oneapi_ext_kernel_compiler
+  // interop constructor
+  kernel_bundle_impl(context Ctx, std::vector<device> Devs,
+                     device_image_plain &DevImage,
+                     std::vector<std::string> KNames)
+      : kernel_bundle_impl(Ctx, Devs, DevImage) {
+    MState = bundle_state::executable;
+    KernelNames = KNames;
   }
 
   std::shared_ptr<kernel_bundle_impl> lets_do_this() {
@@ -354,13 +355,7 @@ public:
     auto  spirv = syclex::detail::OpenCLC_to_SPIRV(this->Source, flags);
     std::cout << "spirv byte count: " << spirv.size() << std::endl;
 
-    // using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-    // ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    // const PluginPtr &Plugin = ContextImpl->getPlugin();
-    // Plugin->call<PiApiKind::piextSpirvToKernelBundle>(ContextImpl->getHandleRef(),
-    // spirv.data(), spirv.size());
-
-    // // copy/paste from program_manager.cpp::createSpirvProgram()
+    // see also program_manager.cpp::createSpirvProgram()
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     sycl::detail::pi::PiProgram PiProgram = nullptr;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
@@ -383,56 +378,82 @@ public:
     Plugin->call<PiApiKind::piProgramGetInfo>(
         PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
         nullptr);
+    // CP
     std::cout << "Num Kernels: " << NumKernels << std::endl;
 
     // Get the kernel names.
     size_t KernelNamesSize;
     Plugin->call<PiApiKind::piProgramGetInfo>(
         PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
-    std::cout << "KernelNamesSize: " << KernelNamesSize << std::endl;
 
-    std::string KernelNames(KernelNamesSize,
-                            ' '); // semi-colon delimited list of kernel names.
+    // semi-colon delimited list of kernel names.
+    std::string KernelNamesStr(KernelNamesSize, ' ');
     Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, KernelNames.size(),
-        &KernelNames[0], nullptr);
-    std::cout << "KernelNames: " << KernelNames << std::endl;
+        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
+        &KernelNamesStr[0], nullptr);
+    std::vector<std::string> KernelNames =
+        detail::split_string(KernelNamesStr, ';');
+    // CP
+    std::cout << "KernelNamesStr: " << KernelNamesStr << std::endl;
 
+    // CP
     // Create each kernel.
-    auto names = detail::split_string(KernelNames, ';');
-    for (auto name : names) {
-      sycl::detail::pi::PiKernel Kernel = nullptr;
-      Plugin->call<PiApiKind::piKernelCreate>(PiProgram, name.c_str(), &Kernel);
-    }
+    // for (auto Name : KernelNames) {
+    //   sycl::detail::pi::PiKernel Kernel = nullptr;
+    //   Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(),
+    //   &Kernel);
+    // }
 
-    // make the device image and the kernel_bundl_impl
+    // make the device image and the kernel_bundle_impl
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
     auto DevImgImpl = std::make_shared<device_image_impl>(
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         PiProgram);
     device_image_plain DevImg{DevImgImpl};
+    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
+                                                KernelNames);
+  }
 
-    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg);
+  bool ext_oneapi_has_kernel(const std::string &Name) {
+    auto it = std::find(KernelNames.begin(), KernelNames.end(), Name);
+    return it != KernelNames.end();
+  }
 
-    // using exe_kb = kernel_bundle<bundle_state::executable>;
-    // sycl::backend Backend = get_backend();
+  std::shared_ptr<kernel_impl> ext_oneapi_get_kernel(
+      const std::string &Name,
+      const std::shared_ptr<detail::kernel_bundle_impl> &Self) {
+    if (KernelNames.empty())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "'ext_oneapi_get_kernel' is only available in "
+                            "kernel_bundles successfully built from "
+                            "kernel_bundle<bundle_state:ext_oneapi_source>.");
 
-    // std::shared_ptr<detail::kernel_bundle_impl> ExeImpl =
-    // sycl::detail::make_kernel_bundle(detail::pi::cast<pi_native_handle>(Program),
-    // MContext, bundle_state::executable, Backend); std::vector<kernel_id> kIDs
-    // = ExeImpl->get_kernel_ids(); std::cout << "kernel_ids size: " <<
-    // kIDs.size() << std::endl; // 0
+    if (!ext_oneapi_has_kernel(Name))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "kernel '" + Name + "' not found in kernel_bundle");
 
-    // //exe_kb ExecKB = make_kernel_bundle<backend::ext_oneapi_level_zero,
-    // bundle_state::executable>( { Program,
-    // sycl::ext::oneapi::level_zero::ownership::keep}, MContext);
+    assert(MDeviceImages.size() > 0);
+    const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
+        detail::getSyclObjImpl(MDeviceImages[0]);
+    sycl::detail::pi::PiProgram PiProgram = DeviceImageImpl->get_program_ref();
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    sycl::detail::pi::PiKernel PiKernel = nullptr;
+    Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
 
-    // // can't do this here. Could maybe do it in level_zero PI .
-    // // sycl::kernel_bundle<sycl::bundle_state::executable> SyclKB =
-    // //   sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
-    // //                            sycl::bundle_state::executable>(
-    // //       {Program, sycl::ext::oneapi::level_zero::ownership::keep},
-    // MContext);
+    // CP -- alt candidate
+    // return make_kernel(
+    // const context &TargetContext,
+    // const kernel_bundle<bundle_state::executable> &KernelBundle,
+    // pi_native_handle NativeKernelHandle, bool KeepOwnership, backend
+    // Backend);
+
+    const KernelArgMask *ArgMask = nullptr;
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        PiKernel, detail::getSyclObjImpl(MContext), DeviceImageImpl, Self,
+        ArgMask);
+
+    return KernelImpl;
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
@@ -633,15 +654,11 @@ private:
   SpecConstMapT MSpecConstValues;
   bool MIsInterop = false;
   bundle_state MState;
-  // ext_oneapi_kernel_compiler : Source and Languauge
+  // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames
   const syclex::source_language Language = syclex::source_language::opencl;
   const std::string Source;
-
-  // friend declaration for build(source_kb) is a wee ungainly
-  friend kernel_bundle<bundle_state::executable>
-  sycl::ext::oneapi::experimental::build(
-      kernel_bundle<sycl::bundle_state::ext_oneapi_source> &SourceKB,
-      const property_list &PropList);
+  std::vector<std::string>
+      KernelNames; // only kernel_bundles created from source have this.
 };
 
 } // namespace detail

@@ -111,6 +111,15 @@ bool kernel_bundle_plain::is_specialization_constant_set(
   return impl->is_specialization_constant_set(SpecName);
 }
 
+bool kernel_bundle_plain::ext_oneapi_has_kernel(const std::string &name) {
+  return impl->ext_oneapi_has_kernel(name);
+}
+
+std::shared_ptr<detail::kernel_impl>
+kernel_bundle_plain::ext_oneapi_get_kernel(const std::string &name) {
+  return impl->ext_oneapi_get_kernel(name, impl);
+}
+
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////
@@ -382,31 +391,8 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 
 exe_kb build(source_kb &SourceKB, const property_list &PropList) {
-
-  // CP gross test code.
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-/*   
-  std::vector<std::string> flags{"-cl-fast-relaxed-math",
-                                 "-cl-finite-math-only"};
-
-  // if successful, the log is empty. if failed, throws an error with the
-  // compilation log.
-  std::vector<byte> spirv = detail::OpenCLC_to_SPIRV(sourceImpl->Source, flags);
-  std::cout << "spirv byte count: " << spirv.size() << std::endl;
-
-  // copy/paste from program_manager.cpp::createSpirvProgram()
-  using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-  sycl::detail::pi::PiProgram Program = nullptr;
-  ContextImplPtr Context = getSyclObjImpl(SourceKB.get_context());
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piProgramCreate>(Context->getHandleRef(), spirv.data(), spirv.size(), &Program);
- */
-
-  // CP fake code to compile for the nonce.  This constructor is empty.
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
-  // std::shared_ptr<kernel_bundle_impl> KBImpl =
-  // std::make_shared<kernel_bundle_impl>(SourceKB);
-  // std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
   return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
 }
 

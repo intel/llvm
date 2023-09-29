@@ -41,6 +41,7 @@ auto get_native(const kernel_bundle<State> &Obj)
 
 namespace detail {
 class kernel_id_impl;
+class kernel_impl;
 }
 
 template <typename KernelName> kernel_id get_kernel_id();
@@ -175,6 +176,11 @@ public:
   bool contains_specialization_constants() const noexcept;
 
   bool native_specialization_constant() const noexcept;
+
+  bool ext_oneapi_has_kernel(const std::string &name);
+
+  std::shared_ptr<detail::kernel_impl>
+  ext_oneapi_get_kernel(const std::string &name);
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -339,6 +345,28 @@ public:
   /// \returns an iterator to the last device image kernel_bundle contains
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
+  }
+
+  /////////////////////////
+  // ext_oneapi_has_kernel
+  //  only true if created from source and has this kernel
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  bool ext_oneapi_has_kernel(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_has_kernel(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_kernel
+  //  kernel_bundle must be created from source, throws if not present
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  kernel ext_oneapi_get_kernel(const std::string &name) {
+    std::shared_ptr<detail::kernel_impl> kernelImplPtr =
+        detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
+    return sycl::detail::createSyclObjFromImpl<kernel>(kernelImplPtr);
   }
 
 private:
