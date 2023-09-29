@@ -34,10 +34,6 @@ void AccessorImplHost::resize(size_t GlobalSize) {
 }
 
 void addHostAccessorAndWait(Requirement *Req) {
-  if (Req->MAccessMode != sycl::access_mode::read) {
-    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
-    SYCLMemObj->handleWriteAccessorCreation();
-  }
   detail::EventImplPtr Event =
       detail::Scheduler::getInstance().addHostAccessor(Req);
   Event->wait(Event);
