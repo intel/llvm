@@ -505,8 +505,6 @@ Regression/implicit_kernel_bundle_image_filtering.cpp
 Regression/mad_sat.cpp
 Regression/pf-wg-atomic64.cpp
 Regression/reduction_64bit_atomic64.cpp
-Regression/reduction_resource_leak_dw.cpp
-Regression/reduction_resource_leak_usm.cpp
 Regression/unoptimized_stream.cpp
 Regression/void_global_ptr_conversion.cpp
 Sampler/basic-rw.cpp

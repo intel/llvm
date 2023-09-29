@@ -33,6 +33,8 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "CgeistConfig.h"
+
 #define DEBUG_TYPE "cgeist"
 
 using namespace clang;
@@ -51,7 +53,8 @@ static cl::opt<bool>
                       cl::desc("Use literal LLVM ABI for structs"));
 
 static cl::opt<bool>
-    AllowUndefinedSYCLTypes("allow-undefined-sycl-types", cl::init(false),
+    AllowUndefinedSYCLTypes("allow-undefined-sycl-types",
+                            cl::init(CGEIST_DEFAULT_ALLOW_UNDEFINED_SYCL_TYPES),
                             cl::desc("Whether to allow types in the sycl "
                                      "namespace and not in the SYCL dialect"));
 
@@ -1281,6 +1284,27 @@ mlir::Type CodeGenTypes::getMLIRTypeForMem(clang::QualType QT,
   return R;
 }
 
+static bool isAllowedUndefinedSYCLType(StringRef TypeName) {
+  // Sorted list of allowed names
+  constexpr std::array<llvm::StringLiteral, 8> AllowedUndefinedSYCLType{
+      // Exceptions for `h_item` and `private_memory`: SYCL-MLIR doesn't
+      // support hierarchical parallelism as a first-class concept, but
+      // it can pass through its use to the runtime.
+      //
+      // For others: These should be semantically correct when lowered to
+      // llvm.struct. Use that until the dialect is expanded.
+      "atomic_ref",
+      "device_event",
+      "h_item",
+      "marray",
+      "private_memory",
+      "reducer",
+      "sampled_image_accessor",
+      "unsampled_image_accessor"};
+  return std::binary_search(AllowedUndefinedSYCLType.begin(),
+                            AllowedUndefinedSYCLType.end(), TypeName);
+}
+
 mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      bool AllowMerge) {
   if (const auto *ET = dyn_cast<clang::ElaboratedType>(QT))
@@ -1402,10 +1426,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
               NamespaceKind != mlirclang::NamespaceKind::SYCL ||
               // Accept types nested in other structs/classes.
               !RD->getDeclContext()->isNamespace() ||
-              // Exceptions for `h_item` and `private_memory`: SYCL-MLIR doesn't
-              // support hierarchical parallelism as a first-class concept, but
-              // it can pass through its use to the runtime.
-              TypeName == "h_item" || TypeName == "private_memory") &&
+              isAllowedUndefinedSYCLType(TypeName)) &&
              "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 
