@@ -302,6 +302,11 @@ _Preconditions_: `ptr` must point to an object in global memory.
 
 _Effects_: Equivalent to `prefetch((void*) ptr.get(), count * sizeof(T), properties)`
 
+[NOTE]
+====
+The current version of the above functions effectively ignores all annotations in the `annotated_ptr` when issuing a prefetch. This behavior may change in future, if other extensions introduce properties that interact with or modify prefetch behavior.
+====
+
 [source,c++]
 ----
 template <access::address_space AddressSpace, access::decorated IsDecorated,
