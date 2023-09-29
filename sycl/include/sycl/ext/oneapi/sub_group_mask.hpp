@@ -81,7 +81,8 @@ struct sub_group_mask {
     }
 
     reference(sub_group_mask &gmask, size_t pos) : Ref(gmask.Bits) {
-      RefBit = (pos < gmask.bits_num) ? (1UL << pos) : 0;
+      BitsType one = 1;
+      RefBit = (pos < gmask.bits_num) ? (one << pos) : 0;
     }
 
   private:
@@ -96,10 +97,7 @@ struct sub_group_mask {
 
   sub_group_mask(unsigned long long val)
       : sub_group_mask(0, GetMaxLocalRangeSize()) {
-    constexpr size_t BytesToCopy =
-        sizeof(Bits) < sizeof(val) ? sizeof(Bits) : sizeof(val);
-    // TODO: memcpy is not guaranteed to work in kernels. Find alternative.
-    std::memcpy(&Bits, &val, BytesToCopy);
+    Bits = val;
   };
 
   template <typename T, std::size_t K,
@@ -123,7 +121,8 @@ struct sub_group_mask {
 #endif // SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 
   bool operator[](id<1> id) const {
-    return (Bits & ((id.get(0) < bits_num) ? (1UL << id.get(0)) : 0));
+    BitsType one = 1;
+    return (Bits & ((id.get(0) < bits_num) ? (one << id.get(0)) : 0));
   }
 
   reference operator[](id<1> id) { return {*this, id.get(0)}; }
