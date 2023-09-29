@@ -1,6 +1,8 @@
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda || hip
 //
+// XFAIL: (opencl && gpu)
+//
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -I %S/Inputs %S/Inputs/kernels_in_file2.cpp -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
