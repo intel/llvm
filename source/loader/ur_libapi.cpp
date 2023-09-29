@@ -4550,6 +4550,8 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 ///     - The registered callback function will be called when the execution
 ///       status of command associated with event changes to an execution status
 ///       equal to or past the status specified by command_exec_status.
+///     - `execStatus` must not be `UR_EXECUTION_INFO_QUEUED` as this is the
+///       initial state of all events.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -4562,9 +4564,11 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus`
+///         + `::UR_EXECUTION_INFO_QUEUED < execStatus`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNotify`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + `execStatus == UR_EXECUTION_INFO_QUEUED`
 ur_result_t UR_APICALL urEventSetCallback(
     ur_event_handle_t hEvent,       ///< [in] handle of the event object
     ur_execution_info_t execStatus, ///< [in] execution status of the event

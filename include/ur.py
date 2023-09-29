@@ -2106,10 +2106,10 @@ class ur_event_native_properties_t(Structure):
 ###############################################################################
 ## @brief Event states for all events.
 class ur_execution_info_v(IntEnum):
-    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed.
-    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event.
-    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device.
-    EXECUTION_INFO_QUEUED = 3                       ## Indicates that the event has been queued, this is the initial state of
+    COMPLETE = 0                                    ## Indicates that the event has completed.
+    RUNNING = 1                                     ## Indicates that the device has started processing this event.
+    SUBMITTED = 2                                   ## Indicates that the event has been submitted by the host to the device.
+    QUEUED = 3                                      ## Indicates that the event has been queued, this is the initial state of
                                                     ## events.
 
 class ur_execution_info_t(c_int):
