@@ -534,7 +534,6 @@ SpecConstants/2020/kernel_lambda_with_kernel_handler_arg.cpp
 SpecConstants/2020/non_native/aot_w_kernel_handler_wo_spec_consts.cpp
 SpecConstants/2020/non-packed-struct.cpp
 SpecConstants/2020/vector-convolution-demo.cpp
-SubGroup/attributes.cpp
 SubGroup/broadcast_fp16.cpp
 SubGroup/generic_reduce.cpp
 SubGroup/generic-shuffle.cpp
@@ -555,9 +554,6 @@ syclcompat/memory/local_memory.cpp
 syclcompat/util/util_cast_value_test.cpp
 syclcompat/util/util_complex.cpp
 syclcompat/util/util_nd_range_barrier_test.cpp
-syclcompat/util/util_select_from_sub_group.cpp
-syclcompat/util/util_shift_sub_group_left.cpp
-syclcompat/util/util_shift_sub_group_right.cpp
 syclcompat/util/util_vectorized_isgreater_test.cpp
 syclcompat/util/util_vectorized_max_test.cpp
 syclcompat/util/util_vectorized_min_test.cpp
