@@ -691,7 +691,6 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
-
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
