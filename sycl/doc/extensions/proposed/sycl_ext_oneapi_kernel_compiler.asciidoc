@@ -328,7 +328,7 @@ provides a description of the error.
 
 Instead, the `log` property provides information about a build operation that
 succeeds.
-This might include warning messages or other diagnostics.i
+This might include warning messages or other diagnostics.
 Each source language specification can define specific information that is
 provided in the log.
 In general, the log information is intended for human consumption, and the
@@ -365,6 +365,14 @@ As a result, the only `kernel_bundle` member functions from the core SYCL
 specification that are available for bundles in `ext_oneapi_source` state are
 `get_backend` and `get_context`.
 
+=== Interaction with existing kernel bundle member functions
+
+Kernels created from online compilation of source code do not have any
+associated `kernel_id`.
+Therefore, the function `kernel_bundle::get_kernel_ids` returns an empty vector
+of `kernel_id` objects if the kernel bundle was created from a bundle of state
+`bundle_state::ext_oneapi_source`.
+
 === New kernel bundle member functions
 
 This extensions adds the following new `kernel_bundle` member functions:
@@ -397,7 +405,7 @@ bool ext_oneapi_has_kernel(const std::string &name)
 ----
 !====
 
-_Constraint:_ This function is not available when `State` is
+_Constraints:_ This function is not available when `State` is
 `bundle_state::ext_oneapi_source`.
 
 _Returns:_ The value `true` only if the kernel bundle was created from a bundle
@@ -416,7 +424,7 @@ kernel ext_oneapi_get_kernel(const std::string &name)
 ----
 !====
 
-_Constraint:_ This function is available only when `State` is
+_Constraints:_ This function is available only when `State` is
 `bundle_state::executable`.
 
 _Returns:_ A `kernel` object representing the kernel in this bundle whose name
