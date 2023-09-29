@@ -21,7 +21,7 @@ public:
     secret = 0;
 
     for (int i = 0; i < val; i++) {
-      secret += (int)sqrt((float)i);
+      secret += static_cast<int>(sycl::sqrt(static_cast<float>(i)));
     }
   }
 };
