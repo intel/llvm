@@ -32,7 +32,7 @@
 // CREATE_IMAGE_PHASES: 3: input, "{{.*libsycl-itt-user-wrappers.o.*}}", object
 // CREATE_IMAGE_PHASES: 4: clang-offload-unbundler, {3}, object
 // CREATE_IMAGE_PHASES: 5: offload, " (spir64_gen-unknown-unknown)" {4}, object
-// CREATE_IMAGE_PHASES: 6: input, "{{.*lib/libsycl-itt-compiler-wrappers.o.*}}", object
+// CREATE_IMAGE_PHASES: 6: input, "{{.*libsycl-itt-compiler-wrappers.o.*}}", object
 // CREATE_IMAGE_PHASES: 7: clang-offload-unbundler, {6}, object
 // CREATE_IMAGE_PHASES: 8: offload, " (spir64_gen-unknown-unknown)" {7}, object
 // CREATE_IMAGE_PHASES: 9: input, "{{.*libsycl-itt-stubs.o.*}}", object
