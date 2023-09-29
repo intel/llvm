@@ -9,17 +9,16 @@
 #pragma once
 
 #include <detail/device_image_impl.hpp>
-#include <detail/kernel_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/common_info.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
-
-
 
 #include <algorithm>
 #include <cassert>
@@ -344,8 +343,7 @@ public:
     // sourceImpl = getSyclObjImpl(SourceBundle);
   }
 
-  //std::shared_ptr<kernel_bundle_impl> 
-  void lets_do_this(){
+  std::shared_ptr<kernel_bundle_impl> lets_do_this() {
     assert(MState == bundle_state::ext_oneapi_source);
 
     // CP temp
@@ -353,31 +351,88 @@ public:
 
     // if successful, the log is empty. if failed, throws an error with the
     // compilation log.
-    //std::vector<byte>
     auto  spirv = syclex::detail::OpenCLC_to_SPIRV(this->Source, flags);
     std::cout << "spirv byte count: " << spirv.size() << std::endl;
 
-    // copy/paste from program_manager.cpp::createSpirvProgram()
+    // using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    // ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    // const PluginPtr &Plugin = ContextImpl->getPlugin();
+    // Plugin->call<PiApiKind::piextSpirvToKernelBundle>(ContextImpl->getHandleRef(),
+    // spirv.data(), spirv.size());
+
+    // // copy/paste from program_manager.cpp::createSpirvProgram()
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-    sycl::detail::pi::PiProgram Program = nullptr;
+    sycl::detail::pi::PiProgram PiProgram = nullptr;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
-    Plugin->call<PiApiKind::piProgramCreate>(ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &Program);
+    Plugin->call<PiApiKind::piProgramCreate>(
+        ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
 
-    using exe_kb = kernel_bundle<bundle_state::executable>;
-    sycl::backend Backend = get_backend();
+    if (ContextImpl->getBackend() == backend::opencl)
+      Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
-    std::shared_ptr<detail::kernel_bundle_impl> ExeImpl = sycl::detail::make_kernel_bundle(detail::pi::cast<pi_native_handle>(Program), MContext, bundle_state::executable, Backend);
-    std::vector<kernel_id> kIDs = ExeImpl->get_kernel_ids();
-    std::cout << "kernel_ids size: " << kIDs.size() << std::endl; // 0
+    for (const auto &SyclDev : MDevices) {
+      std::cout << "device" << std::endl;
+      pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
+      Plugin->call<errc::build, PiApiKind::piProgramBuild>(
+          PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
+    }
 
-    //exe_kb ExecKB = make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>( { Program, sycl::ext::oneapi::level_zero::ownership::keep}, MContext);
+    // Get the number of kernels in the program.
+    size_t NumKernels;
+    Plugin->call<PiApiKind::piProgramGetInfo>(
+        PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
+        nullptr);
+    std::cout << "Num Kernels: " << NumKernels << std::endl;
 
-    // can't do this here. Could maybe do it in level_zero PI .
-    // sycl::kernel_bundle<sycl::bundle_state::executable> SyclKB =
-    //   sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
-    //                            sycl::bundle_state::executable>(
-    //       {Program, sycl::ext::oneapi::level_zero::ownership::keep}, MContext);
+    // Get the kernel names.
+    size_t KernelNamesSize;
+    Plugin->call<PiApiKind::piProgramGetInfo>(
+        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+    std::cout << "KernelNamesSize: " << KernelNamesSize << std::endl;
+
+    std::string KernelNames(KernelNamesSize,
+                            ' '); // semi-colon delimited list of kernel names.
+    Plugin->call<PiApiKind::piProgramGetInfo>(
+        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, KernelNames.size(),
+        &KernelNames[0], nullptr);
+    std::cout << "KernelNames: " << KernelNames << std::endl;
+
+    // Create each kernel.
+    auto names = detail::split_string(KernelNames, ';');
+    for (auto name : names) {
+      sycl::detail::pi::PiKernel Kernel = nullptr;
+      Plugin->call<PiApiKind::piKernelCreate>(PiProgram, name.c_str(), &Kernel);
+    }
+
+    // make the device image and the kernel_bundl_impl
+    auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
+    auto DevImgImpl = std::make_shared<device_image_impl>(
+        nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
+        PiProgram);
+    device_image_plain DevImg{DevImgImpl};
+
+    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg);
+
+    // using exe_kb = kernel_bundle<bundle_state::executable>;
+    // sycl::backend Backend = get_backend();
+
+    // std::shared_ptr<detail::kernel_bundle_impl> ExeImpl =
+    // sycl::detail::make_kernel_bundle(detail::pi::cast<pi_native_handle>(Program),
+    // MContext, bundle_state::executable, Backend); std::vector<kernel_id> kIDs
+    // = ExeImpl->get_kernel_ids(); std::cout << "kernel_ids size: " <<
+    // kIDs.size() << std::endl; // 0
+
+    // //exe_kb ExecKB = make_kernel_bundle<backend::ext_oneapi_level_zero,
+    // bundle_state::executable>( { Program,
+    // sycl::ext::oneapi::level_zero::ownership::keep}, MContext);
+
+    // // can't do this here. Could maybe do it in level_zero PI .
+    // // sycl::kernel_bundle<sycl::bundle_state::executable> SyclKB =
+    // //   sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
+    // //                            sycl::bundle_state::executable>(
+    // //       {Program, sycl::ext::oneapi::level_zero::ownership::keep},
+    // MContext);
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }

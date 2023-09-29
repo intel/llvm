@@ -403,9 +403,10 @@ exe_kb build(source_kb &SourceKB, const property_list &PropList) {
  */
 
   // CP fake code to compile for the nonce.  This constructor is empty.
-  sourceImpl->lets_do_this();
-  std::shared_ptr<kernel_bundle_impl> KBImpl = std::make_shared<kernel_bundle_impl>(SourceKB);
-  //std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
+  // std::shared_ptr<kernel_bundle_impl> KBImpl =
+  // std::make_shared<kernel_bundle_impl>(SourceKB);
+  // std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
   return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
 }
 
