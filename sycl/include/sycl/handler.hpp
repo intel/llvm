@@ -646,6 +646,8 @@ private:
   void setArgHelper(int ArgIndex,
                     accessor<DataT, Dims, AccessMode, access::target::local,
                              IsPlaceholder> &&Arg) {
+    (void)ArgIndex;
+    (void)Arg;
 #ifndef __SYCL_DEVICE_ONLY__
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
@@ -654,6 +656,8 @@ private:
   // setArgHelper for local accessor argument (up to date accessor interface)
   template <typename DataT, int Dims>
   void setArgHelper(int ArgIndex, local_accessor<DataT, Dims> &&Arg) {
+    (void)ArgIndex;
+    (void)Arg;
 #ifndef __SYCL_DEVICE_ONLY__
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
@@ -1277,6 +1281,7 @@ private:
        // SYCL_LANGUAGE_VERSION >= 202001
     {
       (void)UserRange;
+      (void)Props;
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1329,6 +1334,7 @@ private:
 #endif
 
     (void)ExecutionRange;
+    (void)Props;
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1384,6 +1390,7 @@ private:
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
+    (void)Props;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1424,6 +1431,7 @@ private:
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
     (void)WorkGroupSize;
+    (void)Props;
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1685,6 +1693,7 @@ private:
                 ext::oneapi::experimental::detail::empty_properties_t>
   void single_task_lambda_impl(PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
+    (void)Props;
     throwIfActionIsCreated();
     throwOnLocalAccessorMisuse<KernelName, KernelType>();
     // TODO: Properties may change the kernel function, so in order to avoid
