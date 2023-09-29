@@ -59,15 +59,13 @@ int main() {
   }
 
   // Concurrent Submissions
-  sycl::event Event;
-  sycl::event PreEvent;
+  sycl::event PreEvent, Event;
   sycl::info::event_command_status PreEventInfoStateBefore =
       sycl::info::event_command_status::ext_oneapi_unknown;
   sycl::info::event_command_status PreEventInfoStateAfter =
       sycl::info::event_command_status::ext_oneapi_unknown;
-  std::error_code ErrorCode;
   for (unsigned i = 0; i < NumIterations; ++i) {
-    ErrorCode = make_error_code(sycl::errc::success);
+    std::error_code ErrorCode = make_error_code(sycl::errc::success);
     PreEventInfoStateBefore =
         PreEvent.get_info<sycl::info::event::command_execution_status>();
 
