@@ -92,18 +92,8 @@ template <typename T1, typename T2>
 struct is_type_size_equal : std::bool_constant<(sizeof(T1) == sizeof(T2))> {};
 
 template <typename T1, typename T2>
-struct is_type_size_greater : std::bool_constant<(sizeof(T1) > sizeof(T2))> {};
-
-template <typename T1, typename T2>
 struct is_type_size_double_of
     : std::bool_constant<(sizeof(T1) == (sizeof(T2) * 2))> {};
-
-template <typename T1, typename T2>
-struct is_type_size_less : std::bool_constant<(sizeof(T1) < sizeof(T2))> {};
-
-template <typename T1, typename T2>
-struct is_type_size_half_of
-    : std::bool_constant<(sizeof(T1) == (sizeof(T2) / 2))> {};
 
 // find required type
 template <typename TypeList, template <typename, typename> class Comp,
@@ -125,16 +115,6 @@ using find_type_t = typename find_type<TypeList, Comp, T>::type;
 
 template <typename TypeList, typename T>
 using find_same_size_type_t = find_type_t<TypeList, is_type_size_equal, T>;
-
-template <typename TypeList, typename T>
-using find_smaller_type_t = find_type_t<TypeList, is_type_size_less, T>;
-
-template <typename TypeList, typename T>
-using find_larger_type_t = find_type_t<TypeList, is_type_size_greater, T>;
-
-template <typename TypeList, typename T>
-using find_twice_as_small_type_t =
-    find_type_t<TypeList, is_type_size_half_of, T>;
 
 template <typename TypeList, typename T>
 using find_twice_as_large_type_t =
