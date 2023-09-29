@@ -476,11 +476,14 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
     Relocatable = Args.hasFlag(options::OPT_fopenmp_relocatable_target,
                                options::OPT_fnoopenmp_relocatable_target,
                                /*Default=*/true);
-  else if (JA.isOffloading(Action::OFK_Cuda) ||
-           JA.isOffloading(Action::OFK_SYCL))
+  else if (JA.isOffloading(Action::OFK_Cuda))
     // In CUDA we generate relocatable code by default.
     Relocatable = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                                /*Default=*/false);
+  else if (JA.isOffloading(Action::OFK_SYCL))
+    // Relocatable device code compilation is the default mode in SYCL.
+    Relocatable = Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                               /*Default=*/true);
   else
     // Otherwise, we are compiling directly and should create linkable output.
     Relocatable = true;
@@ -664,9 +667,11 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-o");
     // For SYCL, we invoke `fatbinary` next in fgpu-rdc mode, and the expected
     // input is a .cubin file. Hence, we need to rename it and save as a temp.
-    if (JA.isOffloading(Action::OFK_SYCL) &&
+    const bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
+    const bool Relocatable =
         Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
-                     /*Default=*/false)) {
+                     /*Default=*/IsSYCL);
+    if (IsSYCL && Relocatable) {
       std::string OutputFileName = TC.getInputFilename(Output);
       if (Output.isFilename() && OutputFileName != Output.getFilename())
         C.addTempFile(Args.MakeArgString(OutputFileName));
