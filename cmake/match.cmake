@@ -75,7 +75,3 @@ if(TEST_RESULT)
 else()
     message("Passed: The output of test command '${TEST_FILE} ${TEST_ARGS}' (stored in ${CMAKE_CURRENT_BINARY_DIR}/${OUT_FILE}) matches '${MATCH_FILE}'")
 endif()
-
-if(EXISTS ${OUT_FILE})
-    file(REMOVE ${OUT_FILE})
-endif()
