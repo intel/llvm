@@ -173,10 +173,14 @@ public:
            has_property<property::image::use_host_ptr>();
   }
 
-  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
+  bool canReadHostPtr(void *HostPtr, const size_t RequiredAlign) {
     bool Aligned =
         (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
     return Aligned || useHostPtr();
+  }
+
+  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
+    return !MHostPtrReadOnly && canReadHostPtr(HostPtr, RequiredAlign);
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
@@ -190,14 +194,14 @@ public:
     if (HostPtr) {
       if (canReuseHostPtr(HostPtr, RequiredAlign)) {
         MUserPtr = HostPtr;
-        if (MHostPtrReadOnly) {
-          MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
-            setAlign(RequiredAlign);
-            MShadowCopy = allocateHostMem();
-            MUserPtr = MShadowCopy;
-            std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
-          };
-        }
+      } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+        };
       } else {
         setAlign(RequiredAlign);
         MShadowCopy = allocateHostMem();
@@ -223,14 +227,14 @@ public:
 
       if (canReuseHostPtr(HostPtr.get(), RequiredAlign)) {
         MUserPtr = HostPtr.get();
-        if (MHostPtrReadOnly) {
-          MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
-            setAlign(RequiredAlign);
-            MShadowCopy = allocateHostMem();
-            MUserPtr = MShadowCopy;
-            std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
-          };
-        }
+      } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
+        MUserPtr = HostPtr.get();
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+        };
       } else {
         setAlign(RequiredAlign);
         MShadowCopy = allocateHostMem();
