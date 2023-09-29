@@ -10,10 +10,10 @@
 //
 // UNSUPPORTED: esimd_emulator
 // Even though the driver we use in CI is now new enough so this test doesn't
-// skip itself, it still fails. Temporary disabling it while it is being
+// skip itself, it still fails. Temporary XFAIL-ing it while it is being
 // investigated.
-// FIXME: enable it back after investigation
-// XFAIL: *
+// FIXME: enable it back after investigation, see intel/llvm#11358
+// XFAIL: linux
 
 // This test verifies usage of slm_block_load() and slm_block_store().
 
