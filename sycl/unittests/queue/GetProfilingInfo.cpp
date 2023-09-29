@@ -69,7 +69,7 @@ static pi_result redefinedPiDevicesGet(pi_platform platform,
                                        pi_uint32 *num_devices) {
   // Host/Device timer syncronization isn't done all the time (cached), so we
   // need brand new device for some of the testcases.
-  static int device_id = 10;
+  static std::intptr_t device_id = 10;
   if (num_devices)
     *num_devices = 1;
 
