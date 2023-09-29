@@ -99,10 +99,15 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+  // If we have a command graph set we need to capture the memset through normal
+  // queue submission rather than execute the memset directly.
   if (MGraph.lock()) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "The memset feature is not yet available "
-                          "for use with the SYCL Graph extension.");
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.memset(Ptr, Value, Count);
+        },
+        Self, {});
   }
 
   return submitMemOpHelper(
