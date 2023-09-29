@@ -725,9 +725,9 @@ private:
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
-    auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
+    auto HostKernelPtr = new detail::HostKernel<decltype(NormalizedKernelFunc),
+                                                sycl::nd_item<Dims>, Dims>(
+        std::move(NormalizedKernelFunc));
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
