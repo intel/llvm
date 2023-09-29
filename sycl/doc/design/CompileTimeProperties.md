@@ -111,28 +111,15 @@ template </* ... */> class
 } // namespace sycl::ext::oneapi
 ```
 
-The device compiler only uses the
-`[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute when the
-decorated type is used to create an [LLVM IR global variable][3] and the global
-variable's type is either:
+When the device compiler creates an [LLVM IR global variable][3] of the annotated class it will use the `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute to generate entries in the `@llvm.global.annotations` list, as described in [IR representation as IR attributes][5].
 
-* The type that is decorated by the attribute, or
-* An array of the type that is decorated by the attribute.
+In the example below, the annotated type `fpga_mem` itself has `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute. Both the attributes on the `device_global` and on `fpga_mem` will generate entries in the `@llvm.global.annotations` list.
 
-[3]: <https://llvm.org/docs/LangRef.html#global-variables>
+```cpp
+device_global<fpga_mem<int[4], decltype(properties(word_size<2>))>, decltype(properties(host_access_none))> dg;
+```
 
-The device compiler front-end silently ignores the attribute when the decorated
-type is used in any other way.
-
-When the device compiler front-end creates a global variable from the decorated
-type as described above, it also adds one IR attribute to the global variable
-for each property using
-[`GlobalVariable::addAttribute(StringRef, StringRef)`][4].  If the property
-value is not already a string, it converts it to a string as described in
-[IR representation as IR attributes][5].
-
-[4]: <https://llvm.org/doxygen/classllvm_1_1GlobalVariable.html#a6cee3c634aa5de8c51e6eaa4e41898bc>
-[5]: <#ir-representation-as-ir-attributes>
+The device compiler front-end ignores the [[__sycl_detail__::add_ir_attributes_global_variable()]] attribute when it is applied not to the object definition, and the variable of that type is not declared at namespace scope. 
 
 Note that the front-end does not need to understand any of the properties in
 order to do this translation.
@@ -257,8 +244,8 @@ kernel function.  If a copied parameter is decorated with
 `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`, the front-end adds
 one LLVM IR attribute to the resulting kernel function parameter for each
 property in the list.  For example, this can be done by calling
-[`Function::addParamAttrs(unsigned ArgNo, const AttrBuilder &)`][7].  As
-before, the IR attributes are added as strings, so the front-end must convert
+[`Function::addParamAttrs(unsigned ArgNo, const AttrBuilder &)`][7]. The
+IR attributes are added as strings, so the front-end must convert
 the property value to a string if it is not already a string.
 
 [7]: <https://llvm.org/doxygen/classllvm_1_1Function.html#a092beb46ecce99e6b39628ee92ccd95a>
@@ -570,7 +557,6 @@ SYCL property has no value the header passes `nullptr`.
 Properties that are implemented using the following C++ attributes are
 represented in LLVM IR as IR attributes:
 
-* `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
 * `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
 * `[[__sycl_detail__::add_ir_attributes_function()]]`
 
@@ -595,6 +581,56 @@ we do not allow non-fundamental types, how do we represent properties like
 `work_group_size`, whose value is a 3-tuple of integers?  Maybe we could just
 allow `std::tuple`, where the type of each element is one of the fundamental
 types listed above.
+
+### IR representation via `@llvm.global.annotations`
+
+Properties that are implemented using
+`[[__sycl_detail__::add_ir_attributes_global_variable()]]`, are represented in LLVM IR
+as elements in the global variable `@llvm.global.annotations`. `@llvm.global.annotations` is an array of `{ ptr, ptr, ptr, i32, ptr}` structs, where each struct represents an annotation on a global pointer. The values of each field of the struct are as follows:
+
+* pointer to global object to be annotated, global variable in our case. If there are nested annotations on the global variable, constant `getelementptr` instructions can be used to specify at which level the annotation is applied.
+* pointer to global string, representing the annotation. Each global string is a list of `{name:value}` pairs from the `[[__sycl_detail__::add_ir_attributes_global_variable()]]` annotation. Property values are converted to strings
+in the same way as described above, except that the `nullptr` value is represented as an empty string, `{name}`.
+* pointer to global string, representing the path of the source file where the annotation was applied.
+* i32 integer representing the line number in the source file where the annotation was applied. 
+* ptr to annotation arguments, `null` pointer in our case 
+
+```cpp
+device_global<fpga_mem<int[4], decltype(properties(word_size<2>))>, decltype(properties(host_access_none))> dg;
+```
+
+Below is what the LLVM IR will look like for the SYCL code above.
+
+```llvm
+%"fpga_mem" = type { [4 x i32] }
+%"device_global" = type { %"fpga_mem" }
+
+@.str = private unnamed_addr addrspace(1) constant [25 x i8] c"{5826:DEFAULT}{5884:2}\00"
+@.str.1 = private unnamed_addr addrspace(1) constant [14 x i8] c"example.cpp\00"
+@.str.2 = private unnamed_addr addrspace(1) constant [11 x i8] c"{6168:0}\00"
+
+@dg = dso_local local_unnamed_addr addrspace(1) global { %"device_global" } zeroinitializer
+@llvm.global.annotations = appending global 
+  [2 x { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }]
+  [
+    { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }
+    {
+       ptr addrspace(1) @dg,
+       ptr addrspace(1) @.str.2,
+       ptr addrspace(1) @.str.1,
+       i32 24,
+       ptr addrspace(1) null
+    }, 
+    { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }
+    {
+       ptr addrspace(1) getelementptr inbounds (%"device_global", ptr addrspace(1) @dg, i64 0, i64 0),
+       ptr addrspace(1) @.str,
+       ptr addrspace(1) @.str.1,
+       i32 16,
+       ptr addrspace(1) null
+    }, 
+  ]
+```
 
 ### IR representation via `@llvm.ptr.annotation`
 
@@ -769,25 +805,10 @@ define spir_kernel void @MyKernel(%arg1, %arg2) !spirv.ParameterDecorations !0 {
 
 When a property on a global variable needs to be represented in SPIR-V, we
 generally translate the property into a SPIR-V **OpDecorate** instruction for
-the corresponding module scope (global) **OpVariable**.  Again, there is no
-existing mechanism to do this in the SPIR-V LLVM Translator, so we propose the
-following mechanism.
-
-An LLVM IR global variable definition may optionally have a metadata kind of
-`!spirv.Decorations`.  If it does, that metadata node has one operand for each
-of the global variable's decorations.  To illustrate:
-
-```
-@MyVariable = global %MyClass !spirv.Decorations !0
-!0 = !{!1, !2}            ; Each operand in this metadata represents one
-                          ;   decoration on the variable.
-!1 = !{i32 7744}          ; This is the integer value of the first decoration.
-!2 = !{i32 7745, i32 20}  ; The first operand is the integer value of the
-                          ;   second decoration.  Additional operands are
-                          ;   "extra operands" to the decoration.  These
-                          ;   operands may be either integer literals or string
-                          ;   literals.
-```
+the corresponding module scope (global) **OpVariable**. If the property is 
+applied onto a nested property it will still be translated into a SPIR-V
+**OpDecorate** instruction but will just be applied onto the result of a SPIR-V
+**SpecConstantOp** call.
 
 ### Property on a structure member of a non-global variable
 
