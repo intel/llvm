@@ -54,6 +54,7 @@ def do_configure(args):
     llvm_build_shared_libs = 'OFF'
     llvm_enable_lld = 'OFF'
     sycl_enabled_plugins = ["opencl"]
+    cgeist_allow_undefined_sycl_types = 'OFF'
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
@@ -161,6 +162,9 @@ def do_configure(args):
     if args.verbose:
         verbose = args.verbose
 
+    if args.cgeist_allow_undefined_sycl_types:
+        cgeist_allow_undefined_sycl_types = 'ON'
+
     install_dir = os.path.join(abs_obj_dir, "install")
 
     cmake_cmd = [
@@ -202,6 +206,7 @@ def do_configure(args):
         "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose),
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
+        "-DCGEIST_DEFAULT_ALLOW_UNDEFINED_SYCL_TYPES={}".format(cgeist_allow_undefined_sycl_types),
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -289,6 +294,7 @@ def main():
     parser.add_argument("--verbose", default='OFF', help="Verbose build")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
     parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
+    parser.add_argument("--cgeist-allow-undefined-sycl-types", action='store_true', help="allow undefined SYCL types by default on cgeist")
     args = parser.parse_args()
 
     print("args:{}".format(args))
