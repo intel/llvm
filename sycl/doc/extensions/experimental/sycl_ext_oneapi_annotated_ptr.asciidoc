@@ -262,9 +262,9 @@ class annotated_ptr {
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
     template<typename... PropertyValueTs>
-    annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
+    explicit annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
       const annotated_ptr<T2, P>&) noexcept;
