@@ -44,6 +44,9 @@ This extension also depends on the following other SYCL extensions:
 
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[
+  sycl_ext_oneapi_annotated_ptr]
+
 
 
 == Status
@@ -190,6 +193,16 @@ void prefetch(T* ptr, Properties properties = {});
 template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 
+template <typename T,
+          typename PtrProperties,
+          typename ArgProperties = ext::oneapi::experimental::properties<>>
+void prefetch(annotated_ptr<T, PtrProperties> ptr, ArgProperties properties = {});
+
+template <typename T,
+          typename PtrProperties,
+          typename ArgProperties = ext::oneapi::experimental::properties<>>
+void prefetch(annotated_ptr<T, PtrProperties> ptr, size_t count, ArgProperties properties = {});
+
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <access::address_space AddressSpace, access::decorated IsDecorated,
           typename Properties = ext::oneapi::experimental::properties<>>
@@ -266,6 +279,28 @@ void prefetch(T* ptr, size_t count, Properties properties = {});
 _Preconditions_: `ptr` must point to an object in global memory.
 
 _Effects_: Equivalent to `prefetch((void*) ptr, count * sizeof(T), properties)`.
+
+[source,c++]
+----
+template <typename T,
+          typename PtrProperties,
+          typename ArgProperties = ext::oneapi::experimental::properties<>>
+void prefetch(annotated_ptr<T, PtrProperties> ptr, ArgProperties properties = {});
+----
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch((void*) ptr.get(), sizeof(T), properties)`
+
+[source,c++]
+----
+template <typename T,
+          typename PtrProperties,
+          typename ArgProperties = ext::oneapi::experimental::properties<>>
+void prefetch(annotated_ptr<T, PtrProperties> ptr, size_t count, ArgProperties properties = {});
+----
+_Preconditions_: `ptr` must point to an object in global memory.
+
+_Effects_: Equivalent to `prefetch((void*) ptr.get(), count * sizeof(T), properties)`
 
 [source,c++]
 ----
