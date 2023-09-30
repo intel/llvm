@@ -7603,8 +7603,7 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // diagnostic is emitted if the arguments match, and drop any duplicate
     // attributes.
     if (const auto *Other = D->getAttr<SYCLIntelMergeAttr>()) {
-      if ((I == 0 && Other->getName() != Str) &&
-          (I == 1 && Other->getDirection() != Str)) {
+      if (Other->getName() != Str && Other->getDirection() != Str) {
         S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
         S.Diag(Other->getLoc(), diag::note_previous_attribute);
       }
