@@ -7588,8 +7588,6 @@ static void handleSYCLIntelMaxReplicatesAttr(Sema &S, Decl *D,
 /// second is a direction.  The direction must be "depth" or "width".
 /// This is incompatible with the register attribute.
 static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMergeAttr>(S, D, AL);
-
   SmallVector<StringRef, 2> Results;
   for (int I = 0; I < 2; I++) {
     StringRef Str;
@@ -7598,6 +7596,17 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
     if (I == 1 && Str != "depth" && Str != "width") {
       S.Diag(AL.getLoc(), diag::err_intel_fpga_merge_dir_invalid) << AL;
+      return;
+    }
+
+    // Warn about duplicate attributes if they have different arguments, no
+    // diagnostic is emitted if the arguments match, and drop any duplicate
+    // attributes.
+    if (const auto *Other = D->getAttr<SYCLIntelMergeAttr>()) {
+      if ((I == 0 && Other->getName() != Str) &&
+	  (I == 1 && Other->getDirection() != Str)) {
+        S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+        S.Diag(Other->getLoc(), diag::note_previous_attribute);
       return;
     }
     Results.push_back(Str);
