@@ -179,8 +179,7 @@ public:
 
   bool ext_oneapi_has_kernel(const std::string &name);
 
-  std::shared_ptr<detail::kernel_impl>
-  ext_oneapi_get_kernel(const std::string &name);
+  kernel ext_oneapi_get_kernel(const std::string &name);
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -364,9 +363,7 @@ public:
   template <bundle_state _State = State,
             typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel ext_oneapi_get_kernel(const std::string &name) {
-    std::shared_ptr<detail::kernel_impl> kernelImplPtr =
-        detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
-    return sycl::detail::createSyclObjFromImpl<kernel>(kernelImplPtr);
+    return detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
   }
 
 private:

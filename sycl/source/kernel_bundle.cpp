@@ -115,8 +115,7 @@ bool kernel_bundle_plain::ext_oneapi_has_kernel(const std::string &name) {
   return impl->ext_oneapi_has_kernel(name);
 }
 
-std::shared_ptr<detail::kernel_impl>
-kernel_bundle_plain::ext_oneapi_get_kernel(const std::string &name) {
+kernel kernel_bundle_plain::ext_oneapi_get_kernel(const std::string &name) {
   return impl->ext_oneapi_get_kernel(name, impl);
 }
 

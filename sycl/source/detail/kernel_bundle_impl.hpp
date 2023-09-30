@@ -419,9 +419,9 @@ public:
     return it != KernelNames.end();
   }
 
-  std::shared_ptr<kernel_impl> ext_oneapi_get_kernel(
-      const std::string &Name,
-      const std::shared_ptr<detail::kernel_bundle_impl> &Self) {
+  kernel
+  ext_oneapi_get_kernel(const std::string &Name,
+                        const std::shared_ptr<kernel_bundle_impl> &Self) {
     if (KernelNames.empty())
       throw sycl::exception(make_error_code(errc::invalid),
                             "'ext_oneapi_get_kernel' is only available in "
@@ -441,19 +441,15 @@ public:
     sycl::detail::pi::PiKernel PiKernel = nullptr;
     Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
 
-    // CP -- alt candidate
-    // return make_kernel(
-    // const context &TargetContext,
-    // const kernel_bundle<bundle_state::executable> &KernelBundle,
-    // pi_native_handle NativeKernelHandle, bool KeepOwnership, backend
-    // Backend);
+    // CP  ?? - not sure about this. Investigate
+    // if (Backend == backend::opencl)
+    //  Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
 
-    const KernelArgMask *ArgMask = nullptr;
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        PiKernel, detail::getSyclObjImpl(MContext), DeviceImageImpl, Self,
-        ArgMask);
+        PiKernel, detail::getSyclObjImpl(MContext), Self);
 
-    return KernelImpl;
+    return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+    ;
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }
