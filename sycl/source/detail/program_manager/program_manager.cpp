@@ -660,6 +660,10 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
+   /*Drop LinkOptions and CompileOptions from CacheKey since they are only used when debugging
+   * environment variables are set and we can just ignore them
+   * since all kernels will have their build options overridden with the same
+   * string*/
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
@@ -2258,6 +2262,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
+     /*Drop LinkOptions and CompileOptions from CacheKey since they are only used when debugging
+   * environment variables are set and we can just ignore them
+   * since all kernels will have their build options overridden with the same
+   * string*/
   auto CacheKey =
       std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
