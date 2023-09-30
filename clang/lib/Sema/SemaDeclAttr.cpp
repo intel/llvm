@@ -7604,9 +7604,11 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // attributes.
     if (const auto *Other = D->getAttr<SYCLIntelMergeAttr>()) {
       if ((I == 0 && Other->getName() != Str) &&
-	  (I == 1 && Other->getDirection() != Str)) {
+          (I == 1 && Other->getDirection() != Str)) {
         S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
         S.Diag(Other->getLoc(), diag::note_previous_attribute);
+      }
+      // Do not add a duplicate attribute.
       return;
     }
     Results.push_back(Str);
