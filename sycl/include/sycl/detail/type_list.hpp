@@ -27,7 +27,7 @@ using is_empty_type_list = std::is_same<T, empty_type_list>;
 
 // is_contained
 template <typename T, typename TypeList>
-using is_contained = boost::mp11::mp_contains<TypeList, T>;
+using is_contained = boost::mp11::mp_contains<TypeList, std::remove_cv_t<T>>;
 // unclear whether TypeList can contain duplicates. If so mp_set_contains can be
 // used.
 
