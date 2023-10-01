@@ -976,60 +976,65 @@ private:
             PropertySet_Initializer->getAggregateElement(static_cast<unsigned>(
                 1)); // PropertiesBegin field of struct
                      // _pi_device_binary_property_set_struct
-        auto Properties_Var = Current_SymProps_M->getGlobalVariable(
-            Properties_Name->getName(), true);
-        auto Properties_Initializer = Properties_Var->getInitializer();
+
         llvm::util::PropertySet PropSet;
 
-        for (uint64_t j = 0;
-             j < getInitializerNumElements(Properties_Initializer); j++) {
-          Constant *Property_Initializer =
-              Properties_Initializer->getAggregateElement(j);
-          Constant *Property_Name =
-              Property_Initializer->getAggregateElement(static_cast<unsigned>(
-                  0)); // Name field of struct _pi_device_binary_property_struct
-          Constant *Property_ValAddr =
-              Property_Initializer->getAggregateElement(static_cast<unsigned>(
-                  1)); // ValAddr field of struct
-                       // _pi_device_binary_property_struct
-          Constant *Property_Type =
-              Property_Initializer->getAggregateElement(static_cast<unsigned>(
-                  2)); // Type field of struct _pi_device_binary_property_struct
-          Constant *Property_ValSize =
-              Property_Initializer->getAggregateElement(static_cast<unsigned>(
-                  3)); // ValSize field of struct
-                       // _pi_device_binary_property_struct
-          auto Property_Name_AsStringRef =
-              getValueAsStringRef(Current_SymProps_M.get(), Property_Name);
-          auto Property_Type_AsUInt64 =
-              static_cast<ConstantInt *>(Property_Type)->getZExtValue();
-          auto Property_ValSize_AsUInt64 =
-              static_cast<ConstantInt *>(Property_ValSize)->getZExtValue();
+        if (!Properties_Name->isNullValue()) {
 
-          if (Property_Type_AsUInt64 == llvm::util::PropertyValue::UINT32) {
-            PropSet.insert(
-                std::pair(removeNullTerminator(Property_Name_AsStringRef),
-                          Property_ValSize_AsUInt64));
-          } else if (Property_Type_AsUInt64 ==
-                     llvm::util::PropertyValue::BYTE_ARRAY) {
-            auto Data_AsStringRef =
-                getValueAsStringRef(Current_SymProps_M.get(), Property_ValAddr);
+          auto Properties_Var = Current_SymProps_M->getGlobalVariable(
+              Properties_Name->getName(), true);
+          auto Properties_Initializer = Properties_Var->getInitializer();
 
-            llvm::util::PropertyValue::SizeTy DataBitSize = 0;
-            for (size_t I = 0; I < sizeof(llvm::util::PropertyValue::SizeTy);
-                 ++I)
-              DataBitSize |=
-                  (llvm::util::PropertyValue::SizeTy)Data_AsStringRef[I]
-                  << (8 * I);
-            llvm::util::PropertyValue PV(
-                reinterpret_cast<const unsigned char *>(
-                    Data_AsStringRef.data()) +
-                    sizeof(llvm::util::PropertyValue::SizeTy),
-                DataBitSize);
-            PropSet.insert(
-                std::pair(removeNullTerminator(Property_Name_AsStringRef), PV));
-          } else {
-            llvm_unreachable_internal("unsupported property");
+          for (uint64_t j = 0;
+               j < getInitializerNumElements(Properties_Initializer); j++) {
+            Constant *Property_Initializer =
+                Properties_Initializer->getAggregateElement(j);
+            Constant *Property_Name = Property_Initializer->getAggregateElement(
+                static_cast<unsigned>(0)); // Name field of struct
+                                           // _pi_device_binary_property_struct
+            Constant *Property_ValAddr =
+                Property_Initializer->getAggregateElement(static_cast<unsigned>(
+                    1)); // ValAddr field of struct
+                         // _pi_device_binary_property_struct
+            Constant *Property_Type = Property_Initializer->getAggregateElement(
+                static_cast<unsigned>(2)); // Type field of struct
+                                           // _pi_device_binary_property_struct
+            Constant *Property_ValSize =
+                Property_Initializer->getAggregateElement(static_cast<unsigned>(
+                    3)); // ValSize field of struct
+                         // _pi_device_binary_property_struct
+            auto Property_Name_AsStringRef =
+                getValueAsStringRef(Current_SymProps_M.get(), Property_Name);
+            auto Property_Type_AsUInt64 =
+                static_cast<ConstantInt *>(Property_Type)->getZExtValue();
+            auto Property_ValSize_AsUInt64 =
+                static_cast<ConstantInt *>(Property_ValSize)->getZExtValue();
+
+            if (Property_Type_AsUInt64 == llvm::util::PropertyValue::UINT32) {
+              PropSet.insert(
+                  std::pair(removeNullTerminator(Property_Name_AsStringRef),
+                            Property_ValSize_AsUInt64));
+            } else if (Property_Type_AsUInt64 ==
+                       llvm::util::PropertyValue::BYTE_ARRAY) {
+              auto Data_AsStringRef = getValueAsStringRef(
+                  Current_SymProps_M.get(), Property_ValAddr);
+
+              llvm::util::PropertyValue::SizeTy DataBitSize = 0;
+              for (size_t I = 0; I < sizeof(llvm::util::PropertyValue::SizeTy);
+                   ++I)
+                DataBitSize |=
+                    (llvm::util::PropertyValue::SizeTy)Data_AsStringRef[I]
+                    << (8 * I);
+              llvm::util::PropertyValue PV(
+                  reinterpret_cast<const unsigned char *>(
+                      Data_AsStringRef.data()) +
+                      sizeof(llvm::util::PropertyValue::SizeTy),
+                  DataBitSize);
+              PropSet.insert(std::pair(
+                  removeNullTerminator(Property_Name_AsStringRef), PV));
+            } else {
+              llvm_unreachable_internal("unsupported property");
+            }
           }
         }
         PropRegistry->add(removeNullTerminator(PropertySet_Name_AsStringRef),
