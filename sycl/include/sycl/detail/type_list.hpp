@@ -13,6 +13,7 @@
 #include <type_traits> // for bool_constant, conditional_t, fals...
 
 #include <sycl/detail/boost/mp11/algorithm.hpp>
+#include <sycl/detail/boost/mp11/set.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -27,7 +28,7 @@ using is_empty_type_list = std::is_same<T, empty_type_list>;
 
 // is_contained
 template <typename T, typename TypeList>
-using is_contained = boost::mp11::mp_contains<TypeList, std::remove_cv_t<T>>;
+using is_contained = boost::mp11::mp_set_contains<TypeList, std::remove_cv_t<T>>;
 // unclear whether TypeList can contain duplicates. If so mp_set_contains can be
 // used.
 
