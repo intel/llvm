@@ -2052,8 +2052,15 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
+#if 0
   HANDLE_ERRORS(urProgramBuild(UrContext, UrProgram, Options));
+#else
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
+  HANDLE_ERRORS(
+      urProgramBuildExp(UrContext, UrProgram, NumDevices, UrDevices, Options));
+#endif
   return PI_SUCCESS;
 }
 

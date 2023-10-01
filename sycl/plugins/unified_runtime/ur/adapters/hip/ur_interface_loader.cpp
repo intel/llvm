@@ -85,6 +85,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     return result;
   }
   pDdiTable->pfnBuild = urProgramBuild;
+  pDdiTable->pfnBuildExp = urProgramBuildExp;
   pDdiTable->pfnCompile = urProgramCompile;
   pDdiTable->pfnCreateWithBinary = urProgramCreateWithBinary;
   pDdiTable->pfnCreateWithIL = urProgramCreateWithIL;

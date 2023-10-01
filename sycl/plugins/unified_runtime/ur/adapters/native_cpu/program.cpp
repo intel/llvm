@@ -52,6 +52,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
+    ur_context_handle_t Context, ///< [in] handle of the context instance.
+    ur_program_handle_t Program, ///< [in] Handle of the program to build.
+    uint32_t numDevices, ur_device_handle_t *phDevices,
+    const char *Options ///< [in][optional] pointer to build options
+                        ///< null-terminated string.
+) {
+  std::ignore = numDevices;
+  std::ignore = phDevices;
+  return urProgramBuild(Context, Program, Options);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
