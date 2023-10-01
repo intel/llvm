@@ -281,6 +281,8 @@ if config.hip_platform not in supported_hip_platforms:
 if "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     config.available_features.add('hip_amd')
     arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
+    if "gfx90a" in config.sycl_devices:
+        config.available_features.add("gpu-amd-gfx90a")
 elif "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add('hip_nvidia')
     arch_flag = ""
