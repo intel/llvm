@@ -11,9 +11,9 @@ on:
     - sycl
     - sycl-devops-pr/**
     paths:
-    - .github/workflow/sycl_post_commit.yml
-    - .github/workflow/sycl_linux_build.yml
-    - .github/workflow/sycl_linux_run_tests.yml
+    - .github/workflows/sycl_post_commit.yml
+    - .github/workflows/sycl_linux_build.yml
+    - .github/workflows/sycl_linux_run_tests.yml
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
 
