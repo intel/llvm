@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
   # commit 31b654f981f6098936e7f04c65803395a2ea343a
   # Merge: 71957e84 3da21336
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Wed Nov 22 11:27:33 2023 +0000
   #     Merge pull request #1053 from jandres742/url0leakkey
   #     [UR][L0] Add UR_L0_LEAKS_DEBUG key
-  set(UNIFIED_RUNTIME_TAG 31b654f981f6098936e7f04c65803395a2ea343a)
+  set(UNIFIED_RUNTIME_TAG 40c8da9b9ca637afbd887b1e5a3deb7f7581febc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
