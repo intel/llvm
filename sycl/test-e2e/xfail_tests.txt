@@ -537,6 +537,7 @@ SubGroup/generic_reduce.cpp
 SubGroup/generic-shuffle.cpp
 SubGroup/load_store.cpp
 SubGroupMask/Basic.cpp
+SubGroupMask/sub_group_mask_ver2.cpp
 SubGroup/scan_spirv13.cpp
 SubGroup/shuffle.cpp
 SubGroup/sub_group_as.cpp
