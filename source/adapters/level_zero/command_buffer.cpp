@@ -177,7 +177,7 @@ ur_result_t calculateKernelWorkDimensions(
             Device->ZeDeviceComputeProperties->maxGroupSizeX,
             Device->ZeDeviceComputeProperties->maxGroupSizeY,
             Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = std::min(size_t(GroupSize[I]), GlobalWorkSize[I]);
+        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize[I]);
         while (GlobalWorkSize[I] % GroupSize[I]) {
           --GroupSize[I];
         }
