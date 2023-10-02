@@ -869,6 +869,9 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
         break;
+    case UR_FUNCTION_PROGRAM_BUILD_EXP:
+        os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
+        break;
     case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK:
         os << "UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK";
         break;
@@ -9988,6 +9991,49 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_build_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_build_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    details::printPtr(os,
+                      *(params->phContext));
+
+    os << ", ";
+    os << ".hProgram = ";
+
+    details::printPtr(os,
+                      *(params->phProgram));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        details::printPtr(os,
+                          (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    details::printPtr(os,
+                      *(params->ppOptions));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_compile_params_t type
 /// @returns
 ///     std::ostream &
@@ -15829,6 +15875,9 @@ UR_APIEXPORT inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     } break;
     case UR_FUNCTION_PROGRAM_BUILD: {
         os << (const struct ur_program_build_params_t *)params;
+    } break;
+    case UR_FUNCTION_PROGRAM_BUILD_EXP: {
+        os << (const struct ur_program_build_exp_params_t *)params;
     } break;
     case UR_FUNCTION_PROGRAM_COMPILE: {
         os << (const struct ur_program_compile_params_t *)params;
