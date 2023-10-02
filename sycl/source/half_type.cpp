@@ -14,18 +14,17 @@
 namespace sycl {
 inline namespace _V1 {
 namespace half_impl {
-  __SYCL_EXPORT std::ostream &operator<<(std::ostream &O,
-                                         sycl::half const &rhs) {
-    O << static_cast<float>(rhs);
-    return O;
-  }
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
+  O << static_cast<float>(rhs);
+  return O;
+}
 
-  __SYCL_EXPORT std::istream &operator>>(std::istream &I, sycl::half &rhs) {
-    float ValFloat = 0.0f;
-    I >> ValFloat;
-    rhs = ValFloat;
-    return I;
-  }
+__SYCL_EXPORT std::istream &operator>>(std::istream &I, sycl::half &rhs) {
+  float ValFloat = 0.0f;
+  I >> ValFloat;
+  rhs = ValFloat;
+  return I;
+}
 } // namespace half_impl
 } // namespace _V1
 } // namespace sycl
