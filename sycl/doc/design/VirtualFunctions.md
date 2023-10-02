@@ -40,7 +40,7 @@ on virtual member functions marked with the compile-time property.
 
 ### Changes to the compiler middle-end
 
-#### Aspects propagation and related diagnostics
+#### Aspects propagation
 
 Aspects propagation pass should be extended to not only gather aspects which are
 used directly, but also aspects that are used indirectly, through virtual
@@ -48,10 +48,20 @@ functions.
 
 For that the pass should compile a list of aspects used by each set of
 indirectly callable functions (as defined by `indirectly_callable` property set
-by user) and then append those aspects to every kernel which uses those sets.
+by user) and then append those aspects to every kernel which use those sets (as
+defiend by `calls_indirectly` property set by user).
 
-Diagnostic should be emitted if a kernel is marked with `device_has` attribute
-or property which doesn't include an indirectly used aspect.
+NOTE: if the aspects propagation pass is ever extended to track function
+pointers, then aspects attached to virtual functions **should not** be attached
+to kernels using this mechanism. For example, if a kernel uses a variable,
+which is initialized with a function pointer to a virtual function which uses
+an aspect, then such kernel **should not** be considered as using that aspect.
+Properties-based mechanism which is described above should be used for aspects
+propagation for virtual functions.
+
+#### New compiler diagnostics
+
+**TBD**
 
 #### Device code split and device images
 
