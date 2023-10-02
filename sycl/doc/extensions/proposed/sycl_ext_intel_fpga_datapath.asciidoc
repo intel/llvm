@@ -129,7 +129,7 @@ class fpga_datapath {
 `fpga_datapath` is a class template, parameterized by the type of the underlying
 allocation _T_ which encodes the size of the allocation.
 
-`fpga_datapath` initializes the underlying object of type `T` with the values passed into its constructor.
+`fpga_datapath` initializes the underlying object of type `T` with the values passed into its constructor. If no values are passed into the constructor C++ default initialization rules will dictate the value of the underlying object `T`.
 
 [NOTE]
 ====
@@ -151,6 +151,13 @@ namespace sycl::ext::intel::experimental {
   class fpga_datapath {
   public:
     template <typename... S> constexpr fpga_datapath(S... args);
+
+    fpga_datapath() = default;
+
+    fpga_datapath(const fpga_datapath &) = default;
+    fpga_datapath(fpga_datapath &&) = default;
+    fpga_datapath &operator=(const fpga_datapath &) = default;
+    fpga_datapath &operator=(fpga_datapath &&) = default;
     
     // Access the underlying data
     operator T &() noexcept;
@@ -190,6 +197,51 @@ Constructs a `fpga_datapath` object, and implicit storage for `T`. `T` 's constr
 a|
 [source,c++]
 ----
+fpga_datapath() = default;
+----
+|
+Compiler generated default constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath(const fpga_datapath &) = default;
+----
+|
+Compiler generated copy constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath(fpga_datapath &&) = default;
+----
+|
+Compiler generated move constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath &operator=(const fpga_datapath &) = default;
+----
+|
+Compiler generated copy assignment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath &operator=(fpga_datapath &&) = default;
+----
+|
+Compiler generated move assignment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
 operator T&() noexcept;
 constexpr operator const T&() const noexcept;
 ----
@@ -212,24 +264,39 @@ Returns a reference to the underlying `T`.
 
 Below are some non-obvious interactions between `fpga_datapath` and other SYCL extensions. 
 
-* The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will used by the compiler, and the rest will be ignored.
+* The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the less specific template will used by the compiler, and the rest will be ignored.
 
 [source,c++]
 ----
 namespace intelexp = sycl::ext::intel::experimental;
 
-// 10 integers will be implemented on the datapath
-// `fpga_mem` is ignored.
+// 10 integers will be implemented off the datapath, in memory
+// `fpga_datapath` is ignored.
 intelexp::fpga_mem<intelexp::fpga_datapath<int[10]>> dm1;
+
+----
+
+* `fpga_mem` and `fpga_datapath` objects can be member variables of a struct. If the struct type itself is used as a template argument to `fpga_mem` or `fpga_datapath` any hints provided from the member variables are ignored. 
+
+[source,c++]
+----
+namespace intelexp = sycl::ext::intel::experimental;
 
 class foo {
   intelexp::fpga_mem<int[5]> a;
   intelexp::fpga_datapath<int[4]> b;
-  int[3] c;
 }
 
-// 5 integers of `a` will be implemented in a memory off the datapath
-// 4 integers of `b` will be implemented on the datapath
-// 3 integers of `c` will be implemented in a memory off the datapath
+// `var` will be split into two variables
+// `var.a` will be implemented in memory, off the datapath
+// `var.b` will be implemented in the datapath
+foo var;
+
+// Hints applied on member variables ignored
+// `dm1` implemented in memory, off the datapath
 intelexp::fpga_mem<foo> dm1;
+
+// Hints applied on member variables ignored
+// `dm2` implemented in the datapath
+intelexp::fpga_datapath<foo> dm2;
 ----
