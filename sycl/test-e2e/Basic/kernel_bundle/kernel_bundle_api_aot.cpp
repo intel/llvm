@@ -100,7 +100,6 @@ int main() {
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev, Dev},
                                                            {Kernel1ID});
     assert(KernelBundleDupTest.get_devices().size() == 1);
-
   }
 
   // The following check relies on "-fsycl-device-code-split=per_kernel" option,
@@ -144,7 +143,7 @@ int main() {
     // Error handling
 
     // The error handling tests rely on Kernel3Name binary existing.
-    sycl::buffer<int, 1> Buf(sycl::range<1>{1});    
+    sycl::buffer<int, 1> Buf(sycl::range<1>{1});
     Q.submit([&](sycl::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
       CGH.single_task<Kernel3Name>([=]() { Acc[0] = 42; });
