@@ -1,4 +1,5 @@
 = sycl_ext_oneapi_uniform
+
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -8,68 +9,59 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-
-:blank: pass:[ +]
+:dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
-
-NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
-
-This extension introduces a mechanism to assert that the value of a variable is
-the same for all work-items in a sub-group.
 
 == Notice
 
-Copyright (c) 2021 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2021-2023 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
 
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+== Contact
 
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+To report problems with this extension, please open a new issue at:
 
-== Version
+https://github.com/intel/llvm/issues
 
-Built On: {docdate} +
-Revision: 1
 
-== Contacts
+== Contributors
 
 John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com) +
 Roland Schulz, Intel (roland 'dot' schulz 'at' intel 'dot' com) +
 Jason Sewall, Intel (jason 'dot' sewall 'at' intel 'dot' com) +
 
+
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 2.
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
-== Feature Test Macro
 
-This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros".  Therefore, an
-implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_UNIFORM` to one of the values defined in the table below.
-Applications can test for the existence of this macro to determine if the
-implementation supports this feature, or applications can test the macro's
-value to determine which of the extension's APIs the implementation supports.
+== Status
 
-[%header,cols="1,5"]
-|===
-|Value |Description
-|1     |Initial extension version.  Base features are supported.
-|===
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
 
 == Overview
+
+This extension introduces a mechanism to assert that the value of a variable is
+the same for all work-items in a sub-group.
 
 Some implementations of SYCL map work-items in the same sub-group to SIMD
 hardware. The performance of such implementations can be improved by knowledge
@@ -84,7 +76,30 @@ These concepts are already exposed in other SPMD programming models:
 - OpenMP's `declare simd` directive has a `uniform` clause
 - ISPC's `uniform` qualifier makes uniformity part of the type system
 
-== Defining Uniform Values
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_UNIFORM` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Defining uniform values
 
 The `sycl::ext::oneapi::experimental::uniform` wrapper type can be used to assert that
 the value of a variable is the same for all work-items in a sub-group.
@@ -150,7 +165,8 @@ a value taken from any work-item in the sub-group; if the input to the
 constructor was not uniform, or the constructor was not encountered in
 converged control flow, then the resulting value is undefined.
 
-== Example Usage
+
+== Example usage
 
 This non-normative section shows some example usages of the extension.
 
@@ -183,32 +199,3 @@ if (sycl::ext::oneapi::experimental::uniform(condition)) {
 Asserting that all work-items in the sub-group access the same memory location:
 ```c++
 float x = array[sycl::ext::oneapi::experimental::uniform(index)];
-```
-
-== Issues
-
-//. asd
-//+
-//--
-//*RESOLUTION*: Not resolved.
-//--
-
-== Revision History
-
-[cols="5,15,15,70"]
-[grid="rows"]
-[options="header"]
-|========================================
-|Rev|Date|Author|Changes
-|1|2021-04-23|John Pennycook|*Initial public working draft*
-|2|2021-08-03|John Pennycook|*Add const and deleted operators*
-|========================================
-
-//************************************************************************
-//Other formatting suggestions:
-//
-//* Use *bold* text for host APIs, or [source] syntax highlighting.
-//* Use +mono+ text for device APIs, or [source] syntax highlighting.
-//* Use +mono+ text for extension names, types, or enum values.
-//* Use _italics_ for parameters.
-//************************************************************************
