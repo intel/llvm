@@ -45,7 +45,7 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
                         const propertyListA &propList = properties{}) {
   VALIDATE_PROPERTIES(void);
   size_t alignFromPropList = GetAlignFromPropList<propertyListA>::value;
-  const property_list &usmPropList = get_usm_property_list(propList);
+  const property_list &usmPropList = get_usm_property_list();
 
   if constexpr (HasUsmKind<propertyListA>::value) {
     constexpr sycl::usm::alloc usmKind =
