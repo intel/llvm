@@ -5,7 +5,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
 
   # The UR tag should be from the 'adapters' branch
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 9265d33b3b1e538bb1d27aea29d30f2ed47859be)
+  set(UNIFIED_RUNTIME_TAG e6343f4cca9a37b17bc63f3a81968ac3f486be8a)
 
   set(UR_BUILD_ADAPTER_L0 ON)
   if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
