@@ -4,6 +4,7 @@
 // Check expected runtime exceptions for annotated USM allocations
 
 #include "sycl/sycl.hpp"
+#include <complex>
 #include <iostream>
 
 // clang-format on

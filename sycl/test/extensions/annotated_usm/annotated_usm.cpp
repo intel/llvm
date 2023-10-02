@@ -7,6 +7,7 @@
 
 #include "sycl/sycl.hpp"
 #include "fake_properties.hpp"
+#include <complex>
 
 // clang-format on
 

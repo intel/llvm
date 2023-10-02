@@ -3,7 +3,11 @@
 
 // E2E tests for annotated USM allocation functions
 
+// clang-format off
+
 #include "sycl/sycl.hpp"
+#include <complex>
+#include "<numeric>"
 
 // clang-format on
 
