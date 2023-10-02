@@ -18,18 +18,6 @@ int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute) {
   return Value;
 }
 
-uint64_t ur_device_handle_t_::getElapsedTime(hipEvent_t Event) const {
-  float MilliSeconds = 0.0f;
-
-  // hipEventSynchronize waits till the event is ready for call to
-  // hipEventElapsedTime.
-  UR_CHECK_ERROR(hipEventSynchronize(EvBase));
-  UR_CHECK_ERROR(hipEventSynchronize(Event));
-  UR_CHECK_ERROR(hipEventElapsedTime(&MilliSeconds, EvBase, Event));
-
-  return static_cast<uint64_t>(MilliSeconds * 1.0e6);
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     ur_device_info_t propName,
                                                     size_t propSize,

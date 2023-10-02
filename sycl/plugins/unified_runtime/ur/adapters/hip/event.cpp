@@ -88,13 +88,44 @@ bool ur_event_handle_t_::isCompleted() const noexcept {
 }
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
+  float MilliSeconds = 0.0f;
   assert(isStarted());
-  return Queue->getDevice()->getElapsedTime(EvStart);
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
+  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
+
+  UR_CHECK_ERROR(hipEventElapsedTime(&MilliSeconds, EvStart, EvEnd));
+  return static_cast<uint64_t>(MilliSeconds * 1.0e6);
+}
+
+uint64_t ur_event_handle_t_::getStartTime() const {
+  float MiliSeconds = 0.0f;
+  assert(isStarted());
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(EvStart));
+
+  UR_CHECK_ERROR(hipEventElapsedTime(&MiliSeconds,
+                                     ur_platform_handle_t_::EvBase, EvStart));
+  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
 }
 
 uint64_t ur_event_handle_t_::getEndTime() const {
+  float MiliSeconds = 0.0f;
   assert(isStarted() && isRecorded());
-  return Queue->getDevice()->getElapsedTime(EvEnd);
+
+  // hipEventSynchronize waits till the event is ready for call to
+  // hipEventElapsedTime.
+  UR_CHECK_ERROR(hipEventSynchronize(ur_platform_handle_t_::EvBase));
+  UR_CHECK_ERROR(hipEventSynchronize(EvEnd));
+
+  UR_CHECK_ERROR(
+      hipEventElapsedTime(&MiliSeconds, ur_platform_handle_t_::EvBase, EvEnd));
+  return static_cast<uint64_t>(MiliSeconds * 1.0e6);
 }
 
 ur_result_t ur_event_handle_t_::record() {
@@ -218,10 +249,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
   switch (propName) {
   case UR_PROFILING_INFO_COMMAND_QUEUED:
-    // Note: No user for this case
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
-  case UR_PROFILING_INFO_COMMAND_START:
+    // Note: No user for this case
     return ReturnValue(static_cast<uint64_t>(hEvent->getQueuedTime()));
+  case UR_PROFILING_INFO_COMMAND_START:
+    return ReturnValue(static_cast<uint64_t>(hEvent->getStartTime()));
   case UR_PROFILING_INFO_COMMAND_END:
     return ReturnValue(static_cast<uint64_t>(hEvent->getEndTime()));
   default:

@@ -74,17 +74,12 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
           try {
             for (int i = 0; i < NumDevices; ++i) {
               hipDevice_t Device;
-              UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
               hipCtx_t Context;
-              UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
-              UR_CHECK_ERROR(hipCtxSetCurrent(Context));
-              hipEvent_t EvBase;
-              UR_CHECK_ERROR(hipEventCreateWithFlags(&EvBase, hipEventDefault));
-              UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
-
+              Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               Platform.Devices.emplace_back(
                   std::make_unique<ur_device_handle_t_>(Device, Context,
-                                                        &Platform, i, EvBase));
+                                                        &Platform, i));
             }
           } catch (const std::bad_alloc &) {
             Platform.Devices.clear();

@@ -23,15 +23,13 @@ private:
   std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
   hipCtx_t HIPContext;
-  hipEvent_t EvBase;
   size_t DeviceIndex; // The index of the device in the UR context
 
 public:
   ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
-                      ur_platform_handle_t Platform, size_t DeviceIndex,
-                      hipEvent_t EvBase)
+                      ur_platform_handle_t Platform, size_t DeviceIndex)
       : HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
-        HIPContext(Context), EvBase(EvBase), DeviceIndex(DeviceIndex) {}
+        HIPContext(Context), DeviceIndex(DeviceIndex) {}
 
   ~ur_device_handle_t_() {
     UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
@@ -43,9 +41,7 @@ public:
 
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
-  uint64_t getElapsedTime(hipEvent_t) const;
-
-  hipCtx_t getNativeContext() const { return HIPContext; };
+  hipCtx_t getNativeContext() { return HIPContext; };
 
   // Returns the index of the device in question relative to the other devices
   // in the platform
