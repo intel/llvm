@@ -3,6 +3,9 @@
 // UNSUPPORTED: hip || cuda
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
 //
+// FIXME: Remove XFAIL one intel/llvm#11364 is resolved
+// XFAIL: (opencl && gpu)
+//
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero plugin to avoid releasing memory
 // too early. This is necessary because currently SYCL RT sets indirect access
@@ -17,7 +20,7 @@
 // RUN: %if gpu %{ %{gpu_env} %} %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if acc %{ --check-prefix=CHECK-ACC %}
 //
 // CHECK:      {{.*}}assert_in_simultaneous_kernels.hpp:13: void assertFunc(): {{.*}}[9,7,0], {{.*}}[0,0,0]
-// CHECK-SAME: Assertion `false && "from assert statement"` failed.
+// CHECK-SAME: Assertion `false && "from assert statement"` failed
 // CHECK-NOT:  The test ended.
 //
 // CHECK-ACC-NOT: {{.*}}assert_in_simultaneous_kernels.hpp:13: void assertFunc(): {{.*}} [9,7,0], {{.*}} [0,0,0]
