@@ -409,6 +409,42 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetProgramProcAddrTable_t)(
     ur_program_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramBuildExp
+typedef ur_result_t(UR_APICALL *ur_pfnProgramBuildExp_t)(
+    ur_context_handle_t,
+    ur_program_handle_t,
+    uint32_t,
+    ur_device_handle_t *,
+    const char *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of ProgramExp functions pointers
+typedef struct ur_program_exp_dditable_t {
+    ur_pfnProgramBuildExp_t pfnBuildExp;
+} ur_program_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetProgramExpProcAddrTable(
+    ur_api_version_t version,            ///< [in] API version requested
+    ur_program_exp_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetProgramExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetProgramExpProcAddrTable_t)(
+    ur_api_version_t,
+    ur_program_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urKernelCreate
 typedef ur_result_t(UR_APICALL *ur_pfnKernelCreate_t)(
     ur_program_handle_t,
@@ -2139,6 +2175,7 @@ typedef struct ur_dditable_t {
     ur_context_dditable_t Context;
     ur_event_dditable_t Event;
     ur_program_dditable_t Program;
+    ur_program_exp_dditable_t ProgramExp;
     ur_kernel_dditable_t Kernel;
     ur_sampler_dditable_t Sampler;
     ur_mem_dditable_t Mem;

@@ -196,6 +196,7 @@ class ur_function_v(IntEnum):
     ADAPTER_RETAIN = 179                            ## Enumerator for ::urAdapterRetain
     ADAPTER_GET_LAST_ERROR = 180                    ## Enumerator for ::urAdapterGetLastError
     ADAPTER_GET_INFO = 181                          ## Enumerator for ::urAdapterGetInfo
+    PROGRAM_BUILD_EXP = 182                         ## Enumerator for ::urProgramBuildExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2570,6 +2571,21 @@ class ur_program_dditable_t(Structure):
     ]
 
 ###############################################################################
+## @brief Function-pointer for urProgramBuildExp
+if __use_win_types:
+    _urProgramBuildExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+else:
+    _urProgramBuildExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+
+
+###############################################################################
+## @brief Table of ProgramExp functions pointers
+class ur_program_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnBuildExp", c_void_p)                                       ## _urProgramBuildExp_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urKernelCreate
 if __use_win_types:
     _urKernelCreate_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_char_p, POINTER(ur_kernel_handle_t) )
@@ -3754,6 +3770,7 @@ class ur_dditable_t(Structure):
         ("Context", ur_context_dditable_t),
         ("Event", ur_event_dditable_t),
         ("Program", ur_program_dditable_t),
+        ("ProgramExp", ur_program_exp_dditable_t),
         ("Kernel", ur_kernel_dditable_t),
         ("Sampler", ur_sampler_dditable_t),
         ("Mem", ur_mem_dditable_t),
@@ -3855,6 +3872,16 @@ class UR_DDI:
         self.urProgramSetSpecializationConstants = _urProgramSetSpecializationConstants_t(self.__dditable.Program.pfnSetSpecializationConstants)
         self.urProgramGetNativeHandle = _urProgramGetNativeHandle_t(self.__dditable.Program.pfnGetNativeHandle)
         self.urProgramCreateWithNativeHandle = _urProgramCreateWithNativeHandle_t(self.__dditable.Program.pfnCreateWithNativeHandle)
+
+        # call driver to get function pointers
+        ProgramExp = ur_program_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetProgramExpProcAddrTable(version, byref(ProgramExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.ProgramExp = ProgramExp
+
+        # attach function interface to function address
+        self.urProgramBuildExp = _urProgramBuildExp_t(self.__dditable.ProgramExp.pfnBuildExp)
 
         # call driver to get function pointers
         Kernel = ur_kernel_dditable_t()
