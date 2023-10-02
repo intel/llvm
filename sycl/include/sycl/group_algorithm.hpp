@@ -257,7 +257,7 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
                   detail::is_plus<T, BinaryOperation>::value),
                  T>
-reduce_over_group(Group g, T x, BinaryOperation binary_op) {
+reduce_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   result.real(reduce_over_group(g, x.real(), sycl::plus<>()));
@@ -266,7 +266,6 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)x;
-  (void)binary_op;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
@@ -731,7 +730,7 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
                   detail::is_plus<T, BinaryOperation>::value),
                  T>
-exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+exclusive_scan_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   result.real(exclusive_scan_over_group(g, x.real(), sycl::plus<>()));
@@ -740,7 +739,6 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)x;
-  (void)binary_op;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
@@ -946,7 +944,7 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
                   detail::is_plus<T, BinaryOperation>::value),
                  T>
-inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+inclusive_scan_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   result.real(inclusive_scan_over_group(g, x.real(), sycl::plus<>()));
@@ -955,7 +953,6 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)x;
-  (void)binary_op;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif

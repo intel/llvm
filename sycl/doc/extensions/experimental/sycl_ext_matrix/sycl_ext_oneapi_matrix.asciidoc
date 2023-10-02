@@ -57,7 +57,8 @@ optional kernel features as defined in section 5.7 of the core SYCL
 specification.  Each device supports only certain values for the `M`,
 `N`, and `K` template parameters and only certain types for the `Ta`,
 `Tb`, and `Tc` template parameters. Applications can use the query API
-in `matrix_params` or `get_info<experimental::info::device::matrix>`
+in `matrix_params` or 
+`get_info<ext::oneapi::experimental::info::device::matrix_combinations>` 
 to determine the set of legal parameters for each device.  If the
 application submits a kernel using an unsupported `joint_matrix` type
 or calls `joint_matrix_mad` with an unsupported combination, the
@@ -814,7 +815,7 @@ each of these members has the value zero
 the combination. these are of type `matrix_type` which tells the list
 of types that are supported for the A, B, C, and D matrices in
 the `T` template parameter as follows: +
-`bf16`: `sycl::bfloat16` +
+`bf16`: `sycl::ext::oneapi::bfloat16` +
 `fp16`: `sycl::half` +
 `tf32`: `sycl::ext::oneapi::experimental::matrix::precision::tf32` +
 `fp32`: `float` +
