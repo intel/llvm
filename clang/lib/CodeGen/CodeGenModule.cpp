@@ -2115,7 +2115,7 @@ llvm::ConstantInt *CodeGenModule::CreateKCFITypeId(QualType T) {
 
   std::string OutName;
   llvm::raw_string_ostream Out(OutName);
-  getCXXABI().getMangleContext().mangleTypeName(
+  getCXXABI().getMangleContext().mangleCanonicalTypeName(
       T, Out, getCodeGenOpts().SanitizeCfiICallNormalizeIntegers);
 
   if (getCodeGenOpts().SanitizeCfiICallNormalizeIntegers)
@@ -7850,7 +7850,7 @@ CodeGenModule::CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
   if (isExternallyVisible(T->getLinkage())) {
     std::string OutName;
     llvm::raw_string_ostream Out(OutName);
-    getCXXABI().getMangleContext().mangleTypeName(
+    getCXXABI().getMangleContext().mangleCanonicalTypeName(
         T, Out, getCodeGenOpts().SanitizeCfiICallNormalizeIntegers);
 
     if (getCodeGenOpts().SanitizeCfiICallNormalizeIntegers)
