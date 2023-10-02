@@ -1,4 +1,5 @@
+#define IS_NATIVE
 #include "helpers.h"
 
-GEN_UNARY_BUILTIN(native_log2)
+GEN_UNARY_BUILTIN(log2)
 

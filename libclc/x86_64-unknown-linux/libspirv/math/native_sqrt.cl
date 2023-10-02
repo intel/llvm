@@ -1,3 +1,4 @@
+#define IS_NATIVE
 #include "helpers.h"
 
-GEN_UNARY_BUILTIN(native_sqrt)
+GEN_UNARY_BUILTIN(sqrt)

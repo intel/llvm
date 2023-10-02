@@ -2,8 +2,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t -g
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
-#include "sycl/builtins_marray_gen.hpp"
-#include "sycl/builtins_vector_gen.hpp"
 #include <sycl/sycl.hpp>
 
 #include <array>
@@ -16,15 +14,30 @@ template <typename T> class Test;
 
 template <typename T> class TestInt;
 
-static constexpr int NumMathBuiltins = 16;
+static constexpr int NumMathBuiltins = 8;
+static constexpr int NumNativeBuiltins = 8;
 static constexpr float eps = 0.01;
 
-template <typename T> using ResultT = std::array<T, NumMathBuiltins>;
+template <typename T> using MathResultT = std::array<T, NumMathBuiltins>;
+template <typename T> using NativeResultT = std::array<T, NumMathBuiltins>;
 
-template <typename T> ResultT<T> do_test(T in) {
-  ResultT<T> res;
+template <typename T> NativeResultT<T> do_test_native(T in) {
+  NativeResultT<T> res;
   unsigned i = 0;
   res[i++] = sycl::native::sqrt(in);
+  res[i++] = sycl::native::cos(in);
+  res[i++] = sycl::native::sin(in);
+  res[i++] = sycl::native::exp2(in);
+  res[i++] = sycl::native::exp(in);
+  res[i++] = sycl::native::log10(in);
+  res[i++] = sycl::native::log(in);
+  res[i++] = sycl::native::log2(in);
+  return res;
+}
+
+template <typename T> MathResultT<T> do_test_math(T in) {
+  NativeResultT<T> res;
+  unsigned i = 0;
   res[i++] = sycl::sqrt(in);
   res[i++] = sycl::fabs(in);
   res[i++] = sycl::fma(in, in, in);
@@ -33,13 +46,6 @@ template <typename T> ResultT<T> do_test(T in) {
   res[i++] = sycl::round(in);
   res[i++] = sycl::ceil(in);
   res[i++] = sycl::floor(in);
-  res[i++] = sycl::native::cos(in);
-  res[i++] = sycl::native::sin(in);
-  res[i++] = sycl::native::exp2(in);
-  res[i++] = sycl::native::exp(in);
-  res[i++] = sycl::native::log10(in);
-  res[i++] = sycl::native::log(in);
-  res[i++] = sycl::native::log2(in);
   return res;
 }
 
@@ -63,15 +69,15 @@ bool check(sycl::vec<T, N> &res, sycl::vec<T, N> &exp) {
   return correct;
 }
 
-template <typename T> bool test(queue deviceQueue) {
+template <typename T> bool test_native(queue deviceQueue) {
   const size_t N = 1;
   const T Init{1};
   std::array<T, N> A = {Init};
-  std::array<ResultT<T>, 1> Res;
+  std::array<NativeResultT<T>, 1> Res;
   sycl::range<1> numOfItems{N};
   {
     sycl::buffer<T, 1> bufferA(A.data(), numOfItems);
-    sycl::buffer<ResultT<T>, 1> bufferRes(Res.data(), numOfItems);
+    sycl::buffer<NativeResultT<T>, 1> bufferRes(Res.data(), numOfItems);
 
     deviceQueue
         .submit([&](sycl::handler &cgh) {
@@ -79,12 +85,42 @@ template <typename T> bool test(queue deviceQueue) {
           auto accessorRes =
               bufferRes.template get_access<sycl_read_write>(cgh);
 
-          auto kern = [=]() { accessorRes[0] = do_test(accessorA[0]); };
-          cgh.single_task<Test<T>>(kern);
+          auto kern = [=]() { accessorRes[0] = do_test_native(accessorA[0]); };
+          cgh.single_task(kern);
         })
         .wait();
   }
-  ResultT<T> expected = do_test(Init);
+  NativeResultT<T> expected = do_test_native(Init);
+  for (int i = 0; i < NumNativeBuiltins; i++) {
+    if (!check(Res[0][i], expected[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename T> bool test_math(queue deviceQueue) {
+  const size_t N = 1;
+  const T Init{1};
+  std::array<T, N> A = {Init};
+  std::array<MathResultT<T>, 1> Res;
+  sycl::range<1> numOfItems{N};
+  {
+    sycl::buffer<T, 1> bufferA(A.data(), numOfItems);
+    sycl::buffer<MathResultT<T>, 1> bufferRes(Res.data(), numOfItems);
+
+    deviceQueue
+        .submit([&](sycl::handler &cgh) {
+          auto accessorA = bufferA.template get_access<sycl_read_write>(cgh);
+          auto accessorRes =
+              bufferRes.template get_access<sycl_read_write>(cgh);
+
+          auto kern = [=]() { accessorRes[0] = do_test_math(accessorA[0]); };
+          cgh.single_task(kern);
+        })
+        .wait();
+  }
+  MathResultT<T> expected = do_test_math(Init);
   for (int i = 0; i < NumMathBuiltins; i++) {
     if (!check(Res[0][i], expected[i])) {
       return false;
@@ -115,6 +151,33 @@ template <typename T> bool test_int(queue deviceQueue) {
     return false;
   }
   return true;
+}
+
+template <typename T>
+bool test_vec(queue q) {
+  bool success = true;
+  success &= test_math<sycl::vec<T,2>>(q);
+  if constexpr (std::is_same<T, float>::value) {
+    // these fail on double with wrong values
+    success &= test_math<sycl::vec<T,3>>(q);
+    success &= test_math<sycl::vec<T,4>>(q);
+
+
+    success &= test_native<sycl::vec<T,2>>(q);
+    success &= test_native<sycl::vec<T,3>>(q);
+    success &= test_native<sycl::vec<T,4>>(q);
+  }
+  // vector sizes greater than 4 are currently unsupported
+  return success;
+}
+
+template <typename T>
+bool test(queue q) {
+  bool success = true;
+  success &= test_math<T>(q);
+  success &= test_native<T>(q);
+  success &= test_vec<T>(q);
+  return success;
 }
 
 int main() {

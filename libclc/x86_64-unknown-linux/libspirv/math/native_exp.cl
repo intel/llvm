@@ -1,3 +1,4 @@
+#define IS_NATIVE 
 #include "helpers.h"
 
-GEN_UNARY_BUILTIN(native_exp)
+GEN_UNARY_BUILTIN(exp)
