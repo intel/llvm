@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 00c7edb98f0c57ad968196a9cef393c380b6d6f7)
+  set(UNIFIED_RUNTIME_TAG 6a0eb7eff8a955fcd53edc79653f6bc85ef922f9)
 
   set(UR_BUILD_ADAPTER_L0 ON)
 
