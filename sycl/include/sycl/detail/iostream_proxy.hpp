@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <istream> // for ostream, istream
+#include <iosfwd> // for ostream, istream
 
 // Hotfix to account for the different namespaces in libstdc++ and libc++
 #ifdef _LIBCPP_BEGIN_NAMESPACE_STD

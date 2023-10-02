@@ -15,7 +15,7 @@
 
 #include <cstddef>   // for size_t
 #include <exception> // for exception_ptr, exception
-#include <ostream>   // for operator<<, basic_ostream
+#include <iosfwd>    // for operator<<, basic_ostream
 #include <vector>    // for vector
 
 namespace sycl {
@@ -55,20 +55,7 @@ private:
 namespace detail {
 // Default implementation of async_handler used by queue and context when no
 // user-defined async_handler is specified.
-inline void defaultAsyncHandler(exception_list Exceptions) {
-  std::cerr << "Default async_handler caught exceptions:";
-  for (auto &EIt : Exceptions) {
-    try {
-      if (EIt) {
-        std::rethrow_exception(EIt);
-      }
-    } catch (const std::exception &E) {
-      std::cerr << "\n\t" << E.what();
-    }
-  }
-  std::cerr << std::endl;
-  std::terminate();
-}
+void defaultAsyncHandler(exception_list Exceptions);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -10,7 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
-#include <ostream> // for operator<<, ostream
+#include <iosfwd> // for operator<<, ostream
 
 namespace sycl {
 inline namespace _V1 {
@@ -36,34 +36,7 @@ template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
-inline std::ostream &operator<<(std::ostream &Out, backend be) {
-  switch (be) {
-  case backend::host:
-    Out << "host";
-    break;
-  case backend::opencl:
-    Out << "opencl";
-    break;
-  case backend::ext_oneapi_level_zero:
-    Out << "ext_oneapi_level_zero";
-    break;
-  case backend::ext_oneapi_cuda:
-    Out << "ext_oneapi_cuda";
-    break;
-  case backend::ext_intel_esimd_emulator:
-    Out << "ext_intel_esimd_emulator";
-    break;
-  case backend::ext_oneapi_hip:
-    Out << "ext_oneapi_hip";
-    break;
-  case backend::ext_native_cpu:
-    Out << "ext_native_cpu";
-    break;
-  case backend::all:
-    Out << "all";
-  }
-  return Out;
-}
+std::ostream &operator<<(std::ostream &Out, backend be);
 
 } // namespace _V1
 } // namespace sycl

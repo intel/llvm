@@ -8,6 +8,7 @@
 
 #include <detail/spec_constant_impl.hpp>
 
+#include <ostream>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>

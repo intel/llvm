@@ -12,8 +12,8 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/info/info_desc.hpp>
 
+#include <iosfwd>
 #include <optional>
-#include <ostream>
 #include <string>
 
 namespace sycl {

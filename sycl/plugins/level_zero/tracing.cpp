@@ -12,6 +12,7 @@
 #endif
 
 #include <exception>
+#include <iostream>
 #include <layers/zel_tracing_api.h>
 #include <ze_api.h>
 

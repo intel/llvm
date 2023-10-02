@@ -9,6 +9,8 @@
 // 4.9.2 Exception Class Interface
 #include <sycl/exception_list.hpp>
 
+#include <iostream>
+#include <sycl/detail/export.hpp>
 #include <utility>
 
 namespace sycl {
@@ -29,6 +31,25 @@ void exception_list::PushBack(value_type &&Value) {
 }
 
 void exception_list::Clear() noexcept { MList.clear(); }
+
+namespace detail {
+// Default implementation of async_handler used by queue and context when no
+// user-defined async_handler is specified.
+__SYCL_EXPORT void defaultAsyncHandler(exception_list Exceptions) {
+  std::cerr << "Default async_handler caught exceptions:";
+  for (auto &EIt : Exceptions) {
+    try {
+      if (EIt) {
+        std::rethrow_exception(EIt);
+      }
+    } catch (const std::exception &E) {
+      std::cerr << "\n\t" << E.what();
+    }
+  }
+  std::cerr << std::endl;
+  std::terminate();
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl
