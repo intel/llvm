@@ -266,7 +266,16 @@ jobs:
     strategy:
       matrix:
         os: ['windows-2019', 'windows-2022']
+        adapter: [
+          {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+        ]
+
+        # TODO: building level zero loader on windows-2019 is currently broken
+        exclude:
+         - os: 'windows-2019'
+           adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
         build_type: [Debug, Release]
+        compiler: [{c: cl.exe, cxx: cl.exe}, {c: clang-cl.exe, cxx: clang-cl.exe}]
     runs-on: ${{matrix.os}}
 
     steps:
@@ -283,11 +292,14 @@ jobs:
       run: >
         cmake
         -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_POLICY_DEFAULT_CMP0094=NEW
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
+        ${{matrix.adapter.var}}
 
     # TODO: re-enable when check-generated is fixed for windows runners see #888
     # - name: Generate source from spec, check for uncommitted diff
