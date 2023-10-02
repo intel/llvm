@@ -250,7 +250,8 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(const annotated_ptr &) = default;
 
-  annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
+  explicit annotated_ptr(T *Ptr,
+                         const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
@@ -258,7 +259,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
+  explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {
     static_assert(
         std::is_same<
