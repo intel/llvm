@@ -9,6 +9,7 @@
 // Test for legacy and experimental CUDA interop API
 
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
+// expected-no-diagnostics
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 #endif
 
@@ -58,7 +59,9 @@ int main() {
   // backend-defined and specified in the backend specification.
 
   cu_device = get_native<backend::ext_oneapi_cuda>(Device);
-  // expected-warning@+1{{'get_native<sycl::backend::ext_oneapi_cuda, sycl::context>' is deprecated: Context interop is deprecated for CUDA. If a native context is required, use cuDevicePrimaryCtxRetain with a native device}}
+#ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
+  // expected-warning@+2{{'get_native<sycl::backend::ext_oneapi_cuda, sycl::context>' is deprecated: Context interop is deprecated for CUDA. If a native context is required, use cuDevicePrimaryCtxRetain with a native device}}
+#endif
   cu_context = get_native<backend::ext_oneapi_cuda>(Context);
   cu_event = get_native<backend::ext_oneapi_cuda>(Event);
   cu_queue = get_native<backend::ext_oneapi_cuda>(Queue);
