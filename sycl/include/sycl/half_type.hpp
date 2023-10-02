@@ -531,9 +531,11 @@ public:
   }
 
   // Operator << and >>
-  friend __SYCL_EXPORT std::ostream &operator<<(std::ostream &O, sycl::half const &rhs);
+  friend __SYCL_EXPORT std::ostream &operator<<(std::ostream &O,
+                                                sycl::half const &rhs);
 
-  friend __SYCL_EXPORT std::istream &operator>>(std::istream &I, sycl::half &rhs);
+  friend __SYCL_EXPORT std::istream &operator>>(std::istream &I,
+                                                sycl::half &rhs);
 
   template <typename Key> friend struct std::hash;
 
