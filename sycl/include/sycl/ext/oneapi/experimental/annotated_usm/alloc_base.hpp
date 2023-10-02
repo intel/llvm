@@ -44,8 +44,14 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
                         sycl::usm::alloc kind,
                         const propertyListA &propList = properties{}) {
   VALIDATE_PROPERTIES(void);
+
+  // The input argument `propList` is useful when propertyListA contains valid
+  // runtime properties. While such case is not defined yet, suppress unused
+  // variables warning
+  static_cast<void>(propList);
+
   size_t alignFromPropList = GetAlignFromPropList<propertyListA>::value;
-  const property_list &usmPropList = get_usm_property_list();
+  const property_list &usmPropList = get_usm_property_list<propertyListA>();
 
   if constexpr (HasUsmKind<propertyListA>::value) {
     constexpr sycl::usm::alloc usmKind =

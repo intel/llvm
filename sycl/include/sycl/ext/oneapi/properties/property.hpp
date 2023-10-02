@@ -213,7 +213,7 @@ enum PropKind : uint32_t {
   Datapath = 43,
   UsmKind = 44,
   // PropKindSize must always be the last value.
-  PropKindSize = 44,
+  PropKindSize = 45,
 };
 
 // This trait must be specialized for all properties and must have a unique

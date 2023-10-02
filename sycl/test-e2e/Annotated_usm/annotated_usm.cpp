@@ -1,11 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-// expected-no-diagnostics
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // E2E tests for annotated USM allocation functions
 
-// clang-format off
+#include <sycl/sycl.hpp>
 
-#include "sycl/sycl.hpp"
 #include <complex>
 #include <numeric>
 
@@ -31,7 +30,7 @@ using alloc = sycl::usm::alloc;
 #define TEST_ALIGN(f, align, args...)                                          \
   {                                                                            \
     auto ap = f(args);                                                         \
-    assert(ap.get() != nullptr && ((uintptr_t)ap.get() % N) == 0);             \
+    assert(ap.get() != nullptr && ((uintptr_t)ap.get() % align) == 0);         \
   }
 
 // Single test instance consisting of (i) calling malloc function `f` (ii)

@@ -3,11 +3,11 @@
 
 // Compile-time tests for annotated USM allocation functions
 
-// clang-format off
+#include <sycl/sycl.hpp>
 
-#include "sycl/sycl.hpp"
-#include "fake_properties.hpp"
 #include <complex>
+
+#include "fake_properties.hpp"
 
 // clang-format on
 
@@ -90,7 +90,7 @@ template <typename T> void testAlloc() {
     // the returned annotated_ptr, and runtime properties do not appear on the
     // returned annotated_ptr (e.g. `foo`, `foz`)
     properties InP1{conduit, buffer_location<5>};
-    properties InP2{conduit, buffer_location<5>, foo{foo_enum::a}, foz{1}};
+    properties InP2{conduit, buffer_location<5>, foo{foo_enum::a}, foz{0.1, 1}};
     properties OutP{conduit, buffer_location<5>, usm_kind_device};
 
     TEST_GROUP(malloc_device_annotated, N, q);

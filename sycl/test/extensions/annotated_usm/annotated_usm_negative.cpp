@@ -6,9 +6,8 @@
 // 3. usm_kind in the property list conflicts with the function name
 // 4. required usm_kind is not provided in the property list
 
-// clang-format off
+#include <sycl/sycl.hpp>
 
-#include "sycl/sycl.hpp"
 #include "fake_properties.hpp"
 
 #define TEST(f, args...)                                                       \
@@ -19,6 +18,8 @@ using namespace sycl::ext::intel::experimental;
 using alloc = sycl::usm::alloc;
 
 constexpr int N = 10;
+
+// clang-format off
 
 void testInvalidRuntimeProperty(sycl::queue &q) {
   // expected-error-re@sycl/ext/oneapi/experimental/annotated_usm/alloc_util.hpp:* {{static assertion failed due to requirement {{.+}}: Found invalid runtime property in the property list.}}
