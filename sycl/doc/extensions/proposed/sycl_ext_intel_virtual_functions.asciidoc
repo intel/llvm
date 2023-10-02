@@ -137,18 +137,16 @@ namespace sycl::ext::oneapi::experimental {
   };
 
   struct calls_indirectly_key {
-    template <typename... SetIds>
-    using value_t =
-        std::conditional_t<sizeof...(Sets) == 0,
-                           property_value<calls_indirectly_key, void>,
-                           property_value<calls_indirectly_key, SetIds...>>;
+    template <typename First = void, typename... SetIds>
+    using value_t = property_value<calls_indirectly_key, First, SetIds...>;
   };
 
   template <typename SetId = void>
   inline constexpr indirectly_callable_key::value_t<SetId> indirectly_callable;
 
-  template <typename... SetIds>
-  inline constexpr calls_indirectly_key::value_t<SetIds...> calls_indirectly;
+  template <typename First = void, typename... Rest>
+  inline constexpr calls_indirectly_key::value_t<First, Rest...>
+      calls_indirectly;
 
   template <>
   struct is_property_key<indirectly_callable_key> : std::true_type {};
@@ -172,16 +170,15 @@ property parameter `SetIds`, or if a kernel is submitted without the property,
 then it is *not* considered to be declaring a use of the set of virtual member
 functions.
 
-:fn-property-macro-docs: footnote:[To read more about the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro, see link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties] extension]
-
 |===
 |Property|Description
 |`indirectly_callable`
 |The `indirectly_callable` property indicates that a virtual member function as
 a device function, thus making it available to be called from SYCL kernel and
 device functions. Should only be applied to virtual member functions and to do
-so, `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro{fn-property-macro-docs} should be
-used.
+so, function-style `SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY` macro should
+be used. It accepts a single optional argument, which is passed to the property
+parameter `SetId` and therefore has all the same requirements.
 
 Optional parameter `SetId` specifies a set of virtual member functions this
 function belongs to and at the same time it defines a group of kernels, which
@@ -237,19 +234,15 @@ struct set_B;
 class Foo {
 public:
   // properties to functions should be applied using the macro:
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) void foo() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_A) void foo() {}
 
   // both declaration and definition should be annotated:
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) void bar();
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_A) void bar();
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_B>) void baz() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_B) void baz() {}
 };
 
-void SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) Foo::bar() {}
+void SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_A) Foo::bar() {}
 
 // kernel calling virtual function should also be annotated:
 /* */.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
@@ -275,11 +268,9 @@ struct set_A;
 class Foo {
 public:
   // This virtual member function belongs to a default set of virtual functions.
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<>) void foo() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {}
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) void bar() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_A) void bar() {}
 };
 
 /* */.single_task(syclext::properties{syclext::calls_indirectly<>}, [=] {
@@ -290,6 +281,10 @@ public:
   // latter belongs to a different (non-default) set of virtual functions.
 });
 ----
+
+NOTE: `void` typename is explicitly reserved as identifier of the default
+virtual functions set. It can still be used, but with the expectation that it
+is also implicitly used by the extension implementation.
 
 === Optional kernel features handling
 
@@ -329,14 +324,12 @@ struct set_B;
 
 struct Foo {
   // This function uses 'fp64' aspect
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) void foo() {
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_A) void foo() {
     double d = 3.14;
   }
 
   // This function uses 'fp16' aspect
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_B>) void bar() {
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_B) void bar() {
     sycl::half h = 2.71;
   }
 };
@@ -386,13 +379,11 @@ struct set_A;
 struct set_B;
 
 struct Foo {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) void foo() {
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_A) void foo() {
     double d = 3.14;
   }
 
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_B>) void bar() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY(set_B) void bar() {}
 };
 
 sycl::queue q(/* device selector returns a device *without* fp64 support */);
@@ -419,13 +410,11 @@ through the correponding properties.
 using syclext = sycl::ext::oneapi::experimental;
 
 struct Foo {
-virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    syclext::indirectly_callable<>) void foo() {
+virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {
   double d = 3.14;
 }
 
-virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    syclext::indirectly_callable<>) void bar() {}
+virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void bar() {}
 };
 
 sycl::queue q(/* device selector choosing a device *without* fp64 support */);
@@ -490,8 +479,7 @@ kernel from a different kernel bundle is an undefined behavior.
 using syclext = sycl::ext::oneapi::experimental;
 
 struct Base {
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<>) void foo() {}
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY() void foo() {}
 };
 
 class Constructor;
@@ -543,8 +531,8 @@ using syclext = sycl::ext::oneapi::experimental;
 
 class Base {
 public:
-  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<>) int get_random_number() {
+  virtual SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY()
+  int get_random_number() {
     return 4; // Chosen by fair dice roll. Guaranteed to be random
   }
 
@@ -556,7 +544,7 @@ public:
 
 class Derived : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE_PROPERTY()
   int get_random_number() override {
     return 221;
   }
