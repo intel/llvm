@@ -153,26 +153,23 @@ template <typename T> bool test_int(queue deviceQueue) {
   return true;
 }
 
-template <typename T>
-bool test_vec(queue q) {
+template <typename T> bool test_vec(queue q) {
   bool success = true;
-  success &= test_math<sycl::vec<T,2>>(q);
+  success &= test_math<sycl::vec<T, 2>>(q);
   if constexpr (std::is_same<T, float>::value) {
     // these fail on double with wrong values
-    success &= test_math<sycl::vec<T,3>>(q);
-    success &= test_math<sycl::vec<T,4>>(q);
+    success &= test_math<sycl::vec<T, 3>>(q);
+    success &= test_math<sycl::vec<T, 4>>(q);
 
-
-    success &= test_native<sycl::vec<T,2>>(q);
-    success &= test_native<sycl::vec<T,3>>(q);
-    success &= test_native<sycl::vec<T,4>>(q);
+    success &= test_native<sycl::vec<T, 2>>(q);
+    success &= test_native<sycl::vec<T, 3>>(q);
+    success &= test_native<sycl::vec<T, 4>>(q);
   }
   // vector sizes greater than 4 are currently unsupported
   return success;
 }
 
-template <typename T>
-bool test(queue q) {
+template <typename T> bool test(queue q) {
   bool success = true;
   success &= test_math<T>(q);
   success &= test_native<T>(q);
