@@ -113,9 +113,9 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   // codegen/linking behaviour, we change the name of the kernel, and the
   // subhandler steals its name, we add a suffix to the subhandler later
   // on when lowering the device module
-  StringRef OldName = F->getName();
+  std::string OldName = F->getName().str();
   auto NewName = Twine(OldName) + ".NativeCPUKernel";
-  const auto SubHandlerName = OldName;
+  const StringRef SubHandlerName = OldName;
   F->setName(NewName);
   FunctionType *FTy = FunctionType::get(
       Type::getVoidTy(Ctx), {NativeCPUArgDescPtrType, StatePtrType}, false);
