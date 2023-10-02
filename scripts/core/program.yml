@@ -182,6 +182,39 @@ returns:
       - "If an error occurred when building `hProgram`."
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Produces an executable program from one program, negates need for the linking step."
+class: $xProgram
+name: BuildExp
+ordinal: "2"
+decl: static
+analogue:
+    - "**clBuildProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point, the program passed will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `hContext`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] Handle of the program to build."
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices"
+    - type: $x_device_handle_t*
+      name: phDevices
+      desc: "[in][range(0, numDevices)] pointer to array of device handles" 
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred when building `hProgram`."
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Produces an executable program from one or more programs."
 class: $xProgram
 name: Compile
