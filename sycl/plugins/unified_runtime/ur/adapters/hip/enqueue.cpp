@@ -211,7 +211,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   std::vector<ur_event_handle_t> DepEvents(
       phEventWaitList, phEventWaitList + numEventsInWaitList);
-  std::vector<ur_lock> MemMigrationLocks;
+  std::vector<std::pair<ur_mem_handle_t, ur_lock>> MemMigrationLocks;
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
   // runtime. However since UR handles memory dependencies within a context
@@ -221,8 +221,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     MemMigrationLocks.reserve(hKernel->Args.MemObjArgs.size());
     for (auto &MemArg : hKernel->Args.MemObjArgs) {
       bool PushBack = false;
-      if (auto MemDepEvent =
-              ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
+      if (auto MemDepEvent = MemArg.Mem->LastEventWritingToMemObj;
           MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
                                    MemDepEvent) == DepEvents.end()) {
         DepEvents.push_back(MemDepEvent);
@@ -231,8 +230,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       if ((MemArg.AccessFlags &
            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) ||
           PushBack) {
-        MemMigrationLocks.emplace_back(
-            ur_lock{MemArg.Mem->MemoryMigrationMutex});
+        if (std::find_if(MemMigrationLocks.begin(), MemMigrationLocks.end(),
+                         [MemArg](auto &Lock) {
+                           return Lock.first == MemArg.Mem;
+                         }) == MemMigrationLocks.end())
+          MemMigrationLocks.emplace_back(
+              std::pair{MemArg.Mem, ur_lock{MemArg.Mem->MemoryMigrationMutex}});
       }
     }
   }

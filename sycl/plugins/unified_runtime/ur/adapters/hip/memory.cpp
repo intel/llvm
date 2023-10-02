@@ -36,13 +36,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     // make sure memObj is released in case UR_CHECK_ERROR throws
     std::unique_ptr<ur_mem_handle_t_> uniqueMemObj(hMem);
 
-    if (hMem->isBuffer()) {
-      ur_cast<ur_buffer_ *>(hMem)->clear();
-    }
+    hMem->clear();
 
-    else if (hMem->isImage()) {
-      ur_cast<ur_image_ *>(hMem)->clear();
-    }
   } catch (ur_result_t Err) {
     Result = Err;
   } catch (...) {

@@ -278,7 +278,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 
     // Keep a record of the mem objs our kernel reads and writes we can do
     // dependency analysis at urEnqueueKernelLaunch
-    hKernel->addMemObjArg(hArgValue, Properties->memoryAccess);
+    hKernel->addMemObjArg(argIndex, hArgValue, Properties->memoryAccess);
 
     if (hArgValue->isImage()) {
       ur_image_ *ImageArg = ur_cast<ur_image_ *>(hArgValue);

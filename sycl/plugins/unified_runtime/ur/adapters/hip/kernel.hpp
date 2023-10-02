@@ -62,6 +62,7 @@ struct ur_kernel_handle_t_ {
     // at urEnqueueKernelLaunch
     struct mem_obj_arg {
       ur_mem_handle_t_ *Mem;
+      int Index;
       ur_mem_flags_t AccessFlags;
     };
     std::vector<mem_obj_arg> MemObjArgs;
@@ -151,9 +152,6 @@ struct ur_kernel_handle_t_ {
   ~ur_kernel_handle_t_() {
     urProgramRelease(Program);
     urContextRelease(Context);
-    for (auto &Mem : Args.MemObjArgs) {
-      urMemRelease(Mem.Mem);
-    }
   }
 
   ur_program_handle_t getProgram() const noexcept { return Program; }
@@ -217,15 +215,15 @@ struct ur_kernel_handle_t_ {
 
   void clearLocalSize() { Args.clearLocalSize(); }
 
-  void addMemObjArg(ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
+  void addMemObjArg(int Index, ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
     assert(hMem && "Invalid mem handle");
-    for (auto &MemObjArg : Args.MemObjArgs) {
-      if (hMem == MemObjArg.Mem) {
-        MemObjArg.AccessFlags |= Flags;
+    for (auto i = 0u; i < Args.MemObjArgs.size(); ++i) {
+      if (Args.MemObjArgs[i].Index == Index) {
+        // Overwrite the mem obj with the same index
+        Args.MemObjArgs[i] = arguments::mem_obj_arg{hMem, Index, Flags};
         return;
       }
     }
-    Args.MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Flags});
-    urMemRetain(hMem);
+    Args.MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Index, Flags});
   };
 };
