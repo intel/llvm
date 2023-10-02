@@ -56,7 +56,8 @@ target_link_libraries(LevelZeroLoader
     INTERFACE "${LEVEL_ZERO_LIB_NAME}"
 )
 
-if (NOT MSVC)
+# Windows build might have warnings (both MSVC and ICX), disable Werror etc.
+if (NOT WIN32)
     target_compile_options(${LEVEL_ZERO_LIB_NAME} PUBLIC
         -Wno-unused-but-set-variable
         -Wno-pedantic
