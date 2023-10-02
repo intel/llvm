@@ -12,7 +12,7 @@ add_conformance_test_with_devices_environment(adapter-hip
     test_context.cpp
 )
 target_link_libraries(test-adapter-hip PRIVATE rocmdrv)
-target_include_directories(test-adapter-hip PRIVATE ${HIP_DIR} "${HIP_DIR}/../../..")
+target_include_directories(test-adapter-hip PRIVATE ${HIP_DIR} "${HIP_DIR}/../../")
 
 if(UR_HIP_PLATFORM STREQUAL "AMD")
     target_compile_definitions(test-adapter-hip PRIVATE __HIP_PLATFORM_AMD__)
