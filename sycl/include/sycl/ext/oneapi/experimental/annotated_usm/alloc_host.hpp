@@ -47,7 +47,7 @@ aligned_alloc_host_annotated(size_t alignment, size_t numBytes,
                              const propertyListA &propList = properties{}) {
   auto tmp = aligned_alloc_annotated(alignment, numBytes, {}, syclContext,
                                      sycl::usm::alloc::host, propList);
-  return {tmp.get()};
+  return annotated_ptr<void, propertyListB>(tmp.get());
 }
 
 template <typename T, typename propertyListA = detail::empty_properties_t,
@@ -61,7 +61,7 @@ aligned_alloc_host_annotated(size_t alignment, size_t count,
                              const propertyListA &propList = properties{}) {
   auto tmp = aligned_alloc_annotated<T>(alignment, count, {}, syclContext,
                                         sycl::usm::alloc::host, propList);
-  return {tmp.get()};
+  return annotated_ptr<T, propertyListB>(tmp.get());
 }
 
 template <typename propertyListA = detail::empty_properties_t,

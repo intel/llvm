@@ -7,7 +7,7 @@
 
 #include "sycl/sycl.hpp"
 #include <complex>
-#include "<numeric>"
+#include <numeric>
 
 // clang-format on
 

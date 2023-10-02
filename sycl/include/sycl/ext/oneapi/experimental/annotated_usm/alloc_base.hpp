@@ -79,7 +79,7 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown USM allocation kind was specified.");
   }
-  return {rawPtr};
+  return annotated_ptr<void, propertyListB>(rawPtr);
 }
 
 template <typename T, typename propertyListA = detail::empty_properties_t,
@@ -91,10 +91,9 @@ aligned_alloc_annotated(size_t alignment, size_t count,
                         const device &syclDevice, const context &syclContext,
                         sycl::usm::alloc kind,
                         const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(aligned_alloc_annotated(alignment, count * sizeof(T),
-                                                   syclDevice, syclContext,
-                                                   kind, propList)
-                               .get())};
+  auto tmp = aligned_alloc_annotated(alignment, count * sizeof(T), syclDevice,
+                                     syclContext, kind, propList);
+  return annotated_ptr<T, propertyListB>(static_cast<T *>(tmp.get()));
 }
 
 template <typename propertyListA = detail::empty_properties_t,

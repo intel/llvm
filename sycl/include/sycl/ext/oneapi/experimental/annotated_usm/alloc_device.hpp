@@ -49,7 +49,7 @@ aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
   auto tmp =
       aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
                               sycl::usm::alloc::device, propList);
-  return {tmp.get()};
+  return annotated_ptr<void, propertyListB>(tmp.get());
 }
 
 template <typename T, typename propertyListA = detail::empty_properties_t,
@@ -65,7 +65,7 @@ aligned_alloc_device_annotated(size_t alignment, size_t count,
   auto tmp =
       aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
                                  sycl::usm::alloc::device, propList);
-  return {tmp.get()};
+  return annotated_ptr<T, propertyListB>(tmp.get());
 }
 
 template <typename propertyListA = detail::empty_properties_t,
