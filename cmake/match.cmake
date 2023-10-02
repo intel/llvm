@@ -61,7 +61,7 @@ elseif(${MODE} STREQUAL "file")
 endif()
 
 if(TEST_RESULT)
-    message(FATAL_ERROR "Failed: Test ${TEST_FILE} ${TEST_ARGS} returned non-zero (${TEST_RESULT}).")
+    message(FATAL_ERROR "Failed: Test command '${TEST_FILE} ${TEST_ARGS}' returned non-zero (${TEST_RESULT}).")
 endif()
 
 # Compare the output file contents with a match file contents
@@ -71,11 +71,7 @@ execute_process(
 )
 
 if(TEST_RESULT)
-    message(FATAL_ERROR "Failed (${TEST_RESULT}): The output of ${OUT_FILE} does not match ${MATCH_FILE}")
-elseif()
-    message("Passed: The output ${OUT_FILE} matches ${MATCH_FILE}")
-endif()
-
-if(EXISTS ${OUT_FILE})
-    file(REMOVE ${OUT_FILE})
+    message(FATAL_ERROR "Failed (${TEST_RESULT}): The output of test command '${TEST_FILE} ${TEST_ARGS}' (stored in ${CMAKE_CURRENT_BINARY_DIR}/${OUT_FILE}) does not match '${MATCH_FILE}'")
+else()
+    message("Passed: The output of test command '${TEST_FILE} ${TEST_ARGS}' (stored in ${CMAKE_CURRENT_BINARY_DIR}/${OUT_FILE}) matches '${MATCH_FILE}'")
 endif()
