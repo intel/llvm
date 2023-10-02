@@ -14,6 +14,7 @@
 // RUN: echo '[SYCL/kernel param opt]'                                       >> %t0.prop
 // RUN: echo '_ZTSZ4add5N4sycl3_V15queueEPiiiE10add5_dummy=2|DAAAAAAAAAAA'   >> %t0.prop
 // RUN: echo '_ZZ4add5N4sycl3_V15queueEPiiiENKUlvE_clEv=2|BAAAAAAAAAAA'      >> %t0.prop
+// RUN: echo '[Empty properties]'                                            >> %t0.prop
 // RUN: echo '[SYCL/misc properties]'                                        >> %t0.prop
 // RUN: echo 'optLevel=1|2'                                                  >> %t0.prop
 

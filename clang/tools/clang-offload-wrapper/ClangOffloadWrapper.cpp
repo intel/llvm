@@ -980,7 +980,6 @@ private:
         llvm::util::PropertySet PropSet;
 
         if (!Properties_Name->isNullValue()) {
-
           auto Properties_Var = Current_SymProps_M->getGlobalVariable(
               Properties_Name->getName(), true);
           auto Properties_Initializer = Properties_Var->getInitializer();
