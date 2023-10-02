@@ -790,7 +790,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("disable_loop_pipelining",
+    Fn->setMetadata("disable_kernel_pipelining",
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 

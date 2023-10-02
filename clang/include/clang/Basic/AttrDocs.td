@@ -3357,11 +3357,10 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
 This attribute applies to a loop or a function. Takes no arguments and
-disables pipelining of the loop or function data path, causing the loop
-or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
-``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
-``enable_loop_pipelining`` attribute.
+indicates that the kernel should be pipelined or not. Cannot be used on the
+same loop or function, or in conjunction with ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, ``ivdep``,
+``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 

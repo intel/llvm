@@ -30,7 +30,7 @@ void disable_loop_pipelining() {
   int a[10];
   // CHECK: ![[MD_DLP]] = distinct !{![[MD_DLP]], ![[MP:[0-9]+]], ![[MD_dlp:[0-9]+]]}
   // CHECK-NEXT: ![[MP]] = !{!"llvm.loop.mustprogress"}
-  // CHECK-NEXT: ![[MD_dlp]] = !{!"llvm.loop.intel.pipelining.enable", i32 0}
+  // CHECK-NEXT: ![[MD_dlp]] = !{!"llvm.loop.intel.pipelining.disable", i32 1}
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }
