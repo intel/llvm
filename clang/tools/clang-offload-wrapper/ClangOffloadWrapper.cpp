@@ -79,6 +79,9 @@ static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
 static constexpr char COL_MANIFEST[] = "Manifest";
 
+// Field in the file listing all BC files supplying Symbols and Properties
+static constexpr char COL_SYM_AND_PROPS[] = "SymAndProps";
+
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
 // enum.
@@ -399,7 +402,7 @@ private:
 
       // Read a BC File that will provide SYM and Props information
       std::unique_ptr<MemoryBuffer> MB = SymProps_ExitOnErr(errorOrToExpected(
-          MemoryBuffer::getFileOrSTDIN(Row.getCell("SymAndProps"))));
+          MemoryBuffer::getFileOrSTDIN(Row.getCell(COL_SYM_AND_PROPS))));
       Current_SymProps_M = SymProps_ExitOnErr(
           getOwningLazyBitcodeModule(std::move(MB), SymProps_C,
                                      /*ShouldLazyLoadMetadata=*/true));
