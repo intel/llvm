@@ -9,12 +9,11 @@
 #include <sycl/backend_types.hpp>
 
 #include <ostream>
-#include <sycl/detail/export.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
-__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out, backend be) {
+std::ostream &operator<<(std::ostream &Out, backend be) {
   switch (be) {
   case backend::host:
     Out << "host";

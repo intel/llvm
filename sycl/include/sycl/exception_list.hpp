@@ -55,7 +55,7 @@ private:
 namespace detail {
 // Default implementation of async_handler used by queue and context when no
 // user-defined async_handler is specified.
-void defaultAsyncHandler(exception_list Exceptions);
+__SYCL_EXPORT void defaultAsyncHandler(exception_list Exceptions);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
