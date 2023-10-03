@@ -3750,11 +3750,6 @@ def fsycl_preserve_device_nonsemantic_metadata : Flag<["-"], "fsycl-preserve-dev
 def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Experimental feature: Reduce target "
   "compilation time, with potential runtime performance trade-off.">;
-def ftarget_device_link : Flag<["-"], "ftarget-device-link">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Perform device "
-  "link during compilation as opposed to during the link step. Use for AOT "
-  "based offload compilation to produce final device images within the "
-  "generated fat object.">;
 def ftarget_export_symbols : Flag<["-"], "ftarget-export-symbols">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Expose exported symbols in a generated "
   "target library to allow for visibilty to other modules.">;
