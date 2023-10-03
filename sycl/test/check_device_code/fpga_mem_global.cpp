@@ -9,46 +9,46 @@ using namespace sycl;
 namespace intel = sycl::ext::intel::experimental;   // for fpga_mem
 namespace oneapi = sycl::ext::oneapi::experimental; // for properties
 
-const intel::fpga_mem<int[10]> empty;
+const intel::fpga_mem<int[10]> empty{};
 const intel::fpga_mem<int[10], decltype(oneapi::properties(
                                    intel::ram_stitching_min_ram))>
-    min_ram;
+    min_ram{};
 const intel::fpga_mem<int[10], decltype(oneapi::properties(
                                    intel::ram_stitching_max_fmax))>
-    max_fmax;
+    max_fmax{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::clock_2x_true))>
-    double_pumped;
+    double_pumped{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::clock_2x_false))>
-    single_pumped;
+    single_pumped{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::resource_mlab))>
-    mlab;
+    mlab{};
 const intel::fpga_mem<int[10], decltype(oneapi::properties(
                                    intel::bi_directional_ports_false))>
-    simple_dual_port;
+    simple_dual_port{};
 const intel::fpga_mem<int[10], decltype(oneapi::properties(
                                    intel::bi_directional_ports_true))>
-    true_dual_port;
+    true_dual_port{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::resource_block_ram))>
-    block_ram;
+    block_ram{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::num_banks<4>))>
-    banks;
+    banks{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::stride_size<2>))>
-    stride;
+    stride{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::word_size<8>))>
-    word;
+    word{};
 const intel::fpga_mem<int[10], decltype(oneapi::properties(
                                    intel::max_private_copies<3>))>
-    copies;
+    copies{};
 const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::num_replicates<5>))>
-    replicates;
+    replicates{};
 
 // CHECK: {{.*}}empty = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[empty_md:[0-9]*]]
 // CHECK: {{.*}}min_ram = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[min_ram_md:[0-9]*]]
