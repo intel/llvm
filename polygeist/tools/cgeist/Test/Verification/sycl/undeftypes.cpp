@@ -1,7 +1,7 @@
 // RUN: clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir -o - -Xcgeist -allow-undefined-sycl-types %s | FileCheck %s
 // RUN: clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir -o - -Xcgeist -allow-undefined-sycl-types -D DETAIL_NS %s | FileCheck %s
-// RUN: not clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir -o - %s 2> >(FileCheck %s --check-prefix=CHECK-ERROR)
-// RUN: clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir -o - -D DETAIL_NS %s | FileCheck %s
+// RUN: not clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir  -o - -Xcgeist -allow-undefined-sycl-types=false %s 2> >(FileCheck %s --check-prefix=CHECK-ERROR)
+// RUN: clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -emit-mlir -o - -Xcgeist -allow-undefined-sycl-types=false -D DETAIL_NS %s | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
