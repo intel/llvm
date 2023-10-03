@@ -890,17 +890,12 @@ int main(void) {
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
 #ifndef CMPXCHG_TEST
-  // TODO: Investigate test failures on emulator
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    // Check load/store operations
-    passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
-    passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
-  }
+  // Check load/store operations
+  passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
 #ifndef USE_SCALAR_OFFSET
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
-    passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
-  }
+  passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
 #endif
 #endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
