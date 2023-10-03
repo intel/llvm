@@ -74,6 +74,7 @@ on:
         options:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
+          - '["Linux", "arc"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
