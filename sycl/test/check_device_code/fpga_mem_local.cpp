@@ -94,7 +94,11 @@ int main() {
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %replicates{{.*}}, ptr addrspace(1) [[MaxReplicatesINTEL]]
     // CHECK-NOT: call void @llvm.memset
 
-    volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] + double_pumped[f] + single_pumped[f] + mlab[f] + simple_dual_port[f] + true_dual_port[f] + block_ram[f] + banks[f] + stride[f] + word[f] + copies[f] + replicates[f];
+    volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] +
+                           double_pumped[f] + single_pumped[f] + mlab[f] +
+                           simple_dual_port[f] + true_dual_port[f] +
+                           block_ram[f] + banks[f] + stride[f] + word[f] +
+                           copies[f] + replicates[f];
   });
   return 0;
 }
