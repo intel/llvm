@@ -280,6 +280,7 @@ public:
 
   void initSectionsAndLocalSyms(bool ignoreComdats);
   void postParse();
+  void importCmseSymbols();
 
 private:
   void initializeSections(bool ignoreComdats,

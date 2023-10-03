@@ -18759,6 +18759,9 @@ Decl *Sema::ActOnIvar(Scope *S, SourceLocation DeclStart, Declarator &D,
   ObjCIvarDecl *NewID = ObjCIvarDecl::Create(
       Context, EnclosingContext, DeclStart, Loc, II, T, TInfo, ac, BitWidth);
 
+  if (T->containsErrors())
+    NewID->setInvalidDecl();
+
   if (II) {
     NamedDecl *PrevDecl = LookupSingleName(S, II, Loc, LookupMemberName,
                                            ForVisibleRedeclaration);
