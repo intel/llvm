@@ -27,6 +27,7 @@ jobs:
   build:
     name: Build + LIT
     runs-on: [Windows, build]
+    environment: WindowsCILock
     # TODO use cached checkout
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
@@ -126,6 +127,7 @@ jobs:
     if: ${{ always() && needs.build.outputs.build_conclusion == 'success' }}
     name: SYCL E2E on Windows
     runs-on: [Windows, gen12]
+    environment: WindowsCILock
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
       with:

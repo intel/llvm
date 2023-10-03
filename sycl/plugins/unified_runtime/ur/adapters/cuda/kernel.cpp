@@ -28,7 +28,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     if (FunctionResult == CUDA_ERROR_NOT_FOUND) {
       throw UR_RESULT_ERROR_INVALID_KERNEL_NAME;
     } else {
-      Result = UR_CHECK_ERROR(FunctionResult);
+      UR_CHECK_ERROR(FunctionResult);
     }
 
     std::string KernelNameWithOffset =
@@ -41,7 +41,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     if (OffsetRes == CUDA_ERROR_NOT_FOUND) {
       CuFuncWithOffsetParam = nullptr;
     } else {
-      Result = UR_CHECK_ERROR(OffsetRes);
+      UR_CHECK_ERROR(OffsetRes);
     }
     Kernel = std::unique_ptr<ur_kernel_handle_t_>(
         new ur_kernel_handle_t_{CuFunc, CuFuncWithOffsetParam, pKernelName,
@@ -67,26 +67,20 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     size_t GlobalWorkSize[3] = {0, 0, 0};
 
     int MaxBlockDimX{0}, MaxBlockDimY{0}, MaxBlockDimZ{0};
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxBlockDimX, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxBlockDimX, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, hDevice->get()));
 
     int MaxGridDimX{0}, MaxGridDimY{0}, MaxGridDimZ{0};
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxGridDimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxGridDimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxGridDimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxGridDimX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxGridDimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxGridDimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, hDevice->get()));
 
     GlobalWorkSize[0] = MaxBlockDimX * MaxGridDimX;
     GlobalWorkSize[1] = MaxBlockDimY * MaxGridDimY;
@@ -95,9 +89,8 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
     int MaxThreads = 0;
-    detail::ur::assertion(
-        cuFuncGetAttribute(&MaxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                           hKernel->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuFuncGetAttribute(
+        &MaxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, hKernel->get()));
     return ReturnValue(size_t(MaxThreads));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
@@ -116,25 +109,22 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == CUDA SHARED
     int Bytes = 0;
-    detail::ur::assertion(
-        cuFuncGetAttribute(&Bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                           hKernel->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuFuncGetAttribute(
+        &Bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     // Work groups should be multiples of the warp size
     int WarpSize = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
-                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE, hDevice->get()));
     return ReturnValue(static_cast<size_t>(WarpSize));
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
     // OpenCL PRIVATE == CUDA LOCAL
     int Bytes = 0;
-    detail::ur::assertion(cuFuncGetAttribute(&Bytes,
-                                             CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                                             hKernel->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuFuncGetAttribute(
+        &Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
   default:
@@ -230,9 +220,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue("");
   case UR_KERNEL_INFO_NUM_REGS: {
     int NumRegs = 0;
-    detail::ur::assertion(cuFuncGetAttribute(&NumRegs,
-                                             CU_FUNC_ATTRIBUTE_NUM_REGS,
-                                             hKernel->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuFuncGetAttribute(&NumRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                                      hKernel->get()));
     return ReturnValue(static_cast<uint32_t>(NumRegs));
   }
   default:
@@ -251,17 +240,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
     // Sub-group size is equivalent to warp size
     int WarpSize = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
-                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE, hDevice->get()));
     return ReturnValue(static_cast<uint32_t>(WarpSize));
   }
   case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int MaxThreads = 0;
-    detail::ur::assertion(
-        cuFuncGetAttribute(&MaxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                           hKernel->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuFuncGetAttribute(
+        &MaxThreads, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, hKernel->get()));
     int WarpSize = 0;
     urKernelGetSubGroupInfo(hKernel, hDevice,
                             UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE,

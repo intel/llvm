@@ -21,6 +21,7 @@
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MemoryBufferRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -47,6 +48,13 @@ enum class DebugSectionKind : uint8_t {
   DebugStr,
   DebugLineStr,
   DebugStrOffsets,
+  DebugPubNames,
+  DebugPubTypes,
+  DebugNames,
+  AppleNames,
+  AppleNamespaces,
+  AppleObjC,
+  AppleTypes,
   NumberOfEnumEntries // must be last
 };
 constexpr static size_t SectionKindsNum =
@@ -143,8 +151,11 @@ struct SectionDescriptor {
     ListDebugOffsetPatch.setAllocator(&GlobalData.getAllocator());
   }
 
-  /// Erase whole section contents(data bits, list of patches, format).
-  void erase();
+  /// Erase whole section contents(data bits, list of patches).
+  void clearAllSectionData();
+
+  /// Erase only section output data bits.
+  void clearSectionContent();
 
   /// When objects(f.e. compile units) are glued into the single file,
   /// the debug sections corresponding to the concrete object are assigned
@@ -157,7 +168,7 @@ struct SectionDescriptor {
 
   /// Section patches.
 #define ADD_PATCHES_LIST(T)                                                    \
-  T &notePatch(const T &Patch) { return List##T.noteItem(Patch); }             \
+  T &notePatch(const T &Patch) { return List##T.add(Patch); }                  \
   ArrayList<T> List##T;
 
   ADD_PATCHES_LIST(DebugStrPatch)
@@ -216,7 +227,7 @@ struct SectionDescriptor {
 
   /// Emit specified inplace string value into the current section contents.
   void emitInplaceString(StringRef String) {
-    OS << String;
+    OS << GlobalData.translateString(String);
     emitIntVal(0, 1);
   }
 
@@ -288,22 +299,47 @@ public:
   OutputSections(LinkingGlobalData &GlobalData) : GlobalData(GlobalData) {}
 
   /// Sets output format for all keeping sections.
-  void setOutputFormat(DWARFUnit &OriginalUnit) {
-    setOutputFormat(OriginalUnit.getFormParams(),
-                    OriginalUnit.isLittleEndian() ? support::endianness::little
-                                                  : support::endianness::big);
-  }
-
-  /// Sets output format for all keeping sections.
   void setOutputFormat(dwarf::FormParams Format,
-                       support::endianness Endianess) {
+                       support::endianness Endianness) {
     this->Format = Format;
-    this->Endianess = Endianess;
+    this->Endianness = Endianness;
   }
 
   /// Returns descriptor for the specified section of \p SectionKind.
-  std::optional<const SectionDescriptor *>
+  /// The descriptor should already be created. The llvm_unreachable
+  /// would be raised if it is not.
+  const SectionDescriptor &
   getSectionDescriptor(DebugSectionKind SectionKind) const {
+    SectionsSetTy::const_iterator It = SectionDescriptors.find(SectionKind);
+
+    if (It == SectionDescriptors.end())
+      llvm_unreachable(
+          formatv("Section {0} does not exist", getSectionName(SectionKind))
+              .str()
+              .c_str());
+
+    return It->second;
+  }
+
+  /// Returns descriptor for the specified section of \p SectionKind.
+  /// The descriptor should already be created. The llvm_unreachable
+  /// would be raised if it is not.
+  SectionDescriptor &getSectionDescriptor(DebugSectionKind SectionKind) {
+    SectionsSetTy::iterator It = SectionDescriptors.find(SectionKind);
+
+    if (It == SectionDescriptors.end())
+      llvm_unreachable(
+          formatv("Section {0} does not exist", getSectionName(SectionKind))
+              .str()
+              .c_str());
+
+    return It->second;
+  }
+
+  /// Returns descriptor for the specified section of \p SectionKind.
+  /// Returns std::nullopt if section descriptor is not created yet.
+  std::optional<const SectionDescriptor *>
+  tryGetSectionDescriptor(DebugSectionKind SectionKind) const {
     SectionsSetTy::const_iterator It = SectionDescriptors.find(SectionKind);
 
     if (It == SectionDescriptors.end())
@@ -313,8 +349,9 @@ public:
   }
 
   /// Returns descriptor for the specified section of \p SectionKind.
+  /// Returns std::nullopt if section descriptor is not created yet.
   std::optional<SectionDescriptor *>
-  getSectionDescriptor(DebugSectionKind SectionKind) {
+  tryGetSectionDescriptor(DebugSectionKind SectionKind) {
     SectionsSetTy::iterator It = SectionDescriptors.find(SectionKind);
 
     if (It == SectionDescriptors.end())
@@ -324,18 +361,18 @@ public:
   }
 
   /// Returns descriptor for the specified section of \p SectionKind.
-  /// If descriptor does not exist then create it.
+  /// If descriptor does not exist then creates it.
   SectionDescriptor &
   getOrCreateSectionDescriptor(DebugSectionKind SectionKind) {
     return SectionDescriptors
-        .try_emplace(SectionKind, SectionKind, GlobalData, Format, Endianess)
+        .try_emplace(SectionKind, SectionKind, GlobalData, Format, Endianness)
         .first->second;
   }
 
   /// Erases data of all sections.
   void eraseSections() {
     for (auto &Section : SectionDescriptors)
-      Section.second.erase();
+      Section.second.clearAllSectionData();
   }
 
   /// Enumerate all sections and call \p Handler for each.
@@ -363,7 +400,7 @@ public:
                     StringEntryToDwarfStringPoolEntryMap &DebugLineStrStrings);
 
   /// Endiannes for the sections.
-  support::endianness getEndianness() const { return Endianess; }
+  support::endianness getEndianness() const { return Endianness; }
 
   /// Return DWARF version.
   uint16_t getVersion() const { return Format.Version; }
@@ -395,7 +432,7 @@ protected:
   dwarf::FormParams Format = {4, 4, dwarf::DWARF32};
 
   /// Endiannes for sections.
-  support::endianness Endianess = support::endianness::little;
+  support::endianness Endianness = support::endian::system_endianness();
 
   /// All keeping sections.
   using SectionsSetTy = std::map<DebugSectionKind, SectionDescriptor>;

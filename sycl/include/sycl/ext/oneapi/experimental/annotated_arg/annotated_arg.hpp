@@ -19,6 +19,15 @@
 #include <variant>
 
 namespace sycl {
+
+// device_copyable trait
+template <typename T, typename PropertyList>
+struct is_device_copyable<
+    ext::oneapi::experimental::annotated_arg<T, PropertyList>,
+    std::enable_if_t<!std::is_trivially_copyable_v<
+        ext::oneapi::experimental::annotated_arg<T, PropertyList>>>>
+    : is_device_copyable<T> {};
+
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
@@ -154,6 +163,8 @@ public:
   operator T *() const noexcept { return obj; }
 
   T &operator[](std::ptrdiff_t idx) const noexcept { return obj[idx]; }
+
+  T *operator->() const noexcept { return obj; }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();

@@ -31,7 +31,6 @@
 #endif
 #endif
 
-#include <complex>     // for complex
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t, decay_t, integra...
 
@@ -127,13 +126,11 @@ using is_multiplies = std::integral_constant<
               std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
 
 // ---- is_complex
-// NOTE: std::complex<long double> not yet supported by group algorithms.
-template <typename T>
-struct is_complex
-    : std::integral_constant<bool,
-                             std::is_same_v<T, std::complex<half>> ||
-                                 std::is_same_v<T, std::complex<float>> ||
-                                 std::is_same_v<T, std::complex<double>>> {};
+// Use SFINAE so that the "true" branch could be implemented in
+// include/sycl/stl_wrappers/complex that would only be available if STL's
+// <complex> is included by users.
+template <typename T, typename = void>
+struct is_complex : public std::false_type {};
 
 // ---- is_arithmetic_or_complex
 template <typename T>
@@ -263,7 +260,7 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
                   detail::is_plus<T, BinaryOperation>::value),
                  T>
-reduce_over_group(Group g, T x, BinaryOperation binary_op) {
+reduce_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   result.real(reduce_over_group(g, x.real(), sycl::plus<>()));
@@ -272,7 +269,6 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)x;
-  (void)binary_op;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
@@ -737,7 +733,7 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
                   detail::is_plus<T, BinaryOperation>::value),
                  T>
-exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+exclusive_scan_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   result.real(exclusive_scan_over_group(g, x.real(), sycl::plus<>()));
@@ -746,7 +742,6 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)x;
-  (void)binary_op;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
@@ -952,7 +947,7 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, sycl::plus<T>>::value &&
                   detail::is_plus<T, BinaryOperation>::value),
                  T>
-inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+inclusive_scan_over_group(Group g, T x, BinaryOperation) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
   result.real(inclusive_scan_over_group(g, x.real(), sycl::plus<>()));
@@ -961,7 +956,6 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)x;
-  (void)binary_op;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif

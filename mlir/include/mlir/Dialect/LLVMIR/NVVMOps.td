@@ -102,41 +102,48 @@ def BasicPtxBuilderOpInterface : OpInterface<"BasicPtxBuilderInterface"> {
   let description = [{
     Interface to generate inline assembly with PTX for basic operations. 
 
-    Interface is used in `convert-nvvm-to-llvm` pass that lowers Ops supports this interface to inline assembly Op. Interface has several methods and they are used for this lowering. 
+    Interface is used in `convert-nvvm-to-llvm` pass that lowers Ops supports 
+    this interface to inline assembly Op. Interface has several methods and 
+    they are used for this lowering. 
 
     `getPtx` method returns PTX code. 
 
-    `hasSideEffect` is used to set whether the op has any side effect on the memory.
+    `hasSideEffect` is used to set whether the op has any side effect on the 
+    memory.
 
-    `hasIntrinsic` returns whether the operation has intrinsic support in LLVM. This is useful for the Ops that don't have intrinsic support for each case.
+    `hasIntrinsic` returns whether the operation has intrinsic support in LLVM. 
+    This is useful for the Ops that don't have intrinsic support for each case.
 
-    `getAsmValues` returns arguments to pass PTX code. The order of arguments is started from the results and they are used as write, followed by the operands and attributes.
+    `getAsmValues` returns arguments to pass PTX code. The order of arguments 
+    is started from the results and they are used as write, followed by the 
+    operands and attributes.
 
     Example:
-    
     If we have following Op definition that returns PTX code by `getPtx`. 
     
     ```tablegen
-    def NVVM_MBarrierArriveExpectTxOp : NVVM_Op<\"mbarrier.arrive.expect_tx\",
-                        [DeclareOpInterfaceMethods<BasicPtxBuilderOpInterface>]>,
-      Results<(outs LLVM_Type:$res)>, Arguments<(ins LLVM_i64ptr_any:$addr, I32:$txcount)> {
-      ...
-      let extraClassDefinition = [{
-        std::string $cppClass::getPtx() { return std::string(\"mbarrier.arrive.expect_tx.b64 %0, [%1], %2;\"); }
-      }\];
-    }
+      def NVVM_MyOp : NVVM_Op<"myop",
+          [DeclareOpInterfaceMethods<BasicPtxBuilderOpInterface>]>,  
+        Results<(outs LLVM_Type:$res)>,
+        Arguments<(ins LLVM_i64ptr_any:$op1, I32:$op2)> {
+        ...
+        let extraClassDefinition = [{
+          std::string $cppClass::getPtx() { 
+            return std::string("my.ptx.code %0, %1, %2;"); 
+          }
+      } ];
     ```
 
     The NVVM Op will look like below:
     ```mlir
-      %0 = nvvm.mbarrier.arrive.expect_tx %barrier, %txcount : !llvm.ptr, i32 -> i32
+      %0 = my.ptx.code %1, %2 : !llvm.ptr, i32 -> i32
     ```
 
-    The `convert-nvvm-to-llvm` Pass returns the PTX code below. The order of 
-    arguments are kept the same. The read/write modifiers are set based on the
-    input and result types.
+    The `convert-nvvm-to-llvm` Pass generates the PTX code below. The order of 
+    arguments are kept the same. The read and write modifiers are set based on
+    the input and result types.
     ```mlir
-      %0 = llvm.inline_asm has_side_effects asm_dialect = att "mbarrier.arrive.expect_tx.b64 %0, [%1], %2;", "=r,l,r" %arg0, %arg1 : (!llvm.ptr, i32) -> i32
+      %0 = llvm.inline_asm has_side_effects asm_dialect = att "my.ptx.code %0, %1, %2;", "=r,l,r" %arg0, %arg1 : (!llvm.ptr, i32) -> i32
     ```
 
   }];
@@ -248,6 +255,30 @@ def NVVM_BlockIdZOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.ctaid.z">;
 def NVVM_GridDimXOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.nctaid.x">;
 def NVVM_GridDimYOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.nctaid.y">;
 def NVVM_GridDimZOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.nctaid.z">;
+
+//===----------------------------------------------------------------------===//
+// CTA Cluster index and range
+def NVVM_ClusterIdXOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.clusterid.x">;
+def NVVM_ClusterIdYOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.clusterid.y">;
+def NVVM_ClusterIdZOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.clusterid.z">;
+def NVVM_ClusterDimXOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.nclusterid.x">;
+def NVVM_ClusterDimYOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.nclusterid.y">;
+def NVVM_ClusterDimZOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.nclusterid.z">;
+
+
+//===----------------------------------------------------------------------===//
+// CTA index and range within Cluster
+def NVVM_BlockInClusterIdXOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.ctaid.x">;
+def NVVM_BlockInClusterIdYOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.ctaid.y">;
+def NVVM_BlockInClusterIdZOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.ctaid.z">;
+def NVVM_GridInClusterDimXOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.nctaid.x">;
+def NVVM_GridInClusterDimYOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.nctaid.y">;
+def NVVM_GridInClusterDimZOp : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.nctaid.z">;
+
+//===----------------------------------------------------------------------===//
+// CTA index and across Cluster dimensions
+def NVVM_ClusterId : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.ctarank">;
+def NVVM_ClusterDim : NVVM_SpecialRegisterOp<"read.ptx.sreg.cluster.nctarank">;
 
 //===----------------------------------------------------------------------===//
 // NVVM approximate op definitions
@@ -455,6 +486,34 @@ def NVVM_MBarrierTestWaitSharedOp : NVVM_Op<"mbarrier.test.wait.shared">,
 def NVVM_Barrier0Op : NVVM_Op<"barrier0"> {
   string llvmBuilder = [{
       createIntrinsicCall(builder, llvm::Intrinsic::nvvm_barrier0);
+  }];
+  let assemblyFormat = "attr-dict";
+}
+
+def NVVM_ClusterArriveOp : NVVM_Op<"cluster.arrive"> {
+  string llvmBuilder = [{
+      createIntrinsicCall(builder, llvm::Intrinsic::nvvm_barrier_cluster_arrive);
+  }];
+  let assemblyFormat = "attr-dict";
+}
+
+def NVVM_ClusterArriveRelaxedOp : NVVM_Op<"cluster.arrive.relaxed"> {
+  string llvmBuilder = [{
+      createIntrinsicCall(builder, llvm::Intrinsic::nvvm_barrier_cluster_arrive_relaxed);
+  }];
+  let assemblyFormat = "attr-dict";
+}
+
+def NVVM_ClusterWaitOp : NVVM_Op<"cluster.wait"> {
+  string llvmBuilder = [{
+      createIntrinsicCall(builder, llvm::Intrinsic::nvvm_barrier_cluster_wait);
+  }];
+  let assemblyFormat = "attr-dict";
+}
+
+def NVVM_FenceScClusterOp : NVVM_Op<"fence.sc.cluster"> {
+  string llvmBuilder = [{
+      createIntrinsicCall(builder, llvm::Intrinsic::nvvm_fence_sc_cluster);
   }];
   let assemblyFormat = "attr-dict";
 }
@@ -1431,6 +1490,28 @@ def NVVM_CpAsyncBulkTensorGlobalToSharedClusterOp : NVVM_Op<"cp.async.bulk.tenso
   let hasVerifier = 1;
 }
 
+def NVVM_CpAsyncBulkTensorSharedCTAToGlobalOp : NVVM_Op<"cp.async.bulk.tensor.global.shared.cta", [DeclareOpInterfaceMethods<BasicPtxBuilderOpInterface>]>,
+  Arguments<(ins  LLVM_i64ptr_any:$tmaDescriptor,
+                  LLVM_i64ptr_shared:$srcMem,
+                  Variadic<I32>:$coordinates)> {
+  let assemblyFormat = "$tmaDescriptor `,` $srcMem `,` `box` `[`$coordinates `]` attr-dict  `:` type(operands)";
+  let extraClassDefinition = [{
+    std::string $cppClass::getPtx() {
+      int dim = getCoordinates().size();
+      std::string ptx = "cp.async.bulk.tensor.";
+      ptx += std::to_string(dim) + "d.";
+      ptx += "global.shared::cta.bulk_group";
+      if(dim == 1) ptx += " [%0, {%2} ], [%1];";
+      if(dim == 2) ptx += " [%0, {%2, %3} ], [%1];";
+      if(dim == 3) ptx += " [%0, {%2, %3, %4} ], [%1];";
+      if(dim == 4) ptx += " [%0, {%2, %3, %4, %5} ], [%1];";
+      if(dim == 5) ptx += " [%0, {%2, %3, %4, %5, %6} ], [%1];";
+      return ptx;
+    }
+  }];
+  let hasVerifier = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // NVVM Wgmma Ops
 //===----------------------------------------------------------------------===//
@@ -1529,9 +1610,9 @@ def NVVM_WgmmaMmaAsyncOp : NVVM_Op<"wgmma.mma_async",
                 PredOpTrait<"input struct and result struct must be the same type",
                   TCresIsSameAsOpBase<0, 0>>,]> 
 {
-  let results = (outs LLVM_AnyAggregate:$results);
+  let results = (outs LLVM_AnyStruct:$results);
   let arguments = (ins 
-    LLVM_AnyAggregate:$inouts,
+    LLVM_AnyStruct:$inouts,
     I64:$descriptorA, 
     I64:$descriptorB, 
     NVVM_MMAShapeAttr:$shape,

@@ -2910,6 +2910,9 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
       cast<Decl>(Owner)->isDefinedOutsideFunctionOrMethod());
   LocalInstantiationScope Scope(SemaRef, MergeWithParentScope);
 
+  Sema::LambdaScopeForCallOperatorInstantiationRAII LambdaScope(
+      SemaRef, const_cast<CXXMethodDecl *>(D), TemplateArgs, Scope);
+
   // Instantiate enclosing template arguments for friends.
   SmallVector<TemplateParameterList *, 4> TempParamLists;
   unsigned NumTempParamLists = 0;
@@ -5471,8 +5474,10 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   // unimported module.
   Function->setVisibleDespiteOwningModule();
 
-  // Copy the inner loc start from the pattern.
+  // Copy the source locations from the pattern.
+  Function->setLocation(PatternDecl->getLocation());
   Function->setInnerLocStart(PatternDecl->getInnerLocStart());
+  Function->setRangeEnd(PatternDecl->getEndLoc());
 
   EnterExpressionEvaluationContext EvalContext(
       *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
@@ -5841,7 +5846,7 @@ void Sema::BuildVariableInstantiation(
   // will have been deferred.
   if (!NewVar->isInvalidDecl() &&
       NewVar->getDeclContext()->isFunctionOrMethod() &&
-      OldVar->getType()->isDependentType() && !OldVar->isImplicit())
+      OldVar->getType()->isDependentType())
     DiagnoseUnusedDecl(NewVar);
 }
 

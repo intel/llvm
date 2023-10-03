@@ -169,6 +169,9 @@ enum class Action : uint32_t {
 ///
 // TODO: We should generalize TwoOutOfFour to N out of M and use property to
 // encode the value of N and M.
+// TODO: Update DimLevelType to use lower 8 bits for storage formats and the
+// higher 4 bits to store level properties. Consider CompressedWithHi and
+// TwoOutOfFour as properties instead of formats.
 enum class DimLevelType : uint8_t {
   Undef = 0,                 // 0b00000_00
   Dense = 4,                 // 0b00001_00
@@ -187,14 +190,19 @@ enum class DimLevelType : uint8_t {
   TwoOutOfFour = 64,         // 0b10000_00
 };
 
-/// This enum defines all the storage formats supported by the sparse compiler,
-/// without the level properties.
+/// This enum defines all supported storage format without the level properties.
 enum class LevelFormat : uint8_t {
   Dense = 4,             // 0b00001_00
   Compressed = 8,        // 0b00010_00
   Singleton = 16,        // 0b00100_00
   CompressedWithHi = 32, // 0b01000_00
   TwoOutOfFour = 64,     // 0b10000_00
+};
+
+/// This enum defines all the nondefault properties for storage formats.
+enum class LevelNondefaultProperty : uint8_t {
+  Nonunique = 1,  // 0b00000_01
+  Nonordered = 2, // 0b00000_10
 };
 
 /// Returns string representation of the given dimension level type.

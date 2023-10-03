@@ -24,7 +24,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
     return ReturnValue("FULL PROFILE");
   case UR_PLATFORM_INFO_VERSION: {
     std::string Version;
-    detail::ur::assertion(getHipVersionString(Version) == hipSuccess);
+    UR_CHECK_ERROR(getHipVersionString(Version));
     return ReturnValue(Version.c_str());
   }
   case UR_PLATFORM_INFO_BACKEND: {
@@ -69,7 +69,8 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             return;
           }
           int NumDevices = 0;
-          Err = UR_CHECK_ERROR(hipGetDeviceCount(&NumDevices));
+          Err = UR_RESULT_SUCCESS;
+          UR_CHECK_ERROR(hipGetDeviceCount(&NumDevices));
           if (NumDevices == 0) {
             NumPlatforms = 0;
             return;
@@ -81,9 +82,9 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
             for (int i = 0; i < NumDevices; ++i) {
               hipDevice_t Device;
-              Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              UR_CHECK_ERROR(hipDeviceGet(&Device, i));
               hipCtx_t Context;
-              Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
+              UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
                   new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
             }
@@ -94,12 +95,16 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             }
             PlatformIds.clear();
             Err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-          } catch (...) {
+          } catch (ur_result_t CatchErr) {
             // Clear and rethrow to allow retry
             for (int i = 0; i < NumDevices; ++i) {
               PlatformIds[i].Devices.clear();
             }
             PlatformIds.clear();
+            Err = CatchErr;
+            throw CatchErr;
+          } catch (...) {
+            Err = UR_RESULT_ERROR_OUT_OF_RESOURCES;
             throw;
           }
         },

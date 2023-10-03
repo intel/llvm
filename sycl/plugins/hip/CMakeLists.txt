@@ -120,6 +120,7 @@ add_sycl_plugin(hip
     "../unified_runtime/ur/adapters/hip/sampler.hpp"
     "../unified_runtime/ur/adapters/hip/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/hip/usm.cpp"
+    "../unified_runtime/ur/adapters/hip/usm.hpp"
     "../unified_runtime/ur/adapters/hip/usm_p2p.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
@@ -130,6 +131,8 @@ add_sycl_plugin(hip
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
   HEADER
     ${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp
 )

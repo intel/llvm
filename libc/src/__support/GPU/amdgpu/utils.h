@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_GPU_AMDGPU_IO_H
-#define LLVM_LIBC_SRC_SUPPORT_GPU_AMDGPU_IO_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_GPU_AMDGPU_IO_H
+#define LLVM_LIBC_SRC___SUPPORT_GPU_AMDGPU_IO_H
 
 #include "src/__support/common.h"
 #include "src/__support/macros/config.h"
 
 #include <stdint.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace gpu {
 
 /// The number of threads that execute in lock-step in a lane.
@@ -125,7 +125,8 @@ LIBC_INLINE uint32_t get_lane_size() { return LANE_SIZE; }
 }
 
 /// Copies the value from the first active thread in the wavefront to the rest.
-[[clang::convergent]] LIBC_INLINE uint32_t broadcast_value(uint32_t x) {
+[[clang::convergent]] LIBC_INLINE uint32_t broadcast_value(uint64_t,
+                                                           uint32_t x) {
   return __builtin_amdgcn_readfirstlane(x);
 }
 
@@ -175,7 +176,10 @@ LIBC_INLINE uint64_t fixed_frequency_clock() {
     return 0;
 }
 
+/// Terminates execution of the associated wavefront.
+[[noreturn]] LIBC_INLINE void end_program() { __builtin_amdgcn_endpgm(); }
+
 } // namespace gpu
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
 #endif

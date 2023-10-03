@@ -8,10 +8,10 @@
 
 ; CHECK-SPIRV: [[#CompUnit:]] [[#]] DebugCompilationUnit
 ; CHECK-SPIRV: [[#None:]] [[#]] DebugInfoNone
-; CHECK-SPIRV: [[#EntryFunc:]] [[#]] DebugFunction
 ; CHECK-SPIRV: [[#BaseTy:]] [[#]] DebugTypeBasic
 ; CHECK-SPIRV: [[#Subrange:]] [[#]] DebugTypeSubrange
 ; CHECK-SPIRV: DebugTypeArrayDynamic [[#BaseTy]] [[#]] [[#]] [[#None]] [[#None]] [[#Subrange]]
+; CHECK-SPIRV: [[#EntryFunc:]] [[#]] DebugFunction
 ; CHECK-SPIRV: DebugEntryPoint [[#EntryFunc]] [[#CompUnit]] [[#]] [[#]] {{$}}
 
 ; CHECK-LLVM: !DICompileUnit(language: DW_LANG_Fortran95

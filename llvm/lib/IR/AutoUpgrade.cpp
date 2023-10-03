@@ -911,6 +911,14 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         NewFn = nullptr;
         return true;
       }
+
+      if (Name.startswith("ldexp.")) {
+        // Target specific intrinsic became redundant
+        NewFn = Intrinsic::getDeclaration(
+          F->getParent(), Intrinsic::ldexp,
+          {F->getReturnType(), F->getArg(1)->getType()});
+        return true;
+      }
     }
 
     break;
@@ -928,6 +936,12 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                         F->arg_begin()->getType());
       return true;
     }
+    if (Name.equals("coro.end") && F->arg_size() == 2) {
+      rename(F);
+      NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::coro_end);
+      return true;
+    }
+
     break;
   }
   case 'd':
@@ -1290,25 +1304,15 @@ GlobalVariable *llvm::UpgradeGlobalVariable(GlobalVariable *GV) {
   LLVMContext &C = GV->getContext();
   IRBuilder<> IRB(C);
   auto EltTy = StructType::get(STy->getElementType(0), STy->getElementType(1),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                IRB.getPtrTy());
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                               IRB.getInt8PtrTy());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Constant *Init = GV->getInitializer();
   unsigned N = Init->getNumOperands();
   std::vector<Constant *> NewCtors(N);
   for (unsigned i = 0; i != N; ++i) {
     auto Ctor = cast<Constant>(Init->getOperand(i));
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     NewCtors[i] = ConstantStruct::get(EltTy, Ctor->getAggregateElement(0u),
                                       Ctor->getAggregateElement(1),
                                       Constant::getNullValue(IRB.getPtrTy()));
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-    NewCtors[i] = ConstantStruct::get(
-        EltTy, Ctor->getAggregateElement(0u), Ctor->getAggregateElement(1),
-        Constant::getNullValue(IRB.getInt8PtrTy()));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   Constant *NewInit = ConstantArray::get(ArrayType::get(EltTy, N), NewCtors);
 
@@ -2821,9 +2825,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
       auto *VecTy = cast<FixedVectorType>(CI->getType());
       Type *EltTy = VecTy->getElementType();
       unsigned EltNum = VecTy->getNumElements();
-      Value *Cast = Builder.CreateBitCast(CI->getArgOperand(0),
-                                          EltTy->getPointerTo());
-      Value *Load = Builder.CreateLoad(EltTy, Cast);
+      Value *Load = Builder.CreateLoad(EltTy, CI->getArgOperand(0));
       Type *I32Ty = Type::getInt32Ty(C);
       Rep = PoisonValue::get(VecTy);
       for (unsigned I = 0; I < EltNum; ++I)
@@ -4181,6 +4183,13 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     break;
   }
 
+  case Intrinsic::coro_end: {
+    SmallVector<Value *, 3> Args(CI->args());
+    Args.push_back(ConstantTokenNone::get(CI->getContext()));
+    NewCall = Builder.CreateCall(NewFn, Args);
+    break;
+  }
+
   case Intrinsic::vector_extract: {
     StringRef Name = F->getName();
     Name = Name.substr(5); // Strip llvm
@@ -4328,11 +4337,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall =
         Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
                                    CI->getArgOperand(2), CI->getArgOperand(3),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                    Constant::getNullValue(Builder.getPtrTy())});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-                                   Constant::getNullValue(Builder.getInt8PtrTy())});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     NewCall->takeName(CI);
     CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();
@@ -4348,11 +4353,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall =
         Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
                                    CI->getArgOperand(2), CI->getArgOperand(3),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                    Constant::getNullValue(Builder.getPtrTy())});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-                                   Constant::getNullValue(Builder.getInt8PtrTy())});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     NewCall->takeName(CI);
     CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();

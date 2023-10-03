@@ -36,7 +36,6 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/iostream_proxy.hpp>      // for cout
 #include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
@@ -48,7 +47,6 @@
 
 #include <array>       // for array
 #include <assert.h>    // for assert
-#include <cmath>       // for ceil, floor, rint, trunc
 #include <cstddef>     // for size_t, NULL, byte
 #include <cstdint>     // for uint8_t, int16_t, int...
 #include <functional>  // for divides, multiplies
@@ -61,6 +59,8 @@
 #include <variant>     // for tuple, variant
 
 #ifndef __SYCL_DEVICE_ONLY__
+#include <sycl/builtins_scalar_gen.hpp> // for ceil, floor, rint, trunc
+
 #include <cfenv> // for fesetround, fegetround
 #endif
 
@@ -308,7 +308,7 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
     if (Err)
       throw sycl::exception(make_error_code(errc::runtime),
                             "Unable to set rounding mode to FE_TONEAREST");
-    R Result = std::rint(Value);
+    R Result = sycl::rint(Value);
     Err = std::fesetround(OldRoundingDirection);
     if (Err)
       throw sycl::exception(make_error_code(errc::runtime),
@@ -317,13 +317,13 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
   }
     // Round toward zero.
   case rounding_mode::rtz:
-    return std::trunc(Value);
+    return sycl::trunc(Value);
     // Round toward positive infinity.
   case rounding_mode::rtp:
-    return std::ceil(Value);
+    return sycl::ceil(Value);
     // Round toward negative infinity.
   case rounding_mode::rtn:
-    return std::floor(Value);
+    return sycl::floor(Value);
   };
   assert(false && "Unsupported rounding mode!");
   return static_cast<R>(Value);
@@ -906,16 +906,6 @@ public:
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
-
-  // TODO: Remove, for debug purposes only.
-  void dump() const {
-#ifndef __SYCL_DEVICE_ONLY__
-    for (int I = 0; I < NumElements; ++I) {
-      std::cout << "  " << I << ": " << getValue(I) << std::endl;
-    }
-    std::cout << std::endl;
-#endif // __SYCL_DEVICE_ONLY__
-  }
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,

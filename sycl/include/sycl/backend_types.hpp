@@ -21,7 +21,8 @@ enum class backend : char {
   ext_oneapi_level_zero = 2,
   ext_oneapi_cuda = 3,
   all = 4,
-  ext_intel_esimd_emulator = 5,
+  ext_intel_esimd_emulator __SYCL_DEPRECATED(
+      "esimd emulator is no longer supported") = 5,
   ext_oneapi_hip = 6,
   ext_native_cpu = 7,
 };

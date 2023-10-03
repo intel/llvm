@@ -73,15 +73,9 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
   // expansion when the value in ValueOffsetPair is a ptr and the offset
   // is not divisible by the elem type size of value.
   auto *I8Ty = Type::getInt8Ty(Context);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *I8PtrTy = Type::getInt8PtrTy(Context);
-  auto *I32Ty = Type::getInt32Ty(Context);
-  auto *I32PtrTy = Type::getInt32PtrTy(Context);
-#else
   auto *I8PtrTy = PointerType::get(Context, 0);
   auto *I32Ty = Type::getInt32Ty(Context);
   auto *I32PtrTy = PointerType::get(Context, 0);
-#endif
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), std::vector<Type *>(), false);
   Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
@@ -135,13 +129,13 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
    * top:
    *  br label %L.ph
    * L.ph:
+   *  %gepbase = getelementptr i64 addrspace(10)* %arg, i64 1
    *  br label %L
    * L:
    *  %phi = phi i64 [i64 0, %L.ph], [ %add, %L2 ]
    *  %add = add i64 %phi2, 1
    *  br i1 undef, label %post, label %L2
    * post:
-   *  %gepbase = getelementptr i64 addrspace(10)* %arg, i64 1
    *  #= %gep = getelementptr i64 addrspace(10)* %gepbase, i64 %add =#
    *  ret void
    *
@@ -176,6 +170,8 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
   Builder.CreateBr(LPh);
 
   Builder.SetInsertPoint(LPh);
+  Value *GepBase =
+      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Builder.CreateBr(L);
 
   Builder.SetInsertPoint(L);
@@ -186,8 +182,6 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
   Phi->addIncoming(Add, L);
 
   Builder.SetInsertPoint(Post);
-  Value *GepBase =
-      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);

@@ -152,9 +152,9 @@ public:
       SourceLocation IncludeLoc = SM.getIncludeLoc(SM.getFileID(Loc));
       if (IncludeLoc.isValid()) {
         if (llvm::timeTraceProfilerEnabled()) {
-          const FileEntry *FE = SM.getFileEntryForID(SM.getFileID(Loc));
-          llvm::timeTraceProfilerBegin(
-              "Source", FE != nullptr ? FE->getName() : StringRef("<unknown>"));
+          OptionalFileEntryRef FE = SM.getFileEntryRefForID(SM.getFileID(Loc));
+          llvm::timeTraceProfilerBegin("Source", FE ? FE->getName()
+                                                    : StringRef("<unknown>"));
         }
 
         IncludeStack.push_back(IncludeLoc);
@@ -511,7 +511,7 @@ Sema::~Sema() {
 
   // Delete cached satisfactions.
   std::vector<ConstraintSatisfaction *> Satisfactions;
-  Satisfactions.reserve(Satisfactions.size());
+  Satisfactions.reserve(SatisfactionCache.size());
   for (auto &Node : SatisfactionCache)
     Satisfactions.push_back(&Node);
   for (auto *Node : Satisfactions)
@@ -1288,6 +1288,27 @@ void Sema::ActOnEndOfTranslationUnit() {
       }
     }
 
+    // Now we can decide whether the modules we're building need an initializer.
+    if (Module *CurrentModule = getCurrentModule();
+        CurrentModule && CurrentModule->isInterfaceOrPartition()) {
+      auto DoesModNeedInit = [this](Module *M) {
+        if (!getASTContext().getModuleInitializers(M).empty())
+          return false;
+        for (auto [Exported, _] : M->Exports)
+          if (!Exported->isNamedModuleInterfaceHasNoInit())
+            return false;
+        for (Module *I : M->Imports)
+          if (!I->isNamedModuleInterfaceHasNoInit())
+            return false;
+
+        return true;
+      };
+
+      CurrentModule->NamedModuleHasNoInit = DoesModNeedInit(CurrentModule);
+      for (Module *SubModules : CurrentModule->submodules())
+        CurrentModule->NamedModuleHasNoInit &= DoesModNeedInit(SubModules);
+    }
+
     // Warnings emitted in ActOnEndOfTranslationUnit() should be emitted for
     // modules when they are built, not every time they are used.
     emitAndClearUnusedLocalTypedefWarnings();
@@ -1531,18 +1552,6 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() const {
   DeclContext *DC = getFunctionLevelDeclContext();
   if (isa<ObjCMethodDecl>(DC) || isa<FunctionDecl>(DC))
     return cast<NamedDecl>(DC);
-  return nullptr;
-}
-
-Decl *Sema::getCurLocalScopeDecl() {
-  if (const BlockScopeInfo *BSI = getCurBlock())
-    return BSI->TheDecl;
-  if (const LambdaScopeInfo *LSI = getCurLambda())
-    return LSI->CallOperator;
-  if (const CapturedRegionScopeInfo *CSI = getCurCapturedRegion())
-    return CSI->TheCapturedDecl;
-  if (NamedDecl *ND = getCurFunctionOrMethodDecl())
-    return ND;
   return nullptr;
 }
 

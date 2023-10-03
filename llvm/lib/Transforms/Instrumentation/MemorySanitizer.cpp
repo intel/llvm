@@ -3379,12 +3379,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     IRBuilder<> IRB(&I);
     Value *Addr = I.getArgOperand(0);
     Type *Ty = IRB.getInt32Ty();
-    Type *PtrTy = IRB.getPtrTy();
     Value *ShadowPtr =
         getShadowOriginPtr(Addr, IRB, Ty, Align(1), /*isStore*/ true).first;
 
-    IRB.CreateStore(getCleanShadow(Ty),
-                    IRB.CreatePointerCast(ShadowPtr, PtrTy));
+    IRB.CreateStore(getCleanShadow(Ty), ShadowPtr);
 
     if (ClCheckAccessAddress)
       insertShadowCheck(Addr, &I);
@@ -4900,11 +4898,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       Value *RegSaveAreaPtrPtr = IRB.CreateIntToPtr(
           IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                         ConstantInt::get(MS.IntptrTy, 16)),
@@ -4921,11 +4915,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
       if (MS.TrackOrigins)
         IRB.CreateMemCpy(RegSaveAreaOriginPtr, Alignment, VAArgTLSOriginCopy,
                          Alignment, AMD64FpEndOffset);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Type *OverflowArgAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      Type *OverflowArgAreaPtrTy = Type::getInt64PtrTy(*MS.C);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       Value *OverflowArgAreaPtrPtr = IRB.CreateIntToPtr(
           IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                         ConstantInt::get(MS.IntptrTy, 8)),
@@ -4951,6 +4941,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
 };
 
 /// MIPS64-specific implementation of VarArgHelper.
+/// NOTE: This is also used for LoongArch64.
 struct VarArgMIPS64Helper : public VarArgHelper {
   Function &F;
   MemorySanitizer &MS;
@@ -5057,11 +5048,7 @@ struct VarArgMIPS64Helper : public VarArgHelper {
       CallInst *OrigInst = VAStartInstrumentationList[i];
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                              PointerType::get(RegSaveAreaPtrTy, 0));
@@ -5212,11 +5199,7 @@ struct VarArgAArch64Helper : public VarArgHelper {
     Value *SaveAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                       ConstantInt::get(MS.IntptrTy, offset)),
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-        Type::getInt64PtrTy(*MS.C));
-#else
         PointerType::get(*MS.C, 0));
-#endif
     return IRB.CreateLoad(Type::getInt64Ty(*MS.C), SaveAreaPtrPtr);
   }
 
@@ -5225,11 +5208,7 @@ struct VarArgAArch64Helper : public VarArgHelper {
     Value *SaveAreaPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                       ConstantInt::get(MS.IntptrTy, offset)),
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-        Type::getInt32PtrTy(*MS.C));
-#else
         PointerType::get(*MS.C, 0));
-#endif
     Value *SaveArea32 = IRB.CreateLoad(IRB.getInt32Ty(), SaveAreaPtr);
     return IRB.CreateSExt(SaveArea32, MS.IntptrTy);
   }
@@ -5516,11 +5495,7 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
       CallInst *OrigInst = VAStartInstrumentationList[i];
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                              PointerType::get(RegSaveAreaPtrTy, 0));
@@ -5765,11 +5740,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
   void visitVACopyInst(VACopyInst &I) override { unpoisonVAListTagForInst(I); }
 
   void copyRegSaveArea(IRBuilder<> &IRB, Value *VAListTag) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-    Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     Value *RegSaveAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(
             IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
@@ -5794,11 +5765,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
   }
 
   void copyOverflowArea(IRBuilder<> &IRB, Value *VAListTag) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *OverflowArgAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-    Type *OverflowArgAreaPtrTy = Type::getInt64PtrTy(*MS.C);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     Value *OverflowArgAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(
             IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
@@ -5866,6 +5833,10 @@ struct VarArgSystemZHelper : public VarArgHelper {
   }
 };
 
+// Loongarch64 is not a MIPS, but the current vargs calling convention matches
+// the MIPS.
+using VarArgLoongArch64Helper = VarArgMIPS64Helper;
+
 /// A no-op implementation of VarArgHelper.
 struct VarArgNoOpHelper : public VarArgHelper {
   VarArgNoOpHelper(Function &F, MemorySanitizer &MS,
@@ -5898,6 +5869,8 @@ static VarArgHelper *CreateVarArgHelper(Function &Func, MemorySanitizer &Msan,
     return new VarArgPowerPC64Helper(Func, Msan, Visitor);
   else if (TargetTriple.getArch() == Triple::systemz)
     return new VarArgSystemZHelper(Func, Msan, Visitor);
+  else if (TargetTriple.isLoongArch64())
+    return new VarArgLoongArch64Helper(Func, Msan, Visitor);
   else
     return new VarArgNoOpHelper(Func, Msan, Visitor);
 }

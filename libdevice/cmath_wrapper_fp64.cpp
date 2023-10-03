@@ -143,6 +143,12 @@ double atanh(double x) { return __devicelib_atanh(x); }
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
+#ifdef __NVPTX__
+extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
+DEVICE_EXTERN_C_INLINE
+double nearbyint(double x) { return __nv_nearbyint(x); }
+#endif // __NVPTX__
+
 #if defined(_MSC_VER)
 #include <math.h>
 // FLOAT PROPERTIES

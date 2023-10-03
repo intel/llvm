@@ -63,8 +63,8 @@ ur_result_t ur_event_handle_t_::start() {
   try {
     if (Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
-      Result = UR_CHECK_ERROR(cuEventRecord(EvQueued, 0));
-      Result = UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
+      UR_CHECK_ERROR(cuEventRecord(EvQueued, 0));
+      UR_CHECK_ERROR(cuEventRecord(EvStart, Stream));
     }
   } catch (ur_result_t Err) {
     Result = Err;
@@ -112,7 +112,7 @@ ur_result_t ur_event_handle_t_::record() {
     return UR_RESULT_ERROR_INVALID_EVENT;
   }
 
-  ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
   UR_ASSERT(Queue, UR_RESULT_ERROR_INVALID_QUEUE);
 
@@ -122,7 +122,7 @@ ur_result_t ur_event_handle_t_::record() {
       detail::ur::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
-    Result = UR_CHECK_ERROR(cuEventRecord(EvEnd, Stream));
+    UR_CHECK_ERROR(cuEventRecord(EvEnd, Stream));
   } catch (ur_result_t error) {
     Result = error;
   }
@@ -135,9 +135,9 @@ ur_result_t ur_event_handle_t_::record() {
 }
 
 ur_result_t ur_event_handle_t_::wait() {
-  ur_result_t Result;
+  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    Result = UR_CHECK_ERROR(cuEventSynchronize(EvEnd));
+    UR_CHECK_ERROR(cuEventSynchronize(EvEnd));
     HasBeenWaitedOn = true;
   } catch (ur_result_t error) {
     Result = error;
@@ -219,7 +219,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
                                                        ur_execution_info_t,
                                                        ur_event_callback_t,
                                                        void *) {
-  detail::ur::die("Event Callback not implemented in CUDA adapter");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

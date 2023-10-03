@@ -179,6 +179,13 @@ The properties supported with `annotated_arg` may be defined in
 separate extensions. Please note that there cannot be duplicated property in a 
 properties list. Otherwise, a compiler time error is triggered.
 
+If the type `T` is trivially copyable, then `annotated_arg<T, ...>` is also
+trivially copyable.
+
+If the type `T` is device copyable, then `annotated_arg<T, ...>` is also device
+copyable and the implementation sets the `is_device_copyable_v` trait to `true`
+for this type.
+
 The section below describes the constructors and member functions for
 `annotated_arg`.
 
@@ -209,6 +216,9 @@ class annotated_arg {
     // Conversion operator to convert to the underlying type
     operator T() noexcept;
     operator T() const noexcept;
+
+    // Available if type T is pointer type
+    T operator->() const noexcept;
 
     // Available if the operator[] is valid for objects of type T, return
     // type will match the return type of T::operator[](std::ptrdiff_t)
@@ -327,6 +337,14 @@ operator T() noexcept;
 operator const T() const noexcept;
 ----
 | Implicit conversion to a reference to the underlying type `T`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operator->() const noexcept;
+----
+| Member access of type `T` if `T` is a pointer type.
 
 // --- ROW BREAK ---
 a|

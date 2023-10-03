@@ -770,7 +770,8 @@ mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
 namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
-  std::ignore = PluginParameter;
+  bool *pluginTeardown = static_cast<bool *>(PluginParameter);
+  *pluginTeardown = true;
   // Fetch the single known adapter (the one which is statically linked) so we
   // can release it. Fetching it for a second time (after piPlatformsGet)
   // increases the reference count, so we need to release it twice.
@@ -1253,6 +1254,8 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
+                             UR_DEVICE_INFO_ESIMD_SUPPORT)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
