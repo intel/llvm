@@ -110,6 +110,8 @@ private:
       return "i";
     case mlir::sycl::Target::HostBuffer:
       return "hb";
+    case mlir::sycl::Target::HostTask:
+      return "ht";
     case mlir::sycl::Target::HostImage:
       return "hi";
     case mlir::sycl::Target::ImageArray:
