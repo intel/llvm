@@ -116,7 +116,7 @@ creating an OpenCL library.
 The kernel compiler can be used to create an OpenCL program, but not an OpenCL
 library.
 
-=== Obtaining a kernel from its name
+=== Obtaining a kernel
 
 OpenCL C kernel functions do not support {cpp} features like overloads or
 templates.
@@ -137,6 +137,10 @@ Then the application's host code can query for the kernel like so:
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
 ```
+
+There is no mechanism to decorate an OpenCL C kernel with a type-name, so the
+forms of `kernel_bundle::has_kernel` or `kernel_bundle::get_kernel` that take a
+type-name are not useful for kernels defined in OpenCL C.
 
 
 == Example

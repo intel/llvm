@@ -373,6 +373,24 @@ Therefore, the function `kernel_bundle::get_kernel_ids` returns an empty vector
 of `kernel_id` objects if the kernel bundle was created from a bundle of state
 `bundle_state::ext_oneapi_source`.
 
+Depending on the source language, the following kernel bundle functions may be
+used to query for a kernel when the kernel bundle was created from a bundle of
+state `bundle_state::ext_oneapi_source`.
+
+```
+template <typename KernelName>
+bool has_kernel() const noexcept;
+
+template <typename KernelName>
+bool has_kernel(const device& dev) const noexcept;
+
+template <typename KernelName>
+kernel get_kernel() const;
+```
+
+The specification for each source language tells how these functions behave and
+how the `KernelName` is interpreted.
+
 === New kernel bundle member functions
 
 This extensions adds the following new `kernel_bundle` member functions:
