@@ -3232,13 +3232,21 @@ ExprResult Parser::ParseCXXMemberInitializer(Decl *D, bool IsFunction,
   assert(Tok.isOneOf(tok::equal, tok::l_brace) &&
          "Data member initializer not starting with '=' or '{'");
 
+  bool IsFieldInitialization = isa_and_present<FieldDecl>(D);
+
   EnterExpressionEvaluationContext Context(
       Actions,
-      isa_and_present<FieldDecl>(D)
+      IsFieldInitialization
           ? Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed
           : Sema::ExpressionEvaluationContext::PotentiallyEvaluated,
       D);
-  Actions.ExprEvalContexts.back().InImmediateEscalatingFunctionContext = true;
+
+  // CWG2760
+  // Default member initializers used to initialize a base or member subobject
+  // [...] are considered to be part of the function body
+  Actions.ExprEvalContexts.back().InImmediateEscalatingFunctionContext =
+      IsFieldInitialization;
+
   if (TryConsumeToken(tok::equal, EqualLoc)) {
     if (Tok.is(tok::kw_delete)) {
       // In principle, an initializer of '= delete p;' is legal, but it will
@@ -3975,7 +3983,11 @@ ExceptionSpecificationType Parser::tryParseExceptionSpecification(
     // There is an argument.
     BalancedDelimiterTracker T(*this, tok::l_paren);
     T.consumeOpen();
-    NoexceptExpr = ParseConstantExpression();
+
+    EnterExpressionEvaluationContext ConstantEvaluated(
+        Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+    NoexceptExpr = ParseConstantExpressionInExprEvalContext();
+
     T.consumeClose();
     if (!NoexceptExpr.isInvalid()) {
       NoexceptExpr =

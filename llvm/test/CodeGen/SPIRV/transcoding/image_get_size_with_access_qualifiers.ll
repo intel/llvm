@@ -7,12 +7,10 @@
 ; CHECK-SPIRV:     %[[#ImageArgID:]] = OpFunctionParameter %[[#ImageTyID]]
 ; CHECK-SPIRV:     %[[#]] = OpImageQuerySizeLod %[[#VectorTyID]] %[[#ImageArgID]]
 
-%opencl.image2d_array_ro_t = type opaque
-
-define spir_kernel void @sample_kernel(%opencl.image2d_array_ro_t addrspace(1)* %input) {
+define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0) %input) {
 entry:
-  %call = call spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)* %input)
+  %call = call spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0) %input)
   ret void
 }
 
-declare spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)*)
+declare spir_func i32 @_Z15get_image_width20ocl_image2d_array_ro(target("spirv.Image", void, 1, 0, 1, 0, 0, 0, 0))

@@ -63,6 +63,9 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
+#include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
+#include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
@@ -91,3 +94,9 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+
+#ifndef SYCL2020_CONFORMANT_APIS
+// We used to include those and some code might be reliant on that.
+#include <cmath>
+#include <complex>
+#endif
