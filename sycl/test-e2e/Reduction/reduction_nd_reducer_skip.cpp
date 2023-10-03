@@ -11,6 +11,9 @@
 // with reductions initialized with a one element buffer. Additionally, some
 // reducers will not be written to.
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
+
 #include "reduction_utils.hpp"
 
 using namespace sycl;

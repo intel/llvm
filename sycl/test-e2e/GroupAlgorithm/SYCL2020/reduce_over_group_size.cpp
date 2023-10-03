@@ -10,16 +10,14 @@
 // RUN: %{build} -O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
 
-// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
-// XFAIL: cpu
-
 /*
     test performs a lattice reduction.
     sycl::vec<float> is sensitive to .get_size() vs .size() in SYCL headers
     (ie, byte size versus vector size)
 */
 
-#error FIXME: Test times-out
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
 
 #include <sycl/sycl.hpp>
 

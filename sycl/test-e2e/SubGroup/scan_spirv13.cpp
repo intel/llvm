@@ -4,7 +4,8 @@
 // This test verifies the correct work of SPIR-V 1.3 exclusive_scan() and
 // inclusive_scan() algoriths used with the operation MUL, bitwise OR, XOR, AND.
 
-#error FIXME: Test times-out
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
 
 #include "scan.hpp"
 #include <iostream>

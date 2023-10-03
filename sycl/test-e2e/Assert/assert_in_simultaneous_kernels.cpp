@@ -3,6 +3,9 @@
 // UNSUPPORTED: hip || cuda
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
 //
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 // Since this is a multi-threaded application enable memory tracking and
 // deferred release feature in the Level Zero plugin to avoid releasing memory
 // too early. This is necessary because currently SYCL RT sets indirect access
