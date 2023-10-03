@@ -310,6 +310,11 @@ void diagnostics()
   [[intel::merge("mrg7", "width")]] // expected-note {{previous attribute is here}}
   [[intel::merge("mrg8", "width")]] unsigned int mrg_mrg2[4];
 
+  // Checking of duplicate argument values.
+  // No diagnostic is emitted because the arguments match.
+  [[intel::merge("mrg9", "depth")]]
+  [[intel::merge("mrg9", "depth")]] unsigned int mrg_mrg3[4]; // OK
+
   // **bank_bits
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
   [[intel::bank_bits(2, 3)]]

@@ -263,7 +263,7 @@ void check_ast()
   //CHECK: SYCLIntelMergeAttr{{.*}}"mrg6" "depth"
   //CHECK-NOT: SYCLIntelMergeAttr
   [[intel::merge("mrg6", "depth")]]
-  [[intel::merge("mrg6", "depth")]] unsigned int mrg_mrg6[4];  // OK
+  [[intel::merge("mrg6", "depth")]] unsigned int mrg_mrg6[4];
 
   // FIXME: Duplicate attribute should be ignored.
   // Both are applied at the moment.
