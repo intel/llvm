@@ -15,7 +15,6 @@ list(APPEND MLIR_CLANG_TEST_DEPS
   llvm-config 
   llvm-dis
   llvm-as
-  mlir-translate
   opt
   split-file
   sycl-toolchain
