@@ -15,12 +15,10 @@
 
 // XFAIL: gpu
 
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
 

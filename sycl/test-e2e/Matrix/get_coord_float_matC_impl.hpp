@@ -92,7 +92,7 @@ int main() {
     for (int j = 0; j < MATRIX_N; j++) {
       sum_rows_ref[i] += C[i][j];
     }
-    if (fabs(sum_rows_ref[i] - sum_rows[i]) > FLOAT_EPSILON)
+    if (std::fabs(sum_rows_ref[i] - sum_rows[i]) > FLOAT_EPSILON)
       res = false;
   }
 

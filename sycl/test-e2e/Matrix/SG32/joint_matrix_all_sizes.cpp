@@ -10,12 +10,11 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
+#include "../common.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 constexpr size_t SG_SZ = 32;
 // Sub-matrix N dimension

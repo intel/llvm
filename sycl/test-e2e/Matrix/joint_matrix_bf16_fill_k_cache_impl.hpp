@@ -54,12 +54,6 @@ constexpr unsigned int recordThresh = 10;
 
 #define BF16_EPSILON 0.00781250
 
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  return *(reinterpret_cast<float *>(&y));
-}
-
 #ifdef MANUAL_UNROLL
 template <class T, T... inds, class F>
 static constexpr void loop(std::integer_sequence<T, inds...>, F &&f) {
@@ -314,35 +308,6 @@ void native_matmul(bfloat16 *A, bfloat16 *B, float *C) {
   }
 }
 
-int verify_result(float *result, float *ref, float floatTol = BF16_EPSILON) {
-  for (unsigned int i = 0; i < MATRIX_SIZE; i++) {
-    for (unsigned int j = 0; j < MATRIX_SIZE; j++) {
-      float a = result[i * MATRIX_SIZE + j];
-      float b = ref[i * MATRIX_SIZE + j];
-      if ((fabs(a - b)) > floatTol) {
-        std::cout << "failed at index " << i << ", " << j << ", res " << a
-                  << " != ref " << b << " difference is " << a - b << "\n";
-        return 1;
-      }
-    }
-  }
-
-  return 0;
-}
-
-template <typename T>
-void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
-                 unsigned int vnniFactor = 2) {
-  for (unsigned int i = 0; i < rows / vnniFactor; i++) {
-    for (unsigned int j = 0; j < cols; j++) {
-      for (unsigned int k = 0; k < vnniFactor; k++) {
-        dest[i * cols * vnniFactor + j * vnniFactor + k] =
-            src[(i * vnniFactor + k) * cols + j];
-      }
-    }
-  }
-}
-
 int main(void) {
   assert(MATRIX_SIZE >= tM && MATRIX_SIZE >= tK && MATRIX_SIZE >= tN &&
          "invalid matrix size");
@@ -374,7 +339,7 @@ int main(void) {
     }
   }
 
-  int ret = verify_result(C, refC);
+  bool result = matrix_compare(MATRIX_SIZE, MATRIX_SIZE, C, refC);
 
   double msecPerMatrixMul =
       totalDuration / static_cast<double>(testIterations - recordThresh);
@@ -390,5 +355,5 @@ int main(void) {
   free(C, q);
   free(refC, q);
 
-  return ret;
+  return !result;
 }

@@ -10,8 +10,7 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

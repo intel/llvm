@@ -10,6 +10,7 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
+#include "../common.hpp"
 #include <cstddef>
 
 constexpr size_t SG_SZ = 32;

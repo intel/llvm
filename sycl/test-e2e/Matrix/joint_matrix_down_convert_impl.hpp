@@ -79,7 +79,7 @@ int main() {
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   matrix_copy(MC, MA);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, *A, *C);
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (bfloat16 *)A, (float *)C);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }
