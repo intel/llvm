@@ -37,8 +37,7 @@ namespace esimd_test {
 // Require GPU device
 inline int ESIMDSelector(const device &device) {
   const std::string intel{"Intel(R) Corporation"};
-  if (device.is_gpu() &&
-      (device.get_info<info::device::vendor>() == intel)) {
+  if (device.is_gpu() && (device.get_info<info::device::vendor>() == intel)) {
     // pick gpu device if esimd not available but give it a lower score in
     // order not to compete with the esimd in environments where both are
     // present

@@ -167,8 +167,7 @@ int main(int argc, char *argv[]) {
   fclose(dumpfile);
 
   bool passed = true;
-  if (!esimd_test::cmp_binary_files<unsigned char>(
-          out_file, argv[2], 0, 0)) {
+  if (!esimd_test::cmp_binary_files<unsigned char>(out_file, argv[2], 0, 0)) {
     std::cerr << out_file << " does not match the reference file " << argv[2]
               << std::endl;
     passed = false;
