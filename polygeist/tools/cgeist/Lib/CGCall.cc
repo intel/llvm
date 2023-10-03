@@ -1148,8 +1148,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     Args.emplace_back(std::make_pair(Obj, (clang::Expr *)nullptr));
   }
 
-  for (auto *A : Expr->arguments())
+  const clang::CodeGen::CGFunctionInfo &CalleeInfo =
+      Glob.getOrCreateCGFunctionInfo(Callee);
+  for (auto [I, A] : llvm::enumerate(Expr->arguments())) {
+    // No IR argument corresponding to clang argument
+    if (CalleeInfo.arguments()[I].info.getKind() ==
+        clang::CodeGen::ABIArgInfo::Ignore)
+      continue;
     Args.push_back(std::make_pair(Visit(A), A));
+  }
 
   return callHelper(ToCall, ObjType, Args, Expr->getType(),
                     Expr->isLValue() || Expr->isXValue(), Expr, *Callee);

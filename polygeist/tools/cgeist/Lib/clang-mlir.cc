@@ -130,7 +130,11 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
   auto FIArgs = FI.arguments();
 
   for (clang::ParmVarDecl *Parm : FD->parameters()) {
-    assert(I != Function.getNumArguments());
+    // No IR argument corresponding to clang argument
+    if (FIArgs[I].info.getKind() == clang::CodeGen::ABIArgInfo::Ignore) {
+      ++I;
+      continue;
+    }
 
     clang::QualType ParmType = Parm->getType();
 
