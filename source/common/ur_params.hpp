@@ -9649,20 +9649,20 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value) {
     switch (value) {
 
-    case UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE:
-        os << "UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE";
+    case UR_EXECUTION_INFO_COMPLETE:
+        os << "UR_EXECUTION_INFO_COMPLETE";
         break;
 
-    case UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING:
-        os << "UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING";
+    case UR_EXECUTION_INFO_RUNNING:
+        os << "UR_EXECUTION_INFO_RUNNING";
         break;
 
-    case UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED:
-        os << "UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED";
+    case UR_EXECUTION_INFO_SUBMITTED:
+        os << "UR_EXECUTION_INFO_SUBMITTED";
         break;
 
-    case UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED:
-        os << "UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED";
+    case UR_EXECUTION_INFO_QUEUED:
+        os << "UR_EXECUTION_INFO_QUEUED";
         break;
     default:
         os << "unknown enumerator";

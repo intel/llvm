@@ -319,13 +319,13 @@ desc: "Event states for all events."
 class: $xEvent
 name: $x_execution_info_t
 etors:
-    - name: EXECUTION_INFO_COMPLETE
+    - name: COMPLETE
       desc: "Indicates that the event has completed."
-    - name: EXECUTION_INFO_RUNNING
+    - name: RUNNING
       desc: "Indicates that the device has started processing this event."
-    - name: EXECUTION_INFO_SUBMITTED
+    - name: SUBMITTED
       desc: "Indicates that the event has been submitted by the host to the device."
-    - name: EXECUTION_INFO_QUEUED
+    - name: QUEUED
       desc: "Indicates that the event has been queued, this is the initial state of events."
 --- #--------------------------------------------------------------------------
 type: fptr_typedef
@@ -351,6 +351,7 @@ decl: static
 ordinal: "0"
 details:
     - "The registered callback function will be called when the execution status of command associated with event changes to an execution status equal to or past the status specified by command_exec_status."
+    - "`execStatus` must not be `UR_EXECUTION_INFO_QUEUED` as this is the initial state of all events."
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
 params:
@@ -366,3 +367,6 @@ params:
     - type: void*
       name: pUserData
       desc: "[in][out][optional] pointer to data to be passed to callback."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "`execStatus == UR_EXECUTION_INFO_QUEUED`"
