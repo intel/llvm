@@ -13,7 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#error FIXME: Test times-out
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
 
 // This test checks correctness of hierarchical kernel execution when there is
 // code and data in the work group scope.

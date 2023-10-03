@@ -12,6 +12,9 @@
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reduction and conditional increment of the reduction variable.
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
+
 #include "reduction_utils.hpp"
 
 using namespace sycl;

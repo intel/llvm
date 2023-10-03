@@ -12,6 +12,9 @@
 // where the bigger data size and/or non-uniform work-group sizes may cause
 // errors.
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
+
 #include "reduction_utils.hpp"
 
 #include <algorithm>

@@ -10,6 +10,9 @@
 // This test only checks that the method queue::parallel_for() accepting
 // reduction, can be properly translated into queue::submit + parallel_for().
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
+
 #include "reduction_utils.hpp"
 
 using namespace sycl;

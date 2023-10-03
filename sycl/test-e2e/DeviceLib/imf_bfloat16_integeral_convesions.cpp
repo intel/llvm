@@ -9,7 +9,8 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
-#error FIXME: Test times-out
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>

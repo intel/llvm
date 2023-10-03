@@ -8,6 +8,9 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
+
 #include "reduction_utils.hpp"
 
 // This test performs basic checks of parallel_for(range<1>, reduction, func)

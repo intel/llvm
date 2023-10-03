@@ -7,6 +7,9 @@
 // This test performs basic checks of parallel_for(range<3>, reduction, func)
 // with reductions initialized with a one element buffer.
 
+// https://github.com/intel/llvm/issues/7585 to fix the time out failure:
+#error FIXME: Test timed-out
+
 #include "reduction_utils.hpp"
 
 using namespace sycl;

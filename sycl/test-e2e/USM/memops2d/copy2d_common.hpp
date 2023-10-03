@@ -1,9 +1,7 @@
 #pragma once
 
 // https://github.com/intel/llvm/issues/7585 to fix the time out failure:
-// XFAIL: cpu,gpu
-
-#error FIXME: Test times-out
+#error FIXME: Test timed-out
 
 #include <sycl/sycl.hpp>
 
