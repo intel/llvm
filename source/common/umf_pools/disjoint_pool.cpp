@@ -894,6 +894,12 @@ umf_result_t DisjointPool::initialize(umf_memory_provider_handle_t *providers,
     if (numProviders != 1 || !providers[0]) {
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
+    // MinBucketSize parameter must be a power of 2 for bucket sizes
+    // to generate correctly.
+    if (!parameters.MinBucketSize ||
+        !((parameters.MinBucketSize & (parameters.MinBucketSize - 1)) == 0)) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
 
     impl = std::make_unique<AllocImpl>(providers[0], parameters);
     return UMF_RESULT_SUCCESS;
