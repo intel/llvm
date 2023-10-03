@@ -45,7 +45,8 @@ class DisjointPoolConfig {
     size_t Capacity = 0;
 
     // Holds the minimum bucket size valid for allocation of a memory type.
-    size_t MinBucketSize = 0;
+    // This value must be a power of 2.
+    size_t MinBucketSize = 1;
 
     // Holds size of the pool managed by the allocator.
     size_t CurPoolSize = 0;
