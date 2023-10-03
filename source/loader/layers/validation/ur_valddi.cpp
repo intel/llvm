@@ -3888,8 +3888,12 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus) {
+        if (UR_EXECUTION_INFO_QUEUED < execStatus) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (execStatus == UR_EXECUTION_INFO_QUEUED) {
+            return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
         }
     }
 
