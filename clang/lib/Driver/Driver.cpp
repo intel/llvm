@@ -4964,7 +4964,12 @@ class OffloadingActionBuilder final {
             CAList.push_back(A);
             ActionList AL;
             appendSYCLDeviceLink(CAList, TargetInfo.TC, DA, AL,
-                                 TargetInfo.BoundArch, true);
+                                 TargetInfo.BoundArch,
+                                 /*AddOffloadAction=*/true);
+            // The list of actions generated from appendSYCLDeviceLink is
+            // kept in AL.  Instead of adding the dependency on the compiled
+            // device file, add the dependency against the compiled device
+            // binary to be added to the resulting fat object.
             A = AL.back();
           }
           DeviceCompilerInput = A;
@@ -5236,7 +5241,7 @@ class OffloadingActionBuilder final {
     // worked against to add the device link steps.  This is also used to change
     // how the toolchain is formed, either by dependency additions or by adding
     // actions explicitly.
-    void appendSYCLDeviceLink(ActionList &ListIndex, const ToolChain *TC,
+    void appendSYCLDeviceLink(const ActionList &ListIndex, const ToolChain *TC,
                               OffloadAction::DeviceDependences &DA,
                               ActionList &AL, const char *BoundArch,
                               bool AddOffloadAction = false) {
@@ -6483,7 +6488,7 @@ class OffloadingActionBuilder final {
         for (StringRef LA : LinkArgs) {
           SmallVector<std::string, 4> DeviceTargets(
               deviceBinarySections(C, LA));
-          if (DeviceTargets.size()) {
+          if (!DeviceTargets.empty()) {
             bool IsArchive = isStaticArchiveFile(LA);
             types::ID FileType =
                 IsArchive ? types::TY_Archive : types::TY_Object;
@@ -6531,9 +6536,6 @@ class OffloadingActionBuilder final {
   /// Flag set to true if all valid builders allow file bundling/unbundling.
   bool CanUseBundler;
 
-  /// Flag set to true if we are performing early full device compilation
-  bool LinkDevice;
-
 public:
   OffloadingActionBuilder(Compilation &C, DerivedArgList &Args,
                           const Driver::InputList &Inputs)
@@ -6577,8 +6579,6 @@ public:
     }
     CanUseBundler =
         ValidBuilders && ValidBuilders == ValidBuildersSupportingBundling;
-
-    LinkDevice = tools::SYCL::shouldDoPerObjectFileLinking(C);
   }
 
   ~OffloadingActionBuilder() {
@@ -6855,8 +6855,7 @@ public:
       // We expect that the host action was just appended to the action list
       // before this method was called.
       assert(HostAction == AL.back() && "Host action not in the list??");
-      auto *BundlingAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
-      HostAction = BundlingAction;
+      HostAction = C.MakeAction<OffloadBundlingJobAction>(OffloadAL);
       recordHostAction(HostAction, InputArg);
       AL.back() = HostAction;
     } else
@@ -7283,6 +7282,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       C.isOffloadingHostKind(Action::OFK_OpenMP) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver, false);
+
   // Builder to be used to build offloading actions.
   std::unique_ptr<OffloadingActionBuilder> OffloadBuilder =
       !UseNewOffloadingDriver

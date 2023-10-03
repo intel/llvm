@@ -8,9 +8,9 @@
 // RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE
 // CREATE_IMAGE: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BC:.+\.bc]]"
-// CREATE_IMAGE: llvm-link{{.*}} "-o" "[[DEVICE_BC2:.+\.bc]]"
-// CREATE_IMAGE: llvm-link{{.*}} "[[DEVICE_BC]]" "[[DEVICE_BC2]]"{{.*}} "-o" "[[DEVICE_BC3:.+\.bc]]"
-// CREATE_IMAGE: sycl-post-link{{.*}} "-o" "[[POSTLINK_TABLE:.+\.table]]" "[[DEVICE_BC3]]"
+// CREATE_IMAGE: llvm-link{{.*}} "-o" "[[LIB_DEVICE_BC:.+\.bc]]"
+// CREATE_IMAGE: llvm-link{{.*}} "[[DEVICE_BC]]" "[[LIB_DEVICE_BC]]"{{.*}} "-o" "[[FINAL_DEVICE_BC:.+\.bc]]"
+// CREATE_IMAGE: sycl-post-link{{.*}} "-o" "[[POSTLINK_TABLE:.+\.table]]" "[[FINAL_DEVICE_BC]]"
 // CREATE_IMAGE: file-table-tform{{.*}} "-o" "[[TFORM_TXT:.+\.txt]]" "[[POSTLINK_TABLE]]"
 // CREATE_IMAGE: llvm-spirv{{.*}} "-o" "[[LLVMSPIRV_TXT:.+\.txt]]"{{.*}} "[[TFORM_TXT]]"
 // CREATE_IMAGE: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.out]]" "-file" "[[LLVMSPIRV_TXT]]"{{.*}} "-device" "skl"

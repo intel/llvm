@@ -9248,7 +9248,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
   }
-
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   if (IsFPGADepBundle) {
