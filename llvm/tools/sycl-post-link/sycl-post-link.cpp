@@ -1030,6 +1030,7 @@ processInputModule(std::unique_ptr<Module> M) {
         error("some modules had to be split, '-" + IROutputOnly.ArgStr +
               "' can't be used");
       }
+      MMs.front().cleanup();
       saveModuleIR(MMs.front().getModule(), OutputFilename);
       return Table;
     }
@@ -1044,6 +1045,7 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
+      IrMD.cleanup();
       IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
       addTableRow(*Table, T);
     }
