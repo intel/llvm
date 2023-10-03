@@ -668,6 +668,7 @@ IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
     // don't save IR, just record the filename
     Res.Ir = IRFilename.str();
   } else {
+    MD.cleanup();
     Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
   GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
@@ -1045,7 +1046,6 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
-      IrMD.cleanup();
       IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
       addTableRow(*Table, T);
     }

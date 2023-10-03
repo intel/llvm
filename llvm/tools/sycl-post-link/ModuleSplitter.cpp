@@ -315,7 +315,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
-  // sycl-post-link. This call is redundant. Hiwever, we subsequently run
+  // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
   SplitM.cleanup();
@@ -341,7 +341,7 @@ ModuleDesc extractESIMDSubModule(const ModuleDesc &MD,
 
   ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   // TODO: cleanup pass is now called for each output module at the end of
-  // sycl-post-link. This call is redundant. Hiwever, we subsequently run
+  // sycl-post-link. This call is redundant. However, we subsequently run
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
   SplitM.cleanup();
@@ -358,7 +358,7 @@ public:
     // Do some basic optimization like unused symbol removal
     // even if there was no split.
     // TODO: cleanup pass is now called for each output module at the end of
-    // sycl-post-link. This call is redundant. Hiwever, we subsequently run
+    // sycl-post-link. This call is redundant. However, we subsequently run
     // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup
     // call can be removed once that pass no longer depends on this cleanup.
     Desc.cleanup();
