@@ -63,7 +63,7 @@ static bool isSYCLInnerDisjointArgument(Value val) {
 // type.
 static bool isMemRefOfSYCLType(Type ty) {
   if (auto mt = dyn_cast<MemRefType>(ty))
-    return sycl::isSYCLType(mt.getElementType());
+    return isa<sycl::SYCLType>(mt.getElementType());
   return false;
 }
 

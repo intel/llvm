@@ -18,6 +18,10 @@ static bool isMemRefWithExpectedShape(MemRefType mt) {
           mt.getLayout().isIdentity());
 }
 
+bool SYCLType::classof(Type type) {
+  return llvm::isa<SYCLDialect>(type.getDialect());
+}
+
 llvm::SmallVector<TypeID> getDerivedTypes(TypeID typeID) {
   if (typeID == AccessorCommonType::getTypeID())
     return {AccessorType::getTypeID()};

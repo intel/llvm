@@ -1568,7 +1568,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       // a sycl::Functor type, that will help us get rid of those conditions.
       bool InnerSYCL = false;
       if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(SubType))
-        InnerSYCL |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
+        InnerSYCL |= any_of(ST.getBody(), sycl::SYCLType::classof);
 
       if (!InnerSYCL)
         return getPointerType(SubType, CGM.getContext().getTargetAddressSpace(
@@ -1816,9 +1816,9 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 bool IsAlloc) const {
   auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(Ty);
 
-  bool IsSYCLType = mlir::sycl::isSYCLType(Ty);
+  bool IsSYCLType = isa<sycl::SYCLType>(Ty);
   if (ST)
-    IsSYCLType |= any_of(ST.getBody(), mlir::sycl::isSYCLType);
+    IsSYCLType |= any_of(ST.getBody(), sycl::SYCLType::classof);
 
   if (!ST || IsSYCLType)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},

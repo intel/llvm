@@ -1109,7 +1109,7 @@ Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
   auto MT = cast<MemRefType>(V.getType());
   Type ElemTy = MT.getElementType();
   assert(isa<T>(ElemTy) && "Expecting element type to be the templated type");
-  assert(sycl::isSYCLType(ElemTy) && "Expecting SYCL element type");
+  assert(isa<sycl::SYCLType>(ElemTy) && "Expecting SYCL element type");
   auto SYCLElemTy = cast<T>(ElemTy);
   assert(FNum < SYCLElemTy.getBody().size() && "ERROR");
 
@@ -1213,7 +1213,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
                                                    getConstantIndex(FNum));
-  } else if (sycl::isSYCLType(MT.getElementType())) {
+  } else if (isa<sycl::SYCLType>(MT.getElementType())) {
     Type ElemTy = MT.getElementType();
     std::pair<Value, Type> ResultAndType =
         TypeSwitch<Type, std::pair<Value, Type>>(ElemTy)
