@@ -244,8 +244,8 @@ void GlobalHandler::releaseDefaultContexts() {
 }
 
 struct DefaultContextReleaseHandler {
-  ~DefaultContextReleaseHandler() {
-    GlobalHandler::instance().releaseDefaultContexts();
+  DefaultContextReleaseHandler() {
+    atexit([] { GlobalHandler::instance().releaseDefaultContexts(); });
   }
 };
 
