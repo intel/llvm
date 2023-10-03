@@ -317,7 +317,6 @@ ESIMD/vadd_usm.cpp
 ESIMD/vadd_usm_opqptr.cpp
 ESIMD/wait.cpp
 Functor/functor_inheritance.cpp
-Graph/Explicit/buffer_ordering.cpp
 Graph/RecordReplay/dotp_buffer_reduction.cpp
 Graph/RecordReplay/dotp_usm_reduction.cpp
 Graph/RecordReplay/sub_graph_reduction.cpp
