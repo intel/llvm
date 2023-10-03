@@ -4958,15 +4958,15 @@ class OffloadingActionBuilder final {
               TargetTriple.isSPIRAOT() && FinalPhase != phases::Link) {
             ActionList CAList;
             CAList.push_back(A);
-            ActionList AL;
-            appendSYCLDeviceLink(CAList, TargetInfo.TC, DA, AL,
+            ActionList DeviceLinkActions;
+            appendSYCLDeviceLink(CAList, TargetInfo.TC, DA, DeviceLinkActions,
                                  TargetInfo.BoundArch,
                                  /*AddOffloadAction=*/true);
-            // The list of actions generated from appendSYCLDeviceLink is
-            // kept in AL.  Instead of adding the dependency on the compiled
-            // device file, add the dependency against the compiled device
-            // binary to be added to the resulting fat object.
-            A = AL.back();
+            // The list of actions generated from appendSYCLDeviceLink is kept
+            // in DeviceLinkActions.  Instead of adding the dependency on the
+            // compiled device file, add the dependency against the compiled
+            // device binary to be added to the resulting fat object.
+            A = DeviceLinkActions.back();
           }
           DeviceCompilerInput = A;
         }
@@ -5229,21 +5229,27 @@ class OffloadingActionBuilder final {
     // Performs device specific linking steps for the SYCL based toolchain.
     // This function is used for both the early AOT flow and the typical
     // offload device link flow.
-    // The ListIndex input provides an index against the SYCLTargetInfoList
-    // used to determine associated toolchain information for the values being
-    // worked against to add the device link steps.  This is also used to change
-    // how the toolchain is formed, either by dependency additions or by adding
-    // actions explicitly.
+    // When creating the standard offload device link flow during the link
+    // phase, the ListIndex input provides an index against the
+    // SYCLTargetInfoList. This is used to determine associated toolchain
+    // information for the values being worked against to add the device link
+    // steps. The generated device link steps are added via dependency
+    // additions. For early AOT, ListIndex is the base device file that the
+    // created device linking actions are performed against. The
+    // DeviceLinkActions is used to hold the actions generated to be added to
+    // the toolchain.
     void appendSYCLDeviceLink(const ActionList &ListIndex, const ToolChain *TC,
                               OffloadAction::DeviceDependences &DA,
-                              ActionList &AL, const char *BoundArch,
+                              ActionList &DeviceLinkActions,
+                              const char *BoundArch,
                               bool AddOffloadAction = false) {
       auto addDeps = [&](Action *A, const ToolChain *TC,
                          const char *BoundArch) {
         if (AddOffloadAction) {
           OffloadAction::DeviceDependences Deps;
           Deps.add(*A, *TC, BoundArch, Action::OFK_SYCL);
-          AL.push_back(C.MakeAction<OffloadAction>(Deps, A->getType()));
+          DeviceLinkActions.push_back(
+              C.MakeAction<OffloadAction>(Deps, A->getType()));
         } else {
           DA.add(*A, *TC, BoundArch, Action::OFK_SYCL);
         }
