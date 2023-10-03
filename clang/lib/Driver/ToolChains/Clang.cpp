@@ -9164,10 +9164,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     // This is done for AOT targets only.
     std::string DeviceArch;
     llvm::Triple TargetTriple(CurTC->getTriple());
-    bool IsAOT = TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                 TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                 TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-    if (CurKind == Action::OFK_SYCL && IsAOT &&
+    if (CurKind == Action::OFK_SYCL && TargetTriple.isSPIRAOT() &&
         tools::SYCL::shouldDoPerObjectFileLinking(C))
       DeviceArch = std::string("image");
     if (CurKind != Action::OFK_Host && !DeviceArch.empty()) {

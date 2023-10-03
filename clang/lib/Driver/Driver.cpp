@@ -4954,12 +4954,8 @@ class OffloadingActionBuilder final {
           // specified. Device linking is only available for AOT at this
           // time.
           llvm::Triple TargetTriple = TargetInfo.TC->getTriple();
-          bool IsAOT =
-              TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-              TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-              TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-          if (tools::SYCL::shouldDoPerObjectFileLinking(C) && IsAOT &&
-              FinalPhase != phases::Link) {
+          if (tools::SYCL::shouldDoPerObjectFileLinking(C) &&
+              TargetTriple.isSPIRAOT() && FinalPhase != phases::Link) {
             ActionList CAList;
             CAList.push_back(A);
             ActionList AL;
@@ -5031,9 +5027,6 @@ class OffloadingActionBuilder final {
             // be linked by default to resolve any undefined reference.
             const auto *TC = ToolChains.front();
             llvm::Triple TT(TC->getTriple());
-            bool isAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-                         TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-                         TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
             if (TT.getSubArch() != llvm::Triple::SPIRSubArch_fpga) {
               SYCLDeviceLibLinked =
                   addSYCLDeviceLibs(TC, FullSYCLLinkBinaryList, true,
@@ -5051,7 +5044,7 @@ class OffloadingActionBuilder final {
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
                 FullDeviceLinkAction, types::TY_LLVM_BC,
                 types::TY_Tempfiletable);
-            PostLinkAction->setRTSetsSpecConstants(!isAOT);
+            PostLinkAction->setRTSetsSpecConstants(!TT.isSPIRAOT());
             auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
                 PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
             // single column w/o title fits TY_Tempfilelist format
@@ -5269,10 +5262,7 @@ class OffloadingActionBuilder final {
       auto IsNVPTX = TargetTriple.isNVPTX();
       auto IsAMDGCN = TargetTriple.isAMDGCN();
       auto IsSPIR = TargetTriple.isSPIR();
-      bool IsSpirvAOT =
-          TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
-          TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
-          TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+      bool IsSpirvAOT = TargetTriple.isSPIRAOT();
       const bool IsSYCLNativeCPU =
           TC->getAuxTriple() &&
           driver::isSYCLNativeCPU(TargetTriple, *TC->getAuxTriple());
