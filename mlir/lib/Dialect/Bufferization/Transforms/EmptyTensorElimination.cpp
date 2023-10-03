@@ -110,6 +110,7 @@ LogicalResult mlir::bufferization::eliminateEmptyTensors(
     // be replaced, but the transformation may not be beneficial.
     if (!state.isInPlace(source))
       return WalkResult::skip();
+
     // All values that are needed to create the replacement op.
     SmallVector<Value> neededValues =
         op.getValuesNeededToBuildSubsetExtraction();
@@ -182,7 +183,7 @@ struct EmptyTensorElimination
 void EmptyTensorElimination::runOnOperation() {
   Operation *op = getOperation();
   OneShotBufferizationOptions options;
-  options.allowReturnAllocs = true;
+  options.allowReturnAllocsFromLoops = true;
   OneShotAnalysisState state(op, options);
   if (failed(analyzeOp(op, state))) {
     signalPassFailure();

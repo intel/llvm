@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMOrcJIT
   CompileUtils.cpp
   Core.cpp
   DebugObjectManagerPlugin.cpp
+  DebuggerSupport.cpp
   DebuggerSupportPlugin.cpp
   DebugUtils.cpp
   EPCDynamicLibrarySearchGenerator.cpp
@@ -41,6 +42,7 @@ add_llvm_component_library(LLVMOrcJIT
   ObjectTransformLayer.cpp
   OrcABISupport.cpp
   OrcV2CBindings.cpp
+  PerfSupportPlugin.cpp
   RTDyldObjectLinkingLayer.cpp
   SimpleRemoteEPC.cpp
   Speculation.cpp

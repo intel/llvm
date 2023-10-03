@@ -28,10 +28,10 @@ ur_result_t mapErrorUR(hipError_t Result) {
   }
 }
 
-ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
-                         const char *File) {
+void checkErrorUR(hipError_t Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == hipSuccess) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
   if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
@@ -56,10 +56,10 @@ ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
   throw mapErrorUR(Result);
 }
 
-ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
-                         const char *File) {
+void checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == UR_RESULT_SUCCESS) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
   if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||

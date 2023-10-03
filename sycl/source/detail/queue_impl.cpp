@@ -67,7 +67,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // information
   XPTIScope PrepareNotify((void *)this,
                           (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memset()");
+                          SYCL_STREAM_NAME, "memory_transfer_node");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
@@ -143,7 +143,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   // pointer.
   XPTIScope PrepareNotify((void *)this,
                           (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memcpy()");
+                          SYCL_STREAM_NAME, "memory_transfer_node");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
                       reinterpret_cast<size_t>(
@@ -559,7 +559,9 @@ pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
 }
 
 void queue_impl::cleanup_fusion_cmd() {
-  detail::Scheduler::getInstance().cleanUpCmdFusion(this);
+  // Clean up only if a scheduler instance exits.
+  if (detail::Scheduler::isInstanceAlive())
+    detail::Scheduler::getInstance().cleanUpCmdFusion(this);
 }
 
 bool queue_impl::ext_oneapi_empty() const {
