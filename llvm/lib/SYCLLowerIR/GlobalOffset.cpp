@@ -17,6 +17,7 @@
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "iostream"
 
 using namespace llvm;
 
@@ -61,9 +62,6 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
 
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
-  if (!EnableGlobalOffset)
-    return PreservedAnalyses::all();
-
   AT = TargetHelpers::getArchType(M);
   Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
       AT == ArchType::Cuda
@@ -73,6 +71,12 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty())
     return PreservedAnalyses::all();
 
+  if (!EnableGlobalOffset) {
+    ImplicitOffsetIntrinsic->replaceAllUsesWith(
+       Constant::getNullValue(ImplicitOffsetIntrinsic->getType()));
+    ImplicitOffsetIntrinsic->eraseFromParent();
+    return PreservedAnalyses::none();
+  }
   // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
   // happy with ADDRESS_SPACE_GENERIC (0).
   TargetAS = AT == ArchType::Cuda ? 0 : 5;
