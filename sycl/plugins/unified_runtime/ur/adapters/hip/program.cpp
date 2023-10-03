@@ -49,17 +49,13 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
   Options[3] = hipJitOptionErrorLogBufferSizeBytes;
   OptionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
-  auto Result = UR_CHECK_ERROR(
-      hipModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
-                          NumberOfOptions, Options, OptionVals));
+  UR_CHECK_ERROR(hipModuleLoadDataEx(&Module, static_cast<const void *>(Binary),
+                                     NumberOfOptions, Options, OptionVals));
 
-  const bool Success = (Result == UR_RESULT_SUCCESS);
-
-  BuildStatus =
-      Success ? UR_PROGRAM_BUILD_STATUS_SUCCESS : UR_PROGRAM_BUILD_STATUS_ERROR;
+  BuildStatus = UR_PROGRAM_BUILD_STATUS_SUCCESS;
 
   // If no exception, result is correct
-  return Success ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
+  return UR_RESULT_SUCCESS;
 }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
@@ -212,7 +208,8 @@ urProgramRelease(ur_program_handle_t hProgram) {
       ScopedContext Active(hProgram->getContext()->getDevice());
       auto HIPModule = hProgram->get();
       if (HIPModule) {
-        Result = UR_CHECK_ERROR(hipModuleUnload(HIPModule));
+        UR_CHECK_ERROR(hipModuleUnload(HIPModule));
+        Result = UR_RESULT_SUCCESS;
       } else {
         // no module to unload
         Result = UR_RESULT_SUCCESS;
@@ -296,7 +293,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   if (Ret != hipSuccess && Ret != hipErrorNotFound)
-    Result = UR_CHECK_ERROR(Ret);
+    UR_CHECK_ERROR(Ret);
   if (Ret == hipErrorNotFound) {
     *ppFunctionPointer = 0;
     Result = UR_RESULT_ERROR_INVALID_FUNCTION_NAME;

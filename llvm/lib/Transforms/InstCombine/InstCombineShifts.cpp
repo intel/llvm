@@ -245,7 +245,11 @@ dropRedundantMaskingOfLeftShiftInput(BinaryOperator *OuterShift,
     SumOfShAmts = Constant::replaceUndefsWith(
         SumOfShAmts, ConstantInt::get(SumOfShAmts->getType()->getScalarType(),
                                       ExtendedTy->getScalarSizeInBits()));
-    auto *ExtendedSumOfShAmts = ConstantExpr::getZExt(SumOfShAmts, ExtendedTy);
+    auto *ExtendedSumOfShAmts = ConstantFoldCastOperand(
+        Instruction::ZExt, SumOfShAmts, ExtendedTy, Q.DL);
+    if (!ExtendedSumOfShAmts)
+      return nullptr;
+
     // And compute the mask as usual: ~(-1 << (SumOfShAmts))
     auto *ExtendedAllOnes = ConstantExpr::getAllOnesValue(ExtendedTy);
     auto *ExtendedInvertedMask =
@@ -278,12 +282,16 @@ dropRedundantMaskingOfLeftShiftInput(BinaryOperator *OuterShift,
     ShAmtsDiff = Constant::replaceUndefsWith(
         ShAmtsDiff, ConstantInt::get(ShAmtsDiff->getType()->getScalarType(),
                                      -WidestTyBitWidth));
-    auto *ExtendedNumHighBitsToClear = ConstantExpr::getZExt(
+    auto *ExtendedNumHighBitsToClear = ConstantFoldCastOperand(
+        Instruction::ZExt,
         ConstantExpr::getSub(ConstantInt::get(ShAmtsDiff->getType(),
                                               WidestTyBitWidth,
                                               /*isSigned=*/false),
                              ShAmtsDiff),
-        ExtendedTy);
+        ExtendedTy, Q.DL);
+    if (!ExtendedNumHighBitsToClear)
+      return nullptr;
+
     // And compute the mask as usual: (-1 l>> (NumHighBitsToClear))
     auto *ExtendedAllOnes = ConstantExpr::getAllOnesValue(ExtendedTy);
     NewMask =
@@ -709,13 +717,13 @@ static Value *getShiftedValue(Value *V, unsigned NumBits, bool isLeftShift,
   case Instruction::Mul: {
     assert(!isLeftShift && "Unexpected shift direction!");
     auto *Neg = BinaryOperator::CreateNeg(I->getOperand(0));
-    IC.InsertNewInstWith(Neg, *I);
+    IC.InsertNewInstWith(Neg, I->getIterator());
     unsigned TypeWidth = I->getType()->getScalarSizeInBits();
     APInt Mask = APInt::getLowBitsSet(TypeWidth, TypeWidth - NumBits);
     auto *And = BinaryOperator::CreateAnd(Neg,
                                           ConstantInt::get(I->getType(), Mask));
     And->takeName(I);
-    return IC.InsertNewInstWith(And, *I);
+    return IC.InsertNewInstWith(And, I->getIterator());
   }
   }
 }

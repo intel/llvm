@@ -33,13 +33,14 @@ ur_result_t mapErrorUR(CUresult Result) {
   }
 }
 
-ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
-                         const char *File) {
+void checkErrorUR(CUresult Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == CUDA_SUCCESS || Result == CUDA_ERROR_DEINITIALIZED) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *ErrorString = nullptr;
     const char *ErrorName = nullptr;
     cuGetErrorName(Result, &ErrorName);
@@ -55,20 +56,22 @@ ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
     std::cerr << SS.str();
   }
 
-  if (std::getenv("PI_CUDA_ABORT") != nullptr) {
+  if (std::getenv("PI_CUDA_ABORT") != nullptr ||
+      std::getenv("UR_CUDA_ABORT") != nullptr) {
     std::abort();
   }
 
   throw mapErrorUR(Result);
 }
 
-ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
-                         const char *File) {
+void checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                  const char *File) {
   if (Result == UR_RESULT_SUCCESS) {
-    return UR_RESULT_SUCCESS;
+    return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     std::stringstream SS;
     SS << "\nUR ERROR:"
        << "\n\tValue:           " << Result

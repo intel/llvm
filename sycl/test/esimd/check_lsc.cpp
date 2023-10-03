@@ -54,7 +54,7 @@ template void test_store<float, 16, 8, 1, cache_hint::none, cache_hint::none>(
 template auto
 test_load<float, 32, 32, 1, false, false, cache_hint::none, cache_hint::none>(
     float *, int, int, int) SYCL_ESIMD_FUNCTION;
-// CHECK: {{.*}}error: {{.*}}2D load supports 2048 bytes max
+// CHECK: {{.*}}error: {{.*}}2D load/prefetch supports 2048 bytes max
 
 constexpr int N16_16 =
     __ESIMD_EDNS::get_lsc_block_2d_data_size<float, 1, 16, 16, false, false>();

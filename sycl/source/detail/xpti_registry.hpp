@@ -178,17 +178,12 @@ public:
         MTraceType(0) {
     detail::tls_code_loc_t Tls;
     auto TData = Tls.query();
-    // If TLS is not set, we can still genertate universal IDs with user data
-    // and CodePtr information
-    const char *FuncName = UserData;
-    if (TData.functionName())
-      FuncName = TData.functionName();
     // Create a tracepoint object that has a lifetime of this class
-    MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
-                         TData.columnNumber(), CodePtr);
-    if (MTraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
-        MTraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
-        MTraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
+    MTP = new TracePoint(TData.fileName(), TData.functionName(),
+                         TData.lineNumber(), TData.columnNumber(), CodePtr);
+    if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
       MTP->parent_event(GSYCLGraphEvent);
     // Now if tracing is enabled, create trace events and notify
     if (xptiTraceEnabled() && MTP) {

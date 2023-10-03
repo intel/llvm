@@ -326,6 +326,12 @@ include(VersionFromVCS)
 option(LLVM_APPEND_VC_REV
   "Embed the version control system revision in LLVM" ON)
 
+set(LLVM_FORCE_VC_REVISION
+  "" CACHE STRING "Force custom VC revision for LLVM_APPEND_VC_REV")
+
+set(LLVM_FORCE_VC_REPOSITORY
+  "" CACHE STRING "Force custom VC repository for LLVM_APPEND_VC_REV")
+
 option(LLVM_TOOL_LLVM_DRIVER_BUILD "Enables building the llvm multicall tool" OFF)
 
 set(PACKAGE_NAME LLVM)
@@ -876,16 +882,19 @@ include(config-ix)
 # invocation time. Except on 64-bit AIX, where the system toolchain
 # expect 32-bit objects by default.
 if("${LLVM_HOST_TRIPLE}" MATCHES "^powerpc64-ibm-aix")
-  string(REGEX REPLACE "^powerpc64" "powerpc" LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+  string(REGEX REPLACE "^powerpc64" "powerpc" LLVM_DEFAULT_TARGET_TRIPLE_DEFAULT "${LLVM_HOST_TRIPLE}")
 else()
   # Only set default triple when native target is enabled.
   if (LLVM_NATIVE_TARGET)
-    set(LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+    set(LLVM_DEFAULT_TARGET_TRIPLE_DEFAULT "${LLVM_HOST_TRIPLE}")
   endif()
 endif()
 
-include(SetTargetTriple)
-set_llvm_target_triple()
+set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE_DEFAULT}" CACHE STRING
+    "Default target for which LLVM will generate code." )
+message(STATUS "LLVM default target triple: ${LLVM_DEFAULT_TARGET_TRIPLE}")
+
+set(LLVM_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
 
 if(WIN32 OR CYGWIN)
   if(BUILD_SHARED_LIBS OR LLVM_BUILD_LLVM_DYLIB)
@@ -903,18 +912,6 @@ set(LLVM_ENABLE_NEW_PASS_MANAGER TRUE CACHE BOOL
 if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
   message(FATAL_ERROR "Enabling the legacy pass manager on the cmake level is"
                       " no longer supported.")
-endif()
-
-set(DPCPP_ENABLE_OPAQUE_POINTERS TRUE CACHE BOOL
-   "Enable opaque pointers by default.")
-if (DPCPP_ENABLE_OPAQUE_POINTERS)
-  add_definitions("-DENABLE_OPAQUE_POINTERS=1")
-  add_definitions("-DINTEL_SYCL_OPAQUEPOINTER_READY=1")
-endif(DPCPP_ENABLE_OPAQUE_POINTERS)
-set(SPIRV_ENABLE_OPAQUE_POINTERS TRUE CACHE BOOL
-    "Enable opaque pointers for SPIR-V offload by default.")
-if(SPIRV_ENABLE_OPAQUE_POINTERS)
-  add_definitions("-DSPIRV_ENABLE_OPAQUE_POINTERS=1")
 endif()
 
 include(HandleLLVMOptions)
