@@ -31,6 +31,7 @@ func.func @_Z4id_2N2cl4sycl2idILi2EEE(%arg0: !sycl_id_2_) attributes {llvm.linka
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64, 4>)>)>
 !sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
 !sycl_accessor_2_i32_r_dev = !sycl.accessor<[2, i32, read, device], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_2_i32_r_ht = !sycl.accessor<[2, i32, read, host_task], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
 
 // CHECK: func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_w_dev)
 func.func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_1_i32_w_dev) attributes {llvm.linkage = #llvm.linkage<external>} {
@@ -38,6 +39,10 @@ func.func @_Z5acc_1N2cl4sycl8accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2
 }
 // CHECK: func @_Z5acc_2N2cl4sycl8accessorIiLi2ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_r_dev)
 func.func @_Z5acc_2N2cl4sycl8accessorIiLi2ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(%arg0: !sycl_accessor_2_i32_r_dev) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}
+// CHECK: func @foo(%arg0: !sycl_accessor_2_i32_r_ht)
+func.func @foo(%arg0: !sycl_accessor_2_i32_r_ht) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
 
