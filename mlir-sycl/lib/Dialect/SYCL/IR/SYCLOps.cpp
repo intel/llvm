@@ -504,7 +504,7 @@ static LogicalResult verifyReferencesKernel(SymbolUserOpInterface user,
 
 LogicalResult SYCLHostConstructorOp::verify() {
   Type type = getType().getValue();
-  if (!isSYCLType(type))
+  if (!isa<SYCLType>(type))
     return emitOpError("expecting a sycl type as constructed type. Got ")
            << type;
   return success();
@@ -552,7 +552,7 @@ static LogicalResult verifySYCLTypeAttribute(Operation *op, Value value,
   if (!isa<LLVM::LLVMPointerType>(value.getType()))
     return op->emitOpError(
         "does not expect a type attribute for a non-pointer value");
-  if (!isSYCLType(type))
+  if (!isa<SYCLType>(type))
     return op->emitOpError(
         "expects the type attribute to reference a SYCL type");
 

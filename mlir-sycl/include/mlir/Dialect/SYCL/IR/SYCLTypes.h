@@ -25,16 +25,18 @@
 
 namespace mlir {
 namespace sycl {
+class SYCLType : public Type {
+public:
+  using Type::Type;
+
+  static bool classof(Type type);
+};
+
 template <typename Parameter> class SYCLInheritanceTypeTrait {
 public:
   template <typename ConcreteType>
   class Trait : public mlir::TypeTrait::TraitBase<ConcreteType, Trait> {};
 };
-
-/// Return true if the given \p type is a SYCL type.
-inline bool isSYCLType(Type type) {
-  return isa<SYCLDialect>(type.getDialect());
-}
 
 /// Return the number of dimensions of type \p type.
 unsigned getDimensions(Type type);

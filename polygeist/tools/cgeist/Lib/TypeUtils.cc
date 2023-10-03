@@ -502,7 +502,7 @@ bool areSYCLMemberFunctionOrConstructorArgs(mlir::TypeRange Types) {
   return !Types.empty() &&
          TypeSwitch<mlir::Type, bool>(Types[0])
              .Case<mlir::MemRefType>([](auto Ty) {
-               return mlir::sycl::isSYCLType(Ty.getElementType());
+               return isa<mlir::sycl::SYCLType>(Ty.getElementType());
              })
              .Default(false);
 }

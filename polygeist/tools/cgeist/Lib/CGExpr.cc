@@ -275,7 +275,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
             ET = mlir::MemRefType::get(Shape, StoreTy,
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
-          } else if (sycl::isSYCLType(ElemTy)) {
+          } else if (isa<sycl::SYCLType>(ElemTy)) {
             std::pair<mlir::MemRefType, mlir::Type> Types =
                 TypeSwitch<mlir::Type, std::pair<mlir::MemRefType, mlir::Type>>(
                     MRET)

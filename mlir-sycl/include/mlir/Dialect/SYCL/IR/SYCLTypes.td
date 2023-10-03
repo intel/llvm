@@ -25,11 +25,12 @@ include "mlir/IR/BuiltinTypes.td"
 // TYPES DECLARATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
-class SYCL_Type<string name, string typeMnemonic, list<Trait> traits = []>
+class SYCL_Type<string name, string typeMnemonic, list<Trait> traits = [],
+    string baseCppClass = "::mlir::sycl::SYCLType">
     : TypeDef<SYCL_Dialect, name,
               !listconcat([MemRefElementTypeInterface,
                            LLVM_PointerElementTypeInterface],
-                               traits)> {
+                               traits), baseCppClass> {
   let mnemonic = typeMnemonic;
 }
 
