@@ -32,6 +32,12 @@ on:
         type: string
         default: "e2e"
 
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        type: string
+        default: ''
+
       ref:
         type: string
         required: True
@@ -113,6 +119,11 @@ on:
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
+
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        default: ''
 
       install_drivers:
         type: choice
@@ -258,7 +269,7 @@ jobs:
     - name: SYCL End-to-end tests
       if: inputs.tests_selector == 'e2e'
       env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
       run: |
         ninja -C build-e2e check-sycl-e2e
 
