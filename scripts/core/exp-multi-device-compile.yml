@@ -1,0 +1,125 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for multi-device compile"
+ordinal: "99"
+
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      The extension string which defines support for test
+      which is returned when querying device extensions.
+name: $X_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
+value: "\"$x_exp_multi_device_compile\""
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one program, negates need for the linking step."
+class: $xProgram
+name: BuildExp
+ordinal: "2"
+decl: static
+analogue:
+    - "**clBuildProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point, the program passed will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `phDevices`."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] Handle of the program to build."
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices"
+    - type: $x_device_handle_t*
+      name: phDevices
+      desc: "[in][range(0, numDevices)] pointer to array of device handles" 
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred when building `hProgram`."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one or more programs."
+class: $xProgram
+name: CompileExp
+decl: static
+ordinal: "3"
+analogue:
+    - "**clCompileProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point `hProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each device in `phDevices`."
+params:
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in][out] handle of the program to compile."
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices"
+    - type: $x_device_handle_t*
+      name: phDevices
+      desc: "[in][range(0, numDevices)] pointer to array of device handles" 
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to build options null-terminated string."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If `hProgram` isn't a valid program object."
+    - $X_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+      - "If an error occurred while compiling `hProgram`."
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Produces an executable program from one or more programs."
+class: $xProgram
+name: LinkExp
+decl: static
+ordinal: "4"
+analogue:
+    - "**clLinkProgram**"
+details:
+    - "The application may call this function from simultaneous threads."
+    - "Following a successful call to this entry point the program returned in `phProgram` will contain a binary of the $X_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in `phDevices`."
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context instance."
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices"
+    - type: $x_device_handle_t*
+      name: phDevices
+      desc: "[in][range(0, numDevices)] pointer to array of device handles" 
+    - type: uint32_t
+      name: count
+      desc: "[in] number of program handles in `phPrograms`."
+    - type: const $x_program_handle_t*
+      name: phPrograms
+      desc: "[in][range(0, count)] pointer to array of program handles."
+    - type: const char*
+      name: pOptions
+      desc: "[in][optional] pointer to linker options null-terminated string."
+    - type: $x_program_handle_t*
+      name: phProgram
+      desc: "[out] pointer to handle of program object created."
+returns:
+    - $X_RESULT_ERROR_INVALID_PROGRAM:
+      - "If one of the programs in `phPrograms` isn't a valid program object."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+      - "`count == 0`"
+    - $X_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+      - "If an error occurred while linking `phPrograms`."

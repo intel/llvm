@@ -196,7 +196,9 @@ class ur_function_v(IntEnum):
     ADAPTER_RETAIN = 179                            ## Enumerator for ::urAdapterRetain
     ADAPTER_GET_LAST_ERROR = 180                    ## Enumerator for ::urAdapterGetLastError
     ADAPTER_GET_INFO = 181                          ## Enumerator for ::urAdapterGetInfo
-    PROGRAM_BUILD_EXP = 182                         ## Enumerator for ::urProgramBuildExp
+    PROGRAM_BUILD_EXP = 197                         ## Enumerator for ::urProgramBuildExp
+    PROGRAM_COMPILE_EXP = 198                       ## Enumerator for ::urProgramCompileExp
+    PROGRAM_LINK_EXP = 199                          ## Enumerator for ::urProgramLinkExp
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2255,6 +2257,11 @@ class ur_exp_command_buffer_handle_t(c_void_p):
     pass
 
 ###############################################################################
+## @brief The extension string which defines support for test
+##        which is returned when querying device extensions.
+UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP = "ur_exp_multi_device_compile"
+
+###############################################################################
 ## @brief Supported peer info
 class ur_exp_peer_info_v(IntEnum):
     UR_PEER_ACCESS_SUPPORTED = 0                    ## [uint32_t] 1 if P2P access is supported otherwise P2P access is not
@@ -2573,16 +2580,32 @@ class ur_program_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urProgramBuildExp
 if __use_win_types:
-    _urProgramBuildExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+    _urProgramBuildExp_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
 else:
-    _urProgramBuildExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+    _urProgramBuildExp_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+
+###############################################################################
+## @brief Function-pointer for urProgramCompileExp
+if __use_win_types:
+    _urProgramCompileExp_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+else:
+    _urProgramCompileExp_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+
+###############################################################################
+## @brief Function-pointer for urProgramLinkExp
+if __use_win_types:
+    _urProgramLinkExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_device_handle_t), c_ulong, POINTER(ur_program_handle_t), c_char_p, POINTER(ur_program_handle_t) )
+else:
+    _urProgramLinkExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_device_handle_t), c_ulong, POINTER(ur_program_handle_t), c_char_p, POINTER(ur_program_handle_t) )
 
 
 ###############################################################################
 ## @brief Table of ProgramExp functions pointers
 class ur_program_exp_dditable_t(Structure):
     _fields_ = [
-        ("pfnBuildExp", c_void_p)                                       ## _urProgramBuildExp_t
+        ("pfnBuildExp", c_void_p),                                      ## _urProgramBuildExp_t
+        ("pfnCompileExp", c_void_p),                                    ## _urProgramCompileExp_t
+        ("pfnLinkExp", c_void_p)                                        ## _urProgramLinkExp_t
     ]
 
 ###############################################################################
@@ -3882,6 +3905,8 @@ class UR_DDI:
 
         # attach function interface to function address
         self.urProgramBuildExp = _urProgramBuildExp_t(self.__dditable.ProgramExp.pfnBuildExp)
+        self.urProgramCompileExp = _urProgramCompileExp_t(self.__dditable.ProgramExp.pfnCompileExp)
+        self.urProgramLinkExp = _urProgramLinkExp_t(self.__dditable.ProgramExp.pfnLinkExp)
 
         # call driver to get function pointers
         Kernel = ur_kernel_dditable_t()
