@@ -2349,8 +2349,8 @@ namespace detail {
 
 #ifndef __ESIMD_BLOCK_2D_WIDTH_CHECK
 #define __ESIMD_BLOCK_2D_WIDTH_CHECK(OP, BLOCK_WIDTH, NBLOCKS, SIZE)           \
-    static_assert((BLOCK_WIDTH) * (NBLOCKS) * (SIZE) <= 64,                    \
-                                   "Unsupported block width");
+  static_assert((BLOCK_WIDTH) * (NBLOCKS) * (SIZE) <= 64,                      \
+                "Unsupported block width");
 #endif
 
 enum class block_2d_op { prefetch, load, store };
