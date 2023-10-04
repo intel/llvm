@@ -38,6 +38,7 @@ RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
     } else if (isSpirvSyclBuiltin(F.getName()) || F.isIntrinsic())
       continue;
     else if (!F.isDeclaration()) {
+      F.setComdat(nullptr);
       // todo: check what functions could be exported
       F.setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
       ModuleChanged = true;
