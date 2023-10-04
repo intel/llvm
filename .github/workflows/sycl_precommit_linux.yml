@@ -87,6 +87,15 @@ jobs:
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
+          - name: Matrix E2E tests on ATS-M
+            runner: '["Linux", "arc"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
+            reset_gpu: true
+            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
+            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+            env: '{"LIT_FILTER":"Matrix/"}'
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: ${{ matrix.name }}
@@ -96,6 +105,9 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       reset_gpu: ${{ matrix.reset_gpu }}
       install_drivers: ${{ matrix.install_drivers }}
+
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      env: ${{ matrix.env || '{}' }}
 
       ref: ${{ github.sha }}
       merge_ref: ''
