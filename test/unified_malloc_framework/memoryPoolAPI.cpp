@@ -158,13 +158,12 @@ INSTANTIATE_TEST_SUITE_P(
     }));
 
 INSTANTIATE_TEST_SUITE_P(
-    proxyPoolOOMTest, umfMemTest, ::testing::Values([] {
-        return umf::poolMakeUnique<umf_test::proxy_pool, 1>(
-                   {umf::memoryProviderMakeUnique<
-                        umf_test::provider_mock_out_of_mem>(10)
-                        .second})
-            .second;
-    }));
+    proxyPoolOOMTest, umfMemTest,
+    ::testing::Values(std::tuple(
+        [] {
+            return umf_test::makePoolWithOOMProvider<umf_test::proxy_pool>(10);
+        },
+        0)));
 
 ////////////////// Negative test cases /////////////////
 
