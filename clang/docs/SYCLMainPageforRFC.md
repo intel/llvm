@@ -4,20 +4,21 @@ We (Intel) would like to request to add full support for SYCL programming model 
 
 Our prior RFC toward this effort can be seen here: https://lists.llvm.org/pipermail/cfe-dev/2019-January/060811.html
 
-In those four years: 
-* both our design and SYCL have evolved (e.g. the previous RFC supported SYCL 1.2.1)
-* we have multiple years of SYCL implementation experience
-* we have received feedback from the community for both the original RFC as well as patched that we have upstreamed
-* we have real-world user feedback from talking with our customers
-* we have worked with Codeplay in supporting non-Intel hardware
-
+In the four years since then: 
+  *   both our design and SYCL have evolved (e.g. the previous RFC supported SYCL 1.2.1)
+  *   we have multiple years of SYCL implementation experience
+  *   we have received feedback from the community for both the original RFC as well as patches that we have upstreamed
+  *   we have real-world user feedback from talking with our customers
+  *   we have worked with Codeplay in supporting non-Intel hardware
 and as a result now have a more mature set of design and implementation that we can upstream that is more in line with community standards and expectations.
 
 SYCL is an open specification and Intel wants an implementation that fully meets this specification in the community.  This allows for open tooling and is in line with the goals og the Unified Acceleration (UXL) Foundation: https://www.oneapi.io/blog/announcing-the-unified-acceleration-uxl-foundation/
 
-Intel commits to supporting SYCL for the long term.  Alexey Bader, who is deeply involved with both the community and SYCL, is the SYCL code owner.
+We have long term commitment to supporting SYCL.  Alexey Bader, who is deeply involved with both the community and SYCL, is the SYCL code owner.
 
 ## Topics of interest
+
+In this RFC, we would like to request your feedback for the following items:
 
 * Driver: Enabling command-line options, adjusting compilation tool chains
 * Front End: Integration Header and Footer 
