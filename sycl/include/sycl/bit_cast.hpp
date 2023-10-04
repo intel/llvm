@@ -40,7 +40,7 @@ constexpr
 
 #if __has_builtin(__builtin_bit_cast)
   return __builtin_bit_cast(To, from);
-#else  // __has_builtin(__builtin_bit_cast)
+#else // __has_builtin(__builtin_bit_cast)
   static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;
