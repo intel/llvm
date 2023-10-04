@@ -2347,6 +2347,12 @@ namespace detail {
 #define __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE (1)
 #endif
 
+#ifndef __ESIMD_BLOCK_2D_WIDTH_CHECK
+#define __ESIMD_BLOCK_2D_WIDTH_CHECK(OP, BLOCK_WIDTH, NBLOCKS, SIZE)           \
+    static_assert((BLOCK_WIDTH) * (NBLOCKS) * (SIZE) <= 64,                    \
+                                   "Unsupported block width");
+#endif
+
 enum class block_2d_op { prefetch, load, store };
 
 // Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
@@ -2399,9 +2405,8 @@ constexpr void check_lsc_block_2d_restrictions() {
           "Unsupported number of blocks for 2D load/prefetch");
       static_assert(BlockHeight <= 32, "Unsupported block height for load");
     }
-    static_assert(BlockWidth * sizeof(T) >= 4 &&
-                      BlockWidth * NBlocks * sizeof(T) <= 64,
-                  "Unsupported block width");
+    static_assert(BlockWidth * sizeof(T) >= 4, "Unsupported block width");
+    __ESIMD_BLOCK_2D_WIDTH_CHECK(Op, BlockWidth, NBlocks, sizeof(T));
   }
 }
 
