@@ -44,7 +44,7 @@ jobs:
             runner: '["Linux", "gen12"]'
           - name: SYCL E2E on Intel Linux L0 ATS-M
             runner: '["Linux", "arc"]'
-            extra_lit_opts: --param gpu-intel-dg2=True
+            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: ${{ matrix.name }}
