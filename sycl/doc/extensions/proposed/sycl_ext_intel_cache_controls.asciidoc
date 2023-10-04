@@ -98,7 +98,7 @@ Below is a list of new compile-time constant properties supported with
 ```c++
 namespace sycl::ext::intel::experimental {
 
-enum class cache_level {
+enum class cache_level : /*unspecified*/ {
   L1,
   L2,
   L3,
