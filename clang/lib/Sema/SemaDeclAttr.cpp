@@ -7537,7 +7537,7 @@ static void handleIntelSimpleDualPortAttr(Sema &S, Decl *D,
   // 'simple_dual_port' Attribute does not take any argument. Give a warning for
   // duplicate attributes but not if it's one we've implicitly added and drop
   // any duplicates.
-  if (const auto *ExistingAttr = D->getAttr<SYCLIntelDoublePumpAttr>()) {
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelSimpleDualPortAttr>()) {
     if (ExistingAttr && !ExistingAttr->isImplicit()) {
       S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
       S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
