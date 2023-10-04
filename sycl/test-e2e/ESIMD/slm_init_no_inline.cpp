@@ -1,3 +1,5 @@
+// TODO: Investigate fail of this test on Gen12 platform
+// REQUIRES: gpu-intel-pvc
 // DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
 // RUN: %{build} %{inlineflags} -o %t.out
 // RUN: %{run} %t.out

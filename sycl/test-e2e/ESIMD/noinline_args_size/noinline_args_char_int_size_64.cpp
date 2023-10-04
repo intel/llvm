@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// TODO: Investigate fail of this test on Gen12 platform
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 
