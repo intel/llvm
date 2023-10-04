@@ -18,6 +18,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include <regex>
+#include <sstream>
 
 using namespace clang::driver;
 using namespace clang::driver::toolchains;
