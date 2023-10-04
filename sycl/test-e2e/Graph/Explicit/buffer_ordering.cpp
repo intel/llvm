@@ -1,4 +1,5 @@
-// REQUIRES: cuda || level_zero, gpu
+// FIXME: re-enabled the test once intel/llvm#11374 is resolved
+// REQUIRES: cuda || level_zero, gpu, TEMPORARILY_DISABLED
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG

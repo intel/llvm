@@ -1392,6 +1392,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         llvm::sys::path::replace_extension(P, "gch");
         if (D.getVFS().exists(P)) {
           FoundPCH = true;
+          D.Diag(diag::warn_drv_include_probe_gch) << A->getAsString(Args) << P;
         }
       }
       // If PCH file is available, include it while performing
@@ -6419,6 +6420,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_mlarge_data_threshold_EQ)) {
+    if (!Triple.isX86()) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getOption().getName() << TripleStr;
+    } else {
+      bool IsMediumCM = false;
+      if (Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ))
+        IsMediumCM = StringRef(A->getValue()) == "medium";
+      if (!IsMediumCM) {
+        D.Diag(diag::warn_drv_large_data_threshold_invalid_code_model)
+            << A->getOption().getRenderName();
+      } else {
+        A->render(Args, CmdArgs);
+      }
+    }
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_mtls_size_EQ)) {
     StringRef Value = A->getValue();
     unsigned TLSSize = 0;
@@ -7300,9 +7318,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,
                      options::OPT_fno_hip_new_launch_api, true))
       CmdArgs.push_back("-fhip-new-launch-api");
-    if (Args.hasFlag(options::OPT_fgpu_allow_device_init,
-                     options::OPT_fno_gpu_allow_device_init, false))
-      CmdArgs.push_back("-fgpu-allow-device-init");
+    Args.addOptInFlag(CmdArgs, options::OPT_fgpu_allow_device_init,
+                      options::OPT_fno_gpu_allow_device_init);
     Args.addOptInFlag(CmdArgs, options::OPT_fhip_kernel_arg_name,
                       options::OPT_fno_hip_kernel_arg_name);
   }
@@ -7314,9 +7331,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fno-gpu-rdc");
   }
   if (IsCuda || IsHIP) {
-    if (Args.hasFlag(options::OPT_fgpu_defer_diag,
-                     options::OPT_fno_gpu_defer_diag, false))
-      CmdArgs.push_back("-fgpu-defer-diag");
+    Args.addOptInFlag(CmdArgs, options::OPT_fgpu_defer_diag,
+                      options::OPT_fno_gpu_defer_diag);
     if (Args.hasFlag(options::OPT_fgpu_exclude_wrong_side_overloads,
                      options::OPT_fno_gpu_exclude_wrong_side_overloads,
                      false)) {
