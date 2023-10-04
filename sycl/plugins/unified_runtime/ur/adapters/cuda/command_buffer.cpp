@@ -498,14 +498,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
           ur_event_handle_t_::makeNative(UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
                                          hQueue, CuStream, StreamToken));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     // Launch graph
     UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
