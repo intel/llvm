@@ -12,7 +12,7 @@ In the four years since then:
   *   we have worked with Codeplay in supporting non-Intel hardware
 and as a result now have a more mature set of design and implementation that we can upstream that is more in line with community standards and expectations.
 
-SYCL is an open specification and Intel wants an implementation that fully meets this specification in the community.  This allows for open tooling and is in line with the goals og the Unified Acceleration (UXL) Foundation: https://www.oneapi.io/blog/announcing-the-unified-acceleration-uxl-foundation/
+SYCL is an open specification and Intel wants an implementation that fully meets this specification in the community.  This allows for open tooling and is in line with the goals of the Unified Acceleration (UXL) Foundation: https://www.oneapi.io/blog/announcing-the-unified-acceleration-uxl-foundation/
 
 We have long term commitment to supporting SYCL.  Alexey Bader, who is deeply involved with both the community and SYCL, is the SYCL code owner.
 
