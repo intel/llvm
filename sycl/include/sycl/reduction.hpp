@@ -539,7 +539,9 @@ private:
 // std::is_trivially_copyable_v<std::optional> is false (e.g., 7.5.* ).
 template <typename T, class BinaryOperation, bool IsOptional>
 struct is_device_copyable<
-    detail::ReducerElement<T, BinaryOperation, IsOptional>> : std::true_type {};
+    detail::ReducerElement<T, BinaryOperation, IsOptional>>
+    : is_device_copyable<std::conditional_t<IsOptional, std::optional<T>, T>> {
+};
 
 namespace detail {
 template <typename T, class BinaryOperation, int Dims> class reducer_common {
