@@ -1,4 +1,7 @@
-// REQUIRES: linux && level_zero
+// TODO: This test is flaky on PVC and stable on gen12. Investigate PVC fail
+// and remove Gen12 limitation.
+// see intel/llvm#11359
+// REQUIRES: linux, level_zero, gpu-intel-gen12
 
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
