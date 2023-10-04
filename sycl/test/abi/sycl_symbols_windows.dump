@@ -775,6 +775,9 @@
 ??4stream_impl@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4stream_impl@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4tls_code_loc_t@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
+??5half_impl@detail@_V1@sycl@@YAAEAV?$basic_istream@DU?$char_traits@D@std@@@std@@AEAV45@AEAVhalf@0123@@Z
+??6half_impl@detail@_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV45@AEBVhalf@0123@@Z
+??6_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV23@W4backend@01@@Z
 ??8context@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device_image_plain@detail@_V1@sycl@@QEBA_NAEBV0123@@Z
@@ -973,6 +976,7 @@
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@AEAVimage_mem@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
+?defaultAsyncHandler@detail@_V1@sycl@@YAXVexception_list@23@@Z
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?deleteAccProps@buffer_plain@detail@_V1@sycl@@IEAAXAEBW4PropWithDataKind@234@@Z
 ?deleteAccessorProperty@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBW4PropWithDataKind@234@@Z
