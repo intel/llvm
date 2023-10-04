@@ -94,7 +94,7 @@ jobs:
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-            extra_lit_opts: --param matrix-xmx8=True
+            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2
             env: '{"LIT_FILTER":"Matrix/"}'
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
