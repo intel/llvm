@@ -48,8 +48,9 @@ function get_pre_release() {
     if [ "$GITHUB_TOKEN" != "" ]; then
         HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-    ARCH_URL=$(curl -s -L -H "$HEADER" $URL \
-        | jq -r '. as $raw | try .artifacts[].archive_download_url catch error($raw)')
+    which curl
+    ARCH_URL=`curl -s -L -H "$HEADER" $URL \
+        | jq -r '. as $raw | try .artifacts[].archive_download_url catch error($raw)'`
     curl -s -L -H "$HEADER" $ARCH_URL > $HASH.zip
     unzip $HASH.zip && rm $HASH.zip
 }
@@ -86,7 +87,11 @@ InstallIGFX () {
     echo "Installing Intel Graphics driver..."
   fi
   echo "Compute Runtime version $CR_TAG"
-  echo "IGC version $IGC_TAG"
+  if [ "$1" == "dev" ]; then
+    echo "IGC hash $IGC_DEV_HASH"
+  else
+    echo "IGC version $IGC_TAG"
+  fi
   echo "CM compiler version $CM_TAG"
   echo "Level Zero version $L0_TAG"
   if [ "$1" != "dev" ]; then
