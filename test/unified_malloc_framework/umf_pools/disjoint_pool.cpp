@@ -11,6 +11,7 @@
 #include "disjoint_pool.hpp"
 
 #include "memoryPool.hpp"
+#include "pool.hpp"
 #include "provider.h"
 #include "provider.hpp"
 
@@ -26,16 +27,6 @@ static usm::DisjointPool::Config poolConfig() {
 static auto makePool() {
     auto [ret, provider] =
         umf::memoryProviderMakeUnique<umf_test::provider_malloc>();
-    EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
-    auto [retp, pool] = umf::poolMakeUnique<usm::DisjointPool, 1>(
-        {std::move(provider)}, poolConfig());
-    EXPECT_EQ(retp, UMF_RESULT_SUCCESS);
-    return std::move(pool);
-}
-
-static auto makePoolOOMProvider() {
-    auto [ret, provider] =
-        umf::memoryProviderMakeUnique<umf_test::provider_mock_out_of_mem>(10);
     EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
     auto [retp, pool] = umf::poolMakeUnique<usm::DisjointPool, 1>(
         {std::move(provider)}, poolConfig());
@@ -83,8 +74,14 @@ TEST_F(test, freeErrorPropagation) {
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
                          ::testing::Values(makePool));
 
-INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfMemTest,
-                         ::testing::Values(makePoolOOMProvider));
+INSTANTIATE_TEST_SUITE_P(
+    disjointPoolTests, umfMemTest,
+    ::testing::Values(std::make_tuple(
+        [] {
+            return umf_test::makePoolWithOOMProvider<usm::DisjointPool>(
+                static_cast<int>(poolConfig().Capacity), poolConfig());
+        },
+        static_cast<int>(poolConfig().Capacity) / 2)));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfMultiPoolTest);
 INSTANTIATE_TEST_SUITE_P(disjointMultiPoolTests, umfMultiPoolTest,

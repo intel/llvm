@@ -23,12 +23,24 @@
 #include <stdlib.h>
 
 #include "base.hpp"
+#include "provider.hpp"
 #include "umf_helpers.hpp"
 
 namespace umf_test {
 
 auto wrapPoolUnique(umf_memory_pool_handle_t hPool) {
     return umf::pool_unique_handle_t(hPool, &umfPoolDestroy);
+}
+
+template <typename T, typename... Args>
+auto makePoolWithOOMProvider(int allocNum, Args &&...args) {
+    auto [ret, provider] =
+        umf::memoryProviderMakeUnique<provider_mock_out_of_mem>(allocNum);
+    EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+    auto [retp, pool] = umf::poolMakeUnique<T, 1, Args...>(
+        {std::move(provider)}, std::forward<Args>(args)...);
+    EXPECT_EQ(retp, UMF_RESULT_SUCCESS);
+    return std::move(pool);
 }
 
 bool isReallocSupported(umf_memory_pool_handle_t hPool) {
@@ -128,10 +140,13 @@ struct proxy_pool : public pool_base {
     void *calloc(size_t num, size_t size) noexcept {
         void *ptr;
         auto ret = umfMemoryProviderAlloc(provider, num * size, 0, &ptr);
+        umf::getPoolLastStatusRef<proxy_pool>() = ret;
+
+        if (!ptr) {
+            return ptr;
+        }
 
         memset(ptr, 0, num * size);
-
-        umf::getPoolLastStatusRef<proxy_pool>() = ret;
         return ptr;
     }
     void *realloc([[maybe_unused]] void *ptr,
