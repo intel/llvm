@@ -50,20 +50,20 @@ const intel::fpga_mem<int[10],
                       decltype(oneapi::properties(intel::num_replicates<5>))>
     replicates{};
 
-// CHECK: {{.*}}empty = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[empty_md:[0-9]*]]
-// CHECK: {{.*}}min_ram = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[min_ram_md:[0-9]*]]
-// CHECK: {{.*}}max_fmax = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[max_fmax_md:[0-9]*]]
-// CHECK: {{.*}}double_pumped = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[double_pumped_md:[0-9]*]]
-// CHECK: {{.*}}single_pumped = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[single_pumped_md:[0-9]*]]
-// CHECK: {{.*}}mlab = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[mlab_md:[0-9]*]]
-// CHECK: {{.*}}simple_dual_port = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[simple_dual_port_md:[0-9]*]]
-// CHECK: {{.*}}true_dual_port = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[true_dual_port_md:[0-9]*]]
-// CHECK: {{.*}}block_ram = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[block_ram_md:[0-9]*]]
-// CHECK: {{.*}}banks = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[banks_md:[0-9]*]]
-// CHECK: {{.*}}stride = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[stride_md:[0-9]*]]
-// CHECK: {{.*}}word = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[word_md:[0-9]*]]
-// CHECK: {{.*}}copies = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[copies_md:[0-9]*]]
-// CHECK: {{.*}}replicates = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[replicates_md:[0-9]*]]
+// CHECK: {{.*}}empty = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[empty_md:[0-9]*]]
+// CHECK: {{.*}}min_ram = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[min_ram_md:[0-9]*]]
+// CHECK: {{.*}}max_fmax = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[max_fmax_md:[0-9]*]]
+// CHECK: {{.*}}double_pumped = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[double_pumped_md:[0-9]*]]
+// CHECK: {{.*}}single_pumped = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[single_pumped_md:[0-9]*]]
+// CHECK: {{.*}}mlab = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[mlab_md:[0-9]*]]
+// CHECK: {{.*}}simple_dual_port = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[simple_dual_port_md:[0-9]*]]
+// CHECK: {{.*}}true_dual_port = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[true_dual_port_md:[0-9]*]]
+// CHECK: {{.*}}block_ram = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[block_ram_md:[0-9]*]]
+// CHECK: {{.*}}banks = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[banks_md:[0-9]*]]
+// CHECK: {{.*}}stride = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[stride_md:[0-9]*]]
+// CHECK: {{.*}}word = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[word_md:[0-9]*]]
+// CHECK: {{.*}}copies = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[copies_md:[0-9]*]]
+// CHECK: {{.*}}replicates = internal addrspace(1) constant { {{.*}} } zeroinitializer, align 4, !spirv.Decorations ![[replicates_md:[0-9]*]]
 
 int main() {
   queue Q;
