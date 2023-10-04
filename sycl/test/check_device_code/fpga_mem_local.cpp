@@ -58,8 +58,8 @@ int main() {
     intel::fpga_mem<int[10], decltype(oneapi::properties(
                                  intel::bi_directional_ports_false))>
         simple_dual_port;
-    // CHECK-NOT: call void @llvm.memset
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[SimpleDualPortINTEL]]
+    // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(
                                  intel::bi_directional_ports_true))>
         true_dual_port;
