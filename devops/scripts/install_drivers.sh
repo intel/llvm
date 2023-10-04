@@ -154,26 +154,30 @@ if [[ $# -eq 0 ]] ; then
   echo "No options were specified. Please, specify one or more of the following:"
   echo "--all      - Install all Intel drivers"
   echo "--igfx     - Install Intel Graphics drivers"
-  echo "--igfx-dev - Install development version of Intel Graphics drivers"
+  echo "--igfx-dev - Use with --all or --igfx. Install development version of Intel Graphics drivers"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
   echo "--fpga-emu - Install Intel FPGA Fast emulator"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi
 
+if [[ "$*" == *"--igfx-dev"* ]]
+then
+    IGFX_DEV="dev"
+else
+    IGFX_DEV=""
+fi
+
 while [ "${1:-}" != "" ]; do
   case "$1" in
     "--all")
-      InstallIGFX
+      InstallIGFX $IGFX_DEV
       InstallTBB
       InstallCPURT
       InstallFPGAEmu
       ;;
     "--igfx")
-      InstallIGFX
-      ;;
-    "--igfx-dev")
-      InstallIGFX "dev"
+      InstallIGFX $IGFX_DEV
       ;;
     "--cpu")
       InstallTBB

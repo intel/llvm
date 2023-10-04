@@ -128,8 +128,9 @@ on:
       install_drivers:
         type: choice
         options:
-          - false
-          - true
+          - No
+          - Release
+          - Development
 
 jobs:
   run:
@@ -174,11 +175,17 @@ jobs:
       run: |
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
-      if: inputs.install_drivers == 'true'
+      if: inputs.install_drivers == 'Release'
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+    - name: Install drivers with development version of IGFX
+      if: inputs.install_drivers == 'Development'
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all --igfx-dev
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
