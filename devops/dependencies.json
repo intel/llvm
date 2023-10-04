@@ -12,6 +12,9 @@
       "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.14828.8",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
+    "igc_dev": {
+      "github_hash": "f43aace"
+    },
     "cm": {
       "github_tag": "cmclang-1.0.144",
       "version": "1.0.144",
