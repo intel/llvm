@@ -2409,6 +2409,8 @@ constexpr void check_lsc_block_2d_restrictions() {
     __ESIMD_BLOCK_2D_WIDTH_CHECK(Op, BlockWidth, NBlocks, sizeof(T));
   }
 }
+#undef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
+#undef __ESIMD_BLOCK_2D_WIDTH_CHECK
 
 } // namespace detail
 
