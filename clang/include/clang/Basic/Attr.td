@@ -1199,7 +1199,7 @@ def Constructor : InheritableAttr {
   let Spellings = [GCC<"constructor">];
   let Args = [DefaultIntArgument<"Priority", 65535>];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [CtorDtorDocs];
 }
 
 def CPUSpecific : InheritableAttr {
@@ -2047,7 +2047,7 @@ def Destructor : InheritableAttr {
   let Spellings = [GCC<"destructor">];
   let Args = [DefaultIntArgument<"Priority", 65535>];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [CtorDtorDocs];
 }
 
 def EmptyBases : InheritableAttr, TargetSpecificAttr<TargetMicrosoftCXXABI> {
