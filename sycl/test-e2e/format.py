@@ -31,7 +31,7 @@ Driver version looks like this for Intel devices:
       Windows/L0:     [1.3.26370]
       Windows/opencl: [31.0.101.4502]
 Only "26370" and "101.4502" are interesting for us for the purpose of detecting
-fi the driver has required changes or not. As such we refer to the former
+if the driver has required changes or not. As such we refer to the former
 (5-digit) as "lin" format and as "win" for the latter.
 """
     if not output:
