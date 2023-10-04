@@ -298,9 +298,22 @@ void diagnostics()
   [[intel::merge("mrg4", "depths")]] unsigned int mrg_invalid_arg[4];
 
   // Checking of different argument values.
-  //expected-warning@+2{{attribute 'merge' is already applied}}
-  [[intel::merge("mrg4", "depth")]]
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg4", "depth")]] // expected-note {{previous attribute is here}}
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
+
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg6", "depth")]] // expected-note {{previous attribute is here}}
+  [[intel::merge("mrg6", "width")]] unsigned int mrg_mrg1[4];
+
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg7", "width")]] // expected-note {{previous attribute is here}}
+  [[intel::merge("mrg8", "width")]] unsigned int mrg_mrg2[4];
+
+  // Checking of duplicate argument values.
+  // No diagnostic is emitted because the arguments match.
+  [[intel::merge("mrg9", "depth")]]
+  [[intel::merge("mrg9", "depth")]] unsigned int mrg_mrg3[4]; // OK
 
   // **bank_bits
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
