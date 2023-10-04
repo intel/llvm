@@ -530,7 +530,18 @@ public:
 private:
   value_type MValue;
 };
+} // namespace detail
 
+// We explicitly claim std::optional as device-copyable in sycl/types.hpp.
+// However, that information isn't propagated to the struct/class types that use
+// it as a member, so we need to provide this partial specialization as well.
+// This is needed to support GNU STL where
+// std::is_trivially_copyable_v<std::optional> is false (e.g., 7.5.* ).
+template <typename T, class BinaryOperation, bool IsOptional>
+struct is_device_copyable<
+    detail::ReducerElement<T, BinaryOperation, IsOptional>> : std::true_type {};
+
+namespace detail {
 template <typename T, class BinaryOperation, int Dims> class reducer_common {
 public:
   using value_type = T;
