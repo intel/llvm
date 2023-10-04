@@ -2896,8 +2896,9 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  __ESIMD_NS::simd<T, ActualN> Raw = raw_send<execSize, sfid, numSrc0, numDst>(
-      oldDst, payload.get_raw_data(), exDesc, desc);
+  __ESIMD_NS::simd<T, ActualN> Raw =
+      __ESIMD_NS::raw_send<execSize, sfid, numSrc0, numDst>(
+          oldDst, payload.get_raw_data(), exDesc, desc);
 
   if constexpr (ActualN == N) {
     return Raw;
@@ -2961,7 +2962,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc, desc);
+  __ESIMD_NS::raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc,
+                                               desc);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -3002,8 +3004,8 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
 
-  raw_sends<execSize, sfid, numSrc0, numSrc1>(payload.get_raw_data(), Data,
-                                              exDesc, desc);
+  __ESIMD_NS::raw_sends<execSize, sfid, numSrc0, numSrc1>(
+      payload.get_raw_data(), Data, exDesc, desc);
 }
 
 /// SLM atomic.
