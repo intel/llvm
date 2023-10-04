@@ -633,37 +633,117 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-// Run clang-offload-wrapper
-static Expected<StringRef> runWrapper(StringRef &InputFile,
-                                      const ArgList &Args) {
-  // Create a new file to write the wrapped file to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "bc");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
-  Expected<std::string> ClangOffloadWrapperPath = findProgram(
-      "clang-offload-wrapper", {getMainExecutable("clang-offload-wrapper")});
-  if (!ClangOffloadWrapperPath)
-    return ClangOffloadWrapperPath.takeError();
+Expected<std::string> readFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
 
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
+  auto &MB = *MBOrErr;
+  return std::string(MB->getBufferStart(), MB->getBufferEnd());
+}
 
-  SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*ClangOffloadWrapperPath);
-  CmdArgs.push_back(Saver.save("-o=" + *TempFileOrErr));
-  llvm::Triple HostTriple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-  CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
+Expected<std::unique_ptr<util::PropertySetRegistry>>
+readPropertyRegistryFromFile(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
+
+  auto &MB = *MBOrErr;
+  return util::PropertySetRegistry::read(&*MB);
+}
+
+Expected<SmallVector<SYCLImage>> readImages(StringRef File) {
+  auto MBOrErr = MemoryBuffer::getFile(File);
+  if (!MBOrErr)
+    return createFileError(File, MBOrErr.getError());
+
+  line_iterator LI(**MBOrErr);
+  // check the header.
+  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+
+  ++LI;
+  SmallVector<SYCLImage> Images;
+  for (; !LI.is_at_eof(); ++LI) {
+    StringRef Line = *LI;
+    SmallVector<StringRef, 3> Elems;
+    Line.split(Elems, '|'); // expected elems are Code, Properties and Symbols.
+
+    if (Elems.size() != 3)
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table file.");
+
+    auto ImageOrErr = readFile(Elems[0]);
+    if (!ImageOrErr)
+      return ImageOrErr.takeError();
+
+    auto PropertiesOrErr = readPropertyRegistryFromFile(Elems[1]);
+    if (!PropertiesOrErr)
+      return PropertiesOrErr.takeError();
+
+    auto SymbolsOrErr = readFile(Elems[2]);
+    if (!SymbolsOrErr)
+      return SymbolsOrErr.takeError();
+
+    SYCLImage Image;
+    Image.Image = std::move(*ImageOrErr);
+    Image.PropertyRegistry = std::move(**PropertiesOrErr);
+    Image.Entries = std::move(*SymbolsOrErr);
+    Images.push_back(std::move(Image));
+    // TODO: where are compile-opts, link-opts and other stuff?
+  }
+
+  return Images;
+}
+
+// Run clang-offload-wrapper's functionality
+// TODO: this function should be removed in favor of community flow
+Expected<StringRef> wrapSYCLBinariesFromFile(StringRef &InputFile,
+                                             const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   SmallString<128> TargetTripleOpt = Triple.getArchName();
-  CmdArgs.push_back(Saver.save("-target=" + TargetTripleOpt));
-  CmdArgs.push_back("-kind=sycl");
-  CmdArgs.push_back("-batch");
-  CmdArgs.push_back(InputFile);
-  if (Error Err = executeCommands(*ClangOffloadWrapperPath, CmdArgs))
-    return std::move(Err);
-  return *TempFileOrErr;
+  auto ImagesOrErr = readImages(InputFile);
+  if (!ImagesOrErr)
+    return ImagesOrErr.takeError();
+
+  auto &Images = *ImagesOrErr;
+  LLVMContext C;
+  Module M("offload.wrapper.object", C);
+  M.setTargetTriple(TargetTripleOpt);
+  auto Error = wrapSYCLBinaries(M, Images);
+  if (Error)
+    return Error;
+
+  if (Args.hasArg(OPT_print_wrapped_module))
+    errs() << M;
+  if (Args.hasArg(OPT_save_temps)) {
+    int FD = -1;
+    auto TempFileOrErr = createOutputFile(
+        sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
+    if (!TempFileOrErr)
+      return TempFileOrErr.takeError();
+    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
+      return errorCodeToError(EC);
+    llvm::raw_fd_ostream OS(FD, true);
+    WriteBitcodeToFile(M, OS);
+  }
+
+  {
+    // TODO: Once "llc tool->runCompile" migration is finished we need to remove
+    // this scope and use community flow.
+    auto TempFileOrErr =
+        createOutputFile(sys::path::filename(ExecutableName), "bc");
+    if (!TempFileOrErr)
+      return TempFileOrErr.takeError();
+
+    int FD = -1;
+    llvm::raw_fd_ostream OS(FD, true);
+    WriteBitcodeToFile(M, OS);
+    return *TempFileOrErr;
+  }
+
+  llvm_unreachable("unreachable");
 }
 
 // Run llc
@@ -691,11 +771,10 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
-// Run clang-offload-wrapper and llc
+// Run wrapping library and llc
 static Expected<StringRef> runWrapperAndCompile(StringRef &InputFile,
                                                 const ArgList &Args) {
-  // call to clang-offload-wrapper
-  auto OutputFile = sycl::runWrapper(InputFile, Args);
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(InputFile, Args);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to llc
@@ -936,7 +1015,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
         return SPVFile.takeError();
       // TODO(NOM6): Add AOT support if needed
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-      auto OutputFile = sycl::runWrapperAndCompile(*SPVFile, Args);
+auto OutputFile = sycl::runWrapperAndCompile(*SPVFile, Args);
       if (!OutputFile)
         return OutputFile.takeError();
       return *OutputFile;
