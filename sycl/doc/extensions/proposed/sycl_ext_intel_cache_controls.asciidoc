@@ -99,10 +99,10 @@ Below is a list of new compile-time constant properties supported with
 namespace sycl::ext::intel::experimental {
 
 enum class cache_level : /*unspecified*/ {
-  L1,
-  L2,
-  L3,
-  L4,
+    L1,
+    L2,
+    L3,
+    L4,
 };
 
 enum class cache_control_read_type : /* unspecified */ {
