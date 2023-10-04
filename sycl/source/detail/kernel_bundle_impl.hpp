@@ -380,12 +380,10 @@ public:
         // then we can't use ReplacedImage, so we select NativeImage if any or
         // we select OriginalImage and keep iterating in case there is an image
         // with native support.
-        SelectedImage = OriginalImage ? OriginalImage : nullptr;
+        SelectedImage = OriginalImage;
         if (SelectedImage &&
             SelectedImage->all_specialization_constant_native())
           break;
-
-        continue;
       } else {
         // For now select ReplacedImage but it may be reset if any of the
         // further device images has specialization constant value set. If after
@@ -399,8 +397,6 @@ public:
         else
           // In case if we don't have or don't use ReplacedImage.
           SelectedImage = OriginalImage;
-
-        continue;
       }
     }
 
