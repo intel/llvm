@@ -30,68 +30,68 @@ int main() {
 
   Q.single_task([=]() {
     intel::fpga_mem<int[10]> empty;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %empty{{.*}}, ptr addrspace(1) [[MemoryINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MemoryINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::ram_stitching_min_ram))>
         min_ram;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %min_ram{{.*}}, ptr addrspace(1) [[ForcePow2DepthINTEL_FALSE]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[ForcePow2DepthINTEL_FALSE]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::ram_stitching_max_fmax))>
         max_fmax;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %max_fmax{{.*}}, ptr addrspace(1) [[ForcePow2DepthINTEL_TRUE]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[ForcePow2DepthINTEL_TRUE]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(intel::clock_2x_true))>
         double_pumped;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %double_pumped{{.*}}, ptr addrspace(1) [[DoublepumpINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[DoublepumpINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::clock_2x_false))>
         single_pumped;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %single_pumped{{.*}}, ptr addrspace(1) [[SinglepumpINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[SinglepumpINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(intel::resource_mlab))>
         mlab;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %mlab{{.*}}, ptr addrspace(1) [[MemoryINTEL_mlab]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MemoryINTEL_mlab]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(
                                  intel::bi_directional_ports_false))>
         simple_dual_port;
     // CHECK-NOT: call void @llvm.memset
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %simple_dual_port{{.*}}, ptr addrspace(1) [[SimpleDualPortINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[SimpleDualPortINTEL]]
     intel::fpga_mem<int[10], decltype(oneapi::properties(
                                  intel::bi_directional_ports_true))>
         true_dual_port;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %true_dual_port{{.*}}, ptr addrspace(1) [[TrueDualPortINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[TrueDualPortINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::resource_block_ram))>
         block_ram;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %block_ram{{.*}}, ptr addrspace(1) [[MemoryINTEL_block_ram]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MemoryINTEL_block_ram]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(intel::num_banks<4>))>
         banks;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %banks{{.*}}, ptr addrspace(1) [[NumbanksINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[NumbanksINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::stride_size<2>))>
         stride;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %stride{{.*}}, ptr addrspace(1) [[StridesizeINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[StridesizeINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10], decltype(oneapi::properties(intel::word_size<8>))>
         word;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %word{{.*}}, ptr addrspace(1) [[WordsizeINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[WordsizeINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::max_private_copies<3>))>
         copies;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %copies{{.*}}, ptr addrspace(1) [[MaxPrivateCopiesINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MaxPrivateCopiesINTEL]]
     // CHECK-NOT: call void @llvm.memset
     intel::fpga_mem<int[10],
                     decltype(oneapi::properties(intel::num_replicates<5>))>
         replicates;
-    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %replicates{{.*}}, ptr addrspace(1) [[MaxReplicatesINTEL]]
+    // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) {{.*}}, ptr addrspace(1) [[MaxReplicatesINTEL]]
     // CHECK-NOT: call void @llvm.memset
 
     volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] +
