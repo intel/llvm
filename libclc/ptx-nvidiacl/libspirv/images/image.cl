@@ -216,6 +216,11 @@ pixelf32 as_pixelf32(int4 v) { return as_float4(v); }
     return (to_t##2)((to_t)from.x, (to_t)from.y);                              \
   }
 
+#define _DEFINE_VEC4_TO_SINGLE_CAST(from_t, to_t)                              \
+  inline to_t cast_##from_t##4_to_##to_t(from_t##4 from) {                     \
+    return (to_t)from[0];                                                      \
+  }
+
 #define _DEFINE_CAST(from_t, to_t)                                             \
   inline to_t cast_##from_t##_to_##to_t(from_t from) { return (to_t)from; }
 
@@ -278,6 +283,17 @@ _DEFINE_VEC4_TO_VEC2_CAST(float, half)
 _DEFINE_VEC4_TO_VEC2_CAST(int, uint)
 _DEFINE_VEC4_TO_VEC2_CAST(short, ushort)
 
+_DEFINE_VEC4_TO_SINGLE_CAST(int, int)
+_DEFINE_VEC4_TO_SINGLE_CAST(uint, uint)
+_DEFINE_VEC4_TO_SINGLE_CAST(float, float)
+_DEFINE_VEC4_TO_SINGLE_CAST(short, short)
+_DEFINE_VEC4_TO_SINGLE_CAST(short, char)
+_DEFINE_VEC4_TO_SINGLE_CAST(int, short)
+_DEFINE_VEC4_TO_SINGLE_CAST(int, char)
+_DEFINE_VEC4_TO_SINGLE_CAST(uint, ushort)
+_DEFINE_VEC4_TO_SINGLE_CAST(uint, uchar)
+_DEFINE_VEC4_TO_SINGLE_CAST(float, half)
+
 _DEFINE_VEC2_CAST(int, float)
 _DEFINE_VEC2_CAST(short, char)
 _DEFINE_VEC2_CAST(short, uchar)
@@ -332,6 +348,8 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
 #undef _DEFINE_VEC4_CAST
 #undef _DEFINE_VEC2_CAST
 #undef _DEFINE_CAST
+#undef _DEFINE_VEC4_TO_VEC2_CAST
+#undef _DEFINE_VEC4_TO_SINGLE_CAST
 #undef _DEFINE_READ_1D_PIXELF
 #undef _DEFINE_READ_2D_PIXELF
 #undef _DEFINE_READ_3D_PIXELF
@@ -3645,3 +3663,112 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
 #undef _NVVM_FUNC
 #undef NVVM_FUNC
 #undef MANGLE_FUNC_IMG_HANDLE_HELPER
+
+
+// <--- CUBEMAP --->
+// Cubemap surfaces are handled through the layered images implementation
+
+// Define functions to call intrinsic
+float4
+__nvvm_tex_cube_v4f32_f32(unsigned long, float, float,
+                          float) __asm("__clc_llvm_nvvm_tex_cube_v4f32_f32");
+int4 __nvvm_tex_cube_v4i32_f32(unsigned long, float, float, float) __asm(
+    "__clc_llvm_nvvm_tex_cube_v4i32_f32");
+uint4 __nvvm_tex_cube_v4j32_f32(unsigned long, float, float, float) __asm(
+    "__clc_llvm_nvvm_tex_cube_v4j32_f32");
+
+#define COORD_INPUT float x, float y, float z
+#define COORD_THUNK_PARAMS x, y, z
+#define COORD_PARAMS coord.x, coord.y, coord.z
+
+// Macro to generate cubemap fetches to call intrinsics
+// float4, int4, uint4 already defined above
+#define _CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(                      \
+    elem_t, fetch_elem_t, vec_size, fetch_vec_size, coord_input, coord_params) \
+  elem_t __nvvm_tex_cube_##vec_size##_f32(unsigned long imageHandle,           \
+                                          coord_input) {                       \
+    fetch_elem_t a =                                                           \
+        __nvvm_tex_cube_##fetch_vec_size##_f32(imageHandle, coord_params);     \
+    return cast_##fetch_elem_t##_to_##elem_t(a);                               \
+  }
+
+// Float
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(float, float4, f32, v4f32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(float2, float4, v2f32, v4f32, COORD_INPUT, COORD_THUNK_PARAMS)
+// Int
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(int, int4, i32, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(int2, int4, v2i32, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+// Uint
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(uint, uint4, j32, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(uint2, uint4, v2j32, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+// Short
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(short, int4, i16, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(short2, int4, v2i16, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(short4, int4, v4i16, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+// UShort
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, uint4, t16, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(ushort2, uint4, v2t16, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(ushort4, uint4, v4t16, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+// Char
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(char, int4, i8, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(char2, int4, v2i8, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(char4, int4, v4i8, v4i32, COORD_INPUT, COORD_THUNK_PARAMS)
+// UChar
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, uint4, h8, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(uchar2, uint4, v2h8, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(uchar4, uint4, v4h8, v4j32, COORD_INPUT, COORD_THUNK_PARAMS)
+// Half
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(half, float4, f16, v4f32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(half2, float4, v2f16, v4f32, COORD_INPUT, COORD_THUNK_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN(half4, float4, v4f16, v4f32, COORD_INPUT, COORD_THUNK_PARAMS)
+
+// Macro to generate the mangled names for cubemap fetches
+#define _CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(elem_t, elem_t_mangled,     \
+                                                   vec_size, coord_mangled,    \
+                                                   coord_input, coord_params)  \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      26, __spirv_ImageSampleCubemap, I,                                       \
+      elem_t_mangled##coord_mangled##ET0_T_T1_)(ulong imageHandle,             \
+                                                coord_input) {                 \
+    return __nvvm_tex_cube_##vec_size##_f32(imageHandle, coord_params);        \
+  }
+
+// Float
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(float, f, f32, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(float2, Dv2_f, v2f32, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(float4, Dv4_f, v4f32, Dv3_f, float3 coord, COORD_PARAMS)
+// Int
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(int, i, i32, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(int2, Dv2_i, v2i32, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(int4, Dv4_i, v4i32, Dv3_f, float3 coord, COORD_PARAMS)
+// Uint
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uint, j, j32, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uint2, Dv2_j, v2j32, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uint4, Dv4_j, v4j32, Dv3_f, float3 coord, COORD_PARAMS)
+// Short
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(short, s, i16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(short2, Dv2_s, v2i16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(short4, Dv4_s, v4i16, Dv3_f, float3 coord, COORD_PARAMS)
+// UShort
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(ushort, t, t16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(ushort2, Dv2_t, v2t16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(ushort4, Dv4_t, v4t16, Dv3_f, float3 coord, COORD_PARAMS)
+// Char
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(char, a, i8, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(char2, Dv2_a, v2i8, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(char4, Dv4_a, v4i8, Dv3_f, float3 coord, COORD_PARAMS)
+// UChar
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uchar, h, h8, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uchar2, Dv2_h, v2h8, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(uchar4, Dv4_h, v4h8, Dv3_f, float3 coord, COORD_PARAMS)
+// Half
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half, DF16_, f16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half2, Dv2_DF16_, v2f16, Dv3_f, float3 coord, COORD_PARAMS)
+_CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN(half4, Dv4_DF16_, v4f16, Dv3_f, float3 coord, COORD_PARAMS)
+
+
+#undef _CLC_DEFINE_CUBEMAP_BINDLESS_THUNK_READS_BUILTIN
+#undef COORD_INPUT
+#undef COORD_THUNK_PARAMS
+#undef COORD_PARAMS
+#undef _CLC_DEFINE_CUBEMAP_BINDLESS_READS_BUILTIN
