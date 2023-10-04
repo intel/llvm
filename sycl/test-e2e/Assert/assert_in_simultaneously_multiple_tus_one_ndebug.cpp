@@ -1,6 +1,9 @@
 // FIXME flaky fail on CUDA
 // FIXME HIP: https://github.com/intel/llvm/issues/7634
 // UNSUPPORTED: cuda, hip
+//
+// FIXME: Remove XFAIL one intel/llvm#11364 is resolved
+// XFAIL: (opencl && gpu)
 
 // https://github.com/intel/llvm/issues/7585 to fix the failure:
 // XFAIL: gpu

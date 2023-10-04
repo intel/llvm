@@ -2,6 +2,9 @@
 
 // https://github.com/intel/llvm/issues/7634
 // UNSUPPORTED: hip
+//
+// FIXME: Remove XFAIL one intel/llvm#11364 is resolved
+// XFAIL: (opencl && gpu)
 
 // https://github.com/intel/llvm/issues/7585 to fix the failure:
 // XFAIL: gpu
@@ -13,7 +16,7 @@
 // CUDA uses block/thread vs global/local id for SYCL, also it shows the
 // position of a thread within the block, not the absolute ID.
 // CHECK:      {{.*}}kernels_in_file2.cpp:15: int calculus(int): {{global id: \[5|block: \[1}},0,0], {{local id|thread}}: [1,0,0]
-// CHECK-SAME: Assertion `X && "this message from calculus"` failed.
+// CHECK-SAME: Assertion `X && "this message from calculus"` failed
 // CHECK-NOT:  this message from file2
 // CHECK-NOT:  The test ended.
 //

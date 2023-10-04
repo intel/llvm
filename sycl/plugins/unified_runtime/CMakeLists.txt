@@ -5,7 +5,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
 
   # The UR tag should be from the 'adapters' branch
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c791b8bba63af1c1880ae278e9d6df90021636dd)
+  set(UNIFIED_RUNTIME_TAG 9265d33b3b1e538bb1d27aea29d30f2ed47859be)
 
   set(UR_BUILD_ADAPTER_L0 ON)
   set(UMF_ENABLE_POOL_TRACKING ON)
