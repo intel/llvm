@@ -16,13 +16,14 @@
 
 #include <sycl/access/access.hpp>             // for address_space
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
+#include <sycl/detail/memcpy.hpp>             // detail::memcpy
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
 #include <sycl/exception.hpp>                 // for runtime_error
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32
 #include <sycl/marray.hpp>                                 // for marray
 #include <sycl/multi_ptr.hpp>                              // for multi_ptr
 
-#include <cstring>     // for size_t, memcpy
+#include <cstring>     // for size_t
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for ignore, _Swall...
 #include <type_traits> // for is_same, remov...
@@ -440,7 +441,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
   tmp_uint += 0x1000u;
   tmp_uint &= 0xFFFFE000u;
   float ret = 0;
-  std::memcpy(&ret, &tmp_uint, sizeof(float));
+  sycl::detail::memcpy(&ret, &tmp_uint, sizeof(float));
   return ret;
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }

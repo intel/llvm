@@ -13,10 +13,11 @@
 #include <sycl/detail/builtins.hpp>            // for __invoke_exp2, __invo...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
+#include <sycl/detail/memcpy.hpp>              // detail::memcpy
 #include <sycl/marray.hpp>                     // for marray
 #include <sycl/types.hpp>                      // for vec
 
-#include <cstring>     // for memcpy, size_t
+#include <cstring>     // for size_t
 #include <stdio.h>     // for printf
 #include <type_traits> // for enable_if_t
 
@@ -124,7 +125,7 @@ inline __SYCL_ALWAYS_INLINE
     auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
         sycl::detail::to_vec2(x, i * 2));
 #endif
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -167,7 +168,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
     auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
         sycl::detail::to_vec2(x, i * 2));
 #endif
-    std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
+    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)

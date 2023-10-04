@@ -8,6 +8,7 @@
 #pragma once
 
 #include <sycl/detail/helpers.hpp>     // for Builder
+#include <sycl/detail/memcpy.hpp>      // detail::memcpy
 #include <sycl/exception.hpp>          // for errc, exception
 #include <sycl/feature_test.hpp>       // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>                 // for id
@@ -16,7 +17,6 @@
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
-#include <cstring>      // for memcpy
 #include <stddef.h>     // for size_t
 #include <stdint.h>     // for uint32_t
 #include <system_error> // for error_code
@@ -110,9 +110,8 @@ struct sub_group_mask {
       size_t RemainingBytes = sizeof(Bits) - BytesCopied;
       size_t BytesToCopy =
           RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
-      // TODO: memcpy is not guaranteed to work in kernels. Find alternative.
-      std::memcpy(reinterpret_cast<char *>(&Bits) + BytesCopied, &val[I],
-                  BytesToCopy);
+      sycl::detail::memcpy(reinterpret_cast<char *>(&Bits) + BytesCopied,
+                           &val[I], BytesToCopy);
       BytesCopied += BytesToCopy;
     }
   }

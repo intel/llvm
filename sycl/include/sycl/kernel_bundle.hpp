@@ -12,6 +12,7 @@
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
+#include <sycl/detail/memcpy.hpp>          // detail::memcpy
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/pi.h>                // for pi_native_handle
 #include <sycl/detail/pi.hpp>              // for cast
@@ -21,7 +22,7 @@
 #include <sycl/property_list.hpp>          // for property_list
 
 #include <array>       // for array
-#include <cstring>     // for size_t, memcpy
+#include <cstring>     // for size_t
 #include <functional>  // for function
 #include <iterator>    // for distance
 #include <memory>      // for shared_ptr, operator==, hash
@@ -325,7 +326,7 @@ public:
 
     std::array<char, sizeof(SCType)> RetValue;
     get_specialization_constant_impl(SpecSymName, RetValue.data());
-    std::memcpy(&Res, RetValue.data(), sizeof(SCType));
+    detail::memcpy(&Res, RetValue.data(), sizeof(SCType));
 
     return Res;
   }

@@ -33,7 +33,6 @@
 
 #include <cassert>
 #include <cstdint>
-#include <cstring>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -42,6 +41,7 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
+#include <sycl/detail/memcpy.hpp> // detail::memcpy
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/usm.hpp>
@@ -888,7 +888,8 @@ public:
     assert(init_list.size() <= in_range.size());
     _host_ptr = (value_t *)std::malloc(_size);
     std::memset(_host_ptr, 0, _size);
-    std::memcpy(_host_ptr, init_list.begin(), init_list.size() * sizeof(T));
+    sycl::detail::memcpy(_host_ptr, init_list.begin(),
+                         init_list.size() * sizeof(T));
   }
 
   /// Constructor of 2-D array with initializer list
@@ -904,7 +905,8 @@ public:
     auto tmp_data = _host_ptr;
     for (auto sub_list : init_list) {
       assert(sub_list.size() <= in_range[1]);
-      std::memcpy(tmp_data, sub_list.begin(), sub_list.size() * sizeof(T));
+      sycl::detail::memcpy(tmp_data, sub_list.begin(),
+                           sub_list.size() * sizeof(T));
       tmp_data += in_range[1];
     }
   }
