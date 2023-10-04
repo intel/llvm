@@ -23,20 +23,16 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         GIT_REPOSITORY    ${LEVEL_ZERO_LOADER_REPO}
         GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
     )
-    set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
     if(MSVC)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
-      # FIXME: Unified runtime build fails with /DUNICODE
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
-      # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
-      set(USE_Z7 ON)
+        set(USE_Z7 ON)
     endif()
     FetchContent_MakeAvailable(level-zero-loader)
     FetchContent_GetProperties(level-zero-loader)
 
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
+    target_compile_options(ze_loader PRIVATE
+        $<$<IN_LIST:$<CXX_COMPILER_ID>,GNU;Clang;Intel;IntelLLVM>:-Wno-error>
+        $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE>
+    )
 
     set(LEVEL_ZERO_LIBRARY ze_loader)
     set(LEVEL_ZERO_INCLUDE_DIR
@@ -55,16 +51,6 @@ target_link_directories(LevelZeroLoader
 target_link_libraries(LevelZeroLoader
     INTERFACE "${LEVEL_ZERO_LIB_NAME}"
 )
-
-# Windows build might have warnings (both MSVC and ICX), disable Werror etc.
-if (NOT WIN32)
-    target_compile_options(${LEVEL_ZERO_LIB_NAME} PUBLIC
-        -Wno-unused-but-set-variable
-        -Wno-pedantic
-        -Wno-unused-parameter
-        -Wno-error
-    )
-endif()
 
 add_library (LevelZeroLoader-Headers INTERFACE)
 target_include_directories(LevelZeroLoader-Headers
@@ -104,6 +90,11 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+)
+
+# TODO: fix level_zero adapter conversion warnings
+target_compile_options(${TARGET_NAME} PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/wd4267 /wd4805 /wd4244 /D_CRT_SECURE_NO_WARNINGS>
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES
