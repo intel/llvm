@@ -58,7 +58,7 @@ struct urUsmPoolManagerTest : public uur::urContextTest {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         auto [ret, descs] = usm::pool_descriptor::create(nullptr, context);
         ASSERT_EQ(ret, UR_RESULT_SUCCESS);
-        poolDescriptors = descs;
+        poolDescriptors = std::move(descs);
     }
 
     std::vector<usm::pool_descriptor> poolDescriptors;
