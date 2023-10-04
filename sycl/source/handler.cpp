@@ -370,7 +370,7 @@ event handler::finalize() {
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
-      // if no event to wait for was specified, we add all the previous
+      // if no event to wait for was specified, we add all exit
       // nodes/events of the graph
       if (MEventsWaitWithBarrier.size() == 0) {
         MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
