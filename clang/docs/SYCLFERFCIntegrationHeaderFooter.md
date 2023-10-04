@@ -83,7 +83,7 @@ For details of this transformation, see 'Lowering of SYCL-Kernel'. // TODO: Add 
 
 The integration header then describes the fields of the kernel objects as follows:
 
-``
+```
 namespace sycl {
   inline namespace _V1 {
     namespace detail {
@@ -94,24 +94,21 @@ namespace sycl {
                                      // demangles to 'typeinfo name for main::first_kernel'
 
       };
-           // array representing signatures of all kernels defined in the
-           // corresponding source
-          static constexpr
-          const kernel_param_desc_t kernel_signatures[] = {
-              //--- _ZTSZ4mainE12first_kernel
-             { kernel_param_kind_t::kind_std_layout, 4, 0 },
-            { kernel_param_kind_t::kind_std_layout, 8, 4 },
-            { kernel_param_kind_t::kind_accessor, 4062, 12 },
-            { kernel_param_kind_t::kind_sampler, 8, 24 },
+      // array representing signatures of all kernels defined in the
+      // corresponding source
+      static constexpr
+      const kernel_param_desc_t kernel_signatures[] = {
+        //--- _ZTSZ4mainE12first_kernel
+        { kernel_param_kind_t::kind_std_layout, 4, 0 },
+        { kernel_param_kind_t::kind_std_layout, 8, 4 },
+        { kernel_param_kind_t::kind_accessor, 4062, 12 },
+        { kernel_param_kind_t::kind_sampler, 8, 24 },
 
-           { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
-         };
-
-     }
-
-  }
-
-}
+        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
+      };
+    } // namespace detail
+  } // namespace _V1
+} // namespace sycl
 ```
 
 For each kernel, a mangled name associated with it, is stored in the kernel_names array.
