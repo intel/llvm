@@ -445,9 +445,13 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
       if (EnableSYCLConstantPropagation)
         PM.addPass(sycl::createConstantPropagationPass(
             {options.getCgeistOpts().getRelaxedAliasing()}));
+      if (PrintPipeline) {
+        llvm::errs() << "Early Host-Device Optimization pipeline:\n";
+        PM.dump();
+      }
       if (mlir::failed(PM.run(Module.get()))) {
         llvm::errs()
-            << "*** Early Host-Device Optimizations Failed. Module: ***\n";
+            << "*** Early Host-Device Optimization Failed. Module: ***\n";
         Module->dump();
         return failure();
       }

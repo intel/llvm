@@ -6,11 +6,15 @@
 // CHECK-SAME:    gpu.module(any({{.*}})),
 // CHECK-SAME:    gpu.module(any({{.*}})))
 
-// CHECK-LABEL: Optimization pipeline:
-// CHECK:       Pass Manager with 8 passes:
+// CHECK-LABEL: Early Host-Device Optimization pipeline:
+// CHECK:       Pass Manager with 2 passes:
 // CHECK:       any(
 // CHECK-SAME:    sycl-raise-host{ }
 // CHECK-SAME:    sycl-constant-propagation{relaxed-aliasing=false}
+
+// CHECK-LABEL: Optimization pipeline:
+// CHECK:       Pass Manager with 6 passes:
+// CHECK:       any(
 // CHECK-SAME:    arg-promotion
 // CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false}
 // CHECK-SAME:    gpu.module(any({{.*}})),loop-internalization{relaxed-aliasing=false shared-memory-size=32000 unroll-factor=4}
