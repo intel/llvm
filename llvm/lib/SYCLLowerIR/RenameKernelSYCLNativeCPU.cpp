@@ -29,8 +29,8 @@ static bool isSpirvSyclBuiltin(StringRef FName) {
 PreservedAnalyses
 RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
-  // Add NativeCPU suffix to module exports (kernels) and made other
-  // functions private
+  // Add NativeCPU suffix to module exports (kernels) and make other
+  // function definitions private
   for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
