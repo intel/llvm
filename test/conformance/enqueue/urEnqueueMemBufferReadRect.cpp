@@ -176,6 +176,13 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
                                    host_offset, region, size, size, size, size,
                                    dst.data(), 0, &validEvent, nullptr),
         UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(
+        urEnqueueMemBufferReadRect(queue, buffer, true, buffer_offset,
+                                   host_offset, region, size, size, size, size,
+                                   dst.data(), 1, &inv_evt, nullptr),
+        UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 using urEnqueueMemBufferReadRectMultiDeviceTest =

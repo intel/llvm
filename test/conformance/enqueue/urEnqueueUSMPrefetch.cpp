@@ -122,4 +122,10 @@ TEST_P(urEnqueueUSMPrefetchTest, InvalidEventWaitList) {
                      urEnqueueUSMPrefetch(queue, ptr, allocation_size,
                                           UR_USM_MIGRATION_FLAG_DEFAULT, 0,
                                           &validEvent, nullptr));
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueUSMPrefetch(queue, ptr, allocation_size,
+                                          UR_USM_MIGRATION_FLAG_DEFAULT, 1,
+                                          &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }

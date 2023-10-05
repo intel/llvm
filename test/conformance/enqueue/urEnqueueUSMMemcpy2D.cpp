@@ -183,5 +183,10 @@ TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidEventWaitList) {
                      urEnqueueUSMMemcpy2D(queue, true, pDst, pitch, pSrc, pitch,
                                           width, height, 0, &event, nullptr));
 
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueUSMMemcpy2D(queue, true, pDst, pitch, pSrc, pitch,
+                                          width, height, 1, &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
     ASSERT_SUCCESS(urEventRelease(event));
 }
