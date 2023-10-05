@@ -39,7 +39,7 @@ function get_pre_release_igfx() {
     fi
     sudo apt-get --assume-yes install curl # workaround, since image doesn't have curl
     ARCH_URL=$(curl -s -L -H "$HEADER" $URL \
-        | jq -r '. as $raw | try .artifacts[].archive_download_url catch error($raw)')
+        | jq -r '. as $raw | try .artifacts[0].archive_download_url catch error($raw)')
     curl -s -L -H "$HEADER" $ARCH_URL > $HASH.zip
     unzip $HASH.zip && rm $HASH.zip
 }
