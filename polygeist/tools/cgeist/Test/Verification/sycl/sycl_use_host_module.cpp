@@ -13,6 +13,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include "nop_kernel.hpp"
+
 // CHECK:        gpu.module @device_functions
 // CHECK:        memref.global constant @c : memref<i32, 1> {alignment = 4 : i64}
 // CHECK-NEXT:   func.func @host_foo() -> memref<i32, 1> {
@@ -28,4 +30,3 @@
 // CHECK-DROP-NOT: func.func @host_foo() -> memref<i32, 1> {
 
 // CHECK-LLVM-NOT: host_foo
-SYCL_EXTERNAL void do_nothing() {}

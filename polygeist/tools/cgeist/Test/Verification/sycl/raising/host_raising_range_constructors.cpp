@@ -138,3 +138,6 @@ template void range<2>(sycl::range<2> &&);
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:    }
 template void range<3>(sycl::range<3> &&);
+
+// Keep at the end of the file to not affect test results
+#include "../nop_kernel.hpp"
