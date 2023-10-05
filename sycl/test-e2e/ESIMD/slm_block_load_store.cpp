@@ -9,6 +9,12 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: esimd_emulator
+//
+// GPU driver had an error in handling of SLM aligned block_loads/stores,
+// which has been fixed only in "1.3.26816", and in win/opencl version going
+// _after_ 101.4575.
+// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+//
 // Even though the driver we use in CI is now new enough so this test doesn't
 // skip itself, it still fails. Temporary XFAIL-ing it while it is being
 // investigated.
@@ -102,15 +108,6 @@ int main() {
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
-
-  // GPU driver had an error in handling of SLM aligned block_loads/stores,
-  // which has been fixed only in "1.3.26816", and in win/opencl version going
-  // _after_ 101.4575.
-  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                 "26816", "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
-    return 0;
-  }
 
   constexpr size_t Align4 = 4;
   constexpr size_t Align8 = 8;
