@@ -6,10 +6,7 @@
 #endif
 
 #include "llvm/Config/llvm-config.h"
-<<<<<<< HEAD
-=======
 #include "llvm/IR/AttributeMask.h"
->>>>>>> 881934c4d11dc8dbf9e5e3d58828a89a9677a371
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
@@ -20,10 +17,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
-<<<<<<< HEAD
 #include "llvm/Support/SourceMgr.h"
-=======
->>>>>>> 881934c4d11dc8dbf9e5e3d58828a89a9677a371
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
