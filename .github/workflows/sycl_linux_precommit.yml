@@ -17,8 +17,7 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    - '.github/workflows/sycl_precommit_windows.yml'
-    - '.github/workflows/sycl_windows_build_and_test.yml'
+    - '.github/workflows/sycl_windows_*.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
