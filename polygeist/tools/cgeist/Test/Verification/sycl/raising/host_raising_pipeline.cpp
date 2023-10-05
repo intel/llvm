@@ -1,4 +1,4 @@
-// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -print-pipeline 2>&1 | FileCheck %s
+// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -no-early-drop-host-code -Xcgeist -print-pipeline 2>&1 | FileCheck %s
 
 // CHECK-LABEL: Canonicalization pipeline:
 // CHECK:       Pass Manager with 2 passes:
