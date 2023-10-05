@@ -307,10 +307,45 @@ public:
   R operator/(const annotated_arg<T2, PropertyList2> &other) const {
     return obj / other.obj;
   }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() % std::declval<T2>())>
+  R operator%(const annotated_arg<T2, PropertyList2> &other) const {
+    return obj % other.obj;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() & std::declval<T2>())>
+  R operator&(const annotated_arg<T2, PropertyList2> &other) const {
+    return obj & other.obj;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() | std::declval<T2>())>
+  R operator|(const annotated_arg<T2, PropertyList2> &other) const {
+    return obj | other.obj;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+  R operator^(const annotated_arg<T2, PropertyList2> &other) const {
+    return obj ^ other.obj;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+  R operator>>(const annotated_arg<T2, PropertyList2> &other) const {
+    return obj >> other.obj;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() << std::declval<T2>())>
+  R operator<<(const annotated_arg<T2, PropertyList2> &other) const {
+    return obj << other.obj;
+  }
 };
 
 template <typename T, typename PropertyList, typename T2,
-
           typename R = decltype(std::declval<T>() + std::declval<T2>())>
 R operator+(const annotated_arg<T, PropertyList> &a, const T2 &b) {
   T a1 = a;
@@ -336,6 +371,48 @@ template <typename T, typename PropertyList, typename T2,
 R operator/(const annotated_arg<T, PropertyList> &a, const T2 &b) {
   T a1 = a;
   return a1 / b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const annotated_arg<T, PropertyList> &a, const T2 &b) {
+  T a1 = a;
+  return a1 % b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const annotated_arg<T, PropertyList> &a, const T2 &b) {
+  T a1 = a;
+  return a1 & b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() | std::declval<T2>())>
+R operator|(const annotated_arg<T, PropertyList> &a, const T2 &b) {
+  T a1 = a;
+  return a1 | b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const annotated_arg<T, PropertyList> &a, const T2 &b) {
+  T a1 = a;
+  return a1 ^ b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const annotated_arg<T, PropertyList> &a, const T2 &b) {
+  T a1 = a;
+  return a1 >> b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const annotated_arg<T, PropertyList> &a, const T2 &b) {
+  T a1 = a;
+  return a1 << b;
 }
 
 template <typename T, typename T2, typename PropertyList2,
@@ -364,6 +441,48 @@ template <typename T, typename T2, typename PropertyList2,
   R operator/(const T &a, const annotated_arg<T2, PropertyList2> &b) {
   T2 b1 = b;
   return a / b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+  T2 b1 = b;
+  return a % b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+  T2 b1 = b;
+  return a & b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() | std::declval<T2>())>
+R operator|(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+  T2 b1 = b;
+  return a | b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+  T2 b1 = b;
+  return a ^ b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+  T2 b1 = b;
+  return a >> b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+  T2 b1 = b;
+  return a << b1;
 }
 
 } // namespace experimental

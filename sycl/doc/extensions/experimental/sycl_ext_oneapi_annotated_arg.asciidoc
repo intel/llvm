@@ -436,6 +436,19 @@ a compile error if `PropertyListT` does not contain a property with the
 Available only if `propertyT` is the property key class of a compile-time
 constant property.
 
+|===
+
+The following table describes the overloaded operators for types `annotated_arg<T, ...>`
+and `annotated_arg<T2, ...>`. Let `operatorOP` denote the operator used.
+The overloaded operator `operatorOP` utilizes `operatorOP(T2)` of type `T`
+and is available only if `operatorOP(T2)` is valid for objects of type `T`.
+The value and result is the same as the result of `operator+(T2)` applied to the
+objects of type `T` and `T2`.
+
+[frame="topbot",options="header"]
+|===
+|Overloaded Operators
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -444,12 +457,6 @@ template <typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() + std::declval<T2>())>
 R operator+(const annotated_arg<T2, PropertyList2> &other) const;
 ----
-|
-Overloaded `operator+` that utilizes `operator+(T2)` of type `T`.
-
-Available only if `operator+(T2)` is valid for objects of type `T`.
-The value and type of the result is the same as the result of `operator+(T2)`
-applied to the underlying objects of type `T` and `T2`.
 
 // --- ROW BREAK ---
 a|
@@ -459,12 +466,6 @@ template <typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() - std::declval<T2>())>
 R operator-(const annotated_arg<T2, PropertyList2> &other) const;
 ----
-|
-Overloaded `operator-` that utilizes `operator-(T2)` of type `T`.
-
-Available only if `operator-(T2)` is valid for objects of type `T`.
-The value and type of the result is the same as the result of `operator-(T2)`
-applied to the underlying objects of type `T` and `T2`.
 
 // --- ROW BREAK ---
 a|
@@ -474,12 +475,6 @@ template <typename T2, typename PropertyList2
           typename R = decltype(std::declval<T>() * std::declval<T2>())>
 R operator*(const annotated_arg<T2, PropertyList2> &other) const;
 ----
-|
-Overloaded `operator*` that utilizes `operator*(T2)` of type `T`.
-
-Available only if `operator*(T2)` is valid for objects of type `T`.
-The value and type of the result is the same as the result of `operator*(T2)`
-applied to the underlying objects of type `T` and `T2`.
 
 // --- ROW BREAK ---
 a|
@@ -489,21 +484,72 @@ template <typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() / std::declval<T2>())>
 R operator/(const annotated_arg<T2, PropertyList2> &other) const;
 ----
-|
-Overloaded `operator/` that utilizes `operator/(T2)` of type `T`.
 
-Available only if `operator/(T2)` is valid for objects of type `T`.
-The value and type of the result is the same as the result of `operator/(T2)`
-applied to the underlying objects of type `T` and `T2`.
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const annotated_arg<T2, PropertyList2> &other) const;
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const annotated_arg<T2, PropertyList2> &other) const;
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() \| std::declval<T2>())>
+R operator\|(const annotated_arg<T2, PropertyList2> &other) const;
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const annotated_arg<T2, PropertyList2> &other) const;
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const annotated_arg<T2, PropertyList2> &other) const;
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const annotated_arg<T2, PropertyList2> &other) const;
+----
 
 |===
 
-The following table describes the additional free functions that are added
-by this extension:
+The following table describes the overloaded operators for types `annotated_arg<T, ...>`
+and raw type `T2`. Let `operatorOP` denote the operator used. The overloaded operator
+`operatorOP` utilizes `operatorOP(T, T2)` and is available only if `operatorOP(T, T2)`
+is valid for objects of type `T` and `T2`. The value and result is the same as the result
+of `operator+(T, T2)` applied to the underlying objects of type `T` and `T2`.
 
 [frame="topbot",options="header"]
 |===
-|Functions |Description
+|`annotated_arg<T, ...>` on LHS |`annotated_arg<T2, ...>` on RHS
 
 // --- ROW BREAK ---
 a|
@@ -512,18 +558,13 @@ a|
 template <typename T, typename PropertyList, typename T2,
           typename R = decltype(std::declval<T>() + std::declval<T2>())>
 R operator+(const annotated_arg<T, PropertyList> &a, const T2 &b);
-
+a|
+[source,c++]
+----
 template <typename T, typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() + std::declval<T2>())>
 R operator+(const T &a, const annotated_arg<T2, PropertyList2> &b);
 ----
-|
-Overloaded `operator+` for annotated_arg and raw type objects that utilizes
-`operator+(T, T2)`.
-
-Available only if `operator+(T, T2)` is valid for objects of type `T` and `T2`.
-The value and type of the result is the same as the result of `operator+(T, T2)`
-applied to the underlying objects of type `T` and `T2`.
 
 // --- ROW BREAK ---
 a|
@@ -532,18 +573,13 @@ a|
 template <typename T, typename PropertyList, typename T2,
           typename R = decltype(std::declval<T>() - std::declval<T2>())>
 R operator-(const annotated_arg<T, PropertyList> &a, const T2 &b);
-
+a|
+[source,c++]
+----
 template <typename T, typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() - std::declval<T2>())>
 R operator-(const T &a, const annotated_arg<T2, PropertyList2> &b);
 ----
-|
-Overloaded `operator-` for annotated_arg and raw type objects that utilizes
-`operator-(T, T2)`.
-
-Available only if `operator-(T, T2)` is valid for objects of type `T` and `T2`.
-The value and type of the result is the same as the result of `operator-(T, T2)`
-applied to the underlying objects of type `T` and `T2`.
 
 // --- ROW BREAK ---
 a|
@@ -552,18 +588,13 @@ a|
 template <typename T, typename PropertyList, typename T2,
           typename R = decltype(std::declval<T>() * std::declval<T2>())>
 R operator*(const annotated_arg<T, PropertyList> &a, const T2 &b);
-
+a|
+[source,c++]
+----
 template <typename T, typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() * std::declval<T2>())>
 R operator*(const T &a, const annotated_arg<T2, PropertyList2> &b);
 ----
-|
-Overloaded `operator*` for annotated_arg and raw type objects that utilizes
-`operator*(T, T2)`.
-
-Available only if `operator*(T, T2)` is valid for objects of type `T` and `T2`.
-The value and type of the result is the same as the result of `operator*(T, T2)`
-applied to the underlying objects of type `T` and `T2`.
 
 // --- ROW BREAK ---
 a|
@@ -572,18 +603,103 @@ a|
 template <typename T, typename PropertyList, typename T2,
           typename R = decltype(std::declval<T>() / std::declval<T2>())>
 R operator/(const annotated_arg<T, PropertyList> &a, const T2 &b);
-
+a|
+[source,c++]
+----
 template <typename T, typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() / std::declval<T2>())>
 R operator/(const T &a, const annotated_arg<T2, PropertyList2> &b);
 ----
-|
-Overloaded `operator/` for annotated_arg and raw type objects that utilizes
-`operator/(T, T2)`.
 
-Available only if `operator/(T, T2)` is valid for objects of type `T` and `T2`.
-The value and type of the result is the same as the result of `operator/(T, T2)`
-applied to the underlying objects of type `T` and `T2`.
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const annotated_arg<T, PropertyList> &a, const T2 &b);
+a|
+[source,c++]
+----
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const T &a, const annotated_arg<T2, PropertyList2> &b);
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const annotated_arg<T, PropertyList> &a, const T2 &b);
+a|
+[source,c++]
+----
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const T &a, const annotated_arg<T2, PropertyList2> &b);
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() \| std::declval<T2>())>
+R operator\|(const annotated_arg<T, PropertyList> &a, const T2 &b);
+a|
+[source,c++]
+----
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() \| std::declval<T2>())>
+R operator\|(const T &a, const annotated_arg<T2, PropertyList2> &b);
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const annotated_arg<T, PropertyList> &a, const T2 &b);
+a|
+[source,c++]
+----
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const T &a, const annotated_arg<T2, PropertyList2> &b);
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const annotated_arg<T, PropertyList> &a, const T2 &b);
+a|
+[source,c++]
+----
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const T &a, const annotated_arg<T2, PropertyList2> &b);
+----
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const annotated_arg<T, PropertyList> &a, const T2 &b);
+a|
+[source,c++]
+----
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const T &a, const annotated_arg<T2, PropertyList2> &b);
+----
 
 |===
 
