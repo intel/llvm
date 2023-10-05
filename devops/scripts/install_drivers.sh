@@ -3,26 +3,16 @@
 set -e
 set -x
 
-if [ -f "$1" ]; then
-    # Read data from the dependencies.json passed as the first argument.
-    CONFIG_FILE=$1
-    CR_TAG=$(jq -r '.linux.compute_runtime.github_tag' $CONFIG_FILE)
-    IGC_TAG=$(jq -r '.linux.igc.github_tag' $CONFIG_FILE)
-    IGC_DEV_HASH=$(jq -r '.linux.igc_dev.github_hash' $CONFIG_FILE)
-    CM_TAG=$(jq -r '.linux.cm.github_tag' $CONFIG_FILE)
-    L0_TAG=$(jq -r '.linux.level_zero.github_tag' $CONFIG_FILE)
-    TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
-    FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
-    CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
-else
-    CR_TAG=$compute_runtime_tag
-    IGC_TAG=$igc_tag
-    CM_TAG=$cm_tag
-    L0_TAG=$level_zero_tag
-    TBB_TAG=$tbb_tag
-    FPGA_TAG=$fpgaemu_tag
-    CPU_TAG=$cpu_tag
-fi
+# Read data from the dependencies.json passed as the first argument.
+CONFIG_FILE=$1
+CR_TAG=$(jq -r '.linux.compute_runtime.github_tag' $CONFIG_FILE)
+IGC_TAG=$(jq -r '.linux.igc.github_tag' $CONFIG_FILE)
+IGC_DEV_HASH=$(jq -r '.linux.igc_dev.github_hash' $CONFIG_FILE)
+CM_TAG=$(jq -r '.linux.cm.github_tag' $CONFIG_FILE)
+L0_TAG=$(jq -r '.linux.level_zero.github_tag' $CONFIG_FILE)
+TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
+FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
+CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
 
 function get_release() {
     REPO=$1
@@ -40,17 +30,16 @@ function get_release() {
         | jq -r '. as $raw | try .assets[].browser_download_url catch error($raw)'
 }
 
-function get_pre_release() {
-    REPO=$1
-    HASH=$2
-    URL="https://api.github.com/repos/${REPO}/actions/artifacts?name=IGC_Ubuntu22.04_llvm14_clang-${HASH}"
+function get_pre_release_igfx() {
+    HASH=$1
+    URL="https://api.github.com/repos/intel/intel-graphics-compiler/actions/artifacts?name=IGC_Ubuntu22.04_llvm14_clang-${HASH}"
     HEADER=""
     if [ "$GITHUB_TOKEN" != "" ]; then
         HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-    which curl
-    ARCH_URL=`curl -s -L -H "$HEADER" $URL \
-        | jq -r '. as $raw | try .artifacts[].archive_download_url catch error($raw)'`
+    sudo apt-get --assume-yes install curl # workaround, since image doesn't have curl
+    ARCH_URL=$(curl -s -L -H "$HEADER" $URL \
+        | jq -r '. as $raw | try .artifacts[].archive_download_url catch error($raw)')
     curl -s -L -H "$HEADER" $ARCH_URL > $HASH.zip
     unzip $HASH.zip && rm $HASH.zip
 }
@@ -99,7 +88,7 @@ InstallIGFX () {
       | grep ".*deb" \
       | wget -qi -
   else
-    get_pre_release intel/intel-graphics-compiler $IGC_DEV_HASH
+    get_pre_release_igfx $IGC_DEV_HASH
   fi
   get_release intel/compute-runtime $CR_TAG \
     | grep -E ".*((deb)|(sum))" \
@@ -157,16 +146,16 @@ InstallFPGAEmu () {
 
 if [[ $# -eq 0 ]] ; then
   echo "No options were specified. Please, specify one or more of the following:"
-  echo "--all      - Install all Intel drivers"
-  echo "--igfx     - Install Intel Graphics drivers"
-  echo "--igfx-dev - Use with --all or --igfx. Install development version of Intel Graphics drivers"
-  echo "--cpu      - Install Intel CPU OpenCL runtime"
-  echo "--fpga-emu - Install Intel FPGA Fast emulator"
+  echo "--all          - Install all Intel drivers"
+  echo "--igfx         - Install Intel Graphics drivers"
+  echo "--use-dev-igfx - Use with --all or --igfx. Install development version of Intel Graphics drivers"
+  echo "--cpu          - Install Intel CPU OpenCL runtime"
+  echo "--fpga-emu     - Install Intel FPGA Fast emulator"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi
 
-if [[ "$*" == *"--igfx-dev"* ]]
+if [[ "$*" == *"--use-dev-igfx"* ]]
 then
     IGFX_DEV="dev"
 else
