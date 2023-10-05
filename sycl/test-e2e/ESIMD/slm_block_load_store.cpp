@@ -10,6 +10,9 @@
 //
 // UNSUPPORTED: esimd_emulator
 //
+// Note: "lin" format below is used for Win L0 as well.
+// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+//
 // https://github.com/intel/llvm/issues/11358
 // UNSUPPORTED: linux
 

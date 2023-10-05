@@ -1,3 +1,8 @@
+// GPU driver had an error in handling of SLM aligned block_loads/stores,
+// which has been fixed only in "1.3.26816", and in win/opencl version going
+// _after_ 101.4575.
+// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+//
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
@@ -78,14 +83,6 @@ int main(void) {
   auto Dev = Q.get_device();
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << std::endl;
-
-  // GPU driver had an error in handling of SLM aligned block_loads/stores,
-  // which has been fixed only in "1.3.26816", and in win/opencl version going
-  // _after_ 101.4575.
-  if (!isGPUDriverGE(Q, GPUDriverOS::LinuxAndWindows, "26816", "101.4576")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
-    return 0;
-  }
 
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   std::cout << "Local Memory Size: " << DeviceSLMSize << std::endl;
