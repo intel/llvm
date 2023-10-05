@@ -26,7 +26,7 @@ int main() {
     // CHECK-TL:      %0 = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
     // CHECK-TL-NEXT  %1 = load ptr addrspace(1), ptr addrspace(1) %0, align 8
     // CHECK-TL-NEXT  %ncpu_call = call i64 @__dpcpp_nativecpu_get_wg_size(i32 0, ptr addrspace(1) %1)
-    
+
     // CHECK-TL:      %10 = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
     // CHECK-TL-NEXT: store ptr addrspace(1) %1, ptr addrspace(1) %10, align 8
     // CHECK-TL-NEXT: call void @_ZTS5Test1.NativeCPUKernel(ptr addrspace(1) %3, ptr %5, ptr %7, ptr %9)
