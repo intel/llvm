@@ -6,6 +6,7 @@
 #endif
 
 #include "llvm/Config/llvm-config.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
@@ -107,6 +108,20 @@ int main(int argc, char **argv) {
   if (OutputFilename.empty()) {
     errs() << "no output file\n";
     return 1;
+  }
+
+  // AMDGPU remove incompatible functions pass replaces all uses of functions
+  // that use GPU features incompatible with the current GPU with null then
+  // deletes the function. This didn't use to cause problems, as all of libclc
+  // functions were inlined prior to incompatible functions pass. Now that the
+  // inliner runs later in the pipeline we have to remove all of the target
+  // features, so libclc functions will not be earmarked for deletion.
+  if (M->getTargetTriple().find("amdgcn") != std::string::npos) {
+    AttributeMask AM;
+    AM.addAttribute("target-features");
+    AM.addAttribute("target-cpu");
+    for (auto &F : *M)
+      F.removeFnAttrs(AM);
   }
 
   std::error_code EC;
