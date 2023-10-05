@@ -395,6 +395,15 @@ static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
   return success();
 }
 
+static bool shouldEarlyDropHostCode() {
+  // We can drop host code early if both conditions apply:
+  // 1. -no-early-drop-host-code is not passed;
+  // 2. Host code isn't explicitly asked for when we emit MLIR.
+  return !NoEarlyDropHostCode && (SYCLDeviceOnly ||
+                                  // We do not emit MLIR
+                                  EmitLLVM || EmitOpenMPIR || EmitAssembly);
+}
+
 // Optimize the MLIR.
 static LogicalResult optimize(mlir::MLIRContext &Ctx,
                               mlir::OwningOpRef<mlir::ModuleOp> &Module,
@@ -413,10 +422,23 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
 
   if (OptLevel != llvm::OptimizationLevel::O0) {
     if (SYCLRaiseHost) {
+      // Early host-device optimizations run in a different PassManager to be
+      // able to drop host code early
+      mlir::PassManager PM(&Ctx);
+      if (mlir::failed(enableOptionsPM(PM)))
+        return failure();
       PM.addPass(polygeist::createSYCLHostRaisingPass());
       if (EnableSYCLConstantPropagation)
         PM.addPass(sycl::createConstantPropagationPass(
             {options.getCgeistOpts().getRelaxedAliasing()}));
+      if (mlir::failed(PM.run(Module.get()))) {
+        llvm::errs()
+            << "*** Early Host-Device Optimizations Failed. Module: ***\n";
+        Module->dump();
+        return failure();
+      }
+      if (shouldEarlyDropHostCode())
+        eraseHostCode(*Module);
     }
     PM.addPass(polygeist::createArgumentPromotionPass());
     PM.addPass(polygeist::createKernelDisjointSpecializationPass(

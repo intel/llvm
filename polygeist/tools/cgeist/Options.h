@@ -250,4 +250,10 @@ static llvm::cl::opt<bool>
                   llvm::cl::desc("Print the pass pipelines in textual format"),
                   llvm::cl::Hidden);
 
+static llvm::cl::opt<bool> NoEarlyDropHostCode(
+    "no-early-drop-host-code", llvm::cl::init(false),
+    llvm::cl::desc(
+        "Do not drop host code after early host-device optimizations"),
+    llvm::cl::Hidden);
+
 #endif /* CGEIST_OPTIONS_H_ */
