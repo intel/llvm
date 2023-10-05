@@ -686,6 +686,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(
   PB.registerPipelineParsingCallback(
       [this](StringRef PassName, FunctionPassManager &PM,
              ArrayRef<PassBuilder::PipelineElement>) {
+        if (PassName == "amdgpu-oclc-reflect") {
+          PM.addPass(AMDGPUOclcReflectPass());
+          return true;
+        }
         if (PassName == "amdgpu-simplifylib") {
           PM.addPass(AMDGPUSimplifyLibCallsPass());
           return true;
@@ -753,6 +757,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(
   PB.registerPipelineStartEPCallback(
       [](ModulePassManager &PM, OptimizationLevel Level) {
         FunctionPassManager FPM;
+        FPM.addPass(AMDGPUOclcReflectPass());
         FPM.addPass(AMDGPUUseNativeCallsPass());
         if (EnableLibCallSimplify && Level != OptimizationLevel::O0)
           FPM.addPass(AMDGPUSimplifyLibCallsPass());
