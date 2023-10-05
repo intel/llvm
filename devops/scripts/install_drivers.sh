@@ -94,7 +94,7 @@ InstallIGFX () {
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
   if [ "$1" != "dev" ]; then
-    sha256sum -c *.sum && \
+    sha256sum -c *.sum
   fi
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
