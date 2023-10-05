@@ -409,13 +409,13 @@ static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
   return success();
 }
 
+static bool emitMLIR() { return EmitAssembly && !EmitLLVM; }
+
 static bool shouldEarlyDropHostCode() {
   // We can drop host code early if both conditions apply:
   // 1. -no-early-drop-host-code is not passed;
   // 2. Host code isn't explicitly asked for when we emit MLIR.
-  return !NoEarlyDropHostCode && (SYCLDeviceOnly ||
-                                  // We do not emit MLIR
-                                  EmitLLVM || EmitOpenMPIR || EmitAssembly);
+  return !NoEarlyDropHostCode && (SYCLDeviceOnly || !emitMLIR());
 }
 
 // Optimize the MLIR.
@@ -943,7 +943,7 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
   }
 
   bool EmitBC = EmitLLVM && !EmitAssembly;
-  bool EmitMLIR = EmitAssembly && !EmitLLVM;
+  bool EmitMLIR = emitMLIR();
   std::error_code EC;
   SmallString<128> TmpResultPath;
   llvm::StringRef IRFileName = Output;
