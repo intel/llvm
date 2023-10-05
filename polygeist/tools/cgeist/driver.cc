@@ -73,6 +73,7 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/TargetParser/Host.h"
 
+#include "Lib/utils.h"
 #include "Options.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h"
@@ -304,6 +305,19 @@ static LogicalResult enableOptionsPM(mlir::PassManager &PM) {
   return success();
 }
 
+static bool hasAtLeastOneKernel(mlir::ModuleOp Module) {
+  return !mlirclang::getDeviceModule(Module)
+              .getBody()
+              ->getOps<gpu::GPUFuncOp>()
+              .empty();
+}
+
+static bool shouldRaiseHost(mlir::ModuleOp Module) {
+  return SYCLUseHostModule != "" &&
+         // No need to raise host if there is no device code to optimize
+         hasAtLeastOneKernel(Module);
+}
+
 // MLIR canonicalization & cleanup.
 static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
                                   mlir::OwningOpRef<mlir::ModuleOp> &Module,
@@ -415,7 +429,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
 
-  bool SYCLRaiseHost = !SYCLUseHostModule.empty();
+  bool SYCLRaiseHost = shouldRaiseHost(*Module);
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -1428,7 +1442,7 @@ int main(int argc, char **argv) {
     Module->dump();
   });
 
-  if (SYCLUseHostModule != "") {
+  if (shouldRaiseHost(Module.get())) {
     if (!SYCLIsDevice) {
       llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
                       "device compilation\n";
