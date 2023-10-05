@@ -663,6 +663,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(
   PB.registerPipelineStartEPCallback(
       [](ModulePassManager &PM, OptimizationLevel Level) {
         FunctionPassManager FPM;
+        FPM.addPass(AMDGPUOclcReflectPass());
         FPM.addPass(AMDGPUUseNativeCallsPass());
         if (EnableLibCallSimplify && Level != OptimizationLevel::O0)
           FPM.addPass(AMDGPUSimplifyLibCallsPass());

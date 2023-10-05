@@ -130,6 +130,11 @@ struct AMDGPULowerKernelAttributesPass
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
+struct AMDGPUOclcReflectPass : public PassInfoMixin<AMDGPUOclcReflectPass> {
+public:
+  PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
+};
+
 void initializeAMDGPULowerModuleLDSLegacyPass(PassRegistry &);
 extern char &AMDGPULowerModuleLDSLegacyPassID;
 
