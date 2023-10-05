@@ -46,7 +46,7 @@ module {
 func.func @_Z3runiPPc(%arg2: i1) -> !llvm.ptr {
   %c1_i64 = arith.constant 1 : i64
   %0 = llvm.alloca %c1_i64 x !llvm.ptr : (i64) -> !llvm.ptr
-  %2 = llvm.mlir.null : !llvm.ptr
+  %2 = llvm.mlir.zero : !llvm.ptr
   scf.if %arg2 {
     %5 = llvm.load %0 : !llvm.ptr -> !llvm.ptr
     %6 = llvm.icmp "eq" %5, %2 : !llvm.ptr
@@ -72,7 +72,7 @@ func.func @_Z3runiPPc(%arg2: i1) -> !llvm.ptr {
 // CHECK:     func.func @_Z3runiPPc(%arg0: i1) -> !llvm.ptr {
 // CHECK-NEXT:       %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x !llvm.ptr : (i64) -> !llvm.ptr
-// CHECK-NEXT:       %1 = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:       %1 = llvm.mlir.zero : !llvm.ptr
 // CHECK-NEXT:       scf.if %arg0 {
 // CHECK-NEXT:         %3 = llvm.load %0 : !llvm.ptr -> !llvm.ptr
 // CHECK-NEXT:         %4 = llvm.icmp "eq" %3, %1 : !llvm.ptr

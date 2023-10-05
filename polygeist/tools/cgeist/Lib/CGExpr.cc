@@ -164,13 +164,13 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
     return ValueCategory(
         Builder.create<polygeist::Pointer2MemrefOp>(
             Loc, MT,
-            Builder.create<mlir::LLVM::NullOp>(
+            Builder.create<mlir::LLVM::ZeroOp>(
                 Loc, Glob.getTypes().getPointerType(Builder.getI8Type(),
                                                     MT.getMemorySpaceAsInt()))),
         false, Builder.getI8Type());
 
   if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(MLIRTy))
-    return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false,
+    return ValueCategory(Builder.create<mlir::LLVM::ZeroOp>(Loc, PT), false,
                          Builder.getI8Type());
 
   if (auto PT = dyn_cast<mlir::LLVM::LLVMTargetExtType>(MLIRTy))
@@ -874,12 +874,12 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *Expr) {
     return ValueCategory(
         Builder.create<polygeist::Pointer2MemrefOp>(
             Loc, MT,
-            Builder.create<mlir::LLVM::NullOp>(
+            Builder.create<mlir::LLVM::ZeroOp>(
                 Loc, Glob.getTypes().getPointerType(Builder.getI8Type(),
                                                     MT.getMemorySpaceAsInt()))),
         false);
   if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(MElem))
-    return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false);
+    return ValueCategory(Builder.create<mlir::LLVM::ZeroOp>(Loc, PT), false);
   if (!isa<FloatType>(MElem))
     Expr->dump();
   auto Ft = cast<FloatType>(MElem);
@@ -1925,7 +1925,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                            MT.getMemorySpaceAsInt()),
             Ptr);
       mlir::Value NullptrLlvm =
-          Builder.create<mlir::LLVM::NullOp>(Loc, Ptr.getType());
+          Builder.create<mlir::LLVM::ZeroOp>(Loc, Ptr.getType());
       auto NE = Builder.create<mlir::LLVM::ICmpOp>(
           Loc, mlir::LLVM::ICmpPredicate::ne, Ptr, NullptrLlvm);
       if (auto MT = dyn_cast<MemRefType>(Ptr.getType()))
@@ -1950,13 +1950,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_NullToPointer: {
     mlir::Type LLVMTy = Glob.getTypes().getMLIRType(E->getType());
     if (isa<LLVM::LLVMPointerType>(LLVMTy))
-      return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, LLVMTy),
+      return ValueCategory(Builder.create<mlir::LLVM::ZeroOp>(Loc, LLVMTy),
                            /*isReference*/ false, Builder.getI8Type());
     if (auto MT = dyn_cast<MemRefType>(LLVMTy))
       return ValueCategory(
           Builder.create<polygeist::Pointer2MemrefOp>(
               Loc, MT,
-              Builder.create<mlir::LLVM::NullOp>(
+              Builder.create<mlir::LLVM::ZeroOp>(
                   Loc, Glob.getTypes().getPointerType(
                            Builder.getI8Type(), MT.getMemorySpaceAsInt()))),
           false);
@@ -2369,7 +2369,7 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(Location Loc,
          "Expecting a pointer");
   mlir::OpBuilder SubBuilder(Builder.getContext());
   SubBuilder.setInsertionPointToStart(EntryBlock);
-  auto Zero = SubBuilder.create<LLVM::NullOp>(Loc, Src.val.getType());
+  auto Zero = SubBuilder.create<LLVM::ZeroOp>(Loc, Src.val.getType());
   return {Builder.createOrFold<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne,
                                              Src.val, Zero),
           false};

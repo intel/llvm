@@ -724,7 +724,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     }
 
     if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
-      auto NullOp = Builder.create<LLVM::NullOp>(Loc, LT);
+      auto NullOp = Builder.create<LLVM::ZeroOp>(Loc, LT);
       auto NE = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::eq, Val,
                                              NullOp);
       return ValueCategory(NE, /*isReference*/ false);
@@ -1007,7 +1007,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType()))
       Cond =
           Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
-                                       Builder.create<LLVM::NullOp>(Loc, LT));
+                                       Builder.create<LLVM::ZeroOp>(Loc, LT));
 
     LLVM_DEBUG({
       if (!isa<IntegerType>(Cond.getType())) {
@@ -1035,7 +1035,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     assert(RHS != nullptr);
     if (auto LT = dyn_cast<LLVM::LLVMPointerType>(RHS.getType()))
       RHS = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, RHS,
-                                         Builder.create<LLVM::NullOp>(Loc, LT));
+                                         Builder.create<LLVM::ZeroOp>(Loc, LT));
 
     if (!cast<IntegerType>(RHS.getType()).isInteger(1))
       RHS = Builder.create<arith::CmpIOp>(
@@ -2843,10 +2843,6 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> Filenames,
     // FIXME: We shouldn't need to do this, the target should be immutable once
     // created. This complexity should be lifted elsewhere.
     Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
-
-    // Adjust target options based on codegen options.
-    Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
-                                           Clang->getTargetOpts());
 
     llvm::Triple JobTriple = Clang->getTarget().getTriple();
     if (Triple.str() == "" || !JobTriple.isNVPTX()) {

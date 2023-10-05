@@ -250,7 +250,7 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *Fors) {
       auto CondRes = Visit(S);
       auto Cond = CondRes.getValue(Builder);
       if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
-        auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+        auto NullptrLlvm = Builder.create<LLVM::ZeroOp>(Loc, LT);
         Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                             NullptrLlvm);
       }
@@ -334,7 +334,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *Fors) {
     auto CondRes = Visit(S);
     auto Cond = CondRes.getValue(Builder);
     if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
-      auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+      auto NullptrLlvm = Builder.create<LLVM::ZeroOp>(Loc, LT);
       Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                           NullptrLlvm);
     }
@@ -721,7 +721,7 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *Fors) {
     auto CondRes = Visit(S);
     auto Cond = CondRes.getValue(Builder);
     if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
-      auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+      auto NullptrLlvm = Builder.create<LLVM::ZeroOp>(Loc, LT);
       Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                           NullptrLlvm);
     }
@@ -782,7 +782,7 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *Fors) {
     auto CondRes = Visit(S);
     auto Cond = CondRes.getValue(Builder);
     if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
-      auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+      auto NullptrLlvm = Builder.create<LLVM::ZeroOp>(Loc, LT);
       Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                           NullptrLlvm);
     }
@@ -828,7 +828,7 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *Stmt) {
         Loc, Glob.getTypes().getPointerType(Builder.getI8Type()), Cond);
   }
   if (auto LT = dyn_cast<LLVM::LLVMPointerType>(Cond.getType())) {
-    auto NullptrLlvm = Builder.create<LLVM::NullOp>(Loc, LT);
+    auto NullptrLlvm = Builder.create<LLVM::ZeroOp>(Loc, LT);
     Cond = Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                         NullptrLlvm);
   }

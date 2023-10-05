@@ -343,13 +343,13 @@ int main(int argc, char** argv)
 // CHECK:           %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.addressof @str1 : !llvm.ptr
 // CHECK:           %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<23 x i8>
-// CHECK:           %[[VAL_6:.*]] = llvm.call @fprintf(%[[VAL_3]], %[[VAL_5]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_6:.*]] = llvm.call @fprintf(%[[VAL_3]], %[[VAL_5]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK:           %[[VAL_7:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:           %[[VAL_8:.*]] = llvm.mlir.addressof @str2 : !llvm.ptr
 // CHECK:           %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_8]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<15 x i8>
 // CHECK:           %[[VAL_10:.*]] = llvm.mlir.addressof @str3 : !llvm.ptr
 // CHECK:           %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_10]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<5 x i8>
-// CHECK:           %[[VAL_12:.*]] = llvm.call @fprintf(%[[VAL_7]], %[[VAL_9]], %[[VAL_11]]) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_12:.*]] = llvm.call @fprintf(%[[VAL_7]], %[[VAL_9]], %[[VAL_11]])  vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> i32
 // CHECK:           %[[VAL_13:.*]] = llvm.mlir.addressof @str5 : !llvm.ptr
 // CHECK:           %[[VAL_14:.*]] = llvm.getelementptr inbounds %[[VAL_13]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<8 x i8>
 // CHECK:           affine.for %[[VAL_15:.*]] = 0 to %[[VAL_IDX]] {
@@ -358,21 +358,21 @@ int main(int argc, char** argv)
 // CHECK:                 %[[VAL_17:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:                 %[[VAL_18:.*]] = llvm.mlir.addressof @str4 : !llvm.ptr
 // CHECK:                 %[[VAL_19:.*]] = llvm.getelementptr inbounds %[[VAL_18]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<2 x i8>
-// CHECK:                 %[[VAL_20:.*]] = llvm.call @fprintf(%[[VAL_17]], %[[VAL_19]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:                 %[[VAL_20:.*]] = llvm.call @fprintf(%[[VAL_17]], %[[VAL_19]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK:               }
 // CHECK:               %[[VAL_21:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:               %[[VAL_22:.*]] = affine.load %[[VAL_1]]{{\[}}%[[VAL_15]], %[[VAL_16]]] : memref<?x1200xf64>
-// CHECK:               %[[VAL_23:.*]] = llvm.call @fprintf(%[[VAL_21]], %[[VAL_14]], %[[VAL_22]]) : (!llvm.ptr, !llvm.ptr, f64) -> i32
+// CHECK:               %[[VAL_23:.*]] = llvm.call @fprintf(%[[VAL_21]], %[[VAL_14]], %[[VAL_22]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr, f64) -> i32
 // CHECK:             }
 // CHECK:           }
 // CHECK:           %[[VAL_24:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:           %[[VAL_25:.*]] = llvm.mlir.addressof @str6 : !llvm.ptr
 // CHECK:           %[[VAL_26:.*]] = llvm.getelementptr inbounds %[[VAL_25]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<17 x i8>
-// CHECK:           %[[VAL_27:.*]] = llvm.call @fprintf(%[[VAL_24]], %[[VAL_26]], %[[VAL_11]]) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_27:.*]] = llvm.call @fprintf(%[[VAL_24]], %[[VAL_26]], %[[VAL_11]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> i32
 // CHECK:           %[[VAL_28:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:           %[[VAL_29:.*]] = llvm.mlir.addressof @str7 : !llvm.ptr
 // CHECK:           %[[VAL_30:.*]] = llvm.getelementptr inbounds %[[VAL_29]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<23 x i8>
-// CHECK:           %[[VAL_31:.*]] = llvm.call @fprintf(%[[VAL_28]], %[[VAL_30]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_31:.*]] = llvm.call @fprintf(%[[VAL_28]], %[[VAL_30]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK:           return
 // CHECK:         }
 

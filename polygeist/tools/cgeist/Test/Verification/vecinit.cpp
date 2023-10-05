@@ -72,21 +72,21 @@ float8 test_fill(float A, float B, float C, float D) {
 // CHECK-LABEL:   func.func @_Z11test_concatDv4_fS_(
 // CHECK-SAME:                                      %[[VAL_0:.*]]: vector<4xf32>, %[[VAL_1:.*]]: vector<4xf32>) -> vector<8xf32>
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
-// CHECK-NEXT:      %[[VAL_3:.*]] = vector.extract %[[VAL_0]][0] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_3:.*]] = vector.extract %[[VAL_0]][0] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_4:.*]] = vector.insert %[[VAL_3]], %[[VAL_2]] [0] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_5:.*]] = vector.extract %[[VAL_0]][1] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_5:.*]] = vector.extract %[[VAL_0]][1] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_6:.*]] = vector.insert %[[VAL_5]], %[[VAL_4]] [1] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_7:.*]] = vector.extract %[[VAL_0]][2] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_7:.*]] = vector.extract %[[VAL_0]][2] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_8:.*]] = vector.insert %[[VAL_7]], %[[VAL_6]] [2] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extract %[[VAL_0]][3] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_9:.*]] = vector.extract %[[VAL_0]][3] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_10:.*]] = vector.insert %[[VAL_9]], %[[VAL_8]] [3] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_11:.*]] = vector.extract %[[VAL_1]][0] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_11:.*]] = vector.extract %[[VAL_1]][0] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_12:.*]] = vector.insert %[[VAL_11]], %[[VAL_10]] [4] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_13:.*]] = vector.extract %[[VAL_1]][1] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_13:.*]] = vector.extract %[[VAL_1]][1] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_14:.*]] = vector.insert %[[VAL_13]], %[[VAL_12]] [5] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_15:.*]] = vector.extract %[[VAL_1]][2] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_15:.*]] = vector.extract %[[VAL_1]][2] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_16:.*]] = vector.insert %[[VAL_15]], %[[VAL_14]] [6] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_17:.*]] = vector.extract %[[VAL_1]][3] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_17:.*]] = vector.extract %[[VAL_1]][3] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_18:.*]] = vector.insert %[[VAL_17]], %[[VAL_16]] [7] : f32 into vector<8xf32>
 // CHECK-NEXT:      return %[[VAL_18]] : vector<8xf32>
 // CHECK-NEXT:    }
@@ -97,13 +97,13 @@ float8 test_concat(float4 A, float4 B) {
 // CHECK-LABEL:   func.func @_Z11test_expandDv4_f(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: vector<4xf32>) -> vector<8xf32>
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant dense<0.000000e+00> : vector<8xf32>
-// CHECK-NEXT:      %[[VAL_2:.*]] = vector.extract %[[VAL_0]][0] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_2:.*]] = vector.extract %[[VAL_0]][0] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_3:.*]] = vector.insert %[[VAL_2]], %[[VAL_1]] [0] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_4:.*]] = vector.extract %[[VAL_0]][1] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_4:.*]] = vector.extract %[[VAL_0]][1] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_5:.*]] = vector.insert %[[VAL_4]], %[[VAL_3]] [1] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_6:.*]] = vector.extract %[[VAL_0]][2] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_6:.*]] = vector.extract %[[VAL_0]][2] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_7:.*]] = vector.insert %[[VAL_6]], %[[VAL_5]] [2] : f32 into vector<8xf32>
-// CHECK-NEXT:      %[[VAL_8:.*]] = vector.extract %[[VAL_0]][3] : vector<4xf32>
+// CHECK-NEXT:      %[[VAL_8:.*]] = vector.extract %[[VAL_0]][3] : f32 from vector<4xf32>
 // CHECK-NEXT:      %[[VAL_9:.*]] = vector.insert %[[VAL_8]], %[[VAL_7]] [3] : f32 into vector<8xf32>
 // CHECK-NEXT:      return %[[VAL_9]] : vector<8xf32>
 // CHECK-NEXT:    }

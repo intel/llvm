@@ -33,7 +33,7 @@ int* alloc() {
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_4]] x i32 : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_6]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<3 x i8>
-// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.call @__isoc99_scanf(%[[VAL_7]], %[[VAL_5]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.call @__isoc99_scanf(%[[VAL_7]], %[[VAL_5]]) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK-NEXT:      %[[VAL_9:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> i32
 // CHECK-NEXT:      %[[VAL_10:.*]] = arith.extsi %[[VAL_9]] : i32 to i64
 // CHECK-NEXT:      %[[VAL_11:.*]] = arith.muli %[[VAL_10]], %[[VAL_3]] : i64
@@ -44,7 +44,7 @@ int* alloc() {
 // CHECK-NEXT:      %[[VAL_16:.*]] = llvm.getelementptr inbounds %[[VAL_15]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i8>
 // CHECK-NEXT:      %[[VAL_17:.*]] = arith.index_cast %[[VAL_9]] : i32 to index
 // CHECK-NEXT:      scf.for %[[VAL_18:.*]] = %[[VAL_0]] to %[[VAL_17]] step %[[VAL_1]] {
-// CHECK-NEXT:        %[[VAL_19:.*]] = llvm.call @__isoc99_scanf(%[[VAL_16]], %[[VAL_5]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK-NEXT:        %[[VAL_19:.*]] = llvm.call @__isoc99_scanf(%[[VAL_16]], %[[VAL_5]]) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK-NEXT:        %[[VAL_20:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> i32
 // CHECK-NEXT:        memref.store %[[VAL_20]], %[[VAL_14]]{{\[}}%[[VAL_18]]] : memref<?xi32>
 // CHECK-NEXT:      }

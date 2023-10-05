@@ -527,7 +527,7 @@ llvm.func @raise_set_globalsize(%handler: !llvm.ptr) {
   %c1 = llvm.mlir.constant (1 : i64) : i64
   sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
   %c512 = llvm.mlir.constant (512 : i64) : i64
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
   %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
   sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   %str = llvm.mlir.addressof @range_str : !llvm.ptr
@@ -572,7 +572,7 @@ llvm.func @raise_set_globalsize_offset(%handler: !llvm.ptr) {
   sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
   %c100 = llvm.mlir.constant (100 : i64) : i64
   %c512 = llvm.mlir.constant (512 : i64) : i64
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
   %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
   sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
   %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
@@ -803,7 +803,7 @@ llvm.func @_ZN4sycl3_V17handler6unpackEv(%arg0: !llvm.ptr)
 // CHECK:           sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
 // CHECK:           %[[VAL_12:.*]] = llvm.mlir.undef : vector<2xf32>
 // CHECK:           %[[VAL_13:.*]] = llvm.mlir.undef : vector<2xf32>
-// CHECK:           %[[VAL_14:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_14:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_15:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_16:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_17:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
@@ -872,7 +872,7 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   %vec_u1 = llvm.mlir.undef : vector<2 x f32>
   %vec_u2 = llvm.mlir.undef : vector<2 x f32>
   %c6 = llvm.mlir.constant(6.0 : f32) : f32
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
   %accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
   %local_accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
   %vector = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
@@ -986,7 +986,7 @@ llvm.func @raise_set_globalsize_offset(%handler: !llvm.ptr, %condition: i1) {
   sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
   %c100 = llvm.mlir.constant (100 : i64) : i64
   %c512 = llvm.mlir.constant (512 : i64) : i64
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
   %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
   %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
   %rangeStr = llvm.mlir.addressof @range_str : !llvm.ptr
@@ -1122,7 +1122,7 @@ llvm.mlir.global private unnamed_addr constant @kernel_param_desc_str("kernel_pa
 // CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr) {
 // CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
-// CHECK:           %[[VAL_3:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::range", opaque> : (i32) -> !llvm.ptr
 // CHECK:           sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_4]] : !llvm.ptr, !llvm.ptr
 // CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.lambda", opaque> : (i32) -> !llvm.ptr
@@ -1149,7 +1149,7 @@ llvm.mlir.global private unnamed_addr constant @kernel_param_desc_str("kernel_pa
 llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
   %c0 = llvm.mlir.constant (0 : i32) : i32
   %c1 = llvm.mlir.constant (1 : i32) : i32
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
 
   %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", opaque> : (i32) -> !llvm.ptr
   sycl.host.handler.set_nd_range %handler -> range %range : !llvm.ptr, !llvm.ptr
@@ -1184,7 +1184,7 @@ llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
 // CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(2 : i32) : i32
-// CHECK:           %[[VAL_4:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_4:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_5:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::range", opaque> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_6:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<"class.sycl::_V1::id", opaque> : (i32) -> !llvm.ptr
 // CHECK:           sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_5]], offset %[[VAL_6]] : !llvm.ptr, !llvm.ptr, !llvm.ptr
@@ -1215,7 +1215,7 @@ llvm.func @raise_schedule_parallel_for_range_offset_std_layout_accessor(%handler
   %c0 = llvm.mlir.constant (0 : i32) : i32
   %c1 = llvm.mlir.constant (1 : i32) : i32
   %c2 = llvm.mlir.constant (2 : i32) : i32
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
 
   %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", opaque> : (i32) -> !llvm.ptr
   %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", opaque> : (i32) -> !llvm.ptr
@@ -1253,7 +1253,7 @@ llvm.func @raise_schedule_parallel_for_range_offset_std_layout_accessor(%handler
 // CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(3 : i32) : i32
-// CHECK:           %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_6:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           sycl.host.handler.set_nd_range %[[VAL_0]] -> nd_range %[[VAL_1]] : !llvm.ptr, !llvm.ptr
 // CHECK:           %[[VAL_7:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.lambda", opaque> : (i32) -> !llvm.ptr
 // CHECK:           %[[VAL_8:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"some_struct", opaque> : (i32) -> !llvm.ptr
@@ -1279,7 +1279,7 @@ llvm.func @raise_schedule_parallel_for_ndrange_std_layout_x3(%handler: !llvm.ptr
   %c0 = llvm.mlir.constant (0 : i32) : i32
   %c1 = llvm.mlir.constant (1 : i32) : i32
   %c3 = llvm.mlir.constant (3 : i32) : i32
-  %nullptr = llvm.mlir.null : !llvm.ptr
+  %nullptr = llvm.mlir.zero : !llvm.ptr
 
   sycl.host.handler.set_nd_range %handler -> nd_range %ndrange : !llvm.ptr, !llvm.ptr
 

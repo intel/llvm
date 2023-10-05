@@ -209,7 +209,7 @@ func.func private @mixed_alloca(%arg0 : index) {
 
 // CHECK-LABEL:   llvm.func @alloc() attributes {sym_visibility = "private"} {
 // CHECK:           %[[VAL_0:.*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK:           %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_0]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
 // CHECK:           %[[VAL_4:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
 // CHECK:           %[[VAL_5:.*]] = llvm.call @malloc(%[[VAL_4]]) : (i64) -> !llvm.ptr
@@ -227,7 +227,7 @@ func.func private @alloc() {
 
 // CHECK-LABEL:   llvm.func @alloc_nd() attributes {sym_visibility = "private"} {
 // CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(60 : index) : i64
-// CHECK:           %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_6:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_5]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
 // CHECK:           %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
 // CHECK:           %[[VAL_9:.*]] = llvm.call @malloc(%[[VAL_8]]) : (i64) -> !llvm.ptr
@@ -247,7 +247,7 @@ func.func private @alloc_nd() {
 // CHECK-SAME:                           %[[VAL_0:.*]]: i64)
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(294 : index) : i64
 // CHECK:           %[[VAL_5:.*]] = llvm.mul %[[VAL_4]], %[[VAL_0]]  : i64
-// CHECK:           %[[VAL_6:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_6:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_6]]{{\[}}%[[VAL_5]]] : (!llvm.ptr, i64) -> !llvm.ptr, f32
 // CHECK:           %[[VAL_8:.*]] = llvm.ptrtoint %[[VAL_7]] : !llvm.ptr to i64
 // CHECK:           %[[VAL_9:.*]] = llvm.call @malloc(%[[VAL_8]]) : (i64) -> !llvm.ptr
@@ -569,7 +569,7 @@ func.func private @malloc(i64) -> !llvm.ptr
 
 // CHECK-LABEL:   llvm.func @f0(
 // CHECK-SAME:                  %[[VAL_0:.*]]: i64) -> !llvm.ptr
-// CHECK:           %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_3:.*]] = llvm.getelementptr %[[VAL_2]]{{\[}}%[[VAL_0]]] : (!llvm.ptr, i64) -> !llvm.ptr, i8
 // CHECK:           %[[VAL_4:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
 // CHECK:           %[[VAL_5:.*]] = llvm.call @malloc(%[[VAL_4]]) : (i64) -> !llvm.ptr

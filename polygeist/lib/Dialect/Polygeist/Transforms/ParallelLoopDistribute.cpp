@@ -1612,7 +1612,7 @@ static void getOperands(scf::ForOp op, SmallVector<Value> &operands) {
   operands = op.getInitArgs();
 }
 static void getOperands(affine::AffineForOp op, SmallVector<Value> &operands) {
-  operands = op.getIterOperands();
+  operands = op.getInits();
 }
 
 template <typename T, bool UseMinCut>
