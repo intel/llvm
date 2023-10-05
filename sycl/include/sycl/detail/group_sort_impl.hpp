@@ -436,23 +436,99 @@ template <> struct ValuesAssigner<false> {
   void operator()(IterOutT, size_t, ValT) {}
 };
 
+// Wrapper class for scratchpad memory used by the group-sorting
+// implementations. It simplifies accessing the supplied memory as arbitrary
+// types without breaking strict aliasing and avoiding alignment issues.
+struct ScratchMemory {
+public:
+  // "Reference" object for accessing part of the scratch memory as a type T.
+  template <typename T> struct ReferenceObj {
+  public:
+    ReferenceObj() : MPtr{nullptr} {};
+
+    operator T() const {
+      T value{0};
+      detail::memcpy(&value, MPtr, sizeof(T));
+      return value;
+    }
+
+    T operator++(int) noexcept {
+      T value{0};
+      detail::memcpy(&value, MPtr, sizeof(T));
+      T value_before = value++;
+      detail::memcpy(MPtr, &value, sizeof(T));
+      return value_before;
+    }
+
+    T operator++() noexcept {
+      T value{0};
+      detail::memcpy(&value, MPtr, sizeof(T));
+      ++value;
+      detail::memcpy(MPtr, &value, sizeof(T));
+      return value;
+    }
+
+    ReferenceObj &operator=(const T &value) noexcept {
+      detail::memcpy(MPtr, &value, sizeof(T));
+      return *this;
+    }
+
+    ReferenceObj &operator=(const ReferenceObj &value) noexcept {
+      MPtr = value.MPtr;
+      return *this;
+    }
+
+    ReferenceObj &operator=(ReferenceObj &&value) noexcept {
+      MPtr = std::move(value.MPtr);
+      return *this;
+    }
+
+    void copy(const ReferenceObj &value) noexcept {
+      detail::memcpy(MPtr, value.MPtr, sizeof(T));
+    }
+
+  private:
+    ReferenceObj(std::byte *ptr) : MPtr{ptr} {}
+
+    friend struct ScratchMemory;
+
+    std::byte *MPtr;
+  };
+
+  ScratchMemory operator+(size_t byte_offset) const noexcept {
+    return {MMemory + byte_offset};
+  }
+
+  ScratchMemory(std::byte *memory) : MMemory{memory} {}
+
+  ScratchMemory(const ScratchMemory &) = default;
+  ScratchMemory(ScratchMemory &&) = default;
+  ScratchMemory &operator=(const ScratchMemory &) = default;
+  ScratchMemory &operator=(ScratchMemory &&) = default;
+
+  template <typename ValueT>
+  ReferenceObj<ValueT> get(size_t index) const noexcept {
+    return {MMemory + index * sizeof(ValueT)};
+  }
+
+  std::byte *MMemory;
+};
+
 // The iteration of radix sort for unknown number of elements per work item
 template <uint32_t radix_bits, bool is_key_value_sort, bool is_comp_asc,
           typename KeysT, typename ValueT, typename GroupT>
-void performRadixIterDynamicSize(GroupT group,
-                                 const uint32_t items_per_work_item,
-                                 const uint32_t radix_iter, const size_t n,
-                                 KeysT *keys_input, ValueT *vals_input,
-                                 KeysT *keys_output, ValueT *vals_output,
-                                 uint32_t *memory) {
+void performRadixIterDynamicSize(
+    GroupT group, const uint32_t items_per_work_item, const uint32_t radix_iter,
+    const size_t n, const ScratchMemory &keys_input,
+    const ScratchMemory &vals_input, const ScratchMemory &keys_output,
+    const ScratchMemory &vals_output, const ScratchMemory &memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
 
   // 1.1. Zeroinitialize local memory
-  uint32_t *scan_memory = reinterpret_cast<uint32_t *>(memory);
   for (uint32_t state = 0; state < radix_states; ++state)
-    scan_memory[state * wgsize + idx] = 0;
+    memory.get<uint32_t>(state * wgsize + idx) = uint32_t{0};
 
   sycl::group_barrier(group);
 
@@ -461,7 +537,7 @@ void performRadixIterDynamicSize(GroupT group,
     const uint32_t val_idx = items_per_work_item * idx + i;
     // get value, convert it to Ordered (in terms of bitness)
     const auto val =
-        convertToOrdered((val_idx < n) ? keys_input[val_idx]
+        convertToOrdered((val_idx < n) ? keys_input.get<KeysT>(val_idx)
                                        : getDefaultValue<ValueT>(is_comp_asc));
     // get bit values in a certain bucket of a value
     const uint32_t bucket_val =
@@ -469,7 +545,7 @@ void performRadixIterDynamicSize(GroupT group,
 
     // increment counter for this bit bucket
     if (val_idx < n)
-      scan_memory[bucket_val * wgsize + idx]++;
+      ++memory.get<uint32_t>(bucket_val * wgsize + idx);
   }
 
   sycl::group_barrier(group);
@@ -477,7 +553,7 @@ void performRadixIterDynamicSize(GroupT group,
   // 2.1 Scan. Upsweep: reduce over radix states
   uint32_t reduced = 0;
   for (uint32_t i = 0; i < radix_states; ++i)
-    reduced += scan_memory[idx * radix_states + i];
+    reduced += memory.get<uint32_t>(idx * radix_states + i);
 
   // 2.2. Exclusive scan: over work items
   uint32_t scanned =
@@ -485,9 +561,10 @@ void performRadixIterDynamicSize(GroupT group,
 
   // 2.3. Exclusive downsweep: exclusive scan over radix states
   for (uint32_t i = 0; i < radix_states; ++i) {
-    uint32_t value = scan_memory[idx * radix_states + i];
-    scan_memory[idx * radix_states + i] = scanned;
-    scanned += value;
+    auto value_ref = memory.get<uint32_t>(idx * radix_states + i);
+    uint32_t value_before = value_ref;
+    value_ref = scanned;
+    scanned += value_before;
   }
 
   sycl::group_barrier(group);
@@ -499,18 +576,20 @@ void performRadixIterDynamicSize(GroupT group,
     const uint32_t val_idx = items_per_work_item * idx + i;
     // get value, convert it to Ordered (in terms of bitness)
     auto val =
-        convertToOrdered((val_idx < n) ? keys_input[val_idx]
+        convertToOrdered((val_idx < n) ? keys_input.get<KeysT>(val_idx)
                                        : getDefaultValue<ValueT>(is_comp_asc));
     // get bit values in a certain bucket of a value
     uint32_t bucket_val =
         getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
 
     uint32_t new_offset_idx = private_scan_memory[bucket_val]++ +
-                              scan_memory[bucket_val * wgsize + idx];
+                              memory.get<uint32_t>(bucket_val * wgsize + idx);
     if (val_idx < n) {
-      keys_output[new_offset_idx] = keys_input[val_idx];
-      ValuesAssigner<is_key_value_sort>()(vals_output, new_offset_idx,
-                                          vals_input, val_idx);
+      keys_output.get<KeysT>(new_offset_idx)
+          .copy(keys_input.get<KeysT>(val_idx));
+      if constexpr (is_key_value_sort)
+        vals_output.get<ValueT>(new_offset_idx)
+            .copy(vals_input.get<ValueT>(val_idx));
     }
   }
 }
@@ -521,7 +600,7 @@ template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
           typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
                                 const uint32_t last_iter, KeysT *keys,
-                                ValsT vals, std::byte *memory) {
+                                ValsT vals, const ScratchMemory &memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
@@ -531,13 +610,12 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
   uint32_t ranks[items_per_work_item] = {0};
 
   // 1.1. Zeroinitialize local memory
-  uint32_t *scan_memory = reinterpret_cast<uint32_t *>(memory);
-  for (uint32_t i = 0; i < radix_states; ++i)
-    scan_memory[i * wgsize + idx] = 0;
+  for (uint32_t state = 0; state < radix_states; ++state)
+    memory.get<uint32_t>(state * wgsize + idx) = uint32_t{0};
 
   sycl::group_barrier(group);
 
-  uint32_t *pointers[items_per_work_item] = {nullptr};
+  ScratchMemory::ReferenceObj<uint32_t> value_refs[items_per_work_item];
   // 1.2. count values and write result to private count array
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     // get value, convert it to Ordered (in terms of bitness)
@@ -545,15 +623,15 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
     // get bit values in a certain bucket of a value
     uint32_t bucket_val =
         getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
-    pointers[i] = scan_memory + (bucket_val * wgsize + idx);
-    count_arr[i] = (*pointers[i])++;
+    value_refs[i] = memory.get<uint32_t>(bucket_val * wgsize + idx);
+    count_arr[i] = value_refs[i]++;
   }
   sycl::group_barrier(group);
 
   // 2.1 Scan. Upsweep: reduce over radix states
   uint32_t reduced = 0;
   for (uint32_t i = 0; i < radix_states; ++i)
-    reduced += scan_memory[idx * radix_states + i];
+    reduced += memory.get<uint32_t>(idx * radix_states + i);
 
   // 2.2. Exclusive scan: over work items
   uint32_t scanned =
@@ -561,26 +639,28 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
 
   // 2.3. Exclusive downsweep: exclusive scan over radix states
   for (uint32_t i = 0; i < radix_states; ++i) {
-    uint32_t value = scan_memory[idx * radix_states + i];
-    scan_memory[idx * radix_states + i] = scanned;
-    scanned += value;
+    auto value_ref = memory.get<uint32_t>(idx * radix_states + i);
+    uint32_t value_before = value_ref;
+    value_ref = scanned;
+    scanned += value_before;
   }
 
   sycl::group_barrier(group);
 
   // 2.4. Fill ranks with offsets
   for (uint32_t i = 0; i < items_per_work_item; ++i)
-    ranks[i] = count_arr[i] + *pointers[i];
+    ranks[i] = count_arr[i] + value_refs[i];
 
   sycl::group_barrier(group);
 
   // 3. Reorder
-  KeysT *keys_temp = reinterpret_cast<KeysT *>(memory);
-  ValsT *vals_temp = reinterpret_cast<ValsT *>(
-      memory + wgsize * items_per_work_item * sizeof(KeysT));
+  const ScratchMemory &keys_temp = memory;
+  const ScratchMemory vals_temp =
+      memory + wgsize * items_per_work_item * sizeof(KeysT);
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
-    keys_temp[ranks[i]] = keys[i];
-    ValuesAssigner<is_key_value_sort>()(vals_temp, ranks[i], vals, i);
+    keys_temp.get<KeysT>(ranks[i]) = keys[i];
+    if constexpr (is_key_value_sort)
+      vals_temp.get<ValsT>(ranks[i]) = vals[i];
   }
 
   sycl::group_barrier(group);
@@ -592,8 +672,9 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
       if (radix_iter == last_iter - 1)
         shift = i * wgsize + idx;
     }
-    keys[i] = keys_temp[shift];
-    ValuesAssigner<is_key_value_sort>()(vals, i, vals_temp, shift);
+    keys[i] = keys_temp.get<KeysT>(shift);
+    if constexpr (is_key_value_sort)
+      vals[i] = vals_temp.get<ValsT>(shift);
   }
 }
 
@@ -608,23 +689,25 @@ void privateDynamicSort(GroupT group, KeysT *keys, ValsT *values,
   const uint32_t first_iter = first_bit / radix_bits;
   const uint32_t last_iter = last_bit / radix_bits;
 
-  KeysT *keys_input = keys;
-  ValsT *vals_input = values;
+  ScratchMemory keys_input{reinterpret_cast<std::byte *>(keys)};
+  ScratchMemory vals_input{reinterpret_cast<std::byte *>(values)};
   const uint32_t runtime_items_per_work_item = (n - 1) / wgsize + 1;
 
+  // Create scratch wrapper.
+  ScratchMemory wrapped_scratch{scratch};
   // set pointers to unaligned memory
-  uint32_t *scan_memory = reinterpret_cast<uint32_t *>(scratch);
-  KeysT *keys_output = reinterpret_cast<KeysT *>(
-      scratch + radix_states * wgsize * sizeof(uint32_t));
+  ScratchMemory keys_output =
+      wrapped_scratch + radix_states * wgsize * sizeof(uint32_t);
   // Adding 4 bytes extra space for keys due to specifics of some hardware
   // architectures.
-  ValsT *vals_output = reinterpret_cast<ValsT *>(
-      keys_output + is_key_value_sort * n * sizeof(KeysT) + alignof(uint32_t));
+  ScratchMemory vals_output =
+      keys_output + is_key_value_sort * n * sizeof(KeysT) + alignof(uint32_t);
 
   for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
-    performRadixIterDynamicSize<radix_bits, is_key_value_sort, is_comp_asc>(
+    performRadixIterDynamicSize<radix_bits, is_key_value_sort, is_comp_asc,
+                                KeysT, ValsT>(
         group, runtime_items_per_work_item, radix_iter, n, keys_input,
-        vals_input, keys_output, vals_output, scan_memory);
+        vals_input, keys_output, vals_output, wrapped_scratch);
 
     sycl::group_barrier(group);
 
