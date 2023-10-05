@@ -26,52 +26,52 @@ template <typename T> struct MyStruct {
 };
 
 template <typename T>
-MyStruct<T> operator+(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator+(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data + rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator-(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator-(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data - rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator*(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator*(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data * rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator/(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator/(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data / rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator%(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator%(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data % rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator&(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator&(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data & rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator|(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator|(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data | rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator^(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator^(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data ^ rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator>>(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator>>(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data >> rhs.data);
 }
 
 template <typename T>
-MyStruct<T> operator<<(const MyStruct<T> &lhs, const MyStruct<int> &rhs) {
+MyStruct<T> operator<<(const MyStruct<T> &lhs, const MyStruct<T> &rhs) {
   return MyStruct<T>(lhs.data << rhs.data);
 }
 
