@@ -1452,7 +1452,8 @@ int main(int argc, char **argv) {
                       "device compilation\n";
       return -1;
     }
-    if (shouldRaiseHost(Module.get()) && !readHostModule(Ctx, *Module, SYCLUseHostModule)) {
+    if (shouldRaiseHost(Module.get()) &&
+        !readHostModule(Ctx, *Module, SYCLUseHostModule)) {
       llvm::errs() << "Failed to read SYCL host module\n";
       return -1;
     }
