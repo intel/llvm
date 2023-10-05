@@ -2627,6 +2627,11 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
+  // Any non-allocation dependencies need to be waited on here since subsequent
+  // submissions of the command buffer itself will not receive dependencies on
+  // them, e.g. initial copies from host to device
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+
   sycl::detail::pi::PiEvent *Event =
       (MQueue->has_discard_events_support() &&
        MCommandGroup->getRequirements().size() == 0)
