@@ -5,7 +5,6 @@ set(LLVM_LINK_COMPONENTS
   BitWriter
   Core
   IRReader
-  BinaryFormat
   Object
   Support
   TargetParser

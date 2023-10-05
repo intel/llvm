@@ -132,6 +132,11 @@ C Language Changes
 - ``structs``, ``unions``, and ``arrays`` that are const may now be used as
   constant expressions.  This change is more consistent with the behavior of
   GCC.
+- Clang now supports the C-only attribute ``counted_by``. When applied to a
+  struct's flexible array member, it points to the struct field that holds the
+  number of elements in the flexible array member. This information can improve
+  the results of the array bound sanitizer and the
+  ``__builtin_dynamic_object_size`` builtin.
 
 C23 Feature Support
 ^^^^^^^^^^^^^^^^^^^
@@ -146,6 +151,13 @@ Non-comprehensive list of changes in this release
 
 New Compiler Flags
 ------------------
+* ``-fverify-intermediate-code`` and its complement ``-fno-verify-intermediate-code``.
+  Enables or disables verification of the generated LLVM IR.
+  Users can pass this to turn on extra verification to catch certain types of
+  compiler bugs at the cost of extra compile time.
+  Since enabling the verifier adds a non-trivial cost of a few percent impact on
+  build times, it's disabled by default, unless your LLVM distribution itself is
+  compiled with runtime checks enabled.
 
 Deprecated Compiler Flags
 -------------------------
@@ -435,6 +447,11 @@ Bug Fixes to C++ Support
   we now produce a diagnostic. Fixes:
   (`#65522 <https://github.com/llvm/llvm-project/issues/65522>`_)
 
+- Fixed a bug where clang incorrectly considered implicitly generated deduction
+  guides from a non-templated constructor and a templated constructor as ambiguous,
+  rather than prefer the non-templated constructor as specified in
+  [standard.group]p3.
+
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 - Fixed an import failure of recursive friend class template.
@@ -594,11 +611,11 @@ Static Analyzer
 
 - A few crashes have been found and fixed using randomized testing related
   to the use of ``_BitInt()`` in tidy checks and in clang analysis. See
- `#67212 <https://github.com/llvm/llvm-project/pull/67212>`_,
- `#66782 <https://github.com/llvm/llvm-project/pull/66782>`_,
- `#65889 <https://github.com/llvm/llvm-project/pull/65889>`_,
- `#65888 <https://github.com/llvm/llvm-project/pull/65888>`_, and
- `#65887 <https://github.com/llvm/llvm-project/pull/65887>`_
+  `#67212 <https://github.com/llvm/llvm-project/pull/67212>`_,
+  `#66782 <https://github.com/llvm/llvm-project/pull/66782>`_,
+  `#65889 <https://github.com/llvm/llvm-project/pull/65889>`_,
+  `#65888 <https://github.com/llvm/llvm-project/pull/65888>`_, and
+  `#65887 <https://github.com/llvm/llvm-project/pull/65887>`_
 
 .. _release-notes-sanitizers:
 
