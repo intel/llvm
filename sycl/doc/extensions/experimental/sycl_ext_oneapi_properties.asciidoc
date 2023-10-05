@@ -377,7 +377,7 @@ In the same way that two different runtime properties of the same type cannot be
 That last sentence is not explicitly stated in the core SYCL spec, but it is assumed by the properties interface.
 ====
 
-The 'empty_properties_t' type alias is a shorthand for the type of an empty property list.
+The `empty_properties_t` type alias is a shorthand for the type of an empty property list.
 
 The new `properties` class template is as follows:
 
