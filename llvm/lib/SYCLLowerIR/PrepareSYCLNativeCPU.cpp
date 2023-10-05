@@ -76,7 +76,8 @@ SmallVector<unsigned> getUsedIndexes(const Function *F, bool useTLS) {
     // was not set; set everything to true
     // Exclude one arg because we already added the state ptr
     const unsigned first = useTLS ? 0 : 1;
-    for (unsigned I = 0, NumP = F->getFunctionType()->getNumParams(); I + first < NumP; I++) {
+    for (unsigned I = 0, NumP = F->getFunctionType()->getNumParams();
+         I + first < NumP; I++) {
       Res.push_back(I);
     }
     return Res;
