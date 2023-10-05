@@ -400,8 +400,7 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
-  // TODO: Support Auto GRF for ESIMD once vc supports it.
-  if (IsAutoGRF && !IsEsimdImage) {
+  if (IsAutoGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
