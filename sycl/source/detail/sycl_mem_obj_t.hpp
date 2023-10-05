@@ -77,7 +77,7 @@ public:
                     std::move(Allocator)) {}
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-              bool OwmNativeHandle, event AvailableEvent,
+              bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
@@ -349,6 +349,7 @@ protected:
   bool MIsInternal = false;
   // The number of graphs which are currently using this memory object.
   std::atomic<size_t> MGraphUseCount = 0;
+  bool MOwnNativeHandle = true;
 };
 } // namespace detail
 } // namespace _V1
