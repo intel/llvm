@@ -135,7 +135,7 @@ supports.
 ----
 namespace sycl::ext::intel::experimental {
   namespace oneapiexp = sycl::ext::oneapi::experimental;
-  template <typename T, typename PropListT = oneapiexp::properties<>>
+  template <typename T, typename PropListT = oneapiexp::empty_property_list>
   class fpga_mem {
   ...
 ----
@@ -165,7 +165,7 @@ The section below and the table following describe the constructors and member f
 namespace sycl::ext::intel::experimental {
   namespace oneapiexp = sycl::ext::oneapi::experimental;
 
-  template <typename T, typename PropertyListT = oneapiexp::properties<>>
+  template <typename T, typename PropertyListT = oneapiexp::empty_property_list>
   class fpga_mem {
   public:
     template <typename... S> constexpr fpga_mem(S... args);
