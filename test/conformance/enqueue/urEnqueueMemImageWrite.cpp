@@ -66,6 +66,12 @@ TEST_P(urEnqueueMemImageWriteTest, InvalidNullPtrEventWaitList) {
                                             region1D, 0, 0, input.data(), 0,
                                             &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueMemImageWrite(queue, image1D, true, origin,
+                                            region1D, 0, 0, input.data(), 1,
+                                            &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 TEST_P(urEnqueueMemImageWriteTest, InvalidOrigin1D) {

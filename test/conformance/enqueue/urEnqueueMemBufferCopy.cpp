@@ -74,6 +74,11 @@ TEST_P(urEnqueueMemBufferCopyTest, InvalidNullPtrEventWaitList) {
     ASSERT_EQ_RESULT(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
                                             size, 0, &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
+                                            size, 1, &inv_evt, nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
 
 TEST_P(urEnqueueMemBufferCopyTest, InvalidSize) {

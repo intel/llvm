@@ -273,4 +273,10 @@ TEST_P(urEnqueueUSMFill2DNegativeTest, InvalidNullPtrEventWaitList) {
                                         pattern.data(), width, 1, 0,
                                         &validEvent, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+    ur_event_handle_t inv_evt = nullptr;
+    ASSERT_EQ_RESULT(urEnqueueUSMFill2D(queue, ptr, pitch, pattern_size,
+                                        pattern.data(), width, 1, 1, &inv_evt,
+                                        nullptr),
+                     UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
