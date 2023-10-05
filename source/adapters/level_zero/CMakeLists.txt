@@ -6,6 +6,19 @@
 
 set(TARGET_NAME ur_adapter_level_zero)
 
+# Copy L0 loader/headers locally to the build to avoid leaking their path.
+set(LEVEL_ZERO_COPY_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader)
+if (DEFINED L0_LIBRARY)
+  get_filename_component(LEVEL_ZERO_LIB_NAME "${L0_LIBRARY}" NAME)
+  set(LEVEL_ZERO_LIBRARY ${LEVEL_ZERO_COPY_DIR}/${LEVEL_ZERO_LIB_NAME})
+  message(STATUS "Copying Level Zero loader and headers to local build tree")
+  file(COPY ${L0_LIBRARY} DESTINATION ${LEVEL_ZERO_COPY_DIR} FOLLOW_SYMLINK_CHAIN)
+endif()
+if (DEFINED L0_INCLUDE_DIR)
+  set(LEVEL_ZERO_INCLUDE_DIR ${LEVEL_ZERO_COPY_DIR}/level_zero)
+  file(COPY ${L0_INCLUDE_DIR}/level_zero DESTINATION ${LEVEL_ZERO_COPY_DIR})
+endif()
+
 if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     message(STATUS "Download Level Zero loader and headers from github.com")
 
