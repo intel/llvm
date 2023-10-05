@@ -405,6 +405,8 @@ class properties {
   static constexpr auto get_property();
 };
 
+using empty_property_list = decltype(properties{});
+
 } // namespace experimental::oneapi::ext::sycl
 ```
 
@@ -508,13 +510,6 @@ using P2 = decltype(properties(bar, baz<1>));
 static_assert(std::is_same<P1, P2>::value); // Succeeds, since the order of properties does not matter
 static_assert(P1::get_property<baz_key>().value == 1);
 ```
-
-An empty property list can be created as follows:
-
-```c++
-using empty_property_list = decltype(properties());
-```
-
 
 === Querying Properties in Device Code
 
