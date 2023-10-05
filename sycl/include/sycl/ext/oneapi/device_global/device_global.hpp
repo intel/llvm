@@ -28,14 +28,6 @@
       Op " is not supported on host device.");
 #endif
 
-// Helper macro for conditional device_global property meta info filtering. This
-// lets us ignore certain properties under specified conditions, e.g. ignoring
-// host_access if device_image_scope isn't also present.
-#define __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)                             \
-  detail::ConditionalPropertyMetaInfo<                                         \
-      Props, detail::DeviceGlobalMetaInfoFilter<                               \
-                 Props, detail::properties_t<Props...>>::value>
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -60,9 +52,11 @@ protected:
   mutable pointer_t usmptr{};
 
   pointer_t get_ptr() noexcept { return usmptr; }
-  const pointer_t get_ptr() const noexcept { return usmptr; }
+  constexpr pointer_t get_ptr() const noexcept { return usmptr; }
 
 public:
+  device_global_base() = default;
+
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
   get_multi_ptr() noexcept {
@@ -90,9 +84,14 @@ class device_global_base<
 protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
-  const T *get_ptr() const noexcept { return &val; }
+  constexpr const T *get_ptr() const noexcept { return &val; }
 
 public:
+#if __cpp_consteval
+  template <typename... Args>
+  consteval explicit device_global_base(Args&&... args) : val{args...} {}
+#endif // __cpp_consteval
+
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
   get_multi_ptr() noexcept {
@@ -128,9 +127,8 @@ class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
       __sycl_detail__::add_ir_attributes_global_variable(
-          "sycl-device-global-size",
-          __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::name..., sizeof(T),
-          __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
+          "sycl-device-global-size", detail::PropertyMetaInfo<Props>::name...,
+          sizeof(T), detail::PropertyMetaInfo<Props>::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
@@ -140,17 +138,20 @@ class
 public:
   using element_type = std::remove_extent_t<T>;
 
+#if !__cpp_consteval
   static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
-
+#endif // !__cpp_consteval
   static_assert(std::is_trivially_destructible_v<T>,
                 "Type T must be trivially destructible.");
 
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
-  device_global() = default;
+  // Inherit the base class' constructors
+  using detail::device_global_base<T,
+                            detail::properties_t<Props...>>::device_global_base;
 
   device_global(const device_global &) = delete;
   device_global(const device_global &&) = delete;
@@ -162,7 +163,7 @@ public:
     return *this->get_ptr();
   }
 
-  const T &get() const noexcept {
+  constexpr const T &get() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get()")
     return *this->get_ptr();
   }
@@ -172,7 +173,7 @@ public:
     return get();
   }
 
-  operator const T &() const noexcept {
+  constexpr operator const T &() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
   }
@@ -185,16 +186,16 @@ public:
 
   template <class RelayT = T>
   std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
-  operator[](std::ptrdiff_t idx) noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
+      &operator[](std::ptrdiff_t idx) noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
 
   template <class RelayT = T>
-  const std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
-  operator[](std::ptrdiff_t idx) const noexcept {
+  constexpr const std::remove_reference_t<
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
+      &operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
@@ -231,4 +232,3 @@ public:
 } // namespace sycl
 
 #undef __SYCL_HOST_NOT_SUPPORTED
-#undef __SYCL_DEVICE_GLOBAL_PROP_META_INFO
