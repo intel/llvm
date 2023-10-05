@@ -157,7 +157,7 @@ above example, encapsulating `annotated_arg` within `MyType` is illegal.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template < typename T, typename PropertyListT = properties<>>
+template < typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   ...
 ----
@@ -196,7 +196,7 @@ must be a legal parameter type as defined by the SYCL specification. Given `anno
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   public:
     annotated_arg() noexcept;
