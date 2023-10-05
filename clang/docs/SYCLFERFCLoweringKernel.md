@@ -1,6 +1,6 @@
 # SYCL Kernel
 
-A SYCL construct such as 'single_task' takes a function object as one of its arguments.   The contents of this function object are executed on the device.   To enable this, the function object is converted into the format of an OpenCL kernel.
+A SYCL construct such as 'single_task' can take a named function object or a lambda as one of its arguments.   The contents of this function object are executed on the device.   To enable this, the function object is converted into the format of an OpenCL kernel.
 
 Consider the following code snippet:
 
@@ -25,7 +25,7 @@ Consider the following code snippet:
   });
 ```
 
-Here the lambda within the 'kernel_single_task' construct needs to be executed on the device.  To do this, a function object representing the kernel is generated.   The function call operator of this object has the contents of the kernel invocation.  The function object generated looks like:
+In this example, the lambda within the 'kernel_single_task' construct needs to be executed on the device.  To do this, we propose generating a function object representing the kernel.   The function call operator of this object has the contents of the kernel invocation.  The function object generated looks like:
 
 ```
 struct FuncObj {
@@ -48,7 +48,7 @@ The device compiler then generates a caller in the form of an OpenCL kernel func
 The device compiler transforms this into (pseudo-code):
 
 ```
-    spir_kernel void caller(
+    spir_kernel void Caller(
        int i,
        struct S test_s,
        __global int* accData, // arg1 of accessor init function
@@ -70,19 +70,15 @@ The device compiler transforms this into (pseudo-code):
         sycl::accessor::init(&local.smplr, smpData);
 
         // Call the kernel body
-        callee(&local);
+        Callee(&local);
     }
 
-    spir_func void callee(struct FuncObj* this)
+    spir_func void Callee(struct FuncObj* this)
     {
         // body of the kernel invocation
     }
 ```
 
-As may be observed from the example above, standard-layout lambda capture components are passed by value to the device as separate parameters. This includes scalars, pointers, and standard-layout structs. Certain object types defined by the SYCL standard, such as sycl::accessor and sycl::sampler although standard-layout, cannot be simply copied from host to device. Their layout on the device may be different from that on the host. Some host fields may be absent on the device, other host fields replaced with device-specific fields and the host data pointer field must be translated to an OpenCL or L0 memory object before it can be passed as a kernel parameter. To enable all of this, the parameters of the sycl::accessor and sycl::sampler init functions are transfered from host to device separately. The values received on the device are passed to the init functions executed on the device, which results in the reassembly of the SYCL object in a form usable on the device.
+The SYCL specification defines rules for allowable types for a kernel parameter.
 
-For arrays that are passed as kernel arguments, the array capture is decomposed into its elements for the purpose of passing to the device.  So if an integer array of two elements are kernel arguments, each integer element of the array instead is passed by value to the generated caller function.
-
-For arrays of sycl special types, we process them similar to how their corresponding underlying versions are handled.   The array is decomposed to its element special class type, and init functions are respectively called within the caller to reconstitute their values.
-
-For arrays of sycl special types within structs, the struct members are traversed one by one, and each sycl special class member of a struct is handled similar to how they are otherwise handled above.  Each element of such an array is treated as an individual object and the arguments of its init function are added to the kernel arguments in sequence. Within the kernel caller function, the lambda object is reassembled in a manner similar to other instances of accessor arrays.
+The proposed implementation passes the copyable types to the device as separate parameters.  The current implementation is aware of some types such as sycl::accessor and sycl::sampler, for example, cannot be simply copied from host to device.  (The specification permits this to account for difference in host/device layouts, absence of some fields on eithe the host or the device, or to allow conversion of pointer values for correct behavior.)  To enable all of this, the parameters of the sycl::accessor and sycl::sampler init functions are transfered from host to device separately. The values received on the device are passed to the init functions executed on the device, which results in the reassembly of the SYCL object in a form usable on the device.  Note that when such types are elements of an array or a field of a struct or both, special traversal is necessary to pass the type properly.  The proposed mechanism accounts for handling these special instances.
