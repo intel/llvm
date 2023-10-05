@@ -93,7 +93,9 @@ InstallIGFX () {
   get_release intel/compute-runtime $CR_TAG \
     | grep -E ".*((deb)|(sum))" \
     | wget -qi -
-  sha256sum -c *.sum && \
+  if [ "$1" != "dev" ]; then
+    sha256sum -c *.sum && \
+  fi
   get_release intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
     | grep -v "u18" \
