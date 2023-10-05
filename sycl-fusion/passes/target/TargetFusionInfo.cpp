@@ -82,7 +82,7 @@ public:
 
   virtual unsigned getIndexSpaceBuiltinBitwidth() const = 0;
 
-  virtual void setIndexSpaceBuiltinMetadata(Function *F) const = 0;
+  virtual void setMetadataForGeneratedFunction(Function *F) const = 0;
 
   virtual Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
                                           const NDRange &FusedNDRange,
@@ -332,7 +332,7 @@ public:
 
   unsigned getIndexSpaceBuiltinBitwidth() const override { return 64; }
 
-  void setIndexSpaceBuiltinMetadata(Function *F) const override {
+  void setMetadataForGeneratedFunction(Function *F) const override {
     auto &Ctx = F->getContext();
     F->setAttributes(AttributeList::get(
         Ctx,
@@ -385,7 +385,7 @@ public:
     auto *Ty = FunctionType::get(Builder.getInt64Ty(), {Builder.getInt32Ty()},
                                  /*isVarArg*/ false);
     auto *F = Function::Create(Ty, Function::InternalLinkage, Name, *M);
-    setIndexSpaceBuiltinMetadata(F);
+    setMetadataForGeneratedFunction(F);
 
     auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
     Builder.SetInsertPoint(EntryBlock);
@@ -534,19 +534,30 @@ public:
 
   unsigned getIndexSpaceBuiltinBitwidth() const override { return 32; }
 
-  void setIndexSpaceBuiltinMetadata(Function *F) const override {
+  void setMetadataForGeneratedFunction(Function *F) const override {
     auto &Ctx = F->getContext();
-    F->setAttributes(AttributeList::get(
-        Ctx,
-        AttributeSet::get(
-            Ctx, {Attribute::get(Ctx, Attribute::AttrKind::NoCallback),
-                  Attribute::get(Ctx, Attribute::AttrKind::NoFree),
-                  Attribute::get(Ctx, Attribute::AttrKind::NoSync),
-                  Attribute::get(Ctx, Attribute::AttrKind::NoUnwind),
-                  Attribute::get(Ctx, Attribute::AttrKind::Speculatable),
-                  Attribute::get(Ctx, Attribute::AttrKind::WillReturn),
-                  Attribute::get(Ctx, Attribute::AttrKind::AlwaysInline)}),
-        {}, {}));
+    if (F->getName().contains("__global_offset_remapper")) {
+      F->setAttributes(AttributeList::get(
+          Ctx,
+          AttributeSet::get(
+              Ctx, {Attribute::get(Ctx, Attribute::AttrKind::NoUnwind),
+                    Attribute::get(Ctx, Attribute::AttrKind::Speculatable),
+
+                    Attribute::get(Ctx, Attribute::AttrKind::AlwaysInline)}),
+          {}, {}));
+    } else {
+      F->setAttributes(AttributeList::get(
+          Ctx,
+          AttributeSet::get(
+              Ctx, {Attribute::get(Ctx, Attribute::AttrKind::NoCallback),
+                    Attribute::get(Ctx, Attribute::AttrKind::NoFree),
+                    Attribute::get(Ctx, Attribute::AttrKind::NoSync),
+                    Attribute::get(Ctx, Attribute::AttrKind::NoUnwind),
+                    Attribute::get(Ctx, Attribute::AttrKind::Speculatable),
+                    Attribute::get(Ctx, Attribute::AttrKind::WillReturn),
+                    Attribute::get(Ctx, Attribute::AttrKind::AlwaysInline)}),
+          {}, {}));
+    }
     F->setMemoryEffects(MemoryEffects::none());
   }
 
@@ -564,7 +575,7 @@ public:
       auto *Ty = FunctionType::get(I32Ty,
                                    /*isVarArg*/ false);
       F = Function::Create(Ty, Function::InternalLinkage, GetGlobalIDName, M);
-      setIndexSpaceBuiltinMetadata(F);
+      setMetadataForGeneratedFunction(F);
 
       auto *EntryBlock = BasicBlock::Create(Builder.getContext(), "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -625,15 +636,7 @@ public:
                              GlobalValue::InternalLinkage, C, Name + "__const");
       auto *FTy = FunctionType::get(Builder.getPtrTy(), /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
-      F->setAttributes(AttributeList::get(
-          Ctx,
-          AttributeSet::get(
-              Ctx, {Attribute::get(Ctx, Attribute::AttrKind::NoUnwind),
-                    Attribute::get(Ctx, Attribute::AttrKind::Speculatable),
-
-                    Attribute::get(Ctx, Attribute::AttrKind::AlwaysInline)}),
-          {}, {}));
-      F->setMemoryEffects(MemoryEffects::none());
+      setMetadataForGeneratedFunction(F);
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -658,7 +661,7 @@ public:
       auto *FTy = FunctionType::get(Builder.getInt32Ty(), /*isVarArg*/ false);
       auto *F =
           Function::Create(FTy, Function::InternalLinkage, RemapperName, *M);
-      setIndexSpaceBuiltinMetadata(F);
+      setMetadataForGeneratedFunction(F);
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -802,8 +805,8 @@ unsigned TargetFusionInfo::getIndexSpaceBuiltinBitwidth() const {
   return Impl->getIndexSpaceBuiltinBitwidth();
 }
 
-void TargetFusionInfo::setIndexSpaceBuiltinMetadata(Function *F) const {
-  Impl->setIndexSpaceBuiltinMetadata(F);
+void TargetFusionInfo::setMetadataForGeneratedFunction(Function *F) const {
+  Impl->setMetadataForGeneratedFunction(F);
 }
 
 Value *TargetFusionInfo::getGlobalIDWithoutOffset(IRBuilderBase &Builder,

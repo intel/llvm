@@ -88,9 +88,9 @@ public:
   unsigned getIndexSpaceBuiltinBitwidth() const;
 
   ///
-  /// Apply target-specific attributes and calling conventions to an index space
-  /// getter.
-  void setIndexSpaceBuiltinMetadata(Function *F) const;
+  /// Apply target-specific attributes and calling conventions to a function
+  /// generated during the remapping process.
+  void setMetadataForGeneratedFunction(Function *F) const;
 
   ///
   /// Retrieve the runtime global ID (when executing the fused kernel) without

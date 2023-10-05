@@ -123,7 +123,7 @@ getOrCreateGetGlobalLinearIDFunction(const TargetFusionInfo &TargetInfo,
   const auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
   auto *Ty = FunctionType::get(Builder.getIntNTy(N), /*isVarArg*/ false);
   F = Function::Create(Ty, Function::LinkageTypes::InternalLinkage, Name, M);
-  TargetInfo.setIndexSpaceBuiltinMetadata(F);
+  TargetInfo.setMetadataForGeneratedFunction(F);
 
   auto *EntryBlock = BasicBlock::Create(Context, "entry", F);
   Builder.SetInsertPoint(EntryBlock);
