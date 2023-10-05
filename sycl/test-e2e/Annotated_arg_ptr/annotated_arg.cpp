@@ -103,9 +103,9 @@ int main() {
   annotated_arg<MyStruct<int>, decltype(properties{conduit})> g = MyStruct(3);
   annotated_arg<MyStruct<int>, decltype(properties{conduit})> h = MyStruct(2);
 
-  auto *r1 = malloc_shared<MyStruct<int>>(4, Q);
-  auto *r2 = malloc_shared<MyStruct<int>>(4, Q);
-  auto *r3 = malloc_shared<MyStruct<int>>(4, Q);
+  auto *r1 = malloc_shared<MyStruct<int>>(5, Q);
+  auto *r2 = malloc_shared<MyStruct<int>>(5, Q);
+  auto *r3 = malloc_shared<MyStruct<int>>(5, Q);
 
   // testing logical overloaded operators
   annotated_arg<MyStruct<bool>, decltype(properties{conduit})> m = MyStruct(true);
@@ -158,16 +158,19 @@ int main() {
      r1[1] = e - g;
      r1[2] = g * h;
      r1[3] = f / h;
+     r1[4] = e % g;
 
      r2[0] = e + MyStruct(3);
      r2[1] = f - MyStruct(5);
      r2[2] = g * MyStruct(2);
      r2[3] = f / MyStruct(3);
+     r2[4] = f % MyStruct(4);
 
      r3[0] = MyStruct(3) + e;
      r3[1] = MyStruct(7) - f;
      r3[2] = MyStruct(2) * g;
      r3[3] = MyStruct(9) / g;
+     r3[4] = MyStruct(9) % f;
 
      r4[0] = m & n;
      r4[1] = m | n;
@@ -212,16 +215,19 @@ int main() {
   assert(r1[1].data == 2 && "r1[1] value does not match.");
   assert(r1[2].data == 6 && "r1[2] value does not match.");
   assert(r1[3].data == 3 && "r1[3] value does not match.");
+  assert(r1[4].data == 2 && "r1[4] value does not match.");
 
   assert(r2[0].data == 8 && "r2[0] value does not match.");
   assert(r2[1].data == 1 && "r2[1] value does not match.");
   assert(r2[2].data == 6 && "r2[2] value does not match.");
   assert(r2[3].data == 2 && "r2[3] value does not match.");
+  assert(r2[4].data == 2 && "r2[4] value does not match.");
 
   assert(r3[0].data == 8 && "r3[0] value does not match.");
   assert(r3[1].data == 1 && "r3[1] value does not match.");
   assert(r3[2].data == 6 && "r3[2] value does not match.");
   assert(r3[3].data == 3 && "r3[3] value does not match.");
+  assert(r3[4].data == 3 && "r3[4] value does not match.");
 
   assert(r4[0].data == false && "r4[0] value does not match.");
   assert(r4[1].data == true && "r4[1] value does not match.");
