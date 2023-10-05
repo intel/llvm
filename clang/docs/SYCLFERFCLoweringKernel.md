@@ -1,6 +1,6 @@
 # SYCL Kernel
 
-A SYCL construct such as 'single_task' can take a named function object or a lambda as one of its arguments.   The contents of this function object are executed on the device.   To enable this, the function object is converted into the format of an OpenCL kernel.
+A SYCL construct such as `parallel_for` or 'single_task' takes a a named function object or a lambda as one of its arguments.   The contents of this function object are executed on the device.   However, as the SYCL runtime can rely on other offload APIs like OpenCL or CUDA to execute the function object, it needs to respect the calling convention of these API.  To enable this, the function object is converted into the format of an OpenCL kernel.
 
 Consider the following code snippet:
 
@@ -25,7 +25,7 @@ Consider the following code snippet:
   });
 ```
 
-In this example, the lambda within the 'kernel_single_task' construct needs to be executed on the device.  To do this, we propose generating a function object representing the kernel.   The function call operator of this object has the contents of the kernel invocation.  The function object generated looks like:
+In this example, the lambda passed to the 'kernel_single_task' construct needs to be executed on the device.  To do this, we propose generating a function object representing the kernel.   The function call operator of this object has the contents of the kernel invocation.  The function object generated looks like:
 
 ```
 struct FuncObj {
@@ -34,7 +34,7 @@ struct FuncObj {
   sycl::accessor acc1;
   sycl::sampler smplr;
 
-  () {  // Function call operator
+  void operator () {  // Function call operator
     if (i == 13 && test_s.c == 14) {
       acc1.use();
       smplr.use();
@@ -43,7 +43,7 @@ struct FuncObj {
 };
 ```
 
-The device compiler then generates a caller in the form of an OpenCL kernel function that calls this function object.
+The device compiler then generates a caller in the form of an OpenCL kernel function that calls this function object.  It does so by walking the function object data member and producing a parameter for each of them.  Inside the OpenCL kernel, the function object is rebuilt and then called.  Some special types like accessor and sampler are treated a bit differently (see below).
 
 The device compiler transforms this into (pseudo-code):
 
@@ -81,4 +81,4 @@ The device compiler transforms this into (pseudo-code):
 
 The SYCL specification defines rules for allowable types for a kernel parameter.
 
-The proposed implementation passes the copyable types to the device as separate parameters.  The current implementation is aware of some types such as sycl::accessor and sycl::sampler, for example, cannot be simply copied from host to device.  (The specification permits this to account for difference in host/device layouts, absence of some fields on eithe the host or the device, or to allow conversion of pointer values for correct behavior.)  To enable all of this, the parameters of the sycl::accessor and sycl::sampler init functions are transfered from host to device separately. The values received on the device are passed to the init functions executed on the device, which results in the reassembly of the SYCL object in a form usable on the device.  Note that when such types are elements of an array or a field of a struct or both, special traversal is necessary to pass the type properly.  The proposed mechanism accounts for handling these special instances.
+The proposed implementation passes the copyable types to the device as separate parameters.  The current implementation is aware of some types such as sycl::accessor and sycl::sampler, for example, which cannot be simply copied from host to device.  (The specification permits this to account for difference in host/device layouts, absence of some fields on either the host or the device, or to allow conversion of pointer values for correct behavior.)  To enable all of this, the parameters of the sycl::accessor and sycl::sampler init functions are transfered from host to device separately.  The values received on the device are passed to the init functions executed on the device, which results in the reassembly of the SYCL object in a form usable on the device.  Note that when such types are elements of an array or a field of a struct or both, special traversal is necessary to pass the type properly.  The proposed mechanism accounts for handling these special instances.
