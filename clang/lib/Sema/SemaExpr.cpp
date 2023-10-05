@@ -231,7 +231,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       bool IsConst = VD->getType().isConstant(Context);
       bool IsRuntimeEvaluated =
           ExprEvalContexts.empty() ||
-          (!isUnevaluatedContext() && !isConstantEvaluated());
+          (!isUnevaluatedContext() && !isConstantEvaluatedContext());
       bool IsEsimdPrivateGlobal = isSYCLEsimdPrivateGlobal(VD);
       // Non-const statics are not allowed in SYCL except for ESIMD or with the
       // SYCLGlobalVar or SYCLGlobalVariableAllowed attribute.
@@ -18402,7 +18402,7 @@ void Sema::MarkExpressionAsImmediateEscalating(Expr *E) {
 
 ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
   if (isUnevaluatedContext() || !E.isUsable() || !Decl ||
-      !Decl->isImmediateFunction() || isConstantEvaluated() ||
+      !Decl->isImmediateFunction() || isAlwaysConstantEvaluatedContext() ||
       isCheckingDefaultArgumentOrInitializer() ||
       RebuildingImmediateInvocation || isImmediateFunctionContext())
     return E;
@@ -20826,7 +20826,7 @@ void Sema::MarkDeclRefReferenced(DeclRefExpr *E, const Expr *Base) {
       OdrUse = false;
 
   if (auto *FD = dyn_cast<FunctionDecl>(E->getDecl())) {
-    if (!isUnevaluatedContext() && !isConstantEvaluated() &&
+    if (!isUnevaluatedContext() && !isConstantEvaluatedContext() &&
         !isImmediateFunctionContext() &&
         !isCheckingDefaultArgumentOrInitializer() &&
         FD->isImmediateFunction() && !RebuildingImmediateInvocation &&
