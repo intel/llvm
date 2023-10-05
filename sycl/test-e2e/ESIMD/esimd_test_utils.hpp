@@ -13,7 +13,6 @@
 #include <sycl/sycl.hpp>
 
 #define NOMINMAX
-
 #include <algorithm>
 #include <chrono>
 #include <cstring>

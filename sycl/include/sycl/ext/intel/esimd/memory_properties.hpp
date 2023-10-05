@@ -103,6 +103,27 @@ using default_cache_hint_L1 = cache_hint_L1_key::value_t<cache_hint::none>;
 using default_cache_hint_L2 = cache_hint_L2_key::value_t<cache_hint::none>;
 using default_cache_hint_L3 = cache_hint_L3_key::value_t<cache_hint::none>;
 
+namespace detail {
+/// Helper-function that returns the value of the compile time property `KeyT`
+/// if `PropertiesT` includes it. If it does not then the default value
+/// \p DefaultValue is returned.
+template <typename PropertiesT, typename KeyT, typename KeyValueT,
+          typename = std::enable_if_t<ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
+constexpr auto getPropertyValue(KeyValueT DefaultValue) {
+  if constexpr (!PropertiesT::template has_property<KeyT>()) {
+    return DefaultValue;
+  } else if constexpr (std::is_same_v<KeyT, cache_hint_L1_key> ||
+                       std::is_same_v<KeyT, cache_hint_L2_key> ||
+                       std::is_same_v<KeyT, cache_hint_L3_key>) {
+      constexpr auto ValueT = PropertiesT::template get_property<KeyT>();
+      return ValueT.hint;
+  } else {
+    constexpr auto ValueT = PropertiesT::template get_property<KeyT>();
+    return ValueT.value;
+  }
+}
+} // namespace detail
+
 } // namespace ext::intel::esimd
 
 namespace ext::oneapi::experimental {

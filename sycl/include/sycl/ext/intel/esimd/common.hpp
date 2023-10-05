@@ -379,17 +379,18 @@ enum class cache_hint : uint8_t {
   /// again until it’s overwritten, therefore the load operation can invalidate
   /// the cache line and discard "dirty" data. If the assertion is violated
   /// (the cache line is read again) then behavior is undefined.
-  read_invalidate = 6
+  read_invalidate = 6,
 
-  // TODO: Enable 'const_cached' enum + verifications for it.
-  // load, L2 cache only, PVC+ required:: asserts that the L2 cache line
-  // containing the data will not be written until all invocations of
-  // the shader or kernel execution are finished. If the assertion is
-  // violated (the cache line is written), the behavior is undefined;
-  // const_cached = 7
+  // TODO: Implement the verification of this enum in check_cache_hint().
+  /// load, L2 cache only, next gen GPU after Xe required: asserts that
+  /// the L2 cache line containing the data will not be written until all
+  /// invocations of the shader or kernel execution are finished.
+  /// If the assertion is violated (the cache line is written), the behavior
+  /// is undefined.
+  const_cached = 7
 };
 
-/// L1, L2 or L3 cache hint levels. L3 is resereved for future use.
+/// L1, L2 or L3 cache hint levels. L3 is reserved for future use.
 enum class cache_level : uint8_t { L1 = 1, L2 = 2, L3 = 3 };
 
 namespace detail {

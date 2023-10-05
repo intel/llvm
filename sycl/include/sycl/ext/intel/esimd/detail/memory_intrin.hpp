@@ -604,7 +604,7 @@ ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
           __ESIMD_DNS::lsc_vector_size VS,
-          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_merge_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
@@ -640,7 +640,7 @@ __esimd_lsc_load_merge_stateless(
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L3H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
           __ESIMD_DNS::lsc_vector_size VS,
-          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                            __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)

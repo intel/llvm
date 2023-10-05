@@ -20,6 +20,7 @@
 #include <sycl/half_type.hpp>
 
 #include <cstdint>
+#include <algorithm>
 
 namespace sycl {
 inline namespace _V1 {
@@ -381,12 +382,10 @@ template <
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
 block_load_impl(const T *p, simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
   // Verify input template arguments.
-  check_lsc_data_size<T, DS>();
   check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr lsc_data_size FDS = finalize_data_size<T, DS>();
-
-  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
-                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
+  constexpr lsc_data_size FDS =
+      finalize_data_size<T, lsc_data_size::default_size>();
+  static_assert(DS == lsc_data_size::default_size || DS == FDS,
                 "Conversion data types are not supported");
   constexpr auto Alignment =
       FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
@@ -395,47 +394,40 @@ block_load_impl(const T *p, simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
       "Incorrect alignment for the data type");
 
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
       Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
       (sizeof(T) == 8 ||
-       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (DS == lsc_data_size::default_size && NElts * sizeof(T) > 256 &&
         (NElts * sizeof(T)) % 8 == 0));
-  constexpr int SmallIntFactor64Bit =
-      (FDS == lsc_data_size::u16)
-          ? 4
-          : (FDS == lsc_data_size::u8 ? 8
-                                      : (FDS == lsc_data_size::u32 ? 2 : 1));
   constexpr int SmallIntFactor =
       Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
   constexpr int FactoredNElts = NElts / SmallIntFactor;
-  detail::check_lsc_vector_size<FactoredNElts>();
+  check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  constexpr lsc_data_size ActualDS =
-      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
-
-  constexpr detail::lsc_vector_size _VS =
-      detail::to_lsc_vector_size<FactoredNElts>();
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-
-  constexpr auto _Transposed = lsc_data_order::transpose;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
   constexpr int N = 1;
 
+  // Prepare non-template arguments and call the intrinsic.
   simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
-
   simd<LoadElemT, FactoredNElts> Result =
-      __esimd_lsc_load_stateless<LoadElemT, L1H, L2H, _AddressScale, _ImmOffset,
-                                 ActualDS, _VS, _Transposed, N>(pred.data(),
-                                                                Addrs.data());
+      __esimd_lsc_load_stateless<LoadElemT, L1H, L2H, AddressScale, ImmOffset,
+                                 ActualDS, VS, Transposed, N>(pred.data(),
+                                                              Addrs.data());
   return Result.template bit_cast_view<T>();
 }
 
@@ -482,61 +474,54 @@ __ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
 block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> old_values,
                 FlagsT flags) {
   // Verify input template arguments.
-  check_lsc_data_size<T, DS>();
   check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr lsc_data_size FDS = finalize_data_size<T, DS>();
+  constexpr lsc_data_size FDS =
+      finalize_data_size<T, lsc_data_size::default_size>();
+  static_assert(DS == lsc_data_size::default_size || DS == FDS,
+                "Conversion data types are not supported");
   constexpr auto Alignment =
       FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
   static_assert(
       (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
       "Incorrect alignment for the data type");
-  static_assert(FDS == lsc_data_size::u16 || FDS == lsc_data_size::u8 ||
-                    FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
-                "Conversion data types are not supported");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      (FDS == lsc_data_size::u16) ? 2 : (FDS == lsc_data_size::u8 ? 4 : 1);
+      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
   constexpr bool Use64BitData =
       Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
       (sizeof(T) == 8 ||
-       (DS == lsc_data_size::default_size && NElts / SmallIntFactor32Bit > 64 &&
+       (DS == lsc_data_size::default_size && NElts * sizeof(T) > 256 &&
         (NElts * sizeof(T)) % 8 == 0));
-  constexpr int SmallIntFactor64Bit =
-      (FDS == lsc_data_size::u16)
-          ? 4
-          : (FDS == lsc_data_size::u8 ? 8
-                                      : (FDS == lsc_data_size::u32 ? 2 : 1));
   constexpr int SmallIntFactor =
       Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
   constexpr int FactoredNElts = NElts / SmallIntFactor;
   check_lsc_vector_size<FactoredNElts>();
 
   // Prepare template arguments for the call of intrinsic.
-  constexpr lsc_data_size ActualDS =
-      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
-
-  constexpr lsc_vector_size _VS = to_lsc_vector_size<FactoredNElts>();
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-
-  constexpr auto _Transposed = lsc_data_order::transpose;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
   constexpr int N = 1;
 
+  // Prepare non-template arguments and call the intrinsic.
   simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
   simd<LoadElemT, FactoredNElts> OldVals =
       old_values.template bit_cast_view<LoadElemT>();
   simd<LoadElemT, FactoredNElts> Result =
-      __esimd_lsc_load_merge_stateless<LoadElemT, L1H, L2H, _AddressScale,
-                                       _ImmOffset, ActualDS, _VS, _Transposed,
-                                       N>(pred.data(), Addrs.data(),
-                                          OldVals.data());
+      __esimd_lsc_load_merge_stateless<LoadElemT, L1H, L2H, AddressScale,
+                                       ImmOffset, ActualDS, VS, Transposed, N>(
+          pred.data(), Addrs.data(), OldVals.data());
   return Result.template bit_cast_view<T>();
 }
 
@@ -571,9 +556,9 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> old_values,
 /// simd<T, N> block_load(const T* ptr, props={}); // (1)
 /// This function loads a contiguous memory block from USM pointer \p ptr.
 ///
-/// It may have temporary restrictions depending on L1, L2 cache hints,
-/// See details at 'Restrictions' section below. The restrictions will be
-/// relaxed eventually/soon.
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -598,49 +583,36 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> old_values,
 ///                      or 256(only if alignment is 8-bytes or more);
 ///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device device must be PVC or newer.
+/// R3: The target device must be PVC or newer.
 /// (R1), (R2) and (R2) are not applied if there are no cache hints.
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list<PropertyListT>::value,
-    simd<T, N>>
-block_load(const T *ptr,
-           const PropertyListT &props =
-               ext::oneapi::experimental::detail::empty_properties_t{}) {
-  using L1HintProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, cache_hint_L1_key, default_cache_hint_L1>::type;
-  using L2HintProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, cache_hint_L2_key, default_cache_hint_L2>::type;
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  constexpr auto L1Hint = L1HintProp::hint;
-  constexpr auto L2Hint = L2HintProp::hint;
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
     detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
     constexpr int DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
-    using AlignProp =
-        typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-            PropertyListT, alignment_key,
-            alignment_key::value_t<DefaultAlignment>>::type;
+    constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
     simd_mask<1> Mask = 1;
     return detail::block_load_impl<
         T, N, __ESIMD_DNS::lsc_data_size::default_size, L1Hint, L2Hint>(
-        ptr, Mask, overaligned_tag<AlignProp::value>{});
+        ptr, Mask, overaligned_tag<Alignment>{});
   } else {
     // If the alignment property is not passed, then assume the pointer
     // is element-aligned.
-    using AlignProp =
-        typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-            PropertyListT, alignment_key,
-            alignment_key::value_t<sizeof(T)>>::type;
-    return block_load<T, N>(ptr, overaligned_tag<AlignProp::value>{});
+    constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+    return block_load<T, N>(ptr, overaligned_tag<Alignment>{});
   }
 }
 
@@ -648,9 +620,9 @@ block_load(const T *ptr,
 /// This function loads a contiguous memory block from address referenced
 /// by USM pointer \p ptr and byte-offset \p byte_offset.
 ///
-/// It may have temporary restrictions depending on L1, L2 cache hints,
-/// See details at 'Restrictions' section below. The restrictions will be
-/// relaxed eventually/soon.
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -675,17 +647,14 @@ block_load(const T *ptr,
 ///                      or 256(only if alignment is 8-bytes or more);
 ///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device device must be PVC or newer.
+/// R3: The target device must be PVC or newer.
 /// (R1), (R2) and (R2) are not applied if there are no cache hints.
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list<PropertyListT>::value,
-    simd<T, N>>
-block_load(const T *ptr, size_t byte_offset,
-           const PropertyListT &props =
-               ext::oneapi::experimental::detail::empty_properties_t{}) {
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, size_t byte_offset, PropertyListT props = {}) {
   const T *AdjustedPtr = reinterpret_cast<const T *>(
       reinterpret_cast<const int8_t *>(ptr) + byte_offset);
   return block_load<T, N>(AdjustedPtr, props);
@@ -696,8 +665,8 @@ block_load(const T *ptr, size_t byte_offset,
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// returned value is undefined.
 ///
-/// This function has temporary restrictions. See details at 'Restrictions'
-/// section below. The restrictions will be relaxed eventually/soon.
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -721,38 +690,28 @@ block_load(const T *ptr, size_t byte_offset,
 ///                      or 256(only if alignment is 8-bytes or more);
 ///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device device must be PVC or newer.
+/// R3: The target device must be PVC or newer.
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list<PropertyListT>::value,
-    simd<T, N>>
-block_load(const T *ptr, simd_mask<1> pred,
-           const PropertyListT &props =
-               ext::oneapi::experimental::detail::empty_properties_t{}) {
-  using L1HintProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, cache_hint_L1_key, default_cache_hint_L1>::type;
-  using L2HintProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, cache_hint_L2_key, default_cache_hint_L2>::type;
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, simd_mask<1> pred, PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  constexpr auto L1Hint = L1HintProp::hint;
-  constexpr auto L2Hint = L2HintProp::hint;
 
   detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
-  constexpr int DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
-  using AlignProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, alignment_key,
-          alignment_key::value_t<DefaultAlignment>>::type;
+  constexpr size_t DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
   return detail::block_load_impl<T, N, __ESIMD_DNS::lsc_data_size::default_size,
                                  L1Hint, L2Hint>(
-      ptr, pred, overaligned_tag<AlignProp::value>{});
+      ptr, pred, overaligned_tag<Alignment>{});
 }
 
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
@@ -762,8 +721,8 @@ block_load(const T *ptr, simd_mask<1> pred,
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// returned value is undefined.
 ///
-/// This function has temporary restrictions. See details at 'Restrictions'
-/// section below. The restrictions will be relaxed eventually/soon.
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -787,16 +746,14 @@ block_load(const T *ptr, simd_mask<1> pred,
 ///                      or 256(only if alignment is 8-bytes or more);
 ///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device device must be PVC or newer.
+/// R3: The target device must be PVC or newer.
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list<PropertyListT>::value,
-    simd<T, N>>
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
-           const PropertyListT &props =
-               ext::oneapi::experimental::detail::empty_properties_t{}) {
+           PropertyListT props = {}) {
   const T *AdjustedPtr = reinterpret_cast<const T *>(
       reinterpret_cast<const int8_t *>(ptr) + byte_offset);
   return block_load<T, N>(AdjustedPtr, pred, props);
@@ -808,8 +765,8 @@ block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// vector \p old_values is returned.
 ///
-/// This function has temporary restrictions. See details at 'Restrictions'
-/// section below. The restrictions will be relaxed eventually/soon.
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -833,38 +790,29 @@ block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
 ///                      or 256(only if alignment is 8-bytes or more);
 ///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device device must be PVC or newer.
+/// R3: The target device must be PVC or newer.
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list<PropertyListT>::value,
-    simd<T, N>>
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, simd_mask<1> pred, simd<T, N> old_values,
-           const PropertyListT &props =
-               ext::oneapi::experimental::detail::empty_properties_t{}) {
-  using L1HintProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, cache_hint_L1_key, default_cache_hint_L1>::type;
-  using L2HintProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, cache_hint_L2_key, default_cache_hint_L2>::type;
+           PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  constexpr auto L1Hint = L1HintProp::hint;
-  constexpr auto L2Hint = L2HintProp::hint;
 
   detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
-  constexpr int DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
-  using AlignProp =
-      typename sycl::ext::intel::experimental::detail::GetOrDefaultValT<
-          PropertyListT, alignment_key,
-          alignment_key::value_t<DefaultAlignment>>::type;
+  constexpr size_t DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
   return detail::block_load_impl<T, N, __ESIMD_DNS::lsc_data_size::default_size,
                                  L1Hint, L2Hint>(
-      ptr, pred, old_values, overaligned_tag<AlignProp::value>{});
+      ptr, pred, old_values, overaligned_tag<Alignment>{});
 }
 
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
@@ -874,8 +822,8 @@ block_load(const T *ptr, simd_mask<1> pred, simd<T, N> old_values,
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// vector \p old_values is returned.
 ///
-/// This function has temporary restrictions. See details at 'Restrictions'
-/// section below. The restrictions will be relaxed eventually/soon.
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -899,17 +847,14 @@ block_load(const T *ptr, simd_mask<1> pred, simd<T, N> old_values,
 ///                      or 256(only if alignment is 8-bytes or more);
 ///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device device must be PVC or newer.
+/// R3: The target device must be PVC or newer.
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list<PropertyListT>::value,
-    simd<T, N>>
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
-           simd<T, N> old_values,
-           const PropertyListT &props =
-               ext::oneapi::experimental::detail::empty_properties_t{}) {
+           simd<T, N> old_values, PropertyListT props = {}) {
   const T *AdjustedPtr = reinterpret_cast<const T *>(
       reinterpret_cast<const int8_t *>(ptr) + byte_offset);
   return block_load<T, N>(AdjustedPtr, pred, old_values, props);
