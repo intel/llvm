@@ -15,8 +15,6 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
-// FIXME: remove again
-#include "llvm/Support/Debug.h"
 #include "llvm/TargetParser/Triple.h"
 
 template <typename ForwardIt, typename KeyTy>
@@ -260,6 +258,7 @@ public:
   std::optional<BuiltinKind> getBuiltinKind(Function *F) const override {
     constexpr size_t NumBuiltinsToRemap{7};
     // clang-format off
+    // Note: This list is sorted by the builtin name.
     constexpr std::array<std::pair<StringLiteral, BuiltinKind>,
                          NumBuiltinsToRemap>
         Map{{{"_Z25__spirv_BuiltInGlobalSizei",
@@ -609,8 +608,9 @@ public:
           auto *RemappedC = dyn_cast<Constant>(Remapped);
           assert(RemappedC && "Global offset is not constant");
           Offsets.push_back(RemappedC);
-        } else
+        } else {
           Offsets.push_back(Builder.getInt32(R.getDefaultValue(K)));
+        }
       }
 
       // `llvm.nvvm.implicit.offset` returns a pointer to a 3-element array.
