@@ -32,7 +32,6 @@ AMDGPU_ATOMIC_SUB(_Z18__spirv_AtomicISub, int, i, __atomic_fetch_add)
 AMDGPU_ATOMIC_SUB(_Z18__spirv_AtomicISub, unsigned int, j, __atomic_fetch_add)
 AMDGPU_ATOMIC_SUB(_Z18__spirv_AtomicISub, long, l, __atomic_fetch_add)
 AMDGPU_ATOMIC_SUB(_Z18__spirv_AtomicISub, unsigned long, m, __atomic_fetch_add)
-AMDGPU_ATOMIC_SUB(_Z21__spirv_AtomicFSubEXT, float, f, __atomic_fetch_add)
 
 #undef AMDGPU_ATOMIC
 #undef AMDGPU_ATOMIC_IMPL
