@@ -168,6 +168,239 @@ public:
     return *this->get_ptr();
   }
 
+  void operator++() noexcept {
+    ++(*this->get_ptr());
+  }
+  void operator++(int) noexcept {
+    (*this->get_ptr())++;
+  }
+  void operator--() noexcept {
+    --(*this->get_ptr());
+  }
+  void operator--(int) noexcept {
+    (*this->get_ptr())--;
+  }
+
+  template <typename S>
+  friend S operator+(device_global &dg, S add) {
+      return *dg.get_ptr() + add;
+  }
+
+  template <typename S>
+  friend S operator+(S add, device_global &dg) {
+    return add + *dg.get_ptr();
+  }
+  
+  template <typename S>
+  friend S operator-(S add, device_global &dg) noexcept {
+      return add - *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator-(device_global &dg, S add) noexcept {
+      return *dg.get_ptr() - add;
+  }
+  
+  template <typename S>
+  friend S operator*(S add, device_global &dg) noexcept {
+      return add * *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator*(device_global &dg, S add) noexcept {
+      return *dg.get_ptr() * add;
+  }
+
+  template <typename S>
+  friend S operator/(S add, device_global &dg) noexcept {
+      return add / *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator/(device_global &dg, S add) noexcept {
+      return *dg.get_ptr() / add;
+  }
+
+  template <typename S>
+  friend S operator%(S add, device_global &dg) noexcept {
+      return add % *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator%(device_global &dg, S add) noexcept {
+      return *dg.get_ptr() % add;
+  }
+
+  template <typename S>
+  friend bool operator==(S lhs, device_global &dg) noexcept {
+      return lhs == *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator==(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() == rhs;
+  }
+  
+  template <typename S>
+  friend bool operator>(S lhs, device_global &dg) noexcept {
+      return lhs > *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator>(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() > rhs;
+  }
+
+  template <typename S>
+  friend bool operator>=(S lhs, device_global &dg) noexcept {
+      return lhs >= *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator>=(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() >= rhs;
+  }
+
+  template <typename S>
+  friend bool operator<(S lhs, device_global &dg) noexcept {
+      return lhs < *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator<(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() < rhs;
+  }
+
+  template <typename S>
+  friend bool operator<=(S lhs, device_global &dg) noexcept {
+      return lhs <= *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator<=(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() <= rhs;
+  }
+
+  template <typename S>
+  friend bool operator!=(S lhs, device_global &dg) noexcept {
+      return lhs != *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator!=(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() != rhs;
+  }
+
+  template <typename S>
+  friend bool operator&&(S lhs, device_global &dg) noexcept {
+      return lhs && *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator&&(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() && rhs;
+  }
+
+  template <typename S>
+  friend bool operator||(S lhs, device_global &dg) noexcept {
+      return lhs || *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend bool operator||(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() || rhs;
+  }
+
+  bool operator!() noexcept {
+      return !(*this->get_ptr());
+  }
+
+  template <typename S>
+  friend S operator&(S lhs, device_global &dg) noexcept {
+      return lhs & *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator&(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() & rhs;
+  }
+
+  template <typename S>
+  friend S operator|(S lhs, device_global &dg) noexcept {
+      return lhs | *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator|(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() | rhs;
+  }
+
+  template <typename S>
+  friend S operator^(S lhs, device_global &dg) noexcept {
+
+      return lhs ^ *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator^(device_global &dg, S rhs) noexcept {
+      return *dg.get_ptr() ^ rhs;
+  }
+
+  template <typename S>
+  friend S operator<<(S lhs, device_global &dg) {
+      return lhs << *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator<<(device_global &dg, S rhs) {
+      return *dg.get_ptr() << rhs;
+  }
+
+  template <typename S>
+  friend S operator>>(S lhs, device_global &dg) {
+      return lhs >> *dg.get_ptr();
+  }
+
+  template <typename S>
+  friend S operator>>(device_global &dg, S rhs) {
+      return *dg.get_ptr() >> rhs;
+  }
+
+  T operator~() noexcept {
+      return ~(*this->get_ptr());
+  }
+
+  template <typename S>
+  void operator+=(S add) noexcept {
+      *this->get_ptr() += add;
+  }
+
+  template <typename S>
+  device_global &operator=(const S &newValue) noexcept {
+    *this->get_ptr() = newValue;
+    return *this;
+  }
+
+  template <typename S>
+  void operator-=(S minus) noexcept {
+      *this->get_ptr() -= minus;
+  }
+
+  template <typename S>
+  void operator*=(S mul) noexcept {
+      *this->get_ptr() -= mul;
+  }
+
+  template <typename S>
+  void operator/=(S mul) {
+      *this->get_ptr() /= mul;
+  }
+
+  template <typename S>
+  void operator%=(S mul) {
+      *this->get_ptr() %= mul;
+  }
+
   operator T &() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
@@ -176,12 +409,6 @@ public:
   constexpr operator const T &() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
-  }
-
-  device_global &operator=(const T &newValue) noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Assignment operator")
-    *this->get_ptr() = newValue;
-    return *this;
   }
 
   template <class RelayT = T>
