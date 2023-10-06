@@ -55,14 +55,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
   # commit 659d3f469faa99a886fa680a3d6d20449b109578
   # Merge: 192e9404 f94550b4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Tue Nov 14 16:45:24 2023 +0000
   #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
   #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG 659d3f469faa99a886fa680a3d6d20449b109578)
+  set(UNIFIED_RUNTIME_TAG 0790bf8fd34f5d41b5ef4ffc120a6a2acc84b454)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
