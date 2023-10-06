@@ -18,7 +18,7 @@ on:
     - ./devops/actions/cached_checkout
 
 jobs:
-  build:
+  build-lin:
     name: Linux (Self build + shared libraries + no-assertions)
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build.yml
@@ -34,8 +34,8 @@ jobs:
       merge_ref: ''
 
   e2e-lin:
-    needs: [build]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    needs: [build-lin]
+    if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -60,13 +60,28 @@ jobs:
       merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_sprod_shared
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+      sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
 
-  windows_default:
-    name: Windows
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+  build-win:
+    if: |
+      always()
+      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_windows_build.yml
+
+  e2e-win:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl_windows_run_tests.yml
+    with:
+      name: Intel GEN12 Graphics with Level Zero
+      runner: '["Windows","gen12"]'
+      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   macos_default:
     name: macOS
