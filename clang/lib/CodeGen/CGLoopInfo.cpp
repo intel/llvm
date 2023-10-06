@@ -575,12 +575,12 @@ MDNode *LoopInfo::createMetadata(
   }
 
   // disable_loop_pipelining attribute corresponds to
-  // 'llvm.loop.intel.pipelining.disable, i32 1' metadata
+  // 'llvm.loop.intel.pipelining.enable, i32 0' metadata
   if (Attrs.SYCLLoopPipeliningDisable) {
     Metadata *Vals[] = {
-        MDString::get(Ctx, "llvm.loop.intel.pipelining.disable"),
+        MDString::get(Ctx, "llvm.loop.intel.pipelining.enable"),
         ConstantAsMetadata::get(
-            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 1))};
+            ConstantInt::get(llvm::Type::getInt32Ty(Ctx), 0))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
 
@@ -1027,7 +1027,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // without parameter - 'lvm.loop.coalesce.enable' metadata will be emitted
   // n - 'llvm.loop.coalesce.count, i32 n' metadata will be emitted
   // For attribute disable_loop_pipelining:
-  // 'llvm.loop.intel.pipelining.disable, i32 1' metadata will be emitted
+  // 'llvm.loop.intel.pipelining.enable, i32 0' metadata will be emitted
   // For attribute max_interleaving:
   // n - 'llvm.loop.max_interleaving.count, i32 n' metadata will be emitted
   // For attribute speculated_iterations:
