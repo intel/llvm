@@ -415,9 +415,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
@@ -430,21 +428,15 @@ public:
   /// group is being enqueued on.
   event ext_oneapi_submit_barrier(
       const std::vector<event> &WaitList,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
-                  CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
   /// Synchronous errors will be reported through SYCL exceptions.
   /// @param CodeLoc is the code location of the submit call (default argument)
-  void wait(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    wait_proxy(CodeLoc);
-  }
+  void
+  wait(const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
@@ -455,10 +447,7 @@ public:
   /// exceptions will be lost.
   /// @param CodeLoc is the code location of the submit call (default argument)
   void wait_and_throw(
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    wait_and_throw_proxy(CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Proxy method for wait to forward the code location information to the
   /// implementation

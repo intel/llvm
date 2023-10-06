@@ -268,6 +268,26 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
+event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
+  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
+}
+
+event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
+                                       const detail::code_location &CodeLoc) {
+  return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
+                CodeLoc);
+}
+
+void queue::wait(const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  wait_proxy(CodeLoc);
+}
+
+void queue::wait_and_throw(const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  wait_and_throw_proxy(CodeLoc);
+}
+
 event queue::prefetch(const void *Ptr, size_t Count,
                       const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
