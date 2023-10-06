@@ -58,12 +58,18 @@ protected:
   // The pointer member is mutable to avoid the compiler optimizing it out when
   // accessing const-qualified device_global variables.
   mutable pointer_t usmptr{};
+  T val {};
 
   pointer_t get_ptr() noexcept { return usmptr; }
-  constexpr pointer_t get_ptr() const noexcept { return usmptr; }
+  pointer_t get_ptr() const noexcept { return usmptr; }
 
 public:
+#if __cpp_consteval
+  template <typename... Args>
+  consteval explicit device_global_base(Args&&... args) : val{args...} {}
+#else
   device_global_base() = default;
+#endif // __cpp_consteval
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
@@ -92,12 +98,14 @@ class device_global_base<
 protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
-  constexpr const T *get_ptr() const noexcept { return &val; }
+  const T *get_ptr() const noexcept { return &val; }
 
 public:
 #if __cpp_consteval
   template <typename... Args>
   consteval explicit device_global_base(Args&&... args) : val{args...} {}
+#else
+  device_global_base() = default;
 #endif // __cpp_consteval
 
   template <access::decorated IsDecorated>
@@ -172,7 +180,7 @@ public:
     return *this->get_ptr();
   }
 
-  constexpr const T &get() const noexcept {
+  const T &get() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get()")
     return *this->get_ptr();
   }
@@ -182,7 +190,7 @@ public:
     return get();
   }
 
-  constexpr operator const T &() const noexcept {
+  operator const T &() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
   }
@@ -202,7 +210,7 @@ public:
   }
 
   template <class RelayT = T>
-  constexpr const std::remove_reference_t<
+  const std::remove_reference_t<
       decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
       &operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")

@@ -195,9 +195,9 @@ class device_global {
 
 `device_global` is a class template, parameterized by the type of the underlying allocation _T_, and a list of properties _PropertyListT_. The type of the allocation _T_ also encodes the size of the allocation for potentially multidimensional array types.
 
-_T_ is restricted to types that have a trivial destructor in this revision of the specification. A trivial default constructor is also required when compiling with {cpp} versions before {cpp}20. When compiling with {cpp}20, and when used on a `device_global` with the `device_image_scope` property, no trivial default constructor is required (this constructor restriction may be partially relaxed in a future revision). _PropertyListT_ enables properties to be associated with a `device_global`.
+_T_ is restricted to types that have a trivial destructor. Furthermore, `T` must also have a trivial default constructor when compiling with {cpp} versions before {cpp}20. _PropertyListT_ enables properties to be associated with a `device_global`.
 
-If no trivial default constructor is required with _T_, a non-default `device_global` constructor can be called. This allows for the specification of initialization values for the contents of a `device_global` allocation on a device. The allocation will occur before the first access to that `device_global` on that device.
+If no trivial default constructor is required with _T_, a non-default  `consteval` `device_global` constructor can be called. This allows for the specification of initialization values for the contents of a `device_global` allocation. The allocation will occur before the first access to that `device_global` on that device.
 
 If a trivial default constructor is required, or the default `device_global` constructor has been called, the allocation of type _T_ for a given `device_global` is zero-initialized on a given device prior to the first access to that `device_global` on that device. For the purposes of this definition an access can be a direct access of the `device_global` in kernel code or a copy to or from that `device_global` enqueued to the given device.
 
@@ -226,24 +226,22 @@ class device_global {
 
 public:
   using element_type = std::remove_extent_t<T>; 
-  
-#if !__cpp_consteval
-  static_assert(std::is_trivially_default_constructible_v<T>,
-                "Type T must be trivially default constructable (until C++20 "
-                "consteval is supported and enabled)");
-#endif // !__cpp_consteval
 
   static_assert(std::is_trivially_destructible_v<T>,
       "Type T must be trivially destructible.");
-
-  // The underlying memory allocations of type T on devices will be 
-  // zero-initialized before any non-initialization accesses occur.
-  device_global() = default;
 
   // device_global initializes underlying T with the args argument
 #if __cpp_consteval
   template <typename... Args>
   consteval explicit device_global(Args&&... args);
+#else
+  static_assert(std::is_trivially_default_constructible_v<T>,
+                "Type T must be trivially default constructable (until C++20 "
+                "consteval is supported and enabled)");
+
+  // The underlying memory allocations of type T on devices will be 
+  // zero-initialized before any non-initialization accesses occur.
+  device_global() = default;
 #endif // __cpp_consteval
 
   device_global(const device_global &) = delete;
@@ -261,10 +259,10 @@ public:
 
   // Access the underlying data
   operator T&() noexcept;
-  constexpr operator const T&() const noexcept;
+  operator const T&() const noexcept;
  
   T& get() noexcept;
-  constexpr const T& get() const noexcept;
+  const T& get() const noexcept;
 
   // Enable assignments from underlying type
   device_global& operator=(const T&) noexcept;
@@ -322,7 +320,7 @@ consteval explicit device_global(Args&&... args);
 |
 Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
 
-The storage on each device for `T` is initialized with the contents of the arguments.
+The object of type `T` is initialized from the `args` parameter pack using list initialization as defined in the {cpp} specification.
 
 `T` must be trivially destructible.
 
@@ -349,7 +347,7 @@ a|
 [source,c++]
 ----
 operator T&() noexcept;
-constexpr operator const T&() const noexcept;
+operator const T&() const noexcept;
 ----
 |
 Available only in device functions.
@@ -361,7 +359,7 @@ a|
 [source,c++]
 ----
 T& get() noexcept;
-constexpr const T& get() const noexcept;
+const T& get() const noexcept;
 ----
 |
 Available only in device functions.
@@ -519,11 +517,12 @@ inline namespace other2 {
 ----
 
 === Constant initialization of device_globals
-When compiling with {cpp}20, and when used on a `device_global` with the `device_image_scope` property, constant compile-time initialization for device_globals is supported. The following example shows a few examples of what this would look like:
+When compiling with {cpp}20, constant compile-time initialization for device_globals is supported. The following example shows a few examples of what this would look like:
 
 [source,c++]
 ----
 // Constant int and array of int device_globals
+device_global<int> no_device_image_dg {3};
 device_global<int, decltype(properties(device_image_scope))> dg_int{5};
 device_global<int[3], decltype(properties(device_image_scope))>
    dg_int_arr{5, 2, 3};
@@ -1215,63 +1214,6 @@ different values for a specialization constant (when the device supports
 specialization constants natively).  This condition could also occur if the
 application submits the same kernel from more than one kernel bundle.
 ====
-
-
-== Non-normative: Future anticipated changes, not enabled within this version of the specification
-
-In a future version of this extension, it is expected that when {cpp}20 support is available and enabled, the `consteval` keyword will be used to enable compile-time constant initialization of the device allocations backing `device_global` without the `device_image_scope` property.  This will simplify some coding patterns, compared with the current zero-initialization requirement.
-
-A sketch of the anticipated constructor interface is:
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-template <typename T, typename PropertyListT = empty_properties_t>
-class device_global {
-public:
-  using element_type = std::remove_extent_t<T>; 
-  
-  static_assert(std::is_trivially_destructible_v<T>,
-      "Type T must be trivially destructible.");
-
-  #ifdef __cpp_consteval
-    device_global();
-
-    // device_global initializes underlying T with the args argument
-    template <typename... Args>
-    consteval explicit device_global(Args&&... args);
-  #else
-    static_assert(std::is_trivially_default_constructible_v<T>,
-                  "Type T must be trivially default constructable (until C++20 "
-                  "consteval is supported and enabled)");
-
-    device_global();
-  #endif // __cpp_consteval
-
-----
-
-The example below creates two global namespace scope `device_global` objects named `dm1` and `dm2`. `dm1` is default constructed with external linkage, while `dm2` is initialized and has internal linkage.
-
-[source,c++]
-----
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental;
-
-device_global<MyClass> dm1;
-static device_global<int[4]> dm2{1, 3, 5, 7};  // Requires C++20 to be enabled
-
-int main () {
-  sycl::queue Q;
-  Q.submit([&](sycl::handler& h) {
-    h.single_task([=] {
-      int x = 5;
-      if (dm1.get().flag)
-        x = dm2[0];
-    });
-  });
-}
-----
 
 == Non-normative: Implementation hints
 
