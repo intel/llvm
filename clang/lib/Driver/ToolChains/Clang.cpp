@@ -10031,6 +10031,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   assert(SYCLPostLink && "Expecting SYCL post link job!");
   ArgStringList CmdArgs;
 
+  auto &ToolChain = getToolChain();
+  auto &Triple = ToolChain.getTriple();
+
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -10042,7 +10045,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {"-split=auto"});
     else { // Device code split is off
     }
-  } else if (getToolChain().getTriple().getArchName() != "spir64_fpga") {
+  } else if (Triple.getArchName() != "spir64_fpga") {
     // for FPGA targets, off is the default split mode,
     // otherwise auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
@@ -10051,16 +10054,16 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // On FPGA target we don't need non-kernel functions as entry points, because
   // it only increases amount of code for device compiler to handle, without any
   // actual benefits.
-  if (getToolChain().getTriple().getArchName() == "spir64_fpga")
+  if (Triple.getArchName() == "spir64_fpga")
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto
 
-  if (!(getToolChain().getTriple().isAMDGCN()))
+  if (!(Triple.isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (getToolChain().getTriple().isNVPTX())
+  if (Triple.isNVPTX() || Triple.isAMDGCN())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
@@ -10069,7 +10072,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
     assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = getToolChain().getTriple().isSPIR();
+    bool SplitEsimdByDefault = Triple.isSPIR();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
@@ -10118,8 +10121,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
-      TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, Inputs, Output));
+      TCArgs.MakeArgString(ToolChain.GetProgramPath(getShortName())), CmdArgs,
+      Inputs, Output));
 }
 
 // Transforms the abstract representation (JA + Inputs + Outputs) of a file
