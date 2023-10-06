@@ -40,6 +40,21 @@ def uplift_linux_igfx_driver(config, platform_tag):
 
     return config
 
+def uplift_linux_dev_igfx_driver(config, platform_tag):
+    action_runs = urlopen("https://api.github.com/repos/intel/intel-graphics-compiler/actions/runs").read()
+    workflow_runs = json.loads(action_runs)['workflow_runs']
+
+    for run in workflow_runs:
+        if run['name'] != 'Build IGC':
+            continue
+        if run['status'] != 'completed':
+            continue
+        if run['conclusion'] != 'success':
+            continue
+        config[platform_tag]['igc_dev']['github_hash'] = run['head_sha'][:7]
+        break
+
+    return config
 
 def main(platform_tag):
     script = os.path.dirname(os.path.realpath(__file__))
@@ -49,6 +64,7 @@ def main(platform_tag):
     with open(config_name, "r") as f:
         config = json.loads(f.read())
         config = uplift_linux_igfx_driver(config, platform_tag)
+        config = uplift_linux_dev_igfx_driver(config, platform_tag)
 
     with open(config_name, "w") as f:
         json.dump(config, f, indent=2)
