@@ -1,9 +1,10 @@
+# Introduction
+SYCL source files are logically (and usually physically) compiled multiple times; code that runs on the "host" (e.g., a CPU) is compiled by a host compiler and code that runs on a "device" (e.g., a GPU) is compiled by a device compiler. The SYCL language is designed such that it is not necessary that the host compiler be SYCL-aware; an ISO C++ conforming compiler suffices. However, some SYCL features such as kernel invocation and support for
+[specialization constants](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_specialization_constants)
+require coordination between the host and device compilers. Integration headers and footers produced by a device compiler are used to communicate the information needed during host compilation to support these features.
+
 # Integration Header
-
-We propose an Integration Header for two purposes:
-
-* to allow a non-SYCL-aware compiler to do host compilations and
-* as a mechanism permitting the SYCL run-time library to use the information provided for its needs
+An integration header is a source file produced during device compilation that is intended to be pre-included during host compilation of the same source file.
 
 Consider the following partial code:
 
@@ -25,7 +26,7 @@ Consider the following partial code:
   });
 ```
 
-Here the lambda within the 'kernel_single_task' construct needs to be executed on the device.  To do this, a function object representing the kernel is generated.   The function call operator of this object has the contents of the kernel invocation.  The function object generated looks like:
+Here the lambda passed to the 'kernel_single_task' construct needs to be executed on the device.  The corresponding function object looks like:
 
 ```
 struct FuncObj {
@@ -34,7 +35,7 @@ struct FuncObj {
   sycl::accessor acc1;
   sycl::sampler smplr;
 
-  () {  // Function call operator
+  operator void () {  // Function call operator
     if (i == 13 && test_s.c == 14) {
       acc1.use();
       smplr.use();
@@ -43,41 +44,7 @@ struct FuncObj {
 };
 ```
 
-The device compiler then generates a caller in the form of an OpenCL kernel function that calls this function object.
-
-The device compiler transforms this into (pseudo-code):
-
-```
-    spir_kernel void caller(
-       int i,
-       struct S test_s,
-       __global int* accData, // arg1 of accessor init function
-       range<1> accR1,        // arg2 of accessor init function
-       range<1> accR2,        // arg3 of accessor init function
-       id<1> accId,           // arg4 of accessor init function
-       sampler_t smpData      // arg1 of sampler init function
-    )
-    {
-        // Local capture object
-        struct FuncObj local;
-
-        // Reassemble capture object from parts
-        local.i = i;
-        local.s = s;
-        // Call acc1 accessor's init function
-        sycl::accessor::init(&local.acc1, accData, accR1, accR2, accId);
-        // Call smplr sampler's init function
-        sycl::accessor::init(&local.smplr, smpData);
-
-        // Call the kernel body
-        callee(&local);
-    }
-
-    spir_func void callee(struct FuncObj* this)
-    {
-        // body of the kernel invocation
-    }
-```
+The function call operator of this object has the contents of the kernel invocation.  The device compiler then generates a caller in the form of an OpenCL kernel function that calls this function object.
 
 For details of this transformation, see 'Lowering of SYCL-Kernel'. // TODO: Add link
 
@@ -90,15 +57,13 @@ namespace sycl {
       // names of all kernels defined in the corresponding source
       static constexpr
       const char* const kernel_names[] = {
-        "_ZTSZ4mainE12first_kernel"  // mangled name associated with first_kernel
-                                     // demangles to 'typeinfo name for main::first_kernel'
-
+        "unique_name_for_first_kernel"      // first_kernel
       };
       // array representing signatures of all kernels defined in the
       // corresponding source
       static constexpr
       const kernel_param_desc_t kernel_signatures[] = {
-        //--- _ZTSZ4mainE12first_kernel
+        //--- first_kernel
         { kernel_param_kind_t::kind_std_layout, 4, 0 },
         { kernel_param_kind_t::kind_std_layout, 8, 4 },
         { kernel_param_kind_t::kind_accessor, 4062, 12 },
@@ -134,13 +99,20 @@ The full set of encoding is:
 
 
 # Integration Footer
+An integration footer is a source file produced during device compilation that is intended to be post-included during host compilation of the same source file.
 
+The SYCL 2020 Specification defines a specialization constant as a constant variable where the value is not known until compilation of the SYCL kernel function.
 
-We propose an Integration Footer primarily to support SYCL specialization constants.
+Consider the following example:
+```
+  constexpr specialiation_id<int> int_const;
+  class Wrapper {
+  public:
+    static constexpr specialization_id<float> float_const;
+  };
+```
 
-The SYCL 2020 Specification defines a specialization constant as a constant variable where the value is not known until compilation of the SYCL kernel function.  In order to accommodate both implementations that have native support for this as well as those that do not, we propose the following mechanism:
-
-The header files declare, but not define, a special function to obtain the numeric id of a specialization constant.
+Also note that the SYCL header files declare, but not define, a special function to obtain the numeric id of a specialization constant.
 ```
      namespace detail {
          template<auto &SpecConstName>
@@ -148,32 +120,22 @@ The header files declare, but not define, a special function to obtain the numer
      }
 ```
 
-Definition of that function template is provided by DPC++ FE in form of an integration footer file:
-```
-     namespace detail {
-       // assuming user defined the following specialization_id:
-       // constexpr specialiation_id<int> int_const;
-       // class Wrapper {
-       // public:
-       //   static constexpr specialization_id<float> float_const;
-       // };
+In order to accommodate both implementations that have native support for this as well as those that do not, we propose the following integration footer mechanism.
 
-       template<>
-       inline const char *get_spec_constant_symbolic_ID<int_const>() {
-         return "unique_name_for_int_const";
-       }
-       template<>
-       inline const char *get_spec_constant_symbolic_ID<Wrapper::float_const>() {
-         return "unique_name_for_Wrapper_float_const";
-       }
+Definition of that function template is provided in the form of an integration footer file:
+```
+   namespace detail {
+     template<>
+     inline const char *get_spec_constant_symbolic_ID<int_const>() {
+       return "unique_name_for_int_const";
      }
+     template<>
+     inline const char *get_spec_constant_symbolic_ID<Wrapper::float_const>() {
+       return "unique_name_for_Wrapper_float_const";
+     }
+   }
 ```
 
-This footer file is appended at the end of each translation unit for the host compilation.
-
+This footer file is appended at the end of the translation unit for the host compilation.
 
 All specialization constants used within a program are bundled together and stored into a single buffer, which is passed as implicit kernel argument. The layout of that buffer is well-defined and known to both the compiler and the runtime, so when user sets the value of a specialization constant, that value is being copied into particular place within that buffer and once the constant is requested in device code, the compiler generates a load from the same place of the buffer.
-
-# Usage of Integration Headers and Footers
-
-Integration headers and footers are generated by the device compiler only if necessary.   Headers are necessary if there is a sycl kernel invocation and footers are necessary if specialization constants are used.  They are then passed to the host compiler.   The integration header is included before the TU is processed by the host compiler and the integration footer is appended to the end of the TU.
