@@ -198,6 +198,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   size_t MaxWorkGroupSize = 0u;
   size_t MaxThreadsPerBlock[3] = {};
   bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
+  size_t *ReqdThreadsPerBlock = hKernel->ReqdThreadsPerBlock;
 
   {
     ur_result_t Result = urDeviceGetInfo(
@@ -215,6 +216,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     if (ProvidedLocalWorkGroupSize) {
       auto isValid = [&](int dim) {
+        if (ReqdThreadsPerBlock[dim] != 0 &&
+            pLocalWorkSize[dim] != ReqdThreadsPerBlock[dim])
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
         UR_ASSERT(pLocalWorkSize[dim] <= MaxThreadsPerBlock[dim],
                   UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
         // Checks that local work sizes are a divisor of the global work sizes
