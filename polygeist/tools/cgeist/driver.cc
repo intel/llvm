@@ -313,7 +313,7 @@ static bool hasAtLeastOneKernel(mlir::ModuleOp Module) {
 }
 
 static bool shouldRaiseHost(mlir::ModuleOp Module) {
-  return SYCLUseHostModule != "" &&
+  return !SYCLUseHostModule.empty() &&
          // No need to raise host if there is no device code to optimize
          hasAtLeastOneKernel(Module);
 }
@@ -321,12 +321,10 @@ static bool shouldRaiseHost(mlir::ModuleOp Module) {
 // MLIR canonicalization & cleanup.
 static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
                                   mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                                  Options &options) {
+                                  Options &options, bool SYCLRaiseHost) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
-
-  bool SYCLRaiseHost = !SYCLUseHostModule.empty();
 
   // If the module includes the LLVM IR to MLIR translated SYCL host code, we
   // want to run optimizations, apart from the raising on the host code itself,
@@ -421,15 +419,13 @@ static bool shouldEarlyDropHostCode() {
 // Optimize the MLIR.
 static LogicalResult optimize(mlir::MLIRContext &Ctx,
                               mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                              Options &options) {
+                              Options &options, bool SYCLRaiseHost) {
   const llvm::OptimizationLevel OptLevel =
       options.getCgeistOpts().getOptimizationLevel();
 
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
-
-  bool SYCLRaiseHost = shouldRaiseHost(*Module);
 
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -535,7 +531,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
 // CUDA specific optimization (add parallel loops around CUDA).
 static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
                                   mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                                  Options &options) {
+                                  Options &options, bool SYCLRaiseHost) {
   if (!CudaLower)
     return success();
 
@@ -548,8 +544,6 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
-
-  bool SYCLRaiseHost = !SYCLUseHostModule.empty();
 
   // If the module includes the LLVM IR to MLIR translated SYCL host code, we
   // want to run optimizations, apart from the raising on the host code itself,
@@ -656,11 +650,10 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   return success();
 }
 
-static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
+static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options,
+                                  bool SYCLRaiseHost) {
   if (!CudaLower)
     return success();
-
-  bool SYCLRaiseHost = !SYCLUseHostModule.empty();
 
   // If the module includes the LLVM IR to MLIR translated SYCL host code, we
   // want to run optimizations, apart from the raising on the host code itself,
@@ -764,7 +757,8 @@ getSYCLTargetFromTriple(const llvm::Triple &Triple) {
 static LogicalResult finalize(mlir::MLIRContext &Ctx,
                               mlir::OwningOpRef<mlir::ModuleOp> &Module,
                               Options &options, llvm::DataLayout &DL,
-                              const llvm::Triple &Triple, bool &LinkOMP) {
+                              const llvm::Triple &Triple, bool &LinkOMP,
+                              bool SYCLRaiseHost) {
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
     return failure();
@@ -775,7 +769,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  if (mlir::failed(finalizeCUDA(PM, options)))
+  if (mlir::failed(finalizeCUDA(PM, options, SYCLRaiseHost)))
     return failure();
 
   PM.addPass(mlir::createSymbolDCEPass());
@@ -904,24 +898,24 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
 }
 
 // Create and execute the MLIR transformations pipeline.
-static LogicalResult
-createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
-                             mlir::OwningOpRef<mlir::ModuleOp> &Module,
-                             llvm::DataLayout &DL, llvm::Triple &Triple,
-                             Options &options, bool &LinkOMP) {
+static LogicalResult createAndExecutePassPipeline(
+    mlir::MLIRContext &Ctx, mlir::OwningOpRef<mlir::ModuleOp> &Module,
+    llvm::DataLayout &DL, llvm::Triple &Triple, Options &options,
+    bool SYCLRaiseHost, bool &LinkOMP) {
   // MLIR canonicalization & cleanup.
-  if (mlir::failed(canonicalize(Ctx, Module, options)))
+  if (mlir::failed(canonicalize(Ctx, Module, options, SYCLRaiseHost)))
     return failure();
 
   // MLIR optimizations.
-  if (mlir::failed(optimize(Ctx, Module, options)))
+  if (mlir::failed(optimize(Ctx, Module, options, SYCLRaiseHost)))
     return failure();
 
   // CUDA specific MLIR optimizations.
-  if (mlir::failed(optimizeCUDA(Ctx, Module, options)))
+  if (mlir::failed(optimizeCUDA(Ctx, Module, options, SYCLRaiseHost)))
     return failure();
 
-  if (mlir::failed(finalize(Ctx, Module, options, DL, Triple, LinkOMP)))
+  if (mlir::failed(
+          finalize(Ctx, Module, options, DL, Triple, SYCLRaiseHost, LinkOMP)))
     return failure();
 
   return success();
@@ -934,10 +928,11 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
                                    clang::CompilerInstance *Clang,
                                    StringRef ModuleId, mlir::MLIRContext &Ctx,
                                    llvm::DataLayout &DL, llvm::Triple &Triple,
-                                   Options &options, const char *Argv0) {
+                                   Options &options, bool SYCLRaiseHost,
+                                   const char *Argv0) {
   bool LinkOMP = FOpenMP;
-  if (mlir::failed(createAndExecutePassPipeline(Ctx, Module, DL, Triple,
-                                                options, LinkOMP))) {
+  if (mlir::failed(createAndExecutePassPipeline(
+          Ctx, Module, DL, Triple, options, SYCLRaiseHost, LinkOMP))) {
     llvm::errs() << "Failed to execute pass pipeline correctly\n";
     return failure();
   }
@@ -1446,14 +1441,15 @@ int main(int argc, char **argv) {
     Module->dump();
   });
 
+  bool SYCLRaiseHost = false;
   if (!SYCLUseHostModule.empty()) {
     if (!SYCLIsDevice) {
       llvm::errs() << "\"-sycl-use-host-module\" can only be used during SYCL "
                       "device compilation\n";
       return -1;
     }
-    if (shouldRaiseHost(Module.get()) &&
-        !readHostModule(Ctx, *Module, SYCLUseHostModule)) {
+    SYCLRaiseHost = shouldRaiseHost(Module.get());
+    if (SYCLRaiseHost && !readHostModule(Ctx, *Module, SYCLUseHostModule)) {
       llvm::errs() << "Failed to read SYCL host module\n";
       return -1;
     }
@@ -1463,7 +1459,7 @@ int main(int argc, char **argv) {
   if (mlir::failed(compileModule(
           Module, Clang.get(),
           InputFileNames.size() == 1 ? InputFileNames[0] : "LLVMDialectModule",
-          Ctx, DL, Triple, options, argv[0])))
+          Ctx, DL, Triple, options, SYCLRaiseHost, argv[0])))
     return -1;
 
   return 0;
