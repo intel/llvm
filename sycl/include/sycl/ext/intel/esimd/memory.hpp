@@ -19,8 +19,8 @@
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/half_type.hpp>
 
-#include <cstdint>
 #include <algorithm>
+#include <cstdint>
 
 namespace sycl {
 inline namespace _V1 {
@@ -592,9 +592,11 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, PropertyListT props = {}) {
   constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
   constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
@@ -602,7 +604,9 @@ block_load(const T *ptr, PropertyListT props = {}) {
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
     detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
     constexpr int DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
-    constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            DefaultAlignment);
 
     simd_mask<1> Mask = 1;
     return detail::block_load_impl<
@@ -611,7 +615,8 @@ block_load(const T *ptr, PropertyListT props = {}) {
   } else {
     // If the alignment property is not passed, then assume the pointer
     // is element-aligned.
-    constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
     return block_load<T, N>(ptr, overaligned_tag<Alignment>{});
   }
 }
@@ -698,20 +703,23 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, simd_mask<1> pred, PropertyListT props = {}) {
   constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
   constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
   detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
   constexpr size_t DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
   return detail::block_load_impl<T, N, __ESIMD_DNS::lsc_data_size::default_size,
-                                 L1Hint, L2Hint>(
-      ptr, pred, overaligned_tag<Alignment>{});
+                                 L1Hint, L2Hint>(ptr, pred,
+                                                 overaligned_tag<Alignment>{});
 }
 
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
@@ -799,20 +807,23 @@ __ESIMD_API std::enable_if_t<
 block_load(const T *ptr, simd_mask<1> pred, simd<T, N> old_values,
            PropertyListT props = {}) {
   constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
   constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
   detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
   constexpr size_t DefaultAlignment = (sizeof(T) < 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment = detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
   return detail::block_load_impl<T, N, __ESIMD_DNS::lsc_data_size::default_size,
-                                 L1Hint, L2Hint>(
-      ptr, pred, old_values, overaligned_tag<Alignment>{});
+                                 L1Hint, L2Hint>(ptr, pred, old_values,
+                                                 overaligned_tag<Alignment>{});
 }
 
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
