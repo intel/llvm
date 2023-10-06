@@ -37,7 +37,7 @@ function get_pre_release_igfx() {
     if [ "$GITHUB_TOKEN" != "" ]; then
         HEADER="Authorization: Bearer $GITHUB_TOKEN"
     fi
-    sudo apt-get --assume-yes install curl # workaround, since image doesn't have curl
+    sudo apt-get --assume-yes install curl libllvm14 # workaround, since image doesn't have some required packages
     ARCH_URL=$(curl -s -L -H "$HEADER" $URL \
         | jq -r '. as $raw | try .artifacts[0].archive_download_url catch error($raw)')
     curl -s -L -H "$HEADER" $ARCH_URL > $HASH.zip
