@@ -3,8 +3,8 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG b38855ed815ffd076bfde5e5e06170ca4f723dc1)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG cuda-cmd-buffers)
 
   set(UR_BUILD_ADAPTER_L0 ON)
 
