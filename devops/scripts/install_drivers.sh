@@ -103,7 +103,11 @@ InstallIGFX () {
   get_release oneapi-src/level-zero $L0_TAG \
     | grep ".*deb" \
     | wget -qi -
-  dpkg -i *.deb && rm *.deb *.sum
+  if [ "$1" != "dev" ]; then
+    dpkg -i *.deb && rm *.deb *.sum
+  else
+    dpkg -i --force-depends-version *.deb && rm *.deb *.sum
+  fi
 }
 
 InstallCPURT () {
