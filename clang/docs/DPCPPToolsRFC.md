@@ -2,36 +2,35 @@
 
 This RFC is intended to discuss proposed changes to compilation flow for
 offloading SYCL kernels specifically to SPIR-based targets. Most of the changes
-will be made in the clang-linker-wrapper tool. To be posted to the Clang
+will be made in the `clang-linker-wrapper` tool. To be posted to the Clang
 Frontend category.
 
 ## Introduction
 
 Traditional device offloading models are completely encapsulated within the
-Compiler Driver requiring the driver to perform all of the steps required for
-generating the host and device compilation passes. The Driver is also
+compiler driver requiring the driver to perform all of the steps required for
+generating the host and device compilation passes. The driver is also
 responsible for initiating any of the link-time processing that occurs for each
 device target.
 
-An updated offloading model uses the new clang-linker-wrapper tool. Much of the
+An updated offloading model uses the new `clang-linker-wrapper` tool. Much of the
 functionality that is performed during the link phase of the offloading
-compilation is removed from the driver and moved to the clang-linker-wrapper
+compilation is removed from the driver and moved to the `clang-linker-wrapper`
 tool.
 
 Below is a general representation of the overall offloading flow that is
 performed during a full compilation from source to final executable. The
 compiler driver is responsible for creating the fat object and the
-clang-linker-wrapper tool is responsible for the general functionality that is
+`clang-linker-wrapper` tool is responsible for the general functionality that is
 performed during the link.
 
 ![High level view of the offloading flow](images/offloadflow.svg)
- "Overall compilation flow")
 
 *Diagram 1: Overall compilation flow*
 
-## Fat object generation for SYCL offload kinds using clang-offload-packager
+## Fat object generation for SYCL offload kinds using `clang-offload-packager`
 
-clang-offload-packager plays a vital role during fat-object generation. The fat
+`clang-offload-packager` plays a vital role during fat-object generation. The fat
 object in the proposed offloading model is generated during the host
 compilation. The host compilation takes an additional argument which points to
 the device binary which will be embedded in the final object. Generation will
@@ -40,11 +39,11 @@ the host and target device binaries.
 
 When dealing with multiple device binaries, an additional step is performed to
 package the multiple device binaries before being added to the host object.
-This additional step is performed with the clang-offload-packager taking image
+This additional step is performed with the `clang-offload-packager` taking image
 inputs containing information relating to the target triple, architecture
 setting and offloading kind.
 
-The clang-offload-packager is run during \'fat object\' generation regardless
+The `clang-offload-packager` is run during \'fat object\' generation regardless
 of the number of device binaries being added to the conglomerate fat object.
 The device binaries are contained in what is designated as an 'Offload Binary'.
 These binaries can reside in a variety of binary formats including Bitcode
@@ -76,16 +75,16 @@ LLVM Spec is more fluid that SPIR-V Spec |
 
 *Table: Pros and cons to evaluate design choice to decide whether fat object should contain LLVM IR or SPIR-V IR*
 
-Clang-offload-packager will be used to embed device code into the host code.
+`clang-offload-packager` will be used to embed device code into the host code.
 Following changes will be added to the packager. A new offload kind (SYCL_OFK)
 will be made available for SYCL offloads. We should have the ability to package
 SPIR-V based device binaries in the offload section of any given binary. These
 device binaries will be packaged as normal with the packager and placed within
 the given section. New image kinds will be added to represent such binaries. 
 
-## SYCL offload support in clang-linker-wrapper
+## SYCL offload support in `clang-linker-wrapper`
 
-The clang-linker-wrapper provides the interface to perform the needed link
+The `clang-linker-wrapper` provides the interface to perform the needed link
 steps when consuming fat binaries. The linker wrapper performs a majority of
 the work involved during the link step during an offload compilation,
 significantly reducing the amount of work that is occurring in the compiler
@@ -94,7 +93,7 @@ typical call to the host link. This allows for the responsibility of the
 compiler driver to be nearly identical when performing a regular compilation
 vs an offloading compilation.
 
-From a high level, using the clang-linker-wrapper provides following benefits:
+From a high level, using the `clang-linker-wrapper` provides following benefits:
 - Moves all of the device linking responsibility out of the compiler driver
 - Allows for a more direct ability to perform linking for offloading without
 requiring the use of the driver, using more linker like calls
@@ -106,14 +105,14 @@ Example usage of the external `clang-linker-wrapper` call:
 `clang-linker-wrapper <wrapper opts> -- <linker opts>`
 
 Following sub-sections cover the different compilation steps invoked inside the
-clang-linker-wrapper. Changes needed to add SYL compilation support is
+`clang-linker-wrapper`. Changes needed to add SYCL compilation support is
 showcased in each sub-section.
 
 ### Device code extraction and linking
 
 During the compilation step, the device binaries are embedded in a section of
 the host binary. When performing the link, this section is extracted from the
-object and mapped according to the device kind. The clang-linker-wrapper is
+object and mapped according to the device kind. The `clang-linker-wrapper` is
 responsible for examining all of the input binaries, grabbing the embedded
 device binaries and determining any additional device linking paths that need
 to be taken.
@@ -124,7 +123,7 @@ input bitcode files will be linked together using the ThinLTO pass. In
 addition, SYCL device library files will be provided as inputs by the driver
 and will be linked with the input. A list of device libraries that need to
 be linked in with user code is provided by the driver. The driver is also
-responsible for letting the clang-linker-wrapper know the location of the
+responsible for letting the `clang-linker-wrapper` know the location of the
 device libraries.  
 
 |            Option                    |   Expected Behavior   |
@@ -132,7 +131,7 @@ device libraries.
 | `--sycl-device-libraries=<arg>`      | A comma separated list of device libraries that are linked during the device link |
 | `--sycl-device-library-location=<arg>`    | The location in which the device libraries reside |
 
-*Table: Options to pass device libraries to the clang-linker-wrapper*
+*Table: Options to pass device libraries to the `clang-linker-wrapper`*
 
 ### Post-link and SPIR-V translation
 
@@ -140,27 +139,26 @@ After the device binaries are linked together, two additional steps are
 performed to prepare the device binary for consumption by an offline
 compilation tool for AOT or to be wrapped for JIT processing.
 
-The sycl-post-link tool is used after the device link is performed, applying
+The `sycl-post-link` tool is used after the device link is performed, applying
 any changes such as optimizations and code splitting before passing off to the
-llvm-spirv tool, which translates the LLVM-IR to SPIR-V.
+`llvm-spirv` tool, which translates the LLVM-IR to SPIR-V.
 
 |            Option                    |   Expected Behavior   |
 |--------------------------------------|-----------------------|
-| `--sycl-post-link-options=<arg>`     | Options that will control sycl-post-link step |
-| `--llvm-spirv-options=<arg>`         | Options that will control llvm-spirv step |
+| `--sycl-post-link-options=<arg>`     | Options that will control `sycl-post-link` step |
+| `--llvm-spirv-options=<arg>`         | Options that will control `llvm-spirv` step |
 
-*Table: Options to pass sycl-post-link and llvm-spirv options to the clang-linker-wrapper*
+*Table: Options to pass `sycl-post-link` and `llvm-spirv` options to the `clang-linker-wrapper`*
 
-Options that will be used by clang-linker-wrapper when invoking the
-sycl-post-link tool are provided by the driver via the
-\--sycl-post-link-options=`<arg>` option. Options that will be used by
-clang-linker-wrapper when invoking the llvm-spirv tool are provided by the
-driver via the \--llvm-spirv-options=`<arg>` option.
+Options that will be used by clang-linker-wrapper when invoking the `sycl-post-link`
+tool are provided by the driver via the `--sycl-post-link-options=<arg>` option.
+Options that will be used by clang-linker-wrapper when invoking the `llvm-spirv`
+tool are provided by the driver via the `--llvm-spirv-options=<arg>` option.
 
 ### Ahead of Time Compilation for SYCL offload
 
 The updated offloading model will integrate the Ahead of Time (AOT) compilation
-behaviors into the clang-linker-wrapper. The actions will typically take place
+behaviors into the `clang-linker-wrapper`. The actions will typically take place
 after the device link, post link, and LLVM-IR to SPIR-V translation steps.
 
 Regardless of the AOT target, the flow is similar, only modifying the offline
@@ -169,7 +167,7 @@ the offline compiler will also use unique command lines specific to the tool to
 create the image.
 
 To support the needed option passing triggered by use of the
--Xsycl-target-backend option and implied options based on the optional device
+`-Xsycl-target-backend` option and implied options based on the optional device
 behaviors for AOT compilations for GPU new command line interfaces are needed
 to pass along this information.
 
@@ -222,7 +220,7 @@ list to be passed along.
 > --gen-tool-arg="-device pvc -options extraopt_pvc"
 --gen-tool-arg="-device skl -options -extraopt_skl"
 
-*Example: clang-linker-wrapper options*
+*Example: `clang-linker-wrapper` options*
 
 Each OCLOC call will be represented as a separate device binary that is
 individually wrapped and linked into the final executable.
@@ -247,11 +245,11 @@ option to the wrapper, `--cpu-tool-arg=<arg>`
 Once the device binary is pulled out of the fat binary, the binary must be
 wrapped and provided the needed entry points to be used during execution.
 This is performed during the link phase and controlled by the
-clang-linker-wrapper.
+`clang-linker-wrapper`.
 
 SYCL offload model currently uses specialized wrapping information to wrap
 device images into host. It is expected that the wrap information that will be
-generated in clang-linker-wrapper to be wrapped around the device binary will
+generated in `clang-linker-wrapper` to be wrapped around the device binary will
 match wrapping information that is used for SYCL.
 
 ### Host link
