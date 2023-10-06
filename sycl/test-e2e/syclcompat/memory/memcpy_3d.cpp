@@ -55,11 +55,13 @@ void test_memcpy3D_memset() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data =
+      (float *)syclcompat::malloc_host(sizeof(float) * width * height * depth);
   for (int i = 0; i < width * height * depth; i++)
     h_data[i] = (float)i;
 
-  h_ref = (float *)malloc(sizeof(float) * width * height * depth);
+  h_ref =
+      (float *)syclcompat::malloc_host(sizeof(float) * width * height * depth);
   for (int i = 0; i < width * height * depth; i++)
     h_ref[i] = (float)i;
 
@@ -102,8 +104,8 @@ void test_memcpy3D_memset() {
   memset(h_ref, 0x1, width * height * depth * sizeof(float));
   check(h_data, h_ref, width * height * depth);
 
-  free(h_data);
-  free(h_ref);
+  syclcompat::free(h_data);
+  syclcompat::free(h_ref);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
@@ -122,11 +124,13 @@ void test_memcpy3D_memset_q() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data = (float *)syclcompat::malloc_host(
+      sizeof(float) * width * height * depth, q);
   for (int i = 0; i < width * height * depth; i++)
     h_data[i] = (float)i;
 
-  h_ref = (float *)malloc(sizeof(float) * width * height * depth);
+  h_ref = (float *)syclcompat::malloc_host(
+      sizeof(float) * width * height * depth, q);
   for (int i = 0; i < width * height * depth; i++)
     h_ref[i] = (float)i;
 
@@ -169,8 +173,8 @@ void test_memcpy3D_memset_q() {
   memset(h_ref, 0x1, width * height * depth * sizeof(float));
   check(h_data, h_ref, width * height * depth);
 
-  free(h_data);
-  free(h_ref);
+  syclcompat::free(h_data, q);
+  syclcompat::free(h_ref, q);
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
@@ -187,7 +191,8 @@ void test_memcpy3D_offset() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data =
+      (float *)syclcompat::malloc_host(sizeof(float) * width * height * depth);
   /*
     0.000000        1.000000        2.000000        3.000000
     4.000000        5.000000        6.000000        7.000000
@@ -262,7 +267,7 @@ void test_memcpy3D_offset() {
 
   // Copy back to host data.
   check(h_data, Ref, out_width * out_height * out_depth);
-  free(h_data);
+  syclcompat::free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
@@ -281,7 +286,8 @@ void test_memcpy3D_offset_q() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data = (float *)syclcompat::malloc_host(
+      sizeof(float) * width * height * depth, q);
   /*
     0.000000        1.000000        2.000000        3.000000
     4.000000        5.000000        6.000000        7.000000
@@ -355,7 +361,7 @@ void test_memcpy3D_offset_q() {
                      cpyParm_size_ct1, q);
   // Copy back to host data.
   check(h_data, Ref, out_width * out_height * out_depth);
-  free(h_data);
+  syclcompat::free(h_data, q);
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
@@ -372,7 +378,8 @@ void test_memcpy3D_offsetZ() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data =
+      (float *)syclcompat::malloc_host(sizeof(float) * width * height * depth);
   /*
     0.000000        1.000000        2.000000        3.000000
     4.000000        5.000000        6.000000        7.000000
@@ -447,7 +454,7 @@ void test_memcpy3D_offsetZ() {
 
   // Copy back to host data.
   check(h_data, Ref, out_width * out_height * out_depth);
-  free(h_data);
+  syclcompat::free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
@@ -465,7 +472,8 @@ void test_memcpy3D_offsetZ_q() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data = (float *)syclcompat::malloc_host(
+      sizeof(float) * width * height * depth, q);
   /*
     0.000000        1.000000        2.000000        3.000000
     4.000000        5.000000        6.000000        7.000000
@@ -540,7 +548,7 @@ void test_memcpy3D_offsetZ_q() {
 
   // Copy back to host data.
   check(h_data, Ref, out_width * out_height * out_depth);
-  free(h_data);
+  syclcompat::free(h_data, q);
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
@@ -560,7 +568,8 @@ void test_memcpy3D_plane() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data =
+      (float *)syclcompat::malloc_host(sizeof(float) * width * height * depth);
   /*
     0.000000        1.000000        2.000000        3.000000
     4.000000        5.000000        6.000000        7.000000
@@ -637,7 +646,7 @@ void test_memcpy3D_plane() {
 
   // Copy back to host data.
   check(h_data, Ref, out_width * out_height * out_depth);
-  free(h_data);
+  syclcompat::free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
@@ -657,7 +666,8 @@ void test_memcpy3D_row() {
   sycl::id<3> cpyParm_from_pos_ct1(0, 0, 0), cpyParm_to_pos_ct1(0, 0, 0);
   sycl::range<3> cpyParm_size_ct1(0, 0, 0);
 
-  h_data = (float *)malloc(sizeof(float) * width * height * depth);
+  h_data =
+      (float *)syclcompat::malloc_host(sizeof(float) * width * height * depth);
   /*
     0.000000        1.000000        2.000000        3.000000
     4.000000        5.000000        6.000000        7.000000
@@ -728,7 +738,7 @@ void test_memcpy3D_row() {
 
   // Copy back to host data.
   check(h_data, Ref, out_width * out_height * out_depth);
-  free(h_data);
+  syclcompat::free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
