@@ -1,4 +1,4 @@
-// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -print-pipeline 2>&1 | FileCheck %s
+// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -no-early-drop-host-code -Xcgeist -print-pipeline 2>&1 | FileCheck %s
 
 // CHECK-LABEL: Canonicalization pipeline:
 // CHECK:       Pass Manager with 2 passes:
@@ -6,11 +6,15 @@
 // CHECK-SAME:    gpu.module(any({{.*}})),
 // CHECK-SAME:    gpu.module(any({{.*}})))
 
-// CHECK-LABEL: Optimization pipeline:
-// CHECK:       Pass Manager with 8 passes:
+// CHECK-LABEL: Early Host-Device Optimization pipeline:
+// CHECK:       Pass Manager with 2 passes:
 // CHECK:       any(
 // CHECK-SAME:    sycl-raise-host{ }
 // CHECK-SAME:    sycl-constant-propagation{relaxed-aliasing=false}
+
+// CHECK-LABEL: Optimization pipeline:
+// CHECK:       Pass Manager with 6 passes:
+// CHECK:       any(
 // CHECK-SAME:    arg-promotion
 // CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false}
 // CHECK-SAME:    gpu.module(any({{.*}})),loop-internalization{relaxed-aliasing=false shared-memory-size=32000 unroll-factor=4}

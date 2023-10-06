@@ -1,6 +1,6 @@
-// RUN: clang++ -O1 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -w | FileCheck %s
-// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -w | FileCheck %s
-// RUN: clang++ -O3 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -w | FileCheck %s
+// RUN: clang++ -O1 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -no-early-drop-host-code -w | FileCheck %s
+// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -no-early-drop-host-code -w | FileCheck %s
+// RUN: clang++ -O3 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -no-early-drop-host-code -w | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
@@ -177,3 +177,6 @@ template void id<2>(sycl::id<2> &&);
 // CHECK-NEXT:      llvm.return
 // CHECK-NEXT:    }
 template void id<3>(sycl::id<3> &&);
+
+// Keep at the end of the file to not affect test results
+#include "../nop_kernel.hpp"
