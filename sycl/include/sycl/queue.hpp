@@ -1897,14 +1897,7 @@ public:
   /// \return an event representing the wait operation.
   event ext_oneapi_wait_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
   /// An exception is thrown if \p SemaphoreHandle is incomplete.
@@ -1915,15 +1908,7 @@ public:
   event ext_oneapi_wait_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
   /// An exception is thrown if \p SemaphoreHandle is incomplete.
@@ -1935,15 +1920,7 @@ public:
   event ext_oneapi_wait_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
@@ -1953,14 +1930,7 @@ public:
   /// \return an event representing the signal operation.
   event ext_oneapi_signal_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
@@ -1972,15 +1942,7 @@ public:
   event ext_oneapi_signal_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
@@ -1993,15 +1955,7 @@ public:
   event ext_oneapi_signal_external_semaphore(
       sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// single_task version with a kernel represented as a lambda.
   ///
