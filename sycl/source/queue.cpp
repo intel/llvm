@@ -268,6 +268,35 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
+event queue::prefetch(const void *Ptr, size_t Count,
+                      const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
+}
+
+event queue::prefetch(const void *Ptr, size_t Count, event DepEvent,
+                      const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [=](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.prefetch(Ptr, Count);
+      },
+      CodeLoc);
+}
+
+event queue::prefetch(const void *Ptr, size_t Count,
+                      const std::vector<event> &DepEvents,
+                      const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [=](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.prefetch(Ptr, Count);
+      },
+      CodeLoc);
+}
+
 event queue::ext_oneapi_copy(
     void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,

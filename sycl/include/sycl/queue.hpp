@@ -754,10 +754,7 @@ public:
   /// \return an event representing prefetch operation.
   event prefetch(
       const void *Ptr, size_t Count,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -769,15 +766,7 @@ public:
   /// \return an event representing prefetch operation.
   event prefetch(
       const void *Ptr, size_t Count, event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.prefetch(Ptr, Count);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -790,15 +779,7 @@ public:
   /// \return an event representing prefetch operation.
   event prefetch(
       const void *Ptr, size_t Count, const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.prefetch(Ptr, Count);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
