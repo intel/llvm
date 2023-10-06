@@ -82,7 +82,7 @@ jobs:
           - name: Matrix E2E tests on Intel Arc A-Series Graphics
             runner: '["Windows", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
-            env: '{"LIT_FILTER":"Matrix/"}'
+            env: '{"ZE_AFFINITY_MASK":"1","LIT_FILTER":"Matrix/"}'
     uses: ./.github/workflows/sycl_windows_run_tests.yml
     with:
       name: ${{ matrix.name }}

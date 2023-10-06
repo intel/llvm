@@ -86,11 +86,13 @@ jobs:
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Windows", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+            env: '{"ZE_AFFINITY_MASK":"1"}'
     uses: ./.github/workflows/sycl_windows_run_tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      env: ${{ matrix.env || '{}' }}
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   macos_default:
