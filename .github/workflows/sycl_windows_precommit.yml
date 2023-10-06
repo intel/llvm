@@ -73,8 +73,20 @@ jobs:
       always()
       && !cancelled()
       && needs.build.outputs.build_conclusion == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel GEN12 Graphics with Level Zero
+            runner: '["Windows", "gen12"]'
+          - name: Matrix E2E tests on Intel Arc A-Series Graphics
+            runner: '["Windows", "arc"]'
+            extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+            env: '{"LIT_FILTER":"Matrix/"}'
     uses: ./.github/workflows/sycl_windows_run_tests.yml
     with:
-      name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
+      name: ${{ matrix.name }}
+      runner: ${{ matrix. runner }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      env: ${{ matrix.env || '{}' }}
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
