@@ -565,9 +565,7 @@ inline int get_sycl_language_version() {
 
 namespace experimental {
 
-#ifdef __AMDGPU__
-// AMDGPU does not support seq_cst.
-// nd_range_barriers are still not guaranteed to work
+#if defined(__AMDGPU__) || defined(__NVPTX__)
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
 #else
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
