@@ -1,4 +1,4 @@
-//==----------- large_grf.cpp  - DPC++ ESIMD on-device test ---------------==//
+//==----------- grf.cpp  - DPC++ ESIMD on-device test ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,12 +23,15 @@
 // RUN: %{build} -DUSE_NEW_API=1 -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_AUTO -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
-#ifdef USE_NEW_API
+#if defined(USE_NEW_API) || defined(USE_AUTO)
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 #else
 #include <sycl/detail/kernel_properties.hpp>
@@ -128,7 +131,9 @@ int main(void) {
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-#ifdef USE_NEW_API
+#ifdef USE_AUTO
+    sycl::ext::oneapi::experimental::properties prop{grf_size_automatic};
+#elif defined(USE_NEW_API)
     sycl::ext::oneapi::experimental::properties prop{grf_size<256>};
 #else
     sycl::ext::oneapi::experimental::properties prop{
@@ -139,7 +144,7 @@ int main(void) {
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<class EsimdKernelLargeGRF>(
+      cgh.parallel_for<class EsimdKernelSpecifiedGRF>(
           Size, prop, [=](id<1> i) SYCL_ESIMD_KERNEL {
             unsigned int offset = i * VL * sizeof(float);
             simd<float, VL> va;
@@ -155,9 +160,9 @@ int main(void) {
   }
 
   if (checkResult(A, 3)) {
-    std::cout << "ESIMD large GRF kernel passed\n";
+    std::cout << "ESIMD specified GRF kernel passed\n";
   } else {
-    std::cout << "ESIMD large GRF kernel failed\n";
+    std::cout << "ESIMD specified GRF kernel failed\n";
     return 1;
   }
 
@@ -186,13 +191,15 @@ int main(void) {
 // CHECK: <const char *>: {{.*}}EsimdKernel
 // CHECK: ) ---> pi_result : PI_SUCCESS
 
-// Kernels requesting larger GRF are grouped into separate module and compiled
-// with -largeGRF regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
+// Kernels requesting GRF are grouped into separate module and compiled
+// with the respective option regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
 // CHECK-LABEL: ---> piProgramBuild(
 // CHECK-NO-VAR: -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -doubleGRF
+// CHECK-AUTO-NO-VAR: -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
 // CHECK: ) ---> pi_result : PI_SUCCESS
 // CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}EsimdKernelLargeGRF
+// CHECK: <const char *>: {{.*}}EsimdKernelSpecifiedGRF
 // CHECK: ) ---> pi_result : PI_SUCCESS

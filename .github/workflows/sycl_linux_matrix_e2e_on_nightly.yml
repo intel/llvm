@@ -62,7 +62,7 @@ jobs:
 
   aws_start:
     name: AWS Start
-    uses: ./.github/workflows/aws.yml
+    uses: ./.github/workflows/sycl_aws.yml
     secrets: inherit
     with:
       mode: start
@@ -86,7 +86,7 @@ jobs:
     name: AWS Stop
     needs: [aws_start, linux_e2e_on_nightly_aws]
     if: always()
-    uses: ./.github/workflows/aws.yml
+    uses: ./.github/workflows/sycl_aws.yml
     secrets: inherit
     with:
       mode: stop
