@@ -88,7 +88,7 @@ jobs:
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
           - name: Matrix E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers_dev_igfx:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
