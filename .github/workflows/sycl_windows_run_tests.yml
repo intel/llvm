@@ -17,7 +17,7 @@ on:
         default: ''
       ref:
         type: string
-        required: True
+        required: False
 
       sycl_toolchain_artifact:
         type: string

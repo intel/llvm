@@ -73,15 +73,27 @@ jobs:
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
-  windows_default:
-    name: Windows
+  build-win:
+    uses: ./.github/workflows/sycl_windows_build.yml
     if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
       retention-days: 90
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
+
+  e2e-win:
+    needs: build-win
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl_windows_run_tests.yml
+    with:
+      name: Intel GEN12 Graphics with Level Zero
+      runner: '["Windows","gen12"]'
+      sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
 
   nightly_build_upload:
     name: Nightly Build Upload
