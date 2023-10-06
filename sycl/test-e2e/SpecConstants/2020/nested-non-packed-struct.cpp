@@ -46,11 +46,27 @@ struct user_defined_type {
   }
 };
 
+struct user_defined_type3 {
+  char x='x';
+  struct {
+    char y='y';
+    int z='z';
+    char a='a';
+  } s;
+  char b='b';
+  bool operator==(const user_defined_type3 &rhs) const {
+    return x==rhs.x && s.y==rhs.s.y && s.z==rhs.s.z && s.a == rhs.s.a && b == rhs.b;
+  }
+};
+
 constexpr user_defined_type reference(3.14, 42, 8);
 constexpr sycl::specialization_id<user_defined_type> spec_id(reference);
 
 constexpr user_defined_type2 reference2(3.14, 42, 8);
 constexpr sycl::specialization_id<user_defined_type2> spec_id2(reference2);
+
+constexpr user_defined_type3 reference3 {};
+constexpr sycl::specialization_id<user_defined_type3> spec_id3(reference3);
 
 int main() {
   sycl::queue q;
@@ -97,6 +113,18 @@ int main() {
   }
 
   assert(new_data == data);
+
+  user_defined_type3 data3;
+  {
+    sycl::buffer buf(&data3, sycl::range<1>{1});
+    q.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access(cgh);
+      cgh.single_task([=](sycl::kernel_handler kh) {
+        acc[0] = kh.get_specialization_constant<spec_id3>();
+      });
+    }).wait();
+  }
+  assert(reference3 == data3);
 
   return 0;
 }
