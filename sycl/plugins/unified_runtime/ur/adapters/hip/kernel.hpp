@@ -41,6 +41,9 @@ struct ur_kernel_handle_t_ {
   ur_program_handle_t Program;
   std::atomic_uint32_t RefCount;
 
+  static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
+  size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
+
   /// Structure that holds the arguments to the kernel.
   /// Note earch argument size is known, since it comes
   /// from the kernel signature.
@@ -132,6 +135,12 @@ struct ur_kernel_handle_t_ {
                       ur_context_handle_t Ctxt)
       : Function{Func}, FunctionWithOffsetParam{FuncWithOffsetParam},
         Name{Name}, Context{Ctxt}, Program{Program}, RefCount{1} {
+    ur_result_t RetError = urKernelGetGroupInfo(
+        this, Context->getDevice(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+        sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
+    (void)RetError;
+    assert(RetError == UR_RESULT_SUCCESS);
     urProgramRetain(Program);
     urContextRetain(Context);
   }

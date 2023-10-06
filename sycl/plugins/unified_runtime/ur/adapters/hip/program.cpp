@@ -10,11 +10,52 @@
 
 ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Ctxt)
     : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-      Context{Ctxt} {
+      Context{Ctxt}, KernelReqdWorkGroupSizeMD{} {
   urContextRetain(Context);
 }
 
 ur_program_handle_t_::~ur_program_handle_t_() { urContextRelease(Context); }
+
+ur_result_t
+ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
+                                  size_t Length) {
+  for (size_t i = 0; i < Length; ++i) {
+    const ur_program_metadata_t MetadataElement = Metadata[i];
+    std::string MetadataElementName{MetadataElement.pName};
+
+    std::string Prefix{};
+    std::string Tag{};
+    size_t SplitPos = MetadataElementName.rfind('@');
+    if (SplitPos != std::string::npos) {
+      Prefix = MetadataElementName.substr(0, SplitPos);
+      Tag = MetadataElementName.substr(SplitPos, MetadataElementName.length());
+    }
+
+    if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
+      // If metadata is reqd_work_group_size, record it for the corresponding
+      // kernel name.
+      size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
+
+      // Expect between 1 and 3 32-bit integer values.
+      UR_ASSERT(MDElemsSize >= sizeof(std::uint32_t) &&
+                    MDElemsSize <= sizeof(std::uint32_t) * 3,
+                UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+
+      // Get pointer to data, skipping 64-bit size at the start of the data.
+      const char *ValuePtr =
+          reinterpret_cast<const char *>(MetadataElement.value.pData) +
+          sizeof(std::uint64_t);
+      // Read values and pad with 1's for values not present.
+      std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
+      std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
+      KernelReqdWorkGroupSizeMD[Prefix] =
+          std::make_tuple(ReqdWorkGroupElements[0], ReqdWorkGroupElements[1],
+                          ReqdWorkGroupElements[2]);
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
 
 ur_result_t ur_program_handle_t_::setBinary(const char *Source, size_t Length) {
   // Do not re-set program binary data which has already been set as that will
@@ -244,7 +285,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// Note: Only supports one device
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *,
+    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
   UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
   UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
@@ -255,8 +296,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   std::unique_ptr<ur_program_handle_t_> RetProgram{
       new ur_program_handle_t_{hContext}};
 
-  // TODO: Set metadata here and use reqd_work_group_size information.
-  // See urProgramCreateWithBinary in CUDA adapter.
+  if (pProperties) {
+    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    Result =
+        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count);
+    UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
+  }
 
   auto pBinary_string = reinterpret_cast<const char *>(pBinary);
   if (size == 0) {
