@@ -681,9 +681,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                 NodeImpl->MCommandGroup.get());
         auto OutEvent = CreateNewEvent();
         pi_int32 Res = sycl::detail::enqueueImpKernel(
-            Queue, CG->MNDRDesc, CG->MArgs,
-            // TODO: Handler KernelBundles
-            nullptr, CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
+            Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle, CG->MSyclKernel,
+            CG->MKernelName, RawEvents, OutEvent,
             // TODO: Pass accessor mem allocations
             nullptr,
             // TODO: Extract from handler
