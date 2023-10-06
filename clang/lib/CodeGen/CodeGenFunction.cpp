@@ -790,8 +790,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(0))};
-    Fn->setMetadata("pipeline_kernel",
-                    llvm::MDNode::get(Context, AttrMDArgs));
+    Fn->setMetadata("pipeline_kernel", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
