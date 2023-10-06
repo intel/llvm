@@ -110,6 +110,11 @@ FusionResult KernelFusion::fuseKernels(
     std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
     if (CachedKernel) {
       helper::printDebugMessage("Re-using cached JIT kernel");
+      if (!std::get<5>(CacheKey).has_value()) {
+        // If the cache query didn't include the ranges, update the fused range
+        // before returning the kernel info to the runtime.
+        CachedKernel->NDR = combineNDRanges(NDRanges);
+      }
       return FusionResult{*CachedKernel, /*Cached*/ true};
     }
     helper::printDebugMessage(
