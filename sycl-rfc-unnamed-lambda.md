@@ -78,12 +78,9 @@ This approach has several downsides including:
 
 At present, the `__builtin_sycl_unique_stable_name` builtin function does not generate
 matching names during host and device compilation for the following example.
-This is presumed to be either a defect in its implementation or a limitation of its design.
 Running this program results in a run-time error due to a failure to resolve kernel names.
-It is not entirely clear whether the SYCL specification requires a conforming implementation
-to support this example.
-An issue has been filed against the SYCL specification to request clarification.
-See [issue #434, "Correspondence of unnamed lambdas as kernels across host and device compilation"](https://github.com/KhronosGroup/SYCL-Docs/issues/454).
+This is presumed to be either a defect in the implementation of the builtin function or a
+limitation of its design; it has not yet been determined which of these is the case.
 ```c++
 #include <sycl/sycl.hpp>
 int main() {
