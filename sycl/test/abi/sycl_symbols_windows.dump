@@ -778,6 +778,9 @@
 ??5half_impl@detail@_V1@sycl@@YAAEAV?$basic_istream@DU?$char_traits@D@std@@@std@@AEAV45@AEAVhalf@0123@@Z
 ??6half_impl@detail@_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV45@AEBVhalf@0123@@Z
 ??6_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV23@W4backend@01@@Z
+??6detail@_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV34@AEBUaccessor_iterator_data@012@@Z
+??6detail@_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV34@AEBUdevice_filter@012@@Z
+??6detail@_V1@sycl@@YAAEAV?$basic_ostream@DU?$char_traits@D@std@@@std@@AEAV34@AEBVdevice_filter_list@012@@Z
 ??8context@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device@_V1@sycl@@QEBA_NAEBV012@@Z
 ??8device_image_plain@detail@_V1@sycl@@QEBA_NAEBV0123@@Z
