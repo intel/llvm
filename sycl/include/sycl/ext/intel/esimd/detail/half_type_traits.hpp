@@ -14,6 +14,9 @@
 
 #include <sycl/half_type.hpp>
 
+#include <istream>
+#include <ostream>
+
 /// @cond ESIMD_DETAIL
 
 namespace sycl {

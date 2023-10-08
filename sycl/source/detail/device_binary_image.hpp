@@ -8,12 +8,14 @@
 #pragma once
 
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <ostream>
 
 namespace sycl {
 inline namespace _V1 {

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <detail/plugin.hpp>
+#include <sstream>
 #include <string>
 
 namespace pi {

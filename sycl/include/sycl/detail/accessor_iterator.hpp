@@ -45,6 +45,10 @@ class accessor;
 
 namespace detail {
 
+struct accessor_iterator_data;
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &os,
+                                       const accessor_iterator_data &it);
+
 template <typename DataT, int Dimensions> class accessor_iterator {
 public:
   using difference_type = std::ptrdiff_t;
@@ -331,21 +335,29 @@ public:
 #ifndef NDEBUG
   // Could be useful for debugging, but not a part of the official API,
   // therefore only available in builds with assertions enabled.
+  friend struct accessor_iterator_data;
   friend std::ostream &operator<<(std::ostream &os,
                                   const accessor_iterator &it) {
-    os << "accessor_iterator {\n";
-    os << "\tMLinearId: " << it.MLinearId << "\n";
-    os << "\tMEnd: " << it.MEnd << "\n";
-    os << "\tMStaticOffset: " << it.MStaticOffset << "\n";
-    os << "\tMPerRowOffset: " << it.MPerRowOffset << "\n";
-    os << "\tMPerSliceOffset: " << it.MPerSliceOffset << "\n";
-    os << "\tMRowSize: " << it.MRowSize << "\n";
-    os << "\tMSliceSize: " << it.MSliceSize << "\n";
-    os << "\tMAccessorIsRanged: " << it.MAccessorIsRanged << "\n";
-    os << "}";
-    return os;
+    return os << accessor_iterator_data(it);
   }
 #endif // NDEBUG
+};
+// non-templated copy of accessor_iterator to pass to library
+struct accessor_iterator_data {
+  template <typename DataT, int Dimensions>
+  accessor_iterator_data(accessor_iterator<DataT, Dimensions> it)
+      : MLinearId(it.MLinearId), MEnd(it.MEnd), MStaticOffset(it.MStaticOffset),
+        MPerSliceOffset(it.MPerSliceOffset), MPerRowOffset(it.MPerRowOffset),
+        MRowSize(it.MRowSize), MSliceSize(it.MSliceSize),
+        MAccessorIsRanged(it.MAccessorIsRanged) {}
+  size_t MLinearId;
+  size_t MEnd;
+  size_t MStaticOffset;
+  size_t MPerSliceOffset;
+  size_t MPerRowOffset;
+  size_t MRowSize;
+  size_t MSliceSize;
+  bool MAccessorIsRanged;
 };
 } // namespace detail
 } // namespace _V1

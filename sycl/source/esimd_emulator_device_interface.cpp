@@ -15,7 +15,9 @@
 ///
 /// \ingroup sycl_pi_esimd_emulator
 
+#include <ostream>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
 namespace sycl {

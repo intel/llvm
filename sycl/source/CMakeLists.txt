@@ -160,6 +160,7 @@ set(SYCL_SOURCES
     "backend/level_zero.cpp"
     "backend.cpp"
     "detail/accessor_impl.cpp"
+    "detail/accessor_iterator.cpp"
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"

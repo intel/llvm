@@ -10,8 +10,10 @@
 
 #pragma once
 
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.hpp>
 
+#include <ostream>
 #include <type_traits>
 
 namespace sycl {

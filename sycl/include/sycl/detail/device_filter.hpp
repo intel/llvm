@@ -23,11 +23,6 @@ namespace detail {
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
 
-template <typename T>
-std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
-  return opt ? os << opt.value() : os << "not set ";
-}
-
 // the ONEAPI_DEVICE_SELECTOR string gets broken down into these targets
 // will will match devices. If the target is negative, such as !opencl:*
 // then matching devices will not be made available to the user.
@@ -97,36 +92,11 @@ public:
                                   const device_filter_list &List);
 };
 
-inline std::ostream &operator<<(std::ostream &Out,
-                                const device_filter &Filter) {
-  Out << Filter.Backend << ":";
-  if (Filter.DeviceType == info::device_type::host) {
-    Out << "host";
-  } else if (Filter.DeviceType == info::device_type::cpu) {
-    Out << "cpu";
-  } else if (Filter.DeviceType == info::device_type::gpu) {
-    Out << "gpu";
-  } else if (Filter.DeviceType == info::device_type::accelerator) {
-    Out << "accelerator";
-  } else if (Filter.DeviceType == info::device_type::all) {
-    Out << "*";
-  } else {
-    Out << "unknown";
-  }
-  if (Filter.DeviceNum) {
-    Out << ":" << Filter.DeviceNum.value();
-  }
-  return Out;
-}
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out,
+                                       const device_filter &Filter);
 
-inline std::ostream &operator<<(std::ostream &Out,
-                                const device_filter_list &List) {
-  for (const device_filter &Filter : List.FilterList) {
-    Out << Filter;
-    Out << ",";
-  }
-  return Out;
-}
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out,
+                                       const device_filter_list &List);
 
 } // namespace detail
 } // namespace _V1

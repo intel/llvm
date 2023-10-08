@@ -11,6 +11,7 @@
 #include <detail/plugin_printers.hpp>
 #include <memory>
 #include <mutex>
+#include <ostream>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>

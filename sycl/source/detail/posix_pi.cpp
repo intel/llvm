@@ -11,6 +11,7 @@
 #include <sycl/detail/pi.hpp>
 
 #include <dlfcn.h>
+#include <ostream>
 #include <string>
 
 namespace sycl {

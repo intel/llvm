@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <ostream>
+
 #include <sycl/ext/intel/esimd/detail/simd_mask_impl.hpp>
 #include <sycl/ext/intel/esimd/detail/simd_obj_impl.hpp>
 
