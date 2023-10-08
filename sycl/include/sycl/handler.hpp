@@ -1177,7 +1177,7 @@ private:
     bool DidAdjust = false;
     auto Adjust = [&](int Dim, size_t Value) {
       if (this->RangeRoundingTrace())
-        printf("parallel_for range adjusted at dim %d from %uz to %uz\n", Dim,
+        printf("parallel_for range adjusted at dim %d from %zu to %zu\n", Dim,
                RoundedRange[Dim], Value);
       RoundedRange[Dim] = Value;
       DidAdjust = true;
