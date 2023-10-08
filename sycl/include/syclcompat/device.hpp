@@ -50,6 +50,7 @@
 #endif
 
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/queue.hpp>
