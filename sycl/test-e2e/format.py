@@ -2,8 +2,14 @@ import lit
 import lit.formats
 
 from lit.BooleanExpression import BooleanExpression
+from lit.TestRunner import (
+    ParserKind,
+    IntegratedTestKeywordParser,
+    # parseIntegratedTestScript,
+)
 
 import os
+import re
 
 def get_triple(test, backend):
     if backend == 'ext_oneapi_cuda':
@@ -17,6 +23,35 @@ def get_triple(test, backend):
         return 'native_cpu'
     return 'spir64'
 
+def parse_min_intel_driver_req(line_number, line, output):
+    """
+Driver version looks like this for Intel devices:
+      Linux/L0:       [1.3.26370]
+      Linux/opencl:   [23.22.26370.18]
+      Windows/L0:     [1.3.26370]
+      Windows/opencl: [31.0.101.4502]
+Only "26370" and "101.4502" are interesting for us for the purpose of detecting
+if the driver has required changes or not. As such we refer to the former
+(5-digit) as "lin" format and as "win" for the latter.
+"""
+    if not output:
+        output = {}
+
+    lin = re.search('lin: *([0-9]{5})', line)
+    if lin:
+        if 'lin' in output:
+            raise ValueError('Multiple entries for "lin" version')
+        output['lin'] = int(lin.group(1))
+
+    win = re.search('win: *([0-9]{3}\.[0-9]{4})', line)
+    if win:
+        if 'win' in output:
+            raise ValueError('Multiple entries for "win" version')
+        # Return "win" version as (101, 4502) to ease later comparison.
+        output['win'] = tuple(map(int, win.group(1).split('.')))
+
+    return output
+
 class SYCLEndToEndTest(lit.formats.ShTest):
     def parseTestScript(self, test):
         """This is based on lit.TestRunner.parseIntegratedTestScript but we
@@ -25,7 +60,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         # Parse the test sources and extract test properties
         try:
-            parsed = lit.TestRunner._parseKeywords(test.getSourcePath(), require_script=True)
+            parsed = lit.TestRunner._parseKeywords(
+                test.getSourcePath(),
+                additional_parsers=[
+                    IntegratedTestKeywordParser("REQUIRES-INTEL-DRIVER:",
+                                                ParserKind.CUSTOM,
+                                                parse_min_intel_driver_req)],
+                require_script=True)
         except ValueError as e:
             return lit.Test.Result(Test.UNRESOLVED, str(e))
         script = parsed['RUN:'] or []
@@ -37,6 +78,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         test.requires += parsed['REQUIRES:'] or []
         test.unsupported += test.config.unsupported_features
         test.unsupported += parsed['UNSUPPORTED:'] or []
+
+        test.intel_driver_req = parsed['REQUIRES-INTEL-DRIVER:']
 
         return script
 
@@ -55,6 +98,16 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             if self.getMatchedFromList(features, test.unsupported):
+                continue
+
+            driver_ok = True
+            if test.intel_driver_req:
+                for fmt in ['lin', 'win']:
+                    if (fmt in test.intel_driver_req
+                        and fmt in test.config.intel_driver_ver[d]
+                        and test.config.intel_driver_ver[d][fmt] < test.intel_driver_req[fmt]):
+                        driver_ok = False
+            if not driver_ok:
                 continue
 
             devices.append(d)
