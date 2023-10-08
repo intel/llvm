@@ -32,21 +32,21 @@ int main() {
   // test list of types
   using scalar_float = d::type_list<float>;
   using vector_float = d::type_list<s::vec<float, 1>, s::vec<float, 2>>;
-  using float_list = d::mp_append<scalar_float, vector_float>;
+  using float_list = d::tl_append<scalar_float, vector_float>;
   using scalar_double = d::type_list<double>;
   using vector_double = d::type_list<s::vec<double, 1>, s::vec<double, 2>>;
-  using double_list = d::mp_append<scalar_double, vector_double>;
-  using floating_list = d::mp_append<float_list, double_list>;
+  using double_list = d::tl_append<scalar_double, vector_double>;
+  using floating_list = d::tl_append<float_list, double_list>;
 
   using scalar_int = d::type_list<int>;
   using scalar_long = d::type_list<long>;
   using vector_int = d::type_list<s::vec<int, 1>, s::vec<int, 2>>;
   using vector_long = d::type_list<s::vec<long, 1>, s::vec<long, 2>>;
-  using int_list = d::mp_append<scalar_int, vector_int>;
-  using long_list = d::mp_append<scalar_long, vector_long>;
-  using integer_list = d::mp_append<int_list, long_list>;
+  using int_list = d::tl_append<scalar_int, vector_int>;
+  using long_list = d::tl_append<scalar_long, vector_long>;
+  using integer_list = d::tl_append<int_list, long_list>;
 
-  using types = d::mp_append<floating_list, integer_list>;
+  using types = d::tl_append<floating_list, integer_list>;
 
   static_assert(d::is_contained<float, scalar_float>::value, "");
   static_assert(d::is_contained<s::vec<float, 2>, scalar_float>::value == false,

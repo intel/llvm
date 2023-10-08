@@ -31,7 +31,8 @@ template <typename T, typename TypeList>
 using is_contained =
     boost::mp11::mp_set_contains<TypeList, std::remove_cv_t<T>>;
 
-using boost::mp11::mp_append;
+// type list append
+template <class... L> using tl_append = boost::mp11::mp_append<L...>;
 
 // value_list
 template <typename T, T... Values> struct value_list;
