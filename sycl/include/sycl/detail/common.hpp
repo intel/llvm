@@ -179,7 +179,7 @@ inline std::string codeToString(pi_int32 code) {
     auto code = expr;                                                          \
     if (code != PI_SUCCESS) {                                                  \
       fprintf(stderr, __SYCL_PI_ERROR_REPORT "%s\n",                           \
-              sycl::detail::codeToString(code));                               \
+              sycl::detail::codeToString(code).c_str());                       \
     }                                                                          \
   }
 #endif
