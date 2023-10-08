@@ -497,7 +497,7 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
   // product can be represented: z_ib_fra * 2^-46 * 2^(z_exp_s) for
   // fp32 and the situation is same for fp64.
   size_t msb_pos;
-  if constexpr (std::is_same_v<DSUTy, __iml_ui128>)
+  if constexpr (std::is_same<DSUTy, __iml_ui128>::value)
     msb_pos = z_ib_fra.ui128_msb_pos();
   else
     msb_pos = get_msb_pos(z_ib_fra);
