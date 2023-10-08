@@ -72,8 +72,8 @@ struct device_filter {
 
   device_filter(){};
   device_filter(const std::string &FilterString);
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter &Filter);
+  __SYCL_EXPORT friend std::ostream &operator<<(std::ostream &Out,
+                                                const device_filter &Filter);
 };
 
 class device_filter_list {
@@ -88,15 +88,9 @@ public:
   bool backendCompatible(backend Backend);
   bool deviceTypeCompatible(info::device_type DeviceType);
   bool deviceNumberCompatible(int DeviceNum);
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter_list &List);
+  __SYCL_EXPORT friend std::ostream &operator<<(std::ostream &Out,
+                                                const device_filter_list &List);
 };
-
-__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out,
-                                       const device_filter &Filter);
-
-__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out,
-                                       const device_filter_list &List);
 
 } // namespace detail
 } // namespace _V1
