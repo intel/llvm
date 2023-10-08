@@ -66,7 +66,8 @@ protected:
   //
   bool invokeParser(const StringRef MangledName,
                     const StringRef VectorName = "",
-                    const StringRef IRType = "void()") {
+                    const StringRef IRType = "void()",
+                    bool CheckVectorNameExistence = true) {
     StringRef Name = MangledName;
     if (!VectorName.empty())
       Name = VectorName;
@@ -74,7 +75,8 @@ protected:
     // `invokeParser` multiple times in the same test.
     reset(Name, IRType);
 
-    const auto OptInfo = VFABI::tryDemangleForVFABI(MangledName, *(M.get()));
+    const auto OptInfo = VFABI::tryDemangleForVFABI(
+        MangledName, CheckVectorNameExistence ? M.get() : nullptr);
     if (OptInfo) {
       Info = *OptInfo;
       return true;
@@ -122,8 +124,6 @@ TEST_F(VFABIParserTest, OnlyValidNames) {
   EXPECT_FALSE(invokeParser("_ZGVnN2"));
   EXPECT_FALSE(invokeParser("_ZGVnN2v"));
   EXPECT_FALSE(invokeParser("_ZGVnN2v_"));
-  // Missing parameters.
-  EXPECT_FALSE(invokeParser("_ZGVnN2_foo"));
   // Missing _ZGV prefix.
   EXPECT_FALSE(invokeParser("_ZVnN2v_foo"));
   // Missing <isa>.
@@ -142,6 +142,20 @@ TEST_F(VFABIParserTest, OnlyValidNames) {
   // Unterminated name. Using `fakename` because the string being
   // parsed is not a valid function name that `invokeParser` can add.
   EXPECT_FALSE(invokeParser("_ZGVnN2v_foo(bar", "fakename"));
+}
+
+TEST_F(VFABIParserTest, EmptyParamList) {
+  EXPECT_TRUE(invokeParser("_ZGVnN2_foo", /*VectorName = */ "",
+                           /*IRType = */ "void()"));
+}
+
+TEST_F(VFABIParserTest, DontCheckVectorNameExistence) {
+  // Demangling succeeds even if `UserFunc` doesn't exist in the module.
+  EXPECT_TRUE(invokeParser("_ZGVnM2v_sin(UserFunc)", /*VectorName = */ "",
+                           /*IRType = */ "void()",
+                           /*CheckVectorNameExistence = */ false));
+  EXPECT_EQ(ScalarName, "sin");
+  EXPECT_EQ(VectorName, "UserFunc");
 }
 
 TEST_F(VFABIParserTest, ParamListParsing) {
