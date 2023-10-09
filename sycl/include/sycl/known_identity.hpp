@@ -83,38 +83,36 @@ struct isComplex : public std::false_type {};
 // Identity = 0
 template <typename T, class BinaryOperation>
 using IsZeroIdentityOp = std::bool_constant<
-    ((is_genbool<T>::value || is_geninteger<T>::value) &&
-     (IsPlus<T, BinaryOperation>::value || IsBitOR<T, BinaryOperation>::value ||
-      IsBitXOR<T, BinaryOperation>::value)) ||
-    (is_genfloat<T>::value && IsPlus<T, BinaryOperation>::value) ||
+    ((is_genbool_v<T> ||
+      is_geninteger_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
+                            IsBitOR<T, BinaryOperation>::value ||
+                            IsBitXOR<T, BinaryOperation>::value)) ||
+    (is_genfloat_v<T> && IsPlus<T, BinaryOperation>::value) ||
     (isComplex<T>::value && IsPlus<T, BinaryOperation>::value)>;
 
 // Identity = 1
 template <typename T, class BinaryOperation>
-using IsOneIdentityOp =
-    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
-                        is_genfloat<T>::value) &&
-                       IsMultiplies<T, BinaryOperation>::value>;
+using IsOneIdentityOp = std::bool_constant<(
+    is_genbool_v<T> || is_geninteger_v<T> ||
+    is_genfloat_v<T>)&&IsMultiplies<T, BinaryOperation>::value>;
 
 // Identity = ~0
 template <typename T, class BinaryOperation>
-using IsOnesIdentityOp =
-    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value) &&
-                       IsBitAND<T, BinaryOperation>::value>;
+using IsOnesIdentityOp = std::bool_constant<(
+    is_genbool_v<T> ||
+    is_geninteger_v<T>)&&IsBitAND<T, BinaryOperation>::value>;
 
 // Identity = <max possible value>
 template <typename T, class BinaryOperation>
-using IsMinimumIdentityOp =
-    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
-                        is_genfloat<T>::value) &&
-                       IsMinimum<T, BinaryOperation>::value>;
+using IsMinimumIdentityOp = std::bool_constant<(
+    is_genbool_v<T> || is_geninteger_v<T> ||
+    is_genfloat_v<T>)&&IsMinimum<T, BinaryOperation>::value>;
 
 // Identity = <min possible value>
 template <typename T, class BinaryOperation>
-using IsMaximumIdentityOp =
-    std::bool_constant<(is_genbool<T>::value || is_geninteger<T>::value ||
-                        is_genfloat<T>::value) &&
-                       IsMaximum<T, BinaryOperation>::value>;
+using IsMaximumIdentityOp = std::bool_constant<(
+    is_genbool_v<T> || is_geninteger_v<T> ||
+    is_genfloat_v<T>)&&IsMaximum<T, BinaryOperation>::value>;
 
 // Identity = false
 template <typename T, class BinaryOperation>

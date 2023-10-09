@@ -233,18 +233,17 @@ using is_int_to_int = std::integral_constant<bool, std::is_integral_v<T> &&
 
 template <typename T, typename R>
 using is_sint_to_sint =
-    std::integral_constant<bool, is_sigeninteger<T>::value &&
-                                     is_sigeninteger<R>::value>;
+    std::integral_constant<bool, is_sigeninteger_v<T> && is_sigeninteger_v<R>>;
 
 template <typename T, typename R>
 using is_uint_to_uint =
-    std::integral_constant<bool, is_sugeninteger<T>::value &&
-                                     is_sugeninteger<R>::value>;
+    std::integral_constant<bool, is_sugeninteger_v<T> && is_sugeninteger_v<R>>;
 
 template <typename T, typename R>
-using is_sint_to_from_uint = std::integral_constant<
-    bool, (is_sugeninteger<T>::value && is_sigeninteger<R>::value) ||
-              (is_sigeninteger<T>::value && is_sugeninteger<R>::value)>;
+using is_sint_to_from_uint =
+    std::integral_constant<bool,
+                           (is_sugeninteger_v<T> && is_sigeninteger_v<R>) ||
+                               (is_sigeninteger_v<T> && is_sugeninteger_v<R>)>;
 
 template <typename T, typename R>
 using is_sint_to_float = std::integral_constant<
@@ -271,8 +270,7 @@ using is_float_to_float =
     std::integral_constant<bool, detail::is_floating_point<T>::value &&
                                      detail::is_floating_point<R>::value>;
 template <typename T>
-using is_standard_type =
-    std::integral_constant<bool, detail::is_sgentype<T>::value>;
+using is_standard_type = std::integral_constant<bool, detail::is_sgentype_v<T>>;
 
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>
@@ -2269,14 +2267,14 @@ struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
 };
 // Single element signed integers
 template <typename T>
-struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger<T>::value>> {
+struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
   using DataType = select_apply_cl_t<T, std::int8_t, std::int16_t, std::int32_t,
                                      std::int64_t>;
   using VectorDataType = DataType;
 };
 // Single element unsigned integers
 template <typename T>
-struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger<T>::value>> {
+struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
   using DataType = select_apply_cl_t<T, std::uint8_t, std::uint16_t,
                                      std::uint32_t, std::uint64_t>;
   using VectorDataType = DataType;
@@ -2284,19 +2282,18 @@ struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger<T>::value>> {
 // Single element floating-point (except half)
 template <typename T>
 struct VecStorage<
-    T, 1,
-    typename std::enable_if_t<!is_half<T>::value && is_sgenfloat<T>::value>> {
+    T, 1, typename std::enable_if_t<!is_half_v<T> && is_sgenfloat_v<T>>> {
   using DataType =
       select_apply_cl_t<T, std::false_type, std::false_type, float, double>;
   using VectorDataType = DataType;
 };
 // Multiple elements signed/unsigned integers and floating-point (except half)
 template <typename T, int N>
-struct VecStorage<T, N,
-                  typename std::enable_if_t<isValidVectorSize(N) &&
-                                            (is_sgeninteger<T>::value ||
-                                             (is_sgenfloat<T>::value &&
-                                              !is_half<T>::value))>> {
+struct VecStorage<
+    T, N,
+    typename std::enable_if_t<isValidVectorSize(N) &&
+                              (is_sgeninteger_v<T> ||
+                               (is_sgenfloat_v<T> && !is_half_v<T>))>> {
   using DataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType, N>::DataType;
   using VectorDataType =
