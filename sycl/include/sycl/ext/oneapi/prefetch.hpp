@@ -15,12 +15,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class cache_level {
-  L1 = 0,
-  L2 = 1,
-  L3 = 2,
-  L4 = 3
-};
+enum class cache_level { L1 = 0, L2 = 1, L3 = 2, L4 = 3 };
 
 struct nontemporal;
 
