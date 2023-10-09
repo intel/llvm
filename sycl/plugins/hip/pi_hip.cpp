@@ -1158,7 +1158,7 @@ pi_result piextCommandBufferAdviseUSM(
     pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
     pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Lenght, Advice,
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
                                             NumSyncPointsInWaitList,
                                             SyncPointWaitList, SyncPoint);
 }
