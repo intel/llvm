@@ -10,6 +10,7 @@
 #include <ur_api.h>
 
 #include <atomic>
+#include <unordered_map>
 
 #include "context.hpp"
 
@@ -22,6 +23,10 @@ struct ur_program_handle_t_ {
   std::atomic_uint32_t RefCount;
   ur_context_handle_t Context;
 
+  // Metadata
+  std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
+      KernelReqdWorkGroupSizeMD;
+
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
   char ErrorLog[MAX_LOG_SIZE], InfoLog[MAX_LOG_SIZE];
@@ -30,6 +35,8 @@ struct ur_program_handle_t_ {
 
   ur_program_handle_t_(ur_context_handle_t Ctxt);
   ~ur_program_handle_t_();
+
+  ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
 
   ur_result_t setBinary(const char *Binary, size_t BinarySizeInBytes);
 

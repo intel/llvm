@@ -3821,6 +3821,29 @@ void Sema::AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
   XDim = XDimConvert.value();
   YDim = YDimConvert.value();
   ZDim = ZDimConvert.value();
+  // Required work-group size for AMD has to specify all three dimensions (x,
+  // y, z), otherwise AMD's metadata-verifier pass errors out, patch missing
+  // entries with 1. See: MetadataVerifier::verify for details.
+  if (this->getASTContext().getTargetInfo().getTriple().getArch() ==
+      llvm::Triple::amdgcn) {
+    if (!YDim) {
+      std::swap(XDim, ZDim);
+    } else if (!ZDim) {
+      std::swap(YDim, ZDim);
+      std::swap(XDim, YDim);
+    }
+    if (!XDim)
+      XDim = CheckAndConvertArg(
+                 IntegerLiteral::Create(this->Context, llvm::APInt(32, 1),
+                                        this->Context.IntTy, CI.getLoc()))
+                 .value();
+    if (!YDim)
+      YDim = CheckAndConvertArg(
+                 IntegerLiteral::Create(this->Context, llvm::APInt(32, 1),
+                                        this->Context.IntTy, CI.getLoc()))
+                 .value();
+    assert(XDim && YDim && ZDim && "Failed to create defaults.");
+  }
 
   // If the declaration has a ReqdWorkGroupSizeAttr, check to see if
   // the attribute holds values equal to (1, 1, 1) in case the value of
