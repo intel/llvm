@@ -52,10 +52,6 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L3, nontemporal>
 inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal>
     prefetch_hint_L4_nt;
 
-template <typename T, cache_level Level, typename Hint>
-struct is_valid_property<T, prefetch_hint_key::value_t<Level, Hint>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
-
 namespace detail {
 template <> struct IsCompileTimeProperty<prefetch_hint_key> : std::true_type {};
 
