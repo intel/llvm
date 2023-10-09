@@ -208,6 +208,9 @@ template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
 template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
   return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
 }
+template <> ze_structure_type_t getZeStructureType<ze_physical_mem_desc_t>() {
+  return ZE_STRUCTURE_TYPE_PHYSICAL_MEM_DESC;
+}
 template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
   return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
 }
