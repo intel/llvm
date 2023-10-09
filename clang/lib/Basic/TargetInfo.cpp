@@ -517,9 +517,11 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
   if (Opts.FakeAddressSpaceMap)
     AddrSpaceMap = &FakeAddrSpaceMap;
 
-  if (Opts.SYCLIsDevice && Opts.SYCLIsNativeCPU) {
+  if ((Opts.SYCLIsDevice || Opts.OpenCL) && Opts.SYCLIsNativeCPU) {
     // For SYCL Native CPU we use the NVPTXAddrSpaceMap because
-    // we need builtins to be mangled with AS information
+    // we need builtins to be mangled with AS information.
+    // This is also enabled in OpenCL mode so that mangling
+    // matches when building libclc.
 
     static const unsigned SYCLNativeCPUASMap[] = {
         0,  // Default
