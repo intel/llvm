@@ -11,6 +11,12 @@ set(SYCL_BUILD_PI_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
 set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "" CACHE STRING "Override HIP include dir path (set to \"\" for default behavior)")
 set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "" CACHE STRING "Override HSA include dir path (set to \"\" for default behavior)")
 
+if(SYCL_ENABLE_KERNEL_FUSION)
+  set(SYCL_ENABLE_COMGR ON)
+else
+  set(SYCL_ENABLE_COMGR OFF)
+endif(SYCL_ENABLE_KERNEL_FUSION)
+
 if("${SYCL_BUILD_PI_HIP_INCLUDE_DIR}" STREQUAL "")
   set(PI_HIP_INCLUDE_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/include")
 else()
@@ -121,7 +127,7 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   )
   target_link_libraries(pi_hip PUBLIC rocmdrv)
 
-  if(SYCL_ENABLE_KERNEL_FUSION)
+  if(SYCL_ENABLE_COMGR)
     add_library(amd_comgr SHARED IMPORTED GLOBAL)
     set_target_properties(
       amd_comgr PROPERTIES
@@ -131,7 +137,7 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     )
     target_link_libraries(pi_hip PUBLIC amd_comgr)
     target_compile_definitions(pi_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
-  endif(SYCL_ENABLE_KERNEL_FUSION)
+  endif(SYCL_ENABLE_COMGR)
 
   # Set HIP define to select AMD platform
   target_compile_definitions(pi_hip PRIVATE __HIP_PLATFORM_AMD__)
