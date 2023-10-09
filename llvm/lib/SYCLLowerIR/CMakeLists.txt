@@ -64,6 +64,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
+  CleanupSYCLCompilerInternalMetadata.cpp
   SYCLUtils.cpp
 
   LocalAccessorToSharedMemory.cpp

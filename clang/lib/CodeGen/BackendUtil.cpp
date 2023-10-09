@@ -52,6 +52,7 @@
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLCompilerInternalMetadata.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -1100,6 +1101,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
                                                 /*ValidateAspects=*/false));
+      // Remove SYCL metadata added by sycl-post-link tool, like sycl_aspects
+      MPM.addPass(CleanupSYCLCompilerInternalMetadataPass());
 
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
