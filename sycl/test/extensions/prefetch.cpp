@@ -17,18 +17,18 @@ int main() {
   namespace syclex = sycl::ext::oneapi::experimental;
   sycl::queue q;
   void *dataPtr = &data;
-  q.parallel_for(1, [=](sycl::id<1> idx) {
+  q.single_task([=]() {
     // CHECK: [[CASTED:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobal{{.*}}
 
-    // CHECK: [[ANNOTATED1:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], ptr addrspace(1) {{.*}}, ptr addrspace(1) {{.*}}, i32 76, ptr addrspace(1) [[ANNOTATION1]])
+    // CHECK: [[ANNOTATED1:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], {{.*}}, ptr addrspace(1) [[ANNOTATION1]])
     // CHECK: tail call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) noundef [[ANNOTATED1]], i64 noundef 1)
     syclex::prefetch(dataPtr);
 
-    // CHECK: [[ANNOTATED2:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], ptr addrspace(1) {{.*}}, ptr addrspace(1) {{.*}}, i32 80, ptr addrspace(1) [[ANNOTATION2]])
+    // CHECK: [[ANNOTATED2:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], {{.*}}, ptr addrspace(1) [[ANNOTATION2]])
     // CHECK: tail call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) noundef [[ANNOTATED2]], i64 noundef 1)
     syclex::prefetch(dataPtr, syclex::properties{syclex::prefetch_hint_L2});
 
-    // CHECK: [[ANNOTATED3:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], ptr addrspace(1){{.*}}, ptr addrspace(1) {{.*}}, i32 80, ptr addrspace(1) [[ANNOTATION3]])
+    // CHECK: [[ANNOTATED3:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], {{.*}}, ptr addrspace(1) [[ANNOTATION3]])
     // CHECK: tail call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) noundef [[ANNOTATED3]], i64 noundef 4)
     syclex::prefetch(dataPtr, 4,
                      syclex::properties{syclex::prefetch_hint_L3_nt});
