@@ -619,7 +619,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     if (*Property.first == "sycl-alignment")
       continue;
 
-    // leave these annotations as is. They will be processed by SPIRVWriter.
+    // Leave these annotations as is. They will be processed by SPIRVWriter.
     if (*Property.first == "sycl-prefetch-hint" ||
         *Property.first == "sycl-prefetch-hint-nt") {
       return false;
