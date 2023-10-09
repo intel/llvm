@@ -4,6 +4,9 @@
 //
 // CHECK: complete
 
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/event_status_querying.cpp"

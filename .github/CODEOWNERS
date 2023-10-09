@@ -93,17 +93,17 @@ buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
-sycl-fusion/ @victor-eds @Naghasan @sommerlukas
-sycl/doc/design/KernelFusionJIT.md @victor-eds @Naghasan @sommerlukas
-sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @victor-eds @Naghasan @sommerlukas
-sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @victor-eds @Naghasan @sommerlukas
-sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/fusion/ @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_compiler.hpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_compiler.cpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
-sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
-sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
+sycl-fusion/ @intel/dpcpp-kernel-fusion-reviewers
+sycl/doc/design/KernelFusionJIT.md @intel/dpcpp-kernel-fusion-reviewers
+sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @intel/dpcpp-kernel-fusion-reviewers
+sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @intel/dpcpp-kernel-fusion-reviewers
+sycl/include/sycl/ext/codeplay/experimental/fusion_wrapper.hpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/fusion/ @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_compiler.hpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_compiler.cpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_device_binaries.hpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/source/detail/jit_device_binaries.cpp @intel/dpcpp-kernel-fusion-reviewers
+sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 
 # Matrix
 sycl/include/sycl/ext/oneapi/matrix/ @dkhaldi @YuriPlyakhin @yubingex007-a11y

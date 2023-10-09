@@ -1,6 +1,5 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
-
 include_directories(${BOOST_UNORDERED_INCLUDE_DIRS})
 
 foreach(flag_var
@@ -53,6 +52,7 @@ add_subdirectory(context_device)
 add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
+add_subdirectory(buffer/l0_specific)
 # TODO Enable xpti tests for Windows
 if (NOT WIN32)
   add_subdirectory(xpti_trace)
