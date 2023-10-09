@@ -194,15 +194,15 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
   // We only want to instrument piEnqueueMemBufferMap
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
-    xpti::utils::finally _{[&] {
-      emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
-                           0 /* guard zone */, CorrID);
-    }};
+  CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
+  xpti::utils::finally _{[&] {
+    emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
+                         0 /* guard zone */, CorrID);
+  }};
 #endif
-    Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
-        Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
-        Event, RetMap);
+  Plugin->call<PiApiKind::piEnqueueMemBufferMap>(Queue, Buffer, Blocking, Flags,
+                                                 Offset, Size, NumEvents,
+                                                 WaitList, Event, RetMap);
 }
 
 void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
@@ -1618,7 +1618,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
       CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
       OutSyncPoint);
 }
-  
+
 void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer, void *Mem,
