@@ -107,49 +107,51 @@ void prefetch(T *ptr, size_t count, Properties properties = {}) {
 
 // Only available if AddressSpace == global_space || AddressSpace ==
 // generic_space
-template <
-    access::address_space AddressSpace, access::decorated IsDecorated,
-    typename Properties = empty_properties_t,
-    std::enable_if_t<AddressSpace == access::address_space::global_space ||
-                     AddressSpace == access::address_space::generic_space>>
-void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr,
-              Properties properties = {}) {
+template <access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+std::enable_if_t<AddressSpace == access::address_space::global_space ||
+                     AddressSpace == access::address_space::generic_space,
+                 void>
+prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr,
+         Properties properties = {}) {
   prefetch(ptr.get(), properties);
 }
 
 // Only available if AddressSpace == global_space || AddressSpace ==
 // generic_space
-template <
-    access::address_space AddressSpace, access::decorated IsDecorated,
-    typename Properties = empty_properties_t,
-    std::enable_if_t<AddressSpace == access::address_space::global_space ||
-                     AddressSpace == access::address_space::generic_space>>
-void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
-              Properties properties = {}) {
+template <access::address_space AddressSpace, access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+std::enable_if_t<AddressSpace == access::address_space::global_space ||
+                     AddressSpace == access::address_space::generic_space,
+                 void>
+prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
+         Properties properties = {}) {
   prefetch(ptr.get(), bytes, properties);
 }
 
 // Only available if AddressSpace == global_space || AddressSpace ==
 // generic_space
-template <
-    typename T, access::address_space AddressSpace,
-    access::decorated IsDecorated, typename Properties = empty_properties_t,
-    std::enable_if_t<AddressSpace == access::address_space::global_space ||
-                     AddressSpace == access::address_space::generic_space>>
-void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr,
-              Properties properties = {}) {
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+std::enable_if_t<AddressSpace == access::address_space::global_space ||
+                     AddressSpace == access::address_space::generic_space,
+                 void>
+prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr,
+         Properties properties = {}) {
   prefetch(ptr.get(), properties);
 }
 
 // Only available if AddressSpace == global_space || AddressSpace ==
 // generic_space
-template <
-    typename T, access::address_space AddressSpace,
-    access::decorated IsDecorated, typename Properties = empty_properties_t,
-    std::enable_if_t<AddressSpace == access::address_space::global_space ||
-                     AddressSpace == access::address_space::generic_space>>
-void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
-              Properties properties = {}) {
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated,
+          typename Properties = empty_properties_t>
+std::enable_if_t<AddressSpace == access::address_space::global_space ||
+                     AddressSpace == access::address_space::generic_space,
+                 void>
+prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
+         Properties properties = {}) {
   prefetch(ptr.get(), count, properties);
 }
 
@@ -157,11 +159,11 @@ void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
 // read_write)
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
-          typename Properties = empty_properties_t,
-          std::enable_if_t<(Dimensions > 0) &&
-                           (AccessMode == access_mode::read ||
-                            AccessMode == access_mode::read_write)>>
-void prefetch(
+          typename Properties = empty_properties_t>
+std::enable_if_t<(Dimensions > 0) && (AccessMode == access_mode::read ||
+                                      AccessMode == access_mode::read_write),
+                 void>
+prefetch(
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     id<Dimensions> offset, Properties properties = {}) {
   prefetch((void *)&acc[offset], sizeof(DataT), properties);
@@ -171,11 +173,11 @@ void prefetch(
 // read_write)
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
-          typename Properties = empty_properties_t,
-          std::enable_if_t<(Dimensions > 0) &&
-                           (AccessMode == access_mode::read ||
-                            AccessMode == access_mode::read_write)>>
-void prefetch(
+          typename Properties = empty_properties_t>
+std::enable_if_t<(Dimensions > 0) && (AccessMode == access_mode::read ||
+                                      AccessMode == access_mode::read_write),
+                 void>
+prefetch(
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     size_t offset, size_t count, Properties properties = {}) {
   prefetch((void *)&acc[offset], count * sizeof(DataT), properties);
