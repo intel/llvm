@@ -30,7 +30,8 @@ int main() {
 
     // CHECK: [[ANNOTATED3:%.*]] = tail call ptr addrspace(1) @llvm.ptr.annotation.p1.p1(ptr addrspace(1) [[CASTED]], ptr addrspace(1){{.*}}, ptr addrspace(1) {{.*}}, i32 80, ptr addrspace(1) [[ANNOTATION3]])
     // CHECK: tail call spir_func void @_Z20__spirv_ocl_prefetch{{.*}}(ptr addrspace(1) noundef [[ANNOTATED3]], i64 noundef 4)
-    syclex::prefetch(dataPtr, 4, syclex::properties{syclex::prefetch_hint_L3_nt});
+    syclex::prefetch(dataPtr, 4,
+                     syclex::properties{syclex::prefetch_hint_L3_nt});
   });
   q.wait();
 
