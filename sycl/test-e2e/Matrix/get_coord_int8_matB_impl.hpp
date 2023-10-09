@@ -137,7 +137,7 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B,
          // colVNNI = col/VF
          // rowVNNI = row*VF
          auto [row, col] = dataItem.get_coord();
-         size_t global_index = col + global_idy / SG_SZ * TN; // * VF;
+         size_t global_index = col + global_idy / SG_SZ * TN;
          sum_local_cols[global_index] += dataItem;
        }
 
