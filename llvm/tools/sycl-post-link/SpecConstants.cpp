@@ -548,7 +548,8 @@ Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
 Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
                                            SmallVectorImpl<ID> &IDs,
                                            unsigned &Index,
-                                           Constant *DefaultValue) {
+                                           Constant *DefaultValue,
+                                           const Module &M) {
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
@@ -570,29 +571,35 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     Elements.push_back(Def);
     Index++;
   };
-  auto LoopIteration = [&](Type *Ty, size_t &LocalIndex) {
+  auto LoopIteration = [&](Type *ElTy, unsigned LocalIndex) {
     // Select corresponding element of the default value.
     // There are cases when provided default value contains less elements than
     // specialization constants: it could happen when a struct is extended with
     // a padding to make its size aligned. In such cases, we simply initialize
     // any "extra" elements with undef.
-    Constant *ElemDefaultValue = DefaultValue->getAggregateElement(LocalIndex);
-    if (!ElemDefaultValue)
-      ElemDefaultValue = UndefValue::get(Ty);
+    const auto ElemDefaultValue = [&]() -> Constant * {
+      if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+        auto *DefaultValueType = dyn_cast<StructType>(DefaultValue->getType());
+        assert(DefaultValueType && "Default value is a struct type while"
+                                   "spec constant type is not!");
+        const auto &DefaultValueTypeSL =
+            M.getDataLayout().getStructLayout(DefaultValueType);
+        const auto &ReturnTypeSL = M.getDataLayout().getStructLayout(StructTy);
+        ArrayRef<TypeSize> DefaultValueOffsets =
+            DefaultValueTypeSL->getMemberOffsets();
+        TypeSize CurrentIterationOffset =
+            ReturnTypeSL->getElementOffset(LocalIndex);
+        const auto It =
+            std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
+                      CurrentIterationOffset);
 
-    if (Ty != ElemDefaultValue->getType()) {
-      // In case that a struct was padded in the middle, initializer for that
-      // paddingg would be missing and we will see types mismatch here between
-      // spec constant element and initializer element.
-      assert(Ty->isArrayTy() && Ty->getArrayElementType()->isIntegerTy(8) &&
-             "expected padding in form of an i8 array");
-      // Inserting an undef into spec constant in that case.
-      ElemDefaultValue = UndefValue::get(Ty);
-    } else {
-      // We should only iterate over intializer elements when encountered actual
-      // (non-padding) fields.
-      LocalIndex++;
-    }
+        if (It == DefaultValueOffsets.end())
+          return UndefValue::get(ElTy);
+        const auto CorrespondingIndex = It - DefaultValueOffsets.begin();
+        return DefaultValue->getAggregateElement(CorrespondingIndex);
+      }
+      return DefaultValue->getAggregateElement(LocalIndex);
+    }();
 
     // If the default value is a composite and has the value 'undef', we should
     // not generate a bunch of __spirv_SpecConstant for its elements but
@@ -601,20 +608,18 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
       HandleUndef(ElemDefaultValue);
     else
       Elements.push_back(emitSpecConstantRecursiveImpl(
-          Ty, InsertBefore, IDs, Index, ElemDefaultValue));
+          ElTy, InsertBefore, IDs, Index, ElemDefaultValue, M));
   };
 
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
-    size_t I = 0;
-    while (I < ArrTy->getNumElements())
+    for (size_t I = 0; I < ArrTy->getNumElements(); ++I)
       LoopIteration(ArrTy->getElementType(), I);
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     size_t I = 0;
     for (Type *ElTy : StructTy->elements())
-      LoopIteration(ElTy, I);
+      LoopIteration(ElTy, I++);
   } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
-    size_t I = 0;
-    while (I < VecTy->getNumElements())
+    for (size_t I = 0; I < VecTy->getNumElements(); ++I)
       LoopIteration(VecTy->getElementType(), I);
   } else {
     llvm_unreachable("Unexpected spec constant type");
@@ -626,10 +631,11 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
                                        SmallVectorImpl<ID> &IDs,
-                                       Constant *DefaultValue) {
+                                       Constant *DefaultValue,
+                                       const Module &M) {
   unsigned Index = 0;
   return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index,
-                                       DefaultValue);
+                                       DefaultValue, M);
 }
 
 /// Function creates load instruction from the given Buffer by the given Offset.
@@ -834,7 +840,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
+        Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue, M);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
