@@ -1,10 +1,11 @@
-// REQUIRES: cpu
+// REQUIRES: cpu || hip || cuda
 
 // Use of per-kernel device code split and linking the bundle with all images
 // involved leads to multiple definition of AssertHappened structure due each
 // device image is statically linked against fallback libdevice.
-// RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: %{build} %if { cpu } %{ -DSYCL_DISABLE_FALLBACK_ASSERT=1 %} %if { cpu || cuda } %{ -DENABLE_ONLINE_COMPILE_CHECKS %} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %if { cuda || hip } %{ %{run} %t.out %}
+// RUN: %if { cpu } %{ %{run} %t.full.out | FileCheck %s %}
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -136,7 +137,7 @@ int main() {
 
     assert(KernelIDs.size() == 2);
   }
-
+#if defined(ENABLE_ONLINE_COMPILE_CHECKS)
   {
     // Test compile, link, build
     sycl::kernel_bundle KernelBundleInput1 =
@@ -218,7 +219,7 @@ int main() {
         KernelBundleExecutable3 =
             sycl::link({KernelBundleObject1, KernelBundleObject2});
   }
-
+#endif
   {
     // Test handle::use_kernel_bundle APIs.
     sycl::kernel_id Kernel3ID = sycl::get_kernel_id<Kernel3Name>();
@@ -288,6 +289,8 @@ int main() {
         "is empty");
 
     std::cerr << "Empty list of devices for compile" << std::endl;
+
+#if defined(ENABLE_ONLINE_COMPILE_CHECKS)
     checkException(
         [&]() {
           sycl::kernel_bundle KernelBundleInput =
@@ -323,7 +326,7 @@ int main() {
                      std::vector<sycl::device>{});
         },
         "Vector of devices is empty");
-
+#endif
     std::cerr << "Mismatched contexts for join" << std::endl;
     checkException(
         [&]() {
@@ -367,7 +370,7 @@ int main() {
         sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev, Dev},
                                                            {Kernel1ID});
     assert(KernelBundleDupTest.get_devices().size() == 1);
-
+#if defined(ENABLE_ONLINE_COMPILE_CHECKS)
     sycl::kernel_bundle<sycl::bundle_state::object>
         KernelBundleDupeTestCompiled =
             sycl::compile(KernelBundleDupTest, {Dev, Dev});
@@ -382,6 +385,7 @@ int main() {
         KernelBundleDupeTestBuilt =
             sycl::build(KernelBundleDupTest, {Dev, Dev});
     assert(KernelBundleDupeTestBuilt.get_devices().size() == 1);
+#endif
   }
 
   return 0;
