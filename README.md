@@ -132,6 +132,7 @@ List of options provided by CMake:
 | UR_BUILD_ADAPTER_CUDA   | Fetch and use cuda adapter from SYCL                   | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_HIP    | Fetch and use hip adapter from SYCL                    | ON/OFF     | OFF     |
 | UR_HIP_PLATFORM         | Build hip adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
+| UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 
 ### Additional make targets
 
