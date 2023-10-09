@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/steffenlarsen/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 5eddd177e5559b63d9c03a684e974444abdac381)
+  set(UNIFIED_RUNTIME_TAG c5ea815b297c7e912b25bb893cc0e1de0c4137b1)
 
   set(UR_BUILD_ADAPTER_L0 ON)
 
