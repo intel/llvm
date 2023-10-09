@@ -63,12 +63,10 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
       CGF.CGM.getContext().getObjCObjectPointerType(InterfaceTy);
   QualType IvarTy =
       Ivar->getUsageType(ObjectPtrTy).withCVRQualifiers(CVRQualifiers);
-  llvm::Type *LTy = CGF.CGM.getTypes().ConvertTypeForMem(IvarTy);
-  llvm::Value *V = CGF.Builder.CreateBitCast(BaseValue, CGF.Int8PtrTy);
+  llvm::Value *V = BaseValue;
   V = CGF.Builder.CreateInBoundsGEP(CGF.Int8Ty, V, Offset, "add.ptr");
 
   if (!Ivar->isBitField()) {
-    V = CGF.Builder.CreateBitCast(V, llvm::PointerType::getUnqual(LTy));
     LValue LV = CGF.MakeNaturalAlignAddrLValue(V, IvarTy);
     return LV;
   }
@@ -107,16 +105,9 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
                              CGF.CGM.getContext().toBits(StorageSize),
                              CharUnits::fromQuantity(0)));
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address Addr =
       Address(V, llvm::Type::getIntNTy(CGF.getLLVMContext(), Info->StorageSize),
               Alignment);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Address Addr = Address(V, CGF.Int8Ty, Alignment);
-  Addr = CGF.Builder.CreateElementBitCast(Addr,
-                                   llvm::Type::getIntNTy(CGF.getLLVMContext(),
-                                                         Info->StorageSize));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   return LValue::MakeBitfield(Addr, *Info, IvarTy,
                               LValueBaseInfo(AlignmentSource::Decl),
@@ -371,20 +362,13 @@ CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
                                   CallArgList &callArgs) {
   unsigned ProgramAS = CGM.getDataLayout().getProgramAddressSpace();
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::PointerType *signatureType =
       llvm::PointerType::get(CGM.getLLVMContext(), ProgramAS);
-#endif
 
   // If there's a method, use information from that.
   if (method) {
     const CGFunctionInfo &signature =
       CGM.getTypes().arrangeObjCMessageSendSignature(method, callArgs[0].Ty);
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    llvm::PointerType *signatureType =
-      CGM.getTypes().GetFunctionType(signature)->getPointerTo(ProgramAS);
-#endif
 
     const CGFunctionInfo &signatureForCall =
       CGM.getTypes().arrangeCall(signature, callArgs);
@@ -396,11 +380,6 @@ CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
   const CGFunctionInfo &argsInfo =
     CGM.getTypes().arrangeUnprototypedObjCMessageSend(resultType, callArgs);
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  // Derive the signature to call from that.
-  llvm::PointerType *signatureType =
-    CGM.getTypes().GetFunctionType(argsInfo)->getPointerTo(ProgramAS);
-#endif
   return MessageSendInfo(argsInfo, signatureType);
 }
 

@@ -25,6 +25,7 @@
 #include "clang/Basic/Builtins.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
@@ -934,7 +935,7 @@ tryEmitGlobalCompoundLiteral(ConstantEmitter &emitter,
 
   auto GV = new llvm::GlobalVariable(
       CGM.getModule(), C->getType(),
-      CGM.isTypeConstant(E->getType(), true, false),
+      E->getType().isConstantStorage(CGM.getContext(), true, false),
       llvm::GlobalValue::InternalLinkage, C, ".compoundliteral", nullptr,
       llvm::GlobalVariable::NotThreadLocal,
       CGM.getContext().getTargetAddressSpace(addressSpace));
@@ -1132,7 +1133,7 @@ public:
         return CGM.GetAddrOfConstantStringFromLiteral(S).getPointer();
       return nullptr;
     case CK_NullToPointer:
-      if (llvm::Constant *C = Visit(subExpr, destType))
+      if (Visit(subExpr, destType))
         return CGM.EmitNullConstant(destType);
       return nullptr;
 
@@ -1761,7 +1762,10 @@ llvm::Constant *ConstantEmitter::emitForMemory(CodeGenModule &CGM,
   // Zero-extend bool.
   if (C->getType()->isIntegerTy(1) && !destType->isBitIntType()) {
     llvm::Type *boolTy = CGM.getTypes().ConvertTypeForMem(destType);
-    return llvm::ConstantExpr::getZExt(C, boolTy);
+    llvm::Constant *Res = llvm::ConstantFoldCastOperand(
+        llvm::Instruction::ZExt, C, boolTy, CGM.getDataLayout());
+    assert(Res && "Constant folding must succeed");
+    return Res;
   }
 
   return C;
@@ -1862,11 +1866,6 @@ private:
       return C;
 
     llvm::Type *origPtrTy = C->getType();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    unsigned AS = origPtrTy->getPointerAddressSpace();
-    llvm::Type *charPtrTy = CGM.Int8Ty->getPointerTo(AS);
-    C = llvm::ConstantExpr::getBitCast(C, charPtrTy);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     C = llvm::ConstantExpr::getGetElementPtr(CGM.Int8Ty, C, getOffset());
     C = llvm::ConstantExpr::getPointerCast(C, origPtrTy);
     return C;
@@ -1958,7 +1957,7 @@ ConstantLValueEmitter::tryEmitBase(const APValue::LValueBase &base) {
 
         if (VD->isLocalVarDecl()) {
           return CGM.getOrCreateStaticVarDecl(
-              *VD, CGM.getLLVMLinkageVarDefinition(VD, /*IsConstant=*/false));
+              *VD, CGM.getLLVMLinkageVarDefinition(VD));
         }
       }
     }
@@ -1976,20 +1975,8 @@ ConstantLValueEmitter::tryEmitBase(const APValue::LValueBase &base) {
   }
 
   // Handle typeid(T).
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   if (TypeInfoLValue TI = base.dyn_cast<TypeInfoLValue>())
     return CGM.GetAddrOfRTTIDescriptor(QualType(TI.getType(), 0));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  if (TypeInfoLValue TI = base.dyn_cast<TypeInfoLValue>()) {
-    llvm::Type *StdTypeInfoPtrTy =
-        CGM.getTypes().ConvertType(base.getTypeInfoType())->getPointerTo();
-    llvm::Constant *TypeInfo =
-        CGM.GetAddrOfRTTIDescriptor(QualType(TI.getType(), 0));
-    if (TypeInfo->getType() != StdTypeInfoPtrTy)
-      TypeInfo = llvm::ConstantExpr::getBitCast(TypeInfo, StdTypeInfoPtrTy);
-    return TypeInfo;
-  }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Otherwise, it must be an expression.
   return Visit(base.get<const Expr*>());

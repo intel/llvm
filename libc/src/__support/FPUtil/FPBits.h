@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_FP_BITS_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_FP_BITS_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_FPBITS_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_FPBITS_H
 
 #include "PlatformDefs.h"
 
@@ -19,7 +19,7 @@
 #include "FloatProperties.h"
 #include <stdint.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace fputil {
 
 template <typename T> struct MantissaWidth {
@@ -128,6 +128,23 @@ template <typename T> struct FPBits {
     return int(get_unbiased_exponent()) - EXPONENT_BIAS;
   }
 
+  // If the number is subnormal, the exponent is treated as if it were the
+  // minimum exponent for a normal number. This is to keep continuity between
+  // the normal and subnormal ranges, but it causes problems for functions where
+  // values are calculated from the exponent, since just subtracting the bias
+  // will give a slightly incorrect result. Additionally, zero has an exponent
+  // of zero, and that should actually be treated as zero.
+  LIBC_INLINE int get_explicit_exponent() const {
+    const int unbiased_exp = int(get_unbiased_exponent());
+    if (is_zero()) {
+      return 0;
+    } else if (unbiased_exp == 0) {
+      return 1 - EXPONENT_BIAS;
+    } else {
+      return unbiased_exp - EXPONENT_BIAS;
+    }
+  }
+
   LIBC_INLINE bool is_zero() const {
     // Remove sign bit by shift
     return (bits << 1) == 0;
@@ -216,10 +233,10 @@ template <typename T> struct FPBits {
 };
 
 } // namespace fputil
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
 #ifdef SPECIAL_X86_LONG_DOUBLE
 #include "x86_64/LongDoubleBits.h"
 #endif
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_FP_BITS_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_FPBITS_H

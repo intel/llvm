@@ -423,16 +423,9 @@ GVNPass::Expression GVNPass::ValueTable::createGEPExpr(GetElementPtrInst *GEP) {
   unsigned BitWidth = DL.getIndexTypeSizeInBits(PtrTy);
   MapVector<Value *, APInt> VariableOffsets;
   APInt ConstantOffset(BitWidth, 0);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   if (GEP->collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset)) {
     // Convert into offset representation, to recognize equivalent address
     // calculations that use different type encoding.
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  if (PtrTy->isOpaquePointerTy() &&
-      GEP->collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset)) {
-    // For opaque pointers, convert into offset representation, to recognize
-    // equivalent address calculations that use different type encoding.
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     LLVMContext &Context = GEP->getContext();
     E.opcode = GEP->getOpcode();
     E.type = nullptr;
@@ -445,13 +438,8 @@ GVNPass::Expression GVNPass::ValueTable::createGEPExpr(GetElementPtrInst *GEP) {
       E.varargs.push_back(
           lookupOrAdd(ConstantInt::get(Context, ConstantOffset)));
   } else {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     // If converting to offset representation fails (for scalable vectors),
     // fall back to type-based implementation:
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    // If converting to offset representation fails (for typed pointers and
-    // scalable vectors), fall back to type-based implementation:
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     E.opcode = GEP->getOpcode();
     E.type = GEP->getSourceElementType();
     for (Use &Op : GEP->operands())
@@ -1159,13 +1147,11 @@ static Value *findDominatingValue(const MemoryLocation &Loc, Type *LoadTy,
   BasicBlock *FromBB = From->getParent();
   BatchAAResults BatchAA(*AA);
   for (BasicBlock *BB = FromBB; BB; BB = BB->getSinglePredecessor())
-    for (auto I = BB == FromBB ? From->getReverseIterator() : BB->rbegin(),
-              E = BB->rend();
-         I != E; ++I) {
+    for (auto *Inst = BB == FromBB ? From : BB->getTerminator();
+         Inst != nullptr; Inst = Inst->getPrevNonDebugInstruction()) {
       // Stop the search if limit is reached.
       if (++NumVisitedInsts > MaxNumVisitedInsts)
         return nullptr;
-      Instruction *Inst = &*I;
       if (isModSet(BatchAA.getModRefInfo(Inst, Loc)))
         return nullptr;
       if (auto *LI = dyn_cast<LoadInst>(Inst))
@@ -1380,7 +1366,7 @@ LoadInst *GVNPass::findLoadToHoistIntoPred(BasicBlock *Pred, BasicBlock *LoadBB,
                                            LoadInst *Load) {
   // For simplicity we handle a Pred has 2 successors only.
   auto *Term = Pred->getTerminator();
-  if (Term->getNumSuccessors() != 2 || Term->isExceptionalTerminator())
+  if (Term->getNumSuccessors() != 2 || Term->isSpecialTerminator())
     return nullptr;
   auto *SuccBB = Term->getSuccessor(0);
   if (SuccBB == LoadBB)
@@ -1428,16 +1414,8 @@ void GVNPass::eliminatePartiallyRedundantLoad(
                      Load->getSyncScopeID(), UnavailableBlock->getTerminator());
     NewLoad->setDebugLoc(Load->getDebugLoc());
     if (MSSAU) {
-      auto *MSSA = MSSAU->getMemorySSA();
-      // Get the defining access of the original load or use the load if it is a
-      // MemoryDef (e.g. because it is volatile). The inserted loads are
-      // guaranteed to load from the same definition.
-      auto *LoadAcc = MSSA->getMemoryAccess(Load);
-      auto *DefiningAcc =
-          isa<MemoryDef>(LoadAcc) ? LoadAcc : LoadAcc->getDefiningAccess();
       auto *NewAccess = MSSAU->createMemoryAccessInBB(
-          NewLoad, DefiningAcc, NewLoad->getParent(),
-          MemorySSA::BeforeTerminator);
+          NewLoad, nullptr, NewLoad->getParent(), MemorySSA::BeforeTerminator);
       if (auto *NewDef = dyn_cast<MemoryDef>(NewAccess))
         MSSAU->insertDef(NewDef, /*RenameUses=*/true);
       else
@@ -2010,19 +1988,12 @@ bool GVNPass::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
   if (ConstantInt *Cond = dyn_cast<ConstantInt>(V)) {
     if (Cond->isZero()) {
       Type *Int8Ty = Type::getInt8Ty(V->getContext());
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Type *PtrTy = PointerType::get(V->getContext(), 0);
-#endif
       // Insert a new store to null instruction before the load to indicate that
       // this code is not reachable.  FIXME: We could insert unreachable
       // instruction directly because we can modify the CFG.
       auto *NewS = new StoreInst(PoisonValue::get(Int8Ty),
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-                                 Constant::getNullValue(Int8Ty->getPointerTo()),
-                                 IntrinsicI);
-#else
                                  Constant::getNullValue(PtrTy), IntrinsicI);
-#endif
       if (MSSAU) {
         const MemoryUseOrDef *FirstNonDom = nullptr;
         const auto *AL =
@@ -2042,14 +2013,12 @@ bool GVNPass::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
           }
         }
 
-        // This added store is to null, so it will never executed and we can
-        // just use the LiveOnEntry def as defining access.
         auto *NewDef =
             FirstNonDom ? MSSAU->createMemoryAccessBefore(
-                              NewS, MSSAU->getMemorySSA()->getLiveOnEntryDef(),
+                              NewS, nullptr,
                               const_cast<MemoryUseOrDef *>(FirstNonDom))
                         : MSSAU->createMemoryAccessInBB(
-                              NewS, MSSAU->getMemorySSA()->getLiveOnEntryDef(),
+                              NewS, nullptr,
                               NewS->getParent(), MemorySSA::BeforeTerminator);
 
         MSSAU->insertDef(cast<MemoryDef>(NewDef), /*RenameUses=*/false);
@@ -2797,7 +2766,12 @@ bool GVNPass::processBlock(BasicBlock *BB) {
   // use our normal hash approach for phis.  Instead, simply look for
   // obvious duplicates.  The first pass of GVN will tend to create
   // identical phis, and the second or later passes can eliminate them.
-  ChangedFunction |= EliminateDuplicatePHINodes(BB);
+  SmallPtrSet<PHINode *, 8> PHINodesToRemove;
+  ChangedFunction |= EliminateDuplicatePHINodes(BB, PHINodesToRemove);
+  for (PHINode *PN : PHINodesToRemove) {
+    VN.erase(PN);
+    removeInstruction(PN);
+  }
 
   for (BasicBlock::iterator BI = BB->begin(), BE = BB->end();
        BI != BE;) {
@@ -3016,9 +2990,9 @@ bool GVNPass::performScalarPRE(Instruction *CurInst) {
   ++NumGVNPRE;
 
   // Create a PHI to make the value available in this block.
-  PHINode *Phi =
-      PHINode::Create(CurInst->getType(), predMap.size(),
-                      CurInst->getName() + ".pre-phi", &CurrentBlock->front());
+  PHINode *Phi = PHINode::Create(CurInst->getType(), predMap.size(),
+                                 CurInst->getName() + ".pre-phi");
+  Phi->insertBefore(CurrentBlock->begin());
   for (unsigned i = 0, e = predMap.size(); i != e; ++i) {
     if (Value *V = predMap[i].first) {
       // If we use an existing value in this phi, we have to patch the original

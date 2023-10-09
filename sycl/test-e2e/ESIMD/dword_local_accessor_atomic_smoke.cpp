@@ -7,12 +7,10 @@
 //===----------------------------------------------------------------------===//
 // This test checks DWORD local accessor atomic operations.
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// UNSUPPORTED: gpu
-// UNSUPPORTED: esimd_emulator
 
 #define USE_DWORD_ATOMICS
 #include "lsc/local_accessor_atomic_smoke.cpp"

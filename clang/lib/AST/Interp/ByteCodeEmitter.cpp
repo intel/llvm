@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ByteCodeEmitter.h"
+#include "ByteCodeGenError.h"
 #include "Context.h"
 #include "Floating.h"
 #include "Opcode.h"
@@ -17,9 +18,6 @@
 
 using namespace clang;
 using namespace clang::interp;
-
-using APSInt = llvm::APSInt;
-using Error = llvm::Error;
 
 Expected<Function *>
 ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
@@ -74,13 +72,14 @@ ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
   // Assign descriptors to all parameters.
   // Composite objects are lowered to pointers.
   for (const ParmVarDecl *PD : FuncDecl->parameters()) {
-    PrimType Ty = Ctx.classify(PD->getType()).value_or(PT_Ptr);
-    Descriptor *Desc = P.createDescriptor(PD, Ty);
-    ParamDescriptors.insert({ParamOffset, {Ty, Desc}});
-    Params.insert({PD, ParamOffset});
+    std::optional<PrimType> T = Ctx.classify(PD->getType());
+    PrimType PT = T.value_or(PT_Ptr);
+    Descriptor *Desc = P.createDescriptor(PD, PT);
+    ParamDescriptors.insert({ParamOffset, {PT, Desc}});
+    Params.insert({PD, {ParamOffset, T != std::nullopt}});
     ParamOffsets.push_back(ParamOffset);
-    ParamOffset += align(primSize(Ty));
-    ParamTypes.push_back(Ty);
+    ParamOffset += align(primSize(PT));
+    ParamTypes.push_back(PT);
   }
 
   // Create a handle over the emitted code.
@@ -93,8 +92,12 @@ ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
   assert(Func);
   // For not-yet-defined functions, we only create a Function instance and
   // compile their body later.
-  if (!FuncDecl->isDefined())
+  if (!FuncDecl->isDefined()) {
+    Func->setDefined(false);
     return Func;
+  }
+
+  Func->setDefined(true);
 
   // Lambda static invokers are a special case that we emit custom code for.
   bool IsEligibleForCompilation = false;
@@ -108,23 +111,22 @@ ByteCodeEmitter::compileFunc(const FunctionDecl *FuncDecl) {
     // Return a dummy function if compilation failed.
     if (BailLocation)
       return llvm::make_error<ByteCodeGenError>(*BailLocation);
-    else {
-      Func->setIsFullyCompiled(true);
-      return Func;
-    }
-  } else {
-    // Create scopes from descriptors.
-    llvm::SmallVector<Scope, 2> Scopes;
-    for (auto &DS : Descriptors) {
-      Scopes.emplace_back(std::move(DS));
-    }
 
-    // Set the function's code.
-    Func->setCode(NextLocalOffset, std::move(Code), std::move(SrcMap),
-                  std::move(Scopes), FuncDecl->hasBody());
     Func->setIsFullyCompiled(true);
     return Func;
   }
+
+  // Create scopes from descriptors.
+  llvm::SmallVector<Scope, 2> Scopes;
+  for (auto &DS : Descriptors) {
+    Scopes.emplace_back(std::move(DS));
+  }
+
+  // Set the function's code.
+  Func->setCode(NextLocalOffset, std::move(Code), std::move(SrcMap),
+                std::move(Scopes), FuncDecl->hasBody());
+  Func->setIsFullyCompiled(true);
+  return Func;
 }
 
 Scope::Local ByteCodeEmitter::createLocal(Descriptor *D) {
@@ -204,6 +206,25 @@ static void emit(Program &P, std::vector<std::byte> &Code, const T &Val,
     uint32_t ID = P.getOrCreateNativePointer(Val);
     new (Code.data() + ValPos) uint32_t(ID);
   }
+}
+
+template <>
+void emit(Program &P, std::vector<std::byte> &Code, const Floating &Val,
+          bool &Success) {
+  size_t Size = Val.bytesToSerialize();
+
+  if (Code.size() + Size > std::numeric_limits<unsigned>::max()) {
+    Success = false;
+    return;
+  }
+
+  // Access must be aligned!
+  size_t ValPos = align(Code.size());
+  Size = align(Size);
+  assert(aligned(ValPos + Size));
+  Code.resize(ValPos + Size);
+
+  Val.serialize(Code.data() + ValPos);
 }
 
 template <typename... Tys>

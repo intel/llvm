@@ -11,7 +11,7 @@ using type2 = __attribute__((pipe("write_only"))) const int;
 // expected-error@+1 {{'42' mode for pipe attribute is not supported; allowed modes are 'read_only' and 'write_only'}}
 using type3 = __attribute__((pipe("42"))) const int;
 
-// expected-error@+1{{'pipe' attribute requires a string}}
+// expected-error@+1{{expected string literal as argument of 'pipe' attribute}}
 using type4 = __attribute__((pipe(0))) const int;
 
 // expected-error@+1{{'pipe' attribute takes one argument}}

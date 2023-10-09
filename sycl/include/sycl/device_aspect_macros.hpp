@@ -273,8 +273,18 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_level_reference__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_esimd__
+//__SYCL_ASPECT(ext_intel_esimd, 53)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_esimd__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_non_uniform_groups__
+// __SYCL_ASPECT(ext_oneapi_non_uniform_groups, 54)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_non_uniform_groups__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__
-// __SYCL_ASPECT(ext_oneapi_virtual_mem, 53)
+// __SYCL_ASPECT(ext_oneapi_virtual_mem, 55)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_mem__ 0
 #endif
 
@@ -541,6 +551,16 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_level_reference__
 //__SYCL_ASPECT(ext_oneapi_mipmap_level_reference, 52)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_level_reference__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_esimd__
+//__SYCL_ASPECT(ext_intel_esimd, 53)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_esimd__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_non_uniform_groups__
+// __SYCL_ASPECT(ext_oneapi_non_uniform_groups, 54)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_non_uniform_groups__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_mem__

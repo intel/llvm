@@ -634,7 +634,7 @@ bool Prescanner::NextToken(TokenSequence &tokens) {
     if (ch == '(') {
       if (parenthesisNesting_++ == 0) {
         isPossibleMacroCall_ = tokens.SizeInTokens() > 0 &&
-            preprocessor_.IsNameDefined(
+            preprocessor_.IsFunctionLikeDefinition(
                 tokens.TokenAt(tokens.SizeInTokens() - 1));
       }
     } else if (ch == ')' && parenthesisNesting_ > 0) {
@@ -1041,8 +1041,11 @@ const char *Prescanner::FixedFormContinuationLine(bool mightNeedSpace) {
       tabInCurrentLine_ = true;
       return nextLine_ + 2; // VAX extension
     }
-    if (col1 == ' ' && nextLine_[1] == ' ' && nextLine_[2] == ' ' &&
-        nextLine_[3] == ' ' && nextLine_[4] == ' ') {
+    if ((col1 == ' ' ||
+            ((col1 == 'D' || col1 == 'd') &&
+                features_.IsEnabled(LanguageFeature::OldDebugLines))) &&
+        nextLine_[1] == ' ' && nextLine_[2] == ' ' && nextLine_[3] == ' ' &&
+        nextLine_[4] == ' ') {
       char col6{nextLine_[5]};
       if (col6 != '\n' && col6 != '\t' && col6 != ' ' && col6 != '0') {
         if ((col6 == 'i' || col6 == 'I') && IsIncludeLine(nextLine_)) {
@@ -1148,8 +1151,7 @@ bool Prescanner::FreeFormContinuation() {
 // arguments to span multiple lines.
 bool Prescanner::IsImplicitContinuation() const {
   return !inPreprocessorDirective_ && !inCharLiteral_ && isPossibleMacroCall_ &&
-      parenthesisNesting_ > 0 &&
-      !preprocessor_.anyMacroWithUnbalancedParentheses() && !IsAtEnd() &&
+      parenthesisNesting_ > 0 && !IsAtEnd() &&
       ClassifyLine(nextLine_).kind == LineClassification::Kind::Source;
 }
 

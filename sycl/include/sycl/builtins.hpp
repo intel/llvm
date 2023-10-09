@@ -17,91 +17,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
-extern __DPCPP_SYCL_EXTERNAL int abs(int x);
-extern __DPCPP_SYCL_EXTERNAL long int labs(long int x);
-extern __DPCPP_SYCL_EXTERNAL long long int llabs(long long int x);
-
-extern __DPCPP_SYCL_EXTERNAL div_t div(int x, int y);
-extern __DPCPP_SYCL_EXTERNAL ldiv_t ldiv(long int x, long int y);
-extern __DPCPP_SYCL_EXTERNAL lldiv_t lldiv(long long int x, long long int y);
-extern __DPCPP_SYCL_EXTERNAL float scalbnf(float x, int n);
-extern __DPCPP_SYCL_EXTERNAL double scalbn(double x, int n);
-extern __DPCPP_SYCL_EXTERNAL float logf(float x);
-extern __DPCPP_SYCL_EXTERNAL double log(double x);
-extern __DPCPP_SYCL_EXTERNAL float expf(float x);
-extern __DPCPP_SYCL_EXTERNAL double exp(double x);
-extern __DPCPP_SYCL_EXTERNAL float log10f(float x);
-extern __DPCPP_SYCL_EXTERNAL double log10(double x);
-extern __DPCPP_SYCL_EXTERNAL float modff(float x, float *intpart);
-extern __DPCPP_SYCL_EXTERNAL double modf(double x, double *intpart);
-extern __DPCPP_SYCL_EXTERNAL float exp2f(float x);
-extern __DPCPP_SYCL_EXTERNAL double exp2(double x);
-extern __DPCPP_SYCL_EXTERNAL float expm1f(float x);
-extern __DPCPP_SYCL_EXTERNAL double expm1(double x);
-extern __DPCPP_SYCL_EXTERNAL int ilogbf(float x);
-extern __DPCPP_SYCL_EXTERNAL int ilogb(double x);
-extern __DPCPP_SYCL_EXTERNAL float log1pf(float x);
-extern __DPCPP_SYCL_EXTERNAL double log1p(double x);
-extern __DPCPP_SYCL_EXTERNAL float log2f(float x);
-extern __DPCPP_SYCL_EXTERNAL double log2(double x);
-extern __DPCPP_SYCL_EXTERNAL float logbf(float x);
-extern __DPCPP_SYCL_EXTERNAL double logb(double x);
-extern __DPCPP_SYCL_EXTERNAL float sqrtf(float x);
-extern __DPCPP_SYCL_EXTERNAL double sqrt(double x);
-extern __DPCPP_SYCL_EXTERNAL float cbrtf(float x);
-extern __DPCPP_SYCL_EXTERNAL double cbrt(double x);
-extern __DPCPP_SYCL_EXTERNAL float erff(float x);
-extern __DPCPP_SYCL_EXTERNAL double erf(double x);
-extern __DPCPP_SYCL_EXTERNAL float erfcf(float x);
-extern __DPCPP_SYCL_EXTERNAL double erfc(double x);
-extern __DPCPP_SYCL_EXTERNAL float tgammaf(float x);
-extern __DPCPP_SYCL_EXTERNAL double tgamma(double x);
-extern __DPCPP_SYCL_EXTERNAL float lgammaf(float x);
-extern __DPCPP_SYCL_EXTERNAL double lgamma(double x);
-extern __DPCPP_SYCL_EXTERNAL float fmodf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double fmod(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float remainderf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double remainder(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float remquof(float x, float y, int *q);
-extern __DPCPP_SYCL_EXTERNAL double remquo(double x, double y, int *q);
-extern __DPCPP_SYCL_EXTERNAL float nextafterf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double nextafter(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float fdimf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double fdim(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float fmaf(float x, float y, float z);
-extern __DPCPP_SYCL_EXTERNAL double fma(double x, double y, double z);
-extern __DPCPP_SYCL_EXTERNAL float sinf(float x);
-extern __DPCPP_SYCL_EXTERNAL double sin(double x);
-extern __DPCPP_SYCL_EXTERNAL float cosf(float x);
-extern __DPCPP_SYCL_EXTERNAL double cos(double x);
-extern __DPCPP_SYCL_EXTERNAL float tanf(float x);
-extern __DPCPP_SYCL_EXTERNAL double tan(double x);
-extern __DPCPP_SYCL_EXTERNAL float asinf(float x);
-extern __DPCPP_SYCL_EXTERNAL double asin(double x);
-extern __DPCPP_SYCL_EXTERNAL float acosf(float x);
-extern __DPCPP_SYCL_EXTERNAL double acos(double x);
-extern __DPCPP_SYCL_EXTERNAL float atanf(float x);
-extern __DPCPP_SYCL_EXTERNAL double atan(double x);
-extern __DPCPP_SYCL_EXTERNAL float powf(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double pow(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float atan2f(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double atan2(double x, double y);
-
-extern __DPCPP_SYCL_EXTERNAL float sinhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double sinh(double x);
-extern __DPCPP_SYCL_EXTERNAL float coshf(float x);
-extern __DPCPP_SYCL_EXTERNAL double cosh(double x);
-extern __DPCPP_SYCL_EXTERNAL float tanhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double tanh(double x);
-extern __DPCPP_SYCL_EXTERNAL float asinhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double asinh(double x);
-extern __DPCPP_SYCL_EXTERNAL float acoshf(float x);
-extern __DPCPP_SYCL_EXTERNAL double acosh(double x);
-extern __DPCPP_SYCL_EXTERNAL float atanhf(float x);
-extern __DPCPP_SYCL_EXTERNAL double atanh(double x);
-extern __DPCPP_SYCL_EXTERNAL double frexp(double x, int *exp);
-extern __DPCPP_SYCL_EXTERNAL double ldexp(double x, int exp);
-extern __DPCPP_SYCL_EXTERNAL double hypot(double x, double y);
 
 extern __DPCPP_SYCL_EXTERNAL void *memcpy(void *dest, const void *src,
                                           size_t n);
@@ -176,6 +91,18 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log2f(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log10f(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fast_powf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fast_fdividef(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fadd_rz(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fsub_rz(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_rd(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_rn(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_ru(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmul_rz(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);
@@ -389,6 +316,18 @@ extern __DPCPP_SYCL_EXTERNAL double __imf_inv(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_fmax(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL double __imf_fmin(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL double __imf_copysign(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dadd_rz(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dsub_rz(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_rd(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_rn(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_ru(double x, double y);
+extern __DPCPP_SYCL_EXTERNAL double __imf_dmul_rz(double x, double y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rd(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rn(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_ru(double x);
@@ -599,65 +538,6 @@ extern __DPCPP_SYCL_EXTERNAL void __assert_fail(const char *expr,
                                                 const char *file,
                                                 unsigned int line,
                                                 const char *func);
-extern __DPCPP_SYCL_EXTERNAL float frexpf(float x, int *exp);
-extern __DPCPP_SYCL_EXTERNAL float ldexpf(float x, int exp);
-extern __DPCPP_SYCL_EXTERNAL float hypotf(float x, float y);
-
-// MS UCRT supports most of the C standard library but <complex.h> is
-// an exception.
-extern __DPCPP_SYCL_EXTERNAL float cimagf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double cimag(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float crealf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double creal(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float cargf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double carg(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float cabsf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double cabs(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ cprojf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ cproj(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ cexpf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ cexp(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ clogf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ clog(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ cpowf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ cpow(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ csqrtf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ csqrt(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ csinhf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ csinh(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ ccoshf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ ccosh(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ ctanhf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ ctanh(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ csinf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ csin(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ ccosf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ ccos(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ ctanf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ ctan(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ cacosf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ cacos(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ cacoshf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ cacosh(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ casinf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ casin(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ casinhf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ casinh(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ catanf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ catan(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ catanhf(float __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ catanh(double __complex__ z);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ cpolarf(float rho, float theta);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ cpolar(double rho,
-                                                       double theta);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ __mulsc3(float a, float b,
-                                                        float c, float d);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ __muldc3(double a, double b,
-                                                         double c, double d);
-extern __DPCPP_SYCL_EXTERNAL float __complex__ __divsc3(float a, float b,
-                                                        float c, float d);
-extern __DPCPP_SYCL_EXTERNAL double __complex__ __divdc3(float a, float b,
-                                                         float c, float d);
 }
 #elif defined(_WIN32)
 extern "C" {
@@ -667,21 +547,6 @@ extern "C" {
 //       APIs used by STL, such as _Cosh, are undocumented, even though
 //       they are open-sourced. Recognizing them as builtins is not
 //       straightforward currently.
-extern __DPCPP_SYCL_EXTERNAL double _Cosh(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL int _dpcomp(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL int _dsign(double x);
-extern __DPCPP_SYCL_EXTERNAL short _Dtest(double *px);
-extern __DPCPP_SYCL_EXTERNAL short _dtest(double *px);
-extern __DPCPP_SYCL_EXTERNAL short _Exp(double *px, double y, short eoff);
-extern __DPCPP_SYCL_EXTERNAL float _FCosh(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL int _fdpcomp(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL int _fdsign(float x);
-extern __DPCPP_SYCL_EXTERNAL short _FDtest(float *px);
-extern __DPCPP_SYCL_EXTERNAL short _fdtest(float *px);
-extern __DPCPP_SYCL_EXTERNAL short _FExp(float *px, float y, short eoff);
-extern __DPCPP_SYCL_EXTERNAL float _FSinh(float x, float y);
-extern __DPCPP_SYCL_EXTERNAL double _Sinh(double x, double y);
-extern __DPCPP_SYCL_EXTERNAL float _hypotf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL void _wassert(const wchar_t *wexpr,
                                            const wchar_t *wfile, unsigned line);
 }

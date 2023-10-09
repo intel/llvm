@@ -137,7 +137,7 @@ TEST_F(CloneInstruction, OverflowBits) {
 }
 
 TEST_F(CloneInstruction, Inbounds) {
-  V = new Argument(Type::getInt32PtrTy(context));
+  V = new Argument(PointerType::get(context, 0));
 
   Constant *Z = Constant::getNullValue(Type::getInt32Ty(context));
   std::vector<Value *> ops;
@@ -161,8 +161,9 @@ TEST_F(CloneInstruction, Exact) {
 }
 
 TEST_F(CloneInstruction, Attributes) {
-  Type *ArgTy1[] = { Type::getInt32PtrTy(context) };
-  FunctionType *FT1 =  FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
+  Type *ArgTy1[] = {PointerType::get(context, 0)};
+  FunctionType *FT1 =
+      FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
 
   Function *F1 = Function::Create(FT1, Function::ExternalLinkage);
   BasicBlock *BB = BasicBlock::Create(context, "", F1);
@@ -187,8 +188,9 @@ TEST_F(CloneInstruction, Attributes) {
 }
 
 TEST_F(CloneInstruction, CallingConvention) {
-  Type *ArgTy1[] = { Type::getInt32PtrTy(context) };
-  FunctionType *FT1 =  FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
+  Type *ArgTy1[] = {PointerType::get(context, 0)};
+  FunctionType *FT1 =
+      FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
 
   Function *F1 = Function::Create(FT1, Function::ExternalLinkage);
   F1->setCallingConv(CallingConv::Cold);
@@ -211,7 +213,7 @@ TEST_F(CloneInstruction, CallingConvention) {
 }
 
 TEST_F(CloneInstruction, DuplicateInstructionsToSplit) {
-  Type *ArgTy1[] = {Type::getInt32PtrTy(context)};
+  Type *ArgTy1[] = {PointerType::get(context, 0)};
   FunctionType *FT = FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
   V = new Argument(Type::getInt32Ty(context));
 
@@ -260,7 +262,7 @@ TEST_F(CloneInstruction, DuplicateInstructionsToSplit) {
 }
 
 TEST_F(CloneInstruction, DuplicateInstructionsToSplitBlocksEq1) {
-  Type *ArgTy1[] = {Type::getInt32PtrTy(context)};
+  Type *ArgTy1[] = {PointerType::get(context, 0)};
   FunctionType *FT = FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
   V = new Argument(Type::getInt32Ty(context));
 
@@ -313,7 +315,7 @@ TEST_F(CloneInstruction, DuplicateInstructionsToSplitBlocksEq1) {
 }
 
 TEST_F(CloneInstruction, DuplicateInstructionsToSplitBlocksEq2) {
-  Type *ArgTy1[] = {Type::getInt32PtrTy(context)};
+  Type *ArgTy1[] = {PointerType::get(context, 0)};
   FunctionType *FT = FunctionType::get(Type::getVoidTy(context), ArgTy1, false);
   V = new Argument(Type::getInt32Ty(context));
 
@@ -799,6 +801,99 @@ TEST(CloneFunction, CloneFunctionWithSubprograms) {
   EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
 }
 
+TEST(CloneFunction, CloneFunctionWithRetainedNodes) {
+  StringRef ImplAssembly = R"(
+    declare void @llvm.dbg.declare(metadata, metadata, metadata)
+
+    define void @test() !dbg !3 {
+      call void @llvm.dbg.declare(metadata i8* undef, metadata !5, metadata !DIExpression()), !dbg !7
+      ret void
+    }
+
+    declare void @cloned()
+
+    !llvm.dbg.cu = !{!0}
+    !llvm.module.flags = !{!2}
+    !0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, enums: !{!14})
+    !1 = !DIFile(filename: "test.cpp",  directory: "")
+    !2 = !{i32 1, !"Debug Info Version", i32 3}
+    !3 = distinct !DISubprogram(name: "test", scope: !1, unit: !0, retainedNodes: !9)
+    !4 = distinct !DISubprogram(name: "inlined", scope: !1, unit: !0, retainedNodes: !{!5})
+    !5 = !DILocalVariable(name: "awaitables", scope: !4, type: !23)
+    !6 = distinct !DILexicalBlock(scope: !4, file: !1, line: 1)
+    !7 = !DILocation(line: 1, scope: !6, inlinedAt: !8)
+    !8 = !DILocation(line: 10, scope: !3)
+    !9 = !{!15, !17, !18}
+    !14 = distinct !DICompositeType(tag: DW_TAG_enumeration_type, scope: !0, file: !1, line: 13, size: 200, elements: !{})
+    !15 = !DILocalVariable(name: "a", scope: !3)
+    !16 = distinct !DICompositeType(tag: DW_TAG_enumeration_type, scope: !3, file: !1, line: 13, size: 208, elements: !{})
+    !17 = !DIImportedEntity(tag: DW_TAG_imported_declaration, name: "imported_l", file: !1, line: 14, scope: !3, entity: !16)
+    !18 = !DILabel(scope: !3, name: "l", file: !1, line: 22)
+    !22 = !DIBasicType(name: "real", size: 32, align: 32, encoding: DW_ATE_float)
+    !23 = !DIDerivedType(name: "local_float", tag: DW_TAG_const_type, baseType: !22, scope: !3)
+    !float_type = !{!23}
+  )";
+
+  LLVMContext Context;
+  SMDiagnostic Error;
+
+  auto ImplModule = parseAssemblyString(ImplAssembly, Error, Context);
+  llvm::errs() << Error.getMessage() << Error.getLineNo() << "\n";
+  EXPECT_TRUE(ImplModule != nullptr);
+  auto *Func = ImplModule->getFunction("test");
+  EXPECT_TRUE(Func != nullptr);
+  auto *ClonedFunc = ImplModule->getFunction("cloned");
+  EXPECT_TRUE(ClonedFunc != nullptr);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+
+  ValueToValueMapTy VMap;
+  SmallVector<ReturnInst *, 8> Returns;
+  ClonedCodeInfo CCI;
+  CloneFunctionInto(ClonedFunc, Func, VMap,
+                    CloneFunctionChangeType::GlobalChanges, Returns, "", &CCI);
+
+  EXPECT_FALSE(verifyModule(*ImplModule, &errs()));
+
+  // Check that retained and local types are copied.
+  DISubprogram *FuncSP = Func->getSubprogram();
+  DISubprogram *ClonedSP = ClonedFunc->getSubprogram();
+  EXPECT_NE(FuncSP, nullptr);
+  EXPECT_NE(ClonedSP, nullptr);
+  EXPECT_EQ(FuncSP->getRetainedNodes().size(), 3u);
+  EXPECT_EQ(FuncSP->getRetainedNodes().size(),
+            ClonedSP->getRetainedNodes().size());
+  for (unsigned I = 0; I < FuncSP->getRetainedNodes().size(); ++I) {
+    auto *Node = FuncSP->getRetainedNodes()[I];
+    auto *Copy = ClonedSP->getRetainedNodes()[I];
+
+    // Check that the order of retainedNodes is preserved by
+    // checking that the corresponding node has the same name.
+    if (auto *Var = dyn_cast<DILocalVariable>(Node)) {
+      auto *VarCopy = dyn_cast<DILocalVariable>(Copy);
+      EXPECT_NE(VarCopy, nullptr);
+      EXPECT_EQ(Var->getName(), VarCopy->getName());
+    } else if (auto *Label = dyn_cast<DILabel>(Node)) {
+      auto *LabelCopy = dyn_cast<DILabel>(Copy);
+      EXPECT_NE(LabelCopy, nullptr);
+      EXPECT_EQ(Label->getName(), LabelCopy->getName());
+    } else if (auto *IE = dyn_cast<DIImportedEntity>(Node)) {
+      auto *IECopy = dyn_cast<DIImportedEntity>(Copy);
+      EXPECT_NE(IECopy, nullptr);
+      EXPECT_EQ(IE->getName(), IECopy->getName());
+    }
+
+    // Check that node was copied
+    EXPECT_NE(Node, Copy);
+  }
+
+  auto *FloatType = dyn_cast<DIType>(
+      ImplModule->getNamedMetadata("float_type")->getOperand(0));
+  EXPECT_EQ(FloatType->getName(), "local_float");
+  EXPECT_TRUE(VMap.MD().contains(FloatType));
+  EXPECT_NE(FloatType, VMap.MD()[FloatType]);
+}
+
 TEST(CloneFunction, CloneFunctionWithInlinedSubprograms) {
   StringRef ImplAssembly = R"(
     declare void @llvm.dbg.declare(metadata, metadata, metadata)
@@ -905,7 +1000,6 @@ TEST(CloneFunction, CloneFunctionToDifferentModule) {
 class CloneModule : public ::testing::Test {
 protected:
   void SetUp() override {
-    C.setOpaquePointers(true);
     SetupModule();
     CreateOldModule();
     CreateNewModule();
@@ -926,7 +1020,7 @@ protected:
     // Add ifuncs
     {
       const unsigned AddrSpace = 123;
-      auto *FuncPtrTy = Type::getInt8Ty(C)->getPointerTo(123);
+      auto *FuncPtrTy = PointerType::get(C, AddrSpace);
       auto *FuncTy = FunctionType::get(FuncPtrTy, false);
 
       auto *ResolverF = Function::Create(FuncTy, GlobalValue::PrivateLinkage,

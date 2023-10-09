@@ -161,7 +161,9 @@ set(BENCHMARK_TESTS
     algorithms/min.bench.cpp
     algorithms/min_max_element.bench.cpp
     algorithms/pop_heap.bench.cpp
+    algorithms/pstl.stable_sort.bench.cpp
     algorithms/push_heap.bench.cpp
+    algorithms/ranges_ends_with.bench.cpp
     algorithms/ranges_make_heap.bench.cpp
     algorithms/ranges_make_heap_then_sort_heap.bench.cpp
     algorithms/ranges_pop_heap.bench.cpp
@@ -173,6 +175,7 @@ set(BENCHMARK_TESTS
     algorithms/sort_heap.bench.cpp
     algorithms/stable_sort.bench.cpp
     libcxxabi/dynamic_cast.bench.cpp
+    libcxxabi/dynamic_cast_old_stress.bench.cpp
     allocation.bench.cpp
     deque.bench.cpp
     deque_iterator.bench.cpp
@@ -192,6 +195,7 @@ set(BENCHMARK_TESTS
     std_format_spec_string_unicode.bench.cpp
     string.bench.cpp
     stringstream.bench.cpp
+    system_error.bench.cpp
     to_chars.bench.cpp
     unordered_set_operations.bench.cpp
     util_smartptr.bench.cpp

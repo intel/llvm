@@ -26,37 +26,37 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind
 define internal spir_func void @__cxx_global_var_init() #0 {
 entry:
-  call spir_func void @_ZNU3AS416global_ctor_dtorC1Ei(%struct.global_ctor_dtor addrspace(4)* addrspacecast (%struct.global_ctor_dtor addrspace(1)* @g to %struct.global_ctor_dtor addrspace(4)*), i32 12)
+  call spir_func void @_ZNU3AS416global_ctor_dtorC1Ei(ptr addrspace(4) addrspacecast (ptr addrspace(1) @g to ptr addrspace(4)), i32 12)
   ret void
 }
 
 ; Function Attrs: nounwind
-define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorC1Ei(%struct.global_ctor_dtor addrspace(4)* %this, i32 %i) unnamed_addr #1 align 2 {
+define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorC1Ei(ptr addrspace(4) %this, i32 %i) unnamed_addr #1 align 2 {
 entry:
-  %this.addr = alloca %struct.global_ctor_dtor addrspace(4)*, align 4
+  %this.addr = alloca ptr addrspace(4), align 4
   %i.addr = alloca i32, align 4
-  store %struct.global_ctor_dtor addrspace(4)* %this, %struct.global_ctor_dtor addrspace(4)** %this.addr, align 4
-  store i32 %i, i32* %i.addr, align 4
-  %this1 = load %struct.global_ctor_dtor addrspace(4)*, %struct.global_ctor_dtor addrspace(4)** %this.addr
-  %0 = load i32, i32* %i.addr, align 4
-  call spir_func void @_ZNU3AS416global_ctor_dtorC2Ei(%struct.global_ctor_dtor addrspace(4)* %this1, i32 %0)
+  store ptr addrspace(4) %this, ptr %this.addr, align 4
+  store i32 %i, ptr %i.addr, align 4
+  %this1 = load ptr addrspace(4), ptr %this.addr
+  %0 = load i32, ptr %i.addr, align 4
+  call spir_func void @_ZNU3AS416global_ctor_dtorC2Ei(ptr addrspace(4) %this1, i32 %0)
   ret void
 }
 
 ; Function Attrs: nounwind
-define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorD1Ev(%struct.global_ctor_dtor addrspace(4)* %this) unnamed_addr #1 align 2 {
+define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorD1Ev(ptr addrspace(4) %this) unnamed_addr #1 align 2 {
 entry:
-  %this.addr = alloca %struct.global_ctor_dtor addrspace(4)*, align 4
-  store %struct.global_ctor_dtor addrspace(4)* %this, %struct.global_ctor_dtor addrspace(4)** %this.addr, align 4
-  %this1 = load %struct.global_ctor_dtor addrspace(4)*, %struct.global_ctor_dtor addrspace(4)** %this.addr
-  call spir_func void @_ZNU3AS416global_ctor_dtorD2Ev(%struct.global_ctor_dtor addrspace(4)* %this1) #0
+  %this.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %this, ptr %this.addr, align 4
+  %this1 = load ptr addrspace(4), ptr %this.addr
+  call spir_func void @_ZNU3AS416global_ctor_dtorD2Ev(ptr addrspace(4) %this1) #0
   ret void
 }
 
 ; Function Attrs: nounwind
 define internal spir_func void @__dtor_g() #0 {
 entry:
-  call spir_func void @_ZNU3AS416global_ctor_dtorD1Ev(%struct.global_ctor_dtor addrspace(4)* addrspacecast (%struct.global_ctor_dtor addrspace(1)* @g to %struct.global_ctor_dtor addrspace(4)*))
+  call spir_func void @_ZNU3AS416global_ctor_dtorD1Ev(ptr addrspace(4) addrspacecast (ptr addrspace(1) @g to ptr addrspace(4)))
   ret void
 }
 
@@ -69,27 +69,25 @@ entry:
 }
 
 ; Function Attrs: nounwind
-define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorD2Ev(%struct.global_ctor_dtor addrspace(4)* %this) unnamed_addr #1 align 2 {
+define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorD2Ev(ptr addrspace(4) %this) unnamed_addr #1 align 2 {
 entry:
-  %this.addr = alloca %struct.global_ctor_dtor addrspace(4)*, align 4
-  store %struct.global_ctor_dtor addrspace(4)* %this, %struct.global_ctor_dtor addrspace(4)** %this.addr, align 4
-  %this1 = load %struct.global_ctor_dtor addrspace(4)*, %struct.global_ctor_dtor addrspace(4)** %this.addr
-  %a = getelementptr inbounds %struct.global_ctor_dtor, %struct.global_ctor_dtor addrspace(4)* %this1, i32 0, i32 0
-  store i32 0, i32 addrspace(4)* %a, align 4
+  %this.addr = alloca ptr addrspace(4), align 4
+  store ptr addrspace(4) %this, ptr %this.addr, align 4
+  %this1 = load ptr addrspace(4), ptr %this.addr
+  store i32 0, ptr addrspace(4) %this1, align 4
   ret void
 }
 
 ; Function Attrs: nounwind
-define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorC2Ei(%struct.global_ctor_dtor addrspace(4)* %this, i32 %i) unnamed_addr #1 align 2 {
+define linkonce_odr spir_func void @_ZNU3AS416global_ctor_dtorC2Ei(ptr addrspace(4) %this, i32 %i) unnamed_addr #1 align 2 {
 entry:
-  %this.addr = alloca %struct.global_ctor_dtor addrspace(4)*, align 4
+  %this.addr = alloca ptr addrspace(4), align 4
   %i.addr = alloca i32, align 4
-  store %struct.global_ctor_dtor addrspace(4)* %this, %struct.global_ctor_dtor addrspace(4)** %this.addr, align 4
-  store i32 %i, i32* %i.addr, align 4
-  %this1 = load %struct.global_ctor_dtor addrspace(4)*, %struct.global_ctor_dtor addrspace(4)** %this.addr
-  %0 = load i32, i32* %i.addr, align 4
-  %a = getelementptr inbounds %struct.global_ctor_dtor, %struct.global_ctor_dtor addrspace(4)* %this1, i32 0, i32 0
-  store i32 %0, i32 addrspace(4)* %a, align 4
+  store ptr addrspace(4) %this, ptr %this.addr, align 4
+  store i32 %i, ptr %i.addr, align 4
+  %this1 = load ptr addrspace(4), ptr %this.addr
+  %0 = load i32, ptr %i.addr, align 4
+  store i32 %0, ptr addrspace(4) %this1, align 4
   ret void
 }
 
@@ -132,14 +130,14 @@ attributes #2 = { noinline nounwind }
 !llvm.ident = !{!11}
 !spirv.Source = !{!12}
 
-!0 = !{void ()* @worker, i32 30, i32 262149}
-!1 = !{void ()* @worker, i32 18, i32 12, i32 10, i32 1}
-!2 = !{void ()* @worker, i32 17, i32 10, i32 10, i32 10}
-!3 = !{void ()* @worker, i32 36, i32 4}
-!4 = !{void ()* @_SPIRV_GLOBAL__I_45b04794_Test_attr.cl, i32 33}
-!5 = !{void ()* @_SPIRV_GLOBAL__I_45b04794_Test_attr.cl, i32 17, i32 1, i32 1, i32 1}
-!6 = !{void ()* @_SPIRV_GLOBAL__D_45b04794_Test_attr.cl, i32 34}
-!7 = !{void ()* @_SPIRV_GLOBAL__D_45b04794_Test_attr.cl, i32 17, i32 1, i32 1, i32 1}
+!0 = !{ptr @worker, i32 30, i32 262149}
+!1 = !{ptr @worker, i32 18, i32 12, i32 10, i32 1}
+!2 = !{ptr @worker, i32 17, i32 10, i32 10, i32 10}
+!3 = !{ptr @worker, i32 36, i32 4}
+!4 = !{ptr @_SPIRV_GLOBAL__I_45b04794_Test_attr.cl, i32 33}
+!5 = !{ptr @_SPIRV_GLOBAL__I_45b04794_Test_attr.cl, i32 17, i32 1, i32 1, i32 1}
+!6 = !{ptr @_SPIRV_GLOBAL__D_45b04794_Test_attr.cl, i32 34}
+!7 = !{ptr @_SPIRV_GLOBAL__D_45b04794_Test_attr.cl, i32 17, i32 1, i32 1, i32 1}
 !8 = !{i32 1, i32 2}
 !9 = !{i32 2, i32 2}
 !10 = !{}

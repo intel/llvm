@@ -17,9 +17,44 @@ def run(f):
 
 
 @run
+def testMemRefAllocaToAllocOpCompact():
+    sequence = transform.SequenceOp(
+        transform.FailurePropagationMode.Propagate,
+        [],
+        transform.OperationType.get("memref.alloca"),
+    )
+    with InsertionPoint(sequence.body):
+        memref.MemRefAllocaToGlobalOp(sequence.bodyTarget)
+        transform.YieldOp()
+    # CHECK-LABEL: TEST: testMemRefAllocaToAllocOpCompact
+    # CHECK: = transform.memref.alloca_to_global
+    # CHECK-SAME: (!transform.op<"memref.alloca">)
+    # CHECK-SAME: -> (!transform.any_op, !transform.any_op)
+
+
+@run
+def testMemRefAllocaToAllocOpTyped():
+    sequence = transform.SequenceOp(
+        transform.FailurePropagationMode.Propagate,
+        [],
+        transform.OperationType.get("memref.alloca"),
+    )
+    with InsertionPoint(sequence.body):
+        memref.MemRefAllocaToGlobalOp(
+            transform.OperationType.get("memref.get_global"),
+            transform.OperationType.get("memref.global"),
+            sequence.bodyTarget,
+        )
+        transform.YieldOp()
+    # CHECK-LABEL: TEST: testMemRefAllocaToAllocOpTyped
+    # CHECK: = transform.memref.alloca_to_global
+    # CHECK-SAME: -> (!transform.op<"memref.get_global">, !transform.op<"memref.global">)
+
+
+@run
 def testMemRefMultiBufferOpCompact():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE,
+        transform.FailurePropagationMode.Propagate,
         [],
         transform.OperationType.get("memref.alloc"),
     )
@@ -35,7 +70,7 @@ def testMemRefMultiBufferOpCompact():
 @run
 def testMemRefMultiBufferOpTyped():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE,
+        transform.FailurePropagationMode.Propagate,
         [],
         transform.OperationType.get("memref.alloc"),
     )
@@ -53,7 +88,7 @@ def testMemRefMultiBufferOpTyped():
 @run
 def testMemRefMultiBufferOpAttributes():
     sequence = transform.SequenceOp(
-        transform.FailurePropagationMode.PROPAGATE,
+        transform.FailurePropagationMode.Propagate,
         [],
         transform.OperationType.get("memref.alloc"),
     )

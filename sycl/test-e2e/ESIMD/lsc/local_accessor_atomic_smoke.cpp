@@ -8,12 +8,10 @@
 // This test checks local accessor atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// UNSUPPORTED: esimd_emulator
 
 #include "../esimd_test_utils.hpp"
 

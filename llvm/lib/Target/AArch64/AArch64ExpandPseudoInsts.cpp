@@ -1053,11 +1053,9 @@ bool AArch64ExpandPseudo::expandMultiVecPseudo(
   auto ContiguousRange = ContiguousClass.getRegisters();
   auto StridedRange = StridedClass.getRegisters();
   unsigned Opc;
-  if ((std::find(ContiguousRange.begin(), ContiguousRange.end(),
-                 Tuple.asMCReg()) != std::end(ContiguousRange))) {
+  if (llvm::is_contained(ContiguousRange, Tuple.asMCReg())) {
     Opc = ContiguousOp;
-  } else if ((std::find(StridedRange.begin(), StridedRange.end(),
-                        Tuple.asMCReg()) != std::end(StridedRange))) {
+  } else if (llvm::is_contained(StridedRange, Tuple.asMCReg())) {
     Opc = StridedOpc;
   } else
     llvm_unreachable("Cannot expand Multi-Vector pseudo");
@@ -1513,17 +1511,6 @@ bool AArch64ExpandPseudo::expandMI(MachineBasicBlock &MBB,
      auto *NewMBB = expandCondSMToggle(MBB, MBBI);
      if (NewMBB != &MBB)
        NextMBBI = MBB.end(); // The NextMBBI iterator is invalidated.
-     return true;
-   }
-   case AArch64::OBSCURE_COPY: {
-     if (MI.getOperand(0).getReg() != MI.getOperand(1).getReg()) {
-       BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(AArch64::ORRXrs))
-           .add(MI.getOperand(0))
-           .addReg(AArch64::XZR)
-           .add(MI.getOperand(1))
-           .addImm(0);
-     }
-     MI.eraseFromParent();
      return true;
    }
    case AArch64::LD1B_2Z_IMM_PSEUDO:

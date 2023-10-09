@@ -19,14 +19,13 @@ using namespace mlir;
 // ConvertToLLVMPattern
 //===----------------------------------------------------------------------===//
 
-ConvertToLLVMPattern::ConvertToLLVMPattern(StringRef rootOpName,
-                                           MLIRContext *context,
-                                           LLVMTypeConverter &typeConverter,
-                                           PatternBenefit benefit)
+ConvertToLLVMPattern::ConvertToLLVMPattern(
+    StringRef rootOpName, MLIRContext *context,
+    const LLVMTypeConverter &typeConverter, PatternBenefit benefit)
     : ConversionPattern(typeConverter, rootOpName, benefit, context) {}
 
-LLVMTypeConverter *ConvertToLLVMPattern::getTypeConverter() const {
-  return static_cast<LLVMTypeConverter *>(
+const LLVMTypeConverter *ConvertToLLVMPattern::getTypeConverter() const {
+  return static_cast<const LLVMTypeConverter *>(
       ConversionPattern::getTypeConverter());
 }
 
@@ -163,7 +162,7 @@ void ConvertToLLVMPattern::getMemRefDescriptorSizes(
     // Buffer size in bytes.
     Type elementType = typeConverter->convertType(memRefType.getElementType());
     Type elementPtrType = getTypeConverter()->getPointerType(elementType);
-    Value nullPtr = rewriter.create<LLVM::NullOp>(loc, elementPtrType);
+    Value nullPtr = rewriter.create<LLVM::ZeroOp>(loc, elementPtrType);
     Value gepPtr = rewriter.create<LLVM::GEPOp>(
         loc, elementPtrType, elementType, nullPtr, runningStride);
     size = rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), gepPtr);
@@ -181,7 +180,7 @@ Value ConvertToLLVMPattern::getSizeInBytes(
   // which is a common pattern of getting the size of a type in bytes.
   Type llvmType = typeConverter->convertType(type);
   auto convertedPtrType = getTypeConverter()->getPointerType(llvmType);
-  auto nullPtr = rewriter.create<LLVM::NullOp>(loc, convertedPtrType);
+  auto nullPtr = rewriter.create<LLVM::ZeroOp>(loc, convertedPtrType);
   auto gep = rewriter.create<LLVM::GEPOp>(loc, convertedPtrType, llvmType,
                                           nullPtr, ArrayRef<LLVM::GEPArg>{1});
   return rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), gep);
@@ -337,10 +336,12 @@ LogicalResult ConvertToLLVMPattern::copyUnrankedDescriptors(
 
 /// Replaces the given operation "op" with a new operation of type "targetOp"
 /// and given operands.
-LogicalResult LLVM::detail::oneToOneRewrite(
-    Operation *op, StringRef targetOp, ValueRange operands,
-    ArrayRef<NamedAttribute> targetAttrs, LLVMTypeConverter &typeConverter,
-    ConversionPatternRewriter &rewriter) {
+LogicalResult
+LLVM::detail::oneToOneRewrite(Operation *op, StringRef targetOp,
+                              ValueRange operands,
+                              ArrayRef<NamedAttribute> targetAttrs,
+                              const LLVMTypeConverter &typeConverter,
+                              ConversionPatternRewriter &rewriter) {
   unsigned numResults = op->getNumResults();
 
   SmallVector<Type> resultTypes;

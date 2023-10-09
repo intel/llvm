@@ -269,7 +269,7 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(static_cast<float>(
+    return sycl::fabs(static_cast<float>(
                __spirv_VectorExtractDynamic<
                    sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16,
                    NumRows, NumCols, spv_matrix_use_traits<Use>::value,
@@ -489,7 +489,7 @@ template <
                          Use == sycl::ext::oneapi::experimental::matrix::use::b,
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_store(Group sg,
+joint_matrix_store(Group,
                    sycl::ext::oneapi::experimental::matrix::joint_matrix<
                        Group, Tp, Use, NumRows, NumCols, Layout> &src,
                    multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
@@ -497,7 +497,6 @@ joint_matrix_store(Group sg,
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
-  std::ignore = sg;
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
@@ -520,7 +519,6 @@ joint_matrix_store(Group sg,
       sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;

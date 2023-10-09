@@ -78,7 +78,9 @@ runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
 TEST(DataflowAnalysisTest, NoopAnalysis) {
   auto BlockStates = llvm::cantFail(
       runAnalysis<NoopAnalysis>("void target() {}", [](ASTContext &C) {
-        return NoopAnalysis(C, false);
+        return NoopAnalysis(C,
+                            // Don't use builtin transfer function.
+                            DataflowAnalysisOptions{std::nullopt});
       }));
   EXPECT_EQ(BlockStates.size(), 2u);
   EXPECT_TRUE(BlockStates[0].has_value());
@@ -96,7 +98,7 @@ TEST(DataflowAnalysisTest, DiagnoseFunctionDiagnoserCalledOnEachElement) {
       cast<FunctionDecl>(findValueDecl(AST->getASTContext(), "target"));
   auto Diagnoser = [](const CFGElement &Elt, ASTContext &,
                       const TransferStateForDiagnostics<NoopLattice> &) {
-    std::vector<std::string> Diagnostics(1);
+    llvm::SmallVector<std::string> Diagnostics(1);
     llvm::raw_string_ostream OS(Diagnostics.front());
     Elt.dumpToStream(OS);
     return Diagnostics;
@@ -106,7 +108,8 @@ TEST(DataflowAnalysisTest, DiagnoseFunctionDiagnoserCalledOnEachElement) {
   // `diagnoseFunction` provides no guarantees about the order in which elements
   // are visited, so we use `UnorderedElementsAre`.
   EXPECT_THAT_EXPECTED(Result, llvm::HasValue(UnorderedElementsAre(
-                                   "0\n", "int x = 0;\n", "x\n", "++x\n")));
+                                   "0\n", "int x = 0;\n", "x\n", "++x\n",
+                                   " (Lifetime ends)\n")));
 }
 
 struct NonConvergingLattice {
@@ -130,7 +133,8 @@ public:
   explicit NonConvergingAnalysis(ASTContext &Context)
       : DataflowAnalysis<NonConvergingAnalysis, NonConvergingLattice>(
             Context,
-            /*ApplyBuiltinTransfer=*/false) {}
+            // Don't apply builtin transfer function.
+            DataflowAnalysisOptions{std::nullopt}) {}
 
   static NonConvergingLattice initialElement() { return {0}; }
 
@@ -153,9 +157,9 @@ TEST(DataflowAnalysisTest, NonConvergingAnalysis) {
 
 // Regression test for joins of bool-typed lvalue expressions. The first loop
 // results in two passes through the code that follows. Each pass results in a
-// different `ReferenceValue` for the pointee of `v`. Then, the second loop
+// different `StorageLocation` for the pointee of `v`. Then, the second loop
 // causes a join at the loop head where the two environments map expresssion
-// `*v` to different `ReferenceValue`s.
+// `*v` to different `StorageLocation`s.
 //
 // An earlier version crashed for this condition (for boolean-typed lvalues), so
 // this test only verifies that the analysis runs successfully, without
@@ -811,7 +815,7 @@ protected:
             AnalysisInputs<NoopAnalysis>(
                 Code, ast_matchers::hasName("target"),
                 [](ASTContext &Context, Environment &Env) {
-                  return NoopAnalysis(Context, true);
+                  return NoopAnalysis(Context);
                 })
                 .withASTBuildArgs({"-fsyntax-only", "-std=c++17"}),
             /*VerifyResults=*/[&Match](const llvm::StringMap<
@@ -1611,5 +1615,22 @@ TEST_F(TopTest, TopUnusedBeforeLoopHeadJoinsToTop) {
             << debugString(FooVal2->getKind());
 
       });
+}
+
+TEST_F(TopTest, ForRangeStmtConverges) {
+  std::string Code = R"(
+    void target(bool Foo) {
+      int Ints[10];
+      bool B = false;
+      for (int I : Ints)
+        B = true;
+    }
+  )";
+  runDataflow(Code,
+              [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &,
+                 const AnalysisOutputs &) {
+                // No additional expectations. We're only checking that the
+                // analysis converged.
+              });
 }
 } // namespace

@@ -29,8 +29,7 @@ void twoParms(int *p, int * q) {
   int tmp;
   tmp = p[5] + q[5];
 }
-// CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void twoParms(int *p, int * q) {return twoParms(std::span<int>(p, <# size #>), q);}\n"
-// CHECK-DAG: fix-it:{{.*}}:{[[@LINE-2]]:2-[[@LINE-2]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void twoParms(int *p, int * q) {return twoParms(p, std::span<int>(q, <# size #>));}\n"
+// CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void twoParms(int *p, int * q) {return twoParms(std::span<int>(p, <# size #>), std::span<int>(q, <# size #>));}\n"
 
 void ptrToConst(const int * x) {
   // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:17-[[@LINE-1]]:30}:"std::span<int const> x"
@@ -100,22 +99,33 @@ namespace {
     // namned
   } NAMED_S;
 
+
   // FIXME: `decltype(ANON_S)` represents an unnamed type but it can
   // be referred as "`decltype(ANON_S)`", so the analysis should
   // fix-it.
-  void decltypeSpecifier(decltype(C) * p, decltype(ANON_S) * q, decltype(NAMED_S) * r,
-                         decltype(NAMED_S) ** rr) {
-    // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-2]]:26-[[@LINE-2]]:41}:"std::span<decltype(C)> p"
-    // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-3]]:65-[[@LINE-3]]:86}:"std::span<decltype(NAMED_S)> r"
-    // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-3]]:26-[[@LINE-3]]:49}:"std::span<decltype(NAMED_S) *> rr"
+  // As parameter `q` cannot be fixed, fixes to parameters are all being given up.
+  void decltypeSpecifierAnon(decltype(C) * p, decltype(ANON_S) * q, decltype(NAMED_S) * r,
+                             decltype(NAMED_S) ** rr) {
+    // CHECK: fix-it:{{.*}}:{[[@LINE-2]]:30-[[@LINE-2]]:45}:"std::span<decltype(C)> p"
+    // CHECK: fix-it:{{.*}}:{[[@LINE-3]]:47-[[@LINE-3]]:67}:"std::span<decltype(ANON_S)> q"
+    // CHECK: fix-it:{{.*}}:{[[@LINE-4]]:69-[[@LINE-4]]:90}:"std::span<decltype(NAMED_S)> r"
+    // CHECK: fix-it:{{.*}}:{[[@LINE-4]]:30-[[@LINE-4]]:53}:"std::span<decltype(NAMED_S) *> rr"
     if (++p) {}
     if (++q) {}
     if (++r) {}
     if (++rr) {}
   }
-  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:4-[[@LINE-1]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void decltypeSpecifier(decltype(C) * p, decltype(ANON_S) * q, decltype(NAMED_S) * r,\n{{.*}}decltype(NAMED_S) ** rr) {return decltypeSpecifier(std::span<decltype(C)>(p, <# size #>), q, r, rr);}\n
-  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-2]]:4-[[@LINE-2]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void decltypeSpecifier(decltype(C) * p, decltype(ANON_S) * q, decltype(NAMED_S) * r,\n{{.*}}decltype(NAMED_S) ** rr) {return decltypeSpecifier(p, q, std::span<decltype(NAMED_S)>(r, <# size #>), rr);}\n"
-  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-3]]:4-[[@LINE-3]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void decltypeSpecifier(decltype(C) * p, decltype(ANON_S) * q, decltype(NAMED_S) * r,\n{{.*}}decltype(NAMED_S) ** rr) {return decltypeSpecifier(p, q, r, std::span<decltype(NAMED_S) *>(rr, <# size #>));}\n"
+  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:4-[[@LINE-1]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void decltypeSpecifierAnon(decltype(C) * p, decltype(ANON_S) * q, decltype(NAMED_S) * r,\n decltype(NAMED_S) ** rr) {return decltypeSpecifierAnon(std::span<decltype(C)>(p, <# size #>), std::span<decltype(ANON_S)>(q, <# size #>), std::span<decltype(NAMED_S)>(r, <# size #>), std::span<decltype(NAMED_S) *>(rr, <# size #>));}\n
+
+  void decltypeSpecifier(decltype(C) * p, decltype(NAMED_S) * r, decltype(NAMED_S) ** rr) {
+    // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:26-[[@LINE-1]]:41}:"std::span<decltype(C)> p"
+    // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-2]]:43-[[@LINE-2]]:64}:"std::span<decltype(NAMED_S)> r"
+    // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-3]]:66-[[@LINE-3]]:89}:"std::span<decltype(NAMED_S) *> rr"
+    if (++p) {}
+    if (++r) {}
+    if (++rr) {}
+  }
+  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:4-[[@LINE-1]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void decltypeSpecifier(decltype(C) * p, decltype(NAMED_S) * r, decltype(NAMED_S) ** rr) {return decltypeSpecifier(std::span<decltype(C)>(p, <# size #>), std::span<decltype(NAMED_S)>(r, <# size #>), std::span<decltype(NAMED_S) *>(rr, <# size #>));}\n
 
 #define MACRO_TYPE(T) long T
 
@@ -125,8 +135,7 @@ namespace {
     int tmp = p[5];
     tmp = q[5];
   }
-  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:4-[[@LINE-1]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void macroType(unsigned MACRO_TYPE(int) * p, unsigned MACRO_TYPE(long) * q) {return macroType(std::span<unsigned MACRO_TYPE(int)>(p, <# size #>), q);}\n"
-  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-2]]:4-[[@LINE-2]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void macroType(unsigned MACRO_TYPE(int) * p, unsigned MACRO_TYPE(long) * q) {return macroType(p, std::span<unsigned MACRO_TYPE(long)>(q, <# size #>));}\n"
+  // CHECK-DAG: fix-it:{{.*}}:{[[@LINE-1]]:4-[[@LINE-1]]:4}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void macroType(unsigned MACRO_TYPE(int) * p, unsigned MACRO_TYPE(long) * q) {return macroType(std::span<unsigned MACRO_TYPE(int)>(p, <# size #>), std::span<unsigned MACRO_TYPE(long)>(q, <# size #>));}\n"
 }
 
 // The followings test various declarators:
@@ -147,18 +156,78 @@ void complexDeclarator(int * (*a[10])[10]) {
   if (++a){}
 }
 
-// Make sure we do not generate fixes for the following cases:
+// Tests parameters with cv-qualifiers
 
-#define MACRO_NAME MyName
-
-void macroIdentifier(int *MACRO_NAME) { // The fix-it ends with a macro. It will be discarded due to overlap with macros.
-  // CHECK-NOT: fix-it:{{.*}}:{[[@LINE-1]]
-  if (++MyName){}
+void const_ptr(int * const x) { // expected-warning{{'x' is an unsafe pointer used for buffer access}} expected-note{{change type of 'x' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:{{.*}}:{[[@LINE-1]]:16-[[@LINE-1]]:29}:"std::span<int> const x"
+  int tmp = x[5]; // expected-note{{used in buffer access here}}
 }
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void const_ptr(int * const x) {return const_ptr(std::span<int>(x, <# size #>));}\n"
 
-// CHECK-NOT: fix-it:{{.*}}:
-void parmHasNoName(int *p, int *) { // cannot fix the function because there is one parameter has no name.
+void const_ptr_to_const(const int * const x) {// expected-warning{{'x' is an unsafe pointer used for buffer access}} expected-note{{change type of 'x' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:{{.*}}:{[[@LINE-1]]:25-[[@LINE-1]]:44}:"std::span<int const> const x"
+  int tmp = x[5]; // expected-note{{used in buffer access here}}
+}
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void const_ptr_to_const(const int * const x) {return const_ptr_to_const(std::span<int const>(x, <# size #>));}\n"
+
+void const_volatile_ptr(int * const volatile x) { // expected-warning{{'x' is an unsafe pointer used for buffer access}} expected-note{{change type of 'x' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:{{.*}}:{[[@LINE-1]]:25-[[@LINE-1]]:47}:"std::span<int> const volatile x"
+  int tmp = x[5]; // expected-note{{used in buffer access here}}
+}
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void const_volatile_ptr(int * const volatile x) {return const_volatile_ptr(std::span<int>(x, <# size #>));}\n"
+
+void volatile_const_ptr(int * volatile const x) { // expected-warning{{'x' is an unsafe pointer used for buffer access}} expected-note{{change type of 'x' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:{{.*}}:{[[@LINE-1]]:25-[[@LINE-1]]:47}:"std::span<int> const volatile x"
+  int tmp = x[5]; // expected-note{{used in buffer access here}}
+}
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void volatile_const_ptr(int * volatile const x) {return volatile_const_ptr(std::span<int>(x, <# size #>));}\n"
+
+void const_volatile_ptr_to_const_volatile(const volatile int * const volatile x) {// expected-warning{{'x' is an unsafe pointer used for buffer access}} expected-note{{change type of 'x' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:{{.*}}:{[[@LINE-1]]:43-[[@LINE-1]]:80}:"std::span<int const volatile> const volatile x"
+  int tmp = x[5]; // expected-note{{used in buffer access here}}
+}
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void const_volatile_ptr_to_const_volatile(const volatile int * const volatile x) {return const_volatile_ptr_to_const_volatile(std::span<int const volatile>(x, <# size #>));}\n"
+
+
+// Test if function declaration specifiers are handled correctly:
+
+static void static_f(int *p) {
   p[5] = 5;
 }
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} static void static_f(int *p) {return static_f(std::span<int>(p, <# size #>));}\n"
+
+static inline void static_inline_f(int *p) {
+  p[5] = 5;
+}
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} static inline void static_inline_f(int *p) {return static_inline_f(std::span<int>(p, <# size #>));}\n"
+
+inline void static static_inline_f2(int *p) {
+  p[5] = 5;
+}
+// CHECK: fix-it:{{.*}}:{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} inline void static static_inline_f2(int *p) {return static_inline_f2(std::span<int>(p, <# size #>));}\n"
+
+
+// Test when unnamed types are involved:
+
+typedef struct {int x;} UNNAMED_STRUCT;
+struct {int x;} VarOfUnnamedType;
+
+void useUnnamedType(UNNAMED_STRUCT * p) {  // expected-warning{{'p' is an unsafe pointer used for buffer access}} \
+                                              expected-note{{change type of 'p' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:"{{.*}}":{[[@LINE-2]]:21-[[@LINE-2]]:39}:"std::span<UNNAMED_STRUCT> p"
+  if (++p) {  // expected-note{{used in pointer arithmetic here}}
+    // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:7-[[@LINE-1]]:10}:"(p = p.subspan(1)).data()"
+  }
+}
+// CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void useUnnamedType(UNNAMED_STRUCT * p) {return useUnnamedType(std::span<UNNAMED_STRUCT>(p, <# size #>));}\n"
+
+void useUnnamedType2(decltype(VarOfUnnamedType) * p) { // expected-warning{{'p' is an unsafe pointer used for buffer access}} \
+						          expected-note{{change type of 'p' to 'std::span' to preserve bounds information}}
+  // CHECK: fix-it:"{{.*}}":{[[@LINE-2]]:22-[[@LINE-2]]:52}:"std::span<decltype(VarOfUnnamedType)> p"
+  if (++p) {  // expected-note{{used in pointer arithmetic here}}
+    // CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:7-[[@LINE-1]]:10}:"(p = p.subspan(1)).data()"
+  }
+}
+// CHECK: fix-it:"{{.*}}":{[[@LINE-1]]:2-[[@LINE-1]]:2}:"\n{{\[}}{{\[}}clang::unsafe_buffer_usage{{\]}}{{\]}} void useUnnamedType2(decltype(VarOfUnnamedType) * p) {return useUnnamedType2(std::span<decltype(VarOfUnnamedType)>(p, <# size #>));}\n"
 
 #endif

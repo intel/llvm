@@ -242,19 +242,23 @@ struct PyAttrBuilderMap {
   static py::function dundeGetItemNamed(const std::string &attributeKind) {
     auto builder = PyGlobals::get().lookupAttributeBuilder(attributeKind);
     if (!builder)
-      throw py::key_error();
+      throw py::key_error(attributeKind);
     return *builder;
   }
   static void dundeSetItemNamed(const std::string &attributeKind,
-                                py::function func) {
-    PyGlobals::get().registerAttributeBuilder(attributeKind, std::move(func));
+                                py::function func, bool replace) {
+    PyGlobals::get().registerAttributeBuilder(attributeKind, std::move(func),
+                                              replace);
   }
 
   static void bind(py::module &m) {
     py::class_<PyAttrBuilderMap>(m, "AttrBuilder", py::module_local())
         .def_static("contains", &PyAttrBuilderMap::dunderContains)
         .def_static("get", &PyAttrBuilderMap::dundeGetItemNamed)
-        .def_static("insert", &PyAttrBuilderMap::dundeSetItemNamed);
+        .def_static("insert", &PyAttrBuilderMap::dundeSetItemNamed,
+                    "attribute_kind"_a, "attr_builder"_a, "replace"_a = false,
+                    "Register an attribute builder for building MLIR "
+                    "attributes from python values.");
   }
 };
 
@@ -1675,28 +1679,28 @@ py::object PyOpView::buildGeneric(
     } else {
       attributes = py::dict();
     }
-    if (attributes->contains("result_segment_sizes") ||
-        attributes->contains("operand_segment_sizes")) {
-      throw py::value_error("Manually setting a 'result_segment_sizes' or "
-                            "'operand_segment_sizes' attribute is unsupported. "
+    if (attributes->contains("resultSegmentSizes") ||
+        attributes->contains("operandSegmentSizes")) {
+      throw py::value_error("Manually setting a 'resultSegmentSizes' or "
+                            "'operandSegmentSizes' attribute is unsupported. "
                             "Use Operation.create for such low-level access.");
     }
 
-    // Add result_segment_sizes attribute.
+    // Add resultSegmentSizes attribute.
     if (!resultSegmentLengths.empty()) {
       MlirAttribute segmentLengthAttr =
           mlirDenseI32ArrayGet(context->get(), resultSegmentLengths.size(),
                                resultSegmentLengths.data());
-      (*attributes)["result_segment_sizes"] =
+      (*attributes)["resultSegmentSizes"] =
           PyAttribute(context, segmentLengthAttr);
     }
 
-    // Add operand_segment_sizes attribute.
+    // Add operandSegmentSizes attribute.
     if (!operandSegmentLengths.empty()) {
       MlirAttribute segmentLengthAttr =
           mlirDenseI32ArrayGet(context->get(), operandSegmentLengths.size(),
                                operandSegmentLengths.data());
-      (*attributes)["operand_segment_sizes"] =
+      (*attributes)["operandSegmentSizes"] =
           PyAttribute(context, segmentLengthAttr);
     }
   }
@@ -2277,6 +2281,9 @@ public:
     c.def_property_readonly("types", [](PyOpResultList &self) {
       return getValueTypes(self, self.operation->getContext());
     });
+    c.def_property_readonly("owner", [](PyOpResultList &self) {
+      return self.operation->createOpView();
+    });
   }
 
 private:
@@ -2761,6 +2768,24 @@ void mlir::python::populateIRCore(py::module &m) {
                                return PyOpAttributeMap(
                                    self.getOperation().getRef());
                              })
+      .def_property_readonly(
+          "context",
+          [](PyOperationBase &self) {
+            PyOperation &concreteOperation = self.getOperation();
+            concreteOperation.checkValid();
+            return concreteOperation.getContext().getObject();
+          },
+          "Context that owns the Operation")
+      .def_property_readonly("name",
+                             [](PyOperationBase &self) {
+                               auto &concreteOperation = self.getOperation();
+                               concreteOperation.checkValid();
+                               MlirOperation operation =
+                                   concreteOperation.get();
+                               MlirStringRef name = mlirIdentifierStr(
+                                   mlirOperationGetName(operation));
+                               return py::str(name.data, name.length);
+                             })
       .def_property_readonly("operands",
                              [](PyOperationBase &self) {
                                return PyOpOperandList(
@@ -2806,6 +2831,14 @@ void mlir::python::populateIRCore(py::module &m) {
           },
           "Returns the source location the operation was defined or derived "
           "from.")
+      .def_property_readonly("parent",
+                             [](PyOperationBase &self) -> py::object {
+                               auto parent =
+                                   self.getOperation().getParentOperation();
+                               if (parent)
+                                 return parent->getObject();
+                               return py::none();
+                             })
       .def(
           "__str__",
           [](PyOperationBase &self) {
@@ -2849,6 +2882,12 @@ void mlir::python::populateIRCore(py::module &m) {
            "Puts self immediately before the other operation in its parent "
            "block.")
       .def(
+          "clone",
+          [](PyOperationBase &self, py::object ip) {
+            return self.getOperation().clone(ip);
+          },
+          py::arg("ip") = py::none())
+      .def(
           "detach_from_parent",
           [](PyOperationBase &self) {
             PyOperation &operation = self.getOperation();
@@ -2859,7 +2898,8 @@ void mlir::python::populateIRCore(py::module &m) {
             operation.detachFromParent();
             return operation.createOpView();
           },
-          "Detaches the operation from its parent block.");
+          "Detaches the operation from its parent block.")
+      .def("erase", [](PyOperationBase &self) { self.getOperation().erase(); });
 
   py::class_<PyOperation, PyOperationBase>(m, "Operation", py::module_local())
       .def_static("create", &PyOperation::create, py::arg("name"),
@@ -2880,45 +2920,17 @@ void mlir::python::populateIRCore(py::module &m) {
           py::arg("context") = py::none(),
           "Parses an operation. Supports both text assembly format and binary "
           "bytecode format.")
-      .def_property_readonly("parent",
-                             [](PyOperation &self) -> py::object {
-                               auto parent = self.getParentOperation();
-                               if (parent)
-                                 return parent->getObject();
-                               return py::none();
-                             })
-      .def("erase", &PyOperation::erase)
-      .def("clone", &PyOperation::clone, py::arg("ip") = py::none())
       .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR,
                              &PyOperation::getCapsule)
       .def(MLIR_PYTHON_CAPI_FACTORY_ATTR, &PyOperation::createFromCapsule)
-      .def_property_readonly("name",
-                             [](PyOperation &self) {
-                               self.checkValid();
-                               MlirOperation operation = self.get();
-                               MlirStringRef name = mlirIdentifierStr(
-                                   mlirOperationGetName(operation));
-                               return py::str(name.data, name.length);
-                             })
-      .def_property_readonly(
-          "context",
-          [](PyOperation &self) {
-            self.checkValid();
-            return self.getContext().getObject();
-          },
-          "Context that owns the Operation")
+      .def_property_readonly("operation", [](py::object self) { return self; })
       .def_property_readonly("opview", &PyOperation::createOpView);
 
   auto opViewClass =
       py::class_<PyOpView, PyOperationBase>(m, "OpView", py::module_local())
           .def(py::init<py::object>(), py::arg("operation"))
           .def_property_readonly("operation", &PyOpView::getOperationObject)
-          .def_property_readonly(
-              "context",
-              [](PyOpView &self) {
-                return self.getOperation().getContext().getObject();
-              },
-              "Context that owns the Operation")
+          .def_property_readonly("opview", [](py::object self) { return self; })
           .def("__str__", [](PyOpView &self) {
             return py::str(self.getOperationObject());
           });
@@ -3418,17 +3430,35 @@ void mlir::python::populateIRCore(py::module &m) {
           kValueDunderStrDocstring)
       .def(
           "get_name",
-          [](PyValue &self, bool useLocalScope) {
+          [](PyValue &self, std::optional<bool> useLocalScope,
+             std::optional<std::reference_wrapper<PyAsmState>> state) {
             PyPrintAccumulator printAccum;
-            MlirOpPrintingFlags flags = mlirOpPrintingFlagsCreate();
-            if (useLocalScope)
-              mlirOpPrintingFlagsUseLocalScope(flags);
-            mlirValuePrintAsOperand(self.get(), flags, printAccum.getCallback(),
+            MlirOpPrintingFlags flags;
+            MlirAsmState valueState;
+            // Use state if provided, else create a new state.
+            if (state) {
+              valueState = state.value().get().get();
+              // Don't allow setting using local scope and state at same time.
+              if (useLocalScope.has_value())
+                throw py::value_error(
+                    "setting AsmState and local scope together not supported");
+            } else {
+              flags = mlirOpPrintingFlagsCreate();
+              if (useLocalScope.value_or(false))
+                mlirOpPrintingFlagsUseLocalScope(flags);
+              valueState = mlirAsmStateCreateForValue(self.get(), flags);
+            }
+            mlirValuePrintAsOperand(self.get(), valueState, printAccum.getCallback(),
                                     printAccum.getUserData());
-            mlirOpPrintingFlagsDestroy(flags);
+            // Release state if allocated locally.
+            if (!state) {
+              mlirOpPrintingFlagsDestroy(flags);
+              mlirAsmStateDestroy(valueState);
+            }
             return printAccum.join();
           },
-          py::arg("use_local_scope") = false, kGetNameAsOperand)
+          py::arg("use_local_scope") = std::nullopt,
+          py::arg("state") = std::nullopt, kGetNameAsOperand)
       .def_property_readonly(
           "type", [](PyValue &self) { return mlirValueGetType(self.get()); })
       .def(
@@ -3446,6 +3476,12 @@ void mlir::python::populateIRCore(py::module &m) {
   PyBlockArgument::bind(m);
   PyOpResult::bind(m);
   PyOpOperand::bind(m);
+
+  py::class_<PyAsmState>(m, "AsmState", py::module_local())
+      .def(py::init<PyValue &, bool>(), py::arg("value"),
+           py::arg("use_local_scope") = false)
+      .def(py::init<PyOperationBase &, bool>(), py::arg("op"),
+           py::arg("use_local_scope") = false);
 
   //----------------------------------------------------------------------------
   // Mapping of SymbolTable.

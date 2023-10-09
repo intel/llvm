@@ -78,7 +78,7 @@ add_gen_header(
 )
 
 # TODO: This should be conditional on POSIX networking being included.
-file(MAKE_DIRECTORY "arpa")
+file(MAKE_DIRECTORY ${LIBC_INCLUDE_DIR}/arpa)
 
 add_gen_header(
   arpa_inet
@@ -280,7 +280,7 @@ add_gen_header(
 # TODO: Not all platforms will have a include/sys directory. Add the sys
 # directory and the targets for sys/*.h files conditional to the OS requiring
 # them.
-file(MAKE_DIRECTORY "sys")
+file(MAKE_DIRECTORY ${LIBC_INCLUDE_DIR}/sys)
 
 add_gen_header(
   sys_auxv
@@ -497,7 +497,7 @@ add_gen_header(
 )
 
 if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
-  file(MAKE_DIRECTORY "gpu")
+  file(MAKE_DIRECTORY ${LIBC_INCLUDE_DIR}/gpu)
 
   add_gen_header(
     gpu_rpc
@@ -540,7 +540,7 @@ foreach(target IN LISTS all_install_header_targets)
     message(FATAL_ERROR "Installable header file '${target}' does not have the "
                         "HEADER_FILE_PATH property set.")
   endif()
-  file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_BINARY_DIR} ${header_file})
+  file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_DIR} ${header_file})
   get_filename_component(nested_dir ${relative_path} DIRECTORY)
   install(FILES ${header_file}
           DESTINATION ${LIBC_INSTALL_INCLUDE_DIR}/${nested_dir}
@@ -554,7 +554,7 @@ foreach(target IN LISTS all_install_header_targets)
       continue()
     endif()
     get_clang_resource_dir(resource_dir SUBDIR include)
-    file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_BINARY_DIR} ${decls_file})
+    file(RELATIVE_PATH relative_path ${LIBC_INCLUDE_DIR} ${decls_file})
     get_filename_component(nested_dir ${relative_path} DIRECTORY)
     set(install_dir
         ${CMAKE_INSTALL_PREFIX}/${resource_dir}/llvm_libc_wrappers/${nested_dir})

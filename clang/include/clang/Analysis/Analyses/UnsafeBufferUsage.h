@@ -20,7 +20,26 @@
 
 namespace clang {
 
-using DefMapTy = llvm::DenseMap<const VarDecl *, std::vector<const VarDecl *>>;
+using VarGrpTy = std::vector<const VarDecl *>;
+using VarGrpRef = ArrayRef<const VarDecl *>;
+
+class VariableGroupsManager {
+public:
+  VariableGroupsManager() = default;
+  virtual ~VariableGroupsManager() = default;
+  /// Returns the set of variables (including `Var`) that need to be fixed
+  /// together in one step.
+  ///
+  /// `Var` must be a variable that needs fix (so it must be in a group).
+  /// `HasParm` is an optional argument that will be set to true if the set of
+  /// variables, where `Var` is in, contains parameters.
+  virtual VarGrpRef getGroupOfVar(const VarDecl *Var,
+                                  bool *HasParm = nullptr) const =0;
+
+  /// Returns the non-empty group of variables that include parameters of the
+  /// analyzing function, if such a group exists.  An empty group, otherwise.
+  virtual VarGrpRef getGroupOfParms() const =0;
+};
 
 /// The interface that lets the caller handle unsafe buffer usage analysis
 /// results by overriding this class's handle... methods.
@@ -50,11 +69,14 @@ public:
                                      bool IsRelatedToDecl) = 0;
 
   /// Invoked when a fix is suggested against a variable. This function groups
-  /// all variables that must be fixed together (i.e their types must be changed to the
-  /// same target type to prevent type mismatches) into a single fixit.
+  /// all variables that must be fixed together (i.e their types must be changed
+  /// to the same target type to prevent type mismatches) into a single fixit.
+  ///
+  /// `D` is the declaration of the callable under analysis that owns `Variable`
+  /// and all of its group mates.
   virtual void handleUnsafeVariableGroup(const VarDecl *Variable,
-                                         const DefMapTy &VarGrpMap,
-                                         FixItList &&Fixes) = 0;
+                                         const VariableGroupsManager &VarGrpMgr,
+                                         FixItList &&Fixes, const Decl *D) = 0;
 
 #ifndef NDEBUG
 public:

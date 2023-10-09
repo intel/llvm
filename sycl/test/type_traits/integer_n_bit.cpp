@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/boost/mp11/list.hpp>
 #include <sycl/sycl.hpp>
 
 namespace s = sycl;
@@ -16,14 +17,12 @@ template <bool... V> using bool_list = d::value_list<bool, V...>;
 
 template <template <typename> class T, typename TL, typename BL> struct check {
   void operator()() {
-    static_assert(T<d::head_t<TL>>::value == BL::head, "");
-    check<T, d::tail_t<TL>, d::tail_t<BL>>()();
+    static_assert(
+        std::is_same_v<d::boost::mp11::mp_rename_v<
+                           d::boost::mp11::mp_transform<T, TL>, bool_list>,
+                       BL>,
+        "");
   }
-};
-
-template <template <typename> class T>
-struct check<T, d::type_list<>, bool_list<>> {
-  void operator()() {}
 };
 
 using TypeList =

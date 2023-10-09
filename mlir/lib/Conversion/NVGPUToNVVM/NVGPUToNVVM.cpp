@@ -17,10 +17,19 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+
+#define DEBUG_TYPE "nvgpu-to-nvvm"
+#define DBGS() (llvm::dbgs() << '[' << DEBUG_TYPE << "] ")
+#define DBGSE() (llvm::dbgs())
 
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTNVGPUTONVVMPASS
@@ -28,6 +37,10 @@ namespace mlir {
 } // namespace mlir
 
 using namespace mlir;
+
+/// Number of bits that needs to excluded when building matrix descriptor for
+/// wgmma operations.
+constexpr int exclude4LSB = 4;
 
 /// GPU has 32 bit registers, this function truncates values when larger width
 /// is not needed.
@@ -206,6 +219,34 @@ static SmallVector<Value> unpackOperandVector(RewriterBase &rewriter,
   return result;
 }
 
+/// Returns whether mbarrier object has shared memory address space.
+static bool isMbarrierShared(nvgpu::MBarrierGroupType barrierType) {
+  return (mlir::nvgpu::NVGPUDialect::isSharedMemoryAddressSpace(
+      barrierType.getMemorySpace()));
+}
+
+/// Returns the memory space attribute of the mbarrier object.
+Attribute nvgpu::getMbarrierMemorySpace(MLIRContext *context,
+                                        nvgpu::MBarrierGroupType barrierType) {
+  Attribute memorySpace = {};
+  if (isMbarrierShared(barrierType)) {
+    memorySpace =
+        IntegerAttr::get(IntegerType::get(context, 64),
+                         nvgpu::NVGPUDialect::kSharedMemoryAddressSpace);
+  }
+  return memorySpace;
+}
+
+/// Returns memref type of the mbarrier object. The type is defined in the
+/// MBarrierGroupType.
+MemRefType nvgpu::getMBarrierMemrefType(MLIRContext *context,
+                                        nvgpu::MBarrierGroupType barrierType) {
+  Attribute memorySpace = nvgpu::getMbarrierMemorySpace(context, barrierType);
+  MemRefLayoutAttrInterface layout;
+  return MemRefType::get({barrierType.getNumBarriers()},
+                         IntegerType::get(context, 64), layout, memorySpace);
+}
+
 namespace {
 
 struct MmaLdMatrixOpToNVVM : public ConvertOpToLLVMPattern<nvgpu::LdMatrixOp> {
@@ -353,43 +394,6 @@ struct MmaSyncOptoNVVM : public ConvertOpToLLVMPattern<nvgpu::MmaSyncOp> {
   }
 };
 
-/// Returns whether mbarrier object has shared memory address space.
-static bool isMbarrierShared(nvgpu::MBarrierType barrierType) {
-  return (mlir::nvgpu::NVGPUDialect::isSharedMemoryAddressSpace(
-      barrierType.getMemorySpace()));
-}
-
-/// Returns whether memory space attribute of the mbarrier object.
-static Attribute getMbarrierMemorySpace(RewriterBase &rewriter,
-                                        nvgpu::MBarrierType barrierType) {
-  Attribute memorySpace = {};
-  if (isMbarrierShared(barrierType)) {
-    memorySpace = rewriter.getI64IntegerAttr(
-        nvgpu::NVGPUDialect::kSharedMemoryAddressSpace);
-  }
-  return memorySpace;
-}
-
-/// Returns memref type of the mbarrier object. The type is defined in the
-/// MBarrierType.
-static MemRefType createMBarrierMemrefType(RewriterBase &rewriter,
-                                           nvgpu::MBarrierType barrierType) {
-  Attribute memorySpace = getMbarrierMemorySpace(rewriter, barrierType);
-  MemRefLayoutAttrInterface layout;
-  return MemRefType::get({1}, rewriter.getI64Type(), layout, memorySpace);
-}
-
-/// Returns the base pointer of the mbarrier object.
-static Value getMbarrierPtr(ConversionPatternRewriter &rewriter,
-                            LLVMTypeConverter &typeConverter,
-                            TypedValue<nvgpu::MBarrierType> barrier,
-                            Value barrierMemref) {
-  MemRefType memrefType = createMBarrierMemrefType(rewriter, barrier.getType());
-  MemRefDescriptor memRefDescriptor(barrierMemref);
-  return memRefDescriptor.bufferPtr(rewriter, barrier.getLoc(), typeConverter,
-                                    memrefType);
-}
-
 struct ConvertNVGPUToNVVMPass
     : public impl::ConvertNVGPUToNVVMPassBase<ConvertNVGPUToNVVMPass> {
   using Base::Base;
@@ -411,11 +415,25 @@ struct ConvertNVGPUToNVVMPass
     converter.addConversion([&](nvgpu::DeviceAsyncTokenType type) -> Type {
       return converter.convertType(IntegerType::get(type.getContext(), 32));
     });
+    converter.addConversion([&](nvgpu::WarpgroupAccumulatorType type) -> Type {
+      VectorType vtype = type.getFragmented();
+      SmallVector<Type> structBody;
+      for (unsigned i = 0; i < vtype.getDimSize(0); i++)
+        structBody.push_back(vtype.getElementType());
+      auto convertedType =
+          LLVM::LLVMStructType::getLiteral(type.getContext(), structBody);
+      return converter.convertType(convertedType);
+    });
     converter.addConversion([&](nvgpu::MBarrierTokenType type) -> Type {
       return converter.convertType(IntegerType::get(type.getContext(), 64));
     });
-    converter.addConversion([&](nvgpu::MBarrierType type) -> Type {
-      return converter.convertType(createMBarrierMemrefType(rewriter, type));
+    converter.addConversion(
+        [&](nvgpu::WarpgroupMatrixDescriptorType type) -> Type {
+          return converter.convertType(IntegerType::get(type.getContext(), 64));
+        });
+    converter.addConversion([&](nvgpu::MBarrierGroupType type) -> Type {
+      return converter.convertType(
+          nvgpu::getMBarrierMemrefType(rewriter.getContext(), type));
     });
     converter.addConversion([&](nvgpu::TensorMapDescriptorType type) -> Type {
       return converter.getPointerType(type.getTensor().getElementType());
@@ -425,6 +443,8 @@ struct ConvertNVGPUToNVVMPass
     target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
     target.addLegalDialect<::mlir::memref::MemRefDialect>();
     target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+    mlir::scf::populateSCFStructuralTypeConversionsAndLegality(
+        converter, patterns, target);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       signalPassFailure();
@@ -748,8 +768,8 @@ struct NVGPUMBarrierCreateLowering
   matchAndRewrite(nvgpu::MBarrierCreateOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Operation *funcOp = op->getParentOp();
-    MemRefType barrierType =
-        createMBarrierMemrefType(rewriter, op.getBarrier().getType());
+    MemRefType barrierType = nvgpu::getMBarrierMemrefType(
+        rewriter.getContext(), op.getBarriers().getType());
 
     memref::GlobalOp global;
     if (auto moduleOp = funcOp->getParentOfType<gpu::GPUModuleOp>())
@@ -764,21 +784,37 @@ struct NVGPUMBarrierCreateLowering
   }
 };
 
+/// Base class for lowering mbarrier operations to nvvm intrinsics.
+template <typename SourceOp>
+struct MBarrierBasePattern : public ConvertOpToLLVMPattern<SourceOp> {
+public:
+  using ConvertOpToLLVMPattern<SourceOp>::ConvertOpToLLVMPattern;
+  /// Returns the base pointer of the mbarrier object.
+  Value getMbarrierPtr(Operation *op, nvgpu::MBarrierGroupType mbarType,
+                       Value memrefDesc, Value mbarId,
+                       ConversionPatternRewriter &rewriter) const {
+    MemRefType mbarrierMemrefType =
+        nvgpu::getMBarrierMemrefType(rewriter.getContext(), mbarType);
+    return ConvertToLLVMPattern::getStridedElementPtr(
+        op->getLoc(), mbarrierMemrefType, memrefDesc, {mbarId}, rewriter);
+    return memrefDesc;
+  }
+};
+
 /// Lowers `nvgpu.mbarrier.init` to `nvvm.mbarrier.init`
 struct NVGPUMBarrierInitLowering
-    : public ConvertOpToLLVMPattern<nvgpu::MBarrierInitOp> {
-  using ConvertOpToLLVMPattern<nvgpu::MBarrierInitOp>::ConvertOpToLLVMPattern;
+    : public MBarrierBasePattern<nvgpu::MBarrierInitOp> {
+  using MBarrierBasePattern<nvgpu::MBarrierInitOp>::MBarrierBasePattern;
 
   LogicalResult
   matchAndRewrite(nvgpu::MBarrierInitOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    nvgpu::MBarrierGroupType mbarrierType = op.getBarriers().getType();
     rewriter.setInsertionPoint(op);
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
-
+    Value barrier = getMbarrierPtr(op, mbarrierType, adaptor.getBarriers(),
+                                   adaptor.getMbarId(), rewriter);
     Value count = truncToI32(rewriter, op->getLoc(), adaptor.getCount());
-
-    if (isMbarrierShared(op.getBarrier().getType())) {
+    if (isMbarrierShared(mbarrierType)) {
       rewriter.replaceOpWithNewOp<NVVM::MBarrierInitSharedOp>(op, barrier,
                                                               count);
     } else {
@@ -790,16 +826,17 @@ struct NVGPUMBarrierInitLowering
 
 /// Lowers `nvgpu.mbarrier.arrive` to `nvvm.mbarrier.arrive`
 struct NVGPUMBarrierArriveLowering
-    : public ConvertOpToLLVMPattern<nvgpu::MBarrierArriveOp> {
-  using ConvertOpToLLVMPattern<nvgpu::MBarrierArriveOp>::ConvertOpToLLVMPattern;
+    : public MBarrierBasePattern<nvgpu::MBarrierArriveOp> {
+  using MBarrierBasePattern<nvgpu::MBarrierArriveOp>::MBarrierBasePattern;
   LogicalResult
   matchAndRewrite(nvgpu::MBarrierArriveOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
+    Value barrier =
+        getMbarrierPtr(op, op.getBarriers().getType(), adaptor.getBarriers(),
+                       adaptor.getMbarId(), rewriter);
     Type tokenType = getTypeConverter()->convertType(
         nvgpu::MBarrierTokenType::get(op->getContext()));
-    if (isMbarrierShared(op.getBarrier().getType())) {
+    if (isMbarrierShared(op.getBarriers().getType())) {
       rewriter.replaceOpWithNewOp<NVVM::MBarrierArriveSharedOp>(op, tokenType,
                                                                 barrier);
     } else {
@@ -813,19 +850,19 @@ struct NVGPUMBarrierArriveLowering
 /// Lowers `nvgpu.mbarrier.arrive.nocomplete` to
 /// `nvvm.mbarrier.arrive.nocomplete`
 struct NVGPUMBarrierArriveNoCompleteLowering
-    : public ConvertOpToLLVMPattern<nvgpu::MBarrierArriveNoCompleteOp> {
-  using ConvertOpToLLVMPattern<
-      nvgpu::MBarrierArriveNoCompleteOp>::ConvertOpToLLVMPattern;
-
+    : public MBarrierBasePattern<nvgpu::MBarrierArriveNoCompleteOp> {
+  using MBarrierBasePattern<
+      nvgpu::MBarrierArriveNoCompleteOp>::MBarrierBasePattern;
   LogicalResult
   matchAndRewrite(nvgpu::MBarrierArriveNoCompleteOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
+    Value barrier =
+        getMbarrierPtr(op, op.getBarriers().getType(), adaptor.getBarriers(),
+                       adaptor.getMbarId(), rewriter);
     Type tokenType = getTypeConverter()->convertType(
         nvgpu::MBarrierTokenType::get(op->getContext()));
     Value count = truncToI32(rewriter, op->getLoc(), adaptor.getCount());
-    if (isMbarrierShared(op.getBarrier().getType())) {
+    if (isMbarrierShared(op.getBarriers().getType())) {
       rewriter.replaceOpWithNewOp<NVVM::MBarrierArriveNocompleteSharedOp>(
           op, tokenType, barrier, count);
     } else {
@@ -838,17 +875,16 @@ struct NVGPUMBarrierArriveNoCompleteLowering
 
 /// Lowers `nvgpu.mbarrier.test.wait` to `nvvm.mbarrier.test.wait`
 struct NVGPUMBarrierTestWaitLowering
-    : public ConvertOpToLLVMPattern<nvgpu::MBarrierTestWaitOp> {
-  using ConvertOpToLLVMPattern<
-      nvgpu::MBarrierTestWaitOp>::ConvertOpToLLVMPattern;
-
+    : public MBarrierBasePattern<nvgpu::MBarrierTestWaitOp> {
+  using MBarrierBasePattern<nvgpu::MBarrierTestWaitOp>::MBarrierBasePattern;
   LogicalResult
   matchAndRewrite(nvgpu::MBarrierTestWaitOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
+    Value barrier =
+        getMbarrierPtr(op, op.getBarriers().getType(), adaptor.getBarriers(),
+                       adaptor.getMbarId(), rewriter);
     Type retType = rewriter.getI1Type();
-    if (isMbarrierShared(op.getBarrier().getType())) {
+    if (isMbarrierShared(op.getBarriers().getType())) {
       rewriter.replaceOpWithNewOp<NVVM::MBarrierTestWaitSharedOp>(
           op, retType, barrier, adaptor.getToken());
     } else {
@@ -860,18 +896,18 @@ struct NVGPUMBarrierTestWaitLowering
 };
 
 struct NVGPUMBarrierArriveExpectTxLowering
-    : public ConvertOpToLLVMPattern<nvgpu::MBarrierArriveExpectTxOp> {
-  using ConvertOpToLLVMPattern<
-      nvgpu::MBarrierArriveExpectTxOp>::ConvertOpToLLVMPattern;
-
+    : public MBarrierBasePattern<nvgpu::MBarrierArriveExpectTxOp> {
+  using MBarrierBasePattern<
+      nvgpu::MBarrierArriveExpectTxOp>::MBarrierBasePattern;
   LogicalResult
   matchAndRewrite(nvgpu::MBarrierArriveExpectTxOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
+    Value barrier =
+        getMbarrierPtr(op, op.getBarriers().getType(), adaptor.getBarriers(),
+                       adaptor.getMbarId(), rewriter);
     Value txcount = truncToI32(rewriter, op->getLoc(), adaptor.getTxcount());
 
-    if (isMbarrierShared(op.getBarrier().getType())) {
+    if (isMbarrierShared(op.getBarriers().getType())) {
       rewriter.replaceOpWithNewOp<NVVM::MBarrierArriveExpectTxSharedOp>(
           op, barrier, txcount);
       return success();
@@ -884,19 +920,19 @@ struct NVGPUMBarrierArriveExpectTxLowering
 };
 
 struct NVGPUMBarrierTryWaitParityLowering
-    : public ConvertOpToLLVMPattern<nvgpu::MBarrierTryWaitParityOp> {
-  using ConvertOpToLLVMPattern<
-      nvgpu::MBarrierTryWaitParityOp>::ConvertOpToLLVMPattern;
-
+    : public MBarrierBasePattern<nvgpu::MBarrierTryWaitParityOp> {
+  using MBarrierBasePattern<
+      nvgpu::MBarrierTryWaitParityOp>::MBarrierBasePattern;
   LogicalResult
   matchAndRewrite(nvgpu::MBarrierTryWaitParityOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
+    Value barrier =
+        getMbarrierPtr(op, op.getBarriers().getType(), adaptor.getBarriers(),
+                       adaptor.getMbarId(), rewriter);
     Value ticks = truncToI32(rewriter, op->getLoc(), adaptor.getTicks());
     Value phase = truncToI32(rewriter, op->getLoc(), adaptor.getPhase());
 
-    if (isMbarrierShared(op.getBarrier().getType())) {
+    if (isMbarrierShared(op.getBarriers().getType())) {
       rewriter.replaceOpWithNewOp<NVVM::MBarrierTryWaitParitySharedOp>(
           op, barrier, phase, ticks);
       return success();
@@ -909,16 +945,17 @@ struct NVGPUMBarrierTryWaitParityLowering
 };
 
 struct NVGPUTmaAsyncLoadOpLowering
-    : public ConvertOpToLLVMPattern<nvgpu::TmaAsyncLoadOp> {
-  using ConvertOpToLLVMPattern<nvgpu::TmaAsyncLoadOp>::ConvertOpToLLVMPattern;
+    : public MBarrierBasePattern<nvgpu::TmaAsyncLoadOp> {
+  using MBarrierBasePattern<nvgpu::TmaAsyncLoadOp>::MBarrierBasePattern;
   LogicalResult
   matchAndRewrite(nvgpu::TmaAsyncLoadOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto srcMemrefType = cast<MemRefType>(op.getDst().getType());
     Value dest = getStridedElementPtr(op->getLoc(), srcMemrefType,
                                       adaptor.getDst(), {}, rewriter);
-    Value barrier = getMbarrierPtr(rewriter, *getTypeConverter(),
-                                   op.getBarrier(), adaptor.getBarrier());
+    Value barrier =
+        getMbarrierPtr(op, op.getBarriers().getType(), adaptor.getBarriers(),
+                       adaptor.getMbarId(), rewriter);
 
     SmallVector<Value> coords = adaptor.getCoordinates();
     for (auto [index, value] : llvm::enumerate(coords)) {
@@ -927,6 +964,88 @@ struct NVGPUTmaAsyncLoadOpLowering
 
     rewriter.replaceOpWithNewOp<NVVM::CpAsyncBulkTensorGlobalToSharedClusterOp>(
         op, dest, adaptor.getTensorMapDescriptor(), barrier, coords);
+    return success();
+  }
+};
+struct NVGPUGenerateGmmaDescriptorLowering
+    : public ConvertOpToLLVMPattern<nvgpu::GenerateGmmaDescriptorOp> {
+  using ConvertOpToLLVMPattern<
+      nvgpu::GenerateGmmaDescriptorOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(nvgpu::GenerateGmmaDescriptorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+
+    nvgpu::TensorMapSwizzleKind swizzleKind =
+        op.getTensorMap().getType().getSwizzle();
+
+    unsigned layout =
+        (swizzleKind == nvgpu::TensorMapSwizzleKind::SWIZZLE_128B)  ? 128
+        : (swizzleKind == nvgpu::TensorMapSwizzleKind::SWIZZLE_64B) ? 64
+        : (swizzleKind == nvgpu::TensorMapSwizzleKind::SWIZZLE_32B) ? 32
+                                                                    : 1;
+    unsigned swizzle =
+        (swizzleKind == nvgpu::TensorMapSwizzleKind::SWIZZLE_128B)  ? 1
+        : (swizzleKind == nvgpu::TensorMapSwizzleKind::SWIZZLE_64B) ? 2
+        : (swizzleKind == nvgpu::TensorMapSwizzleKind::SWIZZLE_32B) ? 3
+                                                                    : 0;
+
+    auto ti64 = rewriter.getIntegerType(64);
+    auto makeConst = [&](uint64_t index) -> Value {
+      return rewriter.create<LLVM::ConstantOp>(
+          loc, ti64, rewriter.getI64IntegerAttr(index));
+    };
+    auto shiftLeft = [&](Value value, unsigned shift) -> Value {
+      return rewriter.create<LLVM::ShlOp>(loc, ti64, value, makeConst(shift));
+    };
+    auto shiftRight = [&](Value value, unsigned shift) -> Value {
+      return rewriter.create<LLVM::LShrOp>(loc, ti64, value, makeConst(shift));
+    };
+    auto insertBit = [&](Value desc, Value val, int startBit) {
+      return rewriter.create<LLVM::OrOp>(loc, ti64, desc,
+                                         shiftLeft(val, startBit));
+    };
+
+    int64_t sizeN = op.getTensorMap().getType().getTensor().getDimSize(0);
+    uint64_t strideDimVal = (layout << 3) >> exclude4LSB;
+    uint64_t leadDimVal = (sizeN * layout) >> exclude4LSB;
+    uint64_t offsetVal = 0;
+
+    Value strideDim = makeConst(strideDimVal);
+    Value leadDim = makeConst(leadDimVal);
+
+    Value baseAddr = getStridedElementPtr(
+        op->getLoc(), cast<MemRefType>(op.getTensor().getType()),
+        adaptor.getTensor(), {}, rewriter);
+    Value basePtr = rewriter.create<LLVM::PtrToIntOp>(loc, ti64, baseAddr);
+    // Just use 14 bits for base address
+    Value basePtr14bit = shiftRight(shiftLeft(basePtr, 46), 50);
+
+    int startSwizzleBit = 62, startOffsetBit = 49, startStrideBit = 32,
+        startLeadBit = 16, startBaseAddrBit = 0;
+    Value dsc = makeConst(0);
+    // // [62,64)  swizzle type
+    dsc = insertBit(dsc, makeConst(swizzle), startSwizzleBit);
+    // // [49,52)  base_offset
+    dsc = insertBit(dsc, makeConst(offsetVal), startOffsetBit);
+    // // [32,46)  stride
+    dsc = insertBit(dsc, strideDim, startStrideBit);
+    // // [16,30)  leading dimension
+    dsc = insertBit(dsc, leadDim, startLeadBit);
+    // // [0,14)   start_address
+    dsc = insertBit(dsc, basePtr14bit, startBaseAddrBit);
+
+    LLVM_DEBUG(DBGS() << "Generating wgmma.descriptor: "
+                      << "leading_off:" << leadDimVal << "\t"
+                      << "stride_off :" << strideDimVal << "\t"
+                      << "base_offset:" << offsetVal << "\t"
+                      << "layout_type:" << swizzle << " ("
+                      << nvgpu::stringifyTensorMapSwizzleKind(swizzleKind)
+                      << ")\n start_addr :  " << baseAddr << "\n");
+
+    rewriter.replaceOp(op, dsc);
     return success();
   }
 };
@@ -1045,6 +1164,148 @@ struct NVGPUTmaCreateDescriptorOpLowering
   }
 };
 
+struct NVGPUWarpgroupMmaOpLowering
+    : public ConvertOpToLLVMPattern<nvgpu::WarpgroupMmaOp> {
+  using ConvertOpToLLVMPattern<nvgpu::WarpgroupMmaOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult getWgmmaShape(int64_t sizeM, int64_t sizeN, Type inputElemType,
+                              int &wgmmaShapeM, int &wgmmaShapeN,
+                              int &wgmmaShapeK) const {
+    wgmmaShapeM = 64;
+    wgmmaShapeN = sizeN;
+    if (inputElemType.isTF32()) {
+      wgmmaShapeK = 8;
+    } else if (inputElemType.isF16() || inputElemType.isBF16()) {
+      wgmmaShapeK = 16;
+    } else if (inputElemType.isFloat8E4M3FN() || inputElemType.isFloat8E5M2() ||
+               inputElemType.isInteger(16)) {
+      wgmmaShapeK = 32;
+    } else if (inputElemType.isInteger(1)) {
+      wgmmaShapeK = 256;
+    } else {
+      llvm_unreachable("msg: not supported K shape");
+    }
+    LLVM_DEBUG(DBGS() << "Generating wgmma.mma.async shape[m = " << wgmmaShapeM
+                      << ", n = " << wgmmaShapeN << ", k = " << wgmmaShapeK
+                      << "]\n");
+    return success();
+  }
+
+  Value generateNVVMWgmmaOp(MLIRContext *ctx,
+                            ConversionPatternRewriter &rewriter, Location loc,
+                            int m, int n, int k, Type resultStructType,
+                            Value inout, Value descriptorA,
+                            Value descriptorB) const {
+    auto shape = NVVM::MMAShapeAttr::get(ctx, m, n, k);
+    auto scaleOut = NVVM::WGMMAScaleOutAttr::get(ctx, NVVM::WGMMAScaleOut::one);
+    auto scaleIn = NVVM::WGMMAScaleInAttr::get(ctx, NVVM::WGMMAScaleIn::one);
+    auto layoutA = NVVM::MMALayoutAttr::get(ctx, NVVM::MMALayout::row);
+    auto layoutB = NVVM::MMALayoutAttr::get(ctx, NVVM::MMALayout::col);
+    // todo: handle other input and output types
+    auto itype = NVVM::WGMMATypesAttr::get(ctx, NVVM::WGMMATypes::f16);
+    auto overflow =
+        NVVM::MMAIntOverflowAttr::get(ctx, NVVM::MMAIntOverflow::wrapped);
+    Value res = rewriter.create<NVVM::WgmmaMmaAsyncOp>(
+        loc, resultStructType, inout, descriptorA, descriptorB, shape, itype,
+        itype, scaleOut, scaleIn, scaleIn, layoutA, layoutB, overflow);
+    return res;
+  }
+
+  LogicalResult
+  matchAndRewrite(nvgpu::WarpgroupMmaOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    int64_t sizeM = op.getDescriptorA().getType().getTensor().getDimSize(0);
+    int64_t sizeN = op.getDescriptorB().getType().getTensor().getDimSize(1);
+    int64_t sizeK = op.getDescriptorA().getType().getTensor().getDimSize(1);
+
+    LLVM_DEBUG(DBGS() << "===--- GEMM D[" << sizeM << "][" << sizeN << "] += A["
+                      << sizeM << "][" << sizeK << "] * B[" << sizeK << "]["
+                      << sizeN << "] ---===\n");
+
+    int wgmmaShapeM, wgmmaShapeN, wgmmaShapeK;
+    if (failed(getWgmmaShape(sizeM, sizeN, rewriter.getF16Type(), wgmmaShapeM,
+                             wgmmaShapeN, wgmmaShapeK))) {
+      return failure();
+    }
+
+    Value descriptorA = adaptor.getDescriptorA();
+    Value descriptorB = adaptor.getDescriptorB();
+
+    //  Generate wgmma group
+
+    auto loc = op->getLoc();
+    MemRefType typeTensorA = op.getDescriptorA().getType().getTensor();
+    MemRefType typeTensorB = op.getDescriptorB().getType().getTensor();
+
+    auto makeAdd = [&](Value lhs, Value rhs) -> Value {
+      return rewriter.create<LLVM::AddOp>(loc, lhs.getType(), lhs, rhs);
+    };
+
+    auto iterateDescA = [&](Value desc, int iterM, int iterN,
+                            int iterK) -> Value {
+      // todo : Handle column major
+      int byte = typeTensorA.getElementTypeBitWidth() / 8;
+      int tileShapeA = typeTensorA.getDimSize(1);
+      int incrementVal =
+          ((wgmmaShapeK * iterK) + (sizeK * tileShapeA * iterM)) * byte;
+      incrementVal = incrementVal >> exclude4LSB;
+      LLVM_DEBUG(DBGS() << "\t\t[m: " << iterM << " n: " << iterN << " k: "
+                        << iterK << "] [wgmma descriptors] Descriptor A + "
+                        << incrementVal << " | \t ");
+      if (!incrementVal)
+        return desc;
+      return makeAdd(desc, makeI64Const(rewriter, op, incrementVal));
+    };
+
+    auto iterateDescB = [&](Value desc, int iterM, int iterN,
+                            int iterK) -> Value {
+      // todo : Handle row major
+      int byte = typeTensorB.getElementTypeBitWidth() / 8;
+      int incrementVal = typeTensorB.getDimSize(0) * wgmmaShapeK * iterK * byte;
+      incrementVal = incrementVal >> exclude4LSB;
+      LLVM_DEBUG(DBGSE() << "Descriptor B + " << incrementVal << "\n");
+      if (!incrementVal)
+        return desc;
+      return makeAdd(desc, makeI64Const(rewriter, op, incrementVal));
+    };
+
+    rewriter.create<NVVM::WgmmaFenceAlignedOp>(loc);
+
+    SmallVector<Value> wgmmaResults;
+    for (int iterM = 0; iterM < (sizeM / wgmmaShapeM); iterM++) {
+      Value matrixC = adaptor.getMatrixC()[iterM];
+      Value matrixD = op.getMatrixD()[iterM];
+      Type structType = getTypeConverter()->convertType(matrixD.getType());
+      LLVM_DEBUG(DBGS() << " D[" << (iterM * wgmmaShapeM) << ":"
+                        << (iterM * wgmmaShapeM) + wgmmaShapeM << "][" << 0
+                        << ":" << wgmmaShapeN << "] += \n");
+      for (int iterK = 0; iterK < (sizeK / wgmmaShapeK); iterK++) {
+        Value descA = iterateDescA(descriptorA, iterM, 0, iterK);
+        Value descB = iterateDescB(descriptorB, iterM, 0, iterK);
+        LLVM_DEBUG(DBGS() << "\t wgmma."
+                          << "m" << wgmmaShapeM << "n" << wgmmaShapeN << "k"
+                          << wgmmaShapeK << "(A[" << (iterM * wgmmaShapeM)
+                          << ":" << (iterM * wgmmaShapeM) + wgmmaShapeM << "]["
+                          << (iterK * wgmmaShapeK) << ":"
+                          << (iterK * wgmmaShapeK + wgmmaShapeK) << "] * "
+                          << " B[" << (iterK * wgmmaShapeK) << ":"
+                          << (iterK * wgmmaShapeK + wgmmaShapeK) << "][" << 0
+                          << ":" << wgmmaShapeN << "])\n");
+        matrixC = generateNVVMWgmmaOp(op->getContext(), rewriter, loc,
+                                      wgmmaShapeM, wgmmaShapeN, wgmmaShapeK,
+                                      structType, matrixC, descA, descB);
+      }
+      wgmmaResults.push_back(matrixC);
+    }
+    rewriter.create<NVVM::WgmmaGroupSyncAlignedOp>(loc);
+    rewriter.create<NVVM::WgmmaWaitGroupSyncOp>(loc, op.getWaitGroup());
+
+    ValueRange myres(wgmmaResults);
+    rewriter.replaceOp(op, myres);
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::populateNVGPUToNVVMConversionPatterns(LLVMTypeConverter &converter,
@@ -1059,7 +1320,8 @@ void mlir::populateNVGPUToNVVMConversionPatterns(LLVMTypeConverter &converter,
       NVGPUTmaAsyncLoadOpLowering,           // nvgpu.tma.async.load
       NVGPUTmaCreateDescriptorOpLowering,    // nvgpu.tma.create.descriptor
       NVGPUMBarrierArriveExpectTxLowering,   // nvgpu.mbarrier.arrive.expect_tx
-      NVGPUTmaAsyncLoadOpLowering,           // nvgpu.tma.async.load
+      NVGPUGenerateGmmaDescriptorLowering,   // nvgpu.wgmma.generate.descriptor
+      NVGPUWarpgroupMmaOpLowering,           // nvgpu.warpgroup.mma
       MmaSyncOptoNVVM, MmaLdMatrixOpToNVVM, NVGPUAsyncCopyLowering,
       NVGPUAsyncCreateGroupLowering, NVGPUAsyncWaitLowering,
       NVGPUMmaSparseSyncLowering>(converter);

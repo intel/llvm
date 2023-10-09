@@ -1,10 +1,6 @@
+// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-// UNSUPPORTED: esimd_emulator
-
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().
 

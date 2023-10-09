@@ -23,7 +23,6 @@
 #include "lldb/Core/SearchFilter.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Core/SourceManager.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
@@ -34,6 +33,7 @@
 #include "lldb/Expression/UtilityFunction.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/PosixApi.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionGroupWatchpoint.h"
@@ -860,7 +860,8 @@ WatchpointSP Target::CreateWatchpoint(lldb::addr_t addr, size_t size,
     size_t old_size = matched_sp->GetByteSize();
     uint32_t old_type =
         (matched_sp->WatchpointRead() ? LLDB_WATCH_TYPE_READ : 0) |
-        (matched_sp->WatchpointWrite() ? LLDB_WATCH_TYPE_WRITE : 0);
+        (matched_sp->WatchpointWrite() ? LLDB_WATCH_TYPE_WRITE : 0) |
+        (matched_sp->WatchpointModify() ? LLDB_WATCH_TYPE_MODIFY : 0);
     // Return the existing watchpoint if both size and type match.
     if (size == old_size && kind == old_type) {
       wp_sp = matched_sp;
@@ -1813,7 +1814,7 @@ size_t Target::ReadMemory(const Address &addr, void *dst, size_t dst_len,
     } else {
       // We have at least one section loaded. This can be because we have
       // manually loaded some sections with "target modules load ..." or
-      // because we have have a live process that has sections loaded through
+      // because we have a live process that has sections loaded through
       // the dynamic loader
       load_addr =
           fixed_addr.GetOffset(); // "fixed_addr" doesn't have a section, so
@@ -2096,7 +2097,7 @@ bool Target::ReadPointerFromMemory(const Address &addr, Status &error,
       } else {
         // We have at least one section loaded. This can be because we have
         // manually loaded some sections with "target modules load ..." or
-        // because we have have a live process that has sections loaded through
+        // because we have a live process that has sections loaded through
         // the dynamic loader
         section_load_list.ResolveLoadAddress(pointer_vm_addr, pointer_addr);
       }
@@ -3859,11 +3860,10 @@ void Target::StopHookScripted::GetSubclassDescription(
   s.Indent("Args:\n");
   s.SetIndentLevel(s.GetIndentLevel() + 4);
 
-  auto print_one_element = [&s](ConstString key,
+  auto print_one_element = [&s](llvm::StringRef key,
                                 StructuredData::Object *object) {
     s.Indent();
-    s.Printf("%s : %s\n", key.GetCString(),
-              object->GetStringValue().str().c_str());
+    s.Format("{0} : {1}\n", key, object->GetStringValue());
     return true;
   };
 
@@ -4062,7 +4062,7 @@ enum {
 class TargetOptionValueProperties
     : public Cloneable<TargetOptionValueProperties, OptionValueProperties> {
 public:
-  TargetOptionValueProperties(ConstString name) : Cloneable(name) {}
+  TargetOptionValueProperties(llvm::StringRef name) : Cloneable(name) {}
 
   const Property *
   GetPropertyAtIndex(size_t idx,
@@ -4098,7 +4098,7 @@ class TargetExperimentalOptionValueProperties
                        OptionValueProperties> {
 public:
   TargetExperimentalOptionValueProperties()
-      : Cloneable(ConstString(Properties::GetExperimentalSettingsName())) {}
+      : Cloneable(Properties::GetExperimentalSettingsName()) {}
 };
 
 TargetExperimentalProperties::TargetExperimentalProperties()
@@ -4152,8 +4152,7 @@ TargetProperties::TargetProperties(Target *target)
         "errors if the setting is not present.",
         true, m_experimental_properties_up->GetValueProperties());
   } else {
-    m_collection_sp =
-        std::make_shared<TargetOptionValueProperties>(ConstString("target"));
+    m_collection_sp = std::make_shared<TargetOptionValueProperties>("target");
     m_collection_sp->Initialize(g_target_properties);
     m_experimental_properties_up =
         std::make_unique<TargetExperimentalProperties>();
@@ -4238,8 +4237,8 @@ bool TargetProperties::SetPreferDynamicValue(lldb::DynamicValueType d) {
 }
 
 bool TargetProperties::GetPreloadSymbols() const {
-  if (INTERRUPT_REQUESTED(m_target->GetDebugger(), 
-      "Interrupted checking preload symbols")) {
+  if (INTERRUPT_REQUESTED(m_target->GetDebugger(),
+                          "Interrupted checking preload symbols")) {
     return false;
   }
   const uint32_t idx = ePropertyPreloadSymbols;
@@ -4537,6 +4536,12 @@ void TargetProperties::CheckJITObjectsDir() {
 
 bool TargetProperties::GetEnableSyntheticValue() const {
   const uint32_t idx = ePropertyEnableSynthetic;
+  return GetPropertyAtIndexAs<bool>(
+      idx, g_target_properties[idx].default_uint_value != 0);
+}
+
+bool TargetProperties::ShowHexVariableValuesWithLeadingZeroes() const {
+  const uint32_t idx = ePropertyShowHexVariableValuesWithLeadingZeroes;
   return GetPropertyAtIndexAs<bool>(
       idx, g_target_properties[idx].default_uint_value != 0);
 }

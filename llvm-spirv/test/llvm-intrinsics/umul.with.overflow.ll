@@ -16,7 +16,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, i8* nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z4foo8hhPh(i8 zeroext %a, i8 zeroext %b, ptr nocapture %c) local_unnamed_addr #0 {
 entry:
   ; CHECK-LLVM: call { i8, i1 } @llvm.umul.with.overflow.i8
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_8]]
@@ -24,7 +24,7 @@ entry:
   %cmp = extractvalue { i8, i1 } %umul, 1
   %umul.value = extractvalue { i8, i1 } %umul, 0
   %storemerge = select i1 %cmp, i8 0, i8 %umul.value
-  store i8 %storemerge, i8* %c, align 1, !tbaa !2
+  store i8 %storemerge, ptr %c, align 1, !tbaa !2
   ret void
 }
 
@@ -39,7 +39,7 @@ entry:
 ; CHECK-SPIRV: ReturnValue [[INSERT_RES_1]]
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, i32* nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z5foo32jjPj(i32 %a, i32 %b, ptr nocapture %c) local_unnamed_addr #0 {
 entry:
   ; CHECK-LLVM: call { i32, i1 } @llvm.umul.with.overflow.i32
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_32]]
@@ -47,12 +47,12 @@ entry:
   %umul.val = extractvalue { i32, i1 } %umul, 0
   %umul.ov = extractvalue { i32, i1 } %umul, 1
   %spec.select = select i1 %umul.ov, i32 0, i32 %umul.val
-  store i32 %spec.select, i32* %c, align 4, !tbaa !5
+  store i32 %spec.select, ptr %c, align 4, !tbaa !5
   ret void
 }
 
 ; Function Attrs: nofree nounwind writeonly
-define dso_local spir_func void @umulo_v2i64(<2 x i64> %a, <2 x i64> %b, <2 x i64>* %p) nounwind {
+define dso_local spir_func void @umulo_v2i64(<2 x i64> %a, <2 x i64> %b, ptr %p) nounwind {
   ; CHECK-LLVM: call { <2 x i64>, <2 x i1> } @llvm.umul.with.overflow.v2i64
   ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[NAME_UMUL_FUNC_VEC_I64]]
   %umul = call {<2 x i64>, <2 x i1>} @llvm.umul.with.overflow.v2i64(<2 x i64> %a, <2 x i64> %b)
@@ -60,7 +60,7 @@ define dso_local spir_func void @umulo_v2i64(<2 x i64> %a, <2 x i64> %b, <2 x i6
   %umul.ov = extractvalue {<2 x i64>, <2 x i1>} %umul, 1
   %zero = alloca <2 x i64>, align 16
   %spec.select = select <2 x i1> %umul.ov, <2 x i64> <i64 0, i64 0>, <2 x i64> %umul.val
-  store <2 x i64> %spec.select, <2 x i64>* %p
+  store <2 x i64> %spec.select, ptr %p
   ret void
 }
 
