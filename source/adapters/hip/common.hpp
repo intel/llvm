@@ -9,6 +9,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#ifdef SYCL_ENABLE_KERNEL_FUSION
+#include <amd_comgr/amd_comgr.h>
+#endif
 #include <hip/hip_runtime.h>
 #include <ur/ur.hpp>
 
@@ -69,6 +72,10 @@ typedef hipArray *hipCUarray;
 
 ur_result_t mapErrorUR(hipError_t Result);
 
+#ifdef SYCL_ENABLE_KERNEL_FUSION
+void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
+                  const char *File);
+#endif
 void checkErrorUR(hipError_t Result, const char *Function, int Line,
                   const char *File);
 void checkErrorUR(ur_result_t Result, const char *Function, int Line,

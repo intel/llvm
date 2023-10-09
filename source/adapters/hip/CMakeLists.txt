@@ -18,7 +18,7 @@ set(UR_HIP_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/include")
 set(UR_HIP_HSA_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/hsa/include")
 
 # Set HIP lib dir
-set(UR_HIP_LIB_DIR "${UR_HIP_ROCM_DIR}/hip/lib")
+set(UR_HIP_LIB_DIR "${UR_HIP_ROCM_DIR}/lib")
 
 # Check if HIP library path exists (AMD platform only)
 if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
@@ -98,6 +98,18 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
         INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
         INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
     )
+
+    if(UR_ENABLE_COMGR)
+        add_library(amd_comgr SHARED IMPORTED GLOBAL)
+        set_target_properties(
+        amd_comgr PROPERTIES
+            IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamd_comgr.so"
+            INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+        )
+        target_link_libraries(pi_hip PUBLIC amd_comgr)
+        target_compile_definitions(pi_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
+    endif(UR_ENABLE_COMGR)
 
     target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers

@@ -10,6 +10,70 @@
 
 #include "program.hpp"
 
+#ifdef SYCL_ENABLE_KERNEL_FUSION
+#include <amd_comgr/amd_comgr.h>
+namespace {
+template <typename ReleaseType, ReleaseType Release, typename T>
+struct COMgrObjCleanUp {
+  COMgrObjCleanUp(T Obj) : Obj{Obj} {}
+  ~COMgrObjCleanUp() { Release(Obj); }
+  T Obj;
+};
+
+using COMgrDataTCleanUp =
+    COMgrObjCleanUp<decltype(&amd_comgr_release_data), &amd_comgr_release_data,
+                    amd_comgr_data_t>;
+using COMgrDataSetTCleanUp =
+    COMgrObjCleanUp<decltype(&amd_comgr_destroy_data_set),
+                    &amd_comgr_destroy_data_set, amd_comgr_data_set_t>;
+using COMgrActionInfoCleanUp =
+    COMgrObjCleanUp<decltype(&amd_comgr_destroy_action_info),
+                    &amd_comgr_destroy_action_info, amd_comgr_action_info_t>;
+
+void getCoMgrBuildLog(const amd_comgr_data_set_t BuildDataSet, char *BuildLog,
+                      size_t MaxLogSize) {
+  size_t count = 0;
+  amd_comgr_status_t status = amd_comgr_action_data_count(
+      BuildDataSet, AMD_COMGR_DATA_KIND_LOG, &count);
+
+  if (status != AMD_COMGR_STATUS_SUCCESS || count == 0) {
+    std::strcpy(BuildLog, "extracting build log failed (no log).");
+    return;
+  }
+
+  amd_comgr_data_t LogBinaryData;
+
+  if (amd_comgr_action_data_get_data(BuildDataSet, AMD_COMGR_DATA_KIND_LOG, 0,
+                                     &LogBinaryData) !=
+      AMD_COMGR_STATUS_SUCCESS) {
+    std::strcpy(BuildLog, "extracting build log failed (no data).");
+    return;
+  }
+  COMgrDataTCleanUp LogDataCleanup{LogBinaryData};
+
+  size_t binarySize = 0;
+  if (amd_comgr_get_data(LogBinaryData, &binarySize, NULL) !=
+      AMD_COMGR_STATUS_SUCCESS) {
+    std::strcpy(BuildLog, "extracting build log failed (no log size).");
+    return;
+  }
+
+  if (binarySize == 0) {
+    std::strcpy(BuildLog, "no log.");
+    return;
+  }
+
+  size_t bufSize = binarySize < MaxLogSize ? binarySize : MaxLogSize;
+
+  if (amd_comgr_get_data(LogBinaryData, &bufSize, BuildLog) !=
+      AMD_COMGR_STATUS_SUCCESS) {
+    std::strcpy(BuildLog, "extracting build log failed (cannot copy log).");
+    return;
+  }
+}
+} // namespace
+#endif
+
 ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Ctxt)
     : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1}, Context{
                                                                         Ctxt} {
@@ -17,6 +81,22 @@ ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Ctxt)
 }
 
 ur_program_handle_t_::~ur_program_handle_t_() { urContextRelease(Context); }
+
+ur_result_t
+ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
+                                  size_t Length) {
+  for (size_t i = 0; i < Length; ++i) {
+    const ur_program_metadata_t MetadataElement = Metadata[i];
+    std::string MetadataElementName{MetadataElement.pName};
+
+    if (MetadataElementName ==
+        __SYCL_UR_PROGRAM_METADATA_TAG_NEED_FINALIZATION) {
+      assert(MetadataElement.type == UR_PROGRAM_METADATA_TYPE_UINT32);
+      IsRelocatable = MetadataElement.value.data32;
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
 
 ur_result_t ur_program_handle_t_::setBinary(const char *Source, size_t Length) {
   // Do not re-set program binary data which has already been set as that will
@@ -28,7 +108,80 @@ ur_result_t ur_program_handle_t_::setBinary(const char *Source, size_t Length) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_program_handle_t_::finalizeRelocatable() {
+#ifndef SYCL_ENABLE_KERNEL_FUSION
+  assert(false && "Relocation only available with fusion");
+  return UR_RESULT_ERROR_UNKNOWN;
+#else
+  assert(IsRelocatable && "Not a relocatable input");
+  amd_comgr_data_t ComgrData;
+  amd_comgr_data_set_t RelocatableData;
+  UR_CHECK_ERROR(amd_comgr_create_data_set(&RelocatableData));
+  COMgrDataSetTCleanUp RelocatableDataCleanup{RelocatableData};
+
+  UR_CHECK_ERROR(
+      amd_comgr_create_data(AMD_COMGR_DATA_KIND_RELOCATABLE, &ComgrData));
+  // RAII for auto clean-up
+  COMgrDataTCleanUp DataCleanup{ComgrData};
+  UR_CHECK_ERROR(amd_comgr_set_data(ComgrData, BinarySizeInBytes, Binary));
+  UR_CHECK_ERROR(amd_comgr_set_data_name(ComgrData, "jit_obj.o"));
+
+  UR_CHECK_ERROR(amd_comgr_data_set_add(RelocatableData, ComgrData));
+
+  amd_comgr_action_info_t Action;
+
+  UR_CHECK_ERROR(amd_comgr_create_action_info(&Action));
+  COMgrActionInfoCleanUp ActionCleanUp{Action};
+
+  std::string ISA = "amdgcn-amd-amdhsa--";
+  hipDeviceProp_t Props;
+  detail::ur::assertion(hipGetDeviceProperties(
+                            &Props, Context->getDevice()->get()) == hipSuccess);
+  ISA += Props.gcnArchName;
+  UR_CHECK_ERROR(amd_comgr_action_info_set_isa_name(Action, ISA.data()));
+
+  UR_CHECK_ERROR(amd_comgr_action_info_set_logging(Action, true));
+
+  amd_comgr_data_set_t Output;
+  UR_CHECK_ERROR(amd_comgr_create_data_set(&Output));
+  COMgrDataSetTCleanUp OutputDataCleanup{Output};
+
+  if (amd_comgr_do_action(AMD_COMGR_ACTION_LINK_RELOCATABLE_TO_EXECUTABLE,
+                          Action, RelocatableData,
+                          Output) != AMD_COMGR_STATUS_SUCCESS) {
+    getCoMgrBuildLog(Output, ErrorLog, MAX_LOG_SIZE);
+    return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
+  }
+  amd_comgr_data_t binaryData;
+
+  UR_CHECK_ERROR(amd_comgr_action_data_get_data(
+      Output, AMD_COMGR_DATA_KIND_EXECUTABLE, 0, &binaryData));
+  {
+    COMgrDataTCleanUp binaryDataCleanUp{binaryData};
+
+    size_t binarySize = 0;
+    UR_CHECK_ERROR(amd_comgr_get_data(binaryData, &binarySize, NULL));
+
+    ExecutableCache.resize(binarySize);
+
+    UR_CHECK_ERROR(
+        amd_comgr_get_data(binaryData, &binarySize, ExecutableCache.data()));
+  }
+  Binary = ExecutableCache.data();
+  BinarySizeInBytes = ExecutableCache.size();
+  return UR_RESULT_SUCCESS;
+#endif
+}
+
 ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
+  if (IsRelocatable) {
+    if (finalizeRelocatable() != UR_RESULT_SUCCESS) {
+      BuildStatus = UR_PROGRAM_BUILD_STATUS_ERROR;
+      return UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE;
+    }
+    IsRelocatable = false;
+  }
+
   if (BuildOptions) {
     this->BuildOptions = BuildOptions;
   }
@@ -246,7 +399,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// Note: Only supports one device
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *,
+    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
   UR_ASSERT(pBinary != nullptr && size != 0, UR_RESULT_ERROR_INVALID_BINARY);
   UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
@@ -259,6 +412,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 
   // TODO: Set metadata here and use reqd_work_group_size information.
   // See urProgramCreateWithBinary in CUDA adapter.
+  if (pProperties) {
+    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    Result =
+        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count);
+  }
+  UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
 
   auto pBinary_string = reinterpret_cast<const char *>(pBinary);
   if (size == 0) {

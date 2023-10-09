@@ -49,6 +49,7 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 #define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
   "@reqd_work_group_size"
 #define __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
+#define __SYCL_UR_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
