@@ -28,7 +28,7 @@ Our preference is to upstream this support also because we think it is generally
 
 ### Mechanism for integrating the host and device code
 
-One central problem that must be solved with a multi-pass compiler design is to logically connect the host and device code, which are separately compiled.  Our current strategy is to compile the device code first, and have the device compiler generate two header files which are automatically included into the host code.  One header (the integration header) is automatically included at the start of the host compilation phase and the other header (the integration footer) is automatically included at the end of the host compilation phase.  This design is described in detail in [Insert link here].
+One central problem that must be solved with a multi-pass compiler design is to logically connect the host and device code, which are separately compiled.  Our current strategy is to compile the device code first, and have the device compiler generate two header files which are automatically included into the host code.  One header (the integration header) is automatically included at the start of the host compilation phase and the other header (the integration footer) is automatically included at the end of the host compilation phase.  This design is described in detail in https://github.com/intel/llvm/pull/11431.
 
 This design is well suited for supporting a third-party host compiler because the connection between the device and host code is standard C++ header code, which can be consumed by any conformant C++ host compiler.  However, we have observed that relying on standard C++ imposes certain limitations on the input SYCL source code.
 
