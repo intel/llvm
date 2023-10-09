@@ -22,8 +22,7 @@ struct alignas(32) user_defined_type2 {
   char b;
   int c;
 
-  constexpr user_defined_type2(float a, char b, int c)
-      : a(a), b(b), c(c) {}
+  constexpr user_defined_type2(float a, char b, int c) : a(a), b(b), c(c) {}
   constexpr user_defined_type2(const user_defined_type2 &) = default;
 
   bool operator==(const user_defined_type2 &other) const {
@@ -47,15 +46,16 @@ struct user_defined_type {
 };
 
 struct user_defined_type3 {
-  char x='x';
+  char x = 'x';
   struct {
-    char y='y';
-    int z='z';
-    char a='a';
+    char y = 'y';
+    int z = 'z';
+    char a = 'a';
   } s;
-  char b='b';
+  char b = 'b';
   bool operator==(const user_defined_type3 &rhs) const {
-    return x==rhs.x && s.y==rhs.s.y && s.z==rhs.s.z && s.a == rhs.s.a && b == rhs.b;
+    return x == rhs.x && s.y == rhs.s.y && s.z == rhs.s.z && s.a == rhs.s.a &&
+           b == rhs.b;
   }
 };
 
@@ -65,7 +65,7 @@ constexpr sycl::specialization_id<user_defined_type> spec_id(reference);
 constexpr user_defined_type2 reference2(3.14, 42, 8);
 constexpr sycl::specialization_id<user_defined_type2> spec_id2(reference2);
 
-constexpr user_defined_type3 reference3 {};
+constexpr user_defined_type3 reference3{};
 constexpr sycl::specialization_id<user_defined_type3> spec_id3(reference3);
 
 int main() {
@@ -84,7 +84,6 @@ int main() {
   }
 
   assert(reference2 == data2);
-
 
   user_defined_type data(0, 0, 0);
 
@@ -118,11 +117,11 @@ int main() {
   {
     sycl::buffer buf(&data3, sycl::range<1>{1});
     q.submit([&](sycl::handler &cgh) {
-      auto acc = buf.get_access(cgh);
-      cgh.single_task([=](sycl::kernel_handler kh) {
-        acc[0] = kh.get_specialization_constant<spec_id3>();
-      });
-    }).wait();
+       auto acc = buf.get_access(cgh);
+       cgh.single_task([=](sycl::kernel_handler kh) {
+         acc[0] = kh.get_specialization_constant<spec_id3>();
+       });
+     }).wait();
   }
   assert(reference3 == data3);
 

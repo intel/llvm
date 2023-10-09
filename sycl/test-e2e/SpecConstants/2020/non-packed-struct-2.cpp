@@ -22,7 +22,7 @@ struct user_defined_type {
 
   void dump() const {
     std::cout << "user_defined_type {" << std::endl;
-    std::cout << "\ta = " << a <<"\n\td = " << d << std::endl;
+    std::cout << "\ta = " << a << "\n\td = " << d << std::endl;
     std::cout << "\tb = " << b << "\n\tc = " << c << std::endl;
     std::cout << "}" << std::endl;
   }
