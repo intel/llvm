@@ -208,4 +208,5 @@ TEST_P(urEnqueueUSMFillNegativeTest, InvalidEventWaitList) {
     ASSERT_EQ_RESULT(urEnqueueUSMFill(queue, ptr, pattern_size, pattern.data(),
                                       size, 1, &inv_evt, nullptr),
                      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+    ASSERT_SUCCESS(urEventRelease(validEvent));
 }
