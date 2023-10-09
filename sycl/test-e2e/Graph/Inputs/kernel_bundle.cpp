@@ -1,13 +1,11 @@
 // Tests using a bundle in a graph.
-// Checks the PI call trace to ensure that the bundle kernel of the single task
-// is used.
 
 #include "../graph_common.hpp"
 
 class Kernel1Name;
 
 int main() {
-  using T = unsigned short;
+  using T = int;
 
   const sycl::device Dev{sycl::default_selector_v};
   const sycl::context Ctx{Dev};
@@ -26,7 +24,7 @@ int main() {
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
       sycl::build(KernelBundleInput, KernelBundleInput.get_devices());
 
-  sycl::buffer<int, 1> Buf(sycl::range<1>{1});
+  sycl::buffer<T, 1> Buf(sycl::range<1>{1});
   Buf.set_write_back(false);
   {
     exp_ext::command_graph Graph{

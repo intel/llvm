@@ -1,10 +1,4 @@
-// REQUIRES: level_zero, gpu
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
-
-// Tests using a bundle in a graph.
-// Checks the PI call trace to ensure that the bundle kernel of the single task
-// is used.
+// Tests using a multiple kernel bundles in a graph.
 
 #include "../graph_common.hpp"
 
@@ -12,7 +6,7 @@ class Kernel1Name;
 class Kernel2Name;
 
 int main() {
-  using T = unsigned short;
+  using T = int;
 
   const sycl::device Dev{sycl::default_selector_v};
   const sycl::device Dev2{sycl::default_selector_v};
@@ -23,14 +17,6 @@ int main() {
   queue Queue{Ctx,
               Dev,
               {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-#ifndef GRAPH_E2E_EXPLICIT
-  // The code is needed to just have device images in the executable
-  if (0) {
-    Queue.submit(
-        [](sycl::handler &CGH) { CGH.single_task<Kernel2Name>([]() {}); });
-  }
-#endif
 
   sycl::kernel_id Kernel1ID = sycl::get_kernel_id<Kernel1Name>();
   sycl::kernel_id Kernel2ID = sycl::get_kernel_id<Kernel2Name>();
@@ -61,9 +47,9 @@ int main() {
 
   buffer<T> BufferA{DataA.data(), range<1>{DataA.size()}};
   BufferA.set_write_back(false);
-  sycl::buffer<int, 1> Buf1(sycl::range<1>{1});
+  sycl::buffer<T, 1> Buf1(sycl::range<1>{1});
   Buf1.set_write_back(false);
-  sycl::buffer<int, 1> Buf2(sycl::range<1>{1});
+  sycl::buffer<T, 1> Buf2(sycl::range<1>{1});
   Buf2.set_write_back(false);
   {
     exp_ext::command_graph Graph{
@@ -101,6 +87,14 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
+#else
+    // If Explicit API is not used, we still need to add kernel2Name to the
+    // bundle since this test expected to find it in the bundle whatever the
+    // API used.
+    if (0) {
+      Queue.submit(
+          [](sycl::handler &CGH) { CGH.single_task<Kernel2Name>([]() {}); });
+    }
 #endif
 
     auto GraphExec = Graph.finalize();

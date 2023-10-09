@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
+// Checks the PI call trace to ensure that the bundle kernel of the single task
+// is used.
+
 // CHECK:---> piProgramCreate
 // CHECK-NEXT: <unknown> : {{.*}}
 // CHECK-NEXT: <unknown> : {{.*}}
