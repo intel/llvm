@@ -22,6 +22,7 @@ using _iml_half_internal = uint16_t;
 #include <sycl/builtins.hpp>
 #include <sycl/ext/intel/math/imf_fp_conversions.hpp>
 #include <sycl/ext/intel/math/imf_half_trivial.hpp>
+#include <sycl/ext/intel/math/imf_rounding_math.hpp>
 #include <sycl/ext/intel/math/imf_simd.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/half_type.hpp>

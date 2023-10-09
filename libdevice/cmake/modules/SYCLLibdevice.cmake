@@ -105,7 +105,7 @@ endfunction()
 set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
 set(complex_obj_deps device_complex.h device.h sycl-compiler)
 set(cmath_obj_deps device_math.h device.h sycl-compiler)
-set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp device.h sycl-compiler)
+set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h sycl-compiler)
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 
@@ -138,15 +138,17 @@ add_fallback_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bf
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
 set(imf_src_dir ${CMAKE_CURRENT_SOURCE_DIR})
-set(imf_fallback_fp32_deps device.h device_imf.hpp imf_half.hpp
+set(imf_fallback_fp32_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp
                            imf_utils/integer_misc.cpp
                            imf_utils/float_convert.cpp
                            imf_utils/half_convert.cpp
                            imf_utils/simd_emulate.cpp
+                           imf_utils/fp32_round.cpp
                            imf/imf_inline_fp32.cpp
                            imf/imf_fp32_dl.cpp)
-set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp
+set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp
                            imf_utils/double_convert.cpp
+                           imf_utils/fp64_round.cpp
                            imf/imf_inline_fp64.cpp
                            imf/imf_fp64_dl.cpp)
 set(imf_fallback_bf16_deps device.h device_imf.hpp imf_bf16.hpp
