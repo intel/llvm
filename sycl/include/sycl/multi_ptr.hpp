@@ -127,8 +127,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space
   template <int Dimensions, access::mode Mode,
@@ -153,7 +154,8 @@ public:
                 (Space == access::address_space::generic_space ||
                  Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space
   template <
@@ -167,7 +169,8 @@ public:
   multi_ptr(accessor<ElementType, dimensions, access_mode::read,
                      target::constant_buffer, isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // The following constructors are necessary to create multi_ptr<const
   // ElementType, Space, DecorateAddress> from accessor<ElementType, ...>.
@@ -195,8 +198,9 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : m_Pointer(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : m_Pointer(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space || generic_space and element type is const
   template <int Dimensions, access::mode Mode,
@@ -232,7 +236,8 @@ public:
       // Not having get_decorated() results in facing issue represented in
       // https://github.com/intel/llvm/issues/9745.
       // TODO: would be good to simplify it in future without facing above issue
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space and element type is const
   template <
@@ -250,7 +255,8 @@ public:
                      access_mode::read, target::constant_buffer, isPlaceholder,
                      PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment and access operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -481,8 +487,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -507,7 +514,8 @@ public:
                 (Space == access::address_space::local_space ||
                  Space == access::address_space::generic_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space
   template <
@@ -522,7 +530,8 @@ public:
                      target::constant_buffer, access::placeholder::false_t,
                      PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;
@@ -629,8 +638,9 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(
-            detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
+      : multi_ptr(detail::cast_AS<decorated_type *>(
+            Accessor.template get_multi_ptr<DecorateAddress>()
+                .get_decorated())) {}
 
   // Only if Space == local_space
   template <
@@ -655,7 +665,8 @@ public:
                 (Space == access::address_space::local_space ||
                  Space == access::address_space::generic_space)>>
   multi_ptr(local_accessor<ElementType, Dimensions> Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Only if Space == constant_space
   template <
@@ -670,7 +681,8 @@ public:
                      target::constant_buffer, access::placeholder::false_t,
                      PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.template get_multi_ptr<DecorateAddress>()
+                      .get_decorated()) {}
 
   // Assignment operators
   multi_ptr &operator=(const multi_ptr &) = default;

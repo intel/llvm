@@ -71,7 +71,8 @@ void verify_op_a(const T l, const T r, const float ref, OP op) {
 
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_mat,
-               accessMat.get_pointer() + (sg_startx * SUB_ROWS) * NUM_COLS +
+               accessMat.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * SUB_ROWS) * NUM_COLS +
                    sg_starty / SG_SZ * SUB_COLS,
                NUM_COLS);
          }); // parallel for
@@ -109,11 +110,12 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
              wi_slice[i] = op(wi_slice[i], r);
            }
 
-           joint_matrix_store(sg, sub_mat,
-                              accessMat.get_pointer() +
-                                  (sg_startx * SUB_ROWS) * NUM_COLS +
-                                  sg_starty / SG_SZ * SUB_COLS,
-                              NUM_COLS, layout::row_major);
+           joint_matrix_store(
+               sg, sub_mat,
+               accessMat.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * SUB_ROWS) * NUM_COLS +
+                   sg_starty / SG_SZ * SUB_COLS,
+               NUM_COLS, layout::row_major);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);

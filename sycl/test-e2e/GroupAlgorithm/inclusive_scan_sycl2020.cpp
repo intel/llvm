@@ -111,8 +111,9 @@ void test(const InputContainer &input, BinaryOperation binary_op,
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name2>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        joint_inclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                             out.get_pointer(), binary_op);
+        joint_inclusive_scan(
+            g, global_ptr<const InputT>(in), global_ptr<const InputT>(in) + N,
+            out.template get_multi_ptr<access::decorated::no>(), binary_op);
       });
     });
   }
@@ -136,8 +137,10 @@ void test(const InputContainer &input, BinaryOperation binary_op,
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name3>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        joint_inclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                             out.get_pointer(), binary_op, init);
+        joint_inclusive_scan(
+            g, global_ptr<const InputT>(in), global_ptr<const InputT>(in) + N,
+            out.template get_multi_ptr<access::decorated::no>(), binary_op,
+            init);
       });
     });
   }

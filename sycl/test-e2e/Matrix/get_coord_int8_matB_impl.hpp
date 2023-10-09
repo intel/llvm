@@ -116,10 +116,11 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B, nd_range<2> &r) {
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
 
-           joint_matrix_load(sg, sub_b,
-                             accB.get_pointer() + (sg_startx * (TK / VF) * N) +
-                                 sg_starty / SG_SZ * TN * VF,
-                             N);
+           joint_matrix_load(
+               sg, sub_b,
+               accB.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * (TK / VF) * N) + sg_starty / SG_SZ * TN * VF,
+               N);
 
            int32_t sum_local_cols[N] = {0};
            auto wiData =
