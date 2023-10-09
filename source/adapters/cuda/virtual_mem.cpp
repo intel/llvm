@@ -52,8 +52,8 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
                     size_t size, void **ppStart) {
   ScopedContext Active(hContext);
-  return UR_CHECK_ERROR(cuMemAddressReserve((CUdeviceptr *)ppStart, size, 0,
-                                            (CUdeviceptr)pStart, 0));
+  UR_CHECK_ERROR(cuMemAddressReserve((CUdeviceptr *)ppStart, size, 0,
+                                     (CUdeviceptr)pStart, 0));
   return UR_RESULT_SUCCESS;
 }
 
