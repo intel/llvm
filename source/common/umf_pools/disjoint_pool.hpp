@@ -17,6 +17,8 @@
 
 namespace usm {
 
+inline constexpr size_t MIN_BUCKET_DEFAULT_SIZE = 8;
+
 // Configuration for specific USM allocator instance
 class DisjointPoolConfig {
   public:
@@ -46,7 +48,7 @@ class DisjointPoolConfig {
 
     // Holds the minimum bucket size valid for allocation of a memory type.
     // This value must be a power of 2.
-    size_t MinBucketSize = 1;
+    size_t MinBucketSize = MIN_BUCKET_DEFAULT_SIZE;
 
     // Holds size of the pool managed by the allocator.
     size_t CurPoolSize = 0;

@@ -293,6 +293,8 @@ class DisjointPool::AllocImpl {
         // Generate buckets sized such as: 64, 96, 128, 192, ..., CutOff.
         // Powers of 2 and the value halfway between the powers of 2.
         auto Size1 = params.MinBucketSize;
+        // Buckets sized smaller than the bucket default size- 8 aren't needed.
+        Size1 = std::max(Size1, MIN_BUCKET_DEFAULT_SIZE);
         auto Size2 = Size1 + Size1 / 2;
         for (; Size2 < CutOff; Size1 *= 2, Size2 *= 2) {
             Buckets.push_back(std::make_unique<Bucket>(Size1, *this));
