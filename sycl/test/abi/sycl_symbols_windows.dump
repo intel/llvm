@@ -120,6 +120,8 @@
 ??$get_info@Ukernel_kernel_pipe_support@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Ulocal_mem_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Ulocal_mem_type@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4local_mem_type@info@12@XZ
+??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Umax_clock_frequency@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAHXZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ

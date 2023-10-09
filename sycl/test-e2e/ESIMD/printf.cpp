@@ -10,13 +10,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 //
-// clang-format off
-// Test using __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ is disabled until ESIMD
-// supports it.
-// FIXME: enable that test
-// RUNx: %{build} -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_nonvar.out
-// RUNx: %{run} %t_nonvar.out | FileCheck %s
-// clang-format on
+// RUN: %{build} -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_nonvar.out
+// RUN: %{run} %t_nonvar.out | FileCheck %s
 //
 //===----------------------------------------------------------------------===//
 //

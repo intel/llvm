@@ -12,6 +12,7 @@
 // UNSUPPORTED: ze_debug && windows
 
 #include "imf_utils.hpp"
+#include <cmath>
 #include <sycl/ext/intel/math.hpp>
 
 namespace sycl_imf = sycl::ext::intel::math;

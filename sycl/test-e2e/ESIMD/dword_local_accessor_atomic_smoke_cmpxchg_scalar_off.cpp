@@ -9,6 +9,7 @@
 // This test checks DWORD local accessor cmpxchg atomic operations with scalar
 // offset.
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

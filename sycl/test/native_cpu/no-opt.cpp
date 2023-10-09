@@ -1,8 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 -o %t.bc %s
-// This test currently fails because the PrepareSYCLNativeCPU pass doesn't
-// support non optimized code yet (in particular non-inlined code)
-// Todo: remove XFAIL once native cpu supports -O0
-// XFAIL: *
 
 #include "sycl.hpp"
 class Test1;

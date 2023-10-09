@@ -110,10 +110,11 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
           uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1,
           int n1, typename T2, int n2, typename T3, int n3>
-__ESIMD_API __ESIMD_NS::simd<T1, n1>
-raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-          __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-          __ESIMD_NS::simd_mask<execSize> mask = 1) {
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_sends")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_sends(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -193,10 +194,11 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numDst,
           uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
           typename T2, int n2>
-__ESIMD_API __ESIMD_NS::simd<T1, n1>
-raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-         uint32_t exDesc, uint32_t msgDesc,
-         __ESIMD_NS::simd_mask<execSize> mask = 1) {
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_send")
+__ESIMD_API __ESIMD_NS::simd<T1, n1> raw_send(
+    __ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
+    uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -270,10 +272,11 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
           uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
           typename T2, int n2>
-__ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
-                           __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
-                           uint32_t msgDesc,
-                           __ESIMD_NS::simd_mask<execSize> mask = 1) {
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_sends")
+__ESIMD_API
+    void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
+                   __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
+                   uint32_t msgDesc, __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -337,9 +340,10 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 /// to on).
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
           uint8_t isSendc = 0, typename T1, int n1>
-__ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
-                          uint32_t msgDesc,
-                          __ESIMD_NS::simd_mask<execSize> mask = 1) {
+__SYCL_DEPRECATED("use sycl::ext::intel::esimd::raw_send")
+__ESIMD_API
+    void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
+                  uint32_t msgDesc, __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
@@ -2342,18 +2346,28 @@ namespace detail {
 #ifndef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
 #define __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE (1)
 #endif
+
+#ifndef __ESIMD_BLOCK_2D_WIDTH_CHECK
+#define __ESIMD_BLOCK_2D_WIDTH_CHECK(OP, BLOCK_WIDTH, NBLOCKS, SIZE)           \
+  static_assert((BLOCK_WIDTH) * (NBLOCKS) * (SIZE) <= 64,                      \
+                "Unsupported block width");
+#endif
+
+enum class block_2d_op { prefetch, load, store };
+
 // Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
 template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
-          bool Transposed, bool Transformed, bool IsStore = false>
+          bool Transposed, bool Transformed, block_2d_op Op>
 constexpr void check_lsc_block_2d_restrictions() {
   constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
   static_assert(BlockWidth > 0, "Block width must be positive");
   static_assert(BlockHeight > 0, "Block height must be positive");
   // Restrictions based on documentation.
-  static_assert(!IsStore || GRFByteSize <= 512,
-                "2D store supports 512 bytes max");
-  static_assert(IsStore || GRFByteSize <= 2048,
-                "2D load supports 2048 bytes max");
+  if constexpr (Op == block_2d_op::store)
+    static_assert(GRFByteSize <= 512, "2D store supports 512 bytes max");
+  else
+    static_assert(GRFByteSize <= 2048,
+                  "2D load/prefetch supports 2048 bytes max");
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
   static_assert((sizeof(T) * BlockWidth) % 4 == 0,
@@ -2382,7 +2396,7 @@ constexpr void check_lsc_block_2d_restrictions() {
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
   } else {
-    if constexpr (IsStore) {
+    if constexpr (Op == block_2d_op::store) {
       static_assert(NBlocks == 1, "Unsupported number of blocks for 2D store");
       static_assert(BlockHeight <= 8, "Unsupported block height for store");
     } else {
@@ -2391,11 +2405,12 @@ constexpr void check_lsc_block_2d_restrictions() {
           "Unsupported number of blocks for 2D load/prefetch");
       static_assert(BlockHeight <= 32, "Unsupported block height for load");
     }
-    static_assert(BlockWidth * sizeof(T) >= 4 &&
-                      BlockWidth * NBlocks * sizeof(T) <= 64,
-                  "Unsupported block width");
+    static_assert(BlockWidth * sizeof(T) >= 4, "Unsupported block width");
+    __ESIMD_BLOCK_2D_WIDTH_CHECK(Op, BlockWidth, NBlocks, sizeof(T));
   }
 }
+#undef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
+#undef __ESIMD_BLOCK_2D_WIDTH_CHECK
 
 } // namespace detail
 
@@ -2439,7 +2454,8 @@ lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
             unsigned SurfacePitch, int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed>();
+                                          Transposed, Transformed,
+                                          detail::block_2d_op::load>();
   // For Load BlockWidth is padded up to the next power-of-two value.
   // For Load with Transpose the pre-operation BlockHeight is padded up
   // to the next power-of-two value.
@@ -2546,7 +2562,8 @@ __ESIMD_API void lsc_prefetch_2d(const T *Ptr, unsigned SurfaceWidth,
                                  int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          false, false>();
+                                          false, false,
+                                          detail::block_2d_op::prefetch>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -2591,7 +2608,7 @@ __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
                               int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
-                                          false, true /*IsStore*/>();
+                                          false, detail::block_2d_op::store>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
@@ -2850,7 +2867,8 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed, false>();
+                                          Transposed, Transformed,
+                                          detail::block_2d_op::load>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed    ? BlockHeight
@@ -2885,8 +2903,9 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  __ESIMD_NS::simd<T, ActualN> Raw = raw_send<execSize, sfid, numSrc0, numDst>(
-      oldDst, payload.get_raw_data(), exDesc, desc);
+  __ESIMD_NS::simd<T, ActualN> Raw =
+      __ESIMD_NS::raw_send<execSize, sfid, numSrc0, numDst>(
+          oldDst, payload.get_raw_data(), exDesc, desc);
 
   if constexpr (ActualN == N) {
     return Raw;
@@ -2935,7 +2954,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed, false>();
+                                          Transposed, Transformed,
+                                          detail::block_2d_op::prefetch>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
@@ -2949,7 +2969,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
-  raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc, desc);
+  __ESIMD_NS::raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc,
+                                               desc);
 }
 
 /// A variation of \c 2D stateless block store \c with parameters passed as
@@ -2975,7 +2996,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void
 lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
              __ESIMD_NS::simd<T, N> Data) {
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          false, false, true>();
+                                          false, false,
+                                          detail::block_2d_op::store>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
 
   constexpr uint32_t cache_mask = detail::get_lsc_store_cache_mask<L1H, L3H>()
@@ -2989,8 +3011,8 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
 
-  raw_sends<execSize, sfid, numSrc0, numSrc1>(payload.get_raw_data(), Data,
-                                              exDesc, desc);
+  __ESIMD_NS::raw_sends<execSize, sfid, numSrc0, numSrc1>(
+      payload.get_raw_data(), Data, exDesc, desc);
 }
 
 /// SLM atomic.

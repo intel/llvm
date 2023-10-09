@@ -10,6 +10,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <cmath>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using sycl::ext::oneapi::bfloat16;

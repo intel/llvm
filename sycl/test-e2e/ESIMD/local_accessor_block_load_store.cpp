@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES-INTEL-DRIVER: lin: 27202, win: 101.4677
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // This test verifies usage of block_load/block_store for local_accessor.
@@ -97,12 +98,6 @@ int main() {
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
-
-  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "27202",
-                     "101.4677")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.27202 or newer.\n";
-    return 0;
-  }
 
   constexpr size_t Align4 = 4;
   constexpr size_t Align8 = 8;
