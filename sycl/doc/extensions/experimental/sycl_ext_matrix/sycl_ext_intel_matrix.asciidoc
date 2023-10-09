@@ -322,6 +322,61 @@ q.submit([&](sycl::handler& cgh) {
 });
 q.wait();
 ```
+
+=== Load/Store Using Annotated Pointers
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
+    size_t stride, layout Layout);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols, use Use, layout Layout,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> src,
+    size_t stride);
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+
+=== Prefetch
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+
+template <typename Group, typename T, typename PropertyListT, size_t Rows, 
+          size_t Cols, typename Properties = ext::oneapi::experimental::empty_properties_t>
+void joint_matrix_prefetch(Group g,
+     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> ptr, size_t stride, layout Layout, size_t Rows, size_t cols, Properties properties = {});
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+
+`joint_matrix_prefetch` allows groups of work-items to cooperatively prefetch the same data in a 2d manner. These functions are all group functions, as defined in Section 4.17.3 of the core SYCL specification.
+
+==== Example
+```c++
+using namespace sycl::ext::oneapi::experimental::matrix;
+
+auto aptr = annotated_ptr(ptr, properties{cache_control_read<cache_control_read_type::cached, 2>});
+q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> it) {
+  sub_group sg = it.get_sub_group();
+  for (int k = 0; k < K; k += tileK) {
+    syclex::joint_matrix_prefetch(sg, aptr, K, layout::row_major, tileM, tileK, properties{syclex::prefetch_hint_L2});
+    gemm_k(sg, aptr);
+  }
+});
+```
 == Revision History
 
 [frame="none",options="header"]
