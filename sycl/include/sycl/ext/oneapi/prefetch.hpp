@@ -181,6 +181,125 @@ void prefetch(
     size_t offset, size_t count, Properties properties = {}) {
   prefetch((void *)&acc[offset], count * sizeof(DataT), properties);
 }
+
+template <typename Group, typename Properties = empty_properties_t>
+typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+joint_prefetch(Group g, void *ptr, Properties properties = {}) {
+  detail::prefetch_impl(ptr, 1, properties);
+}
+
+template <typename Group, typename Properties = empty_properties_t>
+typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+joint_prefetch(Group g, void *ptr, size_t bytes, Properties properties = {}) {
+  detail::prefetch_impl(ptr, bytes, properties);
+}
+
+template <typename Group, typename T, typename Properties = empty_properties_t>
+typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+joint_prefetch(Group g, T *ptr, Properties properties = {}) {
+  joint_prefetch((void *)ptr, sizeof(T), properties);
+}
+
+template <typename Group, typename T, typename Properties = empty_properties_t>
+typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+joint_prefetch(Group g, T *ptr, size_t count, Properties properties = {}) {
+  joint_prefetch((void *)ptr, count * sizeof(T), properties);
+}
+
+// Only available if AddressSpace == global_space || AddressSpace ==
+// generic_space
+template <typename Group, access::address_space AddressSpace,
+          access::decorated IsDecorated,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+typename std::enable_if_t<
+    sycl::is_group_v<std::decay_t<Group>> &&
+        (AddressSpace == access::address_space::global_space ||
+         AddressSpace == access::address_space::generic_space),
+    void>
+joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
+               Properties properties = {}) {
+  joint_prefetch(g, ptr.get(), properties);
+}
+
+// Only available if AddressSpace == global_space || AddressSpace ==
+// generic_space
+template <typename Group, access::address_space AddressSpace,
+          access::decorated IsDecorated,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+typename std::enable_if_t<
+    sycl::is_group_v<std::decay_t<Group>> &&
+        (AddressSpace == access::address_space::global_space ||
+         AddressSpace == access::address_space::generic_space),
+    void>
+joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
+               size_t bytes, Properties properties = {}) {
+  joint_prefetch(g, ptr.get(), bytes, properties);
+}
+
+// Only available if AddressSpace == global_space || AddressSpace ==
+// generic_space
+template <typename Group, typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+typename std::enable_if_t<
+    sycl::is_group_v<std::decay_t<Group>> &&
+        (AddressSpace == access::address_space::global_space ||
+         AddressSpace == access::address_space::generic_space),
+    void>
+joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
+               Properties properties = {}) {
+  joint_prefetch(g, ptr.get(), properties);
+}
+
+// Only available if AddressSpace == global_space || AddressSpace ==
+// generic_space
+template <typename Group, typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+typename std::enable_if_t<
+    sycl::is_group_v<std::decay_t<Group>> &&
+        (AddressSpace == access::address_space::global_space ||
+         AddressSpace == access::address_space::generic_space),
+    void>
+joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
+               size_t count, Properties properties = {}) {
+  joint_prefetch(g, ptr.get(), count, properties);
+}
+
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode ==
+// read_write)
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
+                              (Dimensions > 0) &&
+                              (AccessMode == access_mode::read ||
+                               AccessMode == access_mode::read_write),
+                          void>
+joint_prefetch(
+    Group g,
+    accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+    size_t offset, Properties properties = {}) {
+  joint_prefetch(g, (void *)&acc[offset], sizeof(DataT), properties);
+}
+
+// Only available if Dimensions > 0 && (AccessMode == read || AccessMode ==
+// read_write)
+template <typename Group, typename DataT, int Dimensions,
+          access_mode AccessMode, access::placeholder IsPlaceholder,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
+typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
+                              (Dimensions > 0) &&
+                              (AccessMode == access_mode::read ||
+                               AccessMode == access_mode::read_write),
+                          void>
+joint_prefetch(
+    Group g,
+    accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
+    size_t offset, size_t count, Properties properties = {}) {
+  joint_prefetch(g, (void *)&acc[offset], count * sizeof(DataT), properties);
+}
+
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
