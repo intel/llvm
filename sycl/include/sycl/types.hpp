@@ -2405,7 +2405,7 @@ struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
     IsDeprecatedDeviceCopyable<
         T, std::enable_if_t<std::is_trivially_copy_constructible_v<T> &&
                             std::is_trivially_destructible_v<T> &&
-                            !is_device_copyable<T>::value>> : std::true_type {};
+                            !is_device_copyable_v<T>>> : std::true_type {};
 
 template <typename T, int N>
 struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
@@ -2418,7 +2418,7 @@ template <typename T, unsigned NumFieldsToCheck>
 struct CheckFieldsAreDeviceCopyable
     : CheckFieldsAreDeviceCopyable<T, NumFieldsToCheck - 1> {
   using FieldT = decltype(__builtin_field_type(T, NumFieldsToCheck - 1));
-  static_assert(is_device_copyable<FieldT>::value ||
+  static_assert(is_device_copyable_v<FieldT> ||
                     detail::IsDeprecatedDeviceCopyable<FieldT>::value,
                 "The specified type is not device copyable");
 };
@@ -2431,7 +2431,7 @@ template <typename T, unsigned NumBasesToCheck>
 struct CheckBasesAreDeviceCopyable
     : CheckBasesAreDeviceCopyable<T, NumBasesToCheck - 1> {
   using BaseT = decltype(__builtin_base_type(T, NumBasesToCheck - 1));
-  static_assert(is_device_copyable<BaseT>::value ||
+  static_assert(is_device_copyable_v<BaseT> ||
                     detail::IsDeprecatedDeviceCopyable<BaseT>::value,
                 "The specified type is not device copyable");
 };
