@@ -20,6 +20,9 @@
 #include <sycl/kernel_bundle_enums.hpp>    // for bundle_state
 #include <sycl/property_list.hpp>          // for property_list
 
+#include <sycl/ext/oneapi/properties/property.hpp>       // PropertyT
+#include <sycl/ext/oneapi/properties/property_value.hpp> // build_options
+
 #include <array>       // for array
 #include <cstring>     // for size_t, memcpy
 #include <functional>  // for function
@@ -770,6 +773,35 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 
 namespace ext::oneapi::experimental {
 namespace syclex = sycl::ext::oneapi::experimental;
+
+/////////////////////////
+// PropertyT syclex::build_options
+/////////////////////////
+struct build_options {
+  std::vector<std::string> opts;
+  build_options(const std::string &name) : opts{name} {}
+  build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
+};
+using build_options_key = build_options;
+
+template <> struct is_property_key<build_options_key> : std::true_type {};
+
+template <>
+struct is_property_key_of<build_options_key,
+                          sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
+    : std::true_type {};
+
+namespace detail {
+
+template <> struct PropertyToKind<syclex::build_options_key> {
+  static constexpr PropKind Kind = PropKind::BuildOptions;
+};
+
+template <>
+struct IsCompileTimeProperty<syclex::build_options_key> : std::true_type {};
+
+} // namespace detail
+
 /////////////////////////
 // syclex::is_source_kernel_bundle_supported
 /////////////////////////
@@ -787,9 +819,21 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 // syclex::build(source_kb) => exe_kb
 /////////////////////////
+
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       const property_list &PropList = {});
+
+// kernel_bundle<bundle_state::executable>
+// build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB, const
+// property_list &PropList);
+
+// template<typename PropertyListT = sycl::ext::oneapi::properties<>>
+// __SYCL_EXPORT kernel_bundle<bundle_state::executable>
+// build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+//       PropertyListT props = {}) {
+//    return build(SourceKB, props);
+// }
 
 } // namespace ext::oneapi::experimental
 
