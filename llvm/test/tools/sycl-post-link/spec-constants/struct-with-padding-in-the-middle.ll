@@ -1,3 +1,5 @@
+; RUN: sycl-post-link --spec-const=native -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.ll
 ; LLVM IR for this test is produced from the following SYCL code snippet:
 ;
 ; #include <sycl/sycl.hpp>
@@ -35,6 +37,20 @@
 ; The idea of the test is to ensure that SpecConstants pass is able to handle
 ; a situation, where spec constant default value contains less elements than
 ; spec constant type, due to padding inserted by a compiler.
+
+; CHECK: %[[#SCV1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID1:]], float 0x40091EB860000000)
+; CHECK: %[[#SCV2:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID2:]], i8 97)
+; CHECK: %[[#SCV3:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID3:]], i32 42)
+; CHECK: %[[#SCV4:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 8)
+; CHECK: call %struct.user_defined_type @_Z29__spirv_SpecConstantCompositefaA3_aiaA3_a_Rstruct.user_defined_type(float %[[#SCV1]], i8 %[[#SCV2]], [3 x i8] undef, i32 %[[#SCV3]], i8 %[[#SCV4]], [3 x i8] undef)
+
+; CHECK: !sycl.specialization-constants = !{![[#SC:]]}
+; CHECK: ![[#SC]] = !{!"uidc5885cee0b80ad9d____ZL7spec_id",
+; CHECK-SAME: i32 [[#SCID1]], i32 0, i32 4,
+; CHECK-SAME: i32 [[#SCID2]], i32 4, i32 1,
+; CHECK-SAME: i32 [[#SCID3]], i32 8, i32 4,
+; CHECK-SAME: i32 [[#SCID4]], i32 12, i32 1,
+; CHECK-SAME: i32 -1, i32 13, i32 3}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
