@@ -279,6 +279,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
                              hContext->getDevice(),
                              CuFlags,
                              Flags,
+                             /*priority*/ 0,
                              /*backend_owns*/ pProperties->isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
