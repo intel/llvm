@@ -72,13 +72,6 @@ static cl::opt<bool>
                          "nvvm-reflect dead-code errors."),
                 cl::init(true), cl::Hidden);
 
-// FIXME: intended as a temporary debugging aid. Should be removed before it
-// makes it into the LLVM-17 release.
-static cl::opt<bool>
-    ExitOnUnreachable("nvptx-exit-on-unreachable",
-                      cl::desc("Lower 'unreachable' as 'exit' instruction."),
-                      cl::init(true), cl::Hidden);
-
 namespace llvm {
 
 void initializeGenericToNVVMLegacyPassPass(PassRegistry &);
@@ -433,8 +426,9 @@ void NVPTXPassConfig::addIRPasses() {
     addPass(createSROAPass());
   }
 
-  if (ExitOnUnreachable)
-    addPass(createNVPTXLowerUnreachablePass());
+  const auto &Options = getNVPTXTargetMachine().Options;
+  addPass(createNVPTXLowerUnreachablePass(Options.TrapUnreachable,
+                                          Options.NoTrapAfterNoreturn));
 }
 
 bool NVPTXPassConfig::addInstSelector() {
