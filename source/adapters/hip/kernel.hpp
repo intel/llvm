@@ -14,7 +14,6 @@
 #include <atomic>
 #include <cassert>
 #include <numeric>
-#include <set>
 
 #include "program.hpp"
 
@@ -58,7 +57,6 @@ struct ur_kernel_handle_t_ {
     args_size_t ParamSizes;
     args_index_t Indices;
     args_size_t OffsetPerIndex;
-    std::set<const void *> PtrArgs;
 
     std::uint32_t ImplicitOffsetArgs[3] = {0, 0, 0};
 
@@ -178,19 +176,6 @@ struct ur_kernel_handle_t_ {
   void setKernelArg(int Index, size_t Size, const void *Arg) {
     Args.addArg(Index, Size, Arg);
   }
-
-  /// We track all pointer arguments to be able to issue prefetches at enqueue
-  /// time
-  void setKernelPtrArg(int Index, size_t Size, const void *PtrArg) {
-    Args.PtrArgs.insert(*static_cast<void *const *>(PtrArg));
-    setKernelArg(Index, Size, PtrArg);
-  }
-
-  bool isPtrArg(const void *ptr) {
-    return Args.PtrArgs.find(ptr) != Args.PtrArgs.end();
-  }
-
-  std::set<const void *> &getPtrArgs() { return Args.PtrArgs; }
 
   void setKernelLocalArg(int Index, size_t Size) {
     Args.addLocalArg(Index, Size);
