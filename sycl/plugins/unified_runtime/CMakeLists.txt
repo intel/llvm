@@ -4,7 +4,13 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG b3cc9ae3f99ca7faff1ba765dd36652fef2cfddd)
+  set(UNIFIED_RUNTIME_TAG b38855ed815ffd076bfde5e5e06170ca4f723dc1)
+
+  set(UR_BUILD_ADAPTER_L0 ON)
+
+  if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_CUDA ON)
+  endif()
 
   set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
@@ -76,117 +82,10 @@ add_sycl_plugin(unified_runtime
     LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
-# Build level zero adapter
-add_sycl_library("ur_adapter_level_zero" SHARED
-  SOURCES
-    "ur/ur.hpp"
-    "ur/ur.cpp"
-    "ur/adapters/level_zero/ur_level_zero.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_interface_loader.cpp"
-    "ur/adapters/level_zero/adapter.hpp"
-    "ur/adapters/level_zero/command_buffer.hpp"
-    "ur/adapters/level_zero/common.hpp"
-    "ur/adapters/level_zero/context.hpp"
-    "ur/adapters/level_zero/device.hpp"
-    "ur/adapters/level_zero/event.hpp"
-    "ur/adapters/level_zero/image.cpp"
-    "ur/adapters/level_zero/image.hpp"
-    "ur/adapters/level_zero/memory.hpp"
-    "ur/adapters/level_zero/kernel.hpp"
-    "ur/adapters/level_zero/platform.hpp"
-    "ur/adapters/level_zero/program.hpp"
-    "ur/adapters/level_zero/queue.hpp"
-    "ur/adapters/level_zero/sampler.hpp"
-    "ur/adapters/level_zero/usm.hpp"
-    "ur/adapters/level_zero/adapter.cpp"
-    "ur/adapters/level_zero/command_buffer.cpp"
-    "ur/adapters/level_zero/common.cpp"
-    "ur/adapters/level_zero/context.cpp"
-    "ur/adapters/level_zero/device.cpp"
-    "ur/adapters/level_zero/event.cpp"
-    "ur/adapters/level_zero/memory.cpp"
-    "ur/adapters/level_zero/kernel.cpp"
-    "ur/adapters/level_zero/platform.cpp"
-    "ur/adapters/level_zero/program.cpp"
-    "ur/adapters/level_zero/queue.cpp"
-    "ur/adapters/level_zero/sampler.cpp"
-    "ur/adapters/level_zero/usm.cpp"
-    "ur/adapters/level_zero/usm_p2p.cpp"
-  INCLUDE_DIRS
-    ${sycl_inc_dir}
-  LIBRARIES
-    UnifiedRuntime-Headers
-    UnifiedRuntimeCommon
-    UnifiedMallocFramework
-    LevelZeroLoader-Headers
-    LevelZeroLoader
-    Threads::Threads
-)
-
-set_target_properties("ur_adapter_level_zero" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-)
+add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
 
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build CUDA adapter
-  add_sycl_library("ur_adapter_cuda" SHARED
-    SOURCES
-      "ur/ur.hpp"
-      "ur/ur.cpp"
-      "ur/adapters/cuda/adapter.cpp"
-      "ur/adapters/cuda/adapter.hpp"
-      "ur/adapters/cuda/command_buffer.cpp"
-      "ur/adapters/cuda/command_buffer.hpp"
-      "ur/adapters/cuda/common.cpp"
-      "ur/adapters/cuda/common.hpp"
-      "ur/adapters/cuda/context.cpp"
-      "ur/adapters/cuda/context.hpp"
-      "ur/adapters/cuda/device.cpp"
-      "ur/adapters/cuda/device.hpp"
-      "ur/adapters/cuda/enqueue.cpp"
-      "ur/adapters/cuda/event.cpp"
-      "ur/adapters/cuda/event.hpp"
-      "ur/adapters/cuda/image.cpp"
-      "ur/adapters/cuda/image.hpp"
-      "ur/adapters/cuda/kernel.cpp"
-      "ur/adapters/cuda/kernel.hpp"
-      "ur/adapters/cuda/memory.cpp"
-      "ur/adapters/cuda/memory.hpp"
-      "ur/adapters/cuda/platform.cpp"
-      "ur/adapters/cuda/platform.hpp"
-      "ur/adapters/cuda/program.cpp"
-      "ur/adapters/cuda/program.hpp"
-      "ur/adapters/cuda/queue.cpp"
-      "ur/adapters/cuda/queue.hpp"
-      "ur/adapters/cuda/sampler.cpp"
-      "ur/adapters/cuda/sampler.hpp"
-      "ur/adapters/cuda/tracing.cpp"
-      "ur/adapters/cuda/ur_interface_loader.cpp"
-      "ur/adapters/cuda/usm.cpp"
-      "ur/adapters/cuda/usm.hpp"
-      "ur/adapters/cuda/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-      Threads::Threads
-      cudadrv
-  )
-
-  set_target_properties("ur_adapter_cuda" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-
-  if(UMF_ENABLE_POOL_TRACKING)
-    target_compile_definitions("ur_adapter_cuda" PRIVATE
-      UMF_ENABLE_POOL_TRACKING)
-  else()
-    message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-  endif()
+  add_dependencies(sycl-runtime-libraries ur_adapter_cuda)
 endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)

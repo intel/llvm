@@ -63,6 +63,18 @@ enum class rgba_channel : uint8_t { R, G, B, A };
 /// identified by its "binding table index" - surface index.
 using SurfaceIndex = unsigned int;
 
+/// Specify if end of thread should be set.
+enum class raw_send_eot : uint8_t {
+  not_eot = 0,
+  eot = 1,
+};
+
+/// Specify if sendc should be used.
+enum class raw_send_sendc : uint8_t {
+  not_sendc = 0,
+  sendc = 1,
+};
+
 namespace detail {
 
 // Type used in internal functions to designate SLM access by

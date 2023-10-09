@@ -945,7 +945,7 @@ with error code `sycl::errc::invalid`, and relay an error message back to the
 user through `sycl::exception::what()`, describing which of the scenarios 
 listed above caused the failure.
 
-=== Reading and writing inside the kernel
+=== Reading and writing inside the kernel [[reading_writing_inside_kernel]]
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -994,16 +994,16 @@ trivially copyable.
 
 Sampled images cannot be written to using `write_image`.
 
-For unsampled images, coordinates are specified by `int`, `sycl::vec<int, 2>`, 
-and `sycl::vec<int, 4>` for 1D, 2D, and 3D images respectively.
+For reading and writing of unsampled images, coordinates are specified by `int`, 
+`sycl::vec<int, 2>`, and `sycl::vec<int, 4>` for 1D, 2D, and 3D images, 
+respectively.
 
 Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
-`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images respectively. 
+`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
 
-In the case of 3D reads or writes, the fourth element in the coordinate vector 
-is ignored.
-
-Note that coordinates for 3D images take a vector of size 4, not 3.
+Note that in the case of 3D reads or writes, coordinates for 3D images take a 
+vector of size 4, not 3, as the fourth element in the coordinate vector is 
+ignored.
 
 Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
@@ -1123,6 +1123,10 @@ DataT read_image(const sampled_image_handle &ImageHandle,
                  const CoordT &Coords,
                  const CoordT &Dx, const CoordT &Dy);
 ```
+
+Reading a mipmap follows the same restrictions on what coordinate types may be 
+used as laid out in <<reading_writing_inside_kernel>>, and the viewing gradients 
+are bound to the same type as used for the coordinates.
 
 == Interoperability
 
@@ -1976,4 +1980,5 @@ These features still need to be handled:
                    (`unorm_short_555`, `unorm_short_565`, `unorm_int_101010`)
 |4.4|2023-09-12| - Added overload with `sycl::queue` to standalone functions
 |4.5|2023-09-14| - Update wording for allocating images + fix typo
+|4.6|2023-09-19| - Clarify restrictions on reading/writing coordinate types
 |======================
