@@ -20,8 +20,9 @@
 #include <sycl/kernel_bundle_enums.hpp>    // for bundle_state
 #include <sycl/property_list.hpp>          // for property_list
 
-#include <sycl/ext/oneapi/properties/property.hpp>       // PropertyT
-#include <sycl/ext/oneapi/properties/property_value.hpp> // build_options
+#include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
+#include <sycl/ext/oneapi/properties/property.hpp>       // build_options
+#include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
 #include <array>       // for array
 #include <cstring>     // for size_t, memcpy
@@ -798,7 +799,40 @@ template <> struct PropertyToKind<syclex::build_options_key> {
 };
 
 template <>
+struct IsRuntimeProperty<syclex::build_options_key> : std::true_type {};
+
+template <>
 struct IsCompileTimeProperty<syclex::build_options_key> : std::true_type {};
+
+} // namespace detail
+
+/////////////////////////
+// PropertyT syclex::build_log
+/////////////////////////
+struct build_log {
+  std::string *log;
+  build_log(std::string *logArg) : log(logArg) {}
+};
+using build_log_key = build_log;
+
+template <> struct is_property_key<build_log_key> : std::true_type {};
+
+template <>
+struct is_property_key_of<build_log_key,
+                          sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
+    : std::true_type {};
+
+namespace detail {
+
+template <> struct PropertyToKind<syclex::build_log_key> {
+  static constexpr PropKind Kind = PropKind::BuildLog;
+};
+
+template <>
+struct IsRuntimeProperty<syclex::build_log_key> : std::true_type {};
+
+template <>
+struct IsCompileTimeProperty<syclex::build_log_key> : std::true_type {};
 
 } // namespace detail
 
@@ -820,20 +854,23 @@ create_kernel_bundle_from_source(const context &SyclContext,
 // syclex::build(source_kb) => exe_kb
 /////////////////////////
 
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
-build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
-      const property_list &PropList = {});
 
-// kernel_bundle<bundle_state::executable>
-// build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB, const
-// property_list &PropList);
-
-// template<typename PropertyListT = sycl::ext::oneapi::properties<>>
+// OLD
 // __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 // build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
-//       PropertyListT props = {}) {
-//    return build(SourceKB, props);
-// }
+//       const property_list &PropList = {});
+
+// forward decl
+kernel_bundle<bundle_state::executable> build_old(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB, const property_list &PropList);
+
+using wtf_kenneth_t = std::tuple<build_options_key, build_log_key>;  // <-- is this right?
+
+template<typename PropertyListT = syclex::properties<wtf_kenneth_t>>  // <-- properties accepts exactly one template arg, and that s.b. a std::tuple??
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+      PropertyListT props = {}) {
+   return build_old(SourceKB, /* props */ property_list {});
+}
 
 } // namespace ext::oneapi::experimental
 

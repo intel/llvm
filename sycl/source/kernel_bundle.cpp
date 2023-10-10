@@ -389,7 +389,7 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
 // syclex::build(source_kb) => exe_kb
 /////////////////////////
 
-exe_kb build(source_kb &SourceKB, const property_list &PropList) {
+exe_kb build_old(source_kb &SourceKB, const property_list &PropList) {
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
   return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);

@@ -202,8 +202,9 @@ enum PropKind : uint32_t {
   GRFSize = 32,
   GRFSizeAutomatic = 33,
   BuildOptions = 34,
+  BuildLog = 35,
   // PropKindSize must always be the last value.
-  PropKindSize = 35,
+  PropKindSize = 36,
 };
 
 // This trait must be specialized for all properties and must have a unique
