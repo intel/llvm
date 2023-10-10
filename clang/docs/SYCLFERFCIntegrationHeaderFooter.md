@@ -1,3 +1,8 @@
+Discourse topic details:
+- Category: [Clang Frontend](https://discourse.llvm.org/c/clang/6)
+- Title: "RFC: SYCL host compiler integration header and footer"
+- Tags: sycl
+
 # Introduction
 SYCL source files are logically (and usually physically) compiled multiple times; code that runs on the "host" (e.g., a CPU) is compiled by a host compiler and code that runs on a "device" (e.g., a GPU) is compiled by a device compiler. The SYCL language is designed such that it is not necessary that the host compiler be SYCL-aware; an ISO C++ conforming compiler suffices. However, some SYCL features such as kernel invocation and support for
 [specialization constants](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_specialization_constants)
@@ -139,3 +144,5 @@ Partial specializations of this function are defined in the integration footer f
 ```
 
 This footer file is appended at the end of the translation unit for the host compilation.
+
+Note that unlike for a header file, which has established support for inclusion (e.g., via -include or /FI), there is no clear solution for footer files.  In our implementation, where the footer file is appended to the Translation Unit during host compilation, we have noticed some issues with debugging as well as with ccache.
