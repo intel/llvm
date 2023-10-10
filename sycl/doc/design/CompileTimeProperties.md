@@ -111,18 +111,31 @@ template </* ... */> class
 } // namespace sycl::ext::oneapi
 ```
 
-When the device compiler creates an [LLVM IR global variable][3] of the annotated class it will use the `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute to generate entries in the `@llvm.global.annotations` list, as described in [IR representation as IR attributes][5].
+When the device compiler creates an [LLVM IR global variable][3] of the 
+annotated class it will use the
+`[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute to generate
+entries in the `@llvm.global.annotations` list, as described in
+[IR representation via `@llvm.global.annotations`][5].
 
-In the example below, the annotated type `fpga_mem` itself has `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute. Both the attributes on the `device_global` and on `fpga_mem` will generate entries in the `@llvm.global.annotations` list.
+In the example below, the annotated type `fpga_mem` itself has
+`[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute. Both the
+attributes on the `device_global` and on `fpga_mem` will generate entries in the
+`@llvm.global.annotations` list.
 
 ```cpp
 device_global<fpga_mem<int[4], decltype(properties(word_size<2>))>, decltype(properties(host_access_none))> dg;
 ```
 
-The device compiler front-end ignores the [[__sycl_detail__::add_ir_attributes_global_variable()]] attribute when it is applied not to the object definition, and the variable of that type is not declared at namespace scope. 
+The device compiler front-end ignores the
+[[__sycl_detail__::add_ir_attributes_global_variable()]] attribute when it is
+applied not to the object definition, and the variable of that type is not
+declared at namespace scope. 
 
 Note that the front-end does not need to understand any of the properties in
 order to do this translation.
+
+[3]: <https://llvm.org/docs/LangRef.html#global-variables>
+[5]: <#ir-representation-via-llvmglobalannotations>
 
 
 ## Properties on kernel arguments
@@ -585,14 +598,24 @@ types listed above.
 ### IR representation via `@llvm.global.annotations`
 
 Properties that are implemented using
-`[[__sycl_detail__::add_ir_attributes_global_variable()]]`, are represented in LLVM IR
-as elements in the global variable `@llvm.global.annotations`. `@llvm.global.annotations` is an array of `{ ptr, ptr, ptr, i32, ptr}` structs, where each struct represents an annotation on a global pointer. The values of each field of the struct are as follows:
+`[[__sycl_detail__::add_ir_attributes_global_variable()]]`, are represented in 
+LLVM IR as elements in the global variable `@llvm.global.annotations`.
+`@llvm.global.annotations` is an array of `{ ptr, ptr, ptr, i32, ptr}` structs,
+where each struct represents an annotation on a global pointer. The values of
+each field of the struct are as follows:
 
-* pointer to global object to be annotated, global variable in our case. If there are nested annotations on the global variable, constant `getelementptr` instructions can be used to specify at which level the annotation is applied.
-* pointer to global string, representing the annotation. Each global string is a list of `{name:value}` pairs from the `[[__sycl_detail__::add_ir_attributes_global_variable()]]` annotation. Property values are converted to strings
-in the same way as described above, except that the `nullptr` value is represented as an empty string, `{name}`.
-* pointer to global string, representing the path of the source file where the annotation was applied.
-* i32 integer representing the line number in the source file where the annotation was applied. 
+* pointer to global object to be annotated, global variable in our case. If 
+there are nested annotations on the global variable, constant `getelementptr`
+instructions can be used to specify at which level the annotation is applied.
+* pointer to global string, representing the annotation. Each global string is
+a list of `{name:value}` pairs from the
+`[[__sycl_detail__::add_ir_attributes_global_variable()]]` annotation. Property
+values are converted to strings in the same way as described above, except that
+the `nullptr` value is represented as an empty string, `{name}`.
+* pointer to global string, representing the path of the source file where the
+annotation was applied.
+* i32 integer representing the line number in the source file where the
+annotation was applied. 
 * ptr to annotation arguments, `null` pointer in our case 
 
 ```cpp
