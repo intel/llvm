@@ -1,4 +1,4 @@
-Disourse topic details:
+Discourse topic details:
 - Category: [Clang Frontend](https://discourse.llvm.org/c/clang/6)
 - Title: "RFC: SYCL support for unnamed SYCL kernel functions"
 - Tags: sycl
