@@ -457,6 +457,54 @@ execute until each of the events in `depEvents` is complete. An optional event
 representing this command can be returned via `outEvent`.
 
 
+=== Command barriers
+
+The functions in this section are only available if the
+link:../supported/sycl_ext_oneapi_enqueuebarrier.asciidoc[
+  sycl_ext_oneapi_enqueue_barrier] extension is supported.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename ExecutorType>
+void barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+
+template <typename ExecutorType>
+void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+
+}
+----
+
+[source,c++]
+----
+template <typename ExecutorType>
+void barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+----
+_Effects_: Enqueues a command barrier to the executor `ex`. Any commands
+submitted after this barrier cannot begin execution until all commands
+previously submitted to the associated `queue` (and any commands associated
+with events explicitly listed in `depEvents`) have completed. An optional event
+representing this command can be returned via `outEvent`.
+
+[source,c++]
+----
+template <typename ExecutorType>
+void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+----
+_Effects_: Enqueues a _partial_ command barrier to the executor `ex`. Any
+commands submitted after this barrier cannot begin execution until all commands
+associated with events listed in `depEvents` have completed. An optional event
+representing this command can be returned via `outEvent`.
+
+[NOTE]
+----
+If `depEvents` is empty, a partial barrier is not required to wait for any
+commands unless the `queue` is in-order. Implementations may be able to
+optimize such partial barriers.
+----
+
+
 == Issues
 
 None.
