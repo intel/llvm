@@ -2184,8 +2184,7 @@ public:
       _KERNELFUNCPARAM(KernelFunc),
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
-        ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc,
-        CodeLoc);
+        ext::oneapi::experimental::empty_properties_t{}, KernelFunc, CodeLoc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2229,8 +2228,8 @@ public:
       event DepEvent, _KERNELFUNCPARAM(KernelFunc),
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
-        DepEvent, ext::oneapi::experimental::detail::empty_properties_t{},
-        KernelFunc, CodeLoc);
+        DepEvent, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
+        CodeLoc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2277,8 +2276,8 @@ public:
       const std::vector<event> &DepEvents, _KERNELFUNCPARAM(KernelFunc),
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
-        DepEvents, ext::oneapi::experimental::detail::empty_properties_t{},
-        KernelFunc, CodeLoc);
+        DepEvents, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2521,8 +2520,7 @@ public:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     return parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{},
-        Rest...);
+        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -2884,8 +2882,7 @@ private:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{},
-        Rest...);
+        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -2923,8 +2920,8 @@ private:
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, DepEvent,
-        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
+        Range, DepEvent, ext::oneapi::experimental::empty_properties_t{},
+        Rest...);
   }
 
   /// parallel_for_impl version with a kernel represented as a lambda + range
@@ -2966,8 +2963,8 @@ private:
                           const std::vector<event> &DepEvents,
                           RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, DepEvents,
-        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
+        Range, DepEvents, ext::oneapi::experimental::empty_properties_t{},
+        Rest...);
   }
 
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
