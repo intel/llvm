@@ -4,8 +4,8 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   # The UR tag should be from the 'adapters' branch
-  set(UNIFIED_RUNTIME_REPO "https://github.com/0x12CC/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e5d6a91af7849e912d32548ce0a51ee360339410)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 4954850f338241d72d506ebcb7162d61afef2924)
 
   set(UR_BUILD_ADAPTER_L0 ON)
   set(UMF_ENABLE_POOL_TRACKING ON)
