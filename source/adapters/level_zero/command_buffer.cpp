@@ -732,7 +732,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
           {UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY,
            ZE_MEMORY_ADVICE_CLEAR_READ_MOSTLY},
           {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION,
-           ZR_MEM_ADVISE_SET_PREFERRED_LOCATION},
+           ZE_MEMORY_ADVISE_SET_PREFERRED_LOCATION},
           {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION,
            ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION},
           {UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY,
@@ -742,16 +742,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
           {UR_USM_ADVICE_FLAG_BIAS_CACHED, ZE_MEMORY_ADVICE_BIAS_CACHED},
           {UR_USM_ADVICE_FLAG_BIAS_UNCACHED, ZE_MEMORY_ADVICE_BIAS_UNCACHED},
           {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST,
-           ZE_MEMORY_ADVICE_SET_SYSTEM_MEMORY_PREFERRED_LOCATION},
+           ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION},
           {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST,
-           ZE_MEMORY_ADVICE_CLEAR_SYSTEM_MEMORY_PREFERRED_LOCATION}};
+           ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION}};
 
-  ze_memory_advice_t ZeAdvice = 0;
+  uint32_t Value = 0;
   for (auto &FlagPair : URToCUMemAdviseDeviceFlagsMap) {
     if (Advice & FlagPair.first) {
-      ZeAdvice |= FlagPair.second;
+      Value |= static_cast<int>(FlagPair.second);
     }
   }
+  ze_memory_advice_t ZeAdvice = static_cast<ze_memory_advice_t>(Value);
 
   std::vector<ze_event_handle_t> ZeEventList;
   UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
