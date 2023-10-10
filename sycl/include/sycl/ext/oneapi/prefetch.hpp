@@ -73,10 +73,11 @@ void prefetch_impl(void *ptr, size_t bytes, Properties properties) {
         PropertyMetaInfo<decltype(prop)>::value);
   }
   __spirv_ocl_prefetch(ptrAnnotated, bytes);
-#endif
+#else
   std::ignore = ptr;
   std::ignore = bytes;
   std::ignore = properties;
+#endif
 }
 } // namespace detail
 
