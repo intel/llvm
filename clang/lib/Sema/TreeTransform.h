@@ -549,7 +549,8 @@ public:
   DeclarationNameInfo
   TransformDeclarationNameInfo(const DeclarationNameInfo &NameInfo);
 
-  bool TransformRequiresExprRequirements(ArrayRef<concepts::Requirement *> Reqs,
+  bool TransformRequiresExprRequirements(
+      ArrayRef<concepts::Requirement *> Reqs,
       llvm::SmallVectorImpl<concepts::Requirement *> &Transformed);
   concepts::TypeRequirement *
   TransformTypeRequirement(concepts::TypeRequirement *Req);
@@ -3644,11 +3645,14 @@ public:
   /// Subclasses may override this routine to provide different behavior.
   ExprResult RebuildRequiresExpr(SourceLocation RequiresKWLoc,
                                  RequiresExprBodyDecl *Body,
+                                 SourceLocation LParenLoc,
                                  ArrayRef<ParmVarDecl *> LocalParameters,
+                                 SourceLocation RParenLoc,
                                  ArrayRef<concepts::Requirement *> Requirements,
                                  SourceLocation ClosingBraceLoc) {
-    return RequiresExpr::Create(SemaRef.Context, RequiresKWLoc, Body,
-                                LocalParameters, Requirements, ClosingBraceLoc);
+    return RequiresExpr::Create(SemaRef.Context, RequiresKWLoc, Body, LParenLoc,
+                                LocalParameters, RParenLoc, Requirements,
+                                ClosingBraceLoc);
   }
 
   concepts::TypeRequirement *
@@ -5513,6 +5517,9 @@ TreeTransform<Derived>::TransformDependentSizedArrayType(TypeLocBuilder &TLB,
   // Array bounds are constant expressions.
   EnterExpressionEvaluationContext Unevaluated(
       SemaRef, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  // If we have a VLA then it won't be a constant.
+  SemaRef.ExprEvalContexts.back().InConditionallyConstantEvaluateContext = true;
 
   // Prefer the expression from the TypeLoc;  the other may have been uniqued.
   Expr *origSize = TL.getSizeExpr();
@@ -13078,9 +13085,9 @@ TreeTransform<Derived>::TransformRequiresExpr(RequiresExpr *E) {
     }
   }
 
-  return getDerived().RebuildRequiresExpr(E->getRequiresKWLoc(), Body,
-                                          TransParams, TransReqs,
-                                          E->getRBraceLoc());
+  return getDerived().RebuildRequiresExpr(
+      E->getRequiresKWLoc(), Body, E->getLParenLoc(), TransParams,
+      E->getRParenLoc(), TransReqs, E->getRBraceLoc());
 }
 
 template<typename Derived>

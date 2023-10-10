@@ -554,6 +554,11 @@ bool device_impl::has(aspect Aspect) const {
             &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_non_uniform_groups: {
+    return (this->getBackend() == backend::ext_oneapi_level_zero) ||
+           (this->getBackend() == backend::opencl) ||
+           (this->getBackend() == backend::ext_oneapi_cuda);
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);

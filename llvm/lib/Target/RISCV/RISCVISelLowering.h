@@ -309,6 +309,7 @@ enum NodeType : unsigned {
   VWADDU_W_VL,
   VWSUB_W_VL,
   VWSUBU_W_VL,
+  VWSLL_VL,
 
   VFWMUL_VL,
   VFWADD_VL,
@@ -573,7 +574,7 @@ public:
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
 
-  void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
+  void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
 
@@ -606,6 +607,10 @@ public:
     return VT.isScalarInteger();
   }
   bool convertSelectOfConstantsToMath(EVT VT) const override { return true; }
+
+  bool isCtpopFast(EVT VT) const override;
+
+  unsigned getCustomCtpopCost(EVT VT, ISD::CondCode Cond) const override;
 
   bool preferZeroCompareBranch() const override { return true; }
 
@@ -748,7 +753,7 @@ public:
                                            const RISCVRegisterInfo *TRI);
   MVT getContainerForFixedLengthVector(MVT VT) const;
 
-  bool shouldRemoveExtendFromGSIndex(EVT IndexVT, EVT DataVT) const override;
+  bool shouldRemoveExtendFromGSIndex(SDValue Extend, EVT DataVT) const override;
 
   bool isLegalElementTypeForRVV(EVT ScalarTy) const;
 

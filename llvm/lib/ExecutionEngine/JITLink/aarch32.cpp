@@ -147,6 +147,48 @@ int64_t decodeRegMovtT1MovwT3(uint32_t Hi, uint32_t Lo) {
   return Rd4;
 }
 
+/// Encode 16-bit immediate value for move instruction formats MOVT A1 and
+/// MOVW A2.
+///
+///   Imm4:Imm12 -> 000000000000:Imm4:0000:Imm12
+///
+uint32_t encodeImmMovtA1MovwA2(uint16_t Value) {
+  uint32_t Imm4 = (Value >> 12) & 0x0f;
+  uint32_t Imm12 = Value & 0x0fff;
+  return (Imm4 << 16) | Imm12;
+}
+
+/// Decode 16-bit immediate value for move instruction formats MOVT A1 and
+/// MOVW A2.
+///
+///   000000000000:Imm4:0000:Imm12 -> Imm4:Imm12
+///
+uint16_t decodeImmMovtA1MovwA2(uint64_t Value) {
+  uint32_t Imm4 = (Value >> 16) & 0x0f;
+  uint32_t Imm12 = Value & 0x0fff;
+  return (Imm4 << 12) | Imm12;
+}
+
+/// Encode register ID for instruction formats MOVT A1 and
+/// MOVW A2.
+///
+///   Rd4 -> 0000000000000000:Rd4:000000000000
+///
+uint32_t encodeRegMovtA1MovwA2(int64_t Value) {
+  uint32_t Rd4 = (Value & 0x00000f) << 12;
+  return Rd4;
+}
+
+/// Decode register ID for instruction formats MOVT A1 and
+/// MOVW A2.
+///
+///   0000000000000000:Rd4:000000000000 -> Rd4
+///
+int64_t decodeRegMovtA1MovwA2(uint64_t Value) {
+  uint32_t Rd4 = (Value >> 12) & 0x00000f;
+  return Rd4;
+}
+
 /// 32-bit Thumb instructions are stored as two little-endian halfwords.
 /// An instruction at address A encodes bytes A+1, A in the first halfword (Hi),
 /// followed by bytes A+3, A+2 in the second halfword (Lo).
@@ -264,7 +306,6 @@ void writeImmediate(WritableArmRelocation &R, uint32_t Imm) {
 
 Expected<int64_t> readAddendData(LinkGraph &G, Block &B, const Edge &E) {
   support::endianness Endian = G.getEndianness();
-  assert(Endian != support::native && "Declare as little or big explicitly");
 
   Edge::Kind Kind = E.getKind();
   const char *BlockWorkingMem = B.getContent().data();
@@ -296,6 +337,16 @@ Expected<int64_t> readAddendArm(LinkGraph &G, Block &B, const Edge &E) {
     if (!checkOpcode<Arm_Jump24>(R))
       return makeUnexpectedOpcodeError(G, R, Kind);
     return decodeImmBA1BlA1BlxA2(R.Wd);
+
+  case Arm_MovwAbsNC:
+    if (!checkOpcode<Arm_MovwAbsNC>(R))
+      return makeUnexpectedOpcodeError(G, R, Kind);
+    return decodeImmMovtA1MovwA2(R.Wd);
+
+  case Arm_MovtAbs:
+    if (!checkOpcode<Arm_MovtAbs>(R))
+      return makeUnexpectedOpcodeError(G, R, Kind);
+    return decodeImmMovtA1MovwA2(R.Wd);
 
   default:
     return make_error<JITLinkError>(
@@ -352,7 +403,6 @@ Error applyFixupData(LinkGraph &G, Block &B, const Edge &E) {
   char *FixupPtr = BlockWorkingMem + E.getOffset();
 
   auto Write32 = [FixupPtr, Endian = G.getEndianness()](int64_t Value) {
-    assert(Endian != native && "Must be explicit: little or big");
     assert(isInt<32>(Value) && "Must be in signed 32-bit range");
     uint32_t Imm = static_cast<int32_t>(Value);
     if (LLVM_LIKELY(Endian == little))
@@ -450,7 +500,20 @@ Error applyFixupArm(LinkGraph &G, Block &B, const Edge &E) {
 
     return Error::success();
   }
-
+  case Arm_MovwAbsNC: {
+    if (!checkOpcode<Arm_MovwAbsNC>(R))
+      return makeUnexpectedOpcodeError(G, R, Kind);
+    uint16_t Value = (TargetAddress + Addend) & 0xffff;
+    writeImmediate<Arm_MovwAbsNC>(R, encodeImmMovtA1MovwA2(Value));
+    return Error::success();
+  }
+  case Arm_MovtAbs: {
+    if (!checkOpcode<Arm_MovtAbs>(R))
+      return makeUnexpectedOpcodeError(G, R, Kind);
+    uint16_t Value = ((TargetAddress + Addend) >> 16) & 0xffff;
+    writeImmediate<Arm_MovtAbs>(R, encodeImmMovtA1MovwA2(Value));
+    return Error::success();
+  }
   default:
     return make_error<JITLinkError>(
         "In graph " + G.getName() + ", section " + B.getSection().getName() +
@@ -590,6 +653,8 @@ const char *getEdgeKindName(Edge::Kind K) {
     KIND_NAME_CASE(Data_Pointer32)
     KIND_NAME_CASE(Arm_Call)
     KIND_NAME_CASE(Arm_Jump24)
+    KIND_NAME_CASE(Arm_MovwAbsNC)
+    KIND_NAME_CASE(Arm_MovtAbs)
     KIND_NAME_CASE(Thumb_Call)
     KIND_NAME_CASE(Thumb_Jump24)
     KIND_NAME_CASE(Thumb_MovwAbsNC)

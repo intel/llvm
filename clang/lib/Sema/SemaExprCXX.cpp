@@ -1165,7 +1165,7 @@ static QualType adjustCVQualifiersForCXXThisWithinLambda(
     auto C = CurLSI->getCXXThisCapture();
 
     if (C.isCopyCapture()) {
-      if (!CurLSI->Mutable)
+      if (CurLSI->lambdaCaptureShouldBeConst())
         ClassType.addConst();
       return ASTCtx.getPointerType(ClassType);
     }
@@ -1221,11 +1221,11 @@ QualType Sema::getCurrentThisType() {
   QualType ThisTy = CXXThisTypeOverride;
 
   if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(DC)) {
-    if (method && method->isInstance())
+    if (method && method->isImplicitObjectMemberFunction())
       ThisTy = method->getThisType().getNonReferenceType();
   }
 
-  if (ThisTy.isNull() && isLambdaCallOperator(CurContext) &&
+  if (ThisTy.isNull() && isLambdaCallWithImplicitObjectParameter(CurContext) &&
       inTemplateInstantiation() && isa<CXXRecordDecl>(DC)) {
 
     // This is a lambda call operator that is being instantiated as a default
@@ -1403,10 +1403,22 @@ ExprResult Sema::ActOnCXXThis(SourceLocation Loc) {
   /// C++ 9.3.2: In the body of a non-static member function, the keyword this
   /// is a non-lvalue expression whose value is the address of the object for
   /// which the function is called.
-
   QualType ThisTy = getCurrentThisType();
-  if (ThisTy.isNull())
-    return Diag(Loc, diag::err_invalid_this_use);
+
+  if (ThisTy.isNull()) {
+    DeclContext *DC = getFunctionLevelDeclContext();
+
+    if (const auto *Method = dyn_cast<CXXMethodDecl>(DC);
+        Method && Method->isExplicitObjectMemberFunction()) {
+      return Diag(Loc, diag::err_invalid_this_use) << 1;
+    }
+
+    if (isLambdaCallWithExplicitObjectParameter(CurContext))
+      return Diag(Loc, diag::err_invalid_this_use) << 1;
+
+    return Diag(Loc, diag::err_invalid_this_use) << 0;
+  }
+
   return BuildCXXThisExpr(Loc, ThisTy, /*IsImplicit=*/false);
 }
 
@@ -3969,7 +3981,7 @@ void Sema::CheckVirtualDtorCall(CXXDestructorDecl *dtor, SourceLocation Loc,
   if (getSourceManager().isInSystemHeader(PointeeRD->getLocation()))
     return;
 
-  QualType ClassType = dtor->getThisObjectType();
+  QualType ClassType = dtor->getFunctionObjectParameterType();
   if (PointeeRD->isAbstract()) {
     // If the class is abstract, we warn by default, because we're
     // sure the code has undefined behavior.
@@ -4328,15 +4340,17 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     if (DiagnoseUseOfDecl(Fn, From->getBeginLoc()))
       return ExprError();
 
-    From = FixOverloadedFunctionReference(From, Found, Fn);
+    ExprResult Res = FixOverloadedFunctionReference(From, Found, Fn);
+    if (Res.isInvalid())
+      return ExprError();
 
     // We might get back another placeholder expression if we resolved to a
     // builtin.
-    ExprResult Checked = CheckPlaceholderExpr(From);
-    if (Checked.isInvalid())
+    Res = CheckPlaceholderExpr(Res.get());
+    if (Res.isInvalid())
       return ExprError();
 
-    From = Checked.get();
+    From = Res.get();
     FromType = From->getType();
   }
 
@@ -8061,68 +8075,6 @@ ExprResult Sema::ActOnPseudoDestructorExpr(Scope *S, Expr *Base,
                                    Destructed);
 }
 
-ExprResult Sema::BuildCXXMemberCallExpr(Expr *E, NamedDecl *FoundDecl,
-                                        CXXConversionDecl *Method,
-                                        bool HadMultipleCandidates) {
-  // Convert the expression to match the conversion function's implicit object
-  // parameter.
-  ExprResult Exp = PerformObjectArgumentInitialization(E, /*Qualifier=*/nullptr,
-                                          FoundDecl, Method);
-  if (Exp.isInvalid())
-    return true;
-
-  if (Method->getParent()->isLambda() &&
-      Method->getConversionType()->isBlockPointerType()) {
-    // This is a lambda conversion to block pointer; check if the argument
-    // was a LambdaExpr.
-    Expr *SubE = E;
-    CastExpr *CE = dyn_cast<CastExpr>(SubE);
-    if (CE && CE->getCastKind() == CK_NoOp)
-      SubE = CE->getSubExpr();
-    SubE = SubE->IgnoreParens();
-    if (CXXBindTemporaryExpr *BE = dyn_cast<CXXBindTemporaryExpr>(SubE))
-      SubE = BE->getSubExpr();
-    if (isa<LambdaExpr>(SubE)) {
-      // For the conversion to block pointer on a lambda expression, we
-      // construct a special BlockLiteral instead; this doesn't really make
-      // a difference in ARC, but outside of ARC the resulting block literal
-      // follows the normal lifetime rules for block literals instead of being
-      // autoreleased.
-      PushExpressionEvaluationContext(
-          ExpressionEvaluationContext::PotentiallyEvaluated);
-      ExprResult BlockExp = BuildBlockForLambdaConversion(
-          Exp.get()->getExprLoc(), Exp.get()->getExprLoc(), Method, Exp.get());
-      PopExpressionEvaluationContext();
-
-      // FIXME: This note should be produced by a CodeSynthesisContext.
-      if (BlockExp.isInvalid())
-        Diag(Exp.get()->getExprLoc(), diag::note_lambda_to_block_conv);
-      return BlockExp;
-    }
-  }
-
-  MemberExpr *ME =
-      BuildMemberExpr(Exp.get(), /*IsArrow=*/false, SourceLocation(),
-                      NestedNameSpecifierLoc(), SourceLocation(), Method,
-                      DeclAccessPair::make(FoundDecl, FoundDecl->getAccess()),
-                      HadMultipleCandidates, DeclarationNameInfo(),
-                      Context.BoundMemberTy, VK_PRValue, OK_Ordinary);
-
-  QualType ResultType = Method->getReturnType();
-  ExprValueKind VK = Expr::getValueKindForType(ResultType);
-  ResultType = ResultType.getNonLValueExprType(Context);
-
-  CXXMemberCallExpr *CE = CXXMemberCallExpr::Create(
-      Context, ME, /*Args=*/{}, ResultType, VK, Exp.get()->getEndLoc(),
-      CurFPFeatureOverrides());
-
-  if (CheckFunctionCall(Method, CE,
-                        Method->getType()->castAs<FunctionProtoType>()))
-    return ExprError();
-
-  return CheckForImmediateInvocation(CE, CE->getMethodDecl());
-}
-
 ExprResult Sema::BuildCXXNoexceptExpr(SourceLocation KeyLoc, Expr *Operand,
                                       SourceLocation RParen) {
   // If the operand is an unresolved lookup expression, the expression is ill-
@@ -9072,7 +9024,8 @@ Sema::BuildExprRequirement(
     concepts::ExprRequirement::ReturnTypeRequirement ReturnTypeRequirement) {
   auto Status = concepts::ExprRequirement::SS_Satisfied;
   ConceptSpecializationExpr *SubstitutedConstraintExpr = nullptr;
-  if (E->isInstantiationDependent() || ReturnTypeRequirement.isDependent())
+  if (E->isInstantiationDependent() || E->getType()->isPlaceholderType() ||
+      ReturnTypeRequirement.isDependent())
     Status = concepts::ExprRequirement::SS_Dependent;
   else if (NoexceptLoc.isValid() && canThrow(E) == CanThrowResult::CT_Can)
     Status = concepts::ExprRequirement::SS_NoexceptNotMet;
@@ -9199,14 +9152,14 @@ void Sema::ActOnFinishRequiresExpr() {
   assert(CurContext && "Popped translation unit!");
 }
 
-ExprResult
-Sema::ActOnRequiresExpr(SourceLocation RequiresKWLoc,
-                        RequiresExprBodyDecl *Body,
-                        ArrayRef<ParmVarDecl *> LocalParameters,
-                        ArrayRef<concepts::Requirement *> Requirements,
-                        SourceLocation ClosingBraceLoc) {
-  auto *RE = RequiresExpr::Create(Context, RequiresKWLoc, Body, LocalParameters,
-                                  Requirements, ClosingBraceLoc);
+ExprResult Sema::ActOnRequiresExpr(
+    SourceLocation RequiresKWLoc, RequiresExprBodyDecl *Body,
+    SourceLocation LParenLoc, ArrayRef<ParmVarDecl *> LocalParameters,
+    SourceLocation RParenLoc, ArrayRef<concepts::Requirement *> Requirements,
+    SourceLocation ClosingBraceLoc) {
+  auto *RE = RequiresExpr::Create(Context, RequiresKWLoc, Body, LParenLoc,
+                                  LocalParameters, RParenLoc, Requirements,
+                                  ClosingBraceLoc);
   if (DiagnoseUnexpandedParameterPackInRequiresExpr(RE))
     return ExprError();
   return RE;

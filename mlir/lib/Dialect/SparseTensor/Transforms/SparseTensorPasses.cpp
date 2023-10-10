@@ -208,7 +208,6 @@ struct SparseTensorCodegenPass
     // Most ops in the sparse dialect must go!
     target.addIllegalDialect<SparseTensorDialect>();
     target.addLegalOp<SortOp>();
-    target.addLegalOp<SortCooOp>();
     target.addLegalOp<PushBackOp>();
     // Storage specifier outlives sparse tensor pipeline.
     target.addLegalOp<GetStorageSpecifierOp>();

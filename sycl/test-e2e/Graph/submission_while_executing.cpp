@@ -11,13 +11,19 @@
 
 #include "graph_common.hpp"
 
+inline bool
+isSubmittedOrRunningCommand(sycl::info::event_command_status Status) {
+  return ((Status == sycl::info::event_command_status::submitted) ||
+          (Status == sycl::info::event_command_status::running));
+}
+
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   using T = int;
 
   size_t LargeSize =
-      1000000; // we use large Size to increase the kernel execution time
+      10000; // we use large Size to increase the kernel execution time
   size_t NumIterations = 10;
   size_t SuccessfulSubmissions = 0;
 
@@ -53,26 +59,46 @@ int main() {
   }
 
   // Concurrent Submissions
-  sycl::event Event;
-  sycl::info::event_command_status PreEventInfo =
+  sycl::event PreEvent, Event;
+  sycl::info::event_command_status PreEventInfoStateBefore =
       sycl::info::event_command_status::ext_oneapi_unknown;
-  std::error_code ErrorCode = make_error_code(sycl::errc::success);
+  sycl::info::event_command_status PreEventInfoStateAfter =
+      sycl::info::event_command_status::ext_oneapi_unknown;
   for (unsigned i = 0; i < NumIterations; ++i) {
+    std::error_code ErrorCode = make_error_code(sycl::errc::success);
+    PreEventInfoStateBefore =
+        PreEvent.get_info<sycl::info::event::command_execution_status>();
+
+    // Submit the kernel
     try {
       Event =
           Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
     } catch (const sycl::exception &e) {
       ErrorCode = e.code();
     }
-    if ((PreEventInfo == sycl::info::event_command_status::submitted) ||
-        (PreEventInfo == sycl::info::event_command_status::running)) {
+    PreEventInfoStateAfter =
+        PreEvent.get_info<sycl::info::event::command_execution_status>();
+
+    // Check submission status
+    if (isSubmittedOrRunningCommand(PreEventInfoStateBefore) &&
+        isSubmittedOrRunningCommand(PreEventInfoStateAfter)) {
       assert(ErrorCode == sycl::errc::invalid);
-    } else {
+    } else if (PreEventInfoStateBefore ==
+               sycl::info::event_command_status::complete) {
       // Submission has succeeded
       SuccessfulSubmissions++;
+      PreEvent = Event;
+    } else {
+      // We cannot be sure of the state of the previous task when the current
+      // submission occurred because `PreEventInfoStateBefore` and
+      // `PreEventInfoStateAfter` indicate different status We therefore only
+      // read the submission status and increment the number of successful
+      // submissions if the submission was successful
+      if (ErrorCode == sycl::errc::success) {
+        SuccessfulSubmissions++;
+        PreEvent = Event;
+      }
     }
-    PreEventInfo =
-        Event.get_info<sycl::info::event::command_execution_status>();
   }
   Queue.wait_and_throw();
 
@@ -88,6 +114,7 @@ int main() {
   // Compute the reference based on the total number of successful executions
   calculate_reference_data(NumIterations + SuccessfulSubmissions, LargeSize,
                            ReferenceA, ReferenceB, ReferenceC);
+
   assert(ReferenceA == DataA);
   assert(ReferenceB == DataB);
   assert(ReferenceC == DataC);
