@@ -99,7 +99,9 @@ DeviceLib/imf_bfloat16_integeral_convesions.cpp
 DeviceLib/imf_double2bfloat16.cpp
 DeviceLib/imf_double2half.cpp
 DeviceLib/imf_float2bfloat16.cpp
+DeviceLib/imf_fp32_rounding_test.cpp
 DeviceLib/imf_fp32_test.cpp
+DeviceLib/imf_fp64_rounding_test.cpp
 DeviceLib/imf_fp64_test.cpp
 DeviceLib/imf_half_type_cast.cpp
 DeviceLib/imf_simd_emulate_test.cpp
@@ -306,6 +308,7 @@ ESIMD/sycl_esimd_mix.cpp
 ESIMD/template.cpp
 ESIMD/test_id_3d.cpp
 ESIMD/thread_id_test.cpp
+ESIMD/unified_memory_api/block_load_usm.cpp
 ESIMD/usm_gather_scatter_rgba_64.cpp
 ESIMD/usm_gather_scatter_rgba.cpp
 ESIMD/vadd_1d.cpp
