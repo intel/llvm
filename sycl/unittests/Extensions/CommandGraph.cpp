@@ -1270,6 +1270,46 @@ TEST_F(CommandGraphTest, EnqueueBarrier) {
   }
 }
 
+TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
+  sycl::queue Queue2{Queue.get_context(), Dev};
+  Graph.begin_recording({Queue, Queue2});
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Barrier =
+      Queue2.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
+
+  auto Node4Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording();
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | /
+  //     (B)
+  //     / \
+  //   (4) (5)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto BarrierNode = Node->MSuccessors.front();
+    ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
+    ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
+              sycl::detail::getSyclObjImpl(Barrier));
+    ASSERT_EQ(BarrierNode->MPredecessors.size(), 3lu);
+    ASSERT_EQ(BarrierNode->MSuccessors.size(), 2lu);
+  }
+}
+
 TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
   Graph.begin_recording(Queue);
   auto Node1Graph = Queue.submit(
@@ -1289,6 +1329,7 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
     cgh.depends_on(Node3Graph);
     cgh.single_task<TestKernel<>>([]() {});
   });
+
   Graph.end_recording(Queue);
 
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
@@ -1309,6 +1350,62 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
                 sycl::detail::getSyclObjImpl(Barrier));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 2lu);
+    } else {
+      // Node 5
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+    }
+  }
+}
+
+TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
+  sycl::queue Queue2{Queue.get_context(), Dev};
+  Graph.begin_recording({Queue, Queue2});
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  // Node1Graph comes from Queue, and Node2Graph comes from Queue2
+  auto Barrier = Queue.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Node1Graph, Node2Graph});
+  });
+
+  auto Node4Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(Node3Graph);
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+
+  auto Barrier2 = Queue2.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Barrier, Node4Graph, Node5Graph});
+  });
+
+  Graph.end_recording();
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |   |
+  //    \ |   |
+  //     (B)  |
+  //     /|\ /
+  //   (4)|(5)
+  //    \ | /
+  //     \|/
+  //     (B2)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto SuccNode = Node->MSuccessors.front();
+    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+                sycl::detail::getSyclObjImpl(Barrier));
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
     } else {
       // Node 5
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
