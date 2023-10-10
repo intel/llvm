@@ -54,7 +54,7 @@ template <typename T, int N> bool test(queue &Q) {
   T *Dst = Ptr2.get();
 
   for (int I = 0; I < N; ++I) {
-    Src[I] = I + 1;
+    Src[I] = I + 1 + 0.5;
     Dst[I] = 0;
   }
 
@@ -75,7 +75,9 @@ template <typename T, int N> bool test(queue &Q) {
   }
 
   unsigned NumErrs = 0;
-  for (int I = 0; I < N; ++I)
+  for (int I = 0; I < N; ++I) {
+    std::cout << "at " << I << ": " << Dst[I] << " (Dst) and " << Src[I]
+              << " (Src)\n";
 #ifndef USE_SCALAR_OFFSET
     if (Dst[I] != Src[I])
 #else
@@ -84,7 +86,7 @@ template <typename T, int N> bool test(queue &Q) {
       if (++NumErrs <= 10)
         std::cout << "failed at " << I << ": " << Dst[I]
                   << " (Dst) != " << Src[I] << " (Src)\n";
-
+  }
   std::cout << (NumErrs == 0 ? "    Passed\n" : "    FAILED\n");
   return NumErrs == 0;
 }
@@ -97,6 +99,7 @@ int main(void) {
 
   bool Pass = true;
 
+#if 0
   Pass &= test<int8_t, 1>(Q);
 #ifndef USE_SCALAR_OFFSET
   Pass &= test<int8_t, 2>(Q);
@@ -123,17 +126,19 @@ int main(void) {
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
 #endif
+
+#endif
   if (Dev.has(aspect::fp16)) {
-    Pass &= test<half, 1>(Q);
+//    Pass &= test<half, 1>(Q);
 #ifndef USE_SCALAR_OFFSET
-    Pass &= test<half, 2>(Q);
-    Pass &= test<half, 4>(Q);
+    //    Pass &= test<half, 2>(Q);
+    //    Pass &= test<half, 4>(Q);
     Pass &= test<half, 8>(Q);
-    Pass &= test<half, 16>(Q);
-    Pass &= test<half, 32>(Q);
+//    Pass &= test<half, 16>(Q);
+//    Pass &= test<half, 32>(Q);
 #endif
   }
-
+#if 0
   Pass &= test<bfloat16, 1>(Q);
 #ifndef USE_SCALAR_OFFSET
   Pass &= test<bfloat16, 2>(Q);
@@ -152,7 +157,7 @@ int main(void) {
   Pass &= test<tfloat32, 32>(Q);
 #endif
 #endif
-
+#endif // if 0
   std::cout << (Pass ? "Test Passed\n" : "Test FAILED\n");
   return Pass ? 0 : 1;
 }

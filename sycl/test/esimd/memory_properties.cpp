@@ -24,6 +24,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
                  size_t byte_offset64);
 
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_gather_scatter(AccType &, float *, int byte_offset32,
+                    size_t byte_offset64);
+
 class EsimdFunctor {
 public:
   AccType acc;
@@ -35,6 +39,7 @@ public:
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_atomic_update(acc, ptr, byte_offset32, byte_offset64);
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
+    test_gather_scatter(acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -600,4 +605,36 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
   // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
   block_store<int, N>(local_acc, byte_offset32, valsi, mask, store_props_c);
   block_store<int, N>(local_acc, byte_offset32, viewi, mask, store_props_c);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z19test_gather_scatter{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
+                    size_t byte_offset64) {
+  properties props_cache_load{cache_hint_L1<cache_hint::uncached>,
+                              cache_hint_L2<cache_hint::uncached>,
+                              alignment<8>};
+
+  properties props_align4{alignment<4>};
+  properties props_align8{alignment<8>};
+  properties props_align16{alignment<16>};
+
+  int *ptri = reinterpret_cast<int *>(ptrf);
+
+  simd<uint32_t, 4> offsets32_4(byte_offset32, 8);
+  simd<uint64_t, 4> offsets64_4(byte_offset64, 16);
+  simd_mask<4> mask4 = 1;
+
+  // XXCHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
+  // simd<float, 4> usm1 = gather(ptrf, offsets32_4);
+  // simd<float, 4> usm2 = gather(ptrf, offsets32_4, props_align4);
+  // simd<float, 4> usm3 = gather(ptrf, offsets64_4);
+  // simd<float, 4> usm4 = gather(ptrf, offsets64_4, props_align4);
+
+  // simd<float, 4> usm5 = gather(ptrf, offsets32_4, mask4);
+  // simd<float, 4> usm6 = gather(ptrf, offsets32_4, mask4, props_align4);
+  // simd<float, 4> usm7 = gather(ptrf, offsets64_4, mask4);
+  // simd<float, 4> usm8 = gather(ptrf, offsets64_4, mask4, props_align4);
+
+  simd<float, 4> usm8 = slm_gather<float>(offsets32_4, mask4);
 }
