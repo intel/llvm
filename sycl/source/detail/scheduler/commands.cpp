@@ -2495,16 +2495,6 @@ pi_int32 enqueueImpKernel(
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
-    Kernel = MSyclKernel->getHandleRef();
-    auto SyclProg = MSyclKernel->getProgramImpl();
-    Program = SyclProg->getHandleRef();
-    if (SyclProg->is_cacheable()) {
-      sycl::detail::pi::PiKernel FoundKernel = nullptr;
-      std::tie(FoundKernel, KernelMutex, EliminatedArgMask, std::ignore) =
-          detail::ProgramManager::getInstance().getOrCreateKernel(
-              ContextImpl, DeviceImpl, KernelName);
-      assert(FoundKernel == Kernel);
-    } else {
       // Non-cacheable kernels use mutexes from kernel_impls.
       // TODO this can still result in a race condition if multiple SYCL
       // kernels are created with the same native handle. To address this,
@@ -2513,7 +2503,6 @@ pi_int32 enqueueImpKernel(
       // their duplication in such cases.
       KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
       EliminatedArgMask = MSyclKernel->getKernelArgMask();
-    }
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
