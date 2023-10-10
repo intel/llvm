@@ -123,7 +123,8 @@ std::vector<sycl::event> depEvents = /* some dependencies */;
 sycl::event e;
 syclex::nd_launch(q, sycl::nd_range<1>{1024, 16}, [=](sycl::nd_item<1> it) {
   result[it.get_global_id()] += 1;
-}, depEvents, e);
+}, depEvents, &e);
+e.wait();
 ----
 
 
