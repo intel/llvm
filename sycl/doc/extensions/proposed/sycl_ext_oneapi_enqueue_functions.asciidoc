@@ -97,12 +97,14 @@ q.submit([&](sycl::handler& h) {
   });
 });
 
+float* output = sycl::malloc_shared<float>(1024, q);
 std::vector<sycl::event> depEvents = /* some dependencies */;
 sycl::event e = q.parallel_for(sycl::nd_range<1>{1024, 16}, depEvents,
   [=](sycl::nd_item<1> it) {
-  result[it.get_global_id()] += 1;
+  output[it.get_global_id()] = it.get_global_id();
 });
 e.wait();
+sycl::free(output, q);
 ----
 
 
@@ -119,12 +121,14 @@ syclex::submit(q, [&](sycl::handler& h) {
   });
 });
 
+float* output = sycl::malloc_shared<float>(1024, q);
 std::vector<sycl::event> depEvents = /* some dependencies */;
 sycl::event e;
 syclex::nd_launch(q, sycl::nd_range<1>{1024, 16}, [=](sycl::nd_item<1> it) {
-  result[it.get_global_id()] += 1;
+  output[it.get_global_id()] = it.get_global_id();
 }, depEvents, &e);
 e.wait();
+sycl::free(output, q);
 ----
 
 
