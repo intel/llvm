@@ -490,20 +490,30 @@ public:
     // PTX doesn't have intrinsics for global sizes and global IDs:
     // https://www.llvm.org/docs/NVPTXUsage.html#reading-ptx-special-registers
 
-    auto Name = F->getName();
-    if (Name.equals("llvm.nvvm.implicit.offset"))
-      return BuiltinKind::GlobalOffsetRemapper;
-    if (!Name.consume_front("llvm.nvvm.read.ptx.sreg."))
+    if (!F->isIntrinsic())
       return {};
-    if (Name.consume_front("tid."))
+    switch (F->getIntrinsicID()) {
+    case Intrinsic::nvvm_implicit_offset:
+      return BuiltinKind::GlobalOffsetRemapper;
+    case Intrinsic::nvvm_read_ptx_sreg_tid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_tid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_tid_z:
       return BuiltinKind::LocalIDRemapper;
-    if (Name.consume_front("ctaid."))
+    case Intrinsic::nvvm_read_ptx_sreg_ctaid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_ctaid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_ctaid_z:
       return BuiltinKind::GroupIDRemapper;
-    if (Name.consume_front("ntid."))
+    case Intrinsic::nvvm_read_ptx_sreg_ntid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_ntid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_ntid_z:
       return BuiltinKind::LocalSizeRemapper;
-    if (Name.consume_front("nctaid."))
+    case Intrinsic::nvvm_read_ptx_sreg_nctaid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_nctaid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_nctaid_z:
       return BuiltinKind::NumWorkGroupsRemapper;
-    return {};
+    default:
+      return {};
+    }
   }
 
   bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
