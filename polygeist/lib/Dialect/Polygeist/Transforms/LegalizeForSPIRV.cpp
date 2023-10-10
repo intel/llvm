@@ -45,7 +45,7 @@ public:
     if (!gepOp)
       return failure();
 
-    Value nullOp = gepOp.getBase().getDefiningOp<LLVM::NullOp>();
+    Value nullOp = gepOp.getBase().getDefiningOp<LLVM::ZeroOp>();
     if (!nullOp)
       return failure();
 

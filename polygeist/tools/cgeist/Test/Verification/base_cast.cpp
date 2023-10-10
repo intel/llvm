@@ -43,7 +43,7 @@ D* castAtoD(A *b) {
 // CHECK:           %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(struct<(i8)>, struct<(i32, i32)>, i32)>, i32, i8)>
 // CHECK:           llvm.store %[[VAL_0]], %[[VAL_5]] : i32, !llvm.ptr
 // CHECK:           %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_3]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(i8)>, struct<(i32, i32)>, i32)>
-// CHECK:           %[[VAL_7:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_7:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           %[[VAL_8:.*]] = llvm.icmp "ne" %[[VAL_6]], %[[VAL_7]] : !llvm.ptr
 // CHECK:           %[[VAL_9:.*]] = arith.select %[[VAL_8]], %[[VAL_6]], %[[VAL_7]] : !llvm.ptr
 // CHECK:           %[[VAL_10:.*]] = call @_Z8castAtoCP1A(%[[VAL_9]]) : (!llvm.ptr) -> !llvm.ptr

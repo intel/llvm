@@ -824,7 +824,7 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       SmallVector<Value> vals;
       if (crossing.size() == 0) {
         vals.push_back(
-            rewriter.create<LLVM::NullOp>(execute.getLoc(), voidPtr));
+            rewriter.create<LLVM::ZeroOp>(execute.getLoc(), voidPtr));
       } else if (crossing.size() == 1 &&
                  isa<LLVM::LLVMPointerType>(
                      converter->convertType(crossing[0].getType()))) {
@@ -1036,7 +1036,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       SmallVector<Value> vals;
       if (crossing.size() == 0) {
         vals.push_back(
-            rewriter.create<LLVM::NullOp>(execute.getLoc(), voidPtr));
+            rewriter.create<LLVM::ZeroOp>(execute.getLoc(), voidPtr));
       } else if (crossing.size() == 1 &&
                  isa<LLVM::LLVMPointerType>(
                      converter->convertType(crossing[0].getType()))) {

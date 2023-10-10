@@ -675,7 +675,7 @@ void unrollByFactor(LoopLikeOpInterface loop, unsigned factor) {
     Value step =
         builder.create<arith::ConstantIndexOp>(loc, affineForOp.getStep());
     auto scfForOp = builder.create<scf::ForOp>(
-        loc, lowerBound, upperBound, step, affineForOp.getIterOperands());
+        loc, lowerBound, upperBound, step, affineForOp.getInits());
 
     // Replace scfForOp body with affineForOp body.
     scfForOp.getBody()->getParent()->getBlocks().remove(scfForOp.getBody());

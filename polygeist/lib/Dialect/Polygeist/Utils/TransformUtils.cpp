@@ -682,7 +682,7 @@ void AffineForGuardBuilder::getConstraints(SmallVectorImpl<AffineExpr> &exprs,
 }
 
 OperandRange AffineForGuardBuilder::getInitVals() const {
-  return getLoop().getIterOperands();
+  return getLoop().getInits();
 }
 
 OperandRange AffineForGuardBuilder::getLowerBoundsOperands() const {

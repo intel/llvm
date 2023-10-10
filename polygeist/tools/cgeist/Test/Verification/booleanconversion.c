@@ -36,7 +36,7 @@ bool double_conversion(double i) { return (bool)i; }
 
 // CHECK-LABEL:   func.func @ptr_conversion(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.icmp "ne" %[[VAL_0]], %[[VAL_1]] : !llvm.ptr
 // CHECK-NEXT:      return %[[VAL_2]] : i1
 // CHECK-NEXT:    }
@@ -44,7 +44,7 @@ bool ptr_conversion(void *i) { return (bool)i; }
 
 // CHECK-LABEL:   func.func @memref_conversion(
 // CHECK-SAME:                                 %[[VAL_0:.*]]: memref<?xi32>) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK-NEXT:      %[[VAL_2:.*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xi32>) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.icmp "ne" %[[VAL_2]], %[[VAL_1]] : !llvm.ptr
 // CHECK-NEXT:      return %[[VAL_3]] : i1

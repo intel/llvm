@@ -120,9 +120,9 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
       if (getElemTy() == p2m.getSource().getType())
         toStore = p2m.getSource();
-      else if (auto nt = p2m.getSource().getDefiningOp<LLVM::NullOp>()) {
+      else if (auto nt = p2m.getSource().getDefiningOp<LLVM::ZeroOp>()) {
         if (isa<LLVM::LLVMPointerType>(getElemTy()))
-          toStore = builder.create<LLVM::NullOp>(nt.getLoc(), getElemTy());
+          toStore = builder.create<LLVM::ZeroOp>(nt.getLoc(), getElemTy());
       }
     }
 

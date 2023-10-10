@@ -20,7 +20,7 @@ size_t evt2() {
 
 // CHECK-LABEL:   func.func @_Z3evtv() -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:    %0 = llvm.mlir.undef : vector<3xi64>
-// CHECK-NEXT:    %1 = vector.extract %0[0] : vector<3xi64>
+// CHECK-NEXT:    %1 = vector.extract %0[0] : i64 from vector<3xi64>
 // CHECK-NEXT:    return %1 : i64
 // CHECK-NEXT:    }
 
@@ -29,7 +29,7 @@ size_t evt2() {
 // CHECK-NEXT:     %alloca = memref.alloca() : memref<1xindex>
 // CHECK-NEXT:     %reshape = memref.reshape %0(%alloca) : (memref<vector<3xi64>>, memref<1xindex>) -> memref<1xvector<3xi64>>
 // CHECK-NEXT:     %1 = affine.load %reshape[0] : memref<1xvector<3xi64>>
-// CHECK-NEXT:     %2 = vector.extract %1[0] : vector<3xi64>
+// CHECK-NEXT:     %2 = vector.extract %1[0] : i64 from vector<3xi64>
 // CHECK-NEXT:     return %2 : i64
 // CHECK-NEXT:     }
 

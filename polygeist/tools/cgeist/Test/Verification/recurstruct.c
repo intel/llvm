@@ -13,7 +13,7 @@ double sum(struct Node* n) {
 // CHECK-LABEL:   func.func @sum(
 // CHECK-SAME:                   %[[VAL_0:.*]]: !llvm.ptr) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.icmp "eq" %[[VAL_0]], %[[VAL_2]] : !llvm.ptr
 // CHECK-NEXT:      %[[VAL_4:.*]] = scf.if %[[VAL_3]] -> (f64) {
 // CHECK-NEXT:        scf.yield %[[VAL_1]] : f64

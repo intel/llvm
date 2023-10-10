@@ -389,6 +389,9 @@ for sycl_device in config.sycl_devices:
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
+
+# Version of the driver for a given device. Empty for non-Intel devices.
+config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env['ONEAPI_DEVICE_SELECTOR'] = sycl_device
@@ -412,11 +415,25 @@ for sycl_device in config.sycl_devices:
 
     dev_aspects = []
     dev_sg_sizes = []
+    # See format.py's parse_min_intel_driver_req for explanation.
+    is_intel_driver = False
+    intel_driver_ver = {}
     for line in sp.stdout.splitlines():
-        if re.search(r'^ *Aspects *:', line):
+        if re.match(r' *Vendor *: Intel\(R\) Corporation', line):
+            is_intel_driver = True
+        if re.match(r' *Driver *:', line):
+            _, driver_str = line.split(':', 1)
+            driver_str = driver_str.strip()
+            lin = re.match(r'[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})', driver_str)
+            if lin:
+                intel_driver_ver['lin'] = int(lin.group(1))
+            win = re.match(r'[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})', driver_str)
+            if win:
+                intel_driver_ver['win'] = (int(win.group(1)), int(win.group(2)))
+        if re.match(r' *Aspects *:', line):
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))
-        if re.search(r'^ *info::device::sub_group_sizes:', line):
+        if re.match(r' *info::device::sub_group_sizes:', line):
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace('info::device::sub_group_sizes: ', '')
             dev_sg_sizes.append(sg_sizes_str.strip().split(' '))
@@ -451,6 +468,10 @@ for sycl_device in config.sycl_devices:
     features.add(be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
+    if is_intel_driver:
+        config.intel_driver_ver[sycl_device] = intel_driver_ver
+    else:
+        config.intel_driver_ver[sycl_device] = {}
 
 # Set timeout for a single test
 try:

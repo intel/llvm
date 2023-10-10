@@ -1126,10 +1126,10 @@ static void handleDiagnoseAsBuiltinAttr(Sema &S, Decl *D,
   FunctionDecl *AttrFD = [&]() -> FunctionDecl * {
     if (!AL.isArgExpr(0))
       return nullptr;
-    auto *F = dyn_cast_or_null<DeclRefExpr>(AL.getArgAsExpr(0));
+    auto *F = dyn_cast_if_present<DeclRefExpr>(AL.getArgAsExpr(0));
     if (!F)
       return nullptr;
-    return dyn_cast_or_null<FunctionDecl>(F->getFoundDecl());
+    return dyn_cast_if_present<FunctionDecl>(F->getFoundDecl());
   }();
 
   if (!AttrFD || !AttrFD->getBuiltinID(true)) {
@@ -1528,7 +1528,7 @@ static void handlePreferredName(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!T.hasQualifiers() && T->isTypedefNameType()) {
     // Find the template name, if this type names a template specialization.
     const TemplateDecl *Template = nullptr;
-    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+    if (const auto *CTSD = dyn_cast_if_present<ClassTemplateSpecializationDecl>(
             T->getAsCXXRecordDecl())) {
       Template = CTSD->getSpecializedTemplate();
     } else if (const auto *TST = T->getAs<TemplateSpecializationType>()) {
@@ -2722,10 +2722,11 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool IsUnavailable = AL.getUnavailableLoc().isValid();
   bool IsStrict = AL.getStrictLoc().isValid();
   StringRef Str;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getMessageExpr()))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getMessageExpr()))
     Str = SE->getString();
   StringRef Replacement;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getReplacementExpr()))
+  if (const auto *SE =
+          dyn_cast_if_present<StringLiteral>(AL.getReplacementExpr()))
     Replacement = SE->getString();
 
   if (II->isStr("swift")) {
@@ -2942,14 +2943,14 @@ static void handleExternalSourceSymbolAttr(Sema &S, Decl *D,
     return;
 
   StringRef Language;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(0)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(0)))
     Language = SE->getString();
   StringRef DefinedIn;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(1)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(1)))
     DefinedIn = SE->getString();
   bool IsGeneratedDeclaration = AL.getArgAsIdent(2) != nullptr;
   StringRef USR;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(3)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(3)))
     USR = SE->getString();
 
   D->addAttr(::new (S.Context) ExternalSourceSymbolAttr(
@@ -7588,8 +7589,6 @@ static void handleSYCLIntelMaxReplicatesAttr(Sema &S, Decl *D,
 /// second is a direction.  The direction must be "depth" or "width".
 /// This is incompatible with the register attribute.
 static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMergeAttr>(S, D, AL);
-
   SmallVector<StringRef, 2> Results;
   for (int I = 0; I < 2; I++) {
     StringRef Str;
@@ -7601,6 +7600,19 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
     Results.push_back(Str);
+  }
+
+  // Warn about duplicate attributes if they have different arguments, no
+  // diagnostic is emitted if the arguments match, and drop any duplicate
+  // attributes.
+  if (const auto *Existing = D->getAttr<SYCLIntelMergeAttr>()) {
+    if (Existing && !(Existing->getName() == Results[0] &&
+                      Existing->getDirection() == Results[1])) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+      S.Diag(Existing->getLoc(), diag::note_previous_attribute);
+    }
+    // If there is no mismatch, drop any duplicate attributes.
+    return;
   }
 
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
@@ -7757,10 +7769,9 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
       return;
     E = Res.get();
 
-    // This attribute requires a range of values.
+    // This attribute accepts values 0 and 1 only.
     if (ArgVal < 0 || ArgVal > 1) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-          << CI << 0 << 1 << E->getSourceRange();
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
       return;
     }
 
@@ -8691,7 +8702,7 @@ static void handleObjCRequiresSuperAttr(Sema &S, Decl *D,
   const auto *Method = cast<ObjCMethodDecl>(D);
 
   const DeclContext *DC = Method->getDeclContext();
-  if (const auto *PDecl = dyn_cast_or_null<ObjCProtocolDecl>(DC)) {
+  if (const auto *PDecl = dyn_cast_if_present<ObjCProtocolDecl>(DC)) {
     S.Diag(D->getBeginLoc(), diag::warn_objc_requires_super_protocol) << Attrs
                                                                       << 0;
     S.Diag(PDecl->getLocation(), diag::note_protocol_decl);
