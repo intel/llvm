@@ -77,21 +77,6 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // namespace _V1
 } // namespace sycl
 
-// flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
-__ESIMD_INTRIN
-    __ESIMD_DNS::vector_type_t<Ty,
-                               N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
-    __esimd_svm_gather(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                       __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
 // flat_write does flat-address scatter
 template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
 __ESIMD_INTRIN void __esimd_svm_scatter(
@@ -270,6 +255,20 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// Gather data from the given global or private addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
+// Gather data from the given SLM addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_slm_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint32_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
 /// Surface-based gather.
 /// Supported platforms: DG2, PVC
 ///
@@ -283,8 +282,10 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam ImmOffset is the immediate offset added to each address.
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam Transposed indicates if the data is transposed during the
+/// transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to
+/// access)
 /// @tparam SurfIndAliasT is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -331,30 +332,16 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 // flat_read4 does flat-address gather4
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
 __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __ESIMD_INTRIN
-    __esimd_svm_gather4_scaled(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                               __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN __esimd_svm_gather4_scaled(
+        __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
 __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // Low-level surface-based scatter. Writes elements of a \ref simd object into a
 // surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
