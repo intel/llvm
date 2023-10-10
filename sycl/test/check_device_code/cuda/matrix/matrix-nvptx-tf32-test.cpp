@@ -67,12 +67,17 @@ int main() {
           joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
 
           //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.row.stride.tf32.p0(ptr %{{.*}}, i32 8)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              K);
           //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.b.row.stride.tf32.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), N);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              N);
           //CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), N,
-                            layout::row_major);
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              N, layout::row_major);
 
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
@@ -85,8 +90,9 @@ int main() {
 
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 {{.*}}
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), N,
-                             layout::row_major);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              N, layout::row_major);
         });
   });
 
@@ -110,12 +116,17 @@ int main() {
           joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
 
           //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.col.stride.tf32.p0(ptr %{{.*}}, i32 8)
-          joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
+          joint_matrix_load(
+              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
+              K);
           //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.b.col.stride.tf32.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(sg, sub_b, accB.get_pointer(), N);
+          joint_matrix_load(
+              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
+              N);
           //CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f32.p1(ptr addrspace(1) {{.*}}, i32 {{.*}})
-          joint_matrix_load(sg, sub_c, accC.get_pointer(), N,
-                            layout::col_major);
+          joint_matrix_load(
+              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
+              N, layout::col_major);
 
           // Round a, b to tf32
           for (auto i = 0; i < 4; ++i)
@@ -128,8 +139,9 @@ int main() {
 
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
-          joint_matrix_store(sg, sub_c, accD.get_pointer(), N,
-                             layout::col_major);
+          joint_matrix_store(
+              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
+              N, layout::col_major);
         });
   });
 
