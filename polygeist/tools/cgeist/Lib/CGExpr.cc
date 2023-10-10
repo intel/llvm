@@ -2239,16 +2239,16 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
 
   SrcQT = Glob.getCGM().getContext().getCanonicalType(SrcQT);
   DstQT = Glob.getCGM().getContext().getCanonicalType(DstQT);
+  const Location MLIRLoc = getMLIRLocation(Loc);
+  if (DstQT->isBooleanType())
+    return EmitConversionToBool(MLIRLoc, Src, SrcQT);
+
   if (SrcQT == DstQT)
     return Src;
   if (DstQT->isVoidType())
     return nullptr;
 
   mlir::Type SrcTy = Src.val.getType();
-
-  const Location MLIRLoc = getMLIRLocation(Loc);
-  if (DstQT->isBooleanType())
-    return EmitConversionToBool(MLIRLoc, Src, SrcQT);
 
   mlir::Type DstTy = CGTypes.getMLIRType(DstQT);
 
@@ -2377,7 +2377,10 @@ ValueCategory MLIRScanner::EmitPointerToBoolConversion(Location Loc,
 
 ValueCategory MLIRScanner::EmitIntToBoolConversion(Location Loc,
                                                    ValueCategory Src) {
-  assert(isa<IntegerType>(Src.val.getType()) && "Expecting an integer value");
+  if (cast<IntegerType>(Src.val.getType()).getWidth() == 1)
+    // No need to convert if it's already an i1.
+    return Src;
+
   mlir::OpBuilder SubBuilder(Builder.getContext());
   SubBuilder.setInsertionPointToStart(EntryBlock);
   auto Zero = SubBuilder.create<arith::ConstantIntOp>(
