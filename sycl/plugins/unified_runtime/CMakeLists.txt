@@ -53,14 +53,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a76e3b185a5e1df9114dc483077227f88f522244
-  # Merge: 3653e582 657ffde9
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 20 12:12:15 2023 +0100
-  #     Merge pull request #972 from oneapi-src/revert-906-l0_usm_error_checking
-  #     Revert "[UR][L0] Propagate errors from `USMAllocationMakeResident`"
-  set(UNIFIED_RUNTIME_TAG a76e3b185a5e1df9114dc483077227f88f522244)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/npmiller/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG b4425bc19fb9eaa445247c2179563a1f7e9356cc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
