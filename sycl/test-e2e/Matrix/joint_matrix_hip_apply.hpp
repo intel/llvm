@@ -9,7 +9,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using sycl::ext::oneapi::bfloat16;
 
 template <typename InType, typename OutType, size_t M, size_t N, size_t K>
-void hip_matrix_mfma() {
+void hip_matrix_apply() {
   InType A[M * K];
   InType B[K * N];
   OutType C[M * N];
@@ -55,18 +55,10 @@ void hip_matrix_mfma() {
                 joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
                     sub_a{};
 
-                joint_matrix_load(
-                    sg, sub_a,
-                    accA.template get_multi_ptr<access::decorated::yes>(), K);
-
-                joint_matrix_load(
-                    sg, sub_b,
-                    accB.template get_multi_ptr<access::decorated::yes>(), N);
-
-                joint_matrix_load(
-                    sg, sub_c,
-                    accC.template get_multi_ptr<access::decorated::yes>(), N,
-                    layout::row_major);
+                joint_matrix_load(sg, sub_a, accA.template get_multi_ptr(), K);
+                joint_matrix_load(sg, sub_b, accB.template get_multi_ptr(), N);
+                joint_matrix_load(sg, sub_c, accC.template get_multi_ptr(), N,
+                                  layout::row_major);
 
                 joint_matrix_apply(sg, sub_a, [=](InType v) { return v * 2; });
                 joint_matrix_apply(sg, sub_b, [=](InType v) { return v * 3; });
@@ -74,10 +66,8 @@ void hip_matrix_mfma() {
 
                 sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
 
-                joint_matrix_store(
-                    sg, sub_c,
-                    accD.template get_multi_ptr<access::decorated::yes>(), N,
-                    layout::row_major);
+                joint_matrix_store(sg, sub_c, accD.template get_multi_ptr(), N,
+                                   layout::row_major);
               });
         })
         .wait();

@@ -52,9 +52,8 @@ struct joint_matrix {
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
 #else
-  static_assert(
-      false,
-      "The joint_matrix API is only supported by the Intel and CUDA backends");
+  static_assert(false, "The joint_matrix API is only supported by the Intel, "
+                       "CUDA and HIP (GFX90A) backends");
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
 
