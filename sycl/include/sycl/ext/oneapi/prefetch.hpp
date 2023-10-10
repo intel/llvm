@@ -181,24 +181,28 @@ prefetch(
 template <typename Group, typename Properties = empty_properties_t>
 typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_prefetch(Group g, void *ptr, Properties properties = {}) {
+  std::ignore = g;
   detail::prefetch_impl(ptr, 1, properties);
 }
 
 template <typename Group, typename Properties = empty_properties_t>
 typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_prefetch(Group g, void *ptr, size_t bytes, Properties properties = {}) {
+  std::ignore = g;
   detail::prefetch_impl(ptr, bytes, properties);
 }
 
 template <typename Group, typename T, typename Properties = empty_properties_t>
 typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_prefetch(Group g, T *ptr, Properties properties = {}) {
+  std::ignore = g;
   joint_prefetch((void *)ptr, sizeof(T), properties);
 }
 
 template <typename Group, typename T, typename Properties = empty_properties_t>
 typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_prefetch(Group g, T *ptr, size_t count, Properties properties = {}) {
+  std::ignore = g;
   joint_prefetch((void *)ptr, count * sizeof(T), properties);
 }
 
