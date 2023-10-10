@@ -39,7 +39,8 @@ Robert Ho, Intel +
 Tommy Hoffner, Intel +
 Ajaykumar Kannan, Intel +
 Michael Kinsner, Intel +
-Abhishek Tiwari, Intel
+Abhishek Tiwari, Intel +
+Bowen Xue, Intel
 // spell-checker: enable
 
 == Dependencies
@@ -198,9 +199,8 @@ The +Callable+ `f` defines the asynchronous task to be
 associated with the `task_sequence`, and requiring an auto reference ensures
 that each `f` is statically resolvable at compile time.  Static resolvability by
 the compiler is desirable when compiling for spatial architectures as it can
-enable the generation of more efficient hardware. Furthermore, the partial
-specialization helps make it easier to write the class member functions (eg:
-`get`).
+enable the generation of more efficient hardware. Templating a task_sequence on
+a non-Callable is malformed.
 
 The `task_sequence` interface consists of two member functions, `async` and
 `get`. The `async` function asynchronously invokes `f`. By calling `async` on a
@@ -354,16 +354,21 @@ that the `task_sequence` object will call exactly the same number of `async` s
 and `get` s over the object's lifetime (i.e. before the `task_sequence`
 destructor is invoked).
 
-| invocation_capacity | The `async` invocations are guaranteed to not block
-as long as the number of outstanding invocations are less than or equal to
-`invocation_capacity`. An outstanding invocation is a call to `async` whose
-corresponding result has not yet been retrieved by a call to `get`.
+| invocation_capacity | The `async` invocations are guaranteed to not block the
+caller as long as the number of outstanding invocations are less than or equal
+to `invocation_capacity`. An outstanding invocation is an inflight task sequence
+invocation that has not yet completed.
 
 A default value is chosen by the implementation.
 
-| response_capacity | Given a response capacity of `N`, the user is guaranteed
-that at least one outstanding `async` call will make progress as long as the
-number of outstanding invocations is less than or equal to `N`.
+| response_capacity | Any task sequence invocation is allowed to write its
+results and completion status to the results data structure of the task sequence
+as long as the number of completed invocations in the results data structure is
+less than `response_capacity`. When an invocation is able to write its result to
+the results data structure, it can transition from an outstanding state to a
+completed state. At least one outstanding `async` call will make progress as
+long as the number of stored results is less than or equal to
+`response_capacity`.
 
 A default value is chosen by the implementation.
 |===
