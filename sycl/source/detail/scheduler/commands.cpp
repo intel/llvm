@@ -2495,14 +2495,14 @@ pi_int32 enqueueImpKernel(
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
-      // Non-cacheable kernels use mutexes from kernel_impls.
-      // TODO this can still result in a race condition if multiple SYCL
-      // kernels are created with the same native handle. To address this,
-      // we need to either store and use a pi_native_handle -> mutex map or
-      // reuse and return existing SYCL kernels from make_native to avoid
-      // their duplication in such cases.
-      KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
-      EliminatedArgMask = MSyclKernel->getKernelArgMask();
+    // Non-cacheable kernels use mutexes from kernel_impls.
+    // TODO this can still result in a race condition if multiple SYCL
+    // kernels are created with the same native handle. To address this,
+    // we need to either store and use a pi_native_handle -> mutex map or
+    // reuse and return existing SYCL kernels from make_native to avoid
+    // their duplication in such cases.
+    KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
+    EliminatedArgMask = MSyclKernel->getKernelArgMask();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
