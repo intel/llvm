@@ -95,11 +95,6 @@ int main() {
       EC};
   sycl::errc_for<sycl::backend::ext_oneapi_cuda> anotherCUDAErrCode{EC};
   assert(someCUDAErrCode == anotherCUDAErrCode);
-  sycl::backend_traits<sycl::backend::ext_intel_esimd_emulator>::errc
-      someESIMDErrCode{EC};
-  sycl::errc_for<sycl::backend::ext_intel_esimd_emulator> anotherESIMDErrCode{
-      EC};
-  assert(someESIMDErrCode == anotherESIMDErrCode);
   sycl::backend_traits<sycl::backend::ext_oneapi_hip>::errc someHIPErrCode{EC};
   sycl::errc_for<sycl::backend::ext_oneapi_hip> anotherHIPErrCode{EC};
   assert(someHIPErrCode == anotherHIPErrCode);

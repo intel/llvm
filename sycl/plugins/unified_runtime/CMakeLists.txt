@@ -3,11 +3,18 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  # The UR tag should be from the 'adapters' branch
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c791b8bba63af1c1880ae278e9d6df90021636dd)
+  set(UNIFIED_RUNTIME_TAG e6343f4cca9a37b17bc63f3a81968ac3f486be8a)
 
   set(UR_BUILD_ADAPTER_L0 ON)
+
+  if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_CUDA ON)
+  endif()
+
+  if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_HIP ON)
+  endif()
   set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -79,134 +86,12 @@ add_sycl_plugin(unified_runtime
 )
 
 add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
-
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build CUDA adapter
-  add_sycl_library("ur_adapter_cuda" SHARED
-    SOURCES
-      "ur/ur.hpp"
-      "ur/ur.cpp"
-      "ur/adapters/cuda/adapter.cpp"
-      "ur/adapters/cuda/adapter.hpp"
-      "ur/adapters/cuda/command_buffer.cpp"
-      "ur/adapters/cuda/command_buffer.hpp"
-      "ur/adapters/cuda/common.cpp"
-      "ur/adapters/cuda/common.hpp"
-      "ur/adapters/cuda/context.cpp"
-      "ur/adapters/cuda/context.hpp"
-      "ur/adapters/cuda/device.cpp"
-      "ur/adapters/cuda/device.hpp"
-      "ur/adapters/cuda/enqueue.cpp"
-      "ur/adapters/cuda/event.cpp"
-      "ur/adapters/cuda/event.hpp"
-      "ur/adapters/cuda/image.cpp"
-      "ur/adapters/cuda/image.hpp"
-      "ur/adapters/cuda/kernel.cpp"
-      "ur/adapters/cuda/kernel.hpp"
-      "ur/adapters/cuda/memory.cpp"
-      "ur/adapters/cuda/memory.hpp"
-      "ur/adapters/cuda/platform.cpp"
-      "ur/adapters/cuda/platform.hpp"
-      "ur/adapters/cuda/program.cpp"
-      "ur/adapters/cuda/program.hpp"
-      "ur/adapters/cuda/queue.cpp"
-      "ur/adapters/cuda/queue.hpp"
-      "ur/adapters/cuda/sampler.cpp"
-      "ur/adapters/cuda/sampler.hpp"
-      "ur/adapters/cuda/tracing.cpp"
-      "ur/adapters/cuda/ur_interface_loader.cpp"
-      "ur/adapters/cuda/usm.cpp"
-      "ur/adapters/cuda/usm.hpp"
-      "ur/adapters/cuda/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-      Threads::Threads
-      cudadrv
-  )
-
-  set_target_properties("ur_adapter_cuda" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-
-  if(UMF_ENABLE_POOL_TRACKING)
-    target_compile_definitions("ur_adapter_cuda" PRIVATE
-      UMF_ENABLE_POOL_TRACKING)
-  else()
-    message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-  endif()
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_hip)
 endif()
 
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build HIP adapter
-  add_sycl_library("ur_adapter_hip" SHARED
-    SOURCES
-      "ur/ur.hpp"
-      "ur/ur.cpp"
-      "ur/adapters/hip/adapter.cpp"
-      "ur/adapters/hip/adapter.hpp"
-      "ur/adapters/hip/command_buffer.cpp"
-      "ur/adapters/hip/command_buffer.hpp"
-      "ur/adapters/hip/common.cpp"
-      "ur/adapters/hip/common.hpp"
-      "ur/adapters/hip/context.cpp"
-      "ur/adapters/hip/context.hpp"
-      "ur/adapters/hip/device.cpp"
-      "ur/adapters/hip/device.hpp"
-      "ur/adapters/hip/enqueue.cpp"
-      "ur/adapters/hip/event.cpp"
-      "ur/adapters/hip/event.hpp"
-      "ur/adapters/hip/image.cpp"
-      "ur/adapters/hip/kernel.cpp"
-      "ur/adapters/hip/kernel.hpp"
-      "ur/adapters/hip/memory.cpp"
-      "ur/adapters/hip/memory.hpp"
-      "ur/adapters/hip/platform.cpp"
-      "ur/adapters/hip/platform.hpp"
-      "ur/adapters/hip/program.cpp"
-      "ur/adapters/hip/program.hpp"
-      "ur/adapters/hip/queue.cpp"
-      "ur/adapters/hip/queue.hpp"
-      "ur/adapters/hip/sampler.cpp"
-      "ur/adapters/hip/sampler.hpp"
-      "ur/adapters/hip/ur_interface_loader.cpp"
-      "ur/adapters/hip/usm.cpp"
-      "ur/adapters/hip/usm.hpp"
-      "ur/adapters/hip/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-      Threads::Threads
-  )
-
-  set_target_properties("ur_adapter_hip" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-
-  if(UMF_ENABLE_POOL_TRACKING)
-    target_compile_definitions("ur_adapter_hip" PRIVATE
-      UMF_ENABLE_POOL_TRACKING)
-  else()
-    message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-  endif()
-
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
-    # Set HIP define to select AMD platform
-    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_AMD__)
-  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
-    target_link_libraries(ur_adapter_hip PUBLIC cudadrv cudart)
-    # Set HIP define to select NVIDIA platform
-    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_NVIDIA__)
-  else()
-    message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
-  endif()
+if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_cuda)
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)

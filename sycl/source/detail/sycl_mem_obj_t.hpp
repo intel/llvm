@@ -77,7 +77,7 @@ public:
                     std::move(Allocator)) {}
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-              bool OwmNativeHandle, event AvailableEvent,
+              bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
@@ -375,6 +375,7 @@ protected:
   // defer the memory allocation and copying to the point where a writable
   // accessor is created.
   std::function<void(void)> MCreateShadowCopy = []() -> void {};
+  bool MOwnNativeHandle = true;
 };
 } // namespace detail
 } // namespace _V1
