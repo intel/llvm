@@ -106,7 +106,6 @@ Proposed:
   as specified in the SYCL specification based on whether support for unnamed SYCL kernel
   functions is enabled.
 - The `__builtin_sycl_unique_stable_name` builtin will be enhanced to address known
-  deficiencies like for the example above.
-- The `__builtin_sycl_unique_stable_name` builtin will be enhanced to generate names that use
-  the `$` or `.` character reserved by the Itanium C++ ABI for private use.
-  (see [section 5.1.1, "General", of the Itanium C++ ABI](http://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling)).
+  deficiencies like for the example above. This might require changing the name mangling
+  scheme used for kernels; if so, those details will be described and addressed in code
+  reviews.
