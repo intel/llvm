@@ -203,42 +203,6 @@ template <typename T>
 using is_sgentype = is_contained<T, gtl::scalar_basic_list>;
 
 template <typename T>
-using is_igeninteger8bit = is_gen_based_on_type_sizeof<T, 1, is_igeninteger>;
-
-template <typename T>
-using is_igeninteger16bit = is_gen_based_on_type_sizeof<T, 2, is_igeninteger>;
-
-template <typename T>
-using is_igeninteger32bit = is_gen_based_on_type_sizeof<T, 4, is_igeninteger>;
-
-template <typename T>
-using is_igeninteger64bit = is_gen_based_on_type_sizeof<T, 8, is_igeninteger>;
-
-template <typename T>
-using is_ugeninteger8bit = is_gen_based_on_type_sizeof<T, 1, is_ugeninteger>;
-
-template <typename T>
-using is_ugeninteger16bit = is_gen_based_on_type_sizeof<T, 2, is_ugeninteger>;
-
-template <typename T>
-using is_ugeninteger32bit = is_gen_based_on_type_sizeof<T, 4, is_ugeninteger>;
-
-template <typename T>
-using is_ugeninteger64bit = is_gen_based_on_type_sizeof<T, 8, is_ugeninteger>;
-
-template <typename T>
-using is_geninteger8bit = is_gen_based_on_type_sizeof<T, 1, is_geninteger>;
-
-template <typename T>
-using is_geninteger16bit = is_gen_based_on_type_sizeof<T, 2, is_geninteger>;
-
-template <typename T>
-using is_geninteger32bit = is_gen_based_on_type_sizeof<T, 4, is_geninteger>;
-
-template <typename T>
-using is_geninteger64bit = is_gen_based_on_type_sizeof<T, 8, is_geninteger>;
-
-template <typename T>
 using is_genintptr = std::bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;

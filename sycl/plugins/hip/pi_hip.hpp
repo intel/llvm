@@ -39,16 +39,16 @@
 #include <string>
 #include <vector>
 
-#include <ur/adapters/hip/command_buffer.hpp>
-#include <ur/adapters/hip/context.hpp>
-#include <ur/adapters/hip/device.hpp>
-#include <ur/adapters/hip/event.hpp>
-#include <ur/adapters/hip/kernel.hpp>
-#include <ur/adapters/hip/memory.hpp>
-#include <ur/adapters/hip/platform.hpp>
-#include <ur/adapters/hip/program.hpp>
-#include <ur/adapters/hip/queue.hpp>
-#include <ur/adapters/hip/sampler.hpp>
+#include <adapters/hip/command_buffer.hpp>
+#include <adapters/hip/context.hpp>
+#include <adapters/hip/device.hpp>
+#include <adapters/hip/event.hpp>
+#include <adapters/hip/kernel.hpp>
+#include <adapters/hip/memory.hpp>
+#include <adapters/hip/platform.hpp>
+#include <adapters/hip/program.hpp>
+#include <adapters/hip/queue.hpp>
+#include <adapters/hip/sampler.hpp>
 
 #include "pi2ur.hpp"
 

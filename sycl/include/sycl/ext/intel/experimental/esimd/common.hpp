@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/native/common.hpp>
 #include <sycl/ext/intel/esimd/xmx/common.hpp>
@@ -57,131 +58,37 @@ enum class lsc_memory_kind : uint8_t {
   shared_local = 3,           /// shared local memory
 };
 
-/// Data size or format to read or store
-enum class lsc_data_size : uint8_t {
-  default_size = 0,
-  u8 = 1,
-  u16 = 2,
-  u32 = 3,
-  u64 = 4,
-  u8u32 = 5,   /// load 8b, zero extend to 32b; store the opposite
-  u16u32 = 6,  /// load 16b, zero extend to 32b; store the opposite
-  u16u32h = 7, /// load 16b into high 16 of each 32b; store the high 16
-};
+using lsc_data_size = __ESIMD_DNS::lsc_data_size;
 
 namespace detail {
 
-enum class lsc_vector_size : uint8_t {
-  n1 = 1,
-  n2 = 2,
-  n3 = 3,
-  n4 = 4,
-  n8 = 5,
-  n16 = 6,
-  n32 = 7,
-  n64 = 8,
-};
+using lsc_vector_size = __ESIMD_DNS::lsc_vector_size;
 
-enum class lsc_data_order : uint8_t {
-  nontranspose = 1,
-  transpose = 2,
-};
+using lsc_data_order = __ESIMD_DNS::lsc_data_order;
 
 template <lsc_vector_size VS> constexpr void check_lsc_vector_size() {
-  static_assert(VS == lsc_vector_size::n1 || VS == lsc_vector_size::n2 ||
-                    VS == lsc_vector_size::n3 || VS == lsc_vector_size::n4 ||
-                    VS == lsc_vector_size::n8 || VS == lsc_vector_size::n16 ||
-                    VS == lsc_vector_size::n64 || VS == lsc_vector_size::n32,
-                "Unsupported vector size");
+  __ESIMD_DNS::check_lsc_vector_size<VS>();
 }
 
 template <int VS> constexpr void check_lsc_vector_size() {
-  static_assert(VS == 1 || VS == 2 || VS == 3 || VS == 4 || VS == 8 ||
-                    VS == 16 || VS == 32 || VS == 64,
-                "Unsupported vector size");
+  __ESIMD_DNS::check_lsc_vector_size<VS>();
 }
 
 template <typename T, lsc_data_size DS> constexpr void check_lsc_data_size() {
-  static_assert(DS != lsc_data_size::default_size || sizeof(T) == 1 ||
-                    sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
-                "Unsupported data type");
-  static_assert(
-      DS == lsc_data_size::default_size ||
-          (sizeof(T) == 1 &&
-           (DS == lsc_data_size::u8 || DS == lsc_data_size::u8u32)) ||
-          (sizeof(T) == 2 &&
-           (DS == lsc_data_size::u16 || DS == lsc_data_size::u16u32 ||
-            DS == lsc_data_size::u16u32h)) ||
-          (sizeof(T) == 4 &&
-           (DS == lsc_data_size::u32 || DS == lsc_data_size::u8u32 ||
-            DS == lsc_data_size::u16u32 || DS == lsc_data_size::u16u32h)) ||
-          (sizeof(T) == 8 && DS == lsc_data_size::u64),
-      "Data type does not match data size");
+  __ESIMD_DNS::check_lsc_data_size<T, DS>();
 }
 
 template <lsc_vector_size VS> constexpr uint8_t to_int() {
-  check_lsc_vector_size<VS>();
-  switch (VS) {
-  case lsc_vector_size::n1:
-    return 1;
-  case lsc_vector_size::n2:
-    return 2;
-  case lsc_vector_size::n3:
-    return 3;
-  case lsc_vector_size::n4:
-    return 4;
-  case lsc_vector_size::n8:
-    return 8;
-  case lsc_vector_size::n16:
-    return 16;
-  case lsc_vector_size::n32:
-    return 32;
-  case lsc_vector_size::n64:
-    return 64;
-  default:
-    return 1;
-  }
+  return __ESIMD_DNS::to_int<VS>();
 }
 
 template <int VS> constexpr lsc_vector_size to_lsc_vector_size() {
-  check_lsc_vector_size<VS>();
-  switch (VS) {
-  case 1:
-    return lsc_vector_size::n1;
-  case 2:
-    return lsc_vector_size::n2;
-  case 3:
-    return lsc_vector_size::n3;
-  case 4:
-    return lsc_vector_size::n4;
-  case 8:
-    return lsc_vector_size::n8;
-  case 16:
-    return lsc_vector_size::n16;
-  case 32:
-    return lsc_vector_size::n32;
-  case 64:
-    return lsc_vector_size::n64;
-  default:
-    return lsc_vector_size::n1;
-  }
+  return __ESIMD_DNS::to_lsc_vector_size<VS>();
 }
 
 template <typename T, lsc_data_size DS>
 constexpr lsc_data_size finalize_data_size() {
-  check_lsc_data_size<T, DS>();
-  if (DS != lsc_data_size::default_size)
-    return DS;
-  else if (sizeof(T) == 1)
-    return lsc_data_size::u8;
-  else if (sizeof(T) == 2)
-    return lsc_data_size::u16;
-  else if (sizeof(T) == 4)
-    return lsc_data_size::u32;
-  else if (sizeof(T) == 8)
-    return lsc_data_size::u64;
-  else
-    return DS;
+  return __ESIMD_DNS::finalize_data_size<T, DS>();
 }
 
 constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
@@ -212,80 +119,17 @@ public:
 } // namespace detail
 
 /// L1 or L3 cache hint kinds.
-enum class cache_hint : uint8_t {
-  none = 0,
-  uncached = 1,
-  cached = 2,
-  write_back = 3,
-  write_through = 4,
-  streaming = 5,
-  read_invalidate = 6
-};
+using cache_hint = __ESIMD_NS::cache_hint;
 
 namespace detail {
-
-template <cache_hint Hint> class cache_hint_wrap {
-  template <cache_hint...> struct is_one_of_t;
-  template <cache_hint Last>
-  struct is_one_of_t<Last>
-      : std::conditional_t<Last == Hint, std::true_type, std::false_type> {};
-  template <cache_hint Head, cache_hint... Tail>
-  struct is_one_of_t<Head, Tail...>
-      : std::conditional_t<Head == Hint, std::true_type, is_one_of_t<Tail...>> {
-  };
-
-public:
-  constexpr operator cache_hint() const { return Hint; }
-  template <cache_hint... Hints> constexpr bool is_one_of() const {
-    return is_one_of_t<Hints...>::value;
-  }
-};
-
-constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
-  return First == Val && Second == Val;
-}
-
-enum class lsc_action { prefetch, load, store, atomic };
-
+// TODO: These enum and the function are kept here temporarily, while used
+// inside this header file here. Remove it after all experimental functions
+// working with cache hints are moved out of experimental namespace.
+using lsc_action = __ESIMD_DNS::cache_action;
 template <lsc_action Action, cache_hint L1, cache_hint L3>
 constexpr void check_lsc_cache_hint() {
-  constexpr auto L1H = cache_hint_wrap<L1>{};
-  constexpr auto L3H = cache_hint_wrap<L3>{};
-  if constexpr (Action == lsc_action::prefetch) {
-    static_assert(
-        L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
-                               cache_hint::streaming>() &&
-            L3H.template is_one_of<cache_hint::cached,
-                                   cache_hint::uncached>() &&
-            !are_both(L1H, L3H, cache_hint::uncached),
-        "unsupported cache hint");
-  } else if constexpr (Action == lsc_action::load) {
-    static_assert(
-        are_both(L1H, L3H, cache_hint::none) ||
-            (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
-                                    cache_hint::streaming>() &&
-             L3H.template is_one_of<cache_hint::uncached,
-                                    cache_hint::cached>()) ||
-            (L1H == cache_hint::read_invalidate && L3H == cache_hint::cached),
-        "unsupported cache hint");
-  } else if constexpr (Action == lsc_action::store) {
-    static_assert(are_both(L1H, L3H, cache_hint::none) ||
-                      are_both(L1H, L3H, cache_hint::write_back) ||
-                      (L1H.template is_one_of<cache_hint::uncached,
-                                              cache_hint::write_through,
-                                              cache_hint::streaming>() &&
-                       L3H.template is_one_of<cache_hint::uncached,
-                                              cache_hint::write_back>()),
-                  "unsupported cache hint");
-  } else if constexpr (Action == lsc_action::atomic) {
-    static_assert(are_both(L1H, L3H, cache_hint::none) ||
-                      (L1H == cache_hint::uncached &&
-                       L3H.template is_one_of<cache_hint::uncached,
-                                              cache_hint::write_back>()),
-                  "unsupported cache hint");
-  }
+  __ESIMD_DNS::check_cache_hint<Action, L1, L3>();
 }
-
 } // namespace detail
 
 /// Represents a split barrier action.

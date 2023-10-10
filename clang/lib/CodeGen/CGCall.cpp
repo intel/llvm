@@ -300,7 +300,7 @@ CodeGenTypes::arrangeCXXMethodDeclaration(const CXXMethodDecl *MD) {
   setCUDAKernelCallingConvention(FT, CGM, MD);
   auto prototype = FT.getAs<FunctionProtoType>();
 
-  if (MD->isInstance()) {
+  if (MD->isImplicitObjectMemberFunction()) {
     // The abstract case is perfectly fine.
     const CXXRecordDecl *ThisType = TheCXXABI.getThisArgumentTypeForMethod(MD);
     return arrangeCXXMethodType(ThisType, prototype.getTypePtr(), MD);
@@ -450,7 +450,7 @@ CodeGenTypes::arrangeCXXConstructorCall(const CallArgList &args,
 const CGFunctionInfo &
 CodeGenTypes::arrangeFunctionDeclaration(const FunctionDecl *FD) {
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD))
-    if (MD->isInstance())
+    if (MD->isImplicitObjectMemberFunction())
       return arrangeCXXMethodDeclaration(MD);
 
   CanQualType FTy = FD->getType()->getCanonicalTypeUnqualified();
