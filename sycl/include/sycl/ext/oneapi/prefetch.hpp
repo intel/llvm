@@ -114,12 +114,12 @@ void prefetch(void *ptr, size_t bytes, Properties properties = {}) {
 
 template <typename T, typename Properties = empty_properties_t>
 void prefetch(T *ptr, Properties properties = {}) {
-  prefetch((void *)ptr, sizeof(T), properties);
+  prefetch(ptr, sizeof(T), properties);
 }
 
 template <typename T, typename Properties = empty_properties_t>
 void prefetch(T *ptr, size_t count, Properties properties = {}) {
-  prefetch((void *)ptr, count * sizeof(T), properties);
+  prefetch(ptr, count * sizeof(T), properties);
 }
 
 template <access::address_space AddressSpace, access::decorated IsDecorated,
@@ -164,7 +164,7 @@ typename detail::prefetch_helper<access_mode, AccessMode,
 prefetch(
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     id<Dimensions> offset, Properties properties = {}) {
-  prefetch((void *)&acc[offset], sizeof(DataT), properties);
+  prefetch(&acc[offset], sizeof(DataT), properties);
 }
 
 template <typename DataT, int Dimensions, access_mode AccessMode,
@@ -175,7 +175,7 @@ typename detail::prefetch_helper<access_mode, AccessMode,
 prefetch(
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     size_t offset, size_t count, Properties properties = {}) {
-  prefetch((void *)&acc[offset], count * sizeof(DataT), properties);
+  prefetch(&acc[offset], count * sizeof(DataT), properties);
 }
 
 template <typename Group, typename Properties = empty_properties_t>
@@ -196,14 +196,14 @@ template <typename Group, typename T, typename Properties = empty_properties_t>
 typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_prefetch(Group g, T *ptr, Properties properties = {}) {
   std::ignore = g;
-  joint_prefetch((void *)ptr, sizeof(T), properties);
+  joint_prefetch(ptr, sizeof(T), properties);
 }
 
 template <typename Group, typename T, typename Properties = empty_properties_t>
 typename std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
 joint_prefetch(Group g, T *ptr, size_t count, Properties properties = {}) {
   std::ignore = g;
-  joint_prefetch((void *)ptr, count * sizeof(T), properties);
+  joint_prefetch(ptr, count * sizeof(T), properties);
 }
 
 template <typename Group, access::address_space AddressSpace,
@@ -256,7 +256,7 @@ joint_prefetch(
     Group g,
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     size_t offset, Properties properties = {}) {
-  joint_prefetch(g, (void *)&acc[offset], sizeof(DataT), properties);
+  joint_prefetch(g, &acc[offset], sizeof(DataT), properties);
 }
 
 template <typename Group, typename DataT, int Dimensions,
@@ -269,7 +269,7 @@ joint_prefetch(
     Group g,
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     size_t offset, size_t count, Properties properties = {}) {
-  joint_prefetch(g, (void *)&acc[offset], count * sizeof(DataT), properties);
+  joint_prefetch(g, &acc[offset], count * sizeof(DataT), properties);
 }
 
 } // namespace ext::oneapi::experimental
