@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// TODO: Next time API changes are allowed this file should not be included
+// from sycl.hpp anymore. Then this file should be moved to sycl/source.
+
 #pragma once
 
 #include <iosfwd> // for ostream, istream

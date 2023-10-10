@@ -180,6 +180,7 @@ inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       fprintf(stderr, __SYCL_PI_ERROR_REPORT "%s\n",                           \
               sycl::detail::codeToString(code).c_str());                       \
+      fflush(stderr);                                                          \
     }                                                                          \
   }
 #endif
