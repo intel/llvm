@@ -17,7 +17,6 @@
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "iostream"
 
 using namespace llvm;
 
@@ -72,38 +71,68 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     return PreservedAnalyses::all();
 
   if (!EnableGlobalOffset) {
-    ImplicitOffsetIntrinsic->replaceAllUsesWith(
-       Constant::getNullValue(ImplicitOffsetIntrinsic->getType()));
-    ImplicitOffsetIntrinsic->eraseFromParent();
-    return PreservedAnalyses::none();
+    SmallVector<CallInst *, 4> Worklist;
+    SmallVector<LoadInst *, 4> LI;
+    SmallVector<Instruction *, 4> PtrUses;
+
+    std::function<void(Instruction *)> getLoads = [&](Instruction *P) {
+      PtrUses.push_back(P);
+      if (isa<LoadInst>(*P))
+        LI.push_back(cast<LoadInst>(P));
+      else {
+        for (Value *V : P->users()) {
+          assert(isa<GetElementPtrInst>(*V) || isa<LoadInst>(*V));
+          getLoads(cast<Instruction>(V));
+        }
+      }
+    };
+    for (Value *V : ImplicitOffsetIntrinsic->users()) {
+      assert(isa<CallInst>(*V));
+      Worklist.push_back(cast<CallInst>(V));
+      for (Value *V2 : V->users()) {
+        assert(isa<LoadInst>(*V2) || isa<GetElementPtrInst>(*V2));
+        getLoads(cast<Instruction>(V2));
+      }
+    }
+    for (LoadInst *L : LI)
+      L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
+
+    for (auto *I : reverse(PtrUses))
+      I->eraseFromParent();
+
+    for (CallInst *CI : Worklist) {
+      Instruction *I = cast<Instruction>(CI);
+      I->eraseFromParent();
+    }
+  } else {
+    // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
+    // happy with ADDRESS_SPACE_GENERIC (0).
+    TargetAS = AT == ArchType::Cuda ? 0 : 5;
+    /// The value for NVVM's adDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
+    /// to be 3, use it for the implicit argument pointer type.
+    KernelImplicitArgumentType =
+        ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
+    ImplicitOffsetPtrType =
+        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
+    assert(
+        (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
+        "Implicit offset intrinsic does not return the expected type");
+
+    SmallVector<KernelPayload, 4> KernelPayloads;
+    TargetHelpers::populateKernels(M, KernelPayloads, AT);
+
+    // Validate kernels and populate entry map
+    EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
+
+    // Add implicit parameters to all direct and indirect users of the offset
+    addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
+
+    // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
+    // it.
   }
-  // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
-  // happy with ADDRESS_SPACE_GENERIC (0).
-  TargetAS = AT == ArchType::Cuda ? 0 : 5;
-  /// The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
-  /// to be 3, use it for the implicit argument pointer type.
-  KernelImplicitArgumentType =
-      ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-  ImplicitOffsetPtrType =
-      Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
-  assert((ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
-         "Implicit offset intrinsic does not return the expected type");
-
-  SmallVector<KernelPayload, 4> KernelPayloads;
-  TargetHelpers::populateKernels(M, KernelPayloads, AT);
-
-  // Validate kernels and populate entry map
-  EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
-
-  // Add implicit parameters to all direct and indirect users of the offset
-  addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
-
-  // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
-  // it.
   assert(ImplicitOffsetIntrinsic->use_empty() &&
          "Not all uses of intrinsic removed");
   ImplicitOffsetIntrinsic->eraseFromParent();
-
   return PreservedAnalyses::none();
 }
 
