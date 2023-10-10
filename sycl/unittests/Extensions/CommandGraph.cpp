@@ -1361,7 +1361,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //     (B2)
   //     /|\ 
   //    / | \
-  // (6) (7) (8) (those nodes also have as a precedessor)
+  // (6) (7) (8) (those nodes also have B1 as a predecessor)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
   for (auto Node : GraphImpl->MRoots) {
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);

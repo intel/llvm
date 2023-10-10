@@ -441,7 +441,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
   std::vector<sycl::detail::EventImplPtr> Events;
   auto EnqueueExitNodesEvents = [&](std::shared_ptr<node_impl> &Node,
                                     std::deque<std::shared_ptr<node_impl>> &) {
-    if (Node->MSuccessors.size() == 0) {
+    if (Node->MSuccessors.empty()) {
       Events.push_back(getEventForNode(Node));
     }
     return false;
