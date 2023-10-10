@@ -2494,7 +2494,7 @@ pi_int32 enqueueImpKernel(
             /*PropList=*/{}, Program);
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
-            Queue->get_context());
+           Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
     auto SyclProg = MSyclKernel->getProgramImpl();
     Program = SyclProg->getHandleRef();
