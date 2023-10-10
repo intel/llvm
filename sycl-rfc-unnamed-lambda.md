@@ -1,4 +1,7 @@
-RFC: SYCL support for unnamed SYCL kernel functions
+Disourse topic details:
+- Category: [Clang Frontend](https://discourse.llvm.org/c/clang/6)
+- Title: "RFC: SYCL support for unnamed SYCL kernel functions"
+- Tags: sycl
 
 The SYCL 2020 specification requires implementations to support the use of a lambda expression as
 the entry point to a SYCL kernel.
