@@ -432,14 +432,12 @@ ur_result_t ur_context_handle_t_::finalize() {
   for (auto &List : ZeComputeCommandListCache) {
     for (auto &Item : List.second) {
       ze_command_list_handle_t ZeCommandList = Item.first;
-      if (ZeCommandList)
-        if (ZeCommandList) {
-          auto ZeResult =
-              ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
-          // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-            return ze2urResult(ZeResult);
-        }
+      if (ZeCommandList) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
+      }
     }
   }
   for (auto &List : ZeCopyCommandListCache) {
