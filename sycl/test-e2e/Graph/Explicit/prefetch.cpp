@@ -1,4 +1,4 @@
-// REQUIRES: cuda || level_zero, gpu
+// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out
 
