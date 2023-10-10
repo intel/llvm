@@ -6,39 +6,44 @@ require coordination between the host and device compilers. Integration headers 
 # Integration Header
 An integration header is a source file produced during device compilation that is intended to be pre-included during host compilation of the same source file.
 
-Consider the following partial code:
+Consider the following code:
 
 ```
-  sycl::accessor<char, 1, sycl::access::mode::read> acc1;
-  int i = 13;
-  sycl::sampler smplr;
-  struct S {
-    char c;
-    int i;
-  } test_s;
-  test_s.c = 14;
-  kernel_single_task<class first_kernel>([=]() {
-    if (i == 13 && test_s.c == 14) {
+#include <sycl.hpp>
 
-      acc1.use();
-      smplr.use();
-    }
+int main() {
+  sycl::queue q;
+  sycl::buffer<char> b{sycl::range{1024}};
+
+  q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc{b, cgh};
+    int i = 13;
+    struct S {
+      char c;
+      int i;
+    } test_s;
+    test_s.c = 14;
+
+    cgh.single_task([=] {
+      if (i == 13 && test_s.c == 14) {
+        acc[0] = 'a';
+      }
+    });
   });
+}
 ```
 
-Here the lambda passed to the 'kernel_single_task' construct needs to be executed on the device.  The corresponding function object looks like:
+Here the lambda passed to the `kernel_single_task` construct needs to be executed on the device.  The corresponding function object looks like:
 
 ```
 struct FuncObj {
   int i;
   struct S test_s;
-  sycl::accessor acc1;
-  sycl::sampler smplr;
+  sycl::accessor acc;
 
   operator void () {  // Function call operator
     if (i == 13 && test_s.c == 14) {
-      acc1.use();
-      smplr.use();
+      acc[0] = 'a';
     }
   }
 };
@@ -46,7 +51,7 @@ struct FuncObj {
 
 The function call operator of this object has the contents of the kernel invocation.  The device compiler then generates a caller in the form of an OpenCL kernel function that calls this function object.
 
-For details of this transformation, see 'Lowering of SYCL-Kernel'. // TODO: Add link
+For details of this transformation, see `Lowering of SYCL-Kernel`. // TODO: Add link
 
 The integration header then describes the fields of the kernel objects as follows:
 
@@ -67,7 +72,6 @@ namespace sycl {
         { kernel_param_kind_t::kind_std_layout, 4, 0 },
         { kernel_param_kind_t::kind_std_layout, 8, 4 },
         { kernel_param_kind_t::kind_accessor, 4062, 12 },
-        { kernel_param_kind_t::kind_sampler, 8, 24 },
 
         { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
       };
@@ -83,7 +87,7 @@ And for each kernel, each of its parameter is described in the kernel_signatures
 * an encoding of the type that is captured
 * its size and its offset
 
-In the above example, the first two parameters are standard layout types (the int 'i' and the struct 'test_s'), the latter two though standard layout types are types which need special handling - accessor and sampler respectively.   The last entry acts as a terminating entry.
+In the above example, the first two parameters are standard layout types (the int `i` and the struct `test_s`), the latter two though standard layout types are types which need special handling - accessor and sampler respectively.   The last entry acts as a terminating entry.
 
 This allows the run-time library to recreate the function object on the device.
 
@@ -120,9 +124,8 @@ Also note that the SYCL header files declare, but not define, a special function
      }
 ```
 
-In order to accommodate both implementations that have native support for this as well as those that do not, we propose the following integration footer mechanism.
 
-Definition of that function template is provided in the form of an integration footer file:
+Partial specializations of this function are defined in the integration footer file:
 ```
    namespace detail {
      template<>
@@ -137,5 +140,3 @@ Definition of that function template is provided in the form of an integration f
 ```
 
 This footer file is appended at the end of the translation unit for the host compilation.
-
-All specialization constants used within a program are bundled together and stored into a single buffer, which is passed as implicit kernel argument. The layout of that buffer is well-defined and known to both the compiler and the runtime, so when user sets the value of a specialization constant, that value is being copied into particular place within that buffer and once the constant is requested in device code, the compiler generates a load from the same place of the buffer.
