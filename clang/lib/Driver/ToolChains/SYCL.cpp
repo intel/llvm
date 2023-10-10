@@ -17,7 +17,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include <regex>
 #include <sstream>
 
 using namespace clang::driver;
@@ -164,9 +163,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
-    auto checkBF = [=](std::string &Dev) {
-      static const std::regex BFFs("pvc.*|ats.*");
-      return std::regex_match(Dev, BFFs);
+    auto checkBF = [](StringRef Device) {
+      return Device.starts_with("pvc") || Device.starts_with("ats");
     };
 
     std::string Params;
