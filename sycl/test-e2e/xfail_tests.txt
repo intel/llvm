@@ -419,7 +419,6 @@ Printf/int.cpp
 Printf/long.cpp
 Printf/mixed-address-space.cpp
 Printf/percent-symbol.cpp
-Properties/cache_config.cpp
 Reduction/reduction_big_data.cpp
 Reduction/reduction_complex_nums.cpp
 Reduction/reduction_internal.cpp
