@@ -259,7 +259,7 @@ inline constexpr bool is_sgentype_v = is_contained_v<T, gtl::scalar_basic_list>;
 
 template <typename T>
 inline constexpr bool is_genintptr_v =
-    is_pointer<T>::value && is_genint_v<remove_pointer_t<T>> &&
+    is_pointer_v<T> && is_genint_v<remove_pointer_t<T>> &&
     is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
 
 template <typename T, access::address_space AddressSpace,
@@ -274,7 +274,7 @@ inline constexpr bool is_genintptr_marray_v =
 
 template <typename T>
 inline constexpr bool is_genfloatptr_v =
-    is_pointer<T>::value && is_genfloat_v<remove_pointer_t<T>> &&
+    is_pointer_v<T> && is_genfloat_v<remove_pointer_t<T>> &&
     is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
 
 template <typename T, access::address_space AddressSpace,
@@ -288,7 +288,7 @@ inline constexpr bool is_genfloatptr_marray_v =
 
 template <typename T>
 inline constexpr bool is_genptr_v =
-    is_pointer<T>::value && is_gentype_v<remove_pointer_t<T>> &&
+    is_pointer_v<T> && is_gentype_v<remove_pointer_t<T>> &&
     is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
 
 template <typename T>
