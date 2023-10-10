@@ -162,7 +162,7 @@ implementation supports.
 namespace sycl::ext::oneapi::experimental {
 
 template <typename ExecutorType, typename CommandGroupFunc>
-void submit(ExecutorType ex, CommandGroupFunc cgf, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+void submit(ExecutorType ex, CommandGroupFunc&& cgf, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 
 }
 ----
@@ -170,7 +170,7 @@ void submit(ExecutorType ex, CommandGroupFunc cgf, const std::vector<event>& dep
 [source,c++]
 ----
 template <typename ExecutorType, typename CommandGroupFunc>
-void submit(ExecutorType ex, CommandGroupFunc cgf, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+void submit(ExecutorType ex, CommandGroupFunc&& cgf, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
