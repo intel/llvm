@@ -1,4 +1,5 @@
-//===- CleanupSYCLCompilerInternalMetadata.cpp - remove SYCL compiler MD --===//
+//===------------- CleanupSYCLCompilerInternalMetadata.cpp --------------------
+//------------ remove metadata introduced by SYCL compiler MD -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Cleanup SYCL compiler internal metadata (usually inserted by sycl-post-link)
-// as it will never be used in the compilation ever again
+// Cleanup SYCL compiler internal metadata inserted by the frontend as it will
+// never be used in the compilation ever again
 //
 //===----------------------------------------------------------------------===//
 

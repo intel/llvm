@@ -1101,8 +1101,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{},
                                                 /*ValidateAspects=*/false));
-      // Remove SYCL metadata added by sycl-post-link tool, like sycl_aspects
-      MPM.addPass(CleanupSYCLCompilerInternalMetadataPass());
 
       // Add attribute corresponding to optimization level.
       MPM.addPass(SYCLAddOptLevelAttributePass(CodeGenOpts.OptimizationLevel));
@@ -1123,6 +1121,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
+
+      // Remove SYCL metadata added by the frontend, like sycl_aspects
+      MPM.addPass(CleanupSYCLCompilerInternalMetadataPass());
 
       if (LangOpts.SYCLIsNativeCPU) {
         MPM.addPass(PrepareSYCLNativeCPUPass());
