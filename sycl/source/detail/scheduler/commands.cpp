@@ -2494,7 +2494,10 @@ pi_int32 enqueueImpKernel(
             /*PropList=*/{}, Program);
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
-           Queue->get_context());
+            Queue->get_context());
+    Kernel = MSyclKernel->getHandleRef();
+    auto SyclProg = MSyclKernel->getProgramImpl();
+    Program = SyclProg->getHandleRef();
     // Non-cacheable kernels use mutexes from kernel_impls.
     // TODO this can still result in a race condition if multiple SYCL
     // kernels are created with the same native handle. To address this,
