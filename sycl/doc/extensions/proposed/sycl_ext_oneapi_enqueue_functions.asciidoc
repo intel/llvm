@@ -210,7 +210,7 @@ _Effects_: Enqueues a single task to the executor `ex`.
 template <typename KernelName, typename ExecutorType, typename KernelType
 void single_task(ExecutorType ex, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a single task to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional
@@ -247,7 +247,7 @@ _Effects_: Enqueues a basic kernel to the executor `ex`.
 template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
 void parallel_for(ExecutorType ex, range<Dimensions> r, Rest&&... rest, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a basic kernel to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional
@@ -284,7 +284,7 @@ _Effects_: Enqueues an ND-range kernel to the executor `ex`.
 template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
 void nd_launch(ExecutorType ex, nd_range<Dimensions> r, Rest&&... rest, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues an ND-range kernel to the executor `ex`. The command will
 not execute until each of the events in `depEvents` is complete. An optional
@@ -350,7 +350,7 @@ _Effects_: Enqueues a `memcpy` to the executor `ex`.
 template <typename ExecutorType>
 void memcpy(ExecutorType ex, void* dest, const void* src, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a `memcpy` to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional event
@@ -370,7 +370,7 @@ _Effects_: Enqueues a `copy` to the executor `ex`.
 template <typename ExecutorType, typename T>
 void copy(ExecutorType ex, const T* src, T* dest, size_t count, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a `copy` to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional event
@@ -390,7 +390,7 @@ _Effects_: Enqueues a `memset` to the executor `ex`.
 template <typename ExecutorType>
 void memset(ExecutorType ex, void* ptr, int value, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a `memset` to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional event
@@ -410,7 +410,7 @@ _Effects_: Enqueues a `fill` to the executor `ex`.
 template <typename ExecutorType, typename T>
 void fill(ExecutorType ex, T* ptr, const T& pattern, size_t count, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a `fill` to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional event
@@ -430,7 +430,7 @@ _Effects_: Enqueues a `prefetch` to the executor `ex`.
 template <typename ExecutorType>
 void prefetch(ExecutorType ex, void* ptr, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a `prefetch` to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional event
@@ -450,7 +450,7 @@ _Effects_: Enqueues a `mem_advise` to the executor `ex`.
 template <typename ExecutorType>
 void mem_advise(ExecutorType ex, void* ptr, size_t numBytes, int advice, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is not `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
 
 _Effects_: Enqueues a `mem_advise` to the executor `ex`. The command will not
 execute until each of the events in `depEvents` is complete. An optional event
