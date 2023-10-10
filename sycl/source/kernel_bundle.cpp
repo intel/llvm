@@ -386,15 +386,20 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
 }
 
 /////////////////////////
-// syclex::build(source_kb) => exe_kb
+// syclex::detail::build_from_source(source_kb) => exe_kb
 /////////////////////////
+namespace detail {
 
-exe_kb build_old(source_kb &SourceKB, const property_list &PropList) {
+exe_kb build_from_source(source_kb &SourceKB,
+                         const std::vector<std::string> &BuildOptions,
+                         std::string *LogPtr) {
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
-  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->lets_do_this();
+  std::shared_ptr<kernel_bundle_impl> KBImpl =
+      sourceImpl->build_from_source(BuildOptions, LogPtr);
   return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
 }
 
+} // namespace detail
 } // namespace ext::oneapi::experimental
 
 } // namespace _V1

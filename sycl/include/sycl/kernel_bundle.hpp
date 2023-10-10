@@ -802,7 +802,7 @@ template <>
 struct IsRuntimeProperty<syclex::build_options_key> : std::true_type {};
 
 template <>
-struct IsCompileTimeProperty<syclex::build_options_key> : std::true_type {};
+struct IsCompileTimeProperty<syclex::build_options_key> : std::false_type {};
 
 } // namespace detail
 
@@ -832,7 +832,7 @@ template <>
 struct IsRuntimeProperty<syclex::build_log_key> : std::true_type {};
 
 template <>
-struct IsCompileTimeProperty<syclex::build_log_key> : std::true_type {};
+struct IsCompileTimeProperty<syclex::build_log_key> : std::false_type {};
 
 } // namespace detail
 
@@ -853,23 +853,29 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 // syclex::build(source_kb) => exe_kb
 /////////////////////////
-
-
-// OLD
-// __SYCL_EXPORT kernel_bundle<bundle_state::executable>
-// build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
-//       const property_list &PropList = {});
-
+namespace detail {
 // forward decl
-kernel_bundle<bundle_state::executable> build_old(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB, const property_list &PropList);
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+                  const std::vector<std::string> &BuildOptions,
+                  std::string *LogPtr);
+} // namespace detail
 
-using wtf_kenneth_t = std::tuple<build_options_key, build_log_key>;  // <-- is this right?
-
-template<typename PropertyListT = syclex::properties<wtf_kenneth_t>>  // <-- properties accepts exactly one template arg, and that s.b. a std::tuple??
+template <typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t,
+          typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {
-   return build_old(SourceKB, /* props */ property_list {});
+  std::vector<std::string> BuildOptionsVec;
+  std::string *LogPtr = nullptr;
+  if (props.template has_property<build_options>()) {
+    BuildOptionsVec = props.template get_property<build_options>().opts;
+  }
+  if (props.template has_property<build_log>()) {
+    LogPtr = props.template get_property<build_log>().log;
+  }
+  return detail::build_from_source(SourceKB, BuildOptionsVec, LogPtr);
 }
 
 } // namespace ext::oneapi::experimental

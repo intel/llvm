@@ -71,7 +71,9 @@ void *loadOclocLibrary() {
   return OclocLibrary;
 }
 
-spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source, const std::vector<std::string> &UserArgs) {
+spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
+                             const std::vector<std::string> &UserArgs,
+                             std::string *LogPtr) {
   std::vector<std::string> CMUserArgs = UserArgs;
   CMUserArgs.push_back("-cmc");
 
@@ -130,7 +132,7 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source, const std::vector<std::s
 
   // gather the results ( the SpirV and the Log)
   spirv_vec_t SpirV;
-  std::string CompileLog;
+  // std::string CompileLog;
   for (uint32_t i = 0; i < NumOutputs; i++) {
     size_t NameLen = strlen(OutputNames[i]);
     if (NameLen >= 4 && strstr(OutputNames[i], ".spv") != nullptr &&
@@ -138,11 +140,13 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source, const std::vector<std::s
       assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
       SpirV = spirv_vec_t(Outputs[i], Outputs[i] + OutputLengths[i]);
     } else if (!strcmp(OutputNames[i], "stdout.log")) {
-      CompileLog = std::string(reinterpret_cast<const char *>(Outputs[i]));
+      // CompileLog = std::string(reinterpret_cast<const char *>(Outputs[i]));
+      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+      if (LogText != nullptr && LogText[0] != '\0') {
+        LogPtr->append(LogText);
+      }
     }
   }
-  // std::cout << "Compile Log: " << std::endl << CompileLog << std::endl <<
-  // "=============" << std::endl;
 
   // Try to free memory before reporting possible error.
   decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
@@ -152,7 +156,7 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source, const std::vector<std::s
 
   if (CompileError)
     throw sycl::exception(build_errc, "ocloc reported compilation errors: {\n" +
-                                          CompileLog + "\n}");
+                                          *LogPtr + "\n}");
 
   if (SpirV.empty())
     throw sycl::exception(build_errc,

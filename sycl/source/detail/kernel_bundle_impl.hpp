@@ -344,15 +344,18 @@ public:
     KernelNames = KNames;
   }
 
-  std::shared_ptr<kernel_bundle_impl> lets_do_this() {
-    assert(MState == bundle_state::ext_oneapi_source);
-
-    // CP temp
-    std::vector<std::string> flags{"-cl-fast-relaxed-math", "-cl-finite-math-only"};
+  std::shared_ptr<kernel_bundle_impl>
+  build_from_source(const std::vector<std::string> &BuildOptions,
+                    std::string *LogPtr) {
+    assert(MState == bundle_state::ext_oneapi_source &&
+           "bundle_state::ext_oneapi_source required");
+    assert(Language == syclex::source_language::opencl &&
+           "TODO: add other Languages. Must be OpenCL");
 
     // if successful, the log is empty. if failed, throws an error with the
     // compilation log.
-    auto  spirv = syclex::detail::OpenCLC_to_SPIRV(this->Source, flags);
+    auto spirv =
+        syclex::detail::OpenCLC_to_SPIRV(this->Source, BuildOptions, LogPtr);
     std::cout << "spirv byte count: " << spirv.size() << std::endl;
 
     // see also program_manager.cpp::createSpirvProgram()
@@ -653,8 +656,8 @@ private:
   // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames
   const syclex::source_language Language = syclex::source_language::opencl;
   const std::string Source;
-  std::vector<std::string>
-      KernelNames; // only kernel_bundles created from source have this.
+  // only kernel_bundles created from source have KernelNames member.
+  std::vector<std::string> KernelNames;
 };
 
 } // namespace detail
