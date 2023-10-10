@@ -1,16 +1,22 @@
+Discourse topic details:
+- Category: [LLVM Project](https://discourse.llvm.org/c/llvm/5)
+- Title: "RFC: Add full support for the SYCL programming model"
+- Tags: sycl
+
 # Add full support for the SYCL programming model
 
-We (Intel) propose adding full support for the SYCL programming model support to the LLVM/Clang project to facilitate collaboration on C++ single-source heterogeneous programming for accelerators (e.g., GPU, FPGA, DSP) from different hardware and software vendors. The SYCL 2020 Specification is available at the Khronos site: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html.
+We (Intel) propose adding full support for the SYCL programming model to the LLVM compiler infrastructure.  This will facilitate collaboration on C++ single-source heterogeneous programming for accelerators (e.g., GPU, FPGA, DSP) from different hardware and software vendors. The SYCL 2020 Specification is available at the Khronos site: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html.
 
 Our prior RFC toward this effort can be seen here: https://lists.llvm.org/pipermail/cfe-dev/2019-January/060811.html
 
-In the four years since then: 
+In the last four years, here are some of the major developments in our SYCL compilation efforts:
   *   both our design and SYCL have evolved (e.g. the previous RFC supported SYCL 1.2.1)
   *   we have multiple years of SYCL implementation experience
   *   we have received feedback from the community for both the original RFC as well as patches that we have upstreamed
   *   we have real-world user feedback from talking with our customers
   *   we have worked with Codeplay in supporting non-Intel hardware
-and as a result now have a more mature set of design and implementation that we can upstream that is more in line with community standards and expectations.
+
+As a result, we now have a more mature set of design and implementation that we can upstream that is more in line with community standards and expectations.
 
 SYCL is an open specification from the Khronos Group (https://www.khronos.org/sycl/) and Intel supports a community implementation that fully meets this specification.  This would allow for open tooling and be in line with the goals of the Unified Acceleration (UXL) Foundation: https://www.oneapi.io/blog/announcing-the-unified-acceleration-uxl-foundation/
 
@@ -40,15 +46,15 @@ Even if we develop this new approach, though, we think it makes sense to keep th
 
 ### Location for the logic for generating the integration support
 
-Another open question is the location for the logic that generates the integration headers (or the new integration information alluded to above).  This logic is currently located in the sema phase of the CFE, and the community has expressed concern about this.  We are considering two alternatives.  One option is to move the logic to the codegen phase of the CFE.  Another is to move the logic out of the CFE entirely and create a new LLVM IR pass instead.  If we do this, the new IR pass would likely run near the start of the pipeline, before other IR passes can transform the IR that is emitted by the CFE.  This option may be attractive especially if we end up supporting two integration methods because we could isolate each method in its own IR pass, and then enable one or the other pass depending on whether the user requests a third-party host compiler.
+Another open question is the location for the logic that generates the integration headers (or the new integration information alluded to above).  This logic is currently located in the Sema phase of the CFE, and the community has expressed concern about this.  We are considering two alternatives.  One option is to move the logic to the CodeGen phase of the CFE.  Another is to move the logic out of the CFE entirely and create a new LLVM IR pass instead.  If we do this, the new IR pass would likely run near the start of the pipeline, before other IR passes can transform the IR that is emitted by the CFE.  This option may be attractive especially if we end up supporting two integration methods because we could isolate each method in its own IR pass, and then enable one or the other pass depending on whether the user requests a third-party host compiler.
 
-### Dependency on the Khronos LLVMIR / SPIRV translator
+### Dependency on the Khronos LLVM-SPIRV translator
 
-With our current approach, a SYCL source file is compiled to a fat object, which contains both host code and embedded LLVM IR for the device code.  When these objects are linked together, the LLVM IR modules from all objects are linked together, and then the sycl-post-link tool performs some final IR transformations that require visibility to the entire IR for each offload kernel.  After these final IR passes complete, we translate the LLVM IR to SPIR-V, which is embedded in the fat executable.
+With our current approach, device code corresponding to the offload region is compiled into LLVM IR.  Various backend compilers (e.g., Intel Graphics Compiler), require the device code to be present in SPIR-V IR.  Hence, the LLVM IR needs to be translated into SPIR-V IR.
 
-This final translation to SPIR-V currently relies on the Khronos SPIR-V translator, which is an external project.  As a result, the end user must ensure that the translator is installed and on the PATH in order have a working clang for SYCL.  We would like to eliminate this dependency in order to make it easier for people to use clang for SYCL.
+This final translation to SPIR-V currently relies on the Khronos SPIRV-LLVM translator, which is a project external to the LLVM compiler infrastructure.  As a result, end users must ensure that the translator is available in their environment, so that the clang front-end driver is able to find it during compilation for SYCL.  We would like to eliminate this dependency in order to make it easier for people to use clang for SYCL.
 
-We are investigating ways to use the clang SPIR-V backend in place of the Khronos translator by using it at the end of the sycl-post-link tool.
+A SPIR-V backend is currently under development inside the LLVM compiler infrastructure.  Once deployed, this backend can replace the current translator in the SYCL compilation flow.
 
 ## Topics of interest
 
