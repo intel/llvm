@@ -2757,9 +2757,6 @@ public:
   /// until all commands previously submitted to this queue have entered the
   /// complete state.
   void ext_oneapi_barrier() {
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_oneapi_enqueue_barrier>();
     throwIfActionIsCreated();
     setType(detail::CG::Barrier);
   }
