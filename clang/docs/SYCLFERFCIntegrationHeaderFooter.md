@@ -87,15 +87,14 @@ And for each kernel, each of its parameter is described in the kernel_signatures
 * an encoding of the type that is captured
 * its size and its offset
 
-In the above example, the first two parameters are standard layout types (the int `i` and the struct `test_s`), the latter two though standard layout types are types which need special handling - accessor and sampler respectively.   The last entry acts as a terminating entry.
+In the above example, the first two parameters are standard layout types (the int `i` and the struct `test_s`), the third one, although a standard layout type, is a type which needs special handling.   The last entry acts as a terminating entry.
 
 This allows the run-time library to recreate the function object on the device.
 
-The full set of encoding is:
+Some of the encoding that we use are:
 
 * kind_accessor  for sycl accessor types
 * kind_std_layout for standard layout types
-* kind_sampler for sycl sampler types
 * kind_pointer for pointer types
 * kind_specialization_constants_buffer for initializing specialization constants
 * kind_stream for sycl stream types and
