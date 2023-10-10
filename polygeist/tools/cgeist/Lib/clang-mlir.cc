@@ -119,9 +119,9 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
 
     if (CM->isInstance()) {
       Value Val = Function.getArgument(I);
-      ThisVal =
-          ValueCategory(Val, /*isReference*/ false,
-                        Glob.getTypes().getMLIRType(CM->getThisObjectType()));
+      ThisVal = ValueCategory(
+          Val, /*isReference*/ false,
+          Glob.getTypes().getMLIRType(CM->getFunctionObjectParameterType()));
       I++;
     }
   }
@@ -275,17 +275,19 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
 
       if (auto *AILE = dyn_cast<clang::ArrayInitLoopExpr>(Expr->getInit())) {
         VisitArrayInitLoop(
-            AILE, CommonFieldLookup(CC->getThisObjectType(), Field, ThisVal.val,
-                                    ThisVal.getElemTy(), /*IsLValue*/ false));
+            AILE, CommonFieldLookup(CC->getFunctionObjectParameterType(), Field,
+                                    ThisVal.val, ThisVal.getElemTy(),
+                                    /*IsLValue*/ false));
         continue;
       }
 
       if (auto *Cons = dyn_cast<clang::CXXConstructExpr>(Expr->getInit())) {
-        VisitConstructCommon(Cons, /*name*/ nullptr, /*space*/ 0,
-                             CommonFieldLookup(CC->getThisObjectType(), Field,
-                                               ThisVal.val, ThisVal.getElemTy(),
-                                               /*IsLValue*/ false)
-                                 .val);
+        VisitConstructCommon(
+            Cons, /*name*/ nullptr, /*space*/ 0,
+            CommonFieldLookup(CC->getFunctionObjectParameterType(), Field,
+                              ThisVal.val, ThisVal.getElemTy(),
+                              /*IsLValue*/ false)
+                .val);
         continue;
       }
 
@@ -298,8 +300,8 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
       bool IsArray = false;
       Glob.getTypes().getMLIRType(Expr->getInit()->getType(), &IsArray);
 
-      auto CFL = CommonFieldLookup(CC->getThisObjectType(), Field, ThisVal.val,
-                                   ThisVal.getElemTy(),
+      auto CFL = CommonFieldLookup(CC->getFunctionObjectParameterType(), Field,
+                                   ThisVal.val, ThisVal.getElemTy(),
                                    /*IsLValue*/ false);
       assert(CFL.val);
       CFL.store(Builder, InitExpr, IsArray);

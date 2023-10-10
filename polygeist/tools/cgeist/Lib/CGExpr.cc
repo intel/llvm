@@ -627,13 +627,13 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
       Glob.getTypes().getMLIRType(Expr->getCallOperator()->getThisType());
 
   bool LLVMABI = false, IsArray = false;
-  Glob.getTypes().getMLIRType(Expr->getCallOperator()->getThisObjectType(),
-                              &IsArray);
+  Glob.getTypes().getMLIRType(
+      Expr->getCallOperator()->getFunctionObjectParameterType(), &IsArray);
 
   if (isa<mlir::LLVM::LLVMPointerType>(T)) {
     LLVMABI = true;
     T = Glob.getTypes().getMLIRType(
-        Expr->getCallOperator()->getThisObjectType());
+        Expr->getCallOperator()->getFunctionObjectParameterType());
   }
 
   if (auto MT = dyn_cast<MemRefType>(T)) {
@@ -664,9 +664,10 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
       if (auto *VD = dyn_cast<VarDecl>(Var)) {
         if (Captures.find(VD) != Captures.end()) {
           FieldDecl *Field = Captures[VD];
-          Result = CommonFieldLookup(
-              cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(),
-              Field, ThisVal.val, ThisVal.getElemTy(), /*isLValue*/ false);
+          Result = CommonFieldLookup(cast<CXXMethodDecl>(EmittingFunctionDecl)
+                                         ->getFunctionObjectParameterType(),
+                                     Field, ThisVal.val, ThisVal.getElemTy(),
+                                     /*isLValue*/ false);
           assert(CaptureKinds.find(VD) != CaptureKinds.end());
           if (CaptureKinds[VD] == LambdaCaptureKind::LCK_ByRef)
             Result = Result.dereference(Builder);
@@ -688,12 +689,13 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
     Glob.getTypes().getMLIRType(Field->getType(), &IsArray);
 
     auto ElemTy = Glob.getTypes().getMLIRType(
-        Expr->getCallOperator()->getThisObjectType());
+        Expr->getCallOperator()->getFunctionObjectParameterType());
 
     if (CK == LambdaCaptureKind::LCK_ByCopy)
-      CommonFieldLookup(Expr->getCallOperator()->getThisObjectType(), Field, Op,
-                        ElemTy,
-                        /*isLValue*/ false)
+      CommonFieldLookup(
+          Expr->getCallOperator()->getFunctionObjectParameterType(), Field, Op,
+          ElemTy,
+          /*isLValue*/ false)
           .store(Builder, Result, IsArray);
     else {
       assert(CK == LambdaCaptureKind::LCK_ByRef);
@@ -723,9 +725,10 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
             Val);
       }
 
-      CommonFieldLookup(Expr->getCallOperator()->getThisObjectType(), Field, Op,
-                        ElemTy,
-                        /*isLValue*/ false)
+      CommonFieldLookup(
+          Expr->getCallOperator()->getFunctionObjectParameterType(), Field, Op,
+          ElemTy,
+          /*isLValue*/ false)
           .store(Builder, Val);
     }
   }
@@ -1449,8 +1452,9 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
                              ->getPointeeType())
                    : nullptr;
       ValueCategory Res = CommonFieldLookup(
-          cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), Field,
-          ThisVal.val, ThisVal.getElemTy(), LValue, BaseTy);
+          cast<CXXMethodDecl>(EmittingFunctionDecl)
+              ->getFunctionObjectParameterType(),
+          Field, ThisVal.val, ThisVal.getElemTy(), LValue, BaseTy);
       assert(CaptureKinds.find(VD) != CaptureKinds.end());
       return Res;
     }
@@ -1546,7 +1550,8 @@ MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *Expr) {
   Glob.getTypes().getMLIRType(Expr->getExpr()->getType(), &IsArray);
 
   ValueCategory CFL = CommonFieldLookup(
-      cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(),
+      cast<CXXMethodDecl>(EmittingFunctionDecl)
+          ->getFunctionObjectParameterType(),
       Expr->getField(), ThisVal.val, ThisVal.getElemTy(), /*isLValue*/ false);
   assert(CFL.val);
   CFL.store(Builder, ToSet, IsArray);

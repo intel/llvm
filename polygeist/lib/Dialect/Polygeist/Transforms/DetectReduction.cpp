@@ -599,7 +599,7 @@ public:
     return Rewriter.create<affine::AffineForOp>(
         ForOp.getLoc(), ForOp.getLowerBoundOperands(), ForOp.getLowerBoundMap(),
         ForOp.getUpperBoundOperands(), ForOp.getUpperBoundMap(),
-        ForOp.getStep(), NewIterArgs);
+        ForOp.getStepAsInt(), NewIterArgs);
   }
 };
 
