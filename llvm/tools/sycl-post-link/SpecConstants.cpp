@@ -218,11 +218,8 @@ void collectCompositeElementsInfoRecursive(
     const Module &M, Type *Ty, const ID *&IDIter, unsigned &Offset,
     std::vector<SpecConstantDescriptor> &Result) {
   if (IDIter->Undef) {
-    // Such ID is expected to be a padding within a non-packed struct, we need
-    // to move offset to account for it.
-    // Offset += M.getDataLayout().getTypeSizeInBits(Ty) * /* bits in byte */ 8;
     ++IDIter;
-    // But otherwise we just skip such values, they are not reported to runtime.
+    // Skip undef IDs, they are not reported to runtime.
     return;
   }
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -412,13 +409,12 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
     Result.reserve(IDs.size());
     unsigned Offset = 0;
     const ID *IDPtr = IDs.data();
-    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
 
-    // Not all IDs are turned into metadata, because some of them may represent
-    // padding within structures. Additionally, there could be emitted an extra
-    // special ID describing post-struct padding to align spec constants for
-    // runtime.
-    assert(Result.size() <= IDs.size() + 1);
+    // Not all IDs are turned into metadata, because some of them may
+    // represent padding within structures. Additionally, there could
+    // be emitted multiple extra special ID describing post-struct
+    // padding to align spec constants for runtime.
+    collectCompositeElementsInfoRecursive(M, SCTy, IDPtr, Offset, Result);
 
     for (unsigned I = 0; I < Result.size(); ++I) {
       MDOps.push_back(ConstantAsMetadata::get(
@@ -548,8 +544,8 @@ Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
 Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
                                            SmallVectorImpl<ID> &IDs,
                                            unsigned &Index,
-                                           Constant *DefaultValue,
-                                           const Module &M) {
+                                           Constant *DefaultValue) {
+  const Module &M = *InsertBefore->getModule();
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
     if (Index >= IDs.size()) {
       // If it is a new specialization constant, we need to generate IDs for
@@ -572,16 +568,28 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     Index++;
   };
   auto LoopIteration = [&](Type *ElTy, unsigned LocalIndex) {
-    // Select corresponding element of the default value.
-    // There are cases when provided default value contains less elements than
-    // specialization constants: it could happen when a struct is extended with
-    // a padding to make its size aligned. In such cases, we simply initialize
-    // any "extra" elements with undef.
+    // Select corresponding element of the default value.  For a
+    // struct, we getting the corresponding default value is a little
+    // tricky.  There are potentially distinct two types: the type of
+    // the default value, which comes from the initializer of the
+    // global spec constant value, and the return type of the call to
+    // getComposite2020SpecConstValue. The return type can be a
+    // version of the default value type, with padding fields
+    // potentially inserted at the top level and within nested
+    // structs.
+
+    // Examples: (RT = Return Type, DVT = Default Value Type)
+    // RT: { i8, [3 x i8], i32 }, DVT = { i8, i32 }
+    // RT: { { i32, i8, [3 x i8] }, i32 } DVT = { { i32, i8 }, i32 }
+
+    // For a given element of the default value type we are
+    // trying to initialize, we will initialize that element with
+    // the element of the default value type that has the same offset
+    // as the element we are trying to initialize. If no such element
+    // exists, we used undef as the initializer.
     const auto ElemDefaultValue = [&]() -> Constant * {
       if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-        auto *DefaultValueType = dyn_cast<StructType>(DefaultValue->getType());
-        assert(DefaultValueType && "Default value is a struct type while"
-                                   "spec constant type is not!");
+        auto *DefaultValueType = cast<StructType>(DefaultValue->getType());
         const auto &DefaultValueTypeSL =
             M.getDataLayout().getStructLayout(DefaultValueType);
         const auto &ReturnTypeSL = M.getDataLayout().getStructLayout(StructTy);
@@ -608,7 +616,7 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
       HandleUndef(ElemDefaultValue);
     else
       Elements.push_back(emitSpecConstantRecursiveImpl(
-          ElTy, InsertBefore, IDs, Index, ElemDefaultValue, M));
+          ElTy, InsertBefore, IDs, Index, ElemDefaultValue));
   };
 
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -631,11 +639,10 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
 /// Wrapper intended to hide IsFirstElement argument from the caller
 Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
                                        SmallVectorImpl<ID> &IDs,
-                                       Constant *DefaultValue,
-                                       const Module &M) {
+                                       Constant *DefaultValue) {
   unsigned Index = 0;
   return emitSpecConstantRecursiveImpl(Ty, InsertBefore, IDs, Index,
-                                       DefaultValue, M);
+                                       DefaultValue);
 }
 
 /// Function creates load instruction from the given Buffer by the given Offset.
@@ -840,7 +847,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
-        Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue, M);
+        Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
