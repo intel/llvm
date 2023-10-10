@@ -100,8 +100,6 @@ void prefetch(T *ptr, size_t count, Properties properties = {}) {
   prefetch((void *)ptr, count * sizeof(T), properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <access::address_space AddressSpace, access::decorated IsDecorated,
           typename Properties = empty_properties_t>
 std::enable_if_t<AddressSpace == access::address_space::global_space ||
@@ -112,8 +110,6 @@ prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr,
   prefetch(ptr.get(), properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <access::address_space AddressSpace, access::decorated IsDecorated,
           typename Properties = empty_properties_t>
 std::enable_if_t<AddressSpace == access::address_space::global_space ||
@@ -124,8 +120,6 @@ prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
   prefetch(ptr.get(), bytes, properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
@@ -137,8 +131,6 @@ prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr,
   prefetch(ptr.get(), properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
@@ -150,8 +142,6 @@ prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
   prefetch(ptr.get(), count, properties);
 }
 
-// Only available if Dimensions > 0 && (AccessMode == read || AccessMode ==
-// read_write)
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
           typename Properties = empty_properties_t>
@@ -164,8 +154,6 @@ prefetch(
   prefetch((void *)&acc[offset], sizeof(DataT), properties);
 }
 
-// Only available if Dimensions > 0 && (AccessMode == read || AccessMode ==
-// read_write)
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
           typename Properties = empty_properties_t>
@@ -206,8 +194,6 @@ joint_prefetch(Group g, T *ptr, size_t count, Properties properties = {}) {
   joint_prefetch((void *)ptr, count * sizeof(T), properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <typename Group, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
@@ -221,8 +207,6 @@ joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
   joint_prefetch(g, ptr.get(), properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <typename Group, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
@@ -236,8 +220,6 @@ joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
   joint_prefetch(g, ptr.get(), bytes, properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <typename Group, typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
@@ -251,8 +233,6 @@ joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
   joint_prefetch(g, ptr.get(), properties);
 }
 
-// Only available if AddressSpace == global_space || AddressSpace ==
-// generic_space
 template <typename Group, typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
@@ -266,8 +246,6 @@ joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
   joint_prefetch(g, ptr.get(), count, properties);
 }
 
-// Only available if Dimensions > 0 && (AccessMode == read || AccessMode ==
-// read_write)
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
@@ -283,8 +261,6 @@ joint_prefetch(
   joint_prefetch(g, (void *)&acc[offset], sizeof(DataT), properties);
 }
 
-// Only available if Dimensions > 0 && (AccessMode == read || AccessMode ==
-// read_write)
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
           typename Properties = ext::oneapi::experimental::empty_properties_t>
