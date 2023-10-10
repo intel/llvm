@@ -1,3 +1,4 @@
+// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
