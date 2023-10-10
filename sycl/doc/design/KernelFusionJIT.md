@@ -177,7 +177,7 @@ This section explains actions performed by the kernel fusion JIT compiler when f
 - `group_id`
 - `global_offset`
 
-Meaning of each of these is self-explainatory for the SYCL user.
+The meaning of each of these is self-explainatory for the SYCL user.
 
 #### Restrictions
 
@@ -190,7 +190,7 @@ Following kernel fusion principles, SYCL constraints and technical decisions, so
 5. The fused kernel must not launch more work-items than the maximum number of work-items launched by the original kernels.
 6. All work-groups will be the same size, [as per the SYCL 2020 rev 7. 3.9.4](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_work_group_data_parallel_kernels).
 7. `global_id(i) = group_id(i) * local_size(i) + local_id(i)` [as per OpenCL 3.0 3.2.1](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_mapping_work_items_onto_an_ndrange).
-8. A work-item will have the same global linear ID in the fused grid as in the unfused grid;
+8. A work-item will have the same global linear id in the fused grid as in the unfused grid;
 9. All the fused nd-ranges must have the same offset.
 
 These restrictions can be simplified to:
@@ -210,14 +210,14 @@ This remapping consists on an inter-procedural pass replacing each built-in quer
 First of all, work-item remapping will always be performed when the list of input nd-ranges is heterogeneous. Additional remapping conditions are present for the following work-item components. For each input kernel:
 
 - `num_work_groups` and `local_size`: Only performed if the input nd-range has an explicit local size, may result in better performance, as this replaces built-in calls with constants;
-- `global_id`, `local_id` and `group_id`: Only needed if the number of dimensions differ w.r.t. that of the fused kernel or any component of the global size in the range [2, N] differs.
+- `global_id`, `local_id` and `group_id`: Only needed if the number of dimensions differ w.r.t. that of the fused kernel or any component of the global size in the range [2, `num_dims`] differs.
 
 Once this rules are set, also taking into account remapping constraints, the remapping is performed as follows for each input kernel:
 
 - `global_id`:
-  - `global_id(0) = GID / (global_size(1) * global_size(2))`
-  - `global_id(1) = (GID / global_size(2)) % global_size(1)`
-  - `global_id(2) = GID % global_size(2)`
+  - `global_id(0) = GLID / (global_size(1) * global_size(2))`
+  - `global_id(1) = (GLID / global_size(2)) % global_size(1)`
+  - `global_id(2) = GLID % global_size(2)`
 - `local_id`:
   - `local_id(x) = global_id(x) % local_size(x)`
 - `group_id`:
@@ -231,11 +231,11 @@ Once this rules are set, also taking into account remapping constraints, the rem
 - `global_offset`:
   - `global_offset(x) = GO(x)`
 
-On the RHS of the expressions, component names refer to the remapped values and upper case `GS`, `LS` and `GO` values refer to each of the components of the original nd-range (global size, local size and global offset), whereas `GID` refers to the global id, which is an invariant during the fusion process.
+On the RHS of the expressions, component names refer to the remapped values and upper case `GS`, `LS` and `GO` values refer to each of the components of the original nd-range (global size, local size and global offset), whereas `GLID` refers to the global linear id, which is an invariant during the fusion process.
 
 Special care needs to be taken when handling elements from the original nd-range, as the input index needs to be remapped to take into account different array subscript ordering of the underlying API w.r.t. SYCL. See [SYCL 2020 rev. 7 C.7.7](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:kernel-conventions-sycl) for more information on this index remapping.
 
-**Note**: As there is no `global_id` counterpart for PTX, global id is specified as `global_id(i) = group_id(i) * local_size(i) + local_id(i) + global_offset(i)`. This way, when targetting PTX, `local_size`, `local_id` and `group_id` will need to be remapped even when no explicit local size is provided. Remapping will take place as follows (also respecting original constraints):
+**Note**: As there is no `global_id` counterpart for PTX, global id is specified as `global_id(i) = group_id(i) * local_size(i) + local_id(i) + global_offset(i)`. This way, when targetting PTX, `local_size`, `local_id` and `group_id` will need special treatment **when no explicit local size is provided**. In this particular case, remapping will take place as follows (also respecting original constraints):
 
 - `num_work_groups`:
   - `num_work_groups(x) = 1`
