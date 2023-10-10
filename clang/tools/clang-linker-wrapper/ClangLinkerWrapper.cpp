@@ -1082,6 +1082,7 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
     return Error::success();
 
   SmallVector<OffloadFile, 4> BitcodeInputFiles;
+  DenseSet<StringRef> StrongResolutions;
   DenseSet<StringRef> UsedInRegularObj;
   DenseSet<StringRef> UsedInSharedLib;
   BumpPtrAllocator Alloc;
@@ -1095,6 +1096,18 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
     file_magic Type = identify_magic(Buffer.getBuffer());
     switch (Type) {
     case file_magic::bitcode: {
+      Expected<IRSymtabFile> IRSymtabOrErr = readIRSymtab(Buffer);
+      if (!IRSymtabOrErr)
+        return IRSymtabOrErr.takeError();
+
+      // Check for any strong resolutions we need to preserve.
+      for (unsigned I = 0; I != IRSymtabOrErr->Mods.size(); ++I) {
+        for (const auto &Sym : IRSymtabOrErr->TheReader.module_symbols(I)) {
+          if (!Sym.isFormatSpecific() && Sym.isGlobal() && !Sym.isWeak() &&
+              !Sym.isUndefined())
+            StrongResolutions.insert(Saver.save(Sym.Name));
+        }
+      }
       BitcodeInputFiles.emplace_back(std::move(File));
       continue;
     }
@@ -1183,6 +1196,7 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
       // it is undefined or another definition has already been used.
       Res.Prevailing =
           !Sym.isUndefined() &&
+          !(Sym.isWeak() && StrongResolutions.contains(Sym.getName())) &&
           PrevailingSymbols.insert(Saver.save(Sym.getName())).second;
 
       // We need LTO to preseve the following global symbols:
@@ -1297,7 +1311,7 @@ Expected<StringRef> writeOffloadFile(const OffloadFile &File) {
 
 // Compile the module to an object file using the appropriate target machine for
 // the host triple.
-Expected<StringRef> compileModule(Module &M) {
+Expected<StringRef> compileModule(Module &M, OffloadKind Kind) {
   llvm::TimeTraceScope TimeScope("Compile module");
   std::string Msg;
   const Target *T = TargetRegistry::lookupTarget(M.getTargetTriple(), Msg);
@@ -1316,8 +1330,10 @@ Expected<StringRef> compileModule(Module &M) {
     M.setDataLayout(TM->createDataLayout());
 
   int FD = -1;
-  auto TempFileOrErr = createOutputFile(
-      sys::path::filename(ExecutableName) + ".image.wrapper", "o");
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "." +
+                           getOffloadKindName(Kind) + ".image.wrapper",
+                       "o");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
   if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
@@ -1389,7 +1405,7 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
     WriteBitcodeToFile(M, OS);
   }
 
-  auto FileOrErr = compileModule(M);
+  auto FileOrErr = compileModule(M, Kind);
   if (!FileOrErr)
     return FileOrErr.takeError();
   return *FileOrErr;

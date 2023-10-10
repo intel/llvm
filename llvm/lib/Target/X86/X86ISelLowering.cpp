@@ -4324,35 +4324,6 @@ static SDValue getBitSelect(const SDLoc &DL, MVT VT, SDValue LHS, SDValue RHS,
   return DAG.getNode(ISD::OR, DL, VT, LHS, RHS);
 }
 
-// Match (xor X, -1) -> X.
-// Match extract_subvector(xor X, -1) -> extract_subvector(X).
-// Match concat_vectors(xor X, -1, xor Y, -1) -> concat_vectors(X, Y).
-static SDValue IsNOT(SDValue V, SelectionDAG &DAG) {
-  V = peekThroughBitcasts(V);
-  if (V.getOpcode() == ISD::XOR &&
-      (ISD::isBuildVectorAllOnes(V.getOperand(1).getNode()) ||
-       isAllOnesConstant(V.getOperand(1))))
-    return V.getOperand(0);
-  if (V.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
-      (isNullConstant(V.getOperand(1)) || V.getOperand(0).hasOneUse())) {
-    if (SDValue Not = IsNOT(V.getOperand(0), DAG)) {
-      Not = DAG.getBitcast(V.getOperand(0).getValueType(), Not);
-      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(Not), V.getValueType(),
-                         Not, V.getOperand(1));
-    }
-  }
-  SmallVector<SDValue, 2> CatOps;
-  if (collectConcatOps(V.getNode(), CatOps, DAG)) {
-    for (SDValue &CatOp : CatOps) {
-      SDValue NotCat = IsNOT(CatOp, DAG);
-      if (!NotCat) return SDValue();
-      CatOp = DAG.getBitcast(CatOp.getValueType(), NotCat);
-    }
-    return DAG.getNode(ISD::CONCAT_VECTORS, SDLoc(V), V.getValueType(), CatOps);
-  }
-  return SDValue();
-}
-
 void llvm::createUnpackShuffleMask(EVT VT, SmallVectorImpl<int> &Mask,
                                    bool Lo, bool Unary) {
   assert(VT.getScalarType().isSimple() && (VT.getSizeInBits() % 128) == 0 &&
@@ -4908,6 +4879,59 @@ static bool getTargetShuffleMaskIndices(SDValue MaskNode,
     RawMask.push_back(Elt.getZExtValue());
 
   return true;
+}
+
+// Match not(xor X, -1) -> X.
+// Match not(pcmpgt(C, X)) -> pcmpgt(X, C - 1).
+// Match not(extract_subvector(xor X, -1)) -> extract_subvector(X).
+// Match not(concat_vectors(xor X, -1, xor Y, -1)) -> concat_vectors(X, Y).
+static SDValue IsNOT(SDValue V, SelectionDAG &DAG) {
+  V = peekThroughBitcasts(V);
+  if (V.getOpcode() == ISD::XOR &&
+      (ISD::isBuildVectorAllOnes(V.getOperand(1).getNode()) ||
+       isAllOnesConstant(V.getOperand(1))))
+    return V.getOperand(0);
+  if (V.getOpcode() == ISD::EXTRACT_SUBVECTOR &&
+      (isNullConstant(V.getOperand(1)) || V.getOperand(0).hasOneUse())) {
+    if (SDValue Not = IsNOT(V.getOperand(0), DAG)) {
+      Not = DAG.getBitcast(V.getOperand(0).getValueType(), Not);
+      return DAG.getNode(ISD::EXTRACT_SUBVECTOR, SDLoc(Not), V.getValueType(),
+                         Not, V.getOperand(1));
+    }
+  }
+  if (V.getOpcode() == X86ISD::PCMPGT &&
+      !ISD::isBuildVectorAllZeros(V.getOperand(0).getNode()) &&
+      !ISD::isBuildVectorAllOnes(V.getOperand(0).getNode()) &&
+      V.getOperand(0).hasOneUse()) {
+    APInt UndefElts;
+    SmallVector<APInt> EltBits;
+    if (getTargetConstantBitsFromNode(V.getOperand(0),
+                                      V.getScalarValueSizeInBits(), UndefElts,
+                                      EltBits)) {
+      // Don't fold min_signed_value -> (min_signed_value - 1)
+      bool MinSigned = false;
+      for (APInt &Elt : EltBits) {
+        MinSigned |= Elt.isMinSignedValue();
+        Elt -= 1;
+      }
+      if (!MinSigned) {
+        SDLoc DL(V);
+        MVT VT = V.getSimpleValueType();
+        return DAG.getNode(X86ISD::PCMPGT, DL, VT, V.getOperand(1),
+                           getConstVector(EltBits, UndefElts, VT, DAG, DL));
+      }
+    }
+  }
+  SmallVector<SDValue, 2> CatOps;
+  if (collectConcatOps(V.getNode(), CatOps, DAG)) {
+    for (SDValue &CatOp : CatOps) {
+      SDValue NotCat = IsNOT(CatOp, DAG);
+      if (!NotCat) return SDValue();
+      CatOp = DAG.getBitcast(CatOp.getValueType(), NotCat);
+    }
+    return DAG.getNode(ISD::CONCAT_VECTORS, SDLoc(V), V.getValueType(), CatOps);
+  }
+  return SDValue();
 }
 
 /// Create a shuffle mask that matches the PACKSS/PACKUS truncation.
@@ -52183,9 +52207,13 @@ static SDValue promoteExtBeforeAdd(SDNode *Ext, SelectionDAG &DAG,
   if (Add.getOpcode() != ISD::ADD)
     return SDValue();
 
+  SDValue AddOp0 = Add.getOperand(0);
+  SDValue AddOp1 = Add.getOperand(1);
   bool Sext = Ext->getOpcode() == ISD::SIGN_EXTEND;
   bool NSW = Add->getFlags().hasNoSignedWrap();
   bool NUW = Add->getFlags().hasNoUnsignedWrap();
+  NSW = NSW || (Sext && DAG.willNotOverflowAdd(true, AddOp0, AddOp1));
+  NUW = NUW || (!Sext && DAG.willNotOverflowAdd(false, AddOp0, AddOp1));
 
   // We need an 'add nsw' feeding into the 'sext' or 'add nuw' feeding
   // into the 'zext'
@@ -52195,8 +52223,8 @@ static SDValue promoteExtBeforeAdd(SDNode *Ext, SelectionDAG &DAG,
   // Having a constant operand to the 'add' ensures that we are not increasing
   // the instruction count because the constant is extended for free below.
   // A constant operand can also become the displacement field of an LEA.
-  auto *AddOp1 = dyn_cast<ConstantSDNode>(Add.getOperand(1));
-  if (!AddOp1)
+  auto *AddOp1C = dyn_cast<ConstantSDNode>(AddOp1);
+  if (!AddOp1C)
     return SDValue();
 
   // Don't make the 'add' bigger if there's no hope of combining it with some
@@ -52215,10 +52243,9 @@ static SDValue promoteExtBeforeAdd(SDNode *Ext, SelectionDAG &DAG,
     return SDValue();
 
   // Everything looks good, so pull the '{s|z}ext' ahead of the 'add'.
-  int64_t AddConstant = Sext ? AddOp1->getSExtValue() : AddOp1->getZExtValue();
-  SDValue AddOp0 = Add.getOperand(0);
+  int64_t AddC = Sext ? AddOp1C->getSExtValue() : AddOp1C->getZExtValue();
   SDValue NewExt = DAG.getNode(Ext->getOpcode(), SDLoc(Ext), VT, AddOp0);
-  SDValue NewConstant = DAG.getConstant(AddConstant, SDLoc(Add), VT);
+  SDValue NewConstant = DAG.getConstant(AddC, SDLoc(Add), VT);
 
   // The wider add is guaranteed to not wrap because both operands are
   // sign-extended.
@@ -54424,7 +54451,7 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
   // TODO - combineX86ShufflesRecursively should handle shuffle concatenation
   // but it currently struggles with different vector widths.
   if (llvm::all_of(Ops, [Op0](SDValue Op) {
-        return Op.getOpcode() == Op0.getOpcode();
+        return Op.getOpcode() == Op0.getOpcode() && Op.hasOneUse();
       })) {
     auto ConcatSubOperand = [&](EVT VT, ArrayRef<SDValue> SubOps, unsigned I) {
       SmallVector<SDValue> Subs;
@@ -56569,13 +56596,14 @@ SDValue X86TargetLowering::LowerAsmOutputForConstraint(
 /// Lower the specified operand into the Ops vector.
 /// If it is invalid, don't add anything to Ops.
 void X86TargetLowering::LowerAsmOperandForConstraint(SDValue Op,
-                                                     std::string &Constraint,
-                                                     std::vector<SDValue>&Ops,
+                                                     StringRef Constraint,
+                                                     std::vector<SDValue> &Ops,
                                                      SelectionDAG &DAG) const {
   SDValue Result;
 
   // Only support length 1 constraints for now.
-  if (Constraint.length() > 1) return;
+  if (Constraint.size() > 1)
+    return;
 
   char ConstraintLetter = Constraint[0];
   switch (ConstraintLetter) {

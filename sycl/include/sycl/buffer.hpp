@@ -30,6 +30,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/stl.hpp>                               // for make_unique_ptr
+#include <sycl/types.hpp>                             // for is_device_copyable
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -167,10 +168,8 @@ template <typename T, int dimensions = 1,
               typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
-  // TODO check is_device_copyable<T>::value after converting sycl::vec into a
-  // trivially copyable class.
-  static_assert(!std::is_same_v<T, std::string>,
-                "'std::string' is not a device copyable type");
+  static_assert(is_device_copyable_v<T>,
+                "Underlying type of a buffer must be device copyable!");
 
 public:
   using value_type = T;

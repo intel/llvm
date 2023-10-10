@@ -31,6 +31,12 @@ class KernelID;
 
 template <typename TA, typename TB, typename TC>
 ESIMD_NOINLINE TC add(TA A, TB B) {
+#ifdef __SYCL_DEVICE_ONLY__
+  // Noop inline asm to prevent arguments being
+  // optimized to be pass by value as this
+  // test is very sensitive to stack size.
+  __asm__("" : : "r"(A.data()), "r"(B.data()));
+#endif
   return (TC)A + (TC)B;
 }
 

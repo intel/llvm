@@ -813,7 +813,7 @@ template <class FuncRecordTy, support::endianness Endian>
 Error getFuncNameViaRef(const FuncRecordTy *Record,
                         InstrProfSymtab &ProfileNames, StringRef &FuncName) {
   uint64_t NameRef = getFuncNameRef<FuncRecordTy, Endian>(Record);
-  FuncName = ProfileNames.getFuncName(NameRef);
+  FuncName = ProfileNames.getFuncOrVarName(NameRef);
   return Error::success();
 }
 
@@ -1027,9 +1027,7 @@ enum CovMapVersion {
   // Compilation directory is stored separately and combined with relative
   // filenames to produce an absolute file path.
   Version6 = 5,
-  // Branch regions extended and Decision Regions added for MC/DC.
-  Version7 = 6,
-  // The current version is Version7.
+  // The current version is Version6.
   CurrentVersion = INSTR_PROF_COVMAP_VERSION
 };
 

@@ -93,8 +93,10 @@ FusionResult KernelFusion::fuseKernels(
         "Fusion output target format not supported by this build");
   }
 
-  if (TargetFormat == BinaryFormat::PTX && IsHeterogeneousList) {
-    return FusionResult{"Heterogeneous ND ranges not supported for CUDA"};
+  if (TargetFormat != BinaryFormat::SPIRV &&
+      TargetFormat != BinaryFormat::PTX && IsHeterogeneousList) {
+    return FusionResult{
+        "Heterogeneous ND ranges not supported for this target"};
   }
 
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
@@ -103,13 +105,18 @@ FusionResult KernelFusion::fuseKernels(
                      BarriersFlags,
                      Internalization,
                      Constants,
-                     jit_compiler::isHeterogeneousList(NDRanges)
+                     IsHeterogeneousList
                          ? std::optional<std::vector<NDRange>>{NDRanges}
                          : std::optional<std::vector<NDRange>>{std::nullopt}};
   if (CachingEnabled) {
     std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
     if (CachedKernel) {
       helper::printDebugMessage("Re-using cached JIT kernel");
+      if (!IsHeterogeneousList) {
+        // If the cache query didn't include the ranges, update the fused range
+        // before returning the kernel info to the runtime.
+        CachedKernel->NDR = combineNDRanges(NDRanges);
+      }
       return FusionResult{*CachedKernel, /*Cached*/ true};
     }
     helper::printDebugMessage(
