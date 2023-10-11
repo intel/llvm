@@ -199,17 +199,23 @@ joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
 });
 ```
 
+In the case of `ext_intel_packed` matrix memory layout, `row` and
+`col` represent the coordinates in the logical matrix before VNNI
+transformation.
+
 === Load/Store/Fill With Out-of-Bounds Checks
 `joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_fill`
-operations do not do bounds checking. When the global matrix size does
-not multiply `Rows` and `Cols` of the joint matrix, this extension
-adds a new form of API to load, store, and fill joint matrix while
-checking the bounds. For load and fill, the out-of-bounds elements are
-set to 0. For the store, they are dropped out.
+operations do not do bounds checking. When the global matrix size is
+not multiple of the joint matrix size, this extension adds a new form
+of API to load, store, and fill joint matrix while checking the
+bounds. For load and fill, the out-of-bounds elements are set to
+0. For the store, they are dropped out.
 
-These functions are similar to the existing ones but they
-take extra arguments to determine the global bounds `Height` and `Width` of the
-two-dimensional region to load to or store from.
+These functions are similar to the existing ones without bounds
+checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
+`joint_matrix_store`, but they take extra arguments to determine the
+global bounds `Height` and `Width` of the two-dimensional region to
+load to or store from.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -257,7 +263,6 @@ void joint_matrix_store_checked(Group g,
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```
-
 
 === New Device Information Descriptor
 Besides the query we provide in
@@ -365,15 +370,20 @@ q.submit([&](sycl::handler& cgh) {
     joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
     joint_matrix_fill(sg, tC, 0);
     for (int k = 0; k < K; k += tK) {
-      joint_matrix_load(sg, tA, accA + sg_startx * tM * K + k, K);
-      joint_matrix_load(sg, tB, accB + k * N*4 + sg_starty/SG_SIZE*tN*4, N*4);
-      tC = joint_matrix_mad(sg, tA, tB, tC);
+      joint_matrix_load(sg, tA,
+          accA.template get_multi_ptr<sycl::access::decorated::no>() +
+          sg_startx * tM * K + k, K);
+      joint_matrix_load(sg, tB,
+          accB.template get_multi_ptr<sycl::access::decorated::no>() +
+          k * N*4 + sg_starty/SG_SIZE*tN*4, N*4);
+      joint_matrix_mad(sg, tC, tA, tB, tC);
     }
-    auto wi_data_c = ext::intel::experimental::matrix::get_wi_data(sg, tC);
-    for (int i = 0; i < wi_data_c.length(); i++)
-      wi_data_c[i] *= alpha;
+    joint_matrix_apply(sg, tC, [=](int8_t x) {
+      x *= alpha;
+    });
     joint_matrix_store(sg, tC,
-      accC + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
+        accC.template get_multi_ptr<sycl::access::decorated::no>()
+        + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
   });
 });
 q.wait();
