@@ -39,22 +39,22 @@ struct GroupOpBool {};
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger_v<T>>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger_v<T>>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat_v<T>>> {
   using type = GroupOpFP;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_genbool<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_genbool_v<T>>> {
   using type = GroupOpBool;
 };
 
