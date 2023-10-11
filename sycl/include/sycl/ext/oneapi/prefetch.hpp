@@ -112,7 +112,7 @@ void prefetch(T *ptr, size_t count, Properties properties = {}) {
 
 template <access::address_space AddressSpace, access::decorated IsDecorated,
           typename Properties = empty_properties_t>
-std::enable_if_t<detail::check_prefetch_AS<AddressSpace>, void>
+std::enable_if_t<detail::check_prefetch_AS<AddressSpace>>
 prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr,
          Properties properties = {}) {
   prefetch(ptr.get(), properties);
@@ -120,7 +120,7 @@ prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr,
 
 template <access::address_space AddressSpace, access::decorated IsDecorated,
           typename Properties = empty_properties_t>
-std::enable_if_t<detail::check_prefetch_AS<AddressSpace>, void>
+std::enable_if_t<detail::check_prefetch_AS<AddressSpace>>
 prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
          Properties properties = {}) {
   prefetch(ptr.get(), bytes, properties);
@@ -129,7 +129,7 @@ prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
-std::enable_if_t<detail::check_prefetch_AS<AddressSpace>, void>
+std::enable_if_t<detail::check_prefetch_AS<AddressSpace>>
 prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr,
          Properties properties = {}) {
   prefetch(ptr.get(), properties);
@@ -138,7 +138,7 @@ prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr,
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
-std::enable_if_t<detail::check_prefetch_AS<AddressSpace>, void>
+std::enable_if_t<detail::check_prefetch_AS<AddressSpace>>
 prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
          Properties properties = {}) {
   prefetch(ptr.get(), count, properties);
@@ -147,8 +147,8 @@ prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
           typename Properties = empty_properties_t>
-std::enable_if_t<
-    detail::check_prefetch_acc_mode<AccessMode> && (Dimensions > 0), void>
+std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
+                 (Dimensions > 0)>
 prefetch(
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     id<Dimensions> offset, Properties properties = {}) {
@@ -158,8 +158,8 @@ prefetch(
 template <typename DataT, int Dimensions, access_mode AccessMode,
           access::placeholder IsPlaceholder,
           typename Properties = empty_properties_t>
-std::enable_if_t<
-    detail::check_prefetch_acc_mode<AccessMode> && (Dimensions > 0), void>
+std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
+                 (Dimensions > 0)>
 prefetch(
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
     size_t offset, size_t count, Properties properties = {}) {
@@ -167,28 +167,28 @@ prefetch(
 }
 
 template <typename Group, typename Properties = empty_properties_t>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, void *ptr, Properties properties = {}) {
   std::ignore = g;
   detail::prefetch_impl(ptr, 1, properties);
 }
 
 template <typename Group, typename Properties = empty_properties_t>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, void *ptr, size_t bytes, Properties properties = {}) {
   std::ignore = g;
   detail::prefetch_impl(ptr, bytes, properties);
 }
 
 template <typename Group, typename T, typename Properties = empty_properties_t>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, T *ptr, Properties properties = {}) {
   std::ignore = g;
   joint_prefetch(ptr, sizeof(T), properties);
 }
 
 template <typename Group, typename T, typename Properties = empty_properties_t>
-std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, void>
+std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, T *ptr, size_t count, Properties properties = {}) {
   std::ignore = g;
   joint_prefetch(ptr, count * sizeof(T), properties);
@@ -198,8 +198,7 @@ template <typename Group, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_AS<AddressSpace> &&
-                     sycl::is_group_v<std::decay_t<Group>>,
-                 void>
+                 sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
                Properties properties = {}) {
   joint_prefetch(g, ptr.get(), properties);
@@ -209,8 +208,7 @@ template <typename Group, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_AS<AddressSpace> &&
-                     sycl::is_group_v<std::decay_t<Group>>,
-                 void>
+                 sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
                size_t bytes, Properties properties = {}) {
   joint_prefetch(g, ptr.get(), bytes, properties);
@@ -220,8 +218,7 @@ template <typename Group, typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_AS<AddressSpace> &&
-                     sycl::is_group_v<std::decay_t<Group>>,
-                 void>
+                 sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
                Properties properties = {}) {
   joint_prefetch(g, ptr.get(), properties);
@@ -231,8 +228,7 @@ template <typename Group, typename T, access::address_space AddressSpace,
           access::decorated IsDecorated,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_AS<AddressSpace> &&
-                     sycl::is_group_v<std::decay_t<Group>>,
-                 void>
+                 sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
                size_t count, Properties properties = {}) {
   joint_prefetch(g, ptr.get(), count, properties);
@@ -242,8 +238,7 @@ template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
-                     (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>>,
-                 void>
+                 (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(
     Group g,
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
@@ -255,8 +250,7 @@ template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
           typename Properties = empty_properties_t>
 std::enable_if_t<detail::check_prefetch_acc_mode<AccessMode> &&
-                     (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>>,
-                 void>
+                 (Dimensions > 0) && sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(
     Group g,
     accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
