@@ -4,7 +4,13 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e6343f4cca9a37b17bc63f3a81968ac3f486be8a)
+  #commit b38855ed815ffd076bfde5e5e06170ca4f723dc1
+  #Merge: e6343f4 6a2c548
+  #Author: Piotr Balcer <piotr.balcer@intel.com>
+  #Date:   Thu Oct 5 12:15:42 2023 +0200
+  #    Merge pull request #920 from jsji/localcopy
+  #        [UR][L0] Copy prebuilt L0 to avoid leaking shared folder path
+  set(UNIFIED_RUNTIME_TAG b38855ed815ffd076bfde5e5e06170ca4f723dc1)
 
   set(UR_BUILD_ADAPTER_L0 ON)
 
