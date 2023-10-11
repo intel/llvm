@@ -1526,13 +1526,15 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   auto *PlaceholderCmd = FusionList->second.get();
   auto &CmdList = PlaceholderCmd->getFusionList();
 
-  // We need to check if fusing the kernel would create a circular dependency. A
-  // circular dependency would arise, if a kernel in the fusion list
-  // *indirectly* depends on another kernel in the fusion list. Here, indirectly
-  // means, that the dependency is created through a third command not part of
-  // the fusion, on which this kernel depends and which in turn depends on
-  // another kernel in fusion list.
+  // If there is more than one queue currently in fusion mode, we need to check
+  // if fusing the kernel would create a circular dependency. A circular
+  // dependency would arise, if a kernel in the fusion list *indirectly* depends
+  // on another kernel in the fusion list. Here, indirectly means, that the
+  // dependency is created through a third command not part of the fusion, on
+  // which this kernel depends and which in turn depends on another kernel in
+  // fusion list.
   bool CreatesCircularDep =
+      MFusionMap.size() > 1 &&
       std::any_of(CmdList.begin(), CmdList.end(), [&](ExecCGCommand *Cmd) {
         return checkForCircularDependency(Cmd, true, PlaceholderCmd);
       });
