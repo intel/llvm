@@ -224,7 +224,12 @@ public:
   kernel_bundle() = delete;
 
   /// \returns true if the kernel_bundles contains no device images
-  bool empty() const noexcept { return kernel_bundle_plain::empty(); }
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
+  bool empty() const noexcept {
+    return kernel_bundle_plain::empty();
+  }
 
   /// \returns the backend associated with the kernel bundle
   backend get_backend() const noexcept {
@@ -243,6 +248,9 @@ public:
 
   /// \returns true if the kernel_bundle contains the kernel identified by
   /// kernel_id passed
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   bool has_kernel(const kernel_id &KernelID) const noexcept {
     return kernel_bundle_plain::has_kernel(KernelID);
   }
@@ -250,6 +258,9 @@ public:
   /// \returns true if the kernel_bundle contains the kernel identified by
   /// kernel_id passed and if this kernel is compatible with the device
   /// specified
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
     return kernel_bundle_plain::has_kernel(KernelID, Dev);
   }
@@ -268,6 +279,9 @@ public:
   }
 
   /// \returns a vector of kernel_id's that contained in the kernel_bundle
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   std::vector<kernel_id> get_kernel_ids() const {
     return kernel_bundle_plain::get_kernel_ids();
   }
@@ -283,6 +297,9 @@ public:
 
   /// \returns true if all specialization constants which are used in the
   /// kernel_bundle are "native specialization constants in all device images
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   bool native_specialization_constant() const noexcept {
     return kernel_bundle_plain::native_specialization_constant();
   }
@@ -343,12 +360,18 @@ public:
   }
 
   /// \returns an iterator to the first device image kernel_bundle contains
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   device_image_iterator begin() const {
     return reinterpret_cast<device_image_iterator>(
         kernel_bundle_plain::begin());
   }
 
   /// \returns an iterator to the last device image kernel_bundle contains
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   device_image_iterator end() const {
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
   }
