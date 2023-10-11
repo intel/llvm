@@ -90,4 +90,4 @@ The proposed implementation passes the copyable types to the device as separate 
 
 # Location of this logic
 
-Currently in our implementation, this logic is located in the Sema phase.  Similar to what we are considering for generating the Integration Headers and Foooters, we have an open question between two options that we are considering - one, is to move this to the CodeGen phase and two, move it out of the clang FE and do it in an LLVM IR pass.
+Currently in our implementation, this logic is located in the Sema phase.  Similar to what we are considering for generating the Integration Headers and Foooters, we have an open question between two options that we are considering - one, move this to the CodeGen phase (e.g., OpenMP does their equivalent transformation in CodeGen) and two, move it out of the clang FE and do it in an LLVM IR pass.
