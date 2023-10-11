@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> 
-#include <sycl/ext/oneapi/bfloat16.hpp> 
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp>
 
 namespace sycl {
 inline namespace _V1 {
