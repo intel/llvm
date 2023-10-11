@@ -425,7 +425,7 @@ for newly introduced kernels in the final link stage (step 3).
 
 #### Device Link during compilation
 
-The `-fno-sycl-rdc` flag can be used in correlation with the `-c` option
+The `-fno-sycl-rdc` flag can be used in combination with the `-c` option
 when generating fat objects. This option combination informs the compiler to
 perform a full device link stage against the device object, creating a fat
 object that contains the corresponding host object and a fully compiled device
