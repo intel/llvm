@@ -1,4 +1,4 @@
-// Tests using a multiple kernel bundles in a graph.
+// Tests using multiple kernel bundles in a graph.
 
 #include "../graph_common.hpp"
 
