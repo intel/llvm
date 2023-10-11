@@ -389,13 +389,6 @@ std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
 program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *> Result;
 
-  if (is_cacheable()) {
-    std::tie(Result.first, std::ignore, Result.second, std::ignore) =
-        ProgramManager::getInstance().getOrCreateKernel(
-            detail::getSyclObjImpl(get_context()),
-            detail::getSyclObjImpl(get_devices()[0]), KernelName);
-    getPlugin()->call<PiApiKind::piKernelRetain>(Result.first);
-  } else {
     const PluginPtr &Plugin = getPlugin();
     sycl::detail::pi::PiResult Err =
         Plugin->call_nocheck<PiApiKind::piKernelCreate>(
@@ -411,7 +404,6 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
     // For others, PI will turn this into a NOP.
     Plugin->call<PiApiKind::piKernelSetExecInfo>(
         Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
-  }
 
   return Result;
 }
