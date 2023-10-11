@@ -85,6 +85,7 @@
 #include <sycl/ext/intel/esimd/detail/bfloat16_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/half_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/tfloat32_type_traits.hpp>
+#include <sycl/ext/intel/esimd/memory_properties.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/ext/intel/esimd/xmx/dpas.hpp>

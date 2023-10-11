@@ -31,4 +31,24 @@
 // CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl"
 // CHK-FLOW-NEXT: append-file{{.*}} "[[INPUT]]" "--append=[[FOOTER]].h" "--orig-filename=[[INPUT]]" "--output=[[APPENDOUT:.*]]" "--use-include"
 // CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-fsycl-is-host"{{.*}} "-full-main-file-name" "[[INPUT]]" {{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[APPENDOUT]]"
-// CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path={{.*}}/ld" "--" {{.*}} "[[CC1FINALOUT]]"
+// CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64"{{.*}} "--linker-path={{.*}}/ld" "--" {{.*}} "[[CC1FINALOUT]]"
+
+/// Verify options passed to clang-linker-wrapper
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS %s
+// WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "--triple=spir64"
+// WRAPPER_OPTIONS-SAME: "--sycl-device-libraries=libsycl-crt.o,libsycl-complex.o,libsycl-complex-fp64.o,libsycl-cmath.o,libsycl-cmath-fp64.o,libsycl-imf.o,libsycl-imf-fp64.o,libsycl-imf-bf16.o,libsycl-itt-user-wrappers.o,libsycl-itt-compiler-wrappers.o,libsycl-itt-stubs.o"
+// WRAPPER_OPTIONS-SAME: "--sycl-device-library-location={{.*}}/lib"
+
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -Xspirv-translator -translator-opt -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_TRANSLATOR %s
+// WRAPPER_OPTIONS_TRANSLATOR: clang-linker-wrapper{{.*}} "--triple=spir64"
+// WRAPPER_OPTIONS_TRANSLATOR-SAME: "--llvm-spirv-options=-translator-opt"
+
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:          -Xdevice-post-link -post-link-opt -### %s 2>&1 \
+// RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS_POSTLINK %s
+// WRAPPER_OPTIONS_POSTLINK: clang-linker-wrapper{{.*}} "--triple=spir64"
+// WRAPPER_OPTIONS_POSTLINK-SAME: "--sycl-post-link-options=-post-link-opt"

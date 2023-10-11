@@ -21,47 +21,47 @@ struct v {};
 
 int main() {
   // is_floatn
-  static_assert(d::is_floatn<s::vec<s::opencl::cl_float, 4>>::value == true);
-  static_assert(d::is_floatn<s::vec<s::opencl::cl_float, 16>>::value == true);
-  static_assert(d::is_floatn<s::float4>::value == true, "");
-  static_assert(d::is_floatn<s::float16>::value == true, "");
+  static_assert(d::is_floatn_v<s::vec<s::opencl::cl_float, 4>> == true);
+  static_assert(d::is_floatn_v<s::vec<s::opencl::cl_float, 16>> == true);
+  static_assert(d::is_floatn_v<s::float4> == true, "");
+  static_assert(d::is_floatn_v<s::float16> == true, "");
 
-  static_assert(d::is_floatn<s::opencl::cl_float>::value == false);
-  static_assert(d::is_floatn<s::opencl::cl_int>::value == false);
-  static_assert(d::is_floatn<i_t>::value == false, "");
-  static_assert(d::is_floatn<f_t>::value == false, "");
-  static_assert(d::is_floatn<t::c_t>::value == false, "");
-  static_assert(d::is_floatn<t::d_t>::value == false, "");
-  static_assert(d::is_floatn<v>::value == false, "");
+  static_assert(d::is_floatn_v<s::opencl::cl_float> == false);
+  static_assert(d::is_floatn_v<s::opencl::cl_int> == false);
+  static_assert(d::is_floatn_v<i_t> == false, "");
+  static_assert(d::is_floatn_v<f_t> == false, "");
+  static_assert(d::is_floatn_v<t::c_t> == false, "");
+  static_assert(d::is_floatn_v<t::d_t> == false, "");
+  static_assert(d::is_floatn_v<v> == false, "");
   // is_genfloatf
-  static_assert(d::is_genfloatf<s::vec<s::opencl::cl_float, 4>>::value == true);
-  static_assert(d::is_genfloatf<s::vec<s::opencl::cl_float, 16>>::value == true);
-  static_assert(d::is_genfloatf<s::opencl::cl_float>::value == true);
-  static_assert(d::is_genfloatf<s::float4>::value == true);
-  static_assert(d::is_genfloatf<s::float16>::value == true);
-  static_assert(d::is_genfloatf<f_t>::value == true, "");
+  static_assert(d::is_genfloatf_v<s::vec<s::opencl::cl_float, 4>> == true);
+  static_assert(d::is_genfloatf_v<s::vec<s::opencl::cl_float, 16>> == true);
+  static_assert(d::is_genfloatf_v<s::opencl::cl_float> == true);
+  static_assert(d::is_genfloatf_v<s::float4> == true);
+  static_assert(d::is_genfloatf_v<s::float16> == true);
+  static_assert(d::is_genfloatf_v<f_t> == true, "");
 
-  static_assert(d::is_genfloatf<s::opencl::cl_int>::value == false);
-  static_assert(d::is_genfloatf<i_t>::value == false, "");
-  static_assert(d::is_genfloatf<t::c_t>::value == false, "");
-  static_assert(d::is_genfloatf<t::d_t>::value == false, "");
-  static_assert(d::is_genfloatf<v>::value == false, "");
+  static_assert(d::is_genfloatf_v<s::opencl::cl_int> == false);
+  static_assert(d::is_genfloatf_v<i_t> == false, "");
+  static_assert(d::is_genfloatf_v<t::c_t> == false, "");
+  static_assert(d::is_genfloatf_v<t::d_t> == false, "");
+  static_assert(d::is_genfloatf_v<v> == false, "");
 
   //
 
-  static_assert(d::is_genfloat<s::opencl::cl_float>::value == true);
-  static_assert(d::is_genfloat<s::vec<s::opencl::cl_float, 4>>::value == true);
+  static_assert(d::is_genfloat_v<s::opencl::cl_float> == true);
+  static_assert(d::is_genfloat_v<s::vec<s::opencl::cl_float, 4>> == true);
 
-  static_assert(d::is_ugenint<s::vec<s::opencl::cl_float, 4>>::value == false);
-  static_assert(d::is_ugenint<s::float4>::value == false);
+  static_assert(d::is_ugenint_v<s::vec<s::opencl::cl_float, 4>> == false);
+  static_assert(d::is_ugenint_v<s::float4> == false);
 
-  static_assert(d::is_ugenint<s::opencl::cl_uint>::value == true);
-  static_assert(d::is_ugenint<unsigned int>::value == true);
+  static_assert(d::is_ugenint_v<s::opencl::cl_uint> == true);
+  static_assert(d::is_ugenint_v<unsigned int> == true);
 
-  static_assert(d::is_ugenint<s::vec<s::opencl::cl_uint, 3>>::value == true);
-  static_assert(d::is_ugenint<s::uint3>::value == true);
+  static_assert(d::is_ugenint_v<s::vec<s::opencl::cl_uint, 3>> == true);
+  static_assert(d::is_ugenint_v<s::uint3> == true);
 
-  static_assert(d::is_half<s::half>::value);
+  static_assert(d::is_half_v<s::half>);
 
   // TODO add checks for the following type traits
   /*
@@ -146,12 +146,12 @@ int main() {
   unsing_integeral_to_float_point
   */
   // is_nan_type
-  static_assert(d::is_nan_type<unsigned long long int>::value == true, "");
-  static_assert(d::is_nan_type<long long>::value == false, "");
-  static_assert(d::is_nan_type<unsigned long long>::value == true, "");
-  static_assert(d::is_nan_type<unsigned long>::value == true, "");
-  static_assert(d::is_nan_type<long>::value == false, "");
-  static_assert(d::is_nan_type<unsigned long>::value == true, "");
+  static_assert(d::is_nan_type_v<unsigned long long int> == true, "");
+  static_assert(d::is_nan_type_v<long long> == false, "");
+  static_assert(d::is_nan_type_v<unsigned long long> == true, "");
+  static_assert(d::is_nan_type_v<unsigned long> == true, "");
+  static_assert(d::is_nan_type_v<long> == false, "");
+  static_assert(d::is_nan_type_v<unsigned long> == true, "");
   /*
   float_point_to_sign_integeral
 
