@@ -1,6 +1,8 @@
 #include "Builtins.h"
 
+#include "Kernel.h"
 #include "NDRangesHelper.h"
+#include "target/TargetFusionInfo.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -10,51 +12,7 @@
 using namespace llvm;
 using namespace jit_compiler;
 
-enum class BuiltinKind : uint8_t {
-  GlobalSizeRemapper,
-  LocalSizeRemapper,
-  NumWorkGroupsRemapper,
-  GlobalOffsetRemapper,
-  GlobalIDRemapper,
-  LocalIDRemapper,
-  GroupIDRemapper,
-};
-
-static constexpr StringLiteral RemapperCommonName{"__remapper"};
-static constexpr size_t NumBuiltins{11};
-static constexpr size_t NumBuiltinsToRemap{7};
-
-template <typename ForwardIt, typename KeyTy>
-static ForwardIt mapArrayLookup(ForwardIt Begin, ForwardIt End,
-                                const KeyTy &Key) {
-  return std::lower_bound(
-      Begin, End, Key,
-      [](const auto &Entry, const auto &Key) { return Entry.first < Key; });
-}
-
-template <typename ForwardIt, typename KeyTy>
-static auto mapArrayLookupValue(ForwardIt Begin, ForwardIt End,
-                                const KeyTy &Key) -> decltype(Begin->second) {
-  const auto Iter = mapArrayLookup(Begin, End, Key);
-  assert(Iter != End && Iter->first == Key && "Invalid key");
-  return Iter->second;
-}
-
-static BuiltinKind getBuiltinKind(Function *F) {
-  constexpr std::array<std::pair<StringLiteral, BuiltinKind>,
-                       NumBuiltinsToRemap>
-      Map{{{GetGlobalSizeName, BuiltinKind::GlobalSizeRemapper},
-           {GetGroupIDName, BuiltinKind::GroupIDRemapper},
-           {GetGlobalOffsetName, BuiltinKind::GlobalOffsetRemapper},
-           {GetNumWorkGroupsName, BuiltinKind::NumWorkGroupsRemapper},
-           {GetLocalSizeName, BuiltinKind::LocalSizeRemapper},
-           {GetLocalIDName, BuiltinKind::LocalIDRemapper},
-           {GetGlobalIDName, BuiltinKind::GlobalIDRemapper}}};
-  return mapArrayLookupValue(Map.begin(), Map.end(), F->getName());
-}
-
-/// 0 for IDs/offset and 1 for sizes.
-static uint64_t getDefaultValue(BuiltinKind K) {
+unsigned Remapper::getDefaultValue(BuiltinKind K) const {
   switch (K) {
   case BuiltinKind::GlobalSizeRemapper:
   case BuiltinKind::LocalSizeRemapper:
@@ -108,24 +66,6 @@ static std::string getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
   return S.str();
 }
 
-static bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
-                        const NDRange &FusedNDRange) {
-  switch (K) {
-  case BuiltinKind::GlobalSizeRemapper:
-  case BuiltinKind::GlobalOffsetRemapper:
-    return true;
-  case BuiltinKind::NumWorkGroupsRemapper:
-  case BuiltinKind::LocalSizeRemapper:
-    // Do not remap when the local size is not specified.
-    return SrcNDRange.hasSpecificLocalSize();
-  case BuiltinKind::GlobalIDRemapper:
-  case BuiltinKind::LocalIDRemapper:
-  case BuiltinKind::GroupIDRemapper:
-    return requireIDRemapping(SrcNDRange, FusedNDRange);
-  }
-  llvm_unreachable("Unhandled kind");
-}
-
 /// Mirrors getters arguments depending on the input dimension.
 static uint32_t mirror(int Dimensions, uint32_t I) {
   switch (Dimensions) {
@@ -159,263 +99,6 @@ static uint32_t mirror(int Dimensions, uint32_t I) {
   llvm_unreachable("Invalid number of dimensions");
 }
 
-static Value *generateGetSizeCase(IRBuilderBase &Builder,
-                                  const NDRange &SrcNDRange,
-                                  const NDRange &FusedNDRange,
-                                  const Indices &SrcIndices, uint32_t Index) {
-  return Builder.getInt64(
-      SrcIndices[mirror(SrcNDRange.getDimensions(), Index)]);
-}
-
-/// Input argument
-static Value *generateGetGlobalSizeCase(IRBuilderBase &Builder,
-                                        const NDRange &SrcNDRange,
-                                        const NDRange &FusedNDRange,
-                                        uint32_t Index) {
-  return generateGetSizeCase(Builder, SrcNDRange, FusedNDRange,
-                             SrcNDRange.getGlobalSize(), Index);
-}
-
-/// Input argument
-static Value *generateGetGlobalOffsetCase(IRBuilderBase &Builder,
-                                          const NDRange &SrcNDRange,
-                                          const NDRange &FusedNDRange,
-                                          uint32_t Index) {
-  return generateGetSizeCase(Builder, SrcNDRange, FusedNDRange,
-                             SrcNDRange.getOffset(), Index);
-}
-
-/// Input argument
-static Value *generateGetLocalSizeCase(IRBuilderBase &Builder,
-                                       const NDRange &SrcNDRange,
-                                       const NDRange &FusedNDRange,
-                                       uint32_t Index) {
-  return generateGetSizeCase(Builder, SrcNDRange, FusedNDRange,
-                             SrcNDRange.getLocalSize(), Index);
-}
-
-/// num_work_groups(x) = global_size(x) / local_size(x)
-static Value *generateNumWorkGroupsCase(IRBuilderBase &Builder,
-                                        const NDRange &SrcNDRange,
-                                        const NDRange &FusedNDRange,
-                                        uint32_t Index) {
-  Index = mirror(SrcNDRange.getDimensions(), Index);
-  return Builder.getInt64(SrcNDRange.getGlobalSize()[Index] /
-                          SrcNDRange.getLocalSize()[Index]);
-}
-static Value *remapGetGlobalID(IRBuilderBase &Builder,
-                               const NDRange &SrcNDRange,
-                               const NDRange &FusedNDRange, uint32_t Index) {
-  auto *GlobalLinearID = getGlobalLinearID(Builder, FusedNDRange);
-  const auto getGS = [&Indices = SrcNDRange.getGlobalSize(),
-                      Dimensions = SrcNDRange.getDimensions()](auto I) {
-    return Indices[mirror(Dimensions, I)];
-  };
-  switch (Index) {
-  case 0:
-    return Builder.CreateUDiv(GlobalLinearID,
-                              Builder.getInt64(getGS(1) * getGS(2)));
-  case 1:
-    return Builder.CreateURem(
-        Builder.CreateUDiv(GlobalLinearID, Builder.getInt64(getGS(2))),
-        Builder.getInt64(getGS(1)));
-  case 2:
-    return Builder.CreateURem(GlobalLinearID, Builder.getInt64(getGS(2)));
-  default:
-    llvm_unreachable("Invalid index");
-  }
-}
-
-/// global_id(0) = global_linear_id(x) / (global_size(1) * global_size(2))
-/// global_id(1) = (global_linear_id(x) / global_size(2)) % global_size(1)
-/// global_id(2) = global_linear_id(x) % global_size(2)
-static Value *generateGetGlobalIDCase(IRBuilderBase &Builder,
-                                      const NDRange &SrcNDRange,
-                                      const NDRange &FusedNDRange,
-                                      uint32_t Index) {
-  return remapGetGlobalID(Builder, SrcNDRange, FusedNDRange, Index);
-}
-
-/// local_id(x) = global_id(x) % local_size(x)
-static Value *generateGetLocalIDCase(IRBuilderBase &Builder,
-                                     const NDRange &SrcNDRange,
-                                     const NDRange &FusedNDRange,
-                                     uint32_t Index) {
-  auto *GlobalID = remapGetGlobalID(Builder, SrcNDRange, FusedNDRange, Index);
-  return Builder.CreateURem(GlobalID,
-                            Builder.getInt64(SrcNDRange.getLocalSize()[mirror(
-                                SrcNDRange.getDimensions(), Index)]));
-}
-
-/// group_id(x) = global_id(x) / local_size(x)
-static Value *generateGetGroupIDCase(IRBuilderBase &Builder,
-                                     const NDRange &SrcNDRange,
-                                     const NDRange &FusedNDRange,
-                                     uint32_t Index) {
-  auto *GlobalID = remapGetGlobalID(Builder, SrcNDRange, FusedNDRange, Index);
-  return Builder.CreateUDiv(GlobalID,
-                            Builder.getInt64(SrcNDRange.getLocalSize()[mirror(
-                                SrcNDRange.getDimensions(), Index)]));
-}
-
-static Value *generateCase(BuiltinKind K, IRBuilderBase &Builder,
-                           const NDRange &SrcNDRange,
-                           const NDRange &FusedNDRange, uint32_t Index) {
-  switch (K) {
-  case BuiltinKind::GlobalSizeRemapper:
-    return generateGetGlobalSizeCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case BuiltinKind::LocalSizeRemapper:
-    return generateGetLocalSizeCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case BuiltinKind::NumWorkGroupsRemapper:
-    return generateNumWorkGroupsCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case BuiltinKind::GlobalIDRemapper:
-    return generateGetGlobalIDCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case BuiltinKind::LocalIDRemapper:
-    return generateGetLocalIDCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case BuiltinKind::GroupIDRemapper:
-    return generateGetGroupIDCase(Builder, SrcNDRange, FusedNDRange, Index);
-  case BuiltinKind::GlobalOffsetRemapper:
-    return generateGetGlobalOffsetCase(Builder, SrcNDRange, FusedNDRange,
-                                       Index);
-  }
-  llvm_unreachable("Unhandled kind");
-}
-
-static llvm::AttributeList getAttributes(StringRef FunctionName,
-                                         LLVMContext &Ctx) {
-  constexpr auto GetIndexSpaceAttrs = [](LLVMContext &Ctx) {
-    return llvm::AttributeList::get(
-        Ctx,
-        AttributeSet::get(Ctx,
-                          {Attribute::get(Ctx, Attribute::AttrKind::WillReturn),
-                           Attribute::get(Ctx, Attribute::AttrKind::NoUnwind)}),
-        {}, {});
-  };
-  constexpr auto GetBarrierAttrs = [](LLVMContext &Ctx) {
-    return llvm::AttributeList::get(
-        Ctx,
-        AttributeSet::get(Ctx,
-                          {Attribute::get(Ctx, Attribute::AttrKind::Convergent),
-                           Attribute::get(Ctx, Attribute::AttrKind::NoUnwind)}),
-        {}, {});
-  };
-  constexpr auto RemapperAttrs = [](LLVMContext &Ctx) {
-    return llvm::AttributeList::get(
-        Ctx,
-        AttributeSet::get(
-            Ctx, {Attribute::get(Ctx, Attribute::AttrKind::NoUnwind),
-                  Attribute::get(Ctx, Attribute::AttrKind::AlwaysInline)}),
-        {}, {});
-  };
-  constexpr auto OffloaderAttrs = RemapperAttrs;
-
-  // This array is sorted by key value
-  const std::array<
-      std::pair<StringRef, function_ref<llvm::AttributeList(LLVMContext &)>>,
-      NumBuiltins + 1>
-      AttrMap{{{BarrierName, GetBarrierAttrs},
-               {GetGlobalSizeName, GetIndexSpaceAttrs},
-               {GetGroupIDName, GetIndexSpaceAttrs},
-               {GetGlobalOffsetName, GetIndexSpaceAttrs},
-               {GetNumWorkGroupsName, GetIndexSpaceAttrs},
-               {GetLocalSizeName, GetIndexSpaceAttrs},
-               {GetGlobalLinearIDName, GetIndexSpaceAttrs},
-               {GetLocalIDName, GetIndexSpaceAttrs},
-               {GetGlobalIDName, GetIndexSpaceAttrs},
-               {RemapperCommonName, RemapperAttrs},
-               {OffloadStartWrapperName, OffloaderAttrs},
-               {OffloadFinishWrapperName, OffloaderAttrs}}};
-  return mapArrayLookupValue(AttrMap.begin(), AttrMap.end(), FunctionName)(Ctx);
-}
-
-static void setFunctionMetadata(Function *F, StringRef FunctionName,
-                                LLVMContext &Ctx) {
-  F->setAttributes(getAttributes(FunctionName, Ctx));
-  F->setCallingConv(CallingConv::SPIR_FUNC);
-}
-
-static FunctionType *getFunctionType(IRBuilderBase &Builder,
-                                     StringRef FunctionName) {
-  constexpr auto GetIndexSpaceGetTy = [](IRBuilderBase &Builder) {
-    return FunctionType::get(Builder.getInt64Ty(), {Builder.getInt32Ty()},
-                             false /*IsVarArg*/);
-  };
-  constexpr auto GetGlobalLinearIDTy = [](IRBuilderBase &Builder) {
-    return FunctionType::get(Builder.getInt64Ty(), {}, false /*IsVarArg*/);
-  };
-  constexpr auto GetBarrierTy = [](IRBuilderBase &Builder) {
-    return FunctionType::get(
-        Builder.getVoidTy(),
-        {Builder.getInt32Ty(), Builder.getInt32Ty(), Builder.getInt32Ty()},
-        false /*IsVarArg*/);
-  };
-  constexpr auto OffloadWrapperTy = [](IRBuilderBase &Builder) {
-    return FunctionType::get(Builder.getVoidTy(), {}, false /*IsVarArg*/);
-  };
-
-  // This array is sorted by key value
-  const std::array<
-      std::pair<StringRef, function_ref<FunctionType *(IRBuilderBase &)>>,
-      NumBuiltins + 1>
-      TypeMap{{{BarrierName, GetBarrierTy},
-               {GetGlobalSizeName, GetIndexSpaceGetTy},
-               {GetGroupIDName, GetIndexSpaceGetTy},
-               {GetGlobalOffsetName, GetIndexSpaceGetTy},
-               {GetNumWorkGroupsName, GetIndexSpaceGetTy},
-               {GetLocalSizeName, GetIndexSpaceGetTy},
-               {GetGlobalLinearIDName, GetGlobalLinearIDTy},
-               {GetLocalIDName, GetIndexSpaceGetTy},
-               {GetGlobalIDName, GetIndexSpaceGetTy},
-               {RemapperCommonName, GetIndexSpaceGetTy},
-               {OffloadFinishWrapperName, OffloadWrapperTy},
-               {OffloadStartWrapperName, OffloadWrapperTy}}};
-
-  return mapArrayLookupValue(TypeMap.begin(), TypeMap.end(),
-                             FunctionName)(Builder);
-}
-
-static Function *initFunction(Function *OldF, const NDRange &SrcNDRange,
-                              const NDRange &FusedNDRange) {
-  const auto K = getBuiltinKind(OldF);
-  if (!shouldRemap(K, SrcNDRange, FusedNDRange)) {
-    // If the builtin should not be remapped, return the original function.
-    return OldF;
-  }
-  const auto Name = getFunctionName(K, SrcNDRange, FusedNDRange);
-  auto *M = OldF->getParent();
-  auto *F = M->getFunction(Name);
-  assert(!F && "Function name should be unique");
-
-  auto &Ctx = M->getContext();
-  IRBuilder<> Builder{Ctx};
-
-  F = Function::Create(getFunctionType(Builder, RemapperCommonName),
-                       Function::LinkageTypes::InternalLinkage, Name, *M);
-
-  auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(EntryBlock);
-
-  constexpr unsigned SYCLDimensions{3};
-  // Vector holding all the possible values
-  auto *Vec = cast<Value>(
-      ConstantVector::getSplat(ElementCount::getFixed(SYCLDimensions),
-                               Builder.getInt64(getDefaultValue(K))));
-
-  const auto NumDimensions = static_cast<uint32_t>(SrcNDRange.getDimensions());
-  for (uint32_t I = 0; I < NumDimensions; ++I) {
-    // Initialize vector
-    Vec = Builder.CreateInsertElement(
-        Vec, generateCase(K, Builder, SrcNDRange, FusedNDRange, I),
-        Builder.getInt32(I));
-  }
-  // Get queried value
-  Builder.CreateRet(Builder.CreateExtractElement(Vec, F->getArg(0)));
-
-  setFunctionMetadata(F, RemapperCommonName, Ctx);
-
-  return F;
-}
-
 static std::string
 getGetGlobalLinearIDFunctionName(const NDRange &FusedNDRange) {
   std::string Res;
@@ -425,7 +108,8 @@ getGetGlobalLinearIDFunctionName(const NDRange &FusedNDRange) {
 }
 
 static Function *
-getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
+getOrCreateGetGlobalLinearIDFunction(const TargetFusionInfo &TargetInfo,
+                                     const NDRange &FusedNDRange, Module *M) {
   const auto Name = getGetGlobalLinearIDFunctionName(FusedNDRange);
 
   auto *F = M->getFunction(Name);
@@ -436,22 +120,28 @@ getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
 
   auto &Context = M->getContext();
   IRBuilder<> Builder{Context};
-  auto *Ty = FunctionType::get(Builder.getInt64Ty(), /*isVarArg*/ false);
+  const auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
+  auto *Ty = FunctionType::get(Builder.getIntNTy(N), /*isVarArg*/ false);
   F = Function::Create(Ty, Function::LinkageTypes::InternalLinkage, Name, M);
+  TargetInfo.setMetadataForGeneratedFunction(F);
 
   auto *EntryBlock = BasicBlock::Create(Context, "entry", F);
   Builder.SetInsertPoint(EntryBlock);
 
   // See:
   // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:multi-dim-linearization
-  auto *Res = [&Builder, &FusedNDRange] {
+  auto *Res = [&Builder, &TargetInfo, &FusedNDRange, N] {
     const auto Dimensions = FusedNDRange.getDimensions();
-    const auto GetGS = [&FusedNDRange](std::size_t I) {
+    const auto GetGS = [&FusedNDRange](uint32_t I) {
       return FusedNDRange.getGlobalSize()[I];
     };
-    const auto GetID = [&Builder, Dimensions](uint32_t I) {
-      return createSPIRVCall(Builder, GetGlobalIDName,
-                             Builder.getInt32(mirror(Dimensions, I)));
+    const auto GetID = [&Builder, &TargetInfo, &FusedNDRange,
+                        Dimensions](uint32_t I) {
+      return TargetInfo.getGlobalIDWithoutOffset(Builder, FusedNDRange,
+                                                 mirror(Dimensions, I));
+    };
+    const auto GetConst = [&Builder, N](uint64_t C) {
+      return Builder.getIntN(N, C);
     };
     switch (Dimensions) {
     case 1:
@@ -460,15 +150,14 @@ getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
     case 2: {
       // gid = id1 + (id0 * r1)
       auto *ID1 = GetID(1);
-      return Builder.CreateAdd(
-          ID1, Builder.CreateMul(GetID(0), Builder.getInt64(GetGS(1))));
+      return Builder.CreateAdd(ID1,
+                               Builder.CreateMul(GetID(0), GetConst(GetGS(1))));
     }
     case 3: {
       // gid = (id0 * r1 * r2) + (id1 * r2) + id2
-      auto *C0 =
-          Builder.CreateMul(GetID(0), Builder.getInt64(GetGS(1) * GetGS(2)));
+      auto *C0 = Builder.CreateMul(GetID(0), GetConst(GetGS(1) * GetGS(2)));
       auto *C1 = Builder.CreateAdd(
-          Builder.CreateMul(GetID(1), Builder.getInt64(GetGS(2))), C0);
+          Builder.CreateMul(GetID(1), GetConst(GetGS(2))), C0);
       return Builder.CreateAdd(GetID(2), C1);
     }
     default:
@@ -478,61 +167,160 @@ getOrCreateGetGlobalLinearIDFunction(Module *M, const NDRange &FusedNDRange) {
 
   Builder.CreateRet(Res);
 
-  setFunctionMetadata(F, RemapperCommonName, Context);
-
   return F;
 }
 
 Value *jit_compiler::getGlobalLinearID(IRBuilderBase &Builder,
+                                       const TargetFusionInfo &TargetInfo,
                                        const NDRange &FusedNDRange) {
   auto *F = getOrCreateGetGlobalLinearIDFunction(
-      Builder.GetInsertBlock()->getParent()->getParent(), FusedNDRange);
+      TargetInfo, FusedNDRange,
+      Builder.GetInsertBlock()->getParent()->getParent());
   auto *C = Builder.CreateCall(F);
   C->setAttributes(F->getAttributes());
   C->setCallingConv(F->getCallingConv());
   return C;
 }
 
-static bool isIndexSpaceGetterBuiltin(Function *F) {
-  constexpr std::array<StringLiteral, NumBuiltinsToRemap> BuiltinNames{
-      GetGlobalSizeName,    GetGroupIDName,   GetGlobalOffsetName,
-      GetNumWorkGroupsName, GetLocalSizeName, GetLocalIDName,
-      GetGlobalIDName};
-  const auto Name = F->getName();
-  const auto *Iter = llvm::lower_bound(BuiltinNames, Name);
-  return Iter != BuiltinNames.end() && *Iter == Name;
+static Value *generateGetSizeCase(IRBuilderBase &Builder,
+                                  const TargetFusionInfo &TargetInfo,
+                                  const Indices &SrcIndices, int Dimensions,
+                                  uint32_t Index) {
+  auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
+  return Builder.getIntN(N, SrcIndices[mirror(Dimensions, Index)]);
 }
 
-static bool isSafeToNotRemapBuiltin(Function *F) {
-  constexpr std::size_t NumUnsafeBuiltins{8};
-  // SPIRV builtins with kernel capabilities in alphabetical order.
-  //
-  // These builtins might need remapping, but are not supported by the remapper,
-  // so we should abort kernel fusion if we find them during remapping.
-  constexpr std::array<StringLiteral, NumUnsafeBuiltins> UnsafeBuiltIns{
-      "EnqueuedWorkgroupSize",
-      "NumEnqueuedSubgroups",
-      "NumSubgroups",
-      "SubgroupId",
-      "SubgroupLocalInvocationId",
-      "SubgroupMaxSize",
-      "SubgroupSize",
-      "WorkDim"};
-  constexpr StringLiteral SPIRVBuiltinNamespace{"spirv"};
-  constexpr StringLiteral SPIRVBuiltinPrefix{"BuiltIn"};
+/// Input argument
+static Value *generateGetGlobalSizeCase(IRBuilderBase &Builder,
+                                        const TargetFusionInfo &TargetInfo,
+                                        const NDRange &SrcNDRange,
+                                        uint32_t Index) {
+  return generateGetSizeCase(Builder, TargetInfo, SrcNDRange.getGlobalSize(),
+                             SrcNDRange.getDimensions(), Index);
+}
 
-  auto Name = F->getName();
-  if (!(Name.contains(SPIRVBuiltinNamespace) &&
-        Name.contains(SPIRVBuiltinPrefix))) {
-    return true;
+/// Input argument
+static Value *generateGetGlobalOffsetCase(IRBuilderBase &Builder,
+                                          const TargetFusionInfo &TargetInfo,
+                                          const NDRange &SrcNDRange,
+                                          uint32_t Index) {
+  return generateGetSizeCase(Builder, TargetInfo, SrcNDRange.getOffset(),
+                             SrcNDRange.getDimensions(), Index);
+}
+
+/// Input argument
+static Value *generateGetLocalSizeCase(IRBuilderBase &Builder,
+                                       const TargetFusionInfo &TargetInfo,
+                                       const NDRange &SrcNDRange,
+                                       uint32_t Index) {
+  return generateGetSizeCase(Builder, TargetInfo, SrcNDRange.getLocalSize(),
+                             SrcNDRange.getDimensions(), Index);
+}
+
+/// num_work_groups(x) = global_size(x) / local_size(x)
+static Value *generateNumWorkGroupsCase(IRBuilderBase &Builder,
+                                        const TargetFusionInfo &TargetInfo,
+                                        const NDRange &SrcNDRange,
+                                        uint32_t Index) {
+  assert(SrcNDRange.hasSpecificLocalSize());
+  auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
+  Index = mirror(SrcNDRange.getDimensions(), Index);
+  return Builder.getIntN(N, SrcNDRange.getGlobalSize()[Index] /
+                                SrcNDRange.getLocalSize()[Index]);
+}
+
+static Value *remapGetGlobalID(IRBuilderBase &Builder,
+                               const TargetFusionInfo &TargetInfo,
+                               const NDRange &SrcNDRange,
+                               const NDRange &FusedNDRange, uint32_t Index) {
+  auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
+  auto *GlobalLinearID = getGlobalLinearID(Builder, TargetInfo, FusedNDRange);
+  const auto GetGS = [&Indices = SrcNDRange.getGlobalSize(),
+                      Dimensions = SrcNDRange.getDimensions()](auto I) {
+    return Indices[mirror(Dimensions, I)];
+  };
+  const auto GetConst = [&Builder, N](uint64_t C) {
+    return Builder.getIntN(N, C);
+  };
+  switch (Index) {
+  case 0:
+    return Builder.CreateUDiv(GlobalLinearID, GetConst(GetGS(1) * GetGS(2)));
+  case 1:
+    return Builder.CreateURem(
+        Builder.CreateUDiv(GlobalLinearID, GetConst(GetGS(2))),
+        GetConst(GetGS(1)));
+  case 2:
+    return Builder.CreateURem(GlobalLinearID, GetConst(GetGS(2)));
+  default:
+    llvm_unreachable("Invalid index");
   }
-  // Drop "spirv" namespace name and "BuiltIn" prefix.
-  Name = Name.drop_front(Name.find(SPIRVBuiltinPrefix) +
-                         SPIRVBuiltinPrefix.size());
-  // Check that Name does not start with any name in UnsafeBuiltIns
-  const auto *Iter =
-      std::upper_bound(UnsafeBuiltIns.begin(), UnsafeBuiltIns.end(), Name);
-  return Iter == UnsafeBuiltIns.begin() || !Name.starts_with(*(Iter - 1));
+}
+
+/// global_id(0) = global_linear_id(x) / (global_size(1) * global_size(2))
+/// global_id(1) = (global_linear_id(x) / global_size(2)) % global_size(1)
+/// global_id(2) = global_linear_id(x) % global_size(2)
+static Value *generateGetGlobalIDCase(IRBuilderBase &Builder,
+                                      const TargetFusionInfo &TargetInfo,
+                                      const NDRange &SrcNDRange,
+                                      const NDRange &FusedNDRange,
+                                      uint32_t Index) {
+  // Note: This method ignores the global offset.
+  assert(SrcNDRange.getOffset() == NDRange::AllZeros);
+  return remapGetGlobalID(Builder, TargetInfo, SrcNDRange, FusedNDRange, Index);
+}
+
+/// local_id(x) = global_id(x) % local_size(x)
+static Value *generateGetLocalIDCase(IRBuilderBase &Builder,
+                                     const TargetFusionInfo &TargetInfo,
+                                     const NDRange &SrcNDRange,
+                                     const NDRange &FusedNDRange,
+                                     uint32_t Index) {
+  assert(SrcNDRange.hasSpecificLocalSize());
+  auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
+  auto *GlobalID =
+      remapGetGlobalID(Builder, TargetInfo, SrcNDRange, FusedNDRange, Index);
+  return Builder.CreateURem(
+      GlobalID, Builder.getIntN(N, SrcNDRange.getLocalSize()[mirror(
+                                       SrcNDRange.getDimensions(), Index)]));
+}
+
+/// group_id(x) = global_id(x) / local_size(x)
+static Value *generateGetGroupIDCase(IRBuilderBase &Builder,
+                                     const TargetFusionInfo &TargetInfo,
+                                     const NDRange &SrcNDRange,
+                                     const NDRange &FusedNDRange,
+                                     uint32_t Index) {
+  auto N = TargetInfo.getIndexSpaceBuiltinBitwidth();
+  auto *GlobalID =
+      remapGetGlobalID(Builder, TargetInfo, SrcNDRange, FusedNDRange, Index);
+  return Builder.CreateUDiv(
+      GlobalID, Builder.getIntN(N, SrcNDRange.getLocalSize()[mirror(
+                                       SrcNDRange.getDimensions(), Index)]));
+}
+
+Value *Remapper::remap(BuiltinKind K, IRBuilderBase &Builder,
+                       const NDRange &SrcNDRange, const NDRange &FusedNDRange,
+                       uint32_t Index) const {
+  switch (K) {
+  case BuiltinKind::GlobalSizeRemapper:
+    return generateGetGlobalSizeCase(Builder, TargetInfo, SrcNDRange, Index);
+  case BuiltinKind::LocalSizeRemapper:
+    return generateGetLocalSizeCase(Builder, TargetInfo, SrcNDRange, Index);
+  case BuiltinKind::NumWorkGroupsRemapper:
+    return generateNumWorkGroupsCase(Builder, TargetInfo, SrcNDRange, Index);
+  case BuiltinKind::GlobalIDRemapper:
+    return generateGetGlobalIDCase(Builder, TargetInfo, SrcNDRange,
+                                   FusedNDRange, Index);
+  case BuiltinKind::LocalIDRemapper:
+    return generateGetLocalIDCase(Builder, TargetInfo, SrcNDRange, FusedNDRange,
+                                  Index);
+  case BuiltinKind::GroupIDRemapper:
+    return generateGetGroupIDCase(Builder, TargetInfo, SrcNDRange, FusedNDRange,
+                                  Index);
+  case BuiltinKind::GlobalOffsetRemapper:
+    return generateGetGlobalOffsetCase(Builder, TargetInfo, SrcNDRange, Index);
+  }
+  llvm_unreachable("Unhandled kind");
 }
 
 Expected<Function *>
@@ -545,11 +333,21 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
   }
 
   if (F->isDeclaration()) {
-    if (isIndexSpaceGetterBuiltin(F)) {
+    if (auto OptK = TargetInfo.getBuiltinKind(F)) {
+      auto K = OptK.value();
+      if (!TargetInfo.shouldRemap(K, SrcNDRange, FusedNDRange))
+        // If the builtin should not be remapped, return the original function.
+        return F;
+
       // Remap given builtin.
-      return Cached = initFunction(F, SrcNDRange, FusedNDRange);
+      const auto Name = getFunctionName(K, SrcNDRange, FusedNDRange);
+      auto *M = F->getParent();
+      assert(!M->getFunction(Name) && "Function name should be unique");
+
+      return Cached = TargetInfo.createRemapperFunction(
+                 *this, K, F->getName(), Name, M, SrcNDRange, FusedNDRange);
     }
-    if (isSafeToNotRemapBuiltin(F)) {
+    if (TargetInfo.isSafeToNotRemapBuiltin(F)) {
       // No need to remap.
       return Cached = F;
     }
@@ -593,26 +391,4 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
     }
   }
   return Clone;
-}
-
-Value *jit_compiler::createSPIRVCall(IRBuilderBase &Builder,
-                                     StringRef FunctionName,
-                                     ArrayRef<Value *> Args) {
-  auto *M = Builder.GetInsertBlock()->getParent()->getParent();
-  auto *F = M->getFunction(FunctionName);
-  if (!F) {
-    constexpr auto Linkage = GlobalValue::LinkageTypes::ExternalLinkage;
-
-    F = Function::Create(getFunctionType(Builder, FunctionName), Linkage,
-                         FunctionName, M);
-
-    setFunctionMetadata(F, FunctionName, Builder.getContext());
-  }
-
-  auto *Call = Builder.CreateCall(F, Args);
-
-  Call->setAttributes(F->getAttributes());
-  Call->setCallingConv(F->getCallingConv());
-
-  return Call;
 }

@@ -1,4 +1,4 @@
-//===- File.h - Parsing sparse tensors from files ---------------*- C++ -*-===//
+//===- File.h - Reading/writing sparse tensors from/to files ----*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements parsing and printing of files in one of the
+// This file implements reading and writing sparse tensor files in one of the
 // following external formats:
 //
 // (1) Matrix Market Exchange (MME): *.mtx
@@ -15,18 +15,11 @@
 // (2) Formidable Repository of Open Sparse Tensors and Tools (FROSTT): *.tns
 //     http://frostt.io/tensors/file-formats.html
 //
-// This file is part of the lightweight runtime support library for sparse
-// tensor manipulations.  The functionality of the support library is meant
-// to simplify benchmarking, testing, and debugging MLIR code operating on
-// sparse tensors.  However, the provided functionality is **not** part of
-// core MLIR itself.
-//
 //===----------------------------------------------------------------------===//
 
 #ifndef MLIR_EXECUTIONENGINE_SPARSETENSOR_FILE_H
 #define MLIR_EXECUTIONENGINE_SPARSETENSOR_FILE_H
 
-#include "mlir/ExecutionEngine/SparseTensor/PermutationRef.h"
 #include "mlir/ExecutionEngine/SparseTensor/Storage.h"
 
 #include <fstream>
@@ -83,13 +76,6 @@ inline V readValue(char **linePtr, bool isPattern) {
 } // namespace detail
 
 //===----------------------------------------------------------------------===//
-
-// TODO: benchmark whether to keep various methods inline vs moving them
-// off to the cpp file.
-
-// TODO: consider distinguishing separate classes for before vs
-// after reading the header; so as to statically avoid the need
-// to `assert(isValid())`.
 
 /// This class abstracts over the information stored in file headers,
 /// as well as providing the buffers and methods for parsing those headers.
@@ -211,31 +197,14 @@ public:
 
   /// Allocates a new COO object for `lvlSizes`, initializes it by reading
   /// all the elements from the file and applying `dim2lvl` to their
-  /// dim-coordinates, and then closes the file.
-  ///
-  /// Preconditions:
-  /// * `lvlSizes` must be valid for `lvlRank`.
-  /// * `dim2lvl` must be valid for `getRank()`.
-  /// * `dim2lvl` maps `getDimSizes()`-coordinates to `lvlSizes`-coordinates.
-  /// * the file's actual value type can be read as `V`.
-  ///
-  /// Asserts:
-  /// * `isValid()`
-  /// * `dim2lvl` is a permutation, and therefore also `lvlRank == getRank()`.
-  ///   (This requirement will be lifted once we functionalize `dim2lvl`.)
-  //
-  // NOTE: This method is factored out of `readSparseTensor` primarily to
-  // reduce code bloat (since the bulk of the code doesn't care about the
-  // `<P,I>` type template parameters).  But we leave it public since it's
-  // perfectly reasonable for clients to use.
+  /// dim-coordinates, and then closes the file. Templated on V only.
   template <typename V>
   SparseTensorCOO<V> *readCOO(uint64_t lvlRank, const uint64_t *lvlSizes,
                               const uint64_t *dim2lvl);
 
   /// Allocates a new sparse-tensor storage object with the given encoding,
   /// initializes it by reading all the elements from the file, and then
-  /// closes the file.  Preconditions/assertions are as per `readCOO`
-  /// and `SparseTensorStorage::newFromCOO`.
+  /// closes the file. Templated on P, I, and V.
   template <typename P, typename I, typename V>
   SparseTensorStorage<P, I, V> *
   readSparseTensor(uint64_t lvlRank, const uint64_t *lvlSizes,
@@ -326,10 +295,6 @@ SparseTensorCOO<V> *SparseTensorReader::readCOO(uint64_t lvlRank,
                                                 const uint64_t *lvlSizes,
                                                 const uint64_t *dim2lvl) {
   assert(isValid() && "Attempt to readCOO() before readHeader()");
-  // Construct a `PermutationRef` for the `pushforward` below.
-  // TODO: This specific implementation does not generalize to arbitrary
-  // mappings, but once we functionalize the `dim2lvl` argument we can
-  // simply use that function instead.
   const uint64_t dimRank = getRank();
   assert(lvlRank == dimRank && "Rank mismatch");
   detail::PermutationRef d2l(dimRank, dim2lvl);

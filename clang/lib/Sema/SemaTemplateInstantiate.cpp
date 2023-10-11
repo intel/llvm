@@ -230,15 +230,25 @@ Response HandleFunction(const FunctionDecl *Function,
 Response HandleFunctionTemplateDecl(const FunctionTemplateDecl *FTD,
                                     MultiLevelTemplateArgumentList &Result) {
   if (!isa<ClassTemplateSpecializationDecl>(FTD->getDeclContext())) {
+    Result.addOuterTemplateArguments(
+        const_cast<FunctionTemplateDecl *>(FTD),
+        const_cast<FunctionTemplateDecl *>(FTD)->getInjectedTemplateArgs(),
+        /*Final=*/false);
+
     NestedNameSpecifier *NNS = FTD->getTemplatedDecl()->getQualifier();
-    const Type *Ty;
-    const TemplateSpecializationType *TSTy;
-    if (NNS && (Ty = NNS->getAsType()) &&
-        (TSTy = Ty->getAs<TemplateSpecializationType>()))
-      Result.addOuterTemplateArguments(const_cast<FunctionTemplateDecl *>(FTD),
-                                       TSTy->template_arguments(),
-                                       /*Final=*/false);
+
+    while (const Type *Ty = NNS ? NNS->getAsType() : nullptr) {
+      if (NNS->isInstantiationDependent()) {
+        if (const auto *TSTy = Ty->getAs<TemplateSpecializationType>())
+          Result.addOuterTemplateArguments(
+              const_cast<FunctionTemplateDecl *>(FTD), TSTy->template_arguments(),
+              /*Final=*/false);
+      }
+
+      NNS = NNS->getPrefix();
+    }
   }
+
   return Response::ChangeDecl(FTD->getLexicalDeclContext());
 }
 
@@ -1065,7 +1075,9 @@ void Sema::PrintInstantiationStack() {
           << Active->InstantiationRange;
       break;
     case CodeSynthesisContext::BuildingDeductionGuides:
-      llvm_unreachable("unexpected deduction guide in instantiation stack");
+      Diags.Report(Active->PointOfInstantiation,
+                   diag::note_building_deduction_guide_here);
+      break;
     }
   }
 }
@@ -2370,9 +2382,9 @@ QualType TemplateInstantiator::TransformSubstTemplateTypeParmPackType(
       getPackIndex(Pack), Arg, TL.getNameLoc());
 }
 
-template<typename EntityPrinter>
 static concepts::Requirement::SubstitutionDiagnostic *
-createSubstDiag(Sema &S, TemplateDeductionInfo &Info, EntityPrinter Printer) {
+createSubstDiag(Sema &S, TemplateDeductionInfo &Info,
+                concepts::EntityPrinter Printer) {
   SmallString<128> Message;
   SourceLocation ErrorLoc;
   if (Info.hasSFINAEDiagnostic()) {
@@ -2394,6 +2406,19 @@ createSubstDiag(Sema &S, TemplateDeductionInfo &Info, EntityPrinter Printer) {
   return new (S.Context) concepts::Requirement::SubstitutionDiagnostic{
       StringRef(EntityBuf, Entity.size()), ErrorLoc,
       StringRef(MessageBuf, Message.size())};
+}
+
+concepts::Requirement::SubstitutionDiagnostic *
+concepts::createSubstDiagAt(Sema &S, SourceLocation Location,
+                            EntityPrinter Printer) {
+  SmallString<128> Entity;
+  llvm::raw_svector_ostream OS(Entity);
+  Printer(OS);
+  char *EntityBuf = new (S.Context) char[Entity.size()];
+  llvm::copy(Entity, EntityBuf);
+  return new (S.Context) concepts::Requirement::SubstitutionDiagnostic{
+      /*SubstitutedEntity=*/StringRef(EntityBuf, Entity.size()),
+      /*DiagLoc=*/Location, /*DiagMessage=*/StringRef()};
 }
 
 ExprResult TemplateInstantiator::TransformRequiresTypeParams(
@@ -2420,8 +2445,9 @@ ExprResult TemplateInstantiator::TransformRequiresTypeParams(
     // here.
     TransReqs.push_back(RebuildTypeRequirement(createSubstDiag(
         SemaRef, Info, [&](llvm::raw_ostream &OS) { OS << *FailedDecl; })));
-    return getDerived().RebuildRequiresExpr(KWLoc, Body, TransParams, TransReqs,
-                                            RBraceLoc);
+    return getDerived().RebuildRequiresExpr(KWLoc, Body, RE->getLParenLoc(),
+                                            TransParams, RE->getRParenLoc(),
+                                            TransReqs, RBraceLoc);
   }
 
   return ExprResult{};
@@ -2983,6 +3009,8 @@ ParmVarDecl *Sema::SubstParmVarDecl(
     NewParm->setUninstantiatedDefaultArg(Arg);
   }
 
+  NewParm->setExplicitObjectParameterLoc(
+      OldParm->getExplicitObjectParamThisLoc());
   NewParm->setHasInheritedDefaultArg(OldParm->hasInheritedDefaultArg());
 
   if (OldParm->isParameterPack() && !NewParm->isParameterPack()) {

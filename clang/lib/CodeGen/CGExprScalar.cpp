@@ -1661,9 +1661,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;
 
-  llvm::PointerType *PtrTy = cast<llvm::PointerType>(GlobalConstStr->getType());
-  llvm::PointerType *NewPtrTy =
-      llvm::PointerType::getWithSamePointeeType(PtrTy, ExprAS);
+  llvm::PointerType *NewPtrTy = llvm::PointerType::get(VMContext, ExprAS);
   return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy,
                                      "usid_addr_cast");
 }
@@ -2111,8 +2109,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
       Src = Builder.CreateAddrSpaceCast(
           Src,
-          llvm::PointerType::getWithSamePointeeType(
-              cast<llvm::PointerType>(SrcTy), DstTy->getPointerAddressSpace()));
+          llvm::PointerType::get(VMContext, DstTy->getPointerAddressSpace()));
     else if (SrcTy->isPtrOrPtrVectorTy() && DstTy->isPtrOrPtrVectorTy() &&
              SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
       llvm_unreachable("wrong cast for pointers in different address spaces"
@@ -2253,7 +2250,9 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return Visit(const_cast<Expr*>(E));
 
   case CK_NoOp: {
-    llvm::Value *V = Visit(const_cast<Expr *>(E));
+    llvm::Value *V = CE->changesVolatileQualification()
+                         ? EmitLoadOfLValue(CE)
+                         : Visit(const_cast<Expr *>(E));
     if (V) {
       // CK_NoOp can model a pointer qualification conversion, which can remove
       // an array bound and change the IR type.
@@ -3749,10 +3748,12 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
   // Explicitly handle GNU void* and function pointer arithmetic extensions. The
   // GNU void* casts amount to no-ops since our void* type is i8*, but this is
   // future proof.
+  llvm::Type *elemTy;
   if (elementType->isVoidType() || elementType->isFunctionType())
-    return CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
+    elemTy = CGF.Int8Ty;
+  else
+    elemTy = CGF.ConvertTypeForMem(elementType);
 
-  llvm::Type *elemTy = CGF.ConvertTypeForMem(elementType);
   if (CGF.getLangOpts().isSignedOverflowDefined())
     return CGF.Builder.CreateGEP(elemTy, pointer, index, "add.ptr");
 
@@ -3902,6 +3903,14 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     }
   }
 
+  // For vector and matrix adds, try to fold into a fmuladd.
+  if (op.LHS->getType()->isFPOrFPVectorTy()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
+    // Try to form an fmuladd.
+    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
+      return FMulAdd;
+  }
+
   if (op.Ty->isConstantMatrixType()) {
     llvm::MatrixBuilder MB(Builder);
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
@@ -3915,10 +3924,6 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
 
   if (op.LHS->getType()->isFPOrFPVectorTy()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
-    // Try to form an fmuladd.
-    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
-      return FMulAdd;
-
     return Builder.CreateFAdd(op.LHS, op.RHS, "add");
   }
 
@@ -4052,6 +4057,14 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
       }
     }
 
+    // For vector and matrix subs, try to fold into a fmuladd.
+    if (op.LHS->getType()->isFPOrFPVectorTy()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
+      // Try to form an fmuladd.
+      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
+        return FMulAdd;
+    }
+
     if (op.Ty->isConstantMatrixType()) {
       llvm::MatrixBuilder MB(Builder);
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
@@ -4065,9 +4078,6 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
 
     if (op.LHS->getType()->isFPOrFPVectorTy()) {
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
-      // Try to form an fmuladd.
-      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
-        return FMulAdd;
       return Builder.CreateFSub(op.LHS, op.RHS, "sub");
     }
 

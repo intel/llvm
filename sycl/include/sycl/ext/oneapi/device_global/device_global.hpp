@@ -28,6 +28,14 @@
       Op " is not supported on host device.");
 #endif
 
+// Helper macro for conditional device_global property meta info filtering. This
+// lets us ignore certain properties under specified conditions, e.g. ignoring
+// host_access if device_image_scope isn't also present.
+#define __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)                             \
+  detail::ConditionalPropertyMetaInfo<                                         \
+      Props, detail::DeviceGlobalMetaInfoFilter<                               \
+                 Props, detail::properties_t<Props...>>::value>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -103,7 +111,7 @@ public:
 };
 } // namespace detail
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     // FIXME: Temporary work-around. Remove when fixed.
@@ -120,8 +128,9 @@ class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
       __sycl_detail__::add_ir_attributes_global_variable(
-          "sycl-device-global-size", detail::PropertyMetaInfo<Props>::name...,
-          sizeof(T), detail::PropertyMetaInfo<Props>::value...)]]
+          "sycl-device-global-size",
+          __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::name..., sizeof(T),
+          __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
@@ -176,16 +185,16 @@ public:
 
   template <class RelayT = T>
   std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
 
   template <class RelayT = T>
   const std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) const noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
@@ -222,3 +231,4 @@ public:
 } // namespace sycl
 
 #undef __SYCL_HOST_NOT_SUPPORTED
+#undef __SYCL_DEVICE_GLOBAL_PROP_META_INFO

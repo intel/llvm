@@ -98,8 +98,8 @@ enum {
 
 class DynamicLoaderDarwinKernelProperties : public Properties {
 public:
-  static ConstString &GetSettingName() {
-    static ConstString g_setting_name("darwin-kernel");
+  static llvm::StringRef GetSettingName() {
+    static constexpr llvm::StringLiteral g_setting_name("darwin-kernel");
     return g_setting_name;
   }
 
@@ -606,8 +606,8 @@ void DynamicLoaderDarwinKernel::KextImageInfo::SetProcessStopId(
   m_load_process_stop_id = stop_id;
 }
 
-bool DynamicLoaderDarwinKernel::KextImageInfo::
-operator==(const KextImageInfo &rhs) {
+bool DynamicLoaderDarwinKernel::KextImageInfo::operator==(
+    const KextImageInfo &rhs) const {
   if (m_uuid.IsValid() || rhs.GetUUID().IsValid()) {
     return m_uuid == rhs.GetUUID();
   }

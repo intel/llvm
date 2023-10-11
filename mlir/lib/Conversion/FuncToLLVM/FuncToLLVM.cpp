@@ -33,6 +33,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/MathExtras.h"
@@ -43,13 +44,16 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormatVariadic.h"
 #include <algorithm>
 #include <functional>
+#include <optional>
 
 namespace mlir {
 #define GEN_PASS_DEF_CONVERTFUNCTOLLVMPASS
+#define GEN_PASS_DEF_SETLLVMMODULEDATALAYOUTPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -599,19 +603,38 @@ struct CallOpInterfaceLowering : public ConvertOpToLLVMPattern<CallOpType> {
   }
 };
 
-struct CallOpLowering : public CallOpInterfaceLowering<func::CallOp> {
-  using Super::Super;
+class CallOpLowering : public CallOpInterfaceLowering<func::CallOp> {
+public:
+  CallOpLowering(const LLVMTypeConverter &typeConverter,
+                 // Can be nullptr.
+                 const SymbolTable *symbolTable, PatternBenefit benefit = 1)
+      : CallOpInterfaceLowering<func::CallOp>(typeConverter, benefit),
+        symbolTable(symbolTable) {}
 
   LogicalResult
   matchAndRewrite(func::CallOp callOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     bool useBarePtrCallConv = false;
-    if (Operation *callee = SymbolTable::lookupNearestSymbolFrom(
-            callOp, callOp.getCalleeAttr())) {
-      useBarePtrCallConv = shouldUseBarePtrCallConv(callee, getTypeConverter());
+    if (getTypeConverter()->getOptions().useBarePtrCallConv) {
+      useBarePtrCallConv = true;
+    } else if (symbolTable != nullptr) {
+      // Fast lookup.
+      Operation *callee =
+          symbolTable->lookup(callOp.getCalleeAttr().getValue());
+      useBarePtrCallConv =
+          callee != nullptr && callee->hasAttr(barePtrAttrName);
+    } else {
+      // Warning: This is a linear lookup.
+      Operation *callee =
+          SymbolTable::lookupNearestSymbolFrom(callOp, callOp.getCalleeAttr());
+      useBarePtrCallConv =
+          callee != nullptr && callee->hasAttr(barePtrAttrName);
     }
     return matchAndRewriteImpl(callOp, adaptor, rewriter, useBarePtrCallConv);
   }
+
+private:
+  const SymbolTable *symbolTable = nullptr;
 };
 
 struct CallIndirectOpLowering
@@ -726,22 +749,75 @@ void mlir::populateFuncToLLVMFuncOpConversionPattern(
   patterns.add<FuncOpConversion>(converter);
 }
 
-void mlir::populateFuncToLLVMConversionPatterns(LLVMTypeConverter &converter,
-                                                RewritePatternSet &patterns) {
+void mlir::populateFuncToLLVMConversionPatterns(
+    LLVMTypeConverter &converter, RewritePatternSet &patterns,
+    const SymbolTable *symbolTable) {
   populateFuncToLLVMFuncOpConversionPattern(converter, patterns);
-  // clang-format off
-  patterns.add<
-      CallIndirectOpLowering,
-      CallOpLowering,
-      ConstantOpLowering,
-      ReturnOpLowering>(converter);
-  // clang-format on
+  patterns.add<CallIndirectOpLowering>(converter);
+  patterns.add<CallOpLowering>(converter, symbolTable);
+  patterns.add<ConstantOpLowering>(converter);
+  patterns.add<ReturnOpLowering>(converter);
 }
 
 namespace {
 /// A pass converting Func operations into the LLVM IR dialect.
 struct ConvertFuncToLLVMPass
     : public impl::ConvertFuncToLLVMPassBase<ConvertFuncToLLVMPass> {
+  using Base::Base;
+
+  /// Run the dialect converter on the module.
+  void runOnOperation() override {
+    ModuleOp m = getOperation();
+    StringRef dataLayout;
+    auto dataLayoutAttr = dyn_cast_or_null<StringAttr>(
+        m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName()));
+    if (dataLayoutAttr)
+      dataLayout = dataLayoutAttr.getValue();
+
+    if (failed(LLVM::LLVMDialect::verifyDataLayoutString(
+            dataLayout, [this](const Twine &message) {
+              getOperation().emitError() << message.str();
+            }))) {
+      signalPassFailure();
+      return;
+    }
+
+    const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
+
+    LowerToLLVMOptions options(&getContext(),
+                               dataLayoutAnalysis.getAtOrAbove(m));
+    options.useBarePtrCallConv = useBarePtrCallConv;
+    if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
+      options.overrideIndexBitwidth(indexBitwidth);
+    options.dataLayout = llvm::DataLayout(dataLayout);
+    options.useOpaquePointers = useOpaquePointers;
+
+    LLVMTypeConverter typeConverter(&getContext(), options,
+                                    &dataLayoutAnalysis);
+
+    std::optional<SymbolTable> optSymbolTable = std::nullopt;
+    const SymbolTable *symbolTable = nullptr;
+    if (!options.useBarePtrCallConv) {
+      optSymbolTable.emplace(m);
+      symbolTable = &optSymbolTable.value();
+    }
+
+    RewritePatternSet patterns(&getContext());
+    populateFuncToLLVMConversionPatterns(typeConverter, patterns, symbolTable);
+
+    // TODO: Remove these in favor of their dedicated conversion passes.
+    arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
+    cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
+
+    LLVMConversionTarget target(getContext());
+    if (failed(applyPartialConversion(m, target, std::move(patterns))))
+      signalPassFailure();
+  }
+};
+
+struct SetLLVMModuleDataLayoutPass
+    : public impl::SetLLVMModuleDataLayoutPassBase<
+          SetLLVMModuleDataLayoutPass> {
   using Base::Base;
 
   /// Run the dialect converter on the module.
@@ -753,32 +829,7 @@ struct ConvertFuncToLLVMPass
       signalPassFailure();
       return;
     }
-
     ModuleOp m = getOperation();
-    const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
-
-    LowerToLLVMOptions options(&getContext(),
-                               dataLayoutAnalysis.getAtOrAbove(m));
-    options.useBarePtrCallConv = useBarePtrCallConv;
-    if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
-      options.overrideIndexBitwidth(indexBitwidth);
-    options.dataLayout = llvm::DataLayout(this->dataLayout);
-    options.useOpaquePointers = useOpaquePointers;
-
-    LLVMTypeConverter typeConverter(&getContext(), options,
-                                    &dataLayoutAnalysis);
-
-    RewritePatternSet patterns(&getContext());
-    populateFuncToLLVMConversionPatterns(typeConverter, patterns);
-
-    // TODO: Remove these in favor of their dedicated conversion passes.
-    arith::populateArithToLLVMConversionPatterns(typeConverter, patterns);
-    cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
-
-    LLVMConversionTarget target(getContext());
-    if (failed(applyPartialConversion(m, target, std::move(patterns))))
-      signalPassFailure();
-
     m->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
                StringAttr::get(m.getContext(), this->dataLayout));
   }

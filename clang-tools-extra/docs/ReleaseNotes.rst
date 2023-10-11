@@ -66,6 +66,11 @@ Hover
 Code completion
 ^^^^^^^^^^^^^^^
 
+Code actions
+^^^^^^^^^^^^
+
+- The extract variable tweak gained support for extracting lambda expressions to a variable.
+
 Signature help
 ^^^^^^^^^^^^^^
 
@@ -113,8 +118,18 @@ Improvements to clang-tidy
 
 - Improved `--dump-config` to print check options in alphabetical order.
 
+- Improved :program:`clang-tidy-diff.py` script. It now returns exit code `1`
+  if any :program:`clang-tidy` subprocess exits with a non-zero code or if
+  exporting fixes fails.
+
 New checks
 ^^^^^^^^^^
+
+- New :doc:`bugprone-compare-pointer-to-member-virtual-function
+  <clang-tidy/checks/bugprone/compare-pointer-to-member-virtual-function>` check.
+
+  Detects equality comparison between pointer to member virtual function and
+  anything other than null-pointer-constant.
 
 - New :doc:`bugprone-inc-dec-in-conditions
   <clang-tidy/checks/bugprone/inc-dec-in-conditions>` check.
@@ -179,9 +194,17 @@ Changes in existing checks
   <clang-tidy/checks/bugprone/lambda-function-name>` check by adding option
   `IgnoreMacros` to ignore warnings in macros.
 
+- Improved :doc:`bugprone-non-zero-enum-to-bool-conversion
+  <clang-tidy/checks/bugprone/non-zero-enum-to-bool-conversion>` check by
+  eliminating false positives resulting from direct usage of bitwise operators.
+
 - Improved :doc:`bugprone-reserved-identifier
   <clang-tidy/checks/bugprone/reserved-identifier>` check, so that it does not
   warn on macros starting with underscore and lowercase letter.
+
+- Improved :doc:`bugprone-undefined-memory-manipulation
+  <clang-tidy/checks/bugprone/undefined-memory-manipulation>` check to support
+  fixed-size arrays of non-trivial types.
 
 - Improved :doc:`cppcoreguidelines-avoid-non-const-global-variables
   <clang-tidy/checks/cppcoreguidelines/avoid-non-const-global-variables>` check
@@ -218,9 +241,22 @@ Changes in existing checks
   <clang-tidy/checks/llvm/namespace-comment>` check to provide fixes for
   ``inline`` namespaces in the same format as :program:`clang-format`.
 
+- Improved :doc:`llvmlibc-implementation-in-namespace
+  <clang-tidy/checks/llvmlibc/implementation-in-namespace>` to support
+  customizable namespace. This further allows for testing the libc when the
+  system-libc is also LLVM's libc.
+
+- Improved :doc:`misc-const-correctness
+  <clang-tidy/checks/misc/const-correctness>` check to avoid false positive when
+  using pointer to member function.
+  
 - Improved :doc:`misc-include-cleaner
   <clang-tidy/checks/misc/include-cleaner>` check by adding option
   `DeduplicateFindings` to output one finding per symbol occurrence.
+
+- Improved :doc:`misc-include-cleaner
+  <clang-tidy/checks/misc/include-cleaner>` check to avoid fixes insert
+  same include header multiple times.
 
 - Improved :doc:`misc-redundant-expression
   <clang-tidy/checks/misc/redundant-expression>` check to ignore
@@ -230,9 +266,21 @@ Changes in existing checks
   <clang-tidy/checks/modernize/loop-convert>` to support for-loops with
   iterators initialized by free functions like ``begin``, ``end``, or ``size``.
 
+- Improved :doc:`modernize-use-equals-delete
+  <clang-tidy/checks/modernize/use-equals-delete>` check to ignore
+  false-positives when special member function is actually used or implicit.
+
+- Improved :doc:`modernize-use-nullptr
+  <clang-tidy/checks/modernize/use-nullptr>` check by adding option
+  `IgnoredTypes` that can be used to exclude some pointer types.
+
 - Improved :doc:`modernize-use-std-print
   <clang-tidy/checks/modernize/use-std-print>` check to accurately generate
   fixes for reordering arguments.
+
+- Improved :doc:`modernize-use-using
+  <clang-tidy/checks/modernize/use-using>` check to fix function pointer and
+  forward declared ``typedef`` correctly.
 
 - Improved :doc:`performance-faster-string-find
   <clang-tidy/checks/performance/faster-string-find>` check to properly escape
@@ -248,12 +296,17 @@ Changes in existing checks
 
 - Improved :doc:`readability-container-size-empty
   <clang-tidy/checks/readability/container-size-empty>` check to
-  detect comparison between string and empty string literals.
+  detect comparison between string and empty string literals and support
+  ``length()`` method as an alternative to ``size()``.
 
 - Improved :doc:`readability-identifier-naming
-  <clang-tidy/checks/readability/identifier-naming>` check to emit proper
-  warnings when a type forward declaration precedes its definition and
-  added support for ``Leading_upper_snake_case`` naming convention.
+  <clang-tidy/checks/readability/identifier-naming>` check to issue accurate
+  warnings when a type's forward declaration precedes its definition.
+  Additionally, it now provides appropriate warnings for ``struct`` and
+  ``union`` in C, while also incorporating support for the
+  ``Leading_upper_snake_case`` naming convention. The handling of ``typedef``
+  has been enhanced, particularly within complex types like function pointers
+  and cases where style checks were omitted when functions started with macros.
 
 - Improved :doc:`readability-implicit-bool-conversion
   <clang-tidy/checks/readability/implicit-bool-conversion>` check to take

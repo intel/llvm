@@ -1052,9 +1052,9 @@ public:
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (detail::is_genint<CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessReadOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyRead))>>
+                (detail::is_genint_v<CoordT>)&&(
+                    (IsImageAcc && IsImageAccessReadOnly) ||
+                    (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
@@ -1093,12 +1093,13 @@ public:
   // (accessTarget == access::target::host_image && (accessMode ==
   // access::mode::write || accessMode == access::mode::discard_write ||
   // accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (detail::is_genint<CoordT>::value) &&
-                (IsValidCoordDataT<Dims, CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessWriteOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyWrite))>>
+  template <
+      typename CoordT, int Dims = Dimensions,
+      typename = std::enable_if_t<(Dims > 0) &&
+                                  (detail::is_genint_v<CoordT>)&&(
+                                      IsValidCoordDataT<Dims, CoordT>::value) &&
+                                  ((IsImageAcc && IsImageAccessWriteOnly) ||
+                                   (IsHostImageAcc && IsImageAccessAnyWrite))>>
   void write(const CoordT &Coords, const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);
@@ -1569,6 +1570,7 @@ public:
       : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
              BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
@@ -1609,6 +1611,7 @@ public:
       : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
              BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
 #else
       : AccessorBaseHost(
             /*Offset=*/{0, 0, 0},
@@ -1645,6 +1648,7 @@ public:
              BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1682,6 +1686,7 @@ public:
              BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1715,6 +1720,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1751,6 +1757,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1815,6 +1822,7 @@ public:
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1850,6 +1858,7 @@ public:
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -2026,6 +2035,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -2069,6 +2079,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -2141,6 +2152,7 @@ public:
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -2184,6 +2196,7 @@ public:
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -2260,6 +2273,7 @@ public:
     static_assert(
         PropertyListT::template areSameCompileTimeProperties<NewPropsT...>(),
         "Compile-time-constant properties must be the same");
+    (void)CodeLoc;
 #ifndef __SYCL_DEVICE_ONLY__
     detail::constructorNotification(getMemoryObject(), impl.get(), AccessTarget,
                                     AccessMode, CodeLoc);
@@ -2849,7 +2863,9 @@ public:
   local_accessor_base(handler &, const detail::code_location CodeLoc =
                                      detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(range<AdjustedDim>{1}){}
+      : impl(range<AdjustedDim>{1}) {
+    (void)CodeLoc;
+  }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
@@ -2865,6 +2881,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
+    (void)CodeLoc;
   }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT),
@@ -2880,7 +2897,9 @@ public:
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AllocationSize){}
+      : impl(AllocationSize) {
+    (void)CodeLoc;
+  }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
@@ -2899,6 +2918,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
+    (void)CodeLoc;
   }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
@@ -3574,6 +3594,7 @@ public:
     AccessorT::MAccData = other.MAccData;
 #else
   {
+    (void)other;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -3589,6 +3610,7 @@ public:
     AccessorT::MAccData = other.MAccData;
 #else
   {
+    (void)other;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -3685,7 +3707,12 @@ public:
       handler &CommandGroupHandlerRef, const property_list &PropList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      {}
+  {
+    (void)ImageRef;
+    (void)CommandGroupHandlerRef;
+    (void)PropList;
+    (void)CodeLoc;
+  }
 #else
       : host_base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                         AccessMode, detail::getSyclObjImpl(ImageRef).get(),
@@ -3951,7 +3978,12 @@ public:
       handler &CommandGroupHandlerRef, const property_list &PropList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      {}
+  {
+    (void)ImageRef;
+    (void)CommandGroupHandlerRef;
+    (void)PropList;
+    (void)CodeLoc;
+  }
 #else
       : host_base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                         detail::getSyclObjImpl(ImageRef).get(), Dimensions,

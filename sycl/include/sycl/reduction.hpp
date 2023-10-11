@@ -117,9 +117,8 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                        is_sgeninteger<T>::value) &&
-                       IsValidAtomicType<T>::value &&
+    std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
+                        is_sgeninteger_v<T>)&&IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value ||
@@ -144,7 +143,7 @@ using IsReduOptForAtomic64Op =
     std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value) &&
-                       is_sgenfloat<T>::value && sizeof(T) == 8>;
+                       is_sgenfloat_v<T> && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -157,12 +156,11 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<((is_sgeninteger<T>::value &&
-                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                        is_sgenfloat<T>::value) &&
-                       (IsPlus<T, BinaryOperation>::value ||
-                        IsMinimum<T, BinaryOperation>::value ||
-                        IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<(
+        (is_sgeninteger_v<T> && (sizeof(T) == 4 || sizeof(T) == 8)) ||
+        is_sgenfloat_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
+                             IsMinimum<T, BinaryOperation>::value ||
+                             IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -257,7 +255,7 @@ template <class Reducer> class combiner {
 public:
   template <typename _T = Ty, int _Dims = Dims>
   std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                       is_geninteger<_T>::value,
+                       is_geninteger_v<_T>,
                    Reducer &>
   operator++() {
     return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
@@ -265,7 +263,7 @@ public:
 
   template <typename _T = Ty, int _Dims = Dims>
   std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                       is_geninteger<_T>::value,
+                       is_geninteger_v<_T>,
                    Reducer &>
   operator++(int) {
     return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
@@ -530,7 +528,20 @@ public:
 private:
   value_type MValue;
 };
+} // namespace detail
 
+// We explicitly claim std::optional as device-copyable in sycl/types.hpp.
+// However, that information isn't propagated to the struct/class types that use
+// it as a member, so we need to provide this partial specialization as well.
+// This is needed to support GNU STL where
+// std::is_trivially_copyable_v<std::optional> is false (e.g., 7.5.* ).
+template <typename T, class BinaryOperation, bool IsOptional>
+struct is_device_copyable<
+    detail::ReducerElement<T, BinaryOperation, IsOptional>>
+    : is_device_copyable<std::conditional_t<IsOptional, std::optional<T>, T>> {
+};
+
+namespace detail {
 template <typename T, class BinaryOperation, int Dims> class reducer_common {
 public:
   using value_type = T;
@@ -1349,7 +1360,10 @@ struct NDRangeReduction<
           // We're done.
           return;
 
-        // Signal this work-group has finished after all values are reduced
+        // Signal this work-group has finished after all values are reduced. We
+        // had an implicit work-group barrier in reduce_over_group and all the
+        // work since has been done in (LID == 0) work-item, so no extra sync is
+        // needed.
         if (LID == 0) {
           auto NFinished =
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
@@ -1561,7 +1575,10 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         }
       }
 
-      // Signal this work-group has finished after all values are reduced
+      // Signal this work-group has finished after all values are reduced. We
+      // had an implicit work-group barrier in doTreeReduction and all the
+      // work since has been done in (LID == 0) work-item, so no extra sync is
+      // needed.
       if (LID == 0) {
         auto NFinished =
             sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,

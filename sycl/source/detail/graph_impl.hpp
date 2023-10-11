@@ -14,6 +14,7 @@
 #include <sycl/handler.hpp>
 
 #include <detail/accessor_impl.hpp>
+#include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
 
 #include <cstring>
@@ -164,8 +165,13 @@ public:
   }
 
   /// Query if this is an empty node.
+  /// Barrier nodes are also considered empty nodes since they do not embed any
+  /// workload but only dependencies
   /// @return True if this is an empty node, false otherwise.
-  bool isEmpty() const { return MCGType == sycl::detail::CG::None; }
+  bool isEmpty() const {
+    return ((MCGType == sycl::detail::CG::None) ||
+            (MCGType == sycl::detail::CG::Barrier));
+  }
 
   /// Get a deep copy of this node's command group
   /// @return A unique ptr to the new command group object.
@@ -559,6 +565,11 @@ public:
     return NumberOfNodes;
   }
 
+  /// Traverse the graph recursively to get the events associated with the
+  /// output nodes of this graph.
+  /// @return vector of events associated to exit nodes.
+  std::vector<sycl::detail::EventImplPtr> getExitNodesEvents();
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
@@ -615,6 +626,12 @@ private:
   /// Controls whether we allow buffers to be used in the graph. Set by the
   /// presence of the assume_buffer_outlives_graph property.
   bool MAllowBuffers = false;
+
+  /// List of nodes that must be added as extra dependencies to new nodes when
+  /// added to this graph.
+  /// This list is mainly used by barrier nodes which must be considered
+  /// as predecessors for all nodes subsequently added to the graph.
+  std::vector<std::shared_ptr<node_impl>> MExtraDependencies;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -669,6 +686,20 @@ public:
   /// Query the graph_impl.
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
+
+  /// Checks if the previous submissions of this graph have been completed
+  /// This function checks the status of events associated to the previous graph
+  /// submissions.
+  /// @return true if all previous submissions have been completed, false
+  /// otherwise.
+  bool previousSubmissionCompleted() const {
+    for (auto Event : MExecutionEvents) {
+      if (!Event->isCompleted()) {
+        return false;
+      }
+    }
+    return true;
+  }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going

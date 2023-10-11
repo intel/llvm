@@ -89,6 +89,10 @@ public:
 
   void emitStartOfAsmFile(Module &M) override;
   void emitJumpTableInfo() override;
+  std::tuple<const MCSymbol *, uint64_t, const MCSymbol *,
+             codeview::JumpTableEntrySize>
+  getCodeViewJumpTableInfo(int JTI, const MachineInstr *BranchInstr,
+                           const MCSymbol *BranchLabel) const override;
 
   void emitFunctionEntryLabel() override;
 
@@ -970,6 +974,8 @@ bool AArch64AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
       RegClass = &AArch64::ZPRRegClass;
     } else if (AArch64::PPRRegClass.contains(Reg)) {
       RegClass = &AArch64::PPRRegClass;
+    } else if (AArch64::PNRRegClass.contains(Reg)) {
+      RegClass = &AArch64::PNRRegClass;
     } else {
       RegClass = &AArch64::FPR128RegClass;
       AltName = AArch64::vreg;
@@ -1060,6 +1066,30 @@ void AArch64AsmPrinter::emitJumpTableInfo() {
       OutStreamer->emitValue(Value, Size);
     }
   }
+}
+
+std::tuple<const MCSymbol *, uint64_t, const MCSymbol *,
+           codeview::JumpTableEntrySize>
+AArch64AsmPrinter::getCodeViewJumpTableInfo(int JTI,
+                                            const MachineInstr *BranchInstr,
+                                            const MCSymbol *BranchLabel) const {
+  const auto AFI = MF->getInfo<AArch64FunctionInfo>();
+  const auto Base = AArch64FI->getJumpTableEntryPCRelSymbol(JTI);
+  codeview::JumpTableEntrySize EntrySize;
+  switch (AFI->getJumpTableEntrySize(JTI)) {
+  case 1:
+    EntrySize = codeview::JumpTableEntrySize::UInt8ShiftLeft;
+    break;
+  case 2:
+    EntrySize = codeview::JumpTableEntrySize::UInt16ShiftLeft;
+    break;
+  case 4:
+    EntrySize = codeview::JumpTableEntrySize::Int32;
+    break;
+  default:
+    llvm_unreachable("Unexpected jump table entry size");
+  }
+  return std::make_tuple(Base, 0, BranchLabel, EntrySize);
 }
 
 void AArch64AsmPrinter::emitFunctionEntryLabel() {

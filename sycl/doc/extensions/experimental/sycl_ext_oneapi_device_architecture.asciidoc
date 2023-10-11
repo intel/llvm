@@ -99,6 +99,7 @@ namespace sycl::ext::oneapi::experimental {
 
 enum class architecture : /* unspecified */ {
   x86_64,
+  intel_cpu_spr,
   intel_gpu_bdw,
   intel_gpu_skl,
   intel_gpu_kbl,
@@ -195,6 +196,12 @@ of these enumerators, and it provides a brief description of their meanings.
 |-
 |Any CPU device with the x86_64 instruction set.
 
+|`intel_cpu_spr`
+|-
+|Intel Xeon processor codenamed Sapphire Rapids. The utility of this
+enumeration is currently limited. See the section "Limitations with
+the experimental version" for details.
+
 |`intel_gpu_bdw`
 |-
 |Broadwell Intel graphics architecture.
@@ -246,7 +253,7 @@ of these enumerators, and it provides a brief description of their meanings.
 |`intel_gpu_adl_s` +
 `intel_gpu_rpl_s`
 |-
-|Alder Lake S Intel graphics architecture or Raptor Lake Intel graphics 
+|Alder Lake S Intel graphics architecture or Raptor Lake Intel graphics
 architecture.
 
 |`intel_gpu_adl_p`
@@ -588,6 +595,15 @@ feature, the application must be compiled in ahead-of-time (AOT) mode using
 "special target values" listed in the link:../../UsersManual.md[users manual]
 description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+
+The architecture enumeration `intel_cpu_spr` does not currently work
+with any of the APIs described in this extension. It cannot be used
+with the `if_architecture_is` function, the
+`device::ext_oneapi_architecture_is` function, or the
+`info::device::architecture` query descriptor. It currently exists
+only for use with the
+link:sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
+extension.
 
 == Future direction
 

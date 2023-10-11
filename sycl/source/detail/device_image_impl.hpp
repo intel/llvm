@@ -190,6 +190,27 @@ public:
     return Descs.front().IsSet;
   }
 
+  bool is_any_specialization_constant_set() const noexcept {
+    // Lock the mutex to prevent when one thread in the middle of writing a
+    // new value while another thread is reading the value to pass it to
+    // JIT compiler.
+    const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
+    for (auto SpecConst : MSpecConstSymMap) {
+      for (auto Desc : SpecConst.second) {
+        if (Desc.IsSet)
+          return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool specialization_constants_replaced_with_default() const noexcept {
+    pi_device_binary_property Prop =
+        MBinImage->getProperty("specConstsReplacedWithDefault");
+    return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
+  }
+
   bundle_state get_state() const noexcept { return MState; }
 
   void set_state(bundle_state NewState) noexcept { MState = NewState; }

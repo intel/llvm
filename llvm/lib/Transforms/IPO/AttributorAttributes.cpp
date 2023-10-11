@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/IR/MDBuilder.h"
 #include "llvm/Transforms/IPO/Attributor.h"
 
 #include "llvm/ADT/APInt.h"
@@ -56,6 +55,7 @@
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/NoFolder.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
@@ -194,6 +194,7 @@ PIPE_OPERATOR(AAUnderlyingObjects)
 PIPE_OPERATOR(AAAddressSpace)
 PIPE_OPERATOR(AAIndirectCallInfo)
 PIPE_OPERATOR(AAGlobalValueInfo)
+PIPE_OPERATOR(AADenormalFPMath)
 
 #undef PIPE_OPERATOR
 
@@ -382,7 +383,7 @@ getMinimalBaseOfPointer(Attributor &A, const AbstractAttribute &QueryingAA,
 /// Clamp the information known for all returned values of a function
 /// (identified by \p QueryingAA) into \p S.
 template <typename AAType, typename StateType = typename AAType::StateType,
-          Attribute::AttrKind IRAttributeKind = Attribute::None,
+          Attribute::AttrKind IRAttributeKind = AAType::IRAttributeKind,
           bool RecurseForSelectAndPHI = true>
 static void clampReturnedValueStates(
     Attributor &A, const AAType &QueryingAA, StateType &S,
@@ -405,7 +406,7 @@ static void clampReturnedValueStates(
   auto CheckReturnValue = [&](Value &RV) -> bool {
     const IRPosition &RVPos = IRPosition::value(RV, CBContext);
     // If possible, use the hasAssumedIRAttr interface.
-    if (IRAttributeKind != Attribute::None) {
+    if (Attribute::isEnumAttrKind(IRAttributeKind)) {
       bool IsKnown;
       return AA::hasAssumedIRAttr<IRAttributeKind>(
           A, &QueryingAA, RVPos, DepClassTy::REQUIRED, IsKnown);
@@ -439,7 +440,7 @@ namespace {
 template <typename AAType, typename BaseType,
           typename StateType = typename BaseType::StateType,
           bool PropagateCallBaseContext = false,
-          Attribute::AttrKind IRAttributeKind = Attribute::None,
+          Attribute::AttrKind IRAttributeKind = AAType::IRAttributeKind,
           bool RecurseForSelectAndPHI = true>
 struct AAReturnedFromReturnedValues : public BaseType {
   AAReturnedFromReturnedValues(const IRPosition &IRP, Attributor &A)
@@ -460,7 +461,7 @@ struct AAReturnedFromReturnedValues : public BaseType {
 /// Clamp the information known at all call sites for a given argument
 /// (identified by \p QueryingAA) into \p S.
 template <typename AAType, typename StateType = typename AAType::StateType,
-          Attribute::AttrKind IRAttributeKind = Attribute::None>
+          Attribute::AttrKind IRAttributeKind = AAType::IRAttributeKind>
 static void clampCallSiteArgumentStates(Attributor &A, const AAType &QueryingAA,
                                         StateType &S) {
   LLVM_DEBUG(dbgs() << "[Attributor] Clamp call site argument states for "
@@ -485,7 +486,7 @@ static void clampCallSiteArgumentStates(Attributor &A, const AAType &QueryingAA,
       return false;
 
     // If possible, use the hasAssumedIRAttr interface.
-    if (IRAttributeKind != Attribute::None) {
+    if (Attribute::isEnumAttrKind(IRAttributeKind)) {
       bool IsKnown;
       return AA::hasAssumedIRAttr<IRAttributeKind>(
           A, &QueryingAA, ACSArgPos, DepClassTy::REQUIRED, IsKnown);
@@ -519,7 +520,7 @@ static void clampCallSiteArgumentStates(Attributor &A, const AAType &QueryingAA,
 /// context.
 template <typename AAType, typename BaseType,
           typename StateType = typename AAType::StateType,
-          Attribute::AttrKind IRAttributeKind = Attribute::None>
+          Attribute::AttrKind IRAttributeKind = AAType::IRAttributeKind>
 bool getArgumentStateFromCallBaseContext(Attributor &A,
                                          BaseType &QueryingAttribute,
                                          IRPosition &Pos, StateType &State) {
@@ -534,7 +535,7 @@ bool getArgumentStateFromCallBaseContext(Attributor &A,
   const IRPosition CBArgPos = IRPosition::callsite_argument(*CBContext, ArgNo);
 
   // If possible, use the hasAssumedIRAttr interface.
-  if (IRAttributeKind != Attribute::None) {
+  if (Attribute::isEnumAttrKind(IRAttributeKind)) {
     bool IsKnown;
     return AA::hasAssumedIRAttr<IRAttributeKind>(
         A, &QueryingAttribute, CBArgPos, DepClassTy::REQUIRED, IsKnown);
@@ -560,7 +561,7 @@ bool getArgumentStateFromCallBaseContext(Attributor &A,
 template <typename AAType, typename BaseType,
           typename StateType = typename AAType::StateType,
           bool BridgeCallBaseContext = false,
-          Attribute::AttrKind IRAttributeKind = Attribute::None>
+          Attribute::AttrKind IRAttributeKind = AAType::IRAttributeKind>
 struct AAArgumentFromCallSiteArguments : public BaseType {
   AAArgumentFromCallSiteArguments(const IRPosition &IRP, Attributor &A)
       : BaseType(IRP, A) {}
@@ -590,45 +591,55 @@ struct AAArgumentFromCallSiteArguments : public BaseType {
 template <typename AAType, typename BaseType,
           typename StateType = typename BaseType::StateType,
           bool IntroduceCallBaseContext = false,
-          Attribute::AttrKind IRAttributeKind = Attribute::None>
-struct AACallSiteReturnedFromReturned : public BaseType {
-  AACallSiteReturnedFromReturned(const IRPosition &IRP, Attributor &A)
-      : BaseType(IRP, A) {}
+          Attribute::AttrKind IRAttributeKind = AAType::IRAttributeKind>
+struct AACalleeToCallSite : public BaseType {
+  AACalleeToCallSite(const IRPosition &IRP, Attributor &A) : BaseType(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
-    assert(this->getIRPosition().getPositionKind() ==
-               IRPosition::IRP_CALL_SITE_RETURNED &&
-           "Can only wrap function returned positions for call site returned "
-           "positions!");
+    auto IRPKind = this->getIRPosition().getPositionKind();
+    assert((IRPKind == IRPosition::IRP_CALL_SITE_RETURNED ||
+            IRPKind == IRPosition::IRP_CALL_SITE) &&
+           "Can only wrap function returned positions for call site "
+           "returned positions!");
     auto &S = this->getState();
 
-    const Function *AssociatedFunction =
-        this->getIRPosition().getAssociatedFunction();
-    if (!AssociatedFunction)
-      return S.indicatePessimisticFixpoint();
-
-    CallBase &CBContext = cast<CallBase>(this->getAnchorValue());
+    CallBase &CB = cast<CallBase>(this->getAnchorValue());
     if (IntroduceCallBaseContext)
-      LLVM_DEBUG(dbgs() << "[Attributor] Introducing call base context:"
-                        << CBContext << "\n");
+      LLVM_DEBUG(dbgs() << "[Attributor] Introducing call base context:" << CB
+                        << "\n");
 
-    IRPosition FnPos = IRPosition::returned(
-        *AssociatedFunction, IntroduceCallBaseContext ? &CBContext : nullptr);
+    ChangeStatus Changed = ChangeStatus::UNCHANGED;
+    auto CalleePred = [&](ArrayRef<const Function *> Callees) {
+      for (const Function *Callee : Callees) {
+        IRPosition FnPos =
+            IRPKind == llvm::IRPosition::IRP_CALL_SITE_RETURNED
+                ? IRPosition::returned(*Callee,
+                                       IntroduceCallBaseContext ? &CB : nullptr)
+                : IRPosition::function(
+                      *Callee, IntroduceCallBaseContext ? &CB : nullptr);
+        // If possible, use the hasAssumedIRAttr interface.
+        if (Attribute::isEnumAttrKind(IRAttributeKind)) {
+          bool IsKnown;
+          if (!AA::hasAssumedIRAttr<IRAttributeKind>(
+                  A, this, FnPos, DepClassTy::REQUIRED, IsKnown))
+            return false;
+          continue;
+        }
 
-    // If possible, use the hasAssumedIRAttr interface.
-    if (IRAttributeKind != Attribute::None) {
-      bool IsKnown;
-      if (!AA::hasAssumedIRAttr<IRAttributeKind>(A, this, FnPos,
-                                                 DepClassTy::REQUIRED, IsKnown))
-        return S.indicatePessimisticFixpoint();
-      return ChangeStatus::UNCHANGED;
-    }
-
-    const AAType *AA = A.getAAFor<AAType>(*this, FnPos, DepClassTy::REQUIRED);
-    if (!AA)
+        const AAType *AA =
+            A.getAAFor<AAType>(*this, FnPos, DepClassTy::REQUIRED);
+        if (!AA)
+          return false;
+        Changed |= clampStateAndIndicateChange(S, AA->getState());
+        if (S.isAtFixpoint())
+          return S.isValidState();
+      }
+      return true;
+    };
+    if (!A.checkForAllCallees(CalleePred, *this, CB))
       return S.indicatePessimisticFixpoint();
-    return clampStateAndIndicateChange(S, AA->getState());
+    return Changed;
   }
 };
 
@@ -2096,24 +2107,10 @@ struct AANoUnwindFunction final : public AANoUnwindImpl {
 };
 
 /// NoUnwind attribute deduction for a call sites.
-struct AANoUnwindCallSite final : AANoUnwindImpl {
+struct AANoUnwindCallSite final
+    : AACalleeToCallSite<AANoUnwind, AANoUnwindImpl> {
   AANoUnwindCallSite(const IRPosition &IRP, Attributor &A)
-      : AANoUnwindImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    bool IsKnownNoUnwind;
-    if (AA::hasAssumedIRAttr<Attribute::NoUnwind>(
-            A, this, FnPos, DepClassTy::REQUIRED, IsKnownNoUnwind))
-      return ChangeStatus::UNCHANGED;
-    return indicatePessimisticFixpoint();
-  }
+      : AACalleeToCallSite<AANoUnwind, AANoUnwindImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(nounwind); }
@@ -2243,24 +2240,9 @@ struct AANoSyncFunction final : public AANoSyncImpl {
 };
 
 /// NoSync attribute deduction for a call sites.
-struct AANoSyncCallSite final : AANoSyncImpl {
+struct AANoSyncCallSite final : AACalleeToCallSite<AANoSync, AANoSyncImpl> {
   AANoSyncCallSite(const IRPosition &IRP, Attributor &A)
-      : AANoSyncImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    bool IsKnownNoSycn;
-    if (AA::hasAssumedIRAttr<Attribute::NoSync>(
-            A, this, FnPos, DepClassTy::REQUIRED, IsKnownNoSycn))
-      return ChangeStatus::UNCHANGED;
-    return indicatePessimisticFixpoint();
-  }
+      : AACalleeToCallSite<AANoSync, AANoSyncImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(nosync); }
@@ -2312,24 +2294,9 @@ struct AANoFreeFunction final : public AANoFreeImpl {
 };
 
 /// NoFree attribute deduction for a call sites.
-struct AANoFreeCallSite final : AANoFreeImpl {
+struct AANoFreeCallSite final : AACalleeToCallSite<AANoFree, AANoFreeImpl> {
   AANoFreeCallSite(const IRPosition &IRP, Attributor &A)
-      : AANoFreeImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    bool IsKnown;
-    if (AA::hasAssumedIRAttr<Attribute::NoFree>(A, this, FnPos,
-                                                DepClassTy::REQUIRED, IsKnown))
-      return ChangeStatus::UNCHANGED;
-    return indicatePessimisticFixpoint();
-  }
+      : AACalleeToCallSite<AANoFree, AANoFreeImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(nofree); }
@@ -2703,13 +2670,9 @@ struct AANonNullReturned final
 
 /// NonNull attribute for function argument.
 struct AANonNullArgument final
-    : AAArgumentFromCallSiteArguments<AANonNull, AANonNullImpl,
-                                      AANonNull::StateType, false,
-                                      AANonNull::IRAttributeKind> {
+    : AAArgumentFromCallSiteArguments<AANonNull, AANonNullImpl> {
   AANonNullArgument(const IRPosition &IRP, Attributor &A)
-      : AAArgumentFromCallSiteArguments<AANonNull, AANonNullImpl,
-                                        AANonNull::StateType, false,
-                                        AANonNull::IRAttributeKind>(IRP, A) {}
+      : AAArgumentFromCallSiteArguments<AANonNull, AANonNullImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_ARG_ATTR(nonnull) }
@@ -2725,13 +2688,9 @@ struct AANonNullCallSiteArgument final : AANonNullFloating {
 
 /// NonNull attribute for a call site return position.
 struct AANonNullCallSiteReturned final
-    : AACallSiteReturnedFromReturned<AANonNull, AANonNullImpl,
-                                     AANonNull::StateType, false,
-                                     AANonNull::IRAttributeKind> {
+    : AACalleeToCallSite<AANonNull, AANonNullImpl> {
   AANonNullCallSiteReturned(const IRPosition &IRP, Attributor &A)
-      : AACallSiteReturnedFromReturned<AANonNull, AANonNullImpl,
-                                       AANonNull::StateType, false,
-                                       AANonNull::IRAttributeKind>(IRP, A) {}
+      : AACalleeToCallSite<AANonNull, AANonNullImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CSRET_ATTR(nonnull) }
@@ -2883,24 +2842,10 @@ struct AANoRecurseFunction final : AANoRecurseImpl {
 };
 
 /// NoRecurse attribute deduction for a call sites.
-struct AANoRecurseCallSite final : AANoRecurseImpl {
+struct AANoRecurseCallSite final
+    : AACalleeToCallSite<AANoRecurse, AANoRecurseImpl> {
   AANoRecurseCallSite(const IRPosition &IRP, Attributor &A)
-      : AANoRecurseImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    bool IsKnownNoRecurse;
-    if (!AA::hasAssumedIRAttr<Attribute::NoRecurse>(
-            A, this, FnPos, DepClassTy::REQUIRED, IsKnownNoRecurse))
-      return indicatePessimisticFixpoint();
-    return ChangeStatus::UNCHANGED;
-  }
+      : AACalleeToCallSite<AANoRecurse, AANoRecurseImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(norecurse); }
@@ -3408,26 +3353,17 @@ struct AAWillReturnFunction final : AAWillReturnImpl {
 };
 
 /// WillReturn attribute deduction for a call sites.
-struct AAWillReturnCallSite final : AAWillReturnImpl {
+struct AAWillReturnCallSite final
+    : AACalleeToCallSite<AAWillReturn, AAWillReturnImpl> {
   AAWillReturnCallSite(const IRPosition &IRP, Attributor &A)
-      : AAWillReturnImpl(IRP, A) {}
+      : AACalleeToCallSite<AAWillReturn, AAWillReturnImpl>(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override {
     if (isImpliedByMustprogressAndReadonly(A, /* KnownOnly */ false))
       return ChangeStatus::UNCHANGED;
 
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    bool IsKnown;
-    if (AA::hasAssumedIRAttr<Attribute::WillReturn>(
-            A, this, FnPos, DepClassTy::REQUIRED, IsKnown))
-      return ChangeStatus::UNCHANGED;
-    return indicatePessimisticFixpoint();
+    return AACalleeToCallSite::updateImpl(A);
   }
 
   /// See AbstractAttribute::trackStatistics()
@@ -3850,12 +3786,8 @@ struct AANoAliasFloating final : AANoAliasImpl {
 
 /// NoAlias attribute for an argument.
 struct AANoAliasArgument final
-    : AAArgumentFromCallSiteArguments<AANoAlias, AANoAliasImpl,
-                                      AANoAlias::StateType, false,
-                                      Attribute::NoAlias> {
-  using Base = AAArgumentFromCallSiteArguments<AANoAlias, AANoAliasImpl,
-                                               AANoAlias::StateType, false,
-                                               Attribute::NoAlias>;
+    : AAArgumentFromCallSiteArguments<AANoAlias, AANoAliasImpl> {
+  using Base = AAArgumentFromCallSiteArguments<AANoAlias, AANoAliasImpl>;
   AANoAliasArgument(const IRPosition &IRP, Attributor &A) : Base(IRP, A) {}
 
   /// See AbstractAttribute::update(...).
@@ -4123,24 +4055,10 @@ struct AANoAliasReturned final : AANoAliasImpl {
 };
 
 /// NoAlias attribute deduction for a call site return value.
-struct AANoAliasCallSiteReturned final : AANoAliasImpl {
+struct AANoAliasCallSiteReturned final
+    : AACalleeToCallSite<AANoAlias, AANoAliasImpl> {
   AANoAliasCallSiteReturned(const IRPosition &IRP, Attributor &A)
-      : AANoAliasImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::returned(*F);
-    bool IsKnownNoAlias;
-    if (!AA::hasAssumedIRAttr<Attribute::NoAlias>(
-            A, this, FnPos, DepClassTy::REQUIRED, IsKnownNoAlias))
-      return indicatePessimisticFixpoint();
-    return ChangeStatus::UNCHANGED;
-  }
+      : AACalleeToCallSite<AANoAlias, AANoAliasImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CSRET_ATTR(noalias); }
@@ -5229,9 +5147,8 @@ struct AADereferenceableCallSiteArgument final : AADereferenceableFloating {
 
 /// Dereferenceable attribute deduction for a call site return value.
 struct AADereferenceableCallSiteReturned final
-    : AACallSiteReturnedFromReturned<AADereferenceable, AADereferenceableImpl> {
-  using Base =
-      AACallSiteReturnedFromReturned<AADereferenceable, AADereferenceableImpl>;
+    : AACalleeToCallSite<AADereferenceable, AADereferenceableImpl> {
+  using Base = AACalleeToCallSite<AADereferenceable, AADereferenceableImpl>;
   AADereferenceableCallSiteReturned(const IRPosition &IRP, Attributor &A)
       : Base(IRP, A) {}
 
@@ -5526,8 +5443,8 @@ struct AAAlignCallSiteArgument final : AAAlignFloating {
 
 /// Align attribute deduction for a call site return value.
 struct AAAlignCallSiteReturned final
-    : AACallSiteReturnedFromReturned<AAAlign, AAAlignImpl> {
-  using Base = AACallSiteReturnedFromReturned<AAAlign, AAAlignImpl>;
+    : AACalleeToCallSite<AAAlign, AAAlignImpl> {
+  using Base = AACalleeToCallSite<AAAlign, AAAlignImpl>;
   AAAlignCallSiteReturned(const IRPosition &IRP, Attributor &A)
       : Base(IRP, A) {}
 
@@ -5575,24 +5492,10 @@ struct AANoReturnFunction final : AANoReturnImpl {
 };
 
 /// NoReturn attribute deduction for a call sites.
-struct AANoReturnCallSite final : AANoReturnImpl {
+struct AANoReturnCallSite final
+    : AACalleeToCallSite<AANoReturn, AANoReturnImpl> {
   AANoReturnCallSite(const IRPosition &IRP, Attributor &A)
-      : AANoReturnImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    bool IsKnownNoReturn;
-    if (!AA::hasAssumedIRAttr<Attribute::NoReturn>(
-            A, this, FnPos, DepClassTy::REQUIRED, IsKnownNoReturn))
-      return indicatePessimisticFixpoint();
-    return ChangeStatus::UNCHANGED;
-  }
+      : AACalleeToCallSite<AANoReturn, AANoReturnImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CS_ATTR(noreturn); }
@@ -8129,24 +8032,10 @@ struct AAMemoryBehaviorFunction final : public AAMemoryBehaviorImpl {
 };
 
 /// AAMemoryBehavior attribute for call sites.
-struct AAMemoryBehaviorCallSite final : AAMemoryBehaviorImpl {
+struct AAMemoryBehaviorCallSite final
+    : AACalleeToCallSite<AAMemoryBehavior, AAMemoryBehaviorImpl> {
   AAMemoryBehaviorCallSite(const IRPosition &IRP, Attributor &A)
-      : AAMemoryBehaviorImpl(IRP, A) {}
-
-  /// See AbstractAttribute::updateImpl(...).
-  ChangeStatus updateImpl(Attributor &A) override {
-    // TODO: Once we have call site specific value information we can provide
-    //       call site specific liveness liveness information and then it makes
-    //       sense to specialize attributes for call sites arguments instead of
-    //       redirecting requests to the callee argument.
-    Function *F = getAssociatedFunction();
-    const IRPosition &FnPos = IRPosition::function(*F);
-    auto *FnAA =
-        A.getAAFor<AAMemoryBehavior>(*this, FnPos, DepClassTy::REQUIRED);
-    if (!FnAA)
-      return indicatePessimisticFixpoint();
-    return clampStateAndIndicateChange(getState(), FnAA->getState());
-  }
+      : AACalleeToCallSite<AAMemoryBehavior, AAMemoryBehaviorImpl>(IRP, A) {}
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
@@ -8951,6 +8840,108 @@ struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
 };
 } // namespace
 
+/// ------------------ denormal-fp-math Attribute -------------------------
+
+namespace {
+struct AADenormalFPMathImpl : public AADenormalFPMath {
+  AADenormalFPMathImpl(const IRPosition &IRP, Attributor &A)
+      : AADenormalFPMath(IRP, A) {}
+
+  const std::string getAsStr(Attributor *A) const override {
+    std::string Str("AADenormalFPMath[");
+    raw_string_ostream OS(Str);
+
+    DenormalState Known = getKnown();
+    if (Known.Mode.isValid())
+      OS << "denormal-fp-math=" << Known.Mode;
+    else
+      OS << "invalid";
+
+    if (Known.ModeF32.isValid())
+      OS << " denormal-fp-math-f32=" << Known.ModeF32;
+    OS << ']';
+    return OS.str();
+  }
+};
+
+struct AADenormalFPMathFunction final : AADenormalFPMathImpl {
+  AADenormalFPMathFunction(const IRPosition &IRP, Attributor &A)
+      : AADenormalFPMathImpl(IRP, A) {}
+
+  void initialize(Attributor &A) override {
+    const Function *F = getAnchorScope();
+    DenormalMode Mode = F->getDenormalModeRaw();
+    DenormalMode ModeF32 = F->getDenormalModeF32Raw();
+
+    // TODO: Handling this here prevents handling the case where a callee has a
+    // fixed denormal-fp-math with dynamic denormal-fp-math-f32, but called from
+    // a function with a fully fixed mode.
+    if (ModeF32 == DenormalMode::getInvalid())
+      ModeF32 = Mode;
+    Known = DenormalState{Mode, ModeF32};
+    if (isModeFixed())
+      indicateFixpoint();
+  }
+
+  ChangeStatus updateImpl(Attributor &A) override {
+    ChangeStatus Change = ChangeStatus::UNCHANGED;
+
+    auto CheckCallSite = [=, &Change, &A](AbstractCallSite CS) {
+      Function *Caller = CS.getInstruction()->getFunction();
+      LLVM_DEBUG(dbgs() << "[AADenormalFPMath] Call " << Caller->getName()
+                        << "->" << getAssociatedFunction()->getName() << '\n');
+
+      const auto *CallerInfo = A.getAAFor<AADenormalFPMath>(
+          *this, IRPosition::function(*Caller), DepClassTy::REQUIRED);
+      if (!CallerInfo)
+        return false;
+
+      Change = Change | clampStateAndIndicateChange(this->getState(),
+                                                    CallerInfo->getState());
+      return true;
+    };
+
+    bool AllCallSitesKnown = true;
+    if (!A.checkForAllCallSites(CheckCallSite, *this, true, AllCallSitesKnown))
+      return indicatePessimisticFixpoint();
+
+    if (Change == ChangeStatus::CHANGED && isModeFixed())
+      indicateFixpoint();
+    return Change;
+  }
+
+  ChangeStatus manifest(Attributor &A) override {
+    LLVMContext &Ctx = getAssociatedFunction()->getContext();
+
+    SmallVector<Attribute, 2> AttrToAdd;
+    SmallVector<StringRef, 2> AttrToRemove;
+    if (Known.Mode == DenormalMode::getDefault()) {
+      AttrToRemove.push_back("denormal-fp-math");
+    } else {
+      AttrToAdd.push_back(
+          Attribute::get(Ctx, "denormal-fp-math", Known.Mode.str()));
+    }
+
+    if (Known.ModeF32 != Known.Mode) {
+      AttrToAdd.push_back(
+          Attribute::get(Ctx, "denormal-fp-math-f32", Known.ModeF32.str()));
+    } else {
+      AttrToRemove.push_back("denormal-fp-math-f32");
+    }
+
+    auto &IRP = getIRPosition();
+
+    // TODO: There should be a combined add and remove API.
+    return A.removeAttrs(IRP, AttrToRemove) |
+           A.manifestAttrs(IRP, AttrToAdd, /*ForceReplace=*/true);
+  }
+
+  void trackStatistics() const override {
+    STATS_DECLTRACK_FN_ATTR(denormal_fp_math)
+  }
+};
+} // namespace
+
 /// ------------------ Value Constant Range Attribute -------------------------
 
 namespace {
@@ -9557,17 +9548,13 @@ struct AAValueConstantRangeCallSite : AAValueConstantRangeFunction {
 };
 
 struct AAValueConstantRangeCallSiteReturned
-    : AACallSiteReturnedFromReturned<AAValueConstantRange,
-                                     AAValueConstantRangeImpl,
-                                     AAValueConstantRangeImpl::StateType,
-                                     /* IntroduceCallBaseContext */ true> {
+    : AACalleeToCallSite<AAValueConstantRange, AAValueConstantRangeImpl,
+                         AAValueConstantRangeImpl::StateType,
+                         /* IntroduceCallBaseContext */ true> {
   AAValueConstantRangeCallSiteReturned(const IRPosition &IRP, Attributor &A)
-      : AACallSiteReturnedFromReturned<AAValueConstantRange,
-                                       AAValueConstantRangeImpl,
-                                       AAValueConstantRangeImpl::StateType,
-                                       /* IntroduceCallBaseContext */ true>(IRP,
-                                                                            A) {
-  }
+      : AACalleeToCallSite<AAValueConstantRange, AAValueConstantRangeImpl,
+                           AAValueConstantRangeImpl::StateType,
+                           /* IntroduceCallBaseContext */ true>(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
@@ -10086,12 +10073,12 @@ struct AAPotentialConstantValuesCallSite : AAPotentialConstantValuesFunction {
 };
 
 struct AAPotentialConstantValuesCallSiteReturned
-    : AACallSiteReturnedFromReturned<AAPotentialConstantValues,
-                                     AAPotentialConstantValuesImpl> {
+    : AACalleeToCallSite<AAPotentialConstantValues,
+                         AAPotentialConstantValuesImpl> {
   AAPotentialConstantValuesCallSiteReturned(const IRPosition &IRP,
                                             Attributor &A)
-      : AACallSiteReturnedFromReturned<AAPotentialConstantValues,
-                                       AAPotentialConstantValuesImpl>(IRP, A) {}
+      : AACalleeToCallSite<AAPotentialConstantValues,
+                           AAPotentialConstantValuesImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -10279,26 +10266,18 @@ struct AANoUndefFloating : public AANoUndefImpl {
 };
 
 struct AANoUndefReturned final
-    : AAReturnedFromReturnedValues<AANoUndef, AANoUndefImpl,
-                                   AANoUndef::StateType, false,
-                                   Attribute::NoUndef> {
+    : AAReturnedFromReturnedValues<AANoUndef, AANoUndefImpl> {
   AANoUndefReturned(const IRPosition &IRP, Attributor &A)
-      : AAReturnedFromReturnedValues<AANoUndef, AANoUndefImpl,
-                                     AANoUndef::StateType, false,
-                                     Attribute::NoUndef>(IRP, A) {}
+      : AAReturnedFromReturnedValues<AANoUndef, AANoUndefImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_FNRET_ATTR(noundef) }
 };
 
 struct AANoUndefArgument final
-    : AAArgumentFromCallSiteArguments<AANoUndef, AANoUndefImpl,
-                                      AANoUndef::StateType, false,
-                                      Attribute::NoUndef> {
+    : AAArgumentFromCallSiteArguments<AANoUndef, AANoUndefImpl> {
   AANoUndefArgument(const IRPosition &IRP, Attributor &A)
-      : AAArgumentFromCallSiteArguments<AANoUndef, AANoUndefImpl,
-                                        AANoUndef::StateType, false,
-                                        Attribute::NoUndef>(IRP, A) {}
+      : AAArgumentFromCallSiteArguments<AANoUndef, AANoUndefImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_ARG_ATTR(noundef) }
@@ -10313,13 +10292,9 @@ struct AANoUndefCallSiteArgument final : AANoUndefFloating {
 };
 
 struct AANoUndefCallSiteReturned final
-    : AACallSiteReturnedFromReturned<AANoUndef, AANoUndefImpl,
-                                     AANoUndef::StateType, false,
-                                     Attribute::NoUndef> {
+    : AACalleeToCallSite<AANoUndef, AANoUndefImpl> {
   AANoUndefCallSiteReturned(const IRPosition &IRP, Attributor &A)
-      : AACallSiteReturnedFromReturned<AANoUndef, AANoUndefImpl,
-                                       AANoUndef::StateType, false,
-                                       Attribute::NoUndef>(IRP, A) {}
+      : AACalleeToCallSite<AANoUndef, AANoUndefImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override { STATS_DECLTRACK_CSRET_ATTR(noundef) }
@@ -10469,9 +10444,9 @@ struct AANoFPClassCallSiteArgument final : AANoFPClassFloating {
 };
 
 struct AANoFPClassCallSiteReturned final
-    : AACallSiteReturnedFromReturned<AANoFPClass, AANoFPClassImpl> {
+    : AACalleeToCallSite<AANoFPClass, AANoFPClassImpl> {
   AANoFPClassCallSiteReturned(const IRPosition &IRP, Attributor &A)
-      : AACallSiteReturnedFromReturned<AANoFPClass, AANoFPClassImpl>(IRP, A) {}
+      : AACalleeToCallSite<AANoFPClass, AANoFPClassImpl>(IRP, A) {}
 
   /// See AbstractAttribute::trackStatistics()
   void trackStatistics() const override {
@@ -12323,9 +12298,17 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
     if (!AllCalleesKnown && AssumedCallees.empty())
       return ChangeStatus::UNCHANGED;
 
-    ChangeStatus Changed = ChangeStatus::UNCHANGED;
     CallBase *CB = cast<CallBase>(getCtxI());
+    bool UsedAssumedInformation = false;
+    if (A.isAssumedDead(*CB, this, /*LivenessAA=*/nullptr,
+                        UsedAssumedInformation))
+      return ChangeStatus::UNCHANGED;
+
+    ChangeStatus Changed = ChangeStatus::UNCHANGED;
     Value *FP = CB->getCalledOperand();
+    if (FP->getType()->getPointerAddressSpace())
+      FP = new AddrSpaceCastInst(FP, PointerType::get(FP->getType(), 0),
+                                 FP->getName() + ".as0", CB);
 
     bool CBIsVoid = CB->getType()->isVoidTy();
     Instruction *IP = CB;
@@ -12567,8 +12550,13 @@ struct AAAddressSpaceImpl : public AAAddressSpace {
       // CGSCC if the AA is run on CGSCC instead of the entire module.
       if (!A.isRunOn(Inst->getFunction()))
         return true;
-      if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
+      if (isa<LoadInst>(Inst))
         MakeChange(Inst, const_cast<Use &>(U));
+      if (isa<StoreInst>(Inst)) {
+        // We only make changes if the use is the pointer operand.
+        if (U.getOperandNo() == 1)
+          MakeChange(Inst, const_cast<Use &>(U));
+      }
       return true;
     };
 
@@ -12705,6 +12693,7 @@ const char AAUnderlyingObjects::ID = 0;
 const char AAAddressSpace::ID = 0;
 const char AAIndirectCallInfo::ID = 0;
 const char AAGlobalValueInfo::ID = 0;
+const char AADenormalFPMath::ID = 0;
 
 // Macro magic to create the static generator function for attributes that
 // follow the naming scheme.
@@ -12851,6 +12840,7 @@ CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAUndefinedBehavior)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANonConvergent)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAIntraFnReachability)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAInterFnReachability)
+CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AADenormalFPMath)
 
 CREATE_NON_RET_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAMemoryBehavior)
 
