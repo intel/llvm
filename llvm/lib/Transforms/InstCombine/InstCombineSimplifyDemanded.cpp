@@ -461,7 +461,8 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
     if (InputKnown.isNonNegative() ||
         DemandedMask.getActiveBits() <= SrcBitWidth) {
       // Convert to ZExt cast.
-      CastInst *NewCast = new ZExtInst(I->getOperand(0), VTy, I->getName());
+      CastInst *NewCast = new ZExtInst(I->getOperand(0), VTy);
+      NewCast->takeName(I);
       return InsertNewInstWith(NewCast, I->getIterator());
      }
 
@@ -770,6 +771,7 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         BinaryOperator *LShr = BinaryOperator::CreateLShr(I->getOperand(0),
                                                           I->getOperand(1));
         LShr->setIsExact(cast<BinaryOperator>(I)->isExact());
+        LShr->takeName(I);
         return InsertNewInstWith(LShr, I->getIterator());
       } else if (Known.One[BitWidth-ShiftAmt-1]) { // New bits are known one.
         Known.One |= HighBits;
@@ -1849,6 +1851,29 @@ Value *InstCombinerImpl::SimplifyDemandedUseFPClass(
       if (SimplifyDemandedFPClass(I, 0, DemandedMask, Known, Depth + 1))
         return I;
       break;
+    case Intrinsic::copysign: {
+      // Flip on more potentially demanded classes
+      const FPClassTest DemandedMaskAnySign = llvm::unknown_sign(DemandedMask);
+      if (SimplifyDemandedFPClass(I, 0, DemandedMaskAnySign, Known, Depth + 1))
+        return I;
+
+      if ((DemandedMask & fcPositive) == fcNone) {
+        // Roundabout way of replacing with fneg(fabs)
+        I->setOperand(1, ConstantFP::get(VTy, -1.0));
+        return I;
+      }
+
+      if ((DemandedMask & fcNegative) == fcNone) {
+        // Roundabout way of replacing with fabs
+        I->setOperand(1, ConstantFP::getZero(VTy));
+        return I;
+      }
+
+      KnownFPClass KnownSign =
+          computeKnownFPClass(I->getOperand(1), fcAllFlags, CxtI, Depth + 1);
+      Known.copysign(KnownSign);
+      break;
+    }
     default:
       Known = computeKnownFPClass(I, ~DemandedMask, CxtI, Depth + 1);
       break;

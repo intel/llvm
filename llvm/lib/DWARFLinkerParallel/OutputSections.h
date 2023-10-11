@@ -288,7 +288,7 @@ protected:
 
   /// Output format.
   dwarf::FormParams Format = {4, 4, dwarf::DWARF32};
-  support::endianness Endianess = support::endianness::little;
+  support::endianness Endianess = llvm::endianness::little;
 };
 
 /// This class keeps contents and offsets to the debug sections. Any objects
@@ -432,7 +432,7 @@ protected:
   dwarf::FormParams Format = {4, 4, dwarf::DWARF32};
 
   /// Endiannes for sections.
-  support::endianness Endianness = support::endian::system_endianness();
+  support::endianness Endianness = llvm::endianness::native;
 
   /// All keeping sections.
   using SectionsSetTy = std::map<DebugSectionKind, SectionDescriptor>;
