@@ -1126,17 +1126,22 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                                          const JobAction &JA) const {
   // Current implied args are for debug information and disabling of
   // optimizations.  They are passed along to the respective areas as follows:
-  //  FPGA and default device:  -g -cl-opt-disable
-  //  GEN:  -options "-g -O0"
-  //  CPU:  "--bo=-g -cl-opt-disable"
+  // FPGA:  -g -cl-opt-disable
+  // Default device AOT: -g -cl-opt-disable
+  // Default device JIT: -g (-cl-opt-disable is handled by the runtime)
+  // GEN:  -options "-g -O0"
+  // CPU:  "--bo=-g -cl-opt-disable"
   llvm::opt::ArgStringList BeArgs;
   bool IsGen = Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen;
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
-  if (Arg *A = Args.getLastArg(options::OPT_O_Group))
-    if (A->getOption().matches(options::OPT_O0))
-      BeArgs.push_back("-cl-opt-disable");
+  // Only pass -cl-opt-disable for non-JIT, as the runtime
+  // handles it in that case.
+  if (Triple.getSubArch() != llvm::Triple::NoSubArch)
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group))
+      if (A->getOption().matches(options::OPT_O0))
+        BeArgs.push_back("-cl-opt-disable");
   if (IsGen) {
     // For GEN (spir64_gen) we have implied -device settings given usage
     // of intel_gpu_ as a target.  Handle those here, and also check that no
