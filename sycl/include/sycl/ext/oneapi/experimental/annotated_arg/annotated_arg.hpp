@@ -438,7 +438,7 @@ R operator*(const T &a, const annotated_arg<T2, PropertyList2> &b) {
 
 template <typename T, typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() / std::declval<T2>())>
-  R operator/(const T &a, const annotated_arg<T2, PropertyList2> &b) {
+R operator/(const T &a, const annotated_arg<T2, PropertyList2> &b) {
   T2 b1 = b;
   return a / b1;
 }

@@ -108,8 +108,10 @@ int main() {
   auto *r3 = malloc_shared<MyStruct<int>>(5, Q);
 
   // testing logical overloaded operators
-  annotated_arg<MyStruct<bool>, decltype(properties{conduit})> m = MyStruct(true);
-  annotated_arg<MyStruct<bool>, decltype(properties{conduit})> n = MyStruct(false);
+  annotated_arg<MyStruct<bool>, decltype(properties{conduit})> m =
+      MyStruct(true);
+  annotated_arg<MyStruct<bool>, decltype(properties{conduit})> n =
+      MyStruct(false);
 
   auto *r4 = malloc_shared<MyStruct<bool>>(3, Q);
   auto *r5 = malloc_shared<MyStruct<bool>>(3, Q);
