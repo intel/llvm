@@ -274,6 +274,9 @@ public:
 
   /// \returns true if the kernel_bundle contains at least one device image
   /// which uses specialization constants
+  template <
+      bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   bool contains_specialization_constants() const noexcept {
     return kernel_bundle_plain::contains_specialization_constants();
   }
@@ -857,6 +860,7 @@ namespace detail {
 // forward decl
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+                  const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr);
 } // namespace detail
@@ -866,16 +870,25 @@ template <typename PropertyListT =
           typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
-      PropertyListT props = {}) {
+      const std::vector<device> &Devices, PropertyListT props = {}) {
   std::vector<std::string> BuildOptionsVec;
   std::string *LogPtr = nullptr;
-  if (props.template has_property<build_options>()) {
+  if constexpr (props.template has_property<build_options>()) {
     BuildOptionsVec = props.template get_property<build_options>().opts;
   }
-  if (props.template has_property<build_log>()) {
+  if constexpr (props.template has_property<build_log>()) {
     LogPtr = props.template get_property<build_log>().log;
   }
-  return detail::build_from_source(SourceKB, BuildOptionsVec, LogPtr);
+  return detail::build_from_source(SourceKB, Devices, BuildOptionsVec, LogPtr);
+}
+
+template <typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t,
+          typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+      PropertyListT props = {}) {
+  return build<PropertyListT>(SourceKB, SourceKB.get_devices(), props);
 }
 
 } // namespace ext::oneapi::experimental

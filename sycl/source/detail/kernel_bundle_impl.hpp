@@ -345,7 +345,8 @@ public:
   }
 
   std::shared_ptr<kernel_bundle_impl>
-  build_from_source(const std::vector<std::string> &BuildOptions,
+  build_from_source(const std::vector<device> Devices,
+                    const std::vector<std::string> &BuildOptions,
                     std::string *LogPtr) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
@@ -356,7 +357,6 @@ public:
     // compilation log.
     auto spirv =
         syclex::detail::OpenCLC_to_SPIRV(this->Source, BuildOptions, LogPtr);
-    std::cout << "spirv byte count: " << spirv.size() << std::endl;
 
     // see also program_manager.cpp::createSpirvProgram()
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
@@ -366,11 +366,9 @@ public:
     Plugin->call<PiApiKind::piProgramCreate>(
         ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
 
-    if (ContextImpl->getBackend() == backend::opencl)
-      Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
+    Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
-    for (const auto &SyclDev : MDevices) {
-      std::cout << "device" << std::endl;
+    for (const auto &SyclDev : Devices) {
       pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
       Plugin->call<errc::build, PiApiKind::piProgramBuild>(
           PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
@@ -381,8 +379,6 @@ public:
     Plugin->call<PiApiKind::piProgramGetInfo>(
         PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
         nullptr);
-    // CP
-    std::cout << "Num Kernels: " << NumKernels << std::endl;
 
     // Get the kernel names.
     size_t KernelNamesSize;
@@ -396,16 +392,6 @@ public:
         &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
-    // CP
-    std::cout << "KernelNamesStr: " << KernelNamesStr << std::endl;
-
-    // CP
-    // Create each kernel.
-    // for (auto Name : KernelNames) {
-    //   sycl::detail::pi::PiKernel Kernel = nullptr;
-    //   Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(),
-    //   &Kernel);
-    // }
 
     // make the device image and the kernel_bundle_impl
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
@@ -444,15 +430,12 @@ public:
     sycl::detail::pi::PiKernel PiKernel = nullptr;
     Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
 
-    // CP  ?? - not sure about this. Investigate
-    // if (Backend == backend::opencl)
-    //  Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
+    Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         PiKernel, detail::getSyclObjImpl(MContext), Self);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
-    ;
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }

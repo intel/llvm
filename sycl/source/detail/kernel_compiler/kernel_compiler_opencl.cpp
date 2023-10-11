@@ -132,7 +132,7 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
 
   // gather the results ( the SpirV and the Log)
   spirv_vec_t SpirV;
-  // std::string CompileLog;
+  std::string CompileLog;
   for (uint32_t i = 0; i < NumOutputs; i++) {
     size_t NameLen = strlen(OutputNames[i]);
     if (NameLen >= 4 && strstr(OutputNames[i], ".spv") != nullptr &&
@@ -143,7 +143,9 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
       // CompileLog = std::string(reinterpret_cast<const char *>(Outputs[i]));
       const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
       if (LogText != nullptr && LogText[0] != '\0') {
-        LogPtr->append(LogText);
+        CompileLog.append(LogText);
+        if (LogPtr != nullptr)
+          LogPtr->append(LogText);
       }
     }
   }
@@ -156,7 +158,7 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
 
   if (CompileError)
     throw sycl::exception(build_errc, "ocloc reported compilation errors: {\n" +
-                                          *LogPtr + "\n}");
+                                          CompileLog + "\n}");
 
   if (SpirV.empty())
     throw sycl::exception(build_errc,

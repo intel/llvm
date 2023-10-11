@@ -391,11 +391,14 @@ source_kb create_kernel_bundle_from_source(const context &SyclContext,
 namespace detail {
 
 exe_kb build_from_source(source_kb &SourceKB,
+                         const std::vector<device> &Devices,
                          const std::vector<std::string> &BuildOptions,
                          std::string *LogPtr) {
+  std::vector<device> UniqueDevices =
+      sycl::detail::removeDuplicateDevices(Devices);
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl =
-      sourceImpl->build_from_source(BuildOptions, LogPtr);
+      sourceImpl->build_from_source(UniqueDevices, BuildOptions, LogPtr);
   return sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
 }
 
