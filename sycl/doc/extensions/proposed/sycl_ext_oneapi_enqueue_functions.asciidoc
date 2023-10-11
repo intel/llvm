@@ -498,11 +498,11 @@ associated with events listed in `depEvents` have completed. An optional event
 representing this command can be returned via `outEvent`.
 
 [NOTE]
-----
+====
 If `depEvents` is empty, a partial barrier is not required to wait for any
 commands unless the `queue` is in-order. Implementations may be able to
 optimize such partial barriers.
-----
+====
 
 
 == Issues
