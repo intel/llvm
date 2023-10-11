@@ -93,6 +93,8 @@ public:
   decltype(auto) operator[](size_t i) {
 #if defined(__NVPTX__)
     return (jm.cuda_impl.wi_marray[i]);
+#else
+    std::ignore = i;
 #endif
   };
 };
