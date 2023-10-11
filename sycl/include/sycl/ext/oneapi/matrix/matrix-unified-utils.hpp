@@ -24,6 +24,18 @@ class tf32 {
 };
 } // namespace precision
 
+namespace detail {
+constexpr const char *convertMatrixUseToString(use Use) {
+  if (Use == use::a)
+    return "use::a";
+  else if (Use == use::b)
+    return "use::b";
+  else if (Use == use::accumulator)
+    return "use::accumulator";
+  return "";
+}
+} // namespace detail
+
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi

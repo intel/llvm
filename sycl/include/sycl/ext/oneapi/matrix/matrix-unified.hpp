@@ -19,6 +19,7 @@
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
 #include <sycl/exception.hpp>                 // for runtime_error
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32
+#include <sycl/ext/oneapi/matrix/query-types.hpp> // for detail::convert*
 #include <sycl/marray.hpp>                                 // for marray
 #include <sycl/multi_ptr.hpp>                              // for multi_ptr
 
@@ -53,6 +54,13 @@ struct joint_matrix {
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
 
+#if defined(__SYCL_DEVICE_ONLY__)
+  [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-joint-matrix-type", "sycl-joint-matrix-use",
+      "sycl-joint-matrix-rows", "sycl-joint-matrix-cols",
+      detail::convertTypeToMatrixTypeString<T>(),
+      detail::convertMatrixUseToString(Use), Rows, Cols)]]
+#endif // defined(__SYCL_DEVICE_ONLY__)
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
     throw runtime_error("joint matrix is not supported on host device.",
@@ -384,6 +392,15 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 
 template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M,
           std::size_t K, std::size_t N, layout LayoutA, layout LayoutB>
+#if defined(__SYCL_DEVICE_ONLY__)
+[[__sycl_detail__::add_ir_attributes_function(
+    "sycl-joint-matrix-mad-type-A", "sycl-joint-matrix-mad-type-B",
+    "sycl-joint-matrix-mad-type-C", "sycl-joint-matrix-mad-size-M",
+    "sycl-joint-matrix-mad-size-K", "sycl-joint-matrix-mad-size-N",
+    detail::convertTypeToMatrixTypeString<Ta>(),
+    detail::convertTypeToMatrixTypeString<Tb>(),
+    detail::convertTypeToMatrixTypeString<Tc>(), M, K, N)]]
+#endif // defined(__SYCL_DEVICE_ONLY__)
 inline __SYCL_ALWAYS_INLINE
     joint_matrix<Group, Tc, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic>
