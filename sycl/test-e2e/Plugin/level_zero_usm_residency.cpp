@@ -1,5 +1,8 @@
 // REQUIRES: gpu, level_zero
 
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
+
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 ZE_DEBUG=-1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
 // RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x001 SYCL_PI_TRACE=-1 ZE_DEBUG=-1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s

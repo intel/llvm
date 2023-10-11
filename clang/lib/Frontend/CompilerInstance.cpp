@@ -151,9 +151,6 @@ bool CompilerInstance::createTarget() {
   // created. This complexity should be lifted elsewhere.
   getTarget().adjust(getDiagnostics(), getLangOpts());
 
-  // Adjust target options based on codegen options.
-  getTarget().adjustTargetOptions(getCodeGenOpts(), getTargetOpts());
-
   if (auto *Aux = getAuxTarget()) {
     Aux->adjust(getDiagnostics(), getLangOpts());
     getTarget().setAuxTarget(Aux);
@@ -405,14 +402,8 @@ static void InitializeFileRemapping(DiagnosticsEngine &Diags,
   // Remap files in the source manager (with buffers).
   for (const auto &RB : InitOpts.RemappedFileBuffers) {
     // Create the file entry for the file that we're mapping from.
-    const FileEntry *FromFile =
-        FileMgr.getVirtualFile(RB.first, RB.second->getBufferSize(), 0);
-    if (!FromFile) {
-      Diags.Report(diag::err_fe_remap_missing_from_file) << RB.first;
-      if (!InitOpts.RetainRemappedFileBuffers)
-        delete RB.second;
-      continue;
-    }
+    FileEntryRef FromFile =
+        FileMgr.getVirtualFileRef(RB.first, RB.second->getBufferSize(), 0);
 
     // Override the contents of the "from" file with the contents of the
     // "to" file. If the caller owns the buffers, then pass a MemoryBufferRef;
@@ -706,7 +697,7 @@ static bool EnableCodeCompletion(Preprocessor &PP,
                                  unsigned Column) {
   // Tell the source manager to chop off the given file at a specific
   // line and column.
-  auto Entry = PP.getFileManager().getFile(Filename);
+  auto Entry = PP.getFileManager().getOptionalFileRef(Filename);
   if (!Entry) {
     PP.getDiagnostics().Report(diag::err_fe_invalid_code_complete_file)
       << Filename;
@@ -1362,7 +1353,7 @@ static bool compileModule(CompilerInstance &ImportingInstance,
         [&](CompilerInstance &Instance) {
       std::unique_ptr<llvm::MemoryBuffer> ModuleMapBuffer =
           llvm::MemoryBuffer::getMemBuffer(InferredModuleMapContent);
-      const FileEntry *ModuleMapFile = Instance.getFileManager().getVirtualFile(
+      FileEntryRef ModuleMapFile = Instance.getFileManager().getVirtualFileRef(
           FakeModuleMapFile, InferredModuleMapContent.size(), 0);
       Instance.getSourceManager().overrideFileContents(
           ModuleMapFile, std::move(ModuleMapBuffer));
@@ -1719,7 +1710,8 @@ void CompilerInstance::createASTReader() {
     Listener->attachToASTReader(*TheASTReader);
 }
 
-bool CompilerInstance::loadModuleFile(StringRef FileName) {
+bool CompilerInstance::loadModuleFile(
+    StringRef FileName, serialization::ModuleFile *&LoadedModuleFile) {
   llvm::Timer Timer;
   if (FrontendTimerGroup)
     Timer.init("preloading." + FileName.str(), "Preloading " + FileName.str(),
@@ -1745,7 +1737,8 @@ bool CompilerInstance::loadModuleFile(StringRef FileName) {
   // Try to load the module file.
   switch (TheASTReader->ReadAST(
       FileName, serialization::MK_ExplicitModule, SourceLocation(),
-      ConfigMismatchIsRecoverable ? ASTReader::ARR_ConfigurationMismatch : 0)) {
+      ConfigMismatchIsRecoverable ? ASTReader::ARR_ConfigurationMismatch : 0,
+      &LoadedModuleFile)) {
   case ASTReader::Success:
     // We successfully loaded the module file; remember the set of provided
     // modules so that we don't try to load implicit modules for them.
@@ -2185,7 +2178,7 @@ void CompilerInstance::createModuleFromSource(SourceLocation ImportLoc,
   auto PreBuildStep = [&](CompilerInstance &Other) {
     // Create a virtual file containing our desired source.
     // FIXME: We shouldn't need to do this.
-    const FileEntry *ModuleMapFile = Other.getFileManager().getVirtualFile(
+    FileEntryRef ModuleMapFile = Other.getFileManager().getVirtualFileRef(
         ModuleMapFileName, NullTerminatedSource.size(), 0);
     Other.getSourceManager().overrideFileContents(
         ModuleMapFile, llvm::MemoryBuffer::getMemBuffer(NullTerminatedSource));

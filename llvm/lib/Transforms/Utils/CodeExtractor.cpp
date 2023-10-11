@@ -721,7 +721,8 @@ void CodeExtractor::severSplitPHINodesOfEntry(BasicBlock *&Header) {
       // Create a new PHI node in the new region, which has an incoming value
       // from OldPred of PN.
       PHINode *NewPN = PHINode::Create(PN->getType(), 1 + NumPredsFromRegion,
-                                       PN->getName() + ".ce", &NewBB->front());
+                                       PN->getName() + ".ce");
+      NewPN->insertBefore(NewBB->begin());
       PN->replaceAllUsesWith(NewPN);
       NewPN->addIncoming(PN, OldPred);
 
@@ -775,9 +776,9 @@ void CodeExtractor::severSplitPHINodesOfExits(
       }
 
       // Split this PHI.
-      PHINode *NewPN =
-          PHINode::Create(PN.getType(), IncomingVals.size(),
-                          PN.getName() + ".ce", NewBB->getFirstNonPHI());
+      PHINode *NewPN = PHINode::Create(PN.getType(), IncomingVals.size(),
+                                       PN.getName() + ".ce");
+      NewPN->insertBefore(NewBB->getFirstNonPHIIt());
       for (unsigned i : IncomingVals)
         NewPN->addIncoming(PN.getIncomingValue(i), PN.getIncomingBlock(i));
       for (unsigned i : reverse(IncomingVals))
@@ -1575,6 +1576,12 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
     auto *DVI = cast<DbgVariableIntrinsic>(DII);
     // If any of the used locations are invalid, delete the intrinsic.
     if (any_of(DVI->location_ops(), IsInvalidLocation)) {
+      DebugIntrinsicsToDelete.push_back(DVI);
+      continue;
+    }
+    // DbgAssign intrinsics have an extra Value argument:
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI);
+        DAI && IsInvalidLocation(DAI->getAddress())) {
       DebugIntrinsicsToDelete.push_back(DVI);
       continue;
     }

@@ -1126,10 +1126,10 @@ static void handleDiagnoseAsBuiltinAttr(Sema &S, Decl *D,
   FunctionDecl *AttrFD = [&]() -> FunctionDecl * {
     if (!AL.isArgExpr(0))
       return nullptr;
-    auto *F = dyn_cast_or_null<DeclRefExpr>(AL.getArgAsExpr(0));
+    auto *F = dyn_cast_if_present<DeclRefExpr>(AL.getArgAsExpr(0));
     if (!F)
       return nullptr;
-    return dyn_cast_or_null<FunctionDecl>(F->getFoundDecl());
+    return dyn_cast_if_present<FunctionDecl>(F->getFoundDecl());
   }();
 
   if (!AttrFD || !AttrFD->getBuiltinID(true)) {
@@ -1310,7 +1310,7 @@ static void handleConsumableAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 static bool checkForConsumableClass(Sema &S, const CXXMethodDecl *MD,
                                     const ParsedAttr &AL) {
-  QualType ThisType = MD->getThisObjectType();
+  QualType ThisType = MD->getFunctionObjectParameterType();
 
   if (const CXXRecordDecl *RD = ThisType->getAsCXXRecordDecl()) {
     if (!RD->hasAttr<ConsumableAttr>()) {
@@ -1412,23 +1412,23 @@ static void handleReturnTypestateAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // FIXME: This check is currently being done in the analysis.  It can be
   //        enabled here only after the parser propagates attributes at
   //        template specialization definition, not declaration.
-  //QualType ReturnType;
+  // QualType ReturnType;
   //
-  //if (const ParmVarDecl *Param = dyn_cast<ParmVarDecl>(D)) {
+  // if (const ParmVarDecl *Param = dyn_cast<ParmVarDecl>(D)) {
   //  ReturnType = Param->getType();
   //
   //} else if (const CXXConstructorDecl *Constructor =
   //             dyn_cast<CXXConstructorDecl>(D)) {
-  //  ReturnType = Constructor->getThisObjectType();
+  //  ReturnType = Constructor->getFunctionObjectParameterType();
   //
   //} else {
   //
   //  ReturnType = cast<FunctionDecl>(D)->getCallResultType();
   //}
   //
-  //const CXXRecordDecl *RD = ReturnType->getAsCXXRecordDecl();
+  // const CXXRecordDecl *RD = ReturnType->getAsCXXRecordDecl();
   //
-  //if (!RD || !RD->hasAttr<ConsumableAttr>()) {
+  // if (!RD || !RD->hasAttr<ConsumableAttr>()) {
   //    S.Diag(Attr.getLoc(), diag::warn_return_state_for_unconsumable_type) <<
   //      ReturnType.getAsString();
   //    return;
@@ -1528,7 +1528,7 @@ static void handlePreferredName(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!T.hasQualifiers() && T->isTypedefNameType()) {
     // Find the template name, if this type names a template specialization.
     const TemplateDecl *Template = nullptr;
-    if (const auto *CTSD = dyn_cast_or_null<ClassTemplateSpecializationDecl>(
+    if (const auto *CTSD = dyn_cast_if_present<ClassTemplateSpecializationDecl>(
             T->getAsCXXRecordDecl())) {
       Template = CTSD->getSpecializedTemplate();
     } else if (const auto *TST = T->getAs<TemplateSpecializationType>()) {
@@ -2722,10 +2722,11 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   bool IsUnavailable = AL.getUnavailableLoc().isValid();
   bool IsStrict = AL.getStrictLoc().isValid();
   StringRef Str;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getMessageExpr()))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getMessageExpr()))
     Str = SE->getString();
   StringRef Replacement;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getReplacementExpr()))
+  if (const auto *SE =
+          dyn_cast_if_present<StringLiteral>(AL.getReplacementExpr()))
     Replacement = SE->getString();
 
   if (II->isStr("swift")) {
@@ -2942,14 +2943,14 @@ static void handleExternalSourceSymbolAttr(Sema &S, Decl *D,
     return;
 
   StringRef Language;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(0)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(0)))
     Language = SE->getString();
   StringRef DefinedIn;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(1)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(1)))
     DefinedIn = SE->getString();
   bool IsGeneratedDeclaration = AL.getArgAsIdent(2) != nullptr;
   StringRef USR;
-  if (const auto *SE = dyn_cast_or_null<StringLiteral>(AL.getArgAsExpr(3)))
+  if (const auto *SE = dyn_cast_if_present<StringLiteral>(AL.getArgAsExpr(3)))
     USR = SE->getString();
 
   D->addAttr(::new (S.Context) ExternalSourceSymbolAttr(
@@ -6563,7 +6564,8 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Diagnostic is emitted elsewhere: here we store the (valid) AL
   // in the Decl node for syntactic reasoning, e.g., pretty-printing.
   CallingConv CC;
-  if (S.CheckCallingConvAttr(AL, CC, /*FD*/nullptr))
+  if (S.CheckCallingConvAttr(AL, CC, /*FD*/ nullptr,
+                             S.IdentifyCUDATarget(dyn_cast<FunctionDecl>(D))))
     return;
 
   if (!isa<ObjCMethodDecl>(D)) {
@@ -6748,7 +6750,8 @@ static void handleNoRandomizeLayoutAttr(Sema &S, Decl *D,
 }
 
 bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
-                                const FunctionDecl *FD) {
+                                const FunctionDecl *FD,
+                                CUDAFunctionTarget CFT) {
   if (Attrs.isInvalid())
     return true;
 
@@ -6847,7 +6850,8 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   // on their host/device attributes.
   if (LangOpts.CUDA) {
     auto *Aux = Context.getAuxTargetInfo();
-    auto CudaTarget = IdentifyCUDATarget(FD);
+    assert(FD || CFT != CFT_InvalidTarget);
+    auto CudaTarget = FD ? IdentifyCUDATarget(FD) : CFT;
     bool CheckHost = false, CheckDevice = false;
     switch (CudaTarget) {
     case CFT_HostDevice:
@@ -7035,6 +7039,14 @@ bool Sema::CheckRegparmAttr(const ParsedAttr &AL, unsigned &numParams) {
   return false;
 }
 
+// Helper to get CudaArch.
+static CudaArch getCudaArch(const TargetInfo &TI) {
+  if (!TI.getTriple().isNVPTX())
+    llvm_unreachable("getCudaArch is only valid for NVPTX triple");
+  auto &TO = TI.getTargetOpts();
+  return StringToCudaArch(TO.CPU);
+}
+
 // Checks whether an argument of launch_bounds attribute is
 // acceptable, performs implicit conversion to Rvalue, and returns
 // non-nullptr Expr result on success. Otherwise, it returns nullptr
@@ -7078,34 +7090,51 @@ static Expr *makeLaunchBoundsArgExpr(Sema &S, Expr *E,
 
 CUDALaunchBoundsAttr *
 Sema::CreateLaunchBoundsAttr(const AttributeCommonInfo &CI, Expr *MaxThreads,
-                             Expr *MinBlocks) {
-  CUDALaunchBoundsAttr TmpAttr(Context, CI, MaxThreads, MinBlocks);
+                             Expr *MinBlocks, Expr *MaxBlocks) {
+  CUDALaunchBoundsAttr TmpAttr(Context, CI, MaxThreads, MinBlocks, MaxBlocks);
   MaxThreads = makeLaunchBoundsArgExpr(*this, MaxThreads, TmpAttr, 0);
-  if (MaxThreads == nullptr)
+  if (!MaxThreads)
     return nullptr;
 
   if (MinBlocks) {
     MinBlocks = makeLaunchBoundsArgExpr(*this, MinBlocks, TmpAttr, 1);
-    if (MinBlocks == nullptr)
+    if (!MinBlocks)
       return nullptr;
   }
 
+  if (MaxBlocks) {
+    // '.maxclusterrank' ptx directive requires .target sm_90 or higher.
+    auto SM = getCudaArch(Context.getTargetInfo());
+    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+      Diag(MaxBlocks->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
+          << CudaArchToString(SM) << CI << MaxBlocks->getSourceRange();
+      // Ignore it by setting MaxBlocks to null;
+      MaxBlocks = nullptr;
+    } else {
+      MaxBlocks = makeLaunchBoundsArgExpr(*this, MaxBlocks, TmpAttr, 2);
+      if (!MaxBlocks)
+        return nullptr;
+    }
+  }
+
   return ::new (Context)
-      CUDALaunchBoundsAttr(Context, CI, MaxThreads, MinBlocks);
+      CUDALaunchBoundsAttr(Context, CI, MaxThreads, MinBlocks, MaxBlocks);
 }
 
 void Sema::AddLaunchBoundsAttr(Decl *D, const AttributeCommonInfo &CI,
-                               Expr *MaxThreads, Expr *MinBlocks) {
-  if (auto *Attr = CreateLaunchBoundsAttr(CI, MaxThreads, MinBlocks))
+                               Expr *MaxThreads, Expr *MinBlocks,
+                               Expr *MaxBlocks) {
+  if (auto *Attr = CreateLaunchBoundsAttr(CI, MaxThreads, MinBlocks, MaxBlocks))
     D->addAttr(Attr);
 }
 
 static void handleLaunchBoundsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 2))
+  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
     return;
 
   S.AddLaunchBoundsAttr(D, AL, AL.getArgAsExpr(0),
-                        AL.getNumArgs() > 1 ? AL.getArgAsExpr(1) : nullptr);
+                        AL.getNumArgs() > 1 ? AL.getArgAsExpr(1) : nullptr,
+                        AL.getNumArgs() > 2 ? AL.getArgAsExpr(2) : nullptr);
 }
 
 static void handleArgumentWithTypeTagAttr(Sema &S, Decl *D,
@@ -7585,8 +7614,6 @@ static void handleSYCLIntelMaxReplicatesAttr(Sema &S, Decl *D,
 /// second is a direction.  The direction must be "depth" or "width".
 /// This is incompatible with the register attribute.
 static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelMergeAttr>(S, D, AL);
-
   SmallVector<StringRef, 2> Results;
   for (int I = 0; I < 2; I++) {
     StringRef Str;
@@ -7598,6 +7625,19 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       return;
     }
     Results.push_back(Str);
+  }
+
+  // Warn about duplicate attributes if they have different arguments, no
+  // diagnostic is emitted if the arguments match, and drop any duplicate
+  // attributes.
+  if (const auto *Existing = D->getAttr<SYCLIntelMergeAttr>()) {
+    if (Existing && !(Existing->getName() == Results[0] &&
+                      Existing->getDirection() == Results[1])) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute) << AL;
+      S.Diag(Existing->getLoc(), diag::note_previous_attribute);
+    }
+    // If there is no mismatch, drop any duplicate attributes.
+    return;
   }
 
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
@@ -7754,10 +7794,9 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
       return;
     E = Res.get();
 
-    // This attribute requires a range of values.
+    // This attribute accepts values 0 and 1 only.
     if (ArgVal < 0 || ArgVal > 1) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_out_of_range)
-          << CI << 0 << 1 << E->getSourceRange();
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
       return;
     }
 
@@ -8184,11 +8223,11 @@ void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
                                               MutableArrayRef<Expr *> Args) {
   if (const auto *FuncD = dyn_cast<FunctionDecl>(D)) {
     if (FuncD->isDefaulted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 1;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 0;
       return;
     }
     if (FuncD->isDeleted()) {
-      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 2;
+      Diag(CI.getLoc(), diag::err_disallow_attribute_on_func) << CI << 1;
       return;
     }
   }
@@ -8688,7 +8727,7 @@ static void handleObjCRequiresSuperAttr(Sema &S, Decl *D,
   const auto *Method = cast<ObjCMethodDecl>(D);
 
   const DeclContext *DC = Method->getDeclContext();
-  if (const auto *PDecl = dyn_cast_or_null<ObjCProtocolDecl>(DC)) {
+  if (const auto *PDecl = dyn_cast_if_present<ObjCProtocolDecl>(DC)) {
     S.Diag(D->getBeginLoc(), diag::warn_objc_requires_super_protocol) << Attrs
                                                                       << 0;
     S.Diag(PDecl->getLocation(), diag::note_protocol_decl);
@@ -10875,6 +10914,134 @@ static void handleZeroCallUsedRegsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(ZeroCallUsedRegsAttr::Create(S.Context, Kind, AL));
 }
 
+static void handleCountedByAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.isArgIdent(0)) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  IdentifierLoc *IL = AL.getArgAsIdent(0);
+  CountedByAttr *CBA =
+      ::new (S.Context) CountedByAttr(S.Context, AL, IL->Ident);
+  CBA->setCountedByFieldLoc(IL->Loc);
+  D->addAttr(CBA);
+}
+
+namespace {
+
+// Callback to only accept typo corrections that are for field members of
+// the given struct or union.
+class FieldDeclValidatorCCC final : public CorrectionCandidateCallback {
+public:
+  explicit FieldDeclValidatorCCC(const RecordDecl *RD) : Record(RD) {}
+
+  bool ValidateCandidate(const TypoCorrection &candidate) override {
+    FieldDecl *FD = candidate.getCorrectionDeclAs<FieldDecl>();
+    return FD && FD->getDeclContext()->getRedeclContext()->Equals(Record);
+  }
+
+  std::unique_ptr<CorrectionCandidateCallback> clone() override {
+    return std::make_unique<FieldDeclValidatorCCC>(*this);
+  }
+
+private:
+  const RecordDecl *Record;
+};
+
+} // end anonymous namespace
+
+bool Sema::CheckCountedByAttr(Scope *S, const FieldDecl *FD) {
+  const RecordDecl *RD = FD->getParent();
+  const auto *CBA = FD->getAttr<CountedByAttr>();
+  const IdentifierInfo *FieldName = CBA->getCountedByField();
+
+  auto Pred = [&](const Decl *D) {
+    if (const auto *Field = dyn_cast<FieldDecl>(D))
+      return Field->getName() == FieldName->getName();
+    return false;
+  };
+  const FieldDecl *Field = RD->findFieldIf(Pred);
+
+  if (!Field) {
+    // The "counted_by" field needs to exist within the struct.
+    DeclarationNameInfo NameInfo(FieldName,
+                                 CBA->getCountedByFieldLoc().getBegin());
+    LookupResult Result(*this, NameInfo, Sema::LookupOrdinaryName);
+
+    LookupName(Result, S);
+    if (Result.getResultKind() == LookupResult::Found) {
+      SourceRange SR = CBA->getCountedByFieldLoc();
+      Diag(SR.getBegin(),
+           diag::err_flexible_array_counted_by_attr_field_not_found_in_struct)
+          << CBA->getCountedByField() << SR;
+
+      SR = Result.getAsSingle<NamedDecl>()->getSourceRange();
+      Diag(SR.getBegin(), diag::note_var_declared_here)
+          << Result.getAsSingle<NamedDecl>() << SR;
+    } else {
+      SourceRange SR = CBA->getCountedByFieldLoc();
+      FieldDeclValidatorCCC CCC(RD);
+
+      if (TypoCorrection Corrected =
+              CorrectTypo(NameInfo, Sema::LookupMemberName, /*Scope=*/nullptr,
+                          /*SS=*/nullptr, CCC, Sema::CTK_ErrorRecovery,
+                          const_cast<RecordDecl *>(RD))) {
+        diagnoseTypo(
+            Corrected,
+            PDiag(
+                diag::
+                    err_flexible_array_counted_by_attr_field_not_found_suggest)
+                << FieldName);
+      } else {
+        Diag(SR.getBegin(),
+             diag::err_flexible_array_counted_by_attr_field_not_found)
+            << CBA->getCountedByField() << SR;
+      }
+    }
+
+    return true;
+  }
+
+  LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
+      Context.getLangOpts().getStrictFlexArraysLevel();
+
+  if (!Decl::isFlexibleArrayMemberLike(Context, FD, FD->getType(),
+                                       StrictFlexArraysLevel, true)) {
+    // The "counted_by" attribute must be on a flexible array member.
+    SourceRange SR = FD->getLocation();
+    Diag(SR.getBegin(),
+         diag::err_counted_by_attr_not_on_flexible_array_member)
+        << SR;
+    return true;
+  }
+
+  if (Field->hasAttr<CountedByAttr>()) {
+    // The "counted_by" field can't point to the flexible array member.
+    SourceRange SR = CBA->getCountedByFieldLoc();
+    Diag(SR.getBegin(),
+         diag::err_flexible_array_counted_by_attr_refers_to_self)
+        << CBA->getCountedByField() << SR;
+    return true;
+  }
+
+  if (!Field->getType()->isIntegerType() ||
+      Field->getType()->isBooleanType()) {
+    // The "counted_by" field must have an integer type.
+    SourceRange SR = Field->getLocation();
+    Diag(SR.getBegin(),
+         diag::err_flexible_array_counted_by_attr_field_not_integer)
+        << Field << SR;
+
+    SR = CBA->getCountedByFieldLoc();
+    Diag(SR.getBegin(), diag::note_flexible_array_counted_by_attr_field)
+        << CBA->getCountedByField() << SR;
+    return true;
+  }
+
+  return false;
+}
+
 static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,
                                            const ParsedAttr &AL) {
   StringRef KindStr;
@@ -11012,6 +11179,10 @@ static void handleNoMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   D->addAttr(NoMergeAttr::Create(S.Context, AL));
+}
+
+static void handleNoUniqueAddressAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  D->addAttr(NoUniqueAddressAttr::Create(S.Context, AL));
 }
 
 static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -12018,9 +12189,16 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_NoMerge:
     handleNoMergeAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_NoUniqueAddress:
+    handleNoUniqueAddressAttr(S, D, AL);
+    break;
 
   case ParsedAttr::AT_AvailableOnlyInDefaultEvalMethod:
     handleAvailableOnlyInDefaultEvalMethod(S, D, AL);
+    break;
+
+  case ParsedAttr::AT_CountedBy:
+    handleCountedByAttr(S, D, AL);
     break;
 
   // Microsoft attributes:
