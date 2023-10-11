@@ -18,12 +18,13 @@ namespace experimental {
 
 template <typename T, typename ListA, typename ListB>
 using CheckDevicePtrTAndPropLists =
-    CheckTAndPropListsWithUsmKind<sycl::usm::alloc::device, T, ListA, ListB>;
+    typename detail::CheckTAndPropListsWithUsmKind<sycl::usm::alloc::device, T,
+                                                   ListA, ListB>;
 
 template <typename PropertyListT>
 using GetAnnotatedDevicePtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::device,
-                                         PropertyListT>;
+    detail::GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::device,
+                                                 PropertyListT>;
 
 ////
 //  "aligned_alloc_device_annotated": aligned device USM allocation functions

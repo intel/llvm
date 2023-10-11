@@ -17,6 +17,8 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
+namespace detail {
+
 ////
 //  Type traits for USM allocation with property support
 ////
@@ -213,6 +215,8 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
                         typename GetAnnotatedPtrPropertiesWithUsmKind<
                             Kind, detail::properties_t<PropsA...>>::type>> {};
 
+} // namespace detail
+
 ////
 //  Utility functions for USM allocation with property support
 ////
@@ -221,10 +225,10 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 // runtime). Right now only the `buffer_location<N>` has its corresponding USM
 // runtime property and is transformable
 template <typename PropertyListT> inline property_list get_usm_property_list() {
-  if constexpr (HasBufferLocation<PropertyListT>::value) {
+  if constexpr (detail::HasBufferLocation<PropertyListT>::value) {
     return property_list{
         sycl::ext::intel::experimental::property::usm::buffer_location(
-            GetBufferLocationFromPropList<PropertyListT>::value)};
+            detail::GetBufferLocationFromPropList<PropertyListT>::value)};
   }
   return {};
 }

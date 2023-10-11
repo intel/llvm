@@ -17,11 +17,13 @@ using alloc = sycl::usm::alloc;
 
 namespace sycl {
 namespace ext::oneapi::experimental {
+namespace detail {
 
 // Make runtime property `foo` and `foz` valid for this test
 template <> struct IsRuntimePropertyValid<foo_key> : std::true_type {};
 template <> struct IsRuntimePropertyValid<foz_key> : std::true_type {};
 
+} // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace sycl
 

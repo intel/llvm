@@ -18,12 +18,13 @@ namespace experimental {
 
 template <typename T, typename ListA, typename ListB>
 using CheckSharedPtrTAndPropLists =
-    CheckTAndPropListsWithUsmKind<sycl::usm::alloc::shared, T, ListA, ListB>;
+    typename detail::CheckTAndPropListsWithUsmKind<sycl::usm::alloc::shared, T,
+                                                   ListA, ListB>;
 
 template <typename PropertyListT>
 using GetAnnotatedSharedPtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::shared,
-                                         PropertyListT>;
+    detail::GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::shared,
+                                                 PropertyListT>;
 
 ////
 //  Aligned shared USM allocation functions with properties support

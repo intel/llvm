@@ -18,11 +18,13 @@ namespace experimental {
 
 template <typename T, typename ListA, typename ListB>
 using CheckHostPtrTAndPropLists =
-    CheckTAndPropListsWithUsmKind<sycl::usm::alloc::host, T, ListA, ListB>;
+    typename detail::CheckTAndPropListsWithUsmKind<sycl::usm::alloc::host, T,
+                                                   ListA, ListB>;
 
 template <typename PropertyListT>
 using GetAnnotatedHostPtrProperties =
-    GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::host, PropertyListT>;
+    detail::GetAnnotatedPtrPropertiesWithUsmKind<sycl::usm::alloc::host,
+                                                 PropertyListT>;
 
 ////
 //  "aligned_alloc_host_annotated": Aligned host USM allocation functions with
