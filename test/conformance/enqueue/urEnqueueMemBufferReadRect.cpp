@@ -188,7 +188,8 @@ TEST_P(urEnqueueMemBufferReadRectTest, InvalidNullPtrEventWaitList) {
 using urEnqueueMemBufferReadRectMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
 
-TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest, WriteReadDifferentQueues) {
+TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest,
+       WriteRectReadDifferentQueues) {
     // First queue does a blocking write of 42 into the buffer.
     // Then a rectangular write the buffer as 1024x1x1 1D.
     std::vector<uint32_t> input(count, 42);
