@@ -411,7 +411,7 @@ void joint_matrix_apply(joint_matrix_hip<S, Use, M, N, Layout> &jm,
   } else if constexpr (
       Use != sycl::ext::oneapi::experimental::matrix::use::accumulator ||
       (Use == sycl::ext::oneapi::experimental::matrix::use::accumulator &&
-       NumRows == 16)) {
+       M == 16)) {
     for (auto i = 0; i < 4; ++i)
       jm.data[i] = lambda(jm.data[i]);
   } else {
