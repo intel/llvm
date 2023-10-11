@@ -74,8 +74,10 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     // C++ guarantees members appear in memory in the order they are declared,
     // so since the member variable that contains the initial contents of the
     // device_global is right after the usm_ptr member variable we can do
-    // some pointer arithmetic to memcopy over this value to the usm_ptr.
-    MemoryManager::copy_usm(MDeviceGlobalPtr + sizeof(MDeviceGlobalPtr),
+    // some pointer arithmetic to memcopy over this value to the usm_ptr. This
+    // value inside of the device_global will be zero-initialized if it was not
+    // given a value on construction.
+    MemoryManager::copy_usm(MDeviceGlobalPtr + sizeof(uintptr_t),
                             QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
                             std::vector<sycl::detail::pi::PiEvent>{},
                             &InitEvent);
