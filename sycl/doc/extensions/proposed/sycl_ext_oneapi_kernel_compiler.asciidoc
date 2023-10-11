@@ -163,6 +163,8 @@ _Effects:_ Creates a new kernel bundle that represents a kernel that is defined
 by the source code string `source` using the language `lang`.
 The bundle is associated with the context `ctxt`, and kernels from this bundle
 may only be submitted to a queue that shares the same context.
+The bundle's set of associated devices is the set of devices contained in
+`ctxt`.
 
 _Returns:_ The newly created kernel bundle, which has `ext_oneapi_source`
 state.
@@ -351,7 +353,6 @@ member functions from the core SYCL specification:
 This new constraint applies to the following member functions:
 
 * `empty`;
-* `get_devices`;
 * All overloads and function templates of `has_kernel`;
 * `get_kernel_ids`;
 * `contains_specialization_constants`;
@@ -363,7 +364,7 @@ This new constraint applies to the following member functions:
 
 As a result, the only `kernel_bundle` member functions from the core SYCL
 specification that are available for bundles in `ext_oneapi_source` state are
-`get_backend` and `get_context`.
+`get_backend`, `get_context`, and `get_devices`.
 
 === Interaction with existing kernel bundle member functions
 
