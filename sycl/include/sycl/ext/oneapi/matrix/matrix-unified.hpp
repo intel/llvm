@@ -87,21 +87,12 @@ public:
   size_t length() {
 #if defined(__NVPTX__)
     return jm.cuda_impl.wi_marray.size();
-#else
-    throw runtime_error(
-        "get_wi_data is unavailable, use joint_matrix_copy instead.",
-        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 
   decltype(auto) operator[](size_t i) {
 #if defined(__NVPTX__)
     return (jm.cuda_impl.wi_marray[i]);
-#else
-    std::ignore = i;
-    throw runtime_error(
-        "get_wi_data is unavailable, use joint_matrix_copy instead.",
-        PI_ERROR_INVALID_DEVICE);
 #endif
   };
 };
@@ -129,9 +120,8 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
 __SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
                       "use joint_matrix_apply() instead.")
 #else
-__attribute__((
-    unavailable("get_wi_data can't be used on intel device, please use "
-                "joint_matrix_apply instead!")))
+__attribute__((unavailable("get_wi_data() has been removed from the API and "
+                           "replaced with joint_matrix_apply!")))
 #endif
 #endif
 inline __SYCL_ALWAYS_INLINE decltype(auto)

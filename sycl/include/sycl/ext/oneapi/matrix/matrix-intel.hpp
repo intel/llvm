@@ -522,12 +522,13 @@ joint_matrix_store(Group,
 }
 
 template <typename Group, typename T,
-          sycl::ext::oneapi::experimental::matrix::use Use, size_t M, size_t N,
-          sycl::ext::oneapi::experimental::matrix::layout Layout, typename F>
+          sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout,
+          typename F>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
     Group sg,
-    sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, M, N,
-                                                          Layout> &jm,
+    sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows,
+                                                          Cols, Layout> &jm,
     F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -554,7 +555,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
-  return;
 }
 
 } // namespace intel::experimental::matrix
