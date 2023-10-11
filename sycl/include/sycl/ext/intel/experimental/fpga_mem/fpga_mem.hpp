@@ -82,7 +82,7 @@ using properties_t = ext::oneapi::experimental::detail::properties_t<Props...>;
 
 // Empty property list specialization
 template <typename T, typename PropertyListT =
-                          ext::oneapi::experimental::detail::empty_properties_t>
+                          ext::oneapi::experimental::empty_properties_t>
 class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable("sycl-resource",
@@ -90,7 +90,7 @@ class
 #endif
     fpga_mem : public detail::fpga_mem_base<T> {
 
-  using property_list_t = ext::oneapi::experimental::detail::empty_properties_t;
+  using property_list_t = ext::oneapi::experimental::empty_properties_t;
 
   // Inherits the base class' constructors
   using detail::fpga_mem_base<T>::fpga_mem_base;

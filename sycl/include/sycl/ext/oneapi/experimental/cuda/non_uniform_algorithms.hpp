@@ -24,40 +24,40 @@ using IsRedux = std::bool_constant<
 //// Masked reductions using redux.sync, requires integer types
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<
-    is_sugeninteger<T>::value && IsMinimum<T, BinaryOperation>::value, T>
+std::enable_if_t<is_sugeninteger_v<T> && IsMinimum<T, BinaryOperation>::value,
+                 T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_umin(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<
-    is_sigeninteger<T>::value && IsMinimum<T, BinaryOperation>::value, T>
+std::enable_if_t<is_sigeninteger_v<T> && IsMinimum<T, BinaryOperation>::value,
+                 T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_min(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<
-    is_sugeninteger<T>::value && IsMaximum<T, BinaryOperation>::value, T>
+std::enable_if_t<is_sugeninteger_v<T> && IsMaximum<T, BinaryOperation>::value,
+                 T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_umax(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<
-    is_sigeninteger<T>::value && IsMaximum<T, BinaryOperation>::value, T>
+std::enable_if_t<is_sigeninteger_v<T> && IsMaximum<T, BinaryOperation>::value,
+                 T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
   return __nvvm_redux_sync_max(x, MemberMask);
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
-                     IsPlus<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> ||
+                  is_sigeninteger_v<T>)&&IsPlus<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -65,8 +65,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
-                     IsBitAND<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> ||
+                  is_sigeninteger_v<T>)&&IsBitAND<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -74,8 +74,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
-                     IsBitOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> ||
+                  is_sigeninteger_v<T>)&&IsBitOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -83,8 +83,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger<T>::value || is_sigeninteger<T>::value) &&
-                     IsBitXOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> ||
+                  is_sigeninteger_v<T>)&&IsBitXOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {

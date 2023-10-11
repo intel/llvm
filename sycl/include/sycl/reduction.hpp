@@ -117,9 +117,8 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                        is_sgeninteger<T>::value) &&
-                       IsValidAtomicType<T>::value &&
+    std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
+                        is_sgeninteger_v<T>)&&IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value ||
@@ -144,7 +143,7 @@ using IsReduOptForAtomic64Op =
     std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value) &&
-                       is_sgenfloat<T>::value && sizeof(T) == 8>;
+                       is_sgenfloat_v<T> && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -157,12 +156,11 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<((is_sgeninteger<T>::value &&
-                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                        is_sgenfloat<T>::value) &&
-                       (IsPlus<T, BinaryOperation>::value ||
-                        IsMinimum<T, BinaryOperation>::value ||
-                        IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<(
+        (is_sgeninteger_v<T> && (sizeof(T) == 4 || sizeof(T) == 8)) ||
+        is_sgenfloat_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
+                             IsMinimum<T, BinaryOperation>::value ||
+                             IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -257,7 +255,7 @@ template <class Reducer> class combiner {
 public:
   template <typename _T = Ty, int _Dims = Dims>
   std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                       is_geninteger<_T>::value,
+                       is_geninteger_v<_T>,
                    Reducer &>
   operator++() {
     return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
@@ -265,7 +263,7 @@ public:
 
   template <typename _T = Ty, int _Dims = Dims>
   std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                       is_geninteger<_T>::value,
+                       is_geninteger_v<_T>,
                    Reducer &>
   operator++(int) {
     return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
