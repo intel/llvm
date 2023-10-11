@@ -11,7 +11,6 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
-using namespace sycl::ext::oneapi::experimental;
 
 constexpr int N = 60; // divisible by all tested array sizes
 constexpr float bf16_eps = 0.00390625;
@@ -39,7 +38,7 @@ bool check(bool a, bool b) { return (a != b); }
       accessor<int, 1, access::mode::write, target::device> ERR(err_buf, cgh); \
       cgh.parallel_for(N, [=](id<1> index) {                                   \
         float ABF16 = float{bfloat16{A[index]}};                               \
-        if (check(sycl::ext::oneapi::experimental::NAME(bfloat16{A[index]}),   \
+        if (check(sycl::ext::oneapi::NAME(bfloat16{A[index]}),                 \
                   sycl::NAME(ABF16))) {                                        \
           ERR[0] = 1;                                                          \
         }                                                                      \
