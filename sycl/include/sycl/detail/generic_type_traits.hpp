@@ -663,7 +663,8 @@ template <int N> struct GetNumElements<typename sycl::detail::Boolean<N>> {
 // Used for relational comparison built-in functions
 template <typename T> struct RelationalReturnType {
 #ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<GetNumElements<T>::value>;
+  static constexpr int N = GetNumElements<T>::value;
+  using type = std::conditional_t<N == 1, bool, Boolean<N>>;
 #else
   using type = common_rel_ret_t<T>;
 #endif
@@ -676,8 +677,9 @@ using internal_rel_ret_t = typename RelationalReturnType<T>::type;
 // Used for any and all built-in functions
 template <typename T> struct RelationalTestForSignBitType {
 #ifdef __SYCL_DEVICE_ONLY__
-  using return_type = detail::Boolean<1>;
-  using argument_type = detail::Boolean<GetNumElements<T>::value>;
+  using return_type = bool;
+  static constexpr int N = GetNumElements<T>::value;
+  using argument_type = std::conditional_t<N == 1, bool, detail::Boolean<N>>;
 #else
   using return_type = int;
   using argument_type = T;
@@ -719,17 +721,14 @@ struct RelConverter<T,
   }
 };
 
-template <typename T>
-struct RelConverter<T,
-                    typename std::enable_if_t<!TryToGetElementType<T>::value>> {
-  using R = internal_rel_ret_t<T>;
+template <> struct RelConverter<bool, void> {
 #ifdef __SYCL_DEVICE_ONLY__
-  using value_t = bool;
+  using R = bool;
 #else
-  using value_t = R;
+  using R = bool;
 #endif
 
-  static R apply(value_t value) { return value; }
+  static R apply(bool value) { return value; }
 };
 
 template <typename T> static constexpr T max_v() {

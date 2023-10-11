@@ -102,32 +102,6 @@ private:
   alignas(detail::vector_alignment<element_type, N>::value) DataType value;
 };
 
-template <> struct Boolean<1> {
-  Boolean() = default;
-
-  // Build from a signed interger type
-  template <typename T> Boolean(T val) : value(val) {
-    static_assert(is_sgeninteger_v<T>, "Invalid constructor");
-  }
-
-  // Cast to a signed interger type
-  template <typename T> operator T() const {
-    static_assert(std::is_same<T, bool>::value || is_sgeninteger_v<T>,
-                  "Invalid conversion");
-    return value;
-  }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  // Build from a boolean type
-  Boolean(bool f) : value(f) {}
-  // Cast to a boolean type
-  operator bool() const { return value; }
-#endif
-
-private:
-  alignas(1) bool value = false;
-};
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
