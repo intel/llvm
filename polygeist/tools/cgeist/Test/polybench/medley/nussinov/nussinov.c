@@ -186,30 +186,33 @@ int main(int argc, char** argv)
 // CHECK-SAME:                    %[[VAL_0:.*]]: i32,
 // CHECK-SAME:                    %[[VAL_1:.*]]: memref<?xmemref<?xi8>>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK:           %[[VAL_2:.*]] = arith.constant 1 : i32
-// CHECK:           %[[VAL_3:.*]] = arith.constant 42 : i32
-// CHECK:           %[[VAL_4:.*]] = arith.constant 0 : i32
-// CHECK:           %[[VAL_5:.*]] = arith.constant 2500 : i64
-// CHECK:           %[[VAL_6:.*]] = arith.constant 2500 : i32
-// CHECK:           %[[VAL_7:.*]] = call @polybench_alloc_data(%[[VAL_5]], %[[VAL_2]]) : (i64, i32) -> !llvm.ptr
-// CHECK:           %[[VAL_8:.*]] = memref.alloc() : memref<2500x2500xi32>
-// CHECK:           %[[VAL_9:.*]] = memref.cast %[[VAL_8]] : memref<2500x2500xi32> to memref<?x2500xi32>
-// CHECK:           %[[VAL_10:.*]] = "polygeist.pointer2memref"(%[[VAL_7]]) : (!llvm.ptr) -> memref<?xi8>
-// CHECK:           call @init_array(%[[VAL_6]], %[[VAL_10]], %[[VAL_9]]) : (i32, memref<?xi8>, memref<?x2500xi32>) -> ()
-// CHECK:           call @kernel_nussinov(%[[VAL_6]], %[[VAL_10]], %[[VAL_9]]) : (i32, memref<?xi8>, memref<?x2500xi32>) -> ()
-// CHECK:           %[[VAL_11:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_3]] : i32
-// CHECK:           scf.if %[[VAL_11]] {
-// CHECK:             %[[VAL_12:.*]] = affine.load %[[VAL_1]][0] : memref<?xmemref<?xi8>>
-// CHECK:             %[[VAL_13:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
-// CHECK:             %[[VAL_14:.*]] = "polygeist.pointer2memref"(%[[VAL_13]]) : (!llvm.ptr) -> memref<?xi8>
-// CHECK:             %[[VAL_16:.*]] = func.call @strcmp(%[[VAL_12]], %[[VAL_14]]) : (memref<?xi8>, memref<?xi8>) -> i32
-// CHECK:             %[[VAL_17:.*]] = arith.cmpi eq, %[[VAL_16]], %[[VAL_4]] : i32
-// CHECK:             scf.if %[[VAL_17]] {
-// CHECK:               func.call @print_array(%[[VAL_6]], %[[VAL_9]]) : (i32, memref<?x2500xi32>) -> ()
+// CHECK:           %[[VAL_3:.*]] = arith.constant 4 : i32
+// CHECK:           %[[VAL_4:.*]] = arith.constant 42 : i32
+// CHECK:           %[[VAL_5:.*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_6:.*]] = arith.constant 6250000 : i64
+// CHECK:           %[[VAL_7:.*]] = arith.constant 2500 : i64
+// CHECK:           %[[VAL_8:.*]] = arith.constant 2500 : i32
+// CHECK:           %[[VAL_9:.*]] = call @polybench_alloc_data(%[[VAL_7]], %[[VAL_2]]) : (i64, i32) -> !llvm.ptr
+// CHECK:           %[[VAL_10:.*]] = call @polybench_alloc_data(%[[VAL_6]], %[[VAL_3]]) : (i64, i32) -> !llvm.ptr
+// CHECK:           %[[VAL_11:.*]] = "polygeist.pointer2memref"(%[[VAL_10]]) : (!llvm.ptr) -> memref<2500x2500xi32>
+// CHECK:           %[[VAL_12:.*]] = "polygeist.pointer2memref"(%[[VAL_10]]) : (!llvm.ptr) -> memref<?x2500xi32>
+// CHECK:           %[[VAL_13:.*]] = "polygeist.pointer2memref"(%[[VAL_9]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK:           call @init_array(%[[VAL_8]], %[[VAL_13]], %[[VAL_12]]) : (i32, memref<?xi8>, memref<?x2500xi32>) -> ()
+// CHECK:           call @kernel_nussinov(%[[VAL_8]], %[[VAL_13]], %[[VAL_12]]) : (i32, memref<?xi8>, memref<?x2500xi32>) -> ()
+// CHECK:           %[[VAL_14:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_4]] : i32
+// CHECK:           scf.if %[[VAL_14]] {
+// CHECK:             %[[VAL_15:.*]] = affine.load %[[VAL_1]][0] : memref<?xmemref<?xi8>>
+// CHECK:             %[[VAL_16:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
+// CHECK:             %[[VAL_17:.*]] = "polygeist.pointer2memref"(%[[VAL_16]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK:             %[[VAL_18:.*]] = func.call @strcmp(%[[VAL_15]], %[[VAL_17]]) : (memref<?xi8>, memref<?xi8>) -> i32
+// CHECK:             %[[VAL_19:.*]] = arith.cmpi eq, %[[VAL_18]], %[[VAL_5]] : i32
+// CHECK:             scf.if %[[VAL_19]] {
+// CHECK:               func.call @print_array(%[[VAL_8]], %[[VAL_12]]) : (i32, memref<?x2500xi32>) -> ()
 // CHECK:             }
 // CHECK:           }
-// CHECK:           call @free(%[[VAL_7]]) : (!llvm.ptr) -> ()
-// CHECK:           memref.dealloc %[[VAL_8]] : memref<2500x2500xi32>
-// CHECK:           return %[[VAL_4]] : i32
+// CHECK:           call @free(%[[VAL_9]]) : (!llvm.ptr) -> ()
+// CHECK:           memref.dealloc %[[VAL_11]] : memref<2500x2500xi32>
+// CHECK:           return %[[VAL_5]] : i32
 // CHECK:         }
 
 // CHECK-LABEL:   func.func private @polybench_alloc_data(
