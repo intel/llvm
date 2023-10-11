@@ -1128,7 +1128,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
   // optimizations.  They are passed along to the respective areas as follows:
   // FPGA:  -g -cl-opt-disable
   // Default device AOT: -g -cl-opt-disable
-  // Default device JIT: -g (-cl-opt-disable is handled by the runtime)
+  // Default device JIT: -g (-O0 is handled by the runtime)
   // GEN:  -options "-g -O0"
   // CPU:  "--bo=-g -cl-opt-disable"
   llvm::opt::ArgStringList BeArgs;
@@ -1137,7 +1137,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
   // Only pass -cl-opt-disable for non-JIT, as the runtime
-  // handles it in that case.
+  // handles O0 in that case.
   if (Triple.getSubArch() != llvm::Triple::NoSubArch)
     if (Arg *A = Args.getLastArg(options::OPT_O_Group))
       if (A->getOption().matches(options::OPT_O0))
