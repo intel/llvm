@@ -117,7 +117,7 @@ int main() {
   matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
                       MATRIX_N, MATRIX_K / 2);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, C, D);
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }

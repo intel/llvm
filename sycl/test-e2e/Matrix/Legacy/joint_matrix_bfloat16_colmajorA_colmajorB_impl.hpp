@@ -104,7 +104,7 @@ int main() {
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref(MATRIX_M, MATRIX_N, MATRIX_K);
 
-  bool res = matrix_compare(MATRIX_M, MATRIX_N, C, D);
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }
