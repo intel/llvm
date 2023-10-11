@@ -57,6 +57,66 @@
 // CREATE_IMAGE_PHASES: 28: assembler, {27}, object, (host-sycl)
 // CREATE_IMAGE_PHASES: 29: clang-offload-bundler, {21, 28}, object, (host-sycl)
 
+// Use of -fno-sycl-rdc -c with non-AOT should not perform the device link.
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64 \
+// RUN:          --target=x86_64-unknown-linux-gnu -ccc-print-phases %s \
+// RUN:          -fno-sycl-device-lib=all 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=JIT_ONLY_PHASES
+// JIT_ONLY_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
+// JIT_ONLY_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// JIT_ONLY_PHASES: 2: compiler, {1}, ir, (device-sycl)
+// JIT_ONLY_PHASES: 3: offload, "device-sycl (spir64-unknown-unknown)" {2}, ir
+// JIT_ONLY_PHASES: 4: input, "[[INPUT]]", c++, (host-sycl)
+// JIT_ONLY_PHASES: 5: append-footer, {4}, c++, (host-sycl)
+// JIT_ONLY_PHASES: 6: preprocessor, {5}, c++-cpp-output, (host-sycl)
+// JIT_ONLY_PHASES: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {6}, "device-sycl (spir64-unknown-unknown)" {2}, c++-cpp-output
+// JIT_ONLY_PHASES: 8: compiler, {7}, ir, (host-sycl)
+// JIT_ONLY_PHASES: 9: backend, {8}, assembler, (host-sycl)
+// JIT_ONLY_PHASES: 10: assembler, {9}, object, (host-sycl)
+// JIT_ONLY_PHASES: 11: clang-offload-bundler, {3, 10}, object, (host-sycl)
+
+// Mix and match JIT and AOT phases check.  Expectation is for AOT to perform
+// early device link, and JIT to just produce the LLVM-IR.
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64,spir64_gen \
+// RUN:          --target=x86_64-unknown-linux-gnu \
+// RUN:          -Xsycl-target-backend=spir64_gen "-device skl" \
+// RUN:          -ccc-print-phases %s -fno-sycl-device-lib=all 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=JIT_AOT_PHASES
+// JIT_AOT_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
+// JIT_AOT_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// JIT_AOT_PHASES: 2: compiler, {1}, ir, (device-sycl)
+// JIT_AOT_PHASES: 3: offload, "device-sycl (spir64-unknown-unknown)" {2}, ir
+// JIT_AOT_PHASES: 4: input, "[[INPUT]]", c++, (device-sycl)
+// JIT_AOT_PHASES: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// JIT_AOT_PHASES: 6: compiler, {5}, ir, (device-sycl)
+// JIT_AOT_PHASES: 7: input, "{{.*libsycl-itt-user-wrappers.o.*}}", object
+// JIT_AOT_PHASES: 8: clang-offload-unbundler, {7}, object
+// JIT_AOT_PHASES: 9: offload, " (spir64_gen-unknown-unknown)" {8}, object
+// JIT_AOT_PHASES: 10: input, "{{.*libsycl-itt-compiler-wrappers.o.*}}", object
+// JIT_AOT_PHASES: 11: clang-offload-unbundler, {10}, object
+// JIT_AOT_PHASES: 12: offload, " (spir64_gen-unknown-unknown)" {11}, object
+// JIT_AOT_PHASES: 13: input, "{{.*libsycl-itt-stubs.o.*}}", object
+// JIT_AOT_PHASES: 14: clang-offload-unbundler, {13}, object
+// JIT_AOT_PHASES: 15: offload, " (spir64_gen-unknown-unknown)" {14}, object
+// JIT_AOT_PHASES: 16: linker, {9, 12, 15}, ir, (device-sycl)
+// JIT_AOT_PHASES: 17: linker, {6, 16}, ir, (device-sycl)
+// JIT_AOT_PHASES: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
+// JIT_AOT_PHASES: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
+// JIT_AOT_PHASES: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
+// JIT_AOT_PHASES: 21: backend-compiler, {20}, image, (device-sycl)
+// JIT_AOT_PHASES: 22: file-table-tform, {18, 21}, tempfiletable, (device-sycl)
+// JIT_AOT_PHASES: 23: clang-offload-wrapper, {22}, object, (device-sycl)
+// JIT_AOT_PHASES: 24: offload, "device-sycl (spir64_gen-unknown-unknown)" {23}, object
+// JIT_AOT_PHASES: 25: offload, "device-sycl (spir64_gen-unknown-unknown)" {24}, object
+// JIT_AOT_PHASES: 26: input, "[[INPUT]]", c++, (host-sycl)
+// JIT_AOT_PHASES: 27: append-footer, {26}, c++, (host-sycl)
+// JIT_AOT_PHASES: 28: preprocessor, {27}, c++-cpp-output, (host-sycl)
+// JIT_AOT_PHASES: 29: offload, "host-sycl (x86_64-unknown-linux-gnu)" {28}, "device-sycl (spir64_gen-unknown-unknown)" {24}, c++-cpp-output
+// JIT_AOT_PHASES: 30: compiler, {29}, ir, (host-sycl)
+// JIT_AOT_PHASES: 31: backend, {30}, assembler, (host-sycl)
+// JIT_AOT_PHASES: 32: assembler, {31}, object, (host-sycl)
+// JIT_AOT_PHASES: 33: clang-offload-bundler, {3, 25, 32}, object, (host-sycl)
+
 // Consume object and library that contain final device images.
 // RUN: %clangxx -fsycl --target=x86_64-unknown-linux-gnu -### \
 // RUN:          %S/Inputs/SYCL/objgenimage.o %s 2>&1 \
