@@ -107,14 +107,10 @@ int main() {
   sycl::vec<unsigned char, 4> vec_4(0, vec_2, 3);
 
   assert(vec_4.get_count() == 4);
-  assert(static_cast<unsigned char>(vec_4.x()) ==
-         static_cast<unsigned char>(0));
-  assert(static_cast<unsigned char>(vec_4.y()) ==
-         static_cast<unsigned char>(1));
-  assert(static_cast<unsigned char>(vec_4.z()) ==
-         static_cast<unsigned char>(2));
-  assert(static_cast<unsigned char>(vec_4.w()) ==
-         static_cast<unsigned char>(3));
+  assert(static_cast<unsigned char>(vec_4.x()) == static_cast<unsigned char>(0));
+  assert(static_cast<unsigned char>(vec_4.y()) == static_cast<unsigned char>(1));
+  assert(static_cast<unsigned char>(vec_4.z()) == static_cast<unsigned char>(2));
+  assert(static_cast<unsigned char>(vec_4.w()) == static_cast<unsigned char>(3));
 
   // explicit conversion
   int64_t(vec_2.x());
