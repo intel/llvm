@@ -400,7 +400,7 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),
                      detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{}));
+                     /*PropList=*/{sycl::property::queue::enable_profiling()}));
 }
 
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }

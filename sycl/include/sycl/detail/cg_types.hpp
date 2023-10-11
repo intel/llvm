@@ -240,8 +240,21 @@ public:
 
   bool isInteropTask() const { return !!MInteropTask; }
 
-  void call() { MHostTask(); }
-  void call(interop_handle handle) { MInteropTask(handle); }
+  void call(HostProfilingInfo *HPI) {
+    if (HPI)
+      HPI->start();
+    MHostTask();
+    if (HPI)
+      HPI->end();
+  }
+
+  void call(HostProfilingInfo *HPI, interop_handle handle) {
+    if (HPI)
+      HPI->start();
+    MInteropTask(handle);
+    if (HPI)
+      HPI->end();
+  }
 };
 
 // Class which stores specific lambda object.

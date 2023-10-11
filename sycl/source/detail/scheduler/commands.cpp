@@ -381,9 +381,9 @@ public:
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
 
-        HostTask.MHostTask->call(IH);
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
       } else
-        HostTask.MHostTask->call();
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
