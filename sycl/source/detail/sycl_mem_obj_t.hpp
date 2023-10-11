@@ -173,10 +173,14 @@ public:
            has_property<property::image::use_host_ptr>();
   }
 
-  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
+  bool canReadHostPtr(void *HostPtr, const size_t RequiredAlign) {
     bool Aligned =
         (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
-    return !MHostPtrReadOnly && (Aligned || useHostPtr());
+    return Aligned || useHostPtr();
+  }
+
+  bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
+    return !MHostPtrReadOnly && canReadHostPtr(HostPtr, RequiredAlign);
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
@@ -190,6 +194,14 @@ public:
     if (HostPtr) {
       if (canReuseHostPtr(HostPtr, RequiredAlign)) {
         MUserPtr = HostPtr;
+      } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+        };
       } else {
         setAlign(RequiredAlign);
         MShadowCopy = allocateHostMem();
@@ -213,9 +225,17 @@ public:
       if (!MHostPtrReadOnly)
         set_final_data_from_storage();
 
-      if (canReuseHostPtr(HostPtr.get(), RequiredAlign))
+      if (canReuseHostPtr(HostPtr.get(), RequiredAlign)) {
         MUserPtr = HostPtr.get();
-      else {
+      } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
+        MUserPtr = HostPtr.get();
+        MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
+          setAlign(RequiredAlign);
+          MShadowCopy = allocateHostMem();
+          MUserPtr = MShadowCopy;
+          std::memcpy(MUserPtr, HostPtr.get(), MSizeInBytes);
+        };
+      } else {
         setAlign(RequiredAlign);
         MShadowCopy = allocateHostMem();
         MUserPtr = MShadowCopy;
@@ -247,6 +267,8 @@ public:
 
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
                                      pi_native_handle MemObject);
+
+  void handleWriteAccessorCreation();
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr,
@@ -349,6 +371,10 @@ protected:
   bool MIsInternal = false;
   // The number of graphs which are currently using this memory object.
   std::atomic<size_t> MGraphUseCount = 0;
+  // Function which creates a shadow copy of the host pointer. This is used to
+  // defer the memory allocation and copying to the point where a writable
+  // accessor is created.
+  std::function<void(void)> MCreateShadowCopy = []() -> void {};
   bool MOwnNativeHandle = true;
 };
 } // namespace detail
