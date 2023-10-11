@@ -59,7 +59,7 @@ struct PropertiesFilter {
       std::tuple<>>::type...>;
 };
 } // namespace
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -143,7 +143,7 @@ annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,

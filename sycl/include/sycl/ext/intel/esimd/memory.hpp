@@ -926,7 +926,7 @@ template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE
     ESIMD_NODEBUG std::enable_if_t<(sizeof(T) <= 4) &&
                                    (N == 1 || N == 8 || N == 16 || N == 32) &&
-                                   !std::is_pointer<AccessorTy>::value>
+                                   !std::is_pointer_v<AccessorTy>>
     scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
                  uint32_t glob_offset, simd_mask<N> mask) {
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
@@ -960,7 +960,7 @@ ESIMD_INLINE
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value,
+        !std::is_pointer_v<AccessorTy>,
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
@@ -2178,9 +2178,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, mask);
@@ -2210,7 +2209,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer<AccessorTy>::value &&
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
@@ -2335,9 +2334,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd_mask<N> mask) {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), mask);
@@ -2363,9 +2361,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
 }
@@ -2482,9 +2479,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, src1, mask);
@@ -2512,9 +2508,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
