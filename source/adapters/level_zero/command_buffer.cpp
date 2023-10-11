@@ -725,34 +725,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  std::unordered_map<ur_usm_advice_flags_t, ze_memory_advice_t>
-      URToCUMemAdviseDeviceFlagsMap = {
-          {UR_USM_ADVICE_FLAG_SET_READ_MOSTLY,
-           ZE_MEMORY_ADVICE_SET_READ_MOSTLY},
-          {UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY,
-           ZE_MEMORY_ADVICE_CLEAR_READ_MOSTLY},
-          {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION,
-           ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION},
-          {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION,
-           ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION},
-          {UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY,
-           ZE_MEMORY_ADVICE_SET_NON_ATOMIC_MOSTLY},
-          {UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY,
-           ZE_MEMORY_ADVICE_CLEAR_NON_ATOMIC_MOSTLY},
-          {UR_USM_ADVICE_FLAG_BIAS_CACHED, ZE_MEMORY_ADVICE_BIAS_CACHED},
-          {UR_USM_ADVICE_FLAG_BIAS_UNCACHED, ZE_MEMORY_ADVICE_BIAS_UNCACHED},
-          {UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST,
-           ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION},
-          {UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST,
-           ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION},
-  };
-
+  // A memory chunk can be advised with muliple memory advices
+  // We therefore prefer if statements to switch cases to combine all potential
+  // flags
   uint32_t Value = 0;
-  for (auto &FlagPair : URToCUMemAdviseDeviceFlagsMap) {
-    if (Advice & FlagPair.first) {
-      Value |= static_cast<int>(FlagPair.second);
-    }
-  }
+  if (Advice & UR_USM_ADVICE_FLAG_SET_READ_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_READ_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_READ_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_NON_ATOMIC_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_NON_ATOMIC_MOSTLY);
+  if (Advice & UR_USM_ADVICE_FLAG_BIAS_CACHED)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_BIAS_CACHED);
+  if (Advice & UR_USM_ADVICE_FLAG_BIAS_UNCACHED)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_BIAS_UNCACHED);
+  if (Advice & UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION);
+  if (Advice & UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST)
+    Value |= static_cast<int>(ZE_MEMORY_ADVICE_CLEAR_PREFERRED_LOCATION);
+
   ze_memory_advice_t ZeAdvice = static_cast<ze_memory_advice_t>(Value);
 
   std::vector<ze_event_handle_t> ZeEventList;
