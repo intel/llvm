@@ -80,10 +80,10 @@ int init_and_multiply() {
   Tc C[MATRIX_M][MATRIX_N];
   Tc D[MATRIX_M][MATRIX_N];
 
-  matrix_rand(MATRIX_M, MATRIX_K, (Ta*)A, (Ta)50);
-  matrix_rand(MATRIX_K, MATRIX_N, (Ta*)B, (Ta)50);
-  matrix_fill(MATRIX_M, MATRIX_N, (Tc*)C, (Tc)1);
-  matrix_fill(MATRIX_M, MATRIX_N, (Tc*)D, (Tc)1);
+  matrix_rand(MATRIX_M, MATRIX_K, (Ta *)A, (Ta)50);
+  matrix_rand(MATRIX_K, MATRIX_N, (Ta *)B, (Ta)50);
+  matrix_fill(MATRIX_M, MATRIX_N, (Tc *)C, (Tc)1);
+  matrix_fill(MATRIX_M, MATRIX_N, (Tc *)D, (Tc)1);
 
   big_matrix<Tc, MATRIX_M, MATRIX_N> MC((Tc *)&C);
   big_matrix<Tc, MATRIX_M, MATRIX_N> MD((Tc *)&D);

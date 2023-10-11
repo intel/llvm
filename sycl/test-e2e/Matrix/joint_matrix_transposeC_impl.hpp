@@ -18,9 +18,12 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto pA = address_space_cast<sycl::access::address_space::global_space, sycl::access::decorated::no>(A);
-  auto pB = address_space_cast<sycl::access::address_space::global_space, sycl::access::decorated::no>(B);
-  auto pC = address_space_cast<sycl::access::address_space::global_space, sycl::access::decorated::no>(C);
+  auto pA = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(A);
+  auto pB = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(B);
+  auto pC = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(C);
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
