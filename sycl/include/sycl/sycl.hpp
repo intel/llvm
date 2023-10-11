@@ -70,6 +70,7 @@
 #include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
+#include <sycl/ext/oneapi/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
@@ -93,7 +94,6 @@
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
-#include <sycl/ext/oneapi/bfloat16_math.hpp>
 
 #ifndef SYCL2020_CONFORMANT_APIS
 // We used to include those and some code might be reliant on that.
