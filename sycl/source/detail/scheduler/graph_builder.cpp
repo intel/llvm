@@ -1533,6 +1533,11 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   // dependency is created through a third command not part of the fusion, on
   // which this kernel depends and which in turn depends on another kernel in
   // fusion list.
+  //
+  // Note that we only have to consider dependencies via fusion queues here:
+  // Let K1 be a kernel submitted to a queue Q1 in fusion mode. If a kernel K2
+  // is submitted to a non-fusion queue Q2 and K2 depends on K1, fusion on Q1 is
+  // cancelled automatically.
   bool CreatesCircularDep =
       MFusionMap.size() > 1 &&
       std::any_of(CmdList.begin(), CmdList.end(), [&](ExecCGCommand *Cmd) {
