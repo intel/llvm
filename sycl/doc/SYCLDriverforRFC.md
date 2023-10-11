@@ -52,7 +52,8 @@ compiler to contain the generated integration header and footer.
 
 The `-fsycl-device-only` option provides the user the ability to create only
 the device binary as opposed to generating a multi-targeted object as stated
-above.
+above. Although the generated object file cannot be executed, it is useful to
+allow developers to examine the device code for the offload regions.
 
 ## Additional details
 
