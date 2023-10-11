@@ -30,15 +30,17 @@ template <typename From, typename To> void check_convert() {
   assert((int)result.w() == (int)vec.w());
 }
 
-template<class T> constexpr auto has_unsigned_v = std::is_integral_v<T> && !std::is_same_v<T,bool>;
+template <class T>
+constexpr auto has_unsigned_v =
+    std::is_integral_v<T> && !std::is_same_v<T, bool>;
 
 template <typename From, typename To> void check_signed_unsigned_convert_to() {
   check_convert<From, To>();
-  if constexpr(has_unsigned_v<To>)
+  if constexpr (has_unsigned_v<To>)
     check_convert<From, sycl::detail::make_unsigned_t<To>>();
-  if constexpr(has_unsigned_v<From>)
+  if constexpr (has_unsigned_v<From>)
     check_convert<sycl::detail::make_unsigned_t<From>, To>();
-  if constexpr(has_unsigned_v<To> && has_unsigned_v<From>)
+  if constexpr (has_unsigned_v<To> && has_unsigned_v<From>)
     check_convert<sycl::detail::make_unsigned_t<From>,
                   sycl::detail::make_unsigned_t<To>>();
 }
@@ -105,10 +107,14 @@ int main() {
   sycl::vec<unsigned char, 4> vec_4(0, vec_2, 3);
 
   assert(vec_4.get_count() == 4);
-  assert(static_cast<unsigned char>(vec_4.x()) == static_cast<unsigned char>(0));
-  assert(static_cast<unsigned char>(vec_4.y()) == static_cast<unsigned char>(1));
-  assert(static_cast<unsigned char>(vec_4.z()) == static_cast<unsigned char>(2));
-  assert(static_cast<unsigned char>(vec_4.w()) == static_cast<unsigned char>(3));
+  assert(static_cast<unsigned char>(vec_4.x()) ==
+         static_cast<unsigned char>(0));
+  assert(static_cast<unsigned char>(vec_4.y()) ==
+         static_cast<unsigned char>(1));
+  assert(static_cast<unsigned char>(vec_4.z()) ==
+         static_cast<unsigned char>(2));
+  assert(static_cast<unsigned char>(vec_4.w()) ==
+         static_cast<unsigned char>(3));
 
   // explicit conversion
   int64_t(vec_2.x());
