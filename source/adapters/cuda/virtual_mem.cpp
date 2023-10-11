@@ -67,7 +67,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(
 UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
                       size_t size, ur_virtual_mem_access_flags_t flags) {
-  CUmemAccessDesc AccessDesc;
+  CUmemAccessDesc AccessDesc = {};
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
   else if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY)
