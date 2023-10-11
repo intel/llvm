@@ -2,4 +2,4 @@
 
 # CUDA and HIP plugins
 source/adapters/cuda            @oneapi-src/unified-runtime-cuda-write
-source/adapters/hip             @oneapi-src/unified-runtime-hip-write
+source/adapters/hip             @oneapi-src/unified-runtime-cuda-write
