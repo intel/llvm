@@ -71,15 +71,23 @@ void hip_matrix_mfma() {
                 joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
                     sub_a{};
 
-                joint_matrix_load(sg, sub_a, accA.template get_multi_ptr(), K);
-                joint_matrix_load(sg, sub_b, accB.template get_multi_ptr(), N);
-                joint_matrix_load(sg, sub_c, accC.template get_multi_ptr(), N,
-                                  layout::row_major);
+                joint_matrix_load(
+                    sg, sub_a,
+                    accA.template get_multi_ptr<access::decorated::yes>(), K);
+                joint_matrix_load(
+                    sg, sub_b,
+                    accB.template get_multi_ptr<access::decorated::yes>(), N);
+                joint_matrix_load(
+                    sg, sub_c,
+                    accC.template get_multi_ptr<access::decorated::yes>(), N,
+                    layout::row_major);
 
                 sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
 
-                joint_matrix_store(sg, sub_c, accD.template get_multi_ptr(), N,
-                                   OutLayout);
+                joint_matrix_store(
+                    sg, sub_c,
+                    accD.template get_multi_ptr<access::decorated::yes>(), N,
+                    OutLayout);
               });
         })
         .wait();

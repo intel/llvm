@@ -61,8 +61,10 @@ void hip_matrix_fill() {
 
                 sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
 
-                joint_matrix_store(sg, sub_c, accD.template get_multi_ptr(), N,
-                                   layout::row_major);
+                joint_matrix_store(
+                    sg, sub_c,
+                    accD.template get_multi_ptr<access::decorated::yes>(), N,
+                    layout::row_major);
               });
         })
         .wait();
