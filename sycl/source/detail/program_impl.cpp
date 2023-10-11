@@ -405,7 +405,7 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
     Plugin->call<PiApiKind::piKernelSetExecInfo>(
         Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
-  return Result;
+    return Result;
 }
 
 std::vector<device>
