@@ -601,6 +601,128 @@ struct urMemImageQueueTest : urQueueTest {
                               0};                           // num samples
 };
 
+struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
+        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc1D, nullptr, &image1D));
+
+        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc2D, nullptr, &image2D));
+
+        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc3D, nullptr, &image3D));
+    }
+
+    void TearDown() override {
+        if (image1D) {
+            EXPECT_SUCCESS(urMemRelease(image1D));
+        }
+        if (image2D) {
+            EXPECT_SUCCESS(urMemRelease(image2D));
+        }
+        if (image3D) {
+            EXPECT_SUCCESS(urMemRelease(image3D));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::TearDown());
+    }
+
+    const size_t width = 1024;
+    const size_t height = 8;
+    const size_t depth = 2;
+    ur_mem_handle_t image1D = nullptr;
+    ur_mem_handle_t image2D = nullptr;
+    ur_mem_handle_t image3D = nullptr;
+    ur_rect_region_t region1D{width, 1, 1};
+    ur_rect_region_t region2D{width, height, 1};
+    ur_rect_region_t region3D{width, height, depth};
+    ur_rect_offset_t origin{0, 0, 0};
+    ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
+                                UR_IMAGE_CHANNEL_TYPE_FLOAT};
+    ur_image_desc_t desc1D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                              nullptr,                      // pNext
+                              UR_MEM_TYPE_IMAGE1D,          // mem object type
+                              width,                        // image width
+                              1,                            // image height
+                              1,                            // image depth
+                              1,                            // array size
+                              0,                            // row pitch
+                              0,                            // slice pitch
+                              0,                            // mip levels
+                              0};                           // num samples
+
+    ur_image_desc_t desc2D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                              nullptr,                      // pNext
+                              UR_MEM_TYPE_IMAGE2D,          // mem object type
+                              width,                        // image width
+                              height,                       // image height
+                              1,                            // image depth
+                              1,                            // array size
+                              0,                            // row pitch
+                              0,                            // slice pitch
+                              0,                            // mip levels
+                              0};                           // num samples
+
+    ur_image_desc_t desc3D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                              nullptr,                      // pNext
+                              UR_MEM_TYPE_IMAGE3D,          // mem object type
+                              width,                        // image width
+                              height,                       // image height
+                              depth,                        // image depth
+                              1,                            // array size
+                              0,                            // row pitch
+                              0,                            // slice pitch
+                              0,                            // mip levels
+                              0};                           // num samples
+};
+
+struct urMultiDeviceMemImageQueueTest : urMultiDeviceMemImageTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceMemImageTest::SetUp());
+        queues.reserve(DevicesEnvironment::instance->devices.size());
+        for (const auto &device : DevicesEnvironment::instance->devices) {
+            ur_queue_handle_t queue = nullptr;
+            ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
+            queues.push_back(queue);
+        }
+    }
+
+    void TearDown() override {
+        for (const auto &queue : queues) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceMemImageTest::TearDown());
+    }
+
+    std::vector<ur_queue_handle_t> queues;
+};
+
+struct urMultiDeviceMemImageWriteTest : urMultiDeviceMemImageQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceMemImageQueueTest::SetUp());
+
+        ASSERT_SUCCESS(urEnqueueMemImageWrite(queues[0], image1D, true, origin,
+                                              region1D, 0, 0, input1D.data(), 0,
+                                              nullptr, nullptr));
+        ASSERT_SUCCESS(urEnqueueMemImageWrite(queues[0], image2D, true, origin,
+                                              region2D, 0, 0, input2D.data(), 0,
+                                              nullptr, nullptr));
+        ASSERT_SUCCESS(urEnqueueMemImageWrite(queues[0], image3D, true, origin,
+                                              region3D, 0, 0, input3D.data(), 0,
+                                              nullptr, nullptr));
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceMemImageQueueTest::TearDown());
+    }
+
+    std::vector<uint32_t> input1D = std::vector<uint32_t>(width * 4, 42);
+    std::vector<uint32_t> input2D =
+        std::vector<uint32_t>(width * height * 4, 42);
+    std::vector<uint32_t> input3D =
+        std::vector<uint32_t>(width * height * depth * 4, 42);
+};
+
 struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
