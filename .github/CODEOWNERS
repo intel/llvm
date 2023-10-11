@@ -1,5 +1,5 @@
 *                               @oneapi-src/unified-runtime-maintain
 
 # CUDA and HIP plugins
-source/adapters/cuda            @JackAKirk @jchlanda @ldrumm @mmoadeli @npmiller
-source/adapters/hip             @JackAKirk @jchlanda @ldrumm @mmoadeli @npmiller
+source/adapters/cuda            @oneapi-src/unified-runtime-cuda-write
+source/adapters/hip             @oneapi-src/unified-runtime-hip-write
