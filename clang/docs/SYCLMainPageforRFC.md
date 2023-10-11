@@ -20,7 +20,7 @@ As a result, we now have a more mature set of design and implementation that we 
 
 SYCL is an open specification from the Khronos Group (https://www.khronos.org/sycl/) and Intel supports a community implementation that fully meets this specification.  This would allow for open tooling and be in line with the goals of the Unified Acceleration (UXL) Foundation: https://www.oneapi.io/blog/announcing-the-unified-acceleration-uxl-foundation/
 
-We have a long term commitment to supporting SYCL.  Alexey Bader is the SYCL code owner and has a long history of work within the LLVM community and the development of the SYCL specification.  We have worked with Codeplay to enable non-Intel hardware and hope that a community implementation will further enable SYCL support on a broader range of devices.
+We have a long term commitment to supporting SYCL and intend to use the upstreamed implementation in our compiler products.  Alexey Bader is the SYCL code owner and has a long history of work within the LLVM community and the development of the SYCL specification.  We have worked with Codeplay to enable non-Intel hardware and hope that a community implementation will further enable SYCL support on a broader range of devices.
 
 ## Purpose of this RFC
 
