@@ -60,11 +60,18 @@ multiple places (e.g., `queue::parallel_for` and `handler::parallel_for`).
 In all cases, these functions return an `event` object by default, which has
 been shown to introduce undesirable performance overhead.
 
+Additionally, we have received feedback from developers and implementers alike
+that the number of `parallel_for` overloads is confusing, and that the way
+reductions in particular are specified (as a parameter pack containing both
+`sycl::reduction` objects and a kernel lambda) is problematic.
+
 This extension addresses these issues by:
 
 1. Using different function names for different use-cases.
 2. Using free-functions instead of member functions.
 3. Requiring developers to opt-in to the creation of `event` objects.
+4. Bundling everything related to a kernel's launch configuration (i.e., its
+range, any properties, and any reductions) into a single object.
 
 This extension makes SYCL simpler and easier to document. It is also expected
 to improve the performance of many SYCL applications, where `event` objects are
@@ -97,11 +104,13 @@ q.submit([&](sycl::handler& h) {
   });
 });
 
-float* output = sycl::malloc_shared<float>(1024, q);
+float* output = sycl::malloc_shared<int>(1, q);
+*output = 0;
 std::vector<sycl::event> depEvents = /* some dependencies */;
 sycl::event e = q.parallel_for(sycl::nd_range<1>{1024, 16}, depEvents,
-  [=](sycl::nd_item<1> it) {
-  output[it.get_global_id()] = it.get_global_id();
+  sycl::reduction(output, sycl::plus<>()),
+  [=](sycl::nd_item<1> it, auto& sum) {
+  sum += it.get_global_id();
 });
 e.wait();
 sycl::free(output, q);
@@ -121,11 +130,14 @@ syclex::submit(q, [&](sycl::handler& h) {
   });
 });
 
-float* output = sycl::malloc_shared<float>(1024, q);
+float* output = sycl::malloc_shared<int>(1, q);
+*output = 0;
 std::vector<sycl::event> depEvents = /* some dependencies */;
 sycl::event e;
-syclex::nd_launch(q, sycl::nd_range<1>{1024, 16}, [=](sycl::nd_item<1> it) {
-  output[it.get_global_id()] = it.get_global_id();
+syclex::nd_launch(q,
+  syclex::launch_config(sycl::nd_range<1>{1024, 16}, sycl::reduction(output, sycl::plus<>())),
+  [=](sycl::nd_item<1> it, auto& sum) {
+  sum += it.get_global_id();
 }, depEvents, &e);
 e.wait();
 sycl::free(output, q);
@@ -153,6 +165,91 @@ implementation supports.
 |The APIs of this experimental extension are not versioned, so the
  feature-test macro always has this value.
 |===
+
+
+=== Launch configuration
+
+A launch configuration object of type `launch_config` is used to bundle
+together all components of a kernel's launch configuration, including:
+
+1. The range of execution.
+2. Any compile-time properties.
+3. Any reductions.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template </* unspecified */>
+class launch_config
+{
+public:
+
+  launch_config(Properties p);
+
+  // Available only when:
+  // 1) Range is sycl::range or sycl::nd_range
+  // 2) Reductions is a parameter pack of sycl::reduction
+  launch_config(Range r, Reductions... reductions);
+
+  // Available only when:
+  // 1) Range is sycl::range or sycl::nd_range
+  // 2) Properties is a compile-time property list
+  // 3) Reductions is a parameter pack of sycl::reduction
+  launch_config(Range r, Properties, Reductions... reductions);
+
+};
+
+}
+----
+
+[NOTE]
+====
+The template parameters for `launch_config` are currently unspecified, while we
+gain implementation experience. An implementation must be able to identify and
+extract the type of range (`sycl::range`, `sycl::nd_range`, or no range) and
+other properties from the `launch_config`.
+====
+
+[source,c++]
+----
+launch_config(Properties p);
+----
+_Effects_: Constructs a `launch_config` with no range or reductions.
+
+[NOTE]
+====
+The only current use-case for this constructor is to create a `launch_config`
+used to pass properties to `single_task`.
+====
+
+[source,c++]
+----
+launch_config(Range r, Reductions... reductions);
+----
+_Constraints_: Available only if `Range` is a `sycl::range` or
+`sycl::nd_range`, and `Reductions` is a parameter pack of `sycl::reduction`.
+
+_Effects_: Constructs a `launch_config` from the specified range and
+reductions.
+
+[NOTE]
+====
+Because this constructor accepts an empty parameter pack, it remains possible
+to enqueue a kernel as `sycl::parallel_for(q, range, lambda)`, and avoid
+explicitly typing `launch_config()` in simple cases.
+====
+
+[source,c++]
+----
+launch_config(Range r, Properties, Reductions... reductions);
+----
+_Constraints_: Available only if `Range` is a `sycl::range` or
+`sycl::nd_range`, `Properties` is a compile-time property list,
+and `Reductions` is a parameter pack of `sycl::reduction`.
+
+_Effects_: Constructs a `launch_config` from the specified range,
+properties and reductions.
 
 
 === Command group submission
@@ -186,28 +283,45 @@ returned via `outEvent`.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, typename ExecutorType, typename KernelType
+template <typename KernelName, typename ExecutorType, typename KernelType>
 void single_task(ExecutorType ex, const KernelType& kernelFunc);
 
-template <typename KernelName, typename ExecutorType, typename KernelType
+template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
+void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
+
+template <typename KernelName, typename ExecutorType, typename KernelType>
 void single_task(ExecutorType ex, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+
+template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
+void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 
 }
 ----
 
 [source,c++]
 ----
-template <typename KernelName, typename ExecutorType, typename KernelType
+template <typename KernelName, typename ExecutorType, typename KernelType>
 void single_task(ExecutorType ex, const KernelType& kernelFunc);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::handler`.
 
 _Effects_: Enqueues a single task to the executor `ex`.
 
+[source,c++]
+----
+template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
+void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
+----
+_Constraints_: Available only if `ExecutorType` is `sycl::handler`, and
+`LaunchConfig` is `launch_config`.
+
+_Effects_: Enqueues a single task to the executor `ex` with the specified
+launch configuration.
+
 
 [source,c++]
 ----
-template <typename KernelName, typename ExecutorType, typename KernelType
+template <typename KernelName, typename ExecutorType, typename KernelType>
 void single_task(ExecutorType ex, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::queue`.
@@ -217,41 +331,61 @@ execute until each of the events in `depEvents` is complete. An optional
 event representing this command can be returned via `outEvent`.
 
 
+[source,c++]
+----
+template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
+void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+----
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`, and
+`LaunchConfig` is `launch_config`.
+
+_Effects_: Enqueues a single task to the executor `ex` with the specified
+launch configuration. The command will not execute until each of the events in
+`depEvents` is complete. An optional event representing this command can be
+returned via `outEvent`.
+
+
 === Basic kernels
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void parallel_for(ExecutorType ex, range<Dimensions> r, Rest&&... rest);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
 
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void parallel_for(ExecutorType ex, range<Dimensions> r, Rest&&... rest, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 
 }
 ----
 
 [source,c++]
 ----
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void parallel_for(ExecutorType ex, range<Dimensions> r, Rest&&... rest);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::handler`,
+`LaunchConfig` is `launch_config`, and the launch configuration was constructed
+from a `sycl::range`.
 
-_Effects_: Enqueues a basic kernel to the executor `ex`.
+_Effects_: Enqueues a basic kernel to the executor `ex` with the specified
+launch configuration.
 
 
 [source,c++]
 ----
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void parallel_for(ExecutorType ex, range<Dimensions> r, Rest&&... rest, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`,
+`LaunchConfig` is `launch_config`, and the launch configuration was constructed
+from a `sycl::range`.
 
-_Effects_: Enqueues a basic kernel to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional
-event representing this command can be returned via `outEvent`.
+_Effects_: Enqueues a basic kernel to the executor `ex` with the specified
+launch configuration. The command will not execute until each of the events in
+`depEvents` is complete. An optional event representing this command can be
+returned via `outEvent`.
 
 
 === ND-range kernels
@@ -260,35 +394,41 @@ event representing this command can be returned via `outEvent`.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void nd_launch(ExecutorType ex, nd_range<Dimensions> r, Rest&&... rest);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
 
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void nd_launch(ExecutorType ex, nd_range<Dimensions> r, Rest&&... rest, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 
 }
 ----
 
 [source,c++]
 ----
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void nd_launch(ExecutorType ex, nd_range<Dimensions> r, Rest&&... rest);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+_Constraints_: Available only if `ExecutorType` is `sycl::handler`,
+`LaunchConfig` is `launch_config`, and the launch configuration was constructed
+from a `sycl::nd_range`.
 
-_Effects_: Enqueues an ND-range kernel to the executor `ex`.
+_Effects_: Enqueues an ND-range kernel to the executor `ex` with the specified
+launch configuration.
 
 
 [source,c++]
 ----
-template <typename KernelName, typename ExecutorType, int Dimensions, typename... Rest>
-void nd_launch(ExecutorType ex, nd_range<Dimensions> r, Rest&&... rest, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
+void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`,
+`LaunchConfig` is `launch_config`, and the launch configuration was constructed
+from a `sycl::nd_range`.
 
-_Effects_: Enqueues an ND-range kernel to the executor `ex`. The command will
-not execute until each of the events in `depEvents` is complete. An optional
-event representing this command can be returned via `outEvent`.
+_Effects_: Enqueues an ND-range kernel to the executor `ex` with the specified
+launch configuration. The command will not execute until each of the events in
+`depEvents` is complete. An optional event representing this command can be
+returned via `outEvent`.
 
 
 === Memory operations
