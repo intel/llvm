@@ -40,6 +40,18 @@
 // RUN:   -ftarget-register-alloc-mode=pvc:small,pvc:large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=MULTIPLE_ARGS_JIT %s
 
+// RUN: not %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:auto %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=BAD_DEVICE %s
+
+// RUN: not %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=pvc:superlarge %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=BAD_MODE %s
+
+// RUN: not %clang -### -fsycl \
+// RUN:    -fsycl-targets=spir64_gen -ftarget-register-alloc-mode=dg2:superlarge %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=BAD_BOTH %s
+
 // AUTO_AOT: ocloc{{.*}} "-output"
 // AUTO_AOT: -device_options
 // AUTO_AOT: pvc
@@ -75,3 +87,6 @@
 
 // MULTIPLE_ARGS_JIT: clang-offload-wrapper{{.*}} "-compile-opts=-ftarget-register-alloc-mode=pvc:-ze-intel-128-GRF-per-thread -ftarget-register-alloc-mode=pvc:-ze-opt-large-register-file"
 
+// BAD_DEVICE: unsupported argument 'dg2:auto' to option '-ftarget-register-alloc-mode='
+// BAD_MODE: unsupported argument 'pvc:superlarge' to option '-ftarget-register-alloc-mode='
+// BAD_BOTH: unsupported argument 'dg2:superlarge' to option '-ftarget-register-alloc-mode='
