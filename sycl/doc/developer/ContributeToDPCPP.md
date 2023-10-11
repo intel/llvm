@@ -42,7 +42,7 @@ According to
 the use `#include <iostream>` is forbidden in library files. Instead, the
 sycl/detail/iostream_proxy.hpp header offers the functionality of <iostream>
 without its static constructor.
-This header should be used in place of <iostream> in DPC++ and runtime
+This header should be used in place of <iostream> in DPC++ runtime
 library files. In DPC++ header files only <iosfwd> should be used.
 
 ## Tests development
