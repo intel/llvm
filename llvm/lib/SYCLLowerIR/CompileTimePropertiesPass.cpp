@@ -62,6 +62,37 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
+enum FloatControl {
+  RTE = 0,      // Round to nearest or even
+  RTP = 1 << 4, // Round towards +ve inf
+  RTN = 2 << 4, // Round towards -ve inf
+  RTZ = 3 << 4, // Round towards zero
+
+  DENORM_FTZ = 0,            // Denorm mode flush to zero
+  DENORM_D_ALLOW = 1 << 6,   // Denorm mode double allow
+  DENORM_F_ALLOW = 1 << 7,   // Denorm mode float allow
+  DENORM_HF_ALLOW = 1 << 10, // Denorm mode half allow
+
+  FLOAT_MODE_IEEE = 0, // Single precision float IEEE mode
+  FLOAT_MODE_ALT = 1   // Single precision float ALT mode
+};
+
+enum FloatControlMask {
+  ROUND_MASK = (RTE | RTP | RTN | RTZ),
+  FLOAT_MASK = (FLOAT_MODE_IEEE | FLOAT_MODE_ALT),
+  DENORM_MASK = (DENORM_D_ALLOW | DENORM_F_ALLOW | DENORM_HF_ALLOW)
+};
+
+// SPIRV execution modes for FP control.
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620;
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621;
+constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;
+constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;
+constexpr uint32_t SPIRV_FLOATING_POINT_MODE_ALT_INTEL = 5622;
+constexpr uint32_t SPIRV_FLOATING_POINT_MODE_IEEE_INTEL = 5623;
+
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
 ///
@@ -212,6 +243,66 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
   // Early exit if it is not a sycl-* attribute.
   if (!AttrKindStr.startswith("sycl-"))
     return std::nullopt;
+
+  auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
+                                          int32_t Width) {
+    auto NamedMD = M.getOrInsertNamedMetadata("spirv.ExecutionMode");
+    std::vector<Metadata *> ValueVec;
+    ValueVec.push_back(ConstantAsMetadata::get(&F));
+    ValueVec.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(Ctx), SPIRVFPControl)));
+    ValueVec.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(Ctx), Width)));
+    NamedMD->addOperand(MDNode::get(Ctx, ValueVec));
+  };
+
+  auto AddFPControlMetadata = [&](int32_t SPIRVFPControl) {
+    for (int32_t Width : {64, 32, 16}) {
+      AddFPControlMetadataForWidth(SPIRVFPControl, Width);
+    }
+  };
+
+  if (AttrKindStr == "sycl-floating-point-control") {
+    uint32_t FPControl = getAttributeAsInteger<uint32_t>(Attr);
+    switch (FPControl & ROUND_MASK) {
+    case RTE:
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTE);
+      break;
+    case RTP:
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTP_INTEL);
+      break;
+    case RTN:
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTN_INTEL);
+      break;
+    case RTZ:
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTZ);
+      break;
+    default:
+      llvm_unreachable("Unexpected rounding mode value");
+    }
+    switch (FPControl & FLOAT_MASK) {
+    case FLOAT_MODE_IEEE:
+      AddFPControlMetadata(SPIRV_FLOATING_POINT_MODE_IEEE_INTEL);
+      break;
+    case FLOAT_MODE_ALT:
+      AddFPControlMetadata(SPIRV_FLOATING_POINT_MODE_ALT_INTEL);
+      break;
+    default:
+      llvm_unreachable("Unexpected single precision fp mode value");
+    }
+    if (!(FPControl & DENORM_MASK)) {
+      AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);
+    } else {
+      if (FPControl & DENORM_HF_ALLOW)
+        AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
+
+      if (FPControl & DENORM_F_ALLOW)
+        AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+
+      if (FPControl & DENORM_D_ALLOW)
+        AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
+    }
+  }
 
   if (AttrKindStr == "sycl-work-group-size" ||
       AttrKindStr == "sycl-work-group-size-hint") {

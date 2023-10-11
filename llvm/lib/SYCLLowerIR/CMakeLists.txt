@@ -12,11 +12,11 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/againull/vc-intrinsics.git)
     # Author: Jinsong Ji <jinsong.ji@intel.com>
     # Date:   Thu Aug 10 14:41:52 2023 +0000
     #    Guard removed typed pointer enum within version macro
-    set(LLVMGenXIntrinsics_GIT_TAG 17a53f4304463b8e7e639d57ef17479040a8a2ad)
+    set(LLVMGenXIntrinsics_GIT_TAG 9dd83b42f8c11205a17f286ccbd837e3efd75eff)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
