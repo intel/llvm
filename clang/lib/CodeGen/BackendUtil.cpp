@@ -1122,12 +1122,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
 
-      // Remove SYCL metadata added by the frontend, like sycl_aspects
-      MPM.addPass(CleanupSYCLMetadataPass());
-
       if (LangOpts.SYCLIsNativeCPU) {
         MPM.addPass(PrepareSYCLNativeCPUPass());
       }
+
+      // Remove SYCL metadata added by the frontend, like sycl_aspects
+      // Note, this pass should be in the end of the pipeline
+      MPM.addPass(CleanupSYCLMetadataPass());
     }
   }
 
