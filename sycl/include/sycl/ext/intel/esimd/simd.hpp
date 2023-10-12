@@ -23,10 +23,6 @@
 
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/detail/iostream_proxy.hpp>
-#endif // __SYCL_DEVICE_ONLY__
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::esimd {

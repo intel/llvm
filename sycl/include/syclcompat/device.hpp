@@ -50,7 +50,6 @@
 #endif
 
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/queue.hpp>
@@ -66,11 +65,11 @@ auto exception_handler = [](sycl::exception_list exceptions) {
     try {
       std::rethrow_exception(e);
     } catch (sycl::exception const &e) {
-      std::cerr << "[SYCLcompat] Caught asynchronous SYCL exception:"
-                << std::endl
-                << e.what() << std::endl
-                << "Exception caught at file:" << __FILE__
-                << ", line:" << __LINE__ << std::endl;
+      fprintf(stderr,
+              "[SYCLcompat] Caught asynchronous SYCL exception:\n%s\n"
+              "Exception caught at file:" __FILE__ ", line:" __LINE__ "\n",
+              e.what().c_str());
+      fflush(stderr);
     }
   }
 };
