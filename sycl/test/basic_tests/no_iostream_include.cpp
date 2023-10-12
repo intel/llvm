@@ -1,4 +1,4 @@
-// RUN: %clangxx -DSYCL2020_CONFORMANT_APIS=1 -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // Test that only iosfwd and not istream, ostream, and iostream_proxy
 // are included.
 #include <sycl/sycl.hpp>

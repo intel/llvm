@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Next time API changes are allowed this file should not be included
-// from sycl.hpp anymore. Then this file should be moved to sycl/source.
+// TODO: Remove include from ext/intel/esimd and syclcompat.
+// Then this file should be moved to sycl/source.
 
 #pragma once
 

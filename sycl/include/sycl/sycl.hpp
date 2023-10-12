@@ -96,8 +96,4 @@
 // We used to include those and some code might be reliant on that.
 #include <cmath>
 #include <complex>
-#include <istream>
-#include <ostream>
-#include <sstream>
-#include <sycl/detail/iostream_proxy.hpp>
 #endif
