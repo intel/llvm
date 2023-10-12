@@ -455,7 +455,7 @@ void joint_matrix_copy(
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_apply(src.hip_impl, src.hip_impl);
+  sycl::ext::oneapi::detail::joint_matrix_copy(src.hip_impl, src.hip_impl);
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<

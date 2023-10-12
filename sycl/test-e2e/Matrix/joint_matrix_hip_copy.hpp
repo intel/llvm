@@ -7,6 +7,8 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using sycl::ext::oneapi::bfloat16;
 
+namespace details {
+
 template <typename, size_t M, size_t N> struct input_limit {
   static constexpr int value = M * N;
 };
@@ -19,6 +21,8 @@ template <> struct input_limit<int8_t, 32, 32> {
   static constexpr auto value = 128;
 };
 
+} // namespace details
+
 template <typename InType, typename OutType, size_t M, size_t N, size_t K,
           layout OutLayout>
 void hip_matrix_copy() {
@@ -29,11 +33,11 @@ void hip_matrix_copy() {
   OutType E[M * N];
 
   for (auto i = 0; i < M * K; ++i) {
-    A[i] = i % input_limit<InType, M, N>::value;
+    A[i] = i % details::input_limit<InType, M, N>::value;
   }
 
   for (auto i = 0; i < K * N; ++i) {
-    B[i] = i % input_limit<InType, M, N>::value;
+    B[i] = i % details::input_limit<InType, M, N>::value;
   }
 
   for (auto i = 0; i < M * N; ++i) {
