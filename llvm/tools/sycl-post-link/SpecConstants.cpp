@@ -518,6 +518,47 @@ Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
   return emitCall(Ty, SPIRV_GET_SPEC_CONST_COMPOSITE, Elements, InsertBefore);
 }
 
+// Select corresponding element of the default value.  For a
+// struct, we getting the corresponding default value is a little
+// tricky.  There are potentially distinct two types: the type of
+// the default value, which comes from the initializer of the
+// global spec constant value, and the return type of the call to
+// getComposite2020SpecConstValue. The return type can be a
+// version of the default value type, with padding fields
+// potentially inserted at the top level and within nested
+// structs.
+
+// Examples: (RT = Return Type, DVT = Default Value Type)
+// RT: { i8, [3 x i8], i32 }, DVT = { i8, i32 }
+// RT: { { i32, i8, [3 x i8] }, i32 } DVT = { { i32, i8 }, i32 }
+
+// For a given element of the default value type we are
+// trying to initialize, we will initialize that element with
+// the element of the default value type that has the same offset
+// as the element we are trying to initialize. If no such element
+// exists, we used undef as the initializer.
+Constant *getElemDefaultValue(Type *Ty, Type *ElTy, Constant *DefaultValue,
+                              unsigned LocalIndex, const DataLayout &DL) {
+  if (auto *StructTy = dyn_cast<StructType>(Ty)) {
+    auto *DefaultValueType = cast<StructType>(DefaultValue->getType());
+    const auto &DefaultValueTypeSL = DL.getStructLayout(DefaultValueType);
+    const auto &ReturnTypeSL = DL.getStructLayout(StructTy);
+    ArrayRef<TypeSize> DefaultValueOffsets =
+        DefaultValueTypeSL->getMemberOffsets();
+    TypeSize CurrentIterationOffset =
+        ReturnTypeSL->getElementOffset(LocalIndex);
+    const auto It =
+        std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
+                  CurrentIterationOffset);
+
+    if (It == DefaultValueOffsets.end())
+      return UndefValue::get(ElTy);
+    const auto CorrespondingIndex = It - DefaultValueOffsets.begin();
+    return DefaultValue->getAggregateElement(CorrespondingIndex);
+  }
+  return DefaultValue->getAggregateElement(LocalIndex);
+}
+
 /// For specified specialization constant type emits LLVM IR which is required
 /// in order to correctly handle it later during LLVM IR -> SPIR-V translation.
 ///
@@ -568,46 +609,8 @@ Instruction *emitSpecConstantRecursiveImpl(Type *Ty, Instruction *InsertBefore,
     Index++;
   };
   auto LoopIteration = [&](Type *ElTy, unsigned LocalIndex) {
-    // Select corresponding element of the default value.  For a
-    // struct, we getting the corresponding default value is a little
-    // tricky.  There are potentially distinct two types: the type of
-    // the default value, which comes from the initializer of the
-    // global spec constant value, and the return type of the call to
-    // getComposite2020SpecConstValue. The return type can be a
-    // version of the default value type, with padding fields
-    // potentially inserted at the top level and within nested
-    // structs.
-
-    // Examples: (RT = Return Type, DVT = Default Value Type)
-    // RT: { i8, [3 x i8], i32 }, DVT = { i8, i32 }
-    // RT: { { i32, i8, [3 x i8] }, i32 } DVT = { { i32, i8 }, i32 }
-
-    // For a given element of the default value type we are
-    // trying to initialize, we will initialize that element with
-    // the element of the default value type that has the same offset
-    // as the element we are trying to initialize. If no such element
-    // exists, we used undef as the initializer.
-    const auto ElemDefaultValue = [&]() -> Constant * {
-      if (auto *StructTy = dyn_cast<StructType>(Ty)) {
-        auto *DefaultValueType = cast<StructType>(DefaultValue->getType());
-        const auto &DefaultValueTypeSL =
-            M.getDataLayout().getStructLayout(DefaultValueType);
-        const auto &ReturnTypeSL = M.getDataLayout().getStructLayout(StructTy);
-        ArrayRef<TypeSize> DefaultValueOffsets =
-            DefaultValueTypeSL->getMemberOffsets();
-        TypeSize CurrentIterationOffset =
-            ReturnTypeSL->getElementOffset(LocalIndex);
-        const auto It =
-            std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
-                      CurrentIterationOffset);
-
-        if (It == DefaultValueOffsets.end())
-          return UndefValue::get(ElTy);
-        const auto CorrespondingIndex = It - DefaultValueOffsets.begin();
-        return DefaultValue->getAggregateElement(CorrespondingIndex);
-      }
-      return DefaultValue->getAggregateElement(LocalIndex);
-    }();
+    const auto ElemDefaultValue = getElemDefaultValue(
+        Ty, ElTy, DefaultValue, LocalIndex, M.getDataLayout());
 
     // If the default value is a composite and has the value 'undef', we should
     // not generate a bunch of __spirv_SpecConstant for its elements but
