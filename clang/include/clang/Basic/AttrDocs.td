@@ -3357,7 +3357,7 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
 This attribute applies to a loop or a function. Takes no arguments and
-indicates that the kernel should be pipelined or not. Cannot be used on the
+indicates whether the kernel should be pipelined or not. Cannot be used on the
 same loop or function, or in conjunction with ``speculated_iterations``,
 ``max_concurrency``, ``initiation_interval``, ``ivdep``,
 ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
