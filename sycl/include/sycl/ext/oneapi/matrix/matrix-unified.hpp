@@ -234,6 +234,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   sycl::ext::oneapi::detail::load_accumulator_hip(res.hip_impl, src, stride,
                                                   Layout, sg);
 #else
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   switch (Layout) {
@@ -301,6 +302,7 @@ joint_matrix_load(Group &sg,
                                                    NumCols, Use, Layout, Space>(
       res.hip_impl, src, stride, sg);
 #else
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
   res.spvm =
@@ -311,6 +313,7 @@ joint_matrix_load(Group &sg,
           spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
+  std::ignore = sg;
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
