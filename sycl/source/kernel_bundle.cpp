@@ -368,8 +368,10 @@ using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
 // syclex::is_source_kernel_bundle_supported
 /////////////////////////
 bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
-  // TODO - maybe return false?
-  return true;
+  // at the moment, OpenCL is the only language supported
+  // and it's support is limited to the opencl and level_zero backends.
+  return (BE == sycl::backend::ext_oneapi_level_zero) ||
+         (BE == sycl::backend::opencl);
 }
 
 /////////////////////////
