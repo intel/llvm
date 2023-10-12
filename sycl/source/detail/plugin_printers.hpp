@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <sycl/detail/iostream_proxy.hpp>
+#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.hpp>
 
 #include <ostream>

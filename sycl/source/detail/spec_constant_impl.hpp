@@ -8,8 +8,8 @@
 
 #pragma once
 
+#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/defines.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/stl.hpp>
 

@@ -10,10 +10,10 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/iostream_proxy.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 #include <sycl/backend.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 

@@ -9,10 +9,10 @@
 #pragma once
 
 #include <detail/global_handler.hpp>
+#include <detail/iostream_proxy.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>

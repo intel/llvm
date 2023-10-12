@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Remove include from ext/intel/esimd and syclcompat.
-// Then this file should be moved to sycl/source.
-
 #pragma once
 
 #include <iosfwd> // for ostream, istream

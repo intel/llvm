@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 
