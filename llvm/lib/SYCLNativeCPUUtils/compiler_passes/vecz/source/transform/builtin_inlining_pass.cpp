@@ -245,7 +245,7 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
         byte == 0 ? DestAlignment : std::min(Align(8u), DestAlignment);
     MC->setAlignment(StoreAlign);
     Align LoadAlign =
-        byte == 0 ? DestAlignment : std::min(Align(8u), SourceAlignment);
+        byte == 0 ? SourceAlignment : std::min(Align(8u), SourceAlignment);
     LoadValue->setAlignment(LoadAlign);
   }
   // ...and then we fill in the remaining with 8bit stores.
