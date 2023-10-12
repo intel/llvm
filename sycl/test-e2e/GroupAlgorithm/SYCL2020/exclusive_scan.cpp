@@ -14,23 +14,6 @@ using namespace sycl;
 template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
 
-// std::exclusive_scan isn't implemented yet, so use serial implementation
-// instead
-namespace emu {
-template <typename InputIterator, typename OutputIterator,
-          class BinaryOperation, typename T>
-OutputIterator exclusive_scan(InputIterator first, InputIterator last,
-                              OutputIterator result, T init,
-                              BinaryOperation binary_op) {
-  T partial = init;
-  for (InputIterator it = first; it != last; ++it) {
-    *(result++) = partial;
-    partial = binary_op(partial, *it);
-  }
-  return result;
-}
-} // namespace emu
-
 template <typename SpecializationKernelName, typename InputContainer,
           typename OutputContainer, class BinaryOperation>
 void test(queue q, InputContainer input, OutputContainer output,
