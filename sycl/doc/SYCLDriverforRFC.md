@@ -23,10 +23,15 @@ compilation for SYCL.
     When not provided the default target is `spir64`.
 * -fsycl-device-only
   * Enables the ability to create only device code.
+* -fsycl-host-only
+  * Enables the ability to create only host code.
 * -fsycl-host-compiler=\<compiler\>
   * Provide the ability to use a 3rd party compiler to perform the host
     compilation step.
 The above options are to be used with the existing `-fsycl` option.
+
+Any additional options that are useful for SYCL offloading compilation will be
+prefixed with `-fsycl-`.
 
 ## Introduction of SYCL specific offload action builder
 
@@ -54,6 +59,10 @@ The `-fsycl-device-only` option provides the user the ability to create only
 the device binary as opposed to generating a multi-targeted object as stated
 above. Although the generated object file cannot be executed, it is useful to
 allow developers to examine the device code for the offload regions.
+
+Adversely, the `-fsycl-host-only` option creates the host binary as it would
+be compiled in the multi-target aspect. This binary will be created with the
+generated integration header and footer from the device side.
 
 ## Additional details
 
