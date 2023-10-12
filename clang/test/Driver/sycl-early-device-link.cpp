@@ -78,7 +78,7 @@
 // Mix and match JIT and AOT phases check.  Expectation is for AOT to perform
 // early device link, and JIT to just produce the LLVM-IR.
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl -fsycl-targets=spir64,spir64_gen \
-// RUN:          --target=x86_64-unknown-linux-gnu \
+// RUN:          --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xsycl-target-backend=spir64_gen "-device skl" \
 // RUN:          -ccc-print-phases %s -fno-sycl-device-lib=all 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=JIT_AOT_PHASES
