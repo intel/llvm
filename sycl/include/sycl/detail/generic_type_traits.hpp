@@ -25,6 +25,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+template <int N> struct Boolean;
 
 template <typename T>
 inline constexpr bool is_floatn_v = is_contained_v<T, gtl::vector_float_list>;
@@ -351,19 +352,6 @@ struct convert_data_type_impl<T, B, std::enable_if_t<is_vgentype_v<T>, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// TryToGetPointerT<T>::type is T::pointer_t (legacy) or T::pointer if those
-// exist, otherwise T.
-template <typename T> class TryToGetPointerT {
-  static T check(...);
-  template <typename A> static typename A::pointer_t check(const A &);
-  template <typename A> static typename A::pointer check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value =
-      std::is_pointer_v<T> || !std::is_same_v<T, type>;
-};
-
 // TryToGetElementType<T>::type is T::element_type or T::value_type if those
 // exist, otherwise T.
 template <typename T> class TryToGetElementType {
@@ -374,32 +362,6 @@ template <typename T> class TryToGetElementType {
 public:
   using type = decltype(check(T()));
   static constexpr bool value = !std::is_same_v<T, type>;
-};
-
-// TryToGetVectorT<T>::type is T::vector_t if that exists, otherwise T.
-template <typename T> class TryToGetVectorT {
-  static T check(...);
-  template <typename A> static typename A::vector_t check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
-
-// Try to get pointer_t (if pointer_t indicates on the type with_remainder
-// vector_t creates a pointer type on vector_t), otherwise T
-template <typename T> class TryToGetPointerVecT {
-  static T check(...);
-  template <typename A>
-  static typename DecoratedType<
-      typename TryToGetVectorT<typename TryToGetElementType<A>::type>::type,
-      A::address_space>::type *
-  check(const A &);
-  template <typename A>
-  static typename TryToGetVectorT<A>::type *check(const A *);
-
-public:
-  using type = decltype(check(T()));
 };
 
 template <typename To> struct PointerConverter {
@@ -442,20 +404,11 @@ struct PointerConverter<multi_ptr<ElementType, Space, DecorateAddress>> {
   }
 };
 
-template <typename To, typename From,
-          typename = typename std::enable_if_t<TryToGetPointerT<From>::value>>
-To ConvertNonVectorType(From &t) {
-  return PointerConverter<To>::Convert(t);
-}
-
-template <typename To, typename From> To ConvertNonVectorType(From *t) {
-  return PointerConverter<To>::Convert(t);
-}
-
-template <typename To, typename From>
-typename std::enable_if_t<!TryToGetPointerT<From>::value, To>
-ConvertNonVectorType(From &t) {
-  return static_cast<To>(t);
+template <typename To, typename From> To ConvertNonVectorType(From &t) {
+  if constexpr (is_pointer_v<From>)
+    return PointerConverter<To>::Convert(t);
+  else
+    return static_cast<To>(t);
 }
 
 template <typename T, typename = void> struct mptr_or_vec_elem_type {
@@ -624,29 +577,55 @@ using SelectMatchingOpenCLType_t =
 
 // Converts T to OpenCL friendly
 //
-template <typename T /* MatchingOpencCLTypeT */>
-using ConvertToOpenCLTypeImpl_t = std::conditional_t<
-    TryToGetVectorT<T>::value, typename TryToGetVectorT<T>::type,
-    std::conditional_t<TryToGetPointerT<T>::value,
-                       typename TryToGetPointerVecT<T>::type, T>>;
+template <typename T> struct ConvertToOpenCLTypeImpl {
+  using type = T;
+};
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename Type, int NumElements>
+struct ConvertToOpenCLTypeImpl<vec<Type, NumElements>> {
+  using type = typename vec<Type, NumElements>::vector_t;
+};
+
+template <int N> struct ConvertToOpenCLTypeImpl<Boolean<N>> {
+  using type = typename Boolean<N>::vector_t;
+};
+template <> struct ConvertToOpenCLTypeImpl<Boolean<1>> {
+  // Or should it be "int"?
+  using type = Boolean<1>;
+};
+#endif
+
+template <typename T> struct ConvertToOpenCLTypeImpl<T *> {
+#ifdef __SYCL_DEVICE_ONLY__
+  using type = typename DecoratedType<
+      typename ConvertToOpenCLTypeImpl<remove_decoration_t<T>>::type,
+      deduce_AS<T>::value>::type *;
+#else
+  using type = typename ConvertToOpenCLTypeImpl<T>::type *;
+#endif
+};
+
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+struct ConvertToOpenCLTypeImpl<multi_ptr<ElementType, Space, DecorateAddress>> {
+  using type = typename DecoratedType<
+      typename ConvertToOpenCLTypeImpl<ElementType>::type, Space>::type *;
+};
+
 template <typename T>
 using ConvertToOpenCLType_t =
-    ConvertToOpenCLTypeImpl_t<SelectMatchingOpenCLType_t<T>>;
+    typename ConvertToOpenCLTypeImpl<SelectMatchingOpenCLType_t<T>>::type;
 
 // convertDataToType() function converts data from FROM type to TO type using
 // 'as' method for vector type and copy otherwise.
 template <typename FROM, typename TO>
-typename std::enable_if_t<
-    is_vgentype_v<FROM> && is_vgentype_v<TO> && sizeof(TO) == sizeof(FROM), TO>
+typename std::enable_if_t<sizeof(TO) == sizeof(FROM), TO>
 convertDataToType(FROM t) {
-  return t.template as<TO>();
-}
-
-template <typename FROM, typename TO>
-typename std::enable_if_t<
-    !(is_vgentype_v<FROM> && is_vgentype_v<TO>)&&sizeof(TO) == sizeof(FROM), TO>
-convertDataToType(FROM t) {
-  return ConvertNonVectorType<TO>(t);
+  if constexpr (is_vgentype_v<FROM> && is_vgentype_v<TO>)
+    return t.template as<TO>();
+  else
+    return ConvertNonVectorType<TO>(t);
 }
 
 // Used for all, any and select relational built-in functions
@@ -669,27 +648,22 @@ template <typename T>
 using common_rel_ret_t =
     std::conditional_t<is_vgentype_v<T>, make_singed_integer_t<T>, bool>;
 
-// forward declaration
-template <int N> struct Boolean;
-
 // Try to get vector element count or 1 otherwise
-template <typename T, typename Enable = void> struct TryToGetNumElements;
-
-template <typename T>
-struct TryToGetNumElements<
-    T, typename std::enable_if_t<TryToGetVectorT<T>::value>> {
-  static constexpr int value = T::size();
-};
-template <typename T>
-struct TryToGetNumElements<
-    T, typename std::enable_if_t<!TryToGetVectorT<T>::value>> {
+template <typename T> struct GetNumElements {
   static constexpr int value = 1;
+};
+template <typename Type, int NumElements>
+struct GetNumElements<typename sycl::vec<Type, NumElements>> {
+  static constexpr int value = NumElements;
+};
+template <int N> struct GetNumElements<typename sycl::detail::Boolean<N>> {
+  static constexpr int value = N;
 };
 
 // Used for relational comparison built-in functions
 template <typename T> struct RelationalReturnType {
 #ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<TryToGetNumElements<T>::value>;
+  using type = Boolean<GetNumElements<T>::value>;
 #else
   using type = common_rel_ret_t<T>;
 #endif
@@ -703,7 +677,7 @@ using internal_rel_ret_t = typename RelationalReturnType<T>::type;
 template <typename T> struct RelationalTestForSignBitType {
 #ifdef __SYCL_DEVICE_ONLY__
   using return_type = detail::Boolean<1>;
-  using argument_type = detail::Boolean<TryToGetNumElements<T>::value>;
+  using argument_type = detail::Boolean<GetNumElements<T>::value>;
 #else
   using return_type = int;
   using argument_type = T;
