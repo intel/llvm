@@ -63,7 +63,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] void *pDst, [[maybe_unused]] const void *pSrc,
     [[maybe_unused]] size_t size,
@@ -77,7 +77,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hSrcMem,
     [[maybe_unused]] ur_mem_handle_t hDstMem, [[maybe_unused]] size_t srcOffset,
@@ -92,7 +92,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hSrcMem,
     [[maybe_unused]] ur_mem_handle_t hDstMem,
@@ -112,7 +112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] const void *pSrc,
@@ -127,7 +127,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] void *pDst,
@@ -142,7 +142,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
@@ -163,7 +163,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
