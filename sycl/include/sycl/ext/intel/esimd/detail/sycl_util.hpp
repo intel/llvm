@@ -76,13 +76,12 @@ struct local_accessor_access_mode<local_accessor<DataT, Dimensions>> {
 
 // Checks that given type is a SYCL accessor type with given capability and
 // target.
-template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget>
-struct is_sycl_accessor_with
+template <typename T, accessor_mode_cap_val_t Capability>
+struct is_device_accessor_with
     : public std::conditional_t<
           accessor_mode_has_capability<is_sycl_accessor<T>::mode,
                                        Capability>() &&
-              (is_sycl_accessor<T>::target == AccessTarget),
+              (is_sycl_accessor<T>::target == sycl::access::target::device),
           std::true_type, std::false_type> {};
 
 template <typename T, accessor_mode_cap_val_t Capability>
@@ -93,18 +92,22 @@ struct is_local_accessor_with
                                            Capability>(),
           std::true_type, std::false_type> {};
 
-template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget>
-struct is_accessor_with
-    : public std::conditional_t<
-          detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value ||
-              detail::is_local_accessor_with<T, Capability>::value,
-          std::true_type, std::false_type> {};
+template <typename T, accessor_mode_cap_val_t Capability>
+inline constexpr bool is_local_accessor_with_v =
+    is_local_accessor_with<T, Capability>::value;
 
-template <typename T, accessor_mode_cap_val_t Capability,
-          sycl::access::target AccessTarget, typename RetT>
-using EnableIfAccessor = std::enable_if_t<
-    detail::is_accessor_with<T, Capability, AccessTarget>::value, RetT>;
+template <typename T, accessor_mode_cap_val_t Capability>
+inline constexpr bool is_device_accessor_with_v =
+    is_device_accessor_with<T, Capability>::value;
+
+template <typename T, accessor_mode_cap_val_t Capability>
+inline constexpr bool is_accessor_with_v =
+    is_device_accessor_with_v<T, Capability> ||
+    is_local_accessor_with_v<T, Capability>;
+
+template <typename T, accessor_mode_cap_val_t Capability, typename RetT>
+using EnableIfAccessor =
+    std::enable_if_t<detail::is_accessor_with_v<T, Capability>, RetT>;
 
 template <typename T, int Dimensions>
 __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {

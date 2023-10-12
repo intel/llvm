@@ -311,9 +311,8 @@ template <typename Tx, int N, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<
               is_simd_flag_type_v<Flags> &&
-              detail::is_sycl_accessor_with<
-                  AccessorTy, detail::accessor_mode_cap::can_read,
-                  sycl::access::target::device>::value>,
+              detail::is_device_accessor_with_v<
+                  AccessorTy, detail::accessor_mode_cap::can_read>>,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -887,9 +886,8 @@ block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
 ///
 template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<detail::is_sycl_accessor_with<
-    AccessorTy, detail::accessor_mode_cap::can_write,
-    sycl::access::target::device>::value>
+__ESIMD_API std::enable_if_t<detail::is_device_accessor_with_v<
+    AccessorTy, detail::accessor_mode_cap::can_write>>
 block_store(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
             uint64_t offset,
@@ -1029,9 +1027,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        detail::is_sycl_accessor_with<AccessorTy,
-                                      detail::accessor_mode_cap::can_read,
-                                      sycl::access::target::device>::value,
+        detail::is_device_accessor_with_v<AccessorTy,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 gather(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1052,9 +1049,8 @@ gather(AccessorTy acc,
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        detail::is_sycl_accessor_with<AccessorTy,
-                                      detail::accessor_mode_cap::can_read,
-                                      sycl::access::target::device>::value &&
+        detail::is_device_accessor_with_v<
+            AccessorTy, detail::accessor_mode_cap::can_read> &&
         std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>,
     simd<T, N>>
 gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
@@ -1086,9 +1082,8 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    detail::is_sycl_accessor_with<AccessorTy,
-                                  detail::accessor_mode_cap::can_write,
-                                  sycl::access::target::device>::value>
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write>>
 scatter(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
         simd<uint64_t, N> offsets,
@@ -1114,9 +1109,8 @@ scatter(AccessorTy acc,
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    detail::is_sycl_accessor_with<AccessorTy,
-                                  detail::accessor_mode_cap::can_write,
-                                  sycl::access::target::device>::value &&
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
         uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
@@ -1391,9 +1385,8 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename T = typename AccessorT::value_type>
 __ESIMD_API
     std::enable_if_t<((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                      detail::is_sycl_accessor_with<
-                          AccessorT, detail::accessor_mode_cap::can_read,
-                          sycl::access::target::device>::value),
+                      detail::is_device_accessor_with_v<
+                          AccessorT, detail::accessor_mode_cap::can_read>),
                      simd<T, N * get_num_channels_enabled(RGBAMask)>>
     gather_rgba(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1421,9 +1414,8 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename T = typename AccessorT::value_type, typename Toffset>
 __ESIMD_API std::enable_if_t<
     ((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-     detail::is_sycl_accessor_with<AccessorT,
-                                   detail::accessor_mode_cap::can_read,
-                                   sycl::access::target::device>::value &&
+     detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
      std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>),
     simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
@@ -1452,9 +1444,8 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename T = typename AccessorT::value_type>
 __ESIMD_API
     std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                     detail::is_sycl_accessor_with<
-                         AccessorT, detail::accessor_mode_cap::can_write,
-                         sycl::access::target::device>::value>
+                     detail::is_device_accessor_with_v<
+                         AccessorT, detail::accessor_mode_cap::can_write>>
     scatter_rgba(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                  simd<uint64_t, N> offsets,
@@ -1487,9 +1478,8 @@ template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename T = typename AccessorT::value_type, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-    detail::is_sycl_accessor_with<AccessorT,
-                                  detail::accessor_mode_cap::can_write,
-                                  sycl::access::target::device>::value &&
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_write> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
@@ -3062,8 +3052,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                              sycl::access::target::device, void>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                                            uint64_t offset,
@@ -3224,8 +3213,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                              sycl::access::target::device, void>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                                          uint64_t offset,
