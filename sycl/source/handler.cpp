@@ -816,11 +816,8 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-  device Dev;
-  if (MGraph)
-    Dev = MGraph->getDevice();
-  else
-    Dev = detail::getDeviceFromHandler(*this);
+  device Dev =
+      (MGraph) ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
