@@ -1,3 +1,8 @@
+Discourse topic details:
+	- Category: [Clang Frontend](https://discourse.llvm.org/c/clang/6)
+	- Title: "RFC: Offloading design for SYCL offload kind and SPIR targets"
+	- Tags: sycl
+    
 # Offloading design for SYCL offload kind and SPIR targets
 
 This RFC is intended to discuss proposed changes to compilation flow for
@@ -20,18 +25,21 @@ tool.
 
 Below is a general representation of the overall offloading flow that is
 performed during a full compilation from source to final executable. The
-compiler driver is responsible for creating the fat object and the
+compiler driver is responsible for creating the multi-targeted object and the
 `clang-linker-wrapper` tool is responsible for the general functionality that is
-performed during the link.
+performed during the link. This compilation is capable of supporting multiple
+device targets. Support for Intel-based device targets relies on SPIR-V code
+generation. AMDGPU and NVPTX devices can be supported without relying on SPIR-V
+code generation, as shown in the figure below.
 
 ![High level view of the offloading flow](images/offloadflow.svg)
 
 *Diagram 1: Overall compilation flow*
 
-## Fat object generation for SYCL offload kinds using `clang-offload-packager`
+## Multi-targeted object generation for SYCL offload kinds using `clang-offload-packager`
 
-`clang-offload-packager` plays a vital role during fat-object generation. The fat
-object in the proposed offloading model is generated during the host
+`clang-offload-packager` plays a vital role during multi-targeted object generation. The
+multi-targeted object in the proposed offloading model is generated during the host
 compilation. The host compilation takes an additional argument which points to
 the device binary which will be embedded in the final object. Generation will
 be separated out to allow for potential parallelism during compilation of both
@@ -43,8 +51,8 @@ This additional step is performed with the `clang-offload-packager` taking image
 inputs containing information relating to the target triple, architecture
 setting and offloading kind.
 
-The `clang-offload-packager` is run during \'fat object\' generation regardless
-of the number of device binaries being added to the conglomerate fat object.
+The `clang-offload-packager` is run during \'multi-targeted object\' generation regardless
+of the number of device binaries being added to the conglomerate multi-targeted object.
 The device binaries are contained in what is designated as an 'Offload Binary'.
 These binaries can reside in a variety of binary formats including Bitcode
 files, ELF objects, executables and shared objects, COFF objects, archives or
@@ -59,33 +67,25 @@ Example usage of the external `clang-offload-packager` call:
 `clang-offload-packager --image=file=<name>,triple=<triple>,kind=<kind>`
 
 In the proposed offloading model, the compiler driver is responsible for
-creating the fat object. There are two options to generate the fat object:
-- Device code embedded in the fat object is LLVM IR code
-- Device code embedded in the fat object is SPIR-V IR code (-fsycl-rdc)
-- Device code embedded in the fat object is SPIR-V IR code (-fno-sycl-rdc)
-
-Table below showcases the pros and cons of each approach
-
-|            Choice                    |   Pros                       |   Cons                      |
-|--------------------------------------|------------------------------|-----------------------------|
-| Device code embedded in the fat object is LLVM IR code | Well tested post-link passes that work on LLVM IR are available and can be upstreamed | Cross-release compatibility will be a greater challenge to handle as
-LLVM Spec is more fluid that SPIR-V Spec |
-| 2a. Device code embedded in the fat object is SPIR-V IR code (-fsycl-rdc) | Less effort to maintain cross-release compatibility | Additional passes required to translate SPIR-V to LLVM to facilitate running of post-link passes on LLVM IR and then translate LLVM IR back to SPIR-V. There might be loss of vital metadata in this process |
-| 2b. Device code embedded in the fat object is SPIR-V IR code (-fno-sycl-rdc). Less effort to maintain cross-release compatibility | In this scenario, there is no linking necessary and hence all post-link operations can be done early and then the result can be translated to SPIR-V | Cross-module linking is not available |
-
-*Table: Pros and cons to evaluate design choice to decide whether fat object should contain LLVM IR or SPIR-V IR*
+creating the multi-targeted object. LLVM IR is used to represent device code
+embedded in this multi-targeted object. LLVM IR is known to change across
+releases and this rate of change poses a challenge to maintain code compatibility
+in libraries and several other pre-compiled multi-targeted objects.
+An alternate approach is to represent device code using the more stable SPIR-V IR.
+We request comments on this alternate approach from the community.
 
 `clang-offload-packager` will be used to embed device code into the host code.
 Following changes will be added to the packager. A new offload kind (SYCL_OFK)
-will be made available for SYCL offloads. We should have the ability to package
-SPIR-V based device binaries in the offload section of any given binary. These
-device binaries will be packaged as normal with the packager and placed within
-the given section. New image kinds will be added to represent such binaries. 
+will be made available for SYCL offloads. In case we decide to represent device
+code using SPIR-V IR, we should have the ability to package SPIR-V based device
+binaries in the offload section of any given host binary. These device binaries
+will be packaged as normal with the packager and placed within the given
+section. New image kinds will be added to represent such binaries. 
 
 ## SYCL offload support in `clang-linker-wrapper`
 
 The `clang-linker-wrapper` provides the interface to perform the needed link
-steps when consuming fat binaries. The linker wrapper performs a majority of
+steps when consuming multi-targeted binaries. The linker wrapper performs a majority of
 the work involved during the link step during an offload compilation,
 significantly reducing the amount of work that is occurring in the compiler
 driver. From the compilation perspective, the linker wrapper replaces the
@@ -242,7 +242,7 @@ option to the wrapper, `--cpu-tool-arg=<arg>`
 
 ### Wrapping of device images
 
-Once the device binary is pulled out of the fat binary, the binary must be
+Once the device binary is pulled out of the multi-targeted binary, the binary must be
 wrapped and provided the needed entry points to be used during execution.
 This is performed during the link phase and controlled by the
 `clang-linker-wrapper`.
