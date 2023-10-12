@@ -70,7 +70,7 @@ void hip_matrix_apply() {
                 joint_matrix_apply(sg, sub_b, [=](InType v) { return v * 3; });
                 joint_matrix_apply(sg, sub_c, [=](OutType v) { return v * 4; });
 
-                sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+                joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
 
                 joint_matrix_store(
                     sg, sub_c,

@@ -265,7 +265,7 @@ template <typename Group,
           size_t M, size_t N, access::address_space Space,
           access::decorated IsDecorated>
 void store_layoutT(
-    joint_matrix_hip<
+    const joint_matrix_hip<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride, Group &sg) {
@@ -333,7 +333,7 @@ void store_layoutT(
 template <typename Group, typename T, size_t M, size_t N,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_hip(
-    joint_matrix_hip<
+    const joint_matrix_hip<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
@@ -356,11 +356,11 @@ void joint_matrix_mad_hip(
     joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
-    joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::a, M, K,
-                     LayoutA> &A,
-    joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::b, K, N,
-                     LayoutB> &B,
-    joint_matrix_hip<
+    const joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::a,
+                           M, K, LayoutA> &A,
+    const joint_matrix_hip<Tm, sycl::ext::oneapi::experimental::matrix::use::b,
+                           K, N, LayoutB> &B,
+    const joint_matrix_hip<
         Tc, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
   if constexpr (std::is_same_v<Tm, sycl::half>) {
@@ -387,12 +387,12 @@ void joint_matrix_mad_hip(
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
     if constexpr (M == 16 && N == 16) {
       D.data = __builtin_amdgcn_mfma_i32_16x16x16i8(
-          *reinterpret_cast<int32_t *>(A.data),
-          *reinterpret_cast<int32_t *>(B.data), C.data, 0, 0, 0);
+          *reinterpret_cast<const Tc *>(A.data),
+          *reinterpret_cast<const Tc *>(B.data), C.data, 0, 0, 0);
     } else if constexpr (M == 32 && N == 32) {
       D.data = __builtin_amdgcn_mfma_i32_32x32x8i8(
-          *reinterpret_cast<int32_t *>(A.data),
-          *reinterpret_cast<int32_t *>(B.data), C.data, 0, 0, 0);
+          *reinterpret_cast<const Tc *>(A.data),
+          *reinterpret_cast<const Tc *>(B.data), C.data, 0, 0, 0);
     }
   } else {
     static_assert(false && "Invalid configuration!");

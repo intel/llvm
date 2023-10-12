@@ -192,7 +192,6 @@ joint_matrix_fill(Group,
 #if defined(__NVPTX__)
   res.cuda_impl.wi_marray = v;
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_apply(res.hip_impl,
                                                 [=](T) { return v; });
 #else
@@ -219,7 +218,7 @@ template <
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> =
         true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
-    Group,
+    Group &sg,
     joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
@@ -228,6 +227,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
+  std::ignore = sg;
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
@@ -266,6 +266,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   }
 #endif // defined(__NVPTX__)
 #else
+  std::ignore = sg;
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
@@ -284,13 +285,14 @@ template <
                           std::is_same<std::remove_const_t<T>, float>::value),
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group,
+joint_matrix_load(Group &sg,
                   joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
+  std::ignore = sg;
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
@@ -320,7 +322,7 @@ joint_matrix_load(Group,
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
-    Group,
+    Group &sg,
     const joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
                        sycl::ext::oneapi::experimental::matrix::layout::dynamic>
         &src,
@@ -330,6 +332,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
+  std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
@@ -403,13 +406,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   if constexpr (std::is_same<Ta, Tb>::value) {
-    joint_matrix<Group, Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-        D;
     sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, K, N, LayoutA,
                                                     LayoutB>(
         D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
-    return D;
   } else {
     assert(false && "Ta != Tb : In the HIP backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");

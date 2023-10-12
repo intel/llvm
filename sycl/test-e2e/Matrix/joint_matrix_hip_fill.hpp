@@ -59,7 +59,7 @@ void hip_matrix_fill() {
                 joint_matrix_fill(sg, sub_b, 2);
                 joint_matrix_fill(sg, sub_c, 3);
 
-                sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+                joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
 
                 joint_matrix_store(
                     sg, sub_c,
