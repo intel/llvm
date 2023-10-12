@@ -1,6 +1,7 @@
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
+#include "../../helpers.hpp"
 #include "support.h"
 #include <algorithm>
 #include <cassert>
