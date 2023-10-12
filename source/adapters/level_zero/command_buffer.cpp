@@ -708,7 +708,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   *SyncPoint = CommandBuffer->GetNextSyncPoint();
   CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
 
-  // TODO: figure out how to translate "flags"
+  // Add the prefetch command to the command buffer.
+  // Note that L0 does not handle migration flags.
   ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
              (CommandBuffer->ZeCommandList, Mem, Size));
 
