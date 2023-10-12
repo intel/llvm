@@ -377,6 +377,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   }
 #endif // defined(__NVPTX__)
 #else
+  std::ignore = sg;
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
