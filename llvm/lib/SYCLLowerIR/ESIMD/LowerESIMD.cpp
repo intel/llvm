@@ -964,6 +964,9 @@ static void translateBlockLoad(CallInst &CI, bool IsSLM) {
     // Convert 'uint32_t' to 'addrspace(3)*' pointer.
     auto PtrType = PointerType::get(DataType, 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
+  } else {
+    auto PtrType = PointerType::get(DataType, 1);
+    Op0 = Builder.CreateAddrSpaceCast(Op0, PtrType);
   }
 
   auto LI = Builder.CreateAlignedLoad(DataType, Op0, Align, CI.getName());
@@ -981,11 +984,14 @@ static void translateBlockStore(CallInst &CI, bool IsSLM) {
 
   auto Op0 = CI.getArgOperand(0);
   auto Op1 = CI.getArgOperand(1);
+  auto DataType = Op1->getType();
   if (IsSLM) {
     // Convert 'uint32_t' to 'addrspace(3)*' pointer.
-    auto DataType = Op1->getType();
     auto PtrType = PointerType::get(DataType, 3);
     Op0 = Builder.CreateIntToPtr(Op0, PtrType);
+  } else {
+    auto PtrType = PointerType::get(DataType, 1);
+    Op0 = Builder.CreateAddrSpaceCast(Op0, PtrType);
   }
 
   auto SI = Builder.CreateAlignedStore(Op1, Op0, Align);
