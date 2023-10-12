@@ -9,6 +9,7 @@
 #include <detail/plugin.hpp>
 #include <functional>
 #include <optional>
+#include <sstream>
 
 namespace pi {
 inline std::optional<sycl::detail::PluginPtr>

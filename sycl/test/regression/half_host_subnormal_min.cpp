@@ -6,6 +6,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 int main() {
   sycl::half SubnormalMin =
       sycl::bit_cast<sycl::half>((uint16_t)0b0000000000000001u);

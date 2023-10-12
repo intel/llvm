@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
+#include <detail/iostream_proxy.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 
 #include <cstring>

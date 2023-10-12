@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <ostream>
+
 #include <sycl/ext/intel/esimd/detail/simd_mask_impl.hpp>
 #include <sycl/ext/intel/esimd/detail/simd_obj_impl.hpp>
 
@@ -20,10 +22,6 @@
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/detail/iostream_proxy.hpp>
-#endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
 inline namespace _V1 {

@@ -19,6 +19,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+template <class T>
+std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
+  return opt ? os << opt.value() : os << "not set ";
+  return os;
+}
+
 std::vector<std::string_view> tokenize(const std::string_view &Filter,
                                        const std::string &Delim) {
   std::vector<std::string_view> Tokens;
@@ -404,6 +410,37 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
       FilterList.begin(), FilterList.end(), [&](device_filter &Filter) {
         return (!Filter.DeviceNum) || (Filter.DeviceNum.value() == DeviceNum);
       });
+}
+
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out,
+                                       const device_filter &Filter) {
+  Out << Filter.Backend << ":";
+  if (Filter.DeviceType == info::device_type::host) {
+    Out << "host";
+  } else if (Filter.DeviceType == info::device_type::cpu) {
+    Out << "cpu";
+  } else if (Filter.DeviceType == info::device_type::gpu) {
+    Out << "gpu";
+  } else if (Filter.DeviceType == info::device_type::accelerator) {
+    Out << "accelerator";
+  } else if (Filter.DeviceType == info::device_type::all) {
+    Out << "*";
+  } else {
+    Out << "unknown";
+  }
+  if (Filter.DeviceNum) {
+    Out << ":" << Filter.DeviceNum.value();
+  }
+  return Out;
+}
+
+__SYCL_EXPORT std::ostream &operator<<(std::ostream &Out,
+                                       const device_filter_list &List) {
+  for (const device_filter &Filter : List.FilterList) {
+    Out << Filter;
+    Out << ",";
+  }
+  return Out;
 }
 
 } // namespace detail

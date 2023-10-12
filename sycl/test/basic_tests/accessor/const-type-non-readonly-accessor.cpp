@@ -2,6 +2,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 using namespace sycl;
 
 constexpr size_t dataSize = 1;

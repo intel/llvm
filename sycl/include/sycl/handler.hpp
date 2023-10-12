@@ -1176,9 +1176,11 @@ private:
 
     bool DidAdjust = false;
     auto Adjust = [&](int Dim, size_t Value) {
-      if (this->RangeRoundingTrace())
-        std::cout << "parallel_for range adjusted at dim " << Dim << " from "
-                  << RoundedRange[Dim] << " to " << Value << std::endl;
+      if (this->RangeRoundingTrace()) {
+        printf("parallel_for range adjusted at dim %d from %zu to %zu\n", Dim,
+               RoundedRange[Dim], Value);
+        fflush(stdout);
+      }
       RoundedRange[Dim] = Value;
       DidAdjust = true;
     };

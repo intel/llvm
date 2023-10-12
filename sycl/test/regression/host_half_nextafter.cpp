@@ -6,6 +6,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 void check(uint16_t x, uint16_t y, uint16_t ref) {
   assert(sycl::nextafter(sycl::bit_cast<sycl::half>(x),
                          sycl::bit_cast<sycl::half>(y)) ==

@@ -8,6 +8,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
+
 using namespace sycl;
 
 using atomic_t = sycl::atomic<int>;

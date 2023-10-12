@@ -8,6 +8,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <detail/platform_util.hpp>
+#include <iostream>
 #include <sycl/exception.hpp>
 
 #include <atomic>

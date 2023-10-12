@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/global_handler.hpp>
+#include <detail/iostream_proxy.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
@@ -20,6 +21,7 @@
 #include <array>
 #include <cstdlib>
 #include <mutex>
+#include <ostream>
 #include <string>
 #include <utility>
 
