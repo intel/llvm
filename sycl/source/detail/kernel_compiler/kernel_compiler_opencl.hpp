@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 #include <sycl/device.hpp>
 
 #include <string>
@@ -22,7 +20,6 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
-//using spirv_vec_t = std::vector<std::byte>; 
 using spirv_vec_t = std::vector<uint8_t>;
 spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
                              const std::vector<std::string> &UserArgs,

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/pi.hpp>                         // getOsLibraryFuncAddress
-#include <sycl/exception.hpp>                         // for make_error_code
+#include <sycl/detail/pi.hpp> // getOsLibraryFuncAddress
+#include <sycl/exception.hpp> // for make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
@@ -109,13 +109,12 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
                                     CombinedUserArgs.c_str()};
 
   uint32_t NumOutputs = 0;
-  //std::byte **Outputs = nullptr;
   uint8_t **Outputs = nullptr;
   uint64_t *OutputLengths = nullptr;
   char **OutputNames = nullptr;
 
-  //const std::byte *Sources[] = {reinterpret_cast<const std::byte *>(Source.c_str())};
-  const uint8_t *Sources[] = {reinterpret_cast<const uint8_t *>(Source.c_str())};
+  const uint8_t *Sources[] = {
+      reinterpret_cast<const uint8_t *>(Source.c_str())};
   const char *SourceName = "main.cl";
   const uint64_t SourceLengths[] = {Source.length() + 1};
 
@@ -140,7 +139,6 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
       assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
       SpirV = spirv_vec_t(Outputs[i], Outputs[i] + OutputLengths[i]);
     } else if (!strcmp(OutputNames[i], "stdout.log")) {
-      // CompileLog = std::string(reinterpret_cast<const char *>(Outputs[i]));
       const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
       if (LogText != nullptr && LogText[0] != '\0') {
         CompileLog.append(LogText);
