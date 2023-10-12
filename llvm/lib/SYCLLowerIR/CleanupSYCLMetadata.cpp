@@ -1,5 +1,4 @@
-//===------------- CleanupSYCLCompilerInternalMetadata.cpp --------------------
-//------------ remove metadata introduced by SYCL compiler MD -------------===//
+//===--------- CleanupSYCLMetadata.cpp - CleanupSYCLMetadata Pass ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/CleanupSYCLCompilerInternalMetadata.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -21,7 +20,7 @@ using namespace llvm;
 
 namespace {
 
-void cleanupSYCLCompilerModuleMetadata(const Module &M, llvm::StringRef MD) {
+void cleanupSYCLCompilerMetadata(const Module &M, llvm::StringRef MD) {
   NamedMDNode *Node = M.getNamedMetadata(MD);
   if (!Node)
     return;
@@ -33,15 +32,14 @@ void cleanupSYCLCompilerModuleMetadata(const Module &M, llvm::StringRef MD) {
 } // anonymous namespace
 
 PreservedAnalyses
-CleanupSYCLCompilerInternalMetadataPass::run(Module &M,
-                                             ModuleAnalysisManager &MAM) {
+CleanupSYCLMetadataPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // Remove SYCL module-level metadata that will never be used again to avoid
   // its duplication of their operands during llvm-link hence preventing
   // increase of the module size
   llvm::SmallVector<llvm::StringRef, 2> ModuleMDToRemove = {
       "sycl_aspects", "sycl_types_that_use_aspects"};
   for (const auto &MD : ModuleMDToRemove)
-    cleanupSYCLCompilerModuleMetadata(M, MD);
+    cleanupSYCLCompilerMetadata(M, MD);
 
   return PreservedAnalyses::all();
 }
