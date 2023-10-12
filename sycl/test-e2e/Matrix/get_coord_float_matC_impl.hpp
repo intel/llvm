@@ -50,15 +50,11 @@ void matrix_sum_rows(big_matrix<T1, M, N> &C, float *sum_rows) {
                N, layout::row_major);
 
            float sum_local_rows[M] = {0};
-           auto data =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
 
-           for (int i = 0; i < data.length(); ++i) {
-             auto dataItem = data[i];
-             auto [row, col] = dataItem.get_coord();
-             sum_local_rows[row + global_idx * TM] += dataItem;
-           }
-
+           ext::intel::experimental::matrix::joint_matrix_apply(
+               sg, sub_c, [&](float &x, size_t row, size_t col) {
+                 sum_local_rows[row + global_idx * TM] += x;
+               });
            for (int i = 0; i < M; i++) {
              sum_local_rows[i] =
                  reduce_over_group(sg, sum_local_rows[i], sycl::plus<>());
