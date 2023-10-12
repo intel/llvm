@@ -572,17 +572,12 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     ToolChain.addFastMathRuntimeIfAvailable(Args, CmdArgs);
   }
 
-<<<<<<< HEAD
   // Performing link for dependency file information, undefined symbols are OK.
   // True link time errors for symbols will be captured at host link.
   if (JA.getType() == types::TY_Host_Dependencies_Image)
     CmdArgs.push_back("--unresolved-symbols=ignore-all");
 
-  Args.AddAllArgs(CmdArgs, options::OPT_L);
-  Args.AddAllArgs(CmdArgs, options::OPT_u);
-=======
   Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_u});
->>>>>>> 894927b491b7c62917ffa7ad665841683095317c
 
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
