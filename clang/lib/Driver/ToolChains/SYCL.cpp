@@ -1137,7 +1137,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
   // Only pass -cl-opt-disable for non-JIT, as the runtime
-  // handles O0 in that case.
+  // handles O0 for the JIT case.
   if (Triple.getSubArch() != llvm::Triple::NoSubArch)
     if (Arg *A = Args.getLastArg(options::OPT_O_Group))
       if (A->getOption().matches(options::OPT_O0))
