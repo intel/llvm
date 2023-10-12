@@ -346,7 +346,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 // ---- joint_reduce
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer_v<Ptr> &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<Ptr>::type>::value &&
      detail::is_arithmetic_or_complex<T>::value &&
@@ -374,7 +374,7 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 
 template <typename Group, typename Ptr, class BinaryOperation>
 std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer_v<Ptr> &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<Ptr>::type>::value &&
      detail::is_plus_or_multiplies_if_complex<
@@ -423,8 +423,8 @@ std::enable_if_t<is_group_v<Group>, bool> any_of_group(Group g, T x,
 
 // ---- joint_any_of
 template <typename Group, typename Ptr, class Predicate>
-std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> && detail::is_pointer_v<Ptr>),
+                 bool>
 joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   using T = typename detail::remove_pointer<Ptr>::type;
@@ -469,8 +469,8 @@ all_of_group(Group g, T x, Predicate pred) {
 
 // ---- joint_all_of
 template <typename Group, typename Ptr, class Predicate>
-std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> && detail::is_pointer_v<Ptr>),
+                 bool>
 joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   using T = typename detail::remove_pointer<Ptr>::type;
@@ -515,8 +515,8 @@ none_of_group(Group g, T x, Predicate pred) {
 
 // ---- joint_none_of
 template <typename Group, typename Ptr, class Predicate>
-std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value), bool>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> && detail::is_pointer_v<Ptr>),
+                 bool>
 joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 #ifdef __SYCL_DEVICE_ONLY__
   return !joint_any_of(g, first, last, pred);
@@ -820,8 +820,8 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 template <typename Group, typename InPtr, typename OutPtr, typename T,
           class BinaryOperation>
 std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
-     detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer_v<InPtr> &&
+     detail::is_pointer_v<OutPtr> &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_arithmetic_or_complex<
@@ -870,8 +870,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
 std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
-     detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer_v<InPtr> &&
+     detail::is_pointer_v<OutPtr> &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_arithmetic_or_complex<
@@ -1011,8 +1011,8 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation, typename T>
 std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
-     detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer_v<InPtr> &&
+     detail::is_pointer_v<OutPtr> &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_arithmetic_or_complex<
@@ -1060,8 +1060,8 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 template <typename Group, typename InPtr, typename OutPtr,
           class BinaryOperation>
 std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
-     detail::is_pointer<OutPtr>::value &&
+    (is_group_v<std::decay_t<Group>> && detail::is_pointer_v<InPtr> &&
+     detail::is_pointer_v<OutPtr> &&
      detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_native_op<typename detail::remove_pointer<OutPtr>::type,

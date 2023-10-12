@@ -1392,6 +1392,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
         llvm::sys::path::replace_extension(P, "gch");
         if (D.getVFS().exists(P)) {
           FoundPCH = true;
+          D.Diag(diag::warn_drv_include_probe_gch) << A->getAsString(Args) << P;
         }
       }
       // If PCH file is available, include it while performing
@@ -5816,9 +5817,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   const bool IsAssertBuild = true;
 #endif
 
-  // Disable the verification pass in -asserts builds.
-  if (!IsAssertBuild)
+  // Disable the verification pass in asserts builds unless otherwise specified.
+  if (Args.hasFlag(options::OPT_fno_verify_intermediate_code,
+                   options::OPT_fverify_intermediate_code, !IsAssertBuild)) {
     CmdArgs.push_back("-disable-llvm-verifier");
+  }
 
   // Discard value names in assert builds unless otherwise specified.
   if (Args.hasFlag(options::OPT_fdiscard_value_names,
@@ -6416,6 +6419,23 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else {
       D.Diag(diag::err_drv_invalid_argument_to_option)
           << CM << A->getOption().getName();
+    }
+  }
+
+  if (Arg *A = Args.getLastArg(options::OPT_mlarge_data_threshold_EQ)) {
+    if (!Triple.isX86()) {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getOption().getName() << TripleStr;
+    } else {
+      bool IsMediumCM = false;
+      if (Arg *A = Args.getLastArg(options::OPT_mcmodel_EQ))
+        IsMediumCM = StringRef(A->getValue()) == "medium";
+      if (!IsMediumCM) {
+        D.Diag(diag::warn_drv_large_data_threshold_invalid_code_model)
+            << A->getOption().getRenderName();
+      } else {
+        A->render(Args, CmdArgs);
+      }
     }
   }
 
@@ -7300,9 +7320,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,
                      options::OPT_fno_hip_new_launch_api, true))
       CmdArgs.push_back("-fhip-new-launch-api");
-    if (Args.hasFlag(options::OPT_fgpu_allow_device_init,
-                     options::OPT_fno_gpu_allow_device_init, false))
-      CmdArgs.push_back("-fgpu-allow-device-init");
+    Args.addOptInFlag(CmdArgs, options::OPT_fgpu_allow_device_init,
+                      options::OPT_fno_gpu_allow_device_init);
+    Args.AddLastArg(CmdArgs, options::OPT_hipstdpar);
+    Args.AddLastArg(CmdArgs, options::OPT_hipstdpar_interpose_alloc);
     Args.addOptInFlag(CmdArgs, options::OPT_fhip_kernel_arg_name,
                       options::OPT_fno_hip_kernel_arg_name);
   }
@@ -7314,9 +7335,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fno-gpu-rdc");
   }
   if (IsCuda || IsHIP) {
-    if (Args.hasFlag(options::OPT_fgpu_defer_diag,
-                     options::OPT_fno_gpu_defer_diag, false))
-      CmdArgs.push_back("-fgpu-defer-diag");
+    Args.addOptInFlag(CmdArgs, options::OPT_fgpu_defer_diag,
+                      options::OPT_fno_gpu_defer_diag);
     if (Args.hasFlag(options::OPT_fgpu_exclude_wrong_side_overloads,
                      options::OPT_fno_gpu_exclude_wrong_side_overloads,
                      false)) {
@@ -8277,6 +8297,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (Triple.isAArch64() &&
       (Args.hasArg(options::OPT_mno_fmv) ||
+       (Triple.isAndroid() && Triple.isAndroidVersionLT(23)) ||
        getToolChain().GetRuntimeLibType(Args) != ToolChain::RLT_CompilerRT)) {
     // Disable Function Multiversioning on AArch64 target.
     CmdArgs.push_back("-target-feature");
@@ -10380,6 +10401,92 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         Twine("--offload-opt=-pass-remarks-analysis=") + A->getValue()));
   if (Args.getLastArg(options::OPT_save_temps_EQ))
     CmdArgs.push_back("--save-temps");
+
+  // Add any SYCL offloading specific options to the clang-linker-wrapper
+  if (C.hasOffloadToolChain<Action::OFK_SYCL>()) {
+    // --sycl-device-libraries=<comma separated list> contains all of the SYCL
+    // device specific libraries that are needed.  This provides the list of
+    // files file only.
+    // TODO: This generic list will be populated with only device binaries
+    // for spir64.  Other targets (AOT and others) can represent a different
+    // set of device libraries.  We will cross that bridge when we begin to
+    // enable the other possible targets.
+    llvm::Triple TargetTriple;
+    auto ToolChainRange = C.getOffloadToolChains<Action::OFK_SYCL>();
+    for (auto &I :
+         llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
+      const ToolChain *TC = I.second;
+      if (TC->getTriple().isSPIR() &&
+          TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+        TargetTriple = TC->getTriple();
+        break;
+      }
+    }
+    SmallVector<std::string, 8> SYCLDeviceLibs;
+    SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple,
+                                              /*IsSpirvAOT=*/false);
+    // Create a comma separated list to pass along to the linker wrapper.
+    SmallString<256> LibList;
+    for (const auto &AddLib : SYCLDeviceLibs) {
+      if (LibList.size() > 0)
+        LibList += ",";
+      LibList += AddLib;
+    }
+    // --sycl-device-libraries=<libs> provides a comma separate list of
+    // libraries to add to the device linking step.
+    // SYCL device libraries can be found.
+    if (LibList.size())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("--sycl-device-libraries=") + LibList));
+
+    // --sycl-device-library-location=<dir> provides the location in which the
+    // SYCL device libraries can be found.
+    SmallString<128> DeviceLibDir(D.Dir);
+    llvm::sys::path::append(DeviceLibDir, "..", "lib");
+    // Check the library location candidates for the the libsycl-crt library
+    // and use that location.  Base the location on relative to driver if this
+    // is not resolved.
+    SmallVector<SmallString<128>, 4> LibLocCandidates;
+    SYCLInstallationDetector SYCLInstallation(D);
+    SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+    SmallString<128> LibName("libsycl-crt");
+    StringRef LibSuffix = TheTriple.isWindowsMSVCEnvironment() ? ".obj" : ".o";
+    llvm::sys::path::replace_extension(LibName, LibSuffix);
+    for (const auto &LibLoc : LibLocCandidates) {
+      SmallString<128> FullLibName(LibLoc);
+      llvm::sys::path::append(FullLibName, LibName);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        DeviceLibDir = LibLoc;
+        break;
+      }
+    }
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("--sycl-device-library-location=") + DeviceLibDir));
+  }
+
+  auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
+    if (!OptString.empty())
+      OptString += " ";
+    OptString += AddOpt.str();
+  };
+  // --sycl-post-link-options="options" provides a string of options to be
+  // passed along to the sycl-post-link tool during device link.
+  if (Args.hasArg(options::OPT_Xdevice_post_link)) {
+    SmallString<128> OptString;
+    for (const auto &A : Args.getAllArgValues(options::OPT_Xdevice_post_link))
+      appendOption(OptString, A);
+    CmdArgs.push_back(
+        Args.MakeArgString("--sycl-post-link-options=" + OptString));
+  }
+
+  // --llvm-spirv-options="options" provides a string of options to be passed
+  // along to the llvm-spirv (translation) step during device link.
+  if (Args.hasArg(options::OPT_Xspirv_translator)) {
+    SmallString<128> OptString;
+    for (const auto &A : Args.getAllArgValues(options::OPT_Xspirv_translator))
+      appendOption(OptString, A);
+    CmdArgs.push_back(Args.MakeArgString("--llvm-spirv-options=" + OptString));
+  }
 
   // Construct the link job so we can wrap around it.
   Linker->ConstructJob(C, JA, Output, Inputs, Args, LinkingOutput);
