@@ -58,6 +58,7 @@ public:
 
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
+  bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<PlatformImplPtr> &getPlatformCache();

@@ -201,10 +201,23 @@ enum PropKind : uint32_t {
   RegisterAllocMode = 31,
   GRFSize = 32,
   GRFSizeAutomatic = 33,
-  BuildOptions = 34,
-  BuildLog = 35,
+  Resource = 34,
+  NumBanks = 35,
+  StrideSize = 36,
+  WordSize = 37,
+  BiDirectionalPorts = 38,
+  Clock2x = 39,
+  RAMStitching = 40,
+  MaxPrivateCopies = 41,
+  NumReplicates = 42,
+  Datapath = 43,
+  ESIMDL1CacheHint = 44,
+  ESIMDL2CacheHint = 45,
+  ESIMDL3CacheHint = 46,
+  BuildOptions = 47,
+  BuildLog = 48,
   // PropKindSize must always be the last value.
-  PropKindSize = 36,
+  PropKindSize = 49,
 };
 
 // This trait must be specialized for all properties and must have a unique

@@ -1472,6 +1472,7 @@ void GVNPass::eliminatePartiallyRedundantLoad(
   // Perform PHI construction.
   Value *V = ConstructSSAForLoadSet(Load, ValuesPerBlock, *this);
   // ConstructSSAForLoadSet is responsible for combining metadata.
+  ICF->removeUsersOf(Load);
   Load->replaceAllUsesWith(V);
   if (isa<PHINode>(V))
     V->takeName(Load);
@@ -1891,6 +1892,7 @@ bool GVNPass::processNonLocalLoad(LoadInst *Load) {
     // Perform PHI construction.
     Value *V = ConstructSSAForLoadSet(Load, ValuesPerBlock, *this);
     // ConstructSSAForLoadSet is responsible for combining metadata.
+    ICF->removeUsersOf(Load);
     Load->replaceAllUsesWith(V);
 
     if (isa<PHINode>(V))
@@ -2165,6 +2167,7 @@ bool GVNPass::processLoad(LoadInst *L) {
   Value *AvailableValue = AV->MaterializeAdjustedValue(L, L, *this);
 
   // MaterializeAdjustedValue is responsible for combining metadata.
+  ICF->removeUsersOf(L);
   L->replaceAllUsesWith(AvailableValue);
   markInstructionForDeletion(L);
   if (MSSAU)
@@ -2766,7 +2769,12 @@ bool GVNPass::processBlock(BasicBlock *BB) {
   // use our normal hash approach for phis.  Instead, simply look for
   // obvious duplicates.  The first pass of GVN will tend to create
   // identical phis, and the second or later passes can eliminate them.
-  ChangedFunction |= EliminateDuplicatePHINodes(BB);
+  SmallPtrSet<PHINode *, 8> PHINodesToRemove;
+  ChangedFunction |= EliminateDuplicatePHINodes(BB, PHINodesToRemove);
+  for (PHINode *PN : PHINodesToRemove) {
+    VN.erase(PN);
+    removeInstruction(PN);
+  }
 
   for (BasicBlock::iterator BI = BB->begin(), BE = BB->end();
        BI != BE;) {

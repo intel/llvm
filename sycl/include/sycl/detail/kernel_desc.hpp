@@ -92,7 +92,7 @@ template <class KernelNameType> struct KernelInfo {
 #else
 template <char...> struct KernelInfoData {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
+  static const kernel_param_desc_t &getParamDesc(int) {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
