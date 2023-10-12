@@ -147,16 +147,14 @@ constexpr int get_num_channels_enabled(rgba_channel_mask M) {
          is_channel_enabled(M, rgba_channel::A);
 }
 
-#define __ESIMD_USM_DWORD_ATOMIC_TO_LSC                                        \
-  " is supported only on ACM, PVC. USM-based atomic will be auto-converted "   \
-  "to LSC version."
-
 /// Represents an atomic operation. Operations always return the old value(s) of
 /// the target memory location(s) as it was before the operation was applied.
 /// Each operation is annotated with a pseudocode illustrating its semantics,
 /// \c addr is a memory address (one of the many, as the atomic operation is
 /// vector) the operation is applied at, \c src0 is its first argumnet,
 /// \c src1 - second.
+/// Using the floating point atomic operations adds the requirement to running
+/// the code with it on target devices with LSC features (ACM, PVC, etc).
 enum class atomic_op : uint8_t {
   /// Addition: <code>*addr = *addr + src0</code>.
   add = 0x0,
@@ -184,16 +182,18 @@ enum class atomic_op : uint8_t {
   smin = 0xb,
   /// Maximum (signed integer): <code>*addr = max(*addr, src0)</code>.
   smax = 0xc,
-  /// Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
-  fmax __SYCL_DEPRECATED("fmax" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x10,
-  /// Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
-  fmin __SYCL_DEPRECATED("fmin" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x11,
-  /// Compare and exchange (floating point).
+  /// ACM/PVC: Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
+  fmax = 0x10,
+  /// ACM/PVC: Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
+  fmin = 0x11,
+  /// ACM/PVC: Compare and exchange (floating point).
   /// <code>if (*addr == src0) *addr = src1;</code>
   fcmpxchg = 0x12,
-  fcmpwr __SYCL_DEPRECATED("fcmpwr" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = fcmpxchg,
-  fadd __SYCL_DEPRECATED("fadd" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x13,
-  fsub __SYCL_DEPRECATED("fsub" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x14,
+  fcmpwr = fcmpxchg,
+  /// ACM/PVC: Addition (floating point): <code>*addr = *addr + src0</code>.
+  fadd = 0x13, //
+  /// ACM/PVC: Subtraction (floating point): <code>*addr = *addr - src0</code>.
+  fsub = 0x14,
   load = 0x15,
   store = 0x16,
   /// Decrement: <code>*addr = *addr - 1</code>. The only operation which
