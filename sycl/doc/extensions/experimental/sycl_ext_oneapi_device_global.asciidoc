@@ -1041,11 +1041,11 @@ If `PropertyListT` contains the `device_image_scope` property and the _dest_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
-If `PropertyListT` contains the `device_image_scope` property, kernels in the
-_device image_ containing the _dest_ variable must be compatible with the 
-device that is associated with the `handler`. If this is not the case, the 
-implementation throws an `exception` with the `errc::kernel_not_supported` 
-error code.
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
+
 a| 
 [source, c++]
 ----
@@ -1070,11 +1070,10 @@ If `PropertyListT` contains the `device_image_scope` property and the _src_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
-If `PropertyListT` contains the `device_image_scope` property, kernels in the 
-_device image_ containing the _src_ variable must be compatible with the device 
-that is associated with the `handler`. If this is not the case, the 
-implementation throws an `exception` with the `errc::kernel_not_supported` 
-error code.
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
 
 a| 
 [source, c++]
@@ -1098,11 +1097,11 @@ If `PropertyListT` contains the `device_image_scope` property and the _dest_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
-If `PropertyListT` contains the `device_image_scope` property, kernels in the
-_device image_ containing the _dest_ variable must be compatible with the 
-device that is associated with the `handler`. If this is not the case, the 
-implementation throws an `exception` with the `errc::kernel_not_supported` 
-error code.
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
+
 a| 
 [source, c++]
 ----
@@ -1126,11 +1125,11 @@ If `PropertyListT` contains the `device_image_scope` property and the _src_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
-If `PropertyListT` contains the `device_image_scope` property, kernels in the 
-_device image_ containing the _src_ variable must be compatible with the device 
-that is associated with the `handler`. If this is not the case, the 
-implementation throws an `exception` with the `errc::kernel_not_supported` 
-error code.
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
+
 |====
 --
 
