@@ -20,6 +20,7 @@
 #include <sycl/sycl.hpp>
 
 #include <climits>
+#include <cmath>
 #include <limits>
 #include <type_traits>
 
