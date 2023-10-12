@@ -824,8 +824,7 @@ template <> struct PropertyToKind<syclex::build_options_key> {
   static constexpr PropKind Kind = PropKind::BuildOptions;
 };
 
-template <>
-struct IsRuntimeProperty<syclex::build_options_key> : std::true_type {};
+template <> struct IsRuntimeProperty<syclex::build_options_key> : std::true_type {};
 
 template <>
 struct IsCompileTimeProperty<syclex::build_options_key> : std::false_type {};
