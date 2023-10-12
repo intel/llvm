@@ -51,7 +51,7 @@ annotated_arg(annotated_arg<T, old>, properties<std::tuple<ArgT...>>)
     -> annotated_arg<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,

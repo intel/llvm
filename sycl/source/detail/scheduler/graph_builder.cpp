@@ -521,6 +521,11 @@ Command *
 Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                          std::vector<Command *> &ToEnqueue) {
 
+  if (Req->MAccessMode != sycl::access_mode::read) {
+    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    SYCLMemObj->handleWriteAccessorCreation();
+  }
+
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req, ToEnqueue);
