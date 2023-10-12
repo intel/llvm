@@ -7,7 +7,10 @@ Discourse topic details:
 
 We (Intel) propose adding full support for the SYCL programming model to the LLVM compiler infrastructure.  This will facilitate collaboration on C++ single-source heterogeneous programming for accelerators (e.g., GPU, FPGA, DSP) from different hardware and software vendors. The SYCL 2020 Specification is available at the Khronos site: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html.
 
-Our prior RFC toward this effort can be seen here: https://lists.llvm.org/pipermail/cfe-dev/2019-January/060811.html
+Our prior RFCs toward this effort can be seen here:
+ * [Add SYCL programming model support](https://discourse.llvm.org/t/rfc-add-sycl-programming-model-support/50812)
+ * [Driver options to control non-standard features](https://discourse.llvm.org/t/rfc-sycl-driver-options-to-control-non-standard-features/53797)
+ * [Re-use OpenCL address space attributes for SYCL](https://discourse.llvm.org/t/rfc-re-use-opencl-address-space-attributes-for-sycl/55751)
 
 In the last four years, here are some of the major developments in our SYCL compilation efforts:
   *   both our design and SYCL have evolved (e.g. the previous RFC supported SYCL 1.2.1)
@@ -42,11 +45,11 @@ One example is the use of the C++ type that is used to “name” a kernel.  Wit
 
 We would like to lift these limitations, at least in the common case where the user uses clang for both the host and device compilation phases.  Our thought was to implement a different integration approach for this common case, which might assume that the host compiler understands clang attributes like __builtin_sycl_unique_stable_name and decorates the LLVM IR with some new attributes.  Our thinking is very early at this point.
 
-Even if we develop this new approach, though, we think it makes sense to keep the approach based on the integration headers because this will continue to be used for a third-party host compiler.
+Even if we develop this new approach, though, we think it makes sense to keep the approach based on the integration header because this will continue to be used for a third-party host compiler.
 
 ### Location for the logic for generating the integration support
 
-Another open question is the location for the logic that generates the integration headers (or the new integration information alluded to above).  This logic is currently located in the Sema phase of the CFE, and the community has expressed concern about this.  We are considering two alternatives.  One option is to move the logic to the CodeGen phase of the CFE.  Another is to move the logic out of the CFE entirely and create a new LLVM IR pass instead.  If we do this, the new IR pass would likely run near the start of the pipeline, before other IR passes can transform the IR that is emitted by the CFE.  This option may be attractive especially if we end up supporting two integration methods because we could isolate each method in its own IR pass, and then enable one or the other pass depending on whether the user requests a third-party host compiler.
+Another open question is the location for the logic that generates the integration header (or the new integration information alluded to above).  This logic is currently located in the Sema phase of the CFE, and the community has expressed concern about this.  We are considering two alternatives.  One option is to move the logic to the CodeGen phase of the CFE.  Another is to move the logic out of the CFE entirely and create a new LLVM IR pass instead.  If we do this, the new IR pass would likely run near the start of the pipeline, before other IR passes can transform the IR that is emitted by the CFE.  This option may be attractive especially if we end up supporting two integration methods because we could isolate each method in its own IR pass, and then enable one or the other pass depending on whether the user requests a third-party host compiler.
 
 ### Dependency on the Khronos LLVM-SPIRV translator
 
