@@ -237,11 +237,7 @@ __ESIMD_INTRIN uint16_t __esimd_any(__ESIMD_DNS::vector_type_t<T, N> src)
     ;
 #else
 {
-  for (unsigned int i = 0; i != N; i++) {
-    if (src[i] != 0)
-      return 1;
-  }
-  return 0;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -251,11 +247,7 @@ __ESIMD_INTRIN uint16_t __esimd_all(__ESIMD_DNS::vector_type_t<T, N> src)
     ;
 #else
 {
-  for (unsigned int i = 0; i != N; i++) {
-    if (src[i] == 0)
-      return 0;
-  }
-  return 1;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 

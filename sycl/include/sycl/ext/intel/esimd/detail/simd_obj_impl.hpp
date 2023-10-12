@@ -15,7 +15,6 @@
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/sycl_util.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 

@@ -12,7 +12,6 @@
 
 #include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 
 namespace sycl {

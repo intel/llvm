@@ -11,7 +11,6 @@
 #pragma once
 
 #include <sycl/ext/intel/esimd/common.hpp>
-#include <sycl/ext/intel/esimd/detail/host_util.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/operators.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
@@ -903,13 +902,7 @@ dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2, Sat sat = {}) {
     }
   }
 #else
-  simd<T2, N> tmp =
-      __esimd_dp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(), Src2.data());
-
-  if (std::is_same_v<Sat, saturation_on_tag>)
-    Result = esimd::saturate<T1>(tmp);
-  else
-    Result = convert<T1>(tmp);
+  __ESIMD_UNSUPPORTED_ON_HOST;
 #endif // __SYCL_DEVICE_ONLY__
 
   return Result;

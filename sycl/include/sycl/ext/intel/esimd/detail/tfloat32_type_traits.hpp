@@ -44,12 +44,7 @@ template <int N> struct vector_conversion_traits<tfloat32, N> {
     vector_type_t<RawT, N> Result = __esimd_tf32_cvt<RawT, StdT, N>(Val);
     return Result;
 #else
-    vector_type_t<RawT, N> Output = 0;
-
-    for (int i = 0; i < N; i++) {
-      Output[i] = sycl::bit_cast<RawT>(static_cast<tfloat32>(Val[i]));
-    }
-    return Output;
+    __ESIMD_UNSUPPORTED_ON_HOST;
 #endif
   }
 
