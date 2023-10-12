@@ -2028,6 +2028,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference,
                          Scalar.ElementType);
   }
+  case clang::CastKind::CK_FloatingRealToComplex: {
+    ValueCategory Real = Visit(E->getSubExpr());
+    return Real.CRealToComplex(Builder, Loc,
+                               Glob.getTypes().getMLIRType(E->getType()));
+  }
 
   default:
     if (EmittingFunctionDecl)
@@ -2564,7 +2569,8 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
   QualType LHSTy = E->getLHS()->getType();
 
   CGEIST_WARNING({
-    if (E->getComputationResultType()->isAnyComplexType())
+    if (E->getComputationResultType()->isAnyComplexType() &&
+        !E->getComputationResultType()->isComplexType())
       llvm::WithColor::warning() << "Not handling complex types yet\n";
   });
 
@@ -2679,6 +2685,9 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
   const auto LHS = Info.getLHS();
   const auto RHS = Info.getRHS().val;
 
+  if (Info.getType()->isComplexType()) {
+    return LHS.CMul(Builder, Loc, RHS);
+  }
   if (Info.getType()->isSignedIntegerOrEnumerationType()) {
     CGEIST_WARNING(informNoOverflowCheck(
         Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "mul"));
@@ -2879,6 +2888,10 @@ ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
   if (mlirclang::isPointerOrMemRefTy(LHS.val.getType()) ||
       mlirclang::isPointerOrMemRefTy(RHS.val.getType()))
     return EmitPointerArithmetic(Info);
+
+  if (Info.getType()->isComplexType()) {
+    return LHS.CAdd(Builder, Loc, RHS.val);
+  }
 
   if (Info.getType()->isSignedIntegerOrEnumerationType()) {
     CGEIST_WARNING(informNoOverflowCheck(
@@ -3097,16 +3110,23 @@ ValueCategory MLIRScanner::VisitMinus(UnaryOperator *E,
 ValueCategory MLIRScanner::VisitImag(UnaryOperator *E, QualType PromotionType) {
   Expr *Op = E->getSubExpr();
 
-  assert(!Op->getType()->isAnyComplexType() && "Unsupported");
+  assert(
+      (!Op->getType()->isAnyComplexType() || Op->getType()->isComplexType()) &&
+      "Unsupported");
 
   // __imag on a scalar returns zero.  Emit the subexpr to ensure side
   // effects are evaluated, but not the actual value.
+  ValueCategory OpRes;
   if (Op->isGLValue())
-    EmitLValue(Op);
+    OpRes = EmitLValue(Op);
   else if (!PromotionType.isNull())
-    EmitPromotedScalarExpr(Op, PromotionType);
+    OpRes = EmitPromotedScalarExpr(Op, PromotionType);
   else
-    Visit(Op);
+    OpRes = Visit(Op);
+
+  if (Op->getType()->isComplexType())
+    return OpRes.CImag(Builder, getMLIRLocation(E->getExprLoc()));
+
   auto ResTy = Glob.getTypes().getMLIRType(
       !PromotionType.isNull() ? PromotionType : E->getType());
   return ValueCategory::getNullValue(Builder, getMLIRLocation(E->getExprLoc()),
@@ -3116,11 +3136,17 @@ ValueCategory MLIRScanner::VisitImag(UnaryOperator *E, QualType PromotionType) {
 ValueCategory MLIRScanner::VisitReal(UnaryOperator *E, QualType PromotionType) {
   Expr *Op = E->getSubExpr();
 
-  assert(!Op->getType()->isAnyComplexType() && "Unsupported");
+  assert(
+      (!Op->getType()->isAnyComplexType() || Op->getType()->isComplexType()) &&
+      "Unsupported");
 
-  if (!PromotionType.isNull())
-    return EmitPromotedScalarExpr(Op, PromotionType);
-  return Visit(Op);
+  ValueCategory OpRes = (!PromotionType.isNull())
+                            ? EmitPromotedScalarExpr(Op, PromotionType)
+                            : Visit(Op);
+  if (Op->getType()->isComplexType())
+    return OpRes.CReal(Builder, getMLIRLocation(E->getExprLoc()));
+
+  return OpRes;
 }
 
 ValueCategory MLIRScanner::VisitSizeOfPackExpr(SizeOfPackExpr *E) {

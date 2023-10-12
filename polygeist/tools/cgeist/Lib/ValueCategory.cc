@@ -687,6 +687,68 @@ ValueCategory ValueCategory::FMul(OpBuilder &Builder, Location Loc,
   return FPBinOp<arith::MulFOp>(Builder, Loc, val, RHS);
 }
 
+static bool isComplexRepresentation(Type Ty) {
+  if (!isa<LLVM::LLVMStructType>(Ty))
+    return false;
+
+  auto StructTy = cast<LLVM::LLVMStructType>(Ty);
+
+  return StructTy.getBody().size() == 2 &&
+         llvm::all_of(StructTy.getBody(),
+                      [](Type ElTy) { return ElTy.isF32(); });
+}
+
+static ValueCategory initComplex(OpBuilder &Builder, Location Loc, Value Real,
+                                 Value Imag) {
+  SmallVector<Type, 2> ElemTys(2, Builder.getF32Type());
+  auto ComplexTy =
+      LLVM::LLVMStructType::getLiteral(Builder.getContext(), ElemTys);
+  auto ConstOne =
+      Builder.create<LLVM::ConstantOp>(Loc, Builder.getI64IntegerAttr(1));
+  LLVM::LLVMPointerType PtrTy =
+      LLVM::LLVMPointerType::get(Builder.getContext());
+  auto Result = Builder.create<LLVM::AllocaOp>(Loc, PtrTy, ComplexTy, ConstOne);
+  // Store into the result.
+  Builder.create<LLVM::StoreOp>(Loc, Real, Result);
+  SmallVector<LLVM::GEPArg> ImgIndices;
+  ImgIndices.emplace_back(0);
+  ImgIndices.emplace_back(1);
+  auto ImgPtr = Builder.create<LLVM::GEPOp>(Loc, PtrTy, ComplexTy, Result,
+                                            ImgIndices, /* inBounds */ true);
+  Builder.create<LLVM::StoreOp>(Loc, Imag, ImgPtr);
+  // Load the result
+  auto ResultVal = Builder.create<LLVM::LoadOp>(Loc, ComplexTy, Result);
+  return {ResultVal, false};
+}
+
+ValueCategory ValueCategory::CMul(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  assert(isComplexRepresentation(val.getType()) &&
+         "Expecting representation of a complex");
+  assert((isComplexRepresentation(RHS.getType()) || RHS.getType().isF32()) &&
+         "Expecting representation of a complex");
+
+  // Multiplying complex numbers (x + yi) and (u + vi) results in
+  // (xu - yv) + (xv + yu)i
+  auto X = Builder.create<LLVM::ExtractValueOp>(Loc, val, 0);
+  auto Y = Builder.create<LLVM::ExtractValueOp>(Loc, val, 1);
+  Value U = (isComplexRepresentation(RHS.getType()))
+                ? Builder.create<LLVM::ExtractValueOp>(Loc, RHS, 0)
+                : RHS;
+  Value V =
+      (isComplexRepresentation(RHS.getType()))
+          ? Builder.create<LLVM::ExtractValueOp>(Loc, RHS, 1)
+          : Builder.create<LLVM::ConstantOp>(Loc, Builder.getF32FloatAttr(0.0f))
+                .getRes();
+  auto XU = Builder.createOrFold<LLVM::FMulOp>(Loc, X, U);
+  auto YV = Builder.createOrFold<LLVM::FMulOp>(Loc, Y, V);
+  auto RealResult = Builder.createOrFold<LLVM::FSubOp>(Loc, XU, YV);
+  auto XV = Builder.createOrFold<LLVM::FMulOp>(Loc, X, V);
+  auto YU = Builder.createOrFold<LLVM::FMulOp>(Loc, Y, U);
+  auto ImgResult = Builder.createOrFold<LLVM::FAddOp>(Loc, XV, YU);
+  return initComplex(Builder, Loc, RealResult, ImgResult);
+}
+
 ValueCategory ValueCategory::FDiv(OpBuilder &Builder, Location Loc,
                                   Value RHS) const {
   CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
@@ -742,6 +804,31 @@ ValueCategory ValueCategory::FAdd(OpBuilder &Builder, Location Loc,
   return FPBinOp<arith::AddFOp>(Builder, Loc, val, RHS);
 }
 
+ValueCategory ValueCategory::CAdd(OpBuilder &Builder, Location Loc,
+                                  Value RHS) const {
+  assert(isComplexRepresentation(val.getType()) &&
+         "Expecting representation of a complex");
+  assert((isComplexRepresentation(RHS.getType()) || RHS.getType().isF32()) &&
+         "Expecting representation of a complex");
+
+  // Adding complex numbers (x + yi) and (u + vi) results in
+  // (x + u) + (y + v)i
+  auto X = Builder.create<LLVM::ExtractValueOp>(Loc, val, 0);
+  auto Y = Builder.create<LLVM::ExtractValueOp>(Loc, val, 1);
+  Value U = (isComplexRepresentation(RHS.getType()))
+                ? Builder.create<LLVM::ExtractValueOp>(Loc, RHS, 0)
+                : RHS;
+  Value V =
+      (isComplexRepresentation(RHS.getType()))
+          ? Builder.create<LLVM::ExtractValueOp>(Loc, RHS, 1)
+          : Builder.create<LLVM::ConstantOp>(Loc, Builder.getF32FloatAttr(0.0f))
+                .getRes();
+
+  auto RealResult = Builder.createOrFold<LLVM::FAddOp>(Loc, X, U);
+  auto ImgResult = Builder.createOrFold<LLVM::FAddOp>(Loc, Y, V);
+  return initComplex(Builder, Loc, RealResult, ImgResult);
+}
+
 ValueCategory ValueCategory::Sub(OpBuilder &Builder, Location Loc, Value RHS,
                                  bool HasNUW, bool HasNSW) const {
   return NUWNSWBinOp<arith::SubIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
@@ -750,6 +837,39 @@ ValueCategory ValueCategory::Sub(OpBuilder &Builder, Location Loc, Value RHS,
 ValueCategory ValueCategory::FSub(OpBuilder &Builder, Location Loc,
                                   Value RHS) const {
   return FPBinOp<arith::SubFOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::CReal(OpBuilder &Builder, Location Loc) const {
+  assert(isComplexRepresentation(getElemTy()) &&
+         "Expecting pointer to complex representation");
+  auto RealVal = Builder.create<LLVM::LoadOp>(Loc, Builder.getF32Type(), val);
+  return {RealVal, false};
+}
+
+ValueCategory ValueCategory::CImag(OpBuilder &Builder, Location Loc) const {
+  assert(isComplexRepresentation(getElemTy()) &&
+         "Expecting pointer to complex representation");
+  SmallVector<LLVM::GEPArg> ImgIndices;
+  ImgIndices.emplace_back(0);
+  ImgIndices.emplace_back(1);
+  auto ImgPtr = Builder.create<LLVM::GEPOp>(
+      Loc, LLVM::LLVMPointerType::get(Builder.getContext()), getElemTy(), val,
+      ImgIndices, /* inBounds */ true);
+  auto ImgVal = Builder.create<LLVM::LoadOp>(Loc, Builder.getF32Type(), ImgPtr);
+  return {ImgVal, false};
+}
+
+ValueCategory ValueCategory::CRealToComplex(mlir::OpBuilder &Builder,
+                                            mlir::Location Loc,
+                                            mlir::Type ComplexTy) const {
+  assert(isComplexRepresentation(ComplexTy) &&
+         "Expecting target type to be complex representation");
+  assert(val.getType() ==
+             cast<LLVM::LLVMStructType>(ComplexTy).getBody().front() &&
+         "Element type mismatch");
+  auto Imag =
+      Builder.create<LLVM::ConstantOp>(Loc, Builder.getF32FloatAttr(0.0f));
+  return initComplex(Builder, Loc, val, Imag);
 }
 
 ValueCategory ValueCategory::SubIndex(OpBuilder &Builder, Location Loc,

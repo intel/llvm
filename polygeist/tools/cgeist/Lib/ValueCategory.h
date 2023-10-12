@@ -144,6 +144,8 @@ public:
                     bool HasNSW = false) const;
   ValueCategory FMul(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
+  ValueCategory CMul(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
 
   ValueCategory UDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS, bool IsExact = false) const;
@@ -183,6 +185,8 @@ public:
                     bool HasNSW = false) const;
   ValueCategory FSub(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
+  ValueCategory CAdd(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::Value RHS) const;
 
   ValueCategory And(mlir::OpBuilder &Builder, mlir::Location Loc,
                     mlir::Value RHS) const;
@@ -203,6 +207,11 @@ public:
                         mlir::Value V2, llvm::ArrayRef<int64_t> Indices) const;
   ValueCategory Reshape(mlir::OpBuilder &Builder, mlir::Location Loc,
                         llvm::ArrayRef<int64_t> Shape) const;
+
+  ValueCategory CReal(mlir::OpBuilder &Builder, mlir::Location Loc) const;
+  ValueCategory CImag(mlir::OpBuilder &Builder, mlir::Location Loc) const;
+  ValueCategory CRealToComplex(mlir::OpBuilder &Builder, mlir::Location Loc,
+                               mlir::Type ComplexTy) const;
 };
 
 #endif /* CLANG_MLIR_VALUE_CATEGORY */
