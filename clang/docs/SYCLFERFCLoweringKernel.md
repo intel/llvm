@@ -56,7 +56,7 @@ The device compiler then generates a caller in the form of an OpenCL kernel func
 The device compiler transforms this into (pseudo-code):
 
 ```
-    spir_kernel void Caller(
+    void Caller(
        int i,
        struct S test_s,
        __global int* accData, // arg1 of accessor init function
@@ -78,7 +78,7 @@ The device compiler transforms this into (pseudo-code):
         Callee(&local);
     }
 
-    spir_func void Callee(struct FuncObj* this)
+    void Callee(struct FuncObj* this)
     {
         // body of the kernel invocation
     }
@@ -90,4 +90,4 @@ The proposed implementation passes the copyable types to the device as separate 
 
 # Location of this logic
 
-Currently in our implementation, this logic is located in the Sema phase.  Similar to what we are considering for generating the Integration Headers and Foooters, we have an open question between two options that we are considering - one, move this to the CodeGen phase (e.g., OpenMP does their equivalent transformation in CodeGen) and two, move it out of the clang FE and do it in an LLVM IR pass.
+Currently in our implementation, this logic is located in the Sema phase.  Similar to what we are considering for generating the Integration Header and Footer, we have an open question between two options that we are considering - one, move this to the CodeGen phase (e.g., OpenMP does their equivalent transformation in CodeGen) and two, move it out of the clang FE and do it in an LLVM IR pass.
