@@ -432,3 +432,14 @@ private:
   std::condition_variable cv;
   std::size_t threadNum;
 };
+
+template <typename T>
+bool check_value(const T &Ref, const T &Got, const std::string &VariableName) {
+  if (Got != Ref) {
+    std::cout << "Unexpected value of " << VariableName << ": " << Got
+              << " (got) vs " << Ref << " (expected)" << std::endl;
+    return false;
+  }
+
+  return true;
+}
