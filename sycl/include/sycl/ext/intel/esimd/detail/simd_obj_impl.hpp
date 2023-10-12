@@ -908,9 +908,6 @@ public:
 #undef __ESIMD_ARITH_OP_FILTER
 #undef __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN
 
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 private:
   // The underlying data for this vector.
   raw_vector_type M_data;

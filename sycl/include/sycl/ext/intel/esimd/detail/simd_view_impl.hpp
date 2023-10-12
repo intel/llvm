@@ -585,10 +585,6 @@ public:
   }
 
   /// @cond EXCLUDE
-public:
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 protected:
   // The reference to the base object, which must be a simd object
   BaseTy &M_base;
