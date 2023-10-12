@@ -313,6 +313,7 @@ public:
 #endif
     throw_asynchronous();
     if (!MHostQueue) {
+      cleanup_fusion_cmd();
       getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
     }
   }
@@ -694,6 +695,9 @@ public:
   }
 
 protected:
+  // Hook to the scheduler to clean up any fusion command held on destruction.
+  void cleanup_fusion_cmd();
+
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,

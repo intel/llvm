@@ -521,6 +521,11 @@ Command *
 Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                          std::vector<Command *> &ToEnqueue) {
 
+  if (Req->MAccessMode != sycl::access_mode::read) {
+    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    SYCLMemObj->handleWriteAccessorCreation();
+  }
+
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req, ToEnqueue);
@@ -948,7 +953,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
   // they create any requirement or event dependency on any of the kernels in
   // the fusion list, this will lead to cancellation of the fusion in the
   // GraphProcessor.
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
   if (isInFusionMode(QUniqueID) && !NewCmd->isHostTask()) {
     auto *FusionCmd = findFusionList(QUniqueID)->second.get();
 
@@ -1361,7 +1366,14 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 }
 
 void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  cleanUpCmdFusion(Queue.get());
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
+  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
+}
+
+void Scheduler::GraphBuilder::cleanUpCmdFusion(
+    sycl::detail::queue_impl *Queue) {
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue);
   if (isInFusionMode(QUniqueID)) {
     throw sycl::exception{sycl::make_error_code(sycl::errc::invalid),
                           "Queue already in fusion mode"};
@@ -1377,7 +1389,6 @@ void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
     cleanupCommand(OldFusionCmd->second.release());
     MFusionMap.erase(OldFusionCmd);
   }
-  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
 }
 
 void Scheduler::GraphBuilder::removeNodeFromGraph(
@@ -1416,7 +1427,7 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
 
 void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
                                            std::vector<Command *> &ToEnqueue) {
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
   if (!isInFusionMode(QUniqueID)) {
     return;
   }
@@ -1504,7 +1515,7 @@ EventImplPtr
 Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                                         std::vector<Command *> &ToEnqueue,
                                         const property_list &PropList) {
-  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  auto QUniqueID = std::hash<sycl::detail::queue_impl *>()(Queue.get());
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
   if (!isInFusionMode(QUniqueID)) {
     auto InactiveFusionList = findFusionList(QUniqueID);

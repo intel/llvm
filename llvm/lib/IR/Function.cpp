@@ -518,15 +518,7 @@ void Function::stealArgumentListFrom(Function &Src) {
   Src.setValueSubclassData(Src.getSubclassDataFromValue() | (1 << 0));
 }
 
-// dropAllReferences() - This function causes all the subinstructions to "let
-// go" of all references that they are maintaining.  This allows one to
-// 'delete' a whole class at a time, even though there may be circular
-// references... first all references are dropped, and all use counts go to
-// zero.  Then everything is deleted for real.  Note that no operations are
-// valid on an object that has "dropped all references", except operator
-// delete.
-//
-void Function::dropAllReferences() {
+void Function::deleteBodyImpl(bool ShouldDrop) {
   setIsMaterializable(false);
 
   for (BasicBlock &BB : *this)
@@ -537,10 +529,18 @@ void Function::dropAllReferences() {
   while (!BasicBlocks.empty())
     BasicBlocks.begin()->eraseFromParent();
 
-  // Drop uses of any optional data (real or placeholder).
   if (getNumOperands()) {
-    User::dropAllReferences();
-    setNumHungOffUseOperands(0);
+    if (ShouldDrop) {
+      // Drop uses of any optional data (real or placeholder).
+      User::dropAllReferences();
+      setNumHungOffUseOperands(0);
+    } else {
+      // The code needs to match Function::allocHungoffUselist().
+      auto *CPN = ConstantPointerNull::get(PointerType::get(getContext(), 0));
+      Op<0>().set(CPN);
+      Op<1>().set(CPN);
+      Op<2>().set(CPN);
+    }
     setValueSubclassData(getSubclassDataFromValue() & ~0xe);
   }
 
@@ -1495,19 +1495,6 @@ static bool matchIntrinsicType(
       PointerType *PT = dyn_cast<PointerType>(Ty);
       if (!PT || PT->getAddressSpace() != D.Pointer_AddressSpace)
         return true;
-      if (!PT->isOpaque()) {
-        /* Manually consume a pointer to empty struct descriptor, which is
-         * used for externref. We don't want to enforce that the struct is
-         * anonymous in this case. (This renders externref intrinsics
-         * non-unique, but this will go away with opaque pointers anyway.) */
-        if (Infos.front().Kind == IITDescriptor::Struct &&
-            Infos.front().Struct_NumElements == 0) {
-          Infos = Infos.slice(1);
-          return false;
-        }
-        return matchIntrinsicType(PT->getNonOpaquePointerElementType(), Infos,
-                                  ArgTys, DeferredChecks, IsDeferredCheck);
-      }
       // Consume IIT descriptors relating to the pointer element type.
       // FIXME: Intrinsic type matching of nested single value types or even
       // aggregates doesn't work properly with opaque pointers but hopefully

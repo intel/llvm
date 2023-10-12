@@ -11,7 +11,6 @@
 #include <sycl/detail/defines.hpp> // for SYCL_EXT_ONEAPI_MATRIX_VERSION
 #include <sycl/half_type.hpp>      // for half
 
-#include <complex> // for complex
 #include <cstddef> // for size_t
 #include <cstdint> // for uint32_t
 
@@ -129,27 +128,6 @@ enum class MatrixLayout : uint32_t {
 #endif
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
-
-struct complex_float {
-  complex_float() = default;
-  complex_float(std::complex<float> x) : real(x.real()), imag(x.imag()) {}
-  operator std::complex<float>() { return {real, imag}; }
-  float real, imag;
-};
-
-struct complex_double {
-  complex_double() = default;
-  complex_double(std::complex<double> x) : real(x.real()), imag(x.imag()) {}
-  operator std::complex<double>() { return {real, imag}; }
-  double real, imag;
-};
-
-struct complex_half {
-  complex_half() = default;
-  complex_half(std::complex<sycl::half> x) : real(x.real()), imag(x.imag()) {}
-  operator std::complex<sycl::half>() { return {real, imag}; }
-  sycl::half real, imag;
-};
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,

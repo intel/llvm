@@ -298,9 +298,22 @@ void diagnostics()
   [[intel::merge("mrg4", "depths")]] unsigned int mrg_invalid_arg[4];
 
   // Checking of different argument values.
-  //expected-warning@+2{{attribute 'merge' is already applied}}
-  [[intel::merge("mrg4", "depth")]]
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg4", "depth")]] // expected-note {{previous attribute is here}}
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
+
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg6", "depth")]] // expected-note {{previous attribute is here}}
+  [[intel::merge("mrg6", "width")]] unsigned int mrg_mrg1[4];
+
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg7", "width")]] // expected-note {{previous attribute is here}}
+  [[intel::merge("mrg8", "width")]] unsigned int mrg_mrg2[4];
+
+  // Checking of duplicate argument values.
+  // No diagnostic is emitted because the arguments match.
+  [[intel::merge("mrg9", "depth")]]
+  [[intel::merge("mrg9", "depth")]] unsigned int mrg_mrg3[4]; // OK
 
   // **bank_bits
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
@@ -336,9 +349,9 @@ void diagnostics()
   //expected-warning@+1 {{unknown attribute 'force_pow2_depth' ignored}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0_var[64];
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(2)]] unsigned int force_p2d_above_max[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
@@ -459,7 +472,7 @@ void check_template_parameters() {
   //expected-note@-1 {{conflicting attribute is here}}
   [[intel::bankwidth(C)]] unsigned int max_bankwidth_reg;
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(A)]] unsigned int force_p2d_below_min[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
