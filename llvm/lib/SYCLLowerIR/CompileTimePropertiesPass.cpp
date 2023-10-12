@@ -634,12 +634,6 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     if (propName == "sycl-alignment")
       continue;
 
-    // Leave these annotations as is. They will be processed by SPIRVWriter.
-    if (propName == "sycl-prefetch-hint" ||
-        propName == "sycl-prefetch-hint-nt") {
-      return false;
-    }
-
     auto DecorIt = SpirvDecorMap.find(*propName);
     if (DecorIt == SpirvDecorMap.end())
       continue;
