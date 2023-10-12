@@ -102,7 +102,7 @@ endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 
-if("level-zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
 endif()
 
