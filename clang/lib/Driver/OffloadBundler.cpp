@@ -23,7 +23,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
@@ -1394,6 +1393,9 @@ Error OffloadBundler::BundleFiles() {
     return createStringError(errc::invalid_argument,
                              "bundling is not supported for archives");
 
+  // Create a buffer to hold the content before compressing.
+  SmallVector<char, 0> Buffer;
+  llvm::raw_svector_ostream BufferStream(Buffer);
   // Create output file.
   raw_fd_ostream OutputFile(BundlerConfig.OutputFileNames.front(), EC,
                             sys::fs::OF_None);

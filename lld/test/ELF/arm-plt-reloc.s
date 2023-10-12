@@ -253,7 +253,6 @@ _start:
 // CHECKLONG-EB-NEXT:                 ldr     lr, [pc, #4]
 // CHECKLONG-EB-NEXT:                 add     lr, pc, lr
 // CHECKLONG-EB-NEXT:                 ldr     pc, [lr, #8]!
-// CHECKLONG-EB: <$d>:
 // CHECKLONG-EB-NEXT:                 11 10 f0 f0     .word   0x1110f0f0
 // CHECKLONG-EB-NEXT:                 d4 d4 d4 d4     .word   0xd4d4d4d4
 // CHECKLONG-EB-NEXT:                 d4 d4 d4 d4     .word   0xd4d4d4d4
