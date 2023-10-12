@@ -50,11 +50,11 @@ Another open question is the location for the logic that generates the integrati
 
 ### Dependency on the Khronos LLVM-SPIRV translator
 
-With our current approach, device code corresponding to the offload region is compiled into LLVM IR.  Various backend compilers (e.g., Intel Graphics Compiler), require the device code to be present in SPIR-V IR.  Hence, the LLVM IR needs to be translated into SPIR-V IR.
+With our current approach, device code corresponding to the offload region in SYCL source file is compiled and linked into LLVM IR.  Various backend compilers (e.g., Intel Graphics Compiler), require the device code to be present in SPIR-V IR.  Hence, we need a compiler flow to generate SPIR-V IR from LLVM IR during the post-link stage.
 
-This final translation to SPIR-V currently relies on the Khronos SPIRV-LLVM translator, which is a project external to the LLVM compiler infrastructure.  As a result, end users must ensure that the translator is available in their environment, so that the clang front-end driver is able to find it during compilation for SYCL.  We would like to eliminate this dependency in order to make it easier for people to use clang for SYCL.
+This final translation to SPIR-V currently relies on the Khronos SPIRV-LLVM translator, which is a project external to the LLVM compiler infrastructure.  As a result, end users must ensure that the translator is available in their environment, so that the clang driver is able to find it during post-link stage of compilation for SYCL.  We would like to eliminate this dependency in order to make it easier for people to use clang for SYCL.
 
-A SPIR-V backend is currently under development inside the LLVM compiler infrastructure.  Once deployed, this backend can replace the current translator in the SYCL compilation flow.
+A SPIR-V backend is currently under development inside the LLVM compiler infrastructure.  Once deployed, this backend can replace the current translator in the post-link stage of SYCL compilation flow.
 
 ## Topics of interest
 
