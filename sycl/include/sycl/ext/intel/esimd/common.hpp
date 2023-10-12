@@ -154,7 +154,7 @@ constexpr int get_num_channels_enabled(rgba_channel_mask M) {
 /// vector) the operation is applied at, \c src0 is its first argumnet,
 /// \c src1 - second.
 /// Using the floating point atomic operations adds the requirement to running
-/// the code with it on target devices with LSC featues (ACM, PVC, etc).
+/// the code with it on target devices with LSC features (ACM, PVC, etc).
 enum class atomic_op : uint8_t {
   /// Addition: <code>*addr = *addr + src0</code>.
   add = 0x0,
