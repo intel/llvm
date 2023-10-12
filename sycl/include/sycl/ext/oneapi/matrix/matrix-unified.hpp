@@ -108,6 +108,7 @@ public:
 #if defined(__NVPTX__)
     return (jm.cuda_impl.wi_marray[i]);
 #else
+    std::ignore = i;
     throw runtime_error("get_wi_data is available using: "
                         "ext::intel::experimental::matrix::get_wi_data.",
                         PI_ERROR_INVALID_DEVICE);
@@ -196,12 +197,11 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_fill(Group sg,
+joint_matrix_fill(Group,
                   joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
                   const T2 &v) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = sg;
   res.cuda_impl.wi_marray = v;
 #else
   using storage_element_type =
@@ -214,7 +214,6 @@ joint_matrix_fill(Group sg,
           static_cast<storage_element_type>(v));
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = res;
   std::ignore = v;
   throw runtime_error("joint matrix is not supported on host device.",
@@ -228,7 +227,7 @@ template <
     std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value, bool> =
         true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
-    Group sg,
+    Group,
     joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
@@ -237,7 +236,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
-  std::ignore = sg;
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #else
@@ -273,7 +271,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   }
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
@@ -292,14 +289,13 @@ template <
                           std::is_same<std::remove_const_t<T>, float>::value),
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group sg,
+joint_matrix_load(Group,
                   joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
-  std::ignore = sg;
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
       res.cuda_impl, src, stride);
@@ -314,7 +310,6 @@ joint_matrix_load(Group sg,
           spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
@@ -326,7 +321,7 @@ joint_matrix_load(Group sg,
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
-    Group sg,
+    Group,
     joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
@@ -335,7 +330,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
-  std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
@@ -372,7 +366,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   }
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
@@ -388,14 +381,13 @@ inline __SYCL_ALWAYS_INLINE
     joint_matrix<Group, Tc, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic>
     joint_matrix_mad(
-        Group sg, joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+        Group, joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
         joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
         joint_matrix<Group, Tc, use::accumulator, M, N,
                      sycl::ext::oneapi::experimental::matrix::layout::dynamic>
             &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = sg;
   if constexpr (std::is_same<Ta, Tb>::value) {
     joint_matrix<Group, Tc, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic>
@@ -425,7 +417,6 @@ inline __SYCL_ALWAYS_INLINE
   return res;
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = A;
   std::ignore = B;
   std::ignore = C;

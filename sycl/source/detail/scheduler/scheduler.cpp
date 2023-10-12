@@ -261,6 +261,10 @@ Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
 }
 
+bool Scheduler::isInstanceAlive() {
+  return GlobalHandler::instance().isSchedulerAlive();
+}
+
 void Scheduler::waitForEvent(const EventImplPtr &Event) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as

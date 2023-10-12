@@ -249,12 +249,21 @@ void check_ast()
   [[intel::numbanks(8)]]
   [[intel::numbanks(16)]] unsigned int nb_nb[64];
 
-  // FIXME: Duplicate attribute should be ignored.
-  // Both are applied at the moment.
+  // Checking of different argument values.
   //CHECK: VarDecl{{.*}}mrg_mrg
-  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"{{$}}
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"
+  //CHECK-NOT: SYCLIntelMergeAttr
   [[intel::merge("mrg4", "depth")]]
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
+
+  // Checking of duplicate argument values.
+  //CHECK: VarDecl{{.*}}mrg_mrg6
+  //CHECK: SYCLIntelMemoryAttr{{.*}}Implicit Default
+  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg6" "depth"
+  //CHECK-NOT: SYCLIntelMergeAttr
+  [[intel::merge("mrg6", "depth")]]
+  [[intel::merge("mrg6", "depth")]] unsigned int mrg_mrg6[4];
 
   // FIXME: Duplicate attribute should be ignored.
   // Both are applied at the moment.

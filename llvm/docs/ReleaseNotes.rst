@@ -109,6 +109,7 @@ Changes to the PowerPC Backend
 Changes to the RISC-V Backend
 -----------------------------
 
+* The Zfa extension version was upgraded to 1.0 and is no longer experimental.
 * Zihintntl extension version was upgraded to 1.0 and is no longer experimental.
 
 Changes to the WebAssembly Backend
@@ -176,6 +177,9 @@ Changes to the LLVM tools
   information is not found.
 * llvm-readelf now supports ``--extra-sym-info`` (``-X``) to display extra
   information (section name) when showing symbols.
+
+* ``llvm-nm`` now supports the ``--line-numbers`` (``-l``) option to use
+  debugging information to print symbols' filenames and line numbers.
 
 Changes to LLDB
 ---------------------------------

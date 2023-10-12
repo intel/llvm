@@ -368,11 +368,28 @@ event handler::finalize() {
         std::move(MArgs), std::move(CGData), MCGType, MCodeLoc));
     break;
   case detail::CG::Barrier:
-  case detail::CG::BarrierWaitlist:
-    CommandGroup.reset(new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
-                                             std::move(CGData), MCGType,
-                                             MCodeLoc));
+  case detail::CG::BarrierWaitlist: {
+    if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
+      // if no event to wait for was specified, we add all exit
+      // nodes/events of the graph
+      if (MEventsWaitWithBarrier.size() == 0) {
+        MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
+      }
+      CGData.MEvents.insert(std::end(CGData.MEvents),
+                            std::begin(MEventsWaitWithBarrier),
+                            std::end(MEventsWaitWithBarrier));
+      // Barrier node is implemented as an empty node in Graph
+      // but keep the barrier type to help managing dependencies
+      MCGType = detail::CG::Barrier;
+      CommandGroup.reset(
+          new detail::CG(detail::CG::Barrier, std::move(CGData), MCodeLoc));
+    } else {
+      CommandGroup.reset(
+          new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
+                                std::move(CGData), MCGType, MCodeLoc));
+    }
     break;
+  }
   case detail::CG::CopyToDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
@@ -510,6 +527,10 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                           "are not allowed to be used in command graphs.");
   }
   detail::Requirement *Req = AccImpl.get();
+  if (Req->MAccessMode != sycl::access_mode::read) {
+    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    SYCLMemObj->handleWriteAccessorCreation();
+  }
   // Add accessor to the list of requirements.
   if (Req->MAccessRange.size() != 0)
     CGData.MRequirements.push_back(Req);
@@ -807,9 +828,6 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 }
 
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
-  throwIfGraphAssociated<
-      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-          sycl_ext_oneapi_enqueue_barrier>();
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
@@ -1393,6 +1411,20 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
+}
+
+std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
+  auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+  std::array<size_t, 3> PiResult = {};
+  auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+      Dev->getHandleRef(),
+      PiInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(PiResult), &PiResult, nullptr);
+  if (Ret == PI_SUCCESS) {
+    return PiResult;
+  }
+  return {};
 }
 
 } // namespace _V1

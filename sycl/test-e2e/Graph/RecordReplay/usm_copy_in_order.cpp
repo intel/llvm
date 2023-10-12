@@ -6,6 +6,9 @@
 //
 // CHECK-NOT: LEAK
 
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
+
 // Tests memcpy operation using device USM and an in-order queue.
 
 #include "../graph_common.hpp"

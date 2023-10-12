@@ -41,7 +41,7 @@ commonEmitCXXMemberOrOperatorCall(CodeGenFunction &CGF, GlobalDecl GD,
 
   assert(CE == nullptr || isa<CXXMemberCallExpr>(CE) ||
          isa<CXXOperatorCallExpr>(CE));
-  assert(MD->isInstance() &&
+  assert(MD->isImplicitObjectMemberFunction() &&
          "Trying to emit a member or operator call expr on a static method!");
 
   // Push the this ptr.
@@ -66,7 +66,12 @@ commonEmitCXXMemberOrOperatorCall(CodeGenFunction &CGF, GlobalDecl GD,
     Args.addFrom(*RtlArgs);
   } else if (CE) {
     // Special case: skip first argument of CXXOperatorCall (it is "this").
-    unsigned ArgsToSkip = isa<CXXOperatorCallExpr>(CE) ? 1 : 0;
+    unsigned ArgsToSkip = 0;
+    if (const auto *Op = dyn_cast<CXXOperatorCallExpr>(CE)) {
+      if (const auto *M = dyn_cast<CXXMethodDecl>(Op->getCalleeDecl()))
+        ArgsToSkip =
+            static_cast<unsigned>(!M->isExplicitObjectMemberFunction());
+    }
     CGF.EmitCallArgs(Args, FPT, drop_begin(CE->arguments(), ArgsToSkip),
                      CE->getDirectCallee());
   } else {
@@ -484,7 +489,7 @@ RValue
 CodeGenFunction::EmitCXXOperatorMemberCallExpr(const CXXOperatorCallExpr *E,
                                                const CXXMethodDecl *MD,
                                                ReturnValueSlot ReturnValue) {
-  assert(MD->isInstance() &&
+  assert(MD->isImplicitObjectMemberFunction() &&
          "Trying to emit a member call expr on a static method!");
   return EmitCXXMemberOrOperatorMemberCallExpr(
       E, MD, ReturnValue, /*HasQualifier=*/false, /*Qualifier=*/nullptr,
@@ -2195,11 +2200,19 @@ static llvm::Value *EmitTypeidFromVTable(CodeGenFunction &CGF, const Expr *E,
 
 llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
   llvm::Type *PtrTy = llvm::PointerType::getUnqual(getLLVMContext());
+  LangAS GlobAS = CGM.GetGlobalVarAddressSpace(nullptr);
+
+  auto MaybeASCast = [=](auto &&TypeInfo) {
+    if (GlobAS == LangAS::Default)
+      return TypeInfo;
+    return getTargetHooks().performAddrSpaceCast(CGM,TypeInfo, GlobAS,
+                                                 LangAS::Default, PtrTy);
+  };
 
   if (E->isTypeOperand()) {
     llvm::Constant *TypeInfo =
         CGM.GetAddrOfRTTIDescriptor(E->getTypeOperand(getContext()));
-    return TypeInfo;
+    return MaybeASCast(TypeInfo);
   }
 
   // C++ [expr.typeid]p2:
@@ -2212,7 +2225,7 @@ llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
     return EmitTypeidFromVTable(*this, E->getExprOperand(), PtrTy);
 
   QualType OperandTy = E->getExprOperand()->getType();
-  return CGM.GetAddrOfRTTIDescriptor(OperandTy);
+  return MaybeASCast(CGM.GetAddrOfRTTIDescriptor(OperandTy));
 }
 
 static llvm::Value *EmitDynamicCastToNull(CodeGenFunction &CGF,

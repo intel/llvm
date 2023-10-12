@@ -20,64 +20,6 @@
 
 // Helpers and utilities
 namespace util {
-
-VkFormat to_vulkan_format(sycl::image_channel_order order,
-                          sycl::image_channel_type channelType) {
-  if (channelType == sycl::image_channel_type::unsigned_int32) {
-    switch (order) {
-    case sycl::image_channel_order::r:
-      return VK_FORMAT_R32_UINT;
-    case sycl::image_channel_order::rg:
-      return VK_FORMAT_R32G32_UINT;
-    case sycl::image_channel_order::rgba:
-      return VK_FORMAT_R32G32B32A32_UINT;
-    default: {
-      std::cerr << "error in converting to vulkan format\n";
-      exit(-1);
-    }
-    }
-  } else if (channelType == sycl::image_channel_type::signed_int32) {
-    switch (order) {
-    case sycl::image_channel_order::r:
-      return VK_FORMAT_R32_SINT;
-    case sycl::image_channel_order::rg:
-      return VK_FORMAT_R32G32_SINT;
-    case sycl::image_channel_order::rgba:
-      return VK_FORMAT_R32G32B32A32_SINT;
-    default: {
-      std::cerr << "error in converting to vulkan format\n";
-      exit(-1);
-    }
-    }
-  } else if (channelType == sycl::image_channel_type::fp32) {
-    switch (order) {
-    case sycl::image_channel_order::r:
-      return VK_FORMAT_R32_SFLOAT;
-    case sycl::image_channel_order::rg:
-      return VK_FORMAT_R32G32_SFLOAT;
-    case sycl::image_channel_order::rgba:
-      return VK_FORMAT_R32G32B32A32_SFLOAT;
-    default: {
-      std::cerr << "error in converting to vulkan format\n";
-      exit(-1);
-    }
-    }
-  } else {
-    std::cerr
-        << "error in converting to vulkan format - channel type not included\n";
-    exit(-1);
-  }
-}
-
-template <typename DType>
-bool is_equal(DType lhs, DType rhs, float epsilon = 0.0001f) {
-  if constexpr (std::is_floating_point_v<DType>) {
-    return (std::abs(lhs - rhs) < epsilon);
-  } else {
-    return lhs == rhs;
-  }
-}
-
 struct handles_t {
   sycl::ext::oneapi::experimental::interop_mem_handle
       input_interop_mem_handle_1,
@@ -309,61 +251,6 @@ void run_ndim_test(sycl::range<NDims> global_size,
 }
 } // namespace util
 
-auto createImageMemoryBarrier(VkImage &img) {
-  VkImageMemoryBarrier barrierInput = {};
-  barrierInput.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrierInput.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  barrierInput.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  barrierInput.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrierInput.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrierInput.image = img;
-  barrierInput.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  barrierInput.subresourceRange.levelCount = 1;
-  barrierInput.subresourceRange.layerCount = 1;
-  barrierInput.srcAccessMask = 0;
-  barrierInput.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  return barrierInput;
-}
-
-struct vulkan_image_test_resources_t {
-  VkImage vkImage;
-  VkDeviceMemory imageMemory;
-  VkBuffer stagingBuffer;
-  VkDeviceMemory stagingMemory;
-
-  vulkan_image_test_resources_t(VkImageType imgType, VkFormat format,
-                                VkExtent3D ext, const size_t imageSizeBytes) {
-    vkImage = vkutil::createImage(imgType, format, ext,
-                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                      VK_IMAGE_USAGE_STORAGE_BIT);
-    auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-        vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    imageMemory =
-        vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
-    VK_CHECK_CALL(
-        vkBindImageMemory(vk_device, vkImage, imageMemory, 0 /*memoryOffset*/));
-
-    stagingBuffer = vkutil::createBuffer(imageSizeBytes,
-                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
-        stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    stagingMemory = vkutil::allocateDeviceMemory(
-        imageSizeBytes, inputStagingMemoryTypeIndex, false /*exportable*/);
-    VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuffer, stagingMemory,
-                                     0 /*memoryOffset*/));
-  }
-
-  ~vulkan_image_test_resources_t() {
-    vkDestroyBuffer(vk_device, stagingBuffer, nullptr);
-    vkDestroyImage(vk_device, vkImage, nullptr);
-    vkFreeMemory(vk_device, stagingMemory, nullptr);
-    vkFreeMemory(vk_device, imageMemory, nullptr);
-  }
-};
-
 template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
           typename KernelName>
@@ -387,14 +274,14 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     imgType = VK_IMAGE_TYPE_3D;
   }
 
-  VkFormat format = util::to_vulkan_format(COrder, CType);
+  VkFormat format = vkutil::to_vulkan_format(COrder, CType);
   const size_t imageSizeBytes = num_elems * NChannels * sizeof(DType);
 
-  vulkan_image_test_resources_t inVkImgRes1(
+  vkutil::vulkan_image_test_resources_t inVkImgRes1(
       imgType, format, {width, height, depth}, imageSizeBytes);
-  vulkan_image_test_resources_t inVkImgRes2(
+  vkutil::vulkan_image_test_resources_t inVkImgRes2(
       imgType, format, {width, height, depth}, imageSizeBytes);
-  vulkan_image_test_resources_t outVkImgRes(
+  vkutil::vulkan_image_test_resources_t outVkImgRes(
       imgType, format, {width, height, depth}, imageSizeBytes);
 
   printString("Populating staging buffer\n");
@@ -431,12 +318,12 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   // Transition image layouts
   {
     VkImageMemoryBarrier barrierInput1 =
-        createImageMemoryBarrier(inVkImgRes1.vkImage);
+        vkutil::createImageMemoryBarrier(inVkImgRes1.vkImage);
     VkImageMemoryBarrier barrierInput2 =
-        createImageMemoryBarrier(inVkImgRes2.vkImage);
+        vkutil::createImageMemoryBarrier(inVkImgRes2.vkImage);
 
     VkImageMemoryBarrier barrierOutput =
-        createImageMemoryBarrier(outVkImgRes.vkImage);
+        vkutil::createImageMemoryBarrier(outVkImgRes.vkImage);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

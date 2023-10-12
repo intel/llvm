@@ -203,8 +203,7 @@ struct CollapseShapeOpInterface
       // TODO: Create alloc_tensor ops during TensorCopyInsertion.
       AnalysisState analysisState(options);
       FailureOr<Value> tensorAlloc = allocateTensorForShapedValue(
-          rewriter, op->getLoc(), collapseShapeOp.getSrc(),
-          analysisState.isTensorYielded(collapseShapeOp.getResult()), options);
+          rewriter, op->getLoc(), collapseShapeOp.getSrc(), options);
       if (failed(tensorAlloc))
         return failure();
       auto memrefType =
@@ -254,10 +253,7 @@ struct DimOpInterface
   }
 };
 
-/// Bufferization of tensor.empty. This op does not bufferize, but we need an
-/// interface implementation, so that the result of this op is considered
-/// "writable" (default impl. of `isWritable`). Results of ops that do not
-/// implement `BufferizableOpInterface` are not writable.
+/// Bufferization of "tensor.empty". Replace with "bufferization.alloc_tensor".
 struct EmptyOpInterface
     : public BufferizableOpInterface::ExternalModel<EmptyOpInterface,
                                                     tensor::EmptyOp> {
@@ -269,17 +265,21 @@ struct EmptyOpInterface
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
+    auto emptyOp = cast<tensor::EmptyOp>(op);
+
+    // Optimization: Fold away the op if it has no uses.
     if (op->getUses().empty()) {
       rewriter.eraseOp(op);
       return success();
     }
 
-    // tensor.empty ops are used to indicate the shape of a tensor. They have
-    // no defined contents and cannot be bufferized. However, they can be
-    // converted to bufferization.alloc_tensor ops, which then bufferize to an
-    // allocation (--empty-tensor-to-alloc-tensor).
-    return op->emitOpError("cannot be bufferized, but can be converted to "
-                           "bufferization.alloc_tensor");
+    // Allocate a tensor. This emits a "bufferization.alloc_tensor" op.
+    FailureOr<Value> allocTensor = allocateTensorForShapedValue(
+        rewriter, op->getLoc(), emptyOp.getResult(), options, /*copy=*/false);
+    if (failed(allocTensor))
+      return failure();
+    rewriter.replaceOp(op, *allocTensor);
+    return success();
   }
 };
 
@@ -465,9 +465,6 @@ struct FromElementsOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     auto fromElementsOp = cast<tensor::FromElementsOp>(op);
-    // Should the buffer be deallocated?
-    bool dealloc = shouldDeallocateOpResult(
-        cast<OpResult>(fromElementsOp.getResult()), options);
 
     // TODO: Implement memory space for this op.
     if (options.defaultMemorySpace != Attribute())
@@ -478,10 +475,9 @@ struct FromElementsOpInterface
     auto tensorType = cast<RankedTensorType>(fromElementsOp.getType());
     auto shape = tensorType.getShape();
     // TODO: Create alloc_tensor ops during TensorCopyInsertion.
-    FailureOr<Value> tensorAlloc =
-        allocateTensorForShapedValue(rewriter, loc, fromElementsOp.getResult(),
-                                     /*escape=*/!dealloc, options,
-                                     /*copy=*/false);
+    FailureOr<Value> tensorAlloc = allocateTensorForShapedValue(
+        rewriter, loc, fromElementsOp.getResult(), options,
+        /*copy=*/false);
     if (failed(tensorAlloc))
       return failure();
     auto memrefType =
@@ -583,9 +579,6 @@ struct GenerateOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     auto generateOp = cast<tensor::GenerateOp>(op);
-    // Should the buffer be deallocated?
-    bool dealloc = shouldDeallocateOpResult(
-        cast<OpResult>(generateOp.getResult()), options);
 
     // TODO: Implement memory space for this op.
     if (options.defaultMemorySpace != Attribute())
@@ -593,10 +586,9 @@ struct GenerateOpInterface
 
     // Allocate memory.
     Location loc = op->getLoc();
-    FailureOr<Value> tensorAlloc =
-        allocateTensorForShapedValue(rewriter, loc, generateOp.getResult(),
-                                     /*escape=*/!dealloc, options,
-                                     /*copy=*/false);
+    FailureOr<Value> tensorAlloc = allocateTensorForShapedValue(
+        rewriter, loc, generateOp.getResult(), options,
+        /*copy=*/false);
     if (failed(tensorAlloc))
       return failure();
 
@@ -644,11 +636,11 @@ struct InsertSliceOpInterface
     RankedTensorType destType = insertSliceOp.getDestType();
 
     // The source is always read.
-    if (&opOperand == &op->getOpOperand(0) /*src*/)
+    if (&opOperand == &insertSliceOp.getSourceMutable())
       return true;
 
     // For the destination, it depends...
-    assert(&opOperand == &insertSliceOp->getOpOperand(1) && "expected dest");
+    assert(&opOperand == &insertSliceOp.getDestMutable() && "expected dest");
 
     // Dest is not read if it is entirely overwritten. E.g.:
     // tensor.insert_slice %a into %t[0][10][1] : ... into tensor<10xf32>
@@ -783,13 +775,9 @@ struct PadOpInterface
       dynamicSizes.push_back(sum);
     }
 
-    // Should the buffer be deallocated?
-    bool dealloc =
-        shouldDeallocateOpResult(cast<OpResult>(padOp.getResult()), options);
     // Allocate a buffer for the padded result.
     FailureOr<Value> tensorAlloc =
-        allocateTensorForShapedValue(rewriter, loc, padOp.getResult(),
-                                     /*escape=*/!dealloc, options,
+        allocateTensorForShapedValue(rewriter, loc, padOp.getResult(), options,
                                      /*copy=*/false);
     if (failed(tensorAlloc))
       return failure();
@@ -851,9 +839,8 @@ struct ReshapeOpInterface
                                                     tensor::ReshapeOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
-    if (&opOperand == &op->getOpOperand(1) /* shape */)
-      return true;
-    return false;
+    auto reshapeOp = cast<tensor::ReshapeOp>(op);
+    return &opOperand == &reshapeOp.getShapeMutable();
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
@@ -879,6 +866,20 @@ struct ReshapeOpInterface
         bufferization::getBufferType(reshapeOp.getResult(), options);
     if (failed(maybeResultMemRefType))
       return failure();
+
+    // memref.reshape requires the source buffer to have an identity layout.
+    // If the source memref does not have an identity layout, clone the source
+    // into a new buffer with an identity layout.
+    auto srcType = llvm::dyn_cast<MemRefType>(srcBuffer->getType());
+    if (srcType && !srcType.getLayout().isIdentity()) {
+      auto identityType =
+          MemRefType::get(srcType.getShape(), srcType.getElementType());
+      srcBuffer = rewriter
+                      .create<bufferization::CloneOp>(op->getLoc(),
+                                                      identityType, *srcBuffer)
+                      .getResult();
+    }
+
     replaceOpWithNewBufferizedOp<memref::ReshapeOp>(
         rewriter, op, maybeResultMemRefType.value(), *srcBuffer, *shapeBuffer);
     return success();
@@ -915,7 +916,8 @@ struct ParallelInsertSliceOpInterface
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
                                const AnalysisState &state) const {
-    return &opOperand == &op->getOpOperand(1) /*dest*/;
+    auto parallelInsertSliceOp = cast<ParallelInsertSliceOp>(op);
+    return &opOperand == &parallelInsertSliceOp.getDestMutable();
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
@@ -991,20 +993,15 @@ struct SplatOpInterface
     OpBuilder::InsertionGuard g(rewriter);
     auto splatOp = cast<tensor::SplatOp>(op);
 
-    // Should the buffer be deallocated?
-    bool dealloc =
-        shouldDeallocateOpResult(cast<OpResult>(splatOp.getResult()), options);
-
     // TODO: Implement memory space for this op.
     if (options.defaultMemorySpace != Attribute())
       return op->emitError("memory space not implemented yet");
 
     // Allocate memory.
     Location loc = op->getLoc();
-    FailureOr<Value> tensorAlloc =
-        allocateTensorForShapedValue(rewriter, loc, splatOp.getResult(),
-                                     /*escape=*/!dealloc, options,
-                                     /*copy=*/false);
+    FailureOr<Value> tensorAlloc = allocateTensorForShapedValue(
+        rewriter, loc, splatOp.getResult(), options,
+        /*copy=*/false);
     if (failed(tensorAlloc))
       return failure();
 

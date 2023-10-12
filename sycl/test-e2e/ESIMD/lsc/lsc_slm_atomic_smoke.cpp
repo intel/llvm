@@ -491,10 +491,8 @@ int main(void) {
 
   // Check load/store operations
   passed &= test_int_types_and_sizes<ImplLoad>(q);
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    passed &= test_int_types_and_sizes<ImplStore>(q);
-    passed &= test_fp_types_and_sizes<ImplStore>(q);
-  }
+  passed &= test_int_types_and_sizes<ImplStore>(q);
+  passed &= test_fp_types_and_sizes<ImplStore>(q);
 #else
   passed &= test_int_types_and_sizes<ImplCmpxchg>(q);
   passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q);

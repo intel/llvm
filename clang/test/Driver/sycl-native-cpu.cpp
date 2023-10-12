@@ -7,3 +7,13 @@
 
 // checks that the target triples are set correctly when the target is set explicitly
 // CHECK-AARCH64: clang{{.*}}"-triple" "aarch64-unknown-linux-gnu"{{.*}}"-aux-triple" "aarch64-unknown-linux-gnu"{{.*}}"-fsycl-is-native-cpu"{{.*}}"-D" "__SYCL_NATIVE_CPU__"
+
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=native_cpu -g %s 2>&1 | FileCheck -check-prefix=CHECK-LINUX %s
+// CHECK-LINUX: {{.*}}"-fsycl-is-device"{{.*}}"-dwarf-version=[[DVERSION:.*]]" "-debugger-tuning=gdb"
+// CHECK-LINUX-DAG: {{.*}}"-fsycl-is-host"{{.*}}"-dwarf-version=[[DVERSION]]" "-debugger-tuning=gdb"
+// CHECK-LINUX-NOT: codeview
+
+// RUN:   %clang -### -target x86_64-windows-msvc -fsycl -fsycl-targets=native_cpu -g %s 2>&1 | FileCheck -check-prefix=CHECK-WIN %s
+// CHECK-WIN: {{.*}}"-fsycl-is-device"{{.*}}"-gcodeview"
+// CHECK-WIN-DAG: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
+// CHECK-WIN-NOT: dwarf

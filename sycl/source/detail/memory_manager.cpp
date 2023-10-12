@@ -809,32 +809,49 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
-                         sycl::id<3> Offset, unsigned int ElementSize,
+                         unsigned int Dim, sycl::range<3> MemRange,
+                         sycl::range<3> AccRange, sycl::id<3> Offset,
+                         unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent,
                          const detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Queue->getPlugin();
+
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
-    if (Dim <= 1) {
+
+    // 2D and 3D buffers accessors can't have custom range or the data will
+    // likely be discontiguous.
+    bool RangesUsable = (Dim <= 1) || (MemRange == AccRange);
+    // For 2D and 3D buffers, the offset must be 0, or the data will be
+    // discontiguous.
+    bool OffsetUsable = (Dim <= 1) || (Offset == sycl::id<3>{0, 0, 0});
+    size_t RangeMultiplier = AccRange[0] * AccRange[1] * AccRange[2];
+
+    if (RangesUsable && OffsetUsable) {
       Plugin->call<PiApiKind::piEnqueueMemBufferFill>(
           Queue->getHandleRef(), pi::cast<sycl::detail::pi::PiMem>(Mem),
-          Pattern, PatternSize, Offset[0] * ElementSize, Range[0] * ElementSize,
-          DepEvents.size(), DepEvents.data(), &OutEvent);
+          Pattern, PatternSize, Offset[0] * ElementSize,
+          RangeMultiplier * ElementSize, DepEvents.size(), DepEvents.data(),
+          &OutEvent);
       return;
     }
+    // The sycl::handler uses a parallel_for kernel in the case of unusable
+    // Range or Offset, not CG:Fill. So we should not be here.
     throw runtime_error("Not supported configuration of fill requested",
                         PI_ERROR_INVALID_OPERATION);
   } else {
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
+    // images don't support offset accessors and thus avoid issues of
+    // discontinguous data
     Plugin->call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
-        &Offset[0], &Range[0], DepEvents.size(), DepEvents.data(), &OutEvent);
+        &Offset[0], &AccRange[0], DepEvents.size(), DepEvents.data(),
+        &OutEvent);
   }
 }
 

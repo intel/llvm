@@ -3,6 +3,9 @@
 // RUN: %{run} %t.out
 // UNSUPPORTED: accelerator
 
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
+
 // The test verifies sort API extension.
 // Currently it checks the following combinations:
 // For number of elements {18, 64}
