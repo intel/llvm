@@ -1,4 +1,4 @@
-; RUN: opt -passes=sycl-cleanup-compiler-internal-metadata -S < %s | FileCheck %s
+; RUN: opt -passes=cleanup-sycl-metadata -S < %s | FileCheck %s
 ;
 ; Test checks that the pass is able to cleanup sycl_aspects and
 ; sycl_types_that_use_aspects module metadata
