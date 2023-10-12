@@ -722,13 +722,7 @@ struct RelConverter<T,
 };
 
 template <> struct RelConverter<bool, void> {
-#ifdef __SYCL_DEVICE_ONLY__
-  using R = bool;
-#else
-  using R = bool;
-#endif
-
-  static R apply(bool value) { return value; }
+  static bool apply(bool value) { return value; }
 };
 
 template <typename T> static constexpr T max_v() {
