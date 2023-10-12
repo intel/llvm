@@ -420,6 +420,29 @@ void joint_matrix_apply(joint_matrix_hip<S, Use, M, N, Layout> &jm,
   }
 }
 
+template <typename Type1, typename Type2, size_t M, size_t N,
+          sycl::ext::oneapi::experimental::matrix::use Use1,
+          sycl::ext::oneapi::experimental::matrix::use Use2,
+          sycl::ext::oneapi::experimental::matrix::layout Layout1,
+          sycl::ext::oneapi::experimental::matrix::layout Layout2>
+void joint_matrix_copy(joint_matrix_hip<Type1, Use1, M, N, Layout1> &src,
+                       joint_matrix_hip<Type2, Use2, M, N, Layout2> &dst) {
+  if constexpr (std::is_same_v<Type1, double> &&
+                Use1 !=
+                    sycl::ext::oneapi::experimental::matrix::use::accumulator) {
+    dst.data[0] = src.data[0];
+  } else if constexpr (
+      Use1 != sycl::ext::oneapi::experimental::matrix::use::accumulator ||
+      (Use1 == sycl::ext::oneapi::experimental::matrix::use::accumulator &&
+       M == 16)) {
+    for (auto i = 0; i < 4; ++i)
+      dst.data[i] = src.data[i];
+  } else {
+    for (auto i = 0; i < 16; ++i)
+      src.data[i] = src.data[i];
+  }
+}
+
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 } // namespace detail

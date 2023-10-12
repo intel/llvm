@@ -1,4 +1,3 @@
-
 #include <sycl/sycl.hpp>
 
 #include <cstddef>

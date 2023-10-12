@@ -341,6 +341,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                     Space>(src.hip_impl, dst,
                                                            stride, Layout, sg);
 #else
+  std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
   switch (Layout) {
@@ -448,6 +449,9 @@ void joint_matrix_copy(
   for (int i = 0; i < src.cuda_impl.wi_marray.size(); i++) {
     dst.cuda_impl.wi_marray[i] = src.cuda_impl.wi_marray[i];
   }
+#elif defined(__HIP_PLATFORM_AMD_MFMA__)
+  std::ignore = sg;
+  sycl::ext::oneapi::detail::joint_matrix_apply(src.hip_impl, src.hip_impl);
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<

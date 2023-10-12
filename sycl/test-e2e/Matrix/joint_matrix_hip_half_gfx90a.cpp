@@ -5,14 +5,20 @@
 // REQUIRES: aspect-fp16
 
 #include "joint_matrix_hip_apply.hpp"
+#include "joint_matrix_hip_copy.hpp"
 #include "joint_matrix_hip_fill.hpp"
 #include "joint_matrix_hip_mfma.hpp"
 
 int main() {
-  hip_matrix_fill<sycl::half, float, 32, 32, 8, layout::row_major>();
-  hip_matrix_fill<sycl::half, float, 16, 16, 16, layout::row_major>();
-  hip_matrix_fill<sycl::half, float, 32, 32, 8, layout::col_major>();
-  hip_matrix_fill<sycl::half, float, 16, 16, 16, layout::col_major>();
+  hip_matrix_mfma<sycl::half, float, 32, 32, 8, layout::row_major>();
+  hip_matrix_mfma<sycl::half, float, 16, 16, 16, layout::row_major>();
+  hip_matrix_mfma<sycl::half, float, 32, 32, 8, layout::col_major>();
+  hip_matrix_mfma<sycl::half, float, 16, 16, 16, layout::col_major>();
+
+  hip_matrix_copy<sycl::half, float, 32, 32, 8, layout::row_major>();
+  hip_matrix_copy<sycl::half, float, 16, 16, 16, layout::row_major>();
+  hip_matrix_copy<sycl::half, float, 32, 32, 8, layout::col_major>();
+  hip_matrix_copy<sycl::half, float, 16, 16, 16, layout::col_major>();
 
   hip_matrix_fill<sycl::half, float, 32, 32, 8>();
   hip_matrix_fill<sycl::half, float, 16, 16, 16>();
