@@ -890,7 +890,7 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 template <typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t,
           typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       const std::vector<device> &Devices, PropertyListT props = {}) {
   std::vector<std::string> BuildOptionsVec;
@@ -907,7 +907,7 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 template <typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t,
           typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {
   return build<PropertyListT>(SourceKB, SourceKB.get_devices(), props);
