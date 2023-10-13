@@ -65,9 +65,9 @@ void hip_matrix_apply() {
                     accC.template get_multi_ptr<access::decorated::yes>(), N,
                     layout::row_major);
 
-                joint_matrix_apply(sg, sub_a, [=](InType v) { return v * 2; });
-                joint_matrix_apply(sg, sub_b, [=](InType v) { return v * 3; });
-                joint_matrix_apply(sg, sub_c, [=](OutType v) { return v * 4; });
+                joint_matrix_apply(sg, sub_a, [=](InType &v) { v *= 2; });
+                joint_matrix_apply(sg, sub_b, [=](InType &v) { v *= 3; });
+                joint_matrix_apply(sg, sub_c, [=](OutType &v) { v *= 4; });
 
                 joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
 
