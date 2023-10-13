@@ -784,9 +784,9 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @return  Mipmap image data with LOD filtering
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]],
-                 const float level [[maybe_unused]]) {
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const float level [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
@@ -817,6 +817,78 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @return  Mipmap image data with anisotropic filtering
  */
 template <typename DataT, typename CoordT>
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const CoordT &dX [[maybe_unused]],
+                  const CoordT &dY [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinates and gradients to have 1, 2, or 4 "
+                "components for 1D, 2D, and 3D images, respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
+#else
+  // TODO: add SPIRV part for mipmap grad read
+#endif
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to fetch mipmap image data
+ *  @param   level The mipmap level at which to sample
+ *  @return  Mipmap image data with LOD filtering
+ */
+template <typename DataT, typename CoordT>
+__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
+                  "Instead use read_mipmap.")
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]],
+                 const float level [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images, respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
+#else
+  // TODO: add SPIRV for mipmap level read
+#endif
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to fetch mipmap image data
+ *  @param   dX Screen space gradient in the x dimension
+ *  @param   dY Screen space gradient in the y dimension
+ *  @return  Mipmap image data with anisotropic filtering
+ */
+template <typename DataT, typename CoordT>
+__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
+                  "Instead use read_mipmap.")
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const CoordT &dX [[maybe_unused]],
