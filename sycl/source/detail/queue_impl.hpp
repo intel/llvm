@@ -709,6 +709,8 @@ public:
     return MGraph.lock();
   }
 
+  unsigned long long getQueueID() { return MQueueID; }
+
 protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();

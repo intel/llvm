@@ -78,6 +78,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
@@ -155,6 +156,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
