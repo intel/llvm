@@ -6,8 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+// REQUIRES: cm-compiler
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
+// the new spec for the kernel_compiler opens the door to supporting several
+// different source languages. But, initially, OpenCL Kernels are the only ones
+// supported. This test is limited to that (thus the cm-compiler requirement)
+// but in the future it may need to broken out into other tests.
 
 #include <sycl/sycl.hpp>
 
@@ -138,6 +145,10 @@ void test_error() {
 }
 
 int main() {
+#ifndef SYCL_EXT_ONEAPI_KERNEL_COMPILER_OPENCL
+  static_assert(false, "KernelCompiler OpenCL feature test macro undefined");
+#endif
+
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   test_build_and_run();
   test_error();
