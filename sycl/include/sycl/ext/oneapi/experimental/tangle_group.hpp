@@ -28,8 +28,7 @@ template <typename ParentGroup> class tangle_group;
 
 template <typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::__uses_aspects__(
-    sycl::aspect::ext_oneapi_tangle_group)]]
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_tangle_group)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
