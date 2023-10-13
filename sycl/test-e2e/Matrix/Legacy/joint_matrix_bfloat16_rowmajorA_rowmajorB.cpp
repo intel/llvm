@@ -14,7 +14,6 @@
 // transform. This is currently only available on AMX and XMX of PVC
 
 #include "../common.hpp"
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
