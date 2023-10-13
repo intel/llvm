@@ -600,7 +600,7 @@ representing this command can be returned via `outEvent`.
 === Command barriers
 
 The functions in this section are only available if the
-link:../supported/sycl_ext_oneapi_enqueuebarrier.asciidoc[
+link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[
   sycl_ext_oneapi_enqueue_barrier] extension is supported.
 
 [source,c++]
