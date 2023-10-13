@@ -849,9 +849,7 @@ ValueCategory ValueCategory::CReal(OpBuilder &Builder, Location Loc) const {
 ValueCategory ValueCategory::CImag(OpBuilder &Builder, Location Loc) const {
   assert(isComplexRepresentation(getElemTy()) &&
          "Expecting pointer to complex representation");
-  SmallVector<LLVM::GEPArg> ImgIndices;
-  ImgIndices.emplace_back(0);
-  ImgIndices.emplace_back(1);
+  SmallVector<LLVM::GEPArg> ImgIndices{0, 1};
   auto ImgPtr = Builder.create<LLVM::GEPOp>(
       Loc, LLVM::LLVMPointerType::get(Builder.getContext()), getElemTy(), val,
       ImgIndices, /* inBounds */ true);

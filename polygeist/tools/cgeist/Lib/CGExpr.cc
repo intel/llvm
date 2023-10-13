@@ -3138,7 +3138,7 @@ ValueCategory MLIRScanner::VisitReal(UnaryOperator *E, QualType PromotionType) {
 
   assert(
       (!Op->getType()->isAnyComplexType() || Op->getType()->isComplexType()) &&
-      "Unsupported");
+      "Unsupported complex integer type");
 
   ValueCategory OpRes = (!PromotionType.isNull())
                             ? EmitPromotedScalarExpr(Op, PromotionType)
