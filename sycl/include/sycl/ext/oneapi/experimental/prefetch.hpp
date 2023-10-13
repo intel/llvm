@@ -226,7 +226,7 @@ std::enable_if_t<detail::check_prefetch_AS<AddressSpace> &&
                  sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
                Properties properties = {}) {
-  detail::joint_prefetch_impl(g, ptr.get(), properties);
+  detail::joint_prefetch_impl(g, ptr.get(), sizeof(T), properties);
 }
 
 template <typename Group, typename T, access::address_space AddressSpace,
@@ -236,7 +236,7 @@ std::enable_if_t<detail::check_prefetch_AS<AddressSpace> &&
                  sycl::is_group_v<std::decay_t<Group>>>
 joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
                size_t count, Properties properties = {}) {
-  detail::joint_prefetch_impl(g, ptr.get(), count, properties);
+  detail::joint_prefetch_impl(g, ptr.get(), count * sizeof(T), properties);
 }
 
 template <typename Group, typename DataT, int Dimensions,
