@@ -547,6 +547,9 @@ etors:
 - name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
   desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
   value: '196'
+- name: LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK
+  desc: Enumerator for $xLoaderConfigSetCodeLocationCallback
+  value: '197'
 ---
 type: enum
 desc: Defines structure types

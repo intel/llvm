@@ -160,9 +160,10 @@ namespace ur_validation_layer
     %endfor
     ${x}_result_t
     context_t::init(ur_dditable_t *dditable,
-                    const std::set<std::string> &enabledLayerNames) {
+                    const std::set<std::string> &enabledLayerNames,
+                    codeloc_data) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
-        
+
         if (enabledLayerNames.count(nameFullValidation)) {
             enableParameterValidation = true;
             enableLeakChecking = true;

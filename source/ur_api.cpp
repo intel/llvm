@@ -149,6 +149,38 @@ ur_result_t UR_APICALL urLoaderConfigEnableLayer(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a function callback for use by the loader to retrieve code
+///        location information.
+///
+/// @details
+///     - The code location callback is optional and provides additional
+///       information to the tracing layer about the entry point of the current
+///       execution flow.
+///     - This functionality can be used to match traced unified runtime
+///       function calls with higher-level user calls.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCodeloc`
+ur_result_t UR_APICALL urLoaderConfigSetCodeLocationCallback(
+    ur_loader_config_handle_t
+        hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    ur_code_location_callback_t
+        pfnCodeloc, ///< [in] Function pointer to code location callback.
+    void *
+        pUserData ///< [in][out][optional] pointer to data to be passed to callback.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' loader
 ///
 /// @details

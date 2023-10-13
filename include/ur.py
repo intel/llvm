@@ -202,6 +202,7 @@ class ur_function_v(IntEnum):
     KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 194## Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
     COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 195    ## Enumerator for ::urCommandBufferAppendUSMPrefetchExp
     COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 196      ## Enumerator for ::urCommandBufferAppendUSMAdviseExp
+    LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK = 197  ## Enumerator for ::urLoaderConfigSetCodeLocationCallback
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -517,6 +518,24 @@ class ur_loader_config_info_t(c_int):
     def __str__(self):
         return str(ur_loader_config_info_v(self.value))
 
+
+###############################################################################
+## @brief Code location data
+class ur_code_location_t(Structure):
+    _fields_ = [
+        ("functionName", c_char_p),                                     ## [in][out] Function name.
+        ("sourceFile", c_char_p),                                       ## [in][out] Source code file.
+        ("lineNumber", c_ulong),                                        ## [in][out] Source code line number.
+        ("columnNumber", c_ulong)                                       ## [in][out] Source code column number.
+    ]
+
+###############################################################################
+## @brief Code location callback with user data.
+def ur_code_location_callback_t(user_defined_callback):
+    @CFUNCTYPE(ur_code_location_t, c_void_p)
+    def ur_code_location_callback_t_wrapper(pUserData):
+        return user_defined_callback(pUserData)
+    return ur_code_location_callback_t_wrapper
 
 ###############################################################################
 ## @brief Supported adapter info
