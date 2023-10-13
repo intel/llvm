@@ -72,11 +72,11 @@ void hip_matrix_copy() {
               sycl::nd_range<2>{{4, 16}, {4, 16}}, [=](sycl::nd_item<2> idx) {
                 auto sg = idx.get_sub_group();
                 joint_matrix<sub_group, OutType, use::accumulator, M, N> sub_c,
-                    sub_c_copy{};
+                    sub_c_copy;
                 joint_matrix<sub_group, InType, use::b, K, N, layout::row_major>
-                    sub_b{}, sub_b_copy{};
+                    sub_b, sub_b_copy;
                 joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
-                    sub_a, sub_a_copy{};
+                    sub_a, sub_a_copy;
 
                 joint_matrix_load(
                     sg, sub_a_copy,
