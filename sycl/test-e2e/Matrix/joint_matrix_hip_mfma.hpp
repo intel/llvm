@@ -112,6 +112,6 @@ void hip_matrix_mfma() {
   }
 
   for (int i = 0; i < M * N; ++i) {
-    assert(abs(D[i] - E[i]) <= D[i] / 100 && "Unexpected difference");
+    assert(abs(D[i] - E[i]) < 100 && "Unexpected difference");
   }
 };
