@@ -2514,6 +2514,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
                             transValue(BC->getOperand(0), F, BB),
                             transValue(BC->getOperand(1), F, BB)));
   }
+  case OpISubBorrow: {
+    IRBuilder Builder(BB);
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    return mapValue(BV, Builder.CreateBinaryIntrinsic(
+                            Intrinsic::usub_with_overflow,
+                            transValue(BC->getOperand(0), F, BB),
+                            transValue(BC->getOperand(1), F, BB)));
+  }
   case OpGetKernelWorkGroupSize:
   case OpGetKernelPreferredWorkGroupSizeMultiple:
     return mapValue(
