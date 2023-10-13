@@ -5,4 +5,4 @@ source/adapters/level_zero      @oneapi-src/unified-runtime-level-zero-write
 
 # CUDA and HIP adapters
 source/adapters/cuda            @oneapi-src/unified-runtime-cuda-write
-source/adapters/hip             @oneapi-src/unified-runtime-cuda-write
+source/adapters/hip             @oneapi-src/unified-runtime-hip-write
