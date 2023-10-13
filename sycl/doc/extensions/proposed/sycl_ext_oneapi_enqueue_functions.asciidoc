@@ -608,7 +608,13 @@ link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[
 namespace sycl::ext::oneapi::experimental {
 
 template <typename ExecutorType>
+void barrier(ExecutorType ex);
+
+template <typename ExecutorType>
 void barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+
+template <typename ExecutorType>
+void partial_barrier(ExecutorType ex);
 
 template <typename ExecutorType>
 void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
@@ -619,8 +625,23 @@ void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, 
 [source,c++]
 ----
 template <typename ExecutorType>
+void barrier(ExecutorType ex);
+----
+_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+
+_Effects_: Enqueues a command barrier to the executor `ex`. Any commands
+submitted after this barrier cannot begin execution until all commands
+previously submitted to the associated `queue` (and any commands associated
+with dependendent events associated with the handler) have completed. An
+optional event representing this command can be returned via `outEvent`.
+
+[source,c++]
+----
+template <typename ExecutorType>
 void barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+
 _Effects_: Enqueues a command barrier to the executor `ex`. Any commands
 submitted after this barrier cannot begin execution until all commands
 previously submitted to the associated `queue` (and any commands associated
@@ -630,8 +651,22 @@ representing this command can be returned via `outEvent`.
 [source,c++]
 ----
 template <typename ExecutorType>
+void partial_barrier(ExecutorType ex);
+----
+_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+
+_Effects_: Enqueues a _partial_ command barrier to the executor `ex`. Any
+commands submitted after this barrier cannot begin execution until all commands
+associated with any dependent events associated with the handler (i.e., via
+`depends_on`) have completed.
+
+[source,c++]
+----
+template <typename ExecutorType>
 void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
+_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+
 _Effects_: Enqueues a _partial_ command barrier to the executor `ex`. Any
 commands submitted after this barrier cannot begin execution until all commands
 associated with events listed in `depEvents` have completed. An optional event
