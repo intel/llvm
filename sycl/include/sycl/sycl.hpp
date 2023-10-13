@@ -82,6 +82,7 @@
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
+#include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
@@ -89,7 +90,6 @@
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/owner_less.hpp>
-#include <sycl/ext/oneapi/prefetch.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
