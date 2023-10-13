@@ -647,4 +647,14 @@ optimize such partial barriers.
 
 == Issues
 
-None.
+. How should functions accepting `kernel` objects behave?
++
+--
+*UNRESOLVED*: Ideally, we would have new function names for these cases, since
+they have a very different usage model. Unlike other enqueues, functions
+accepting `kernel` objects currently require a developers to call
+`set_arg` on the handler. Accepting kernel arguments via a parameter pack would
+be more developer-friendly, but would not be compatible with the current
+positioning of the `depEvents` and `event` parameters. Bundling a kernel object
+with its arguments via an intermediate object may be a good alternative.
+--
