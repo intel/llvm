@@ -1,3 +1,5 @@
+// REQUIRES: hip, cuda
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
