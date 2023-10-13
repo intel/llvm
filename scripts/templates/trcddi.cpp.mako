@@ -104,12 +104,15 @@ namespace ur_tracing_layer
 
     ${x}_result_t
     context_t::init(ur_dditable_t *dditable,
-                    const std::set<std::string> &enabledLayerNames) {
+                    const std::set<std::string> &enabledLayerNames,
+                    codeloc_data codelocData) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
         
         if(!enabledLayerNames.count(name)) {
             return result;
         }
+
+        ur_tracing_layer::context.codelocData = codelocData;
 
     %for tbl in th.get_pfntables(specs, meta, n, tags):
         if( ${X}_RESULT_SUCCESS == result )

@@ -211,6 +211,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 194,          ///< Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 195,                  ///< Enumerator for ::urCommandBufferAppendUSMPrefetchExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 196,                    ///< Enumerator for ::urCommandBufferAppendUSMAdviseExp
+    UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK = 197,                ///< Enumerator for ::urLoaderConfigSetCodeLocationCallback
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -673,6 +674,49 @@ urLoaderConfigEnableLayer(
     ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
     const char *pLayerName                   ///< [in] Null terminated string containing the name of the layer to
                                              ///< enable.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Code location data
+typedef struct ur_code_location_t {
+    const char *functionName; ///< [in][out] Function name.
+    const char *sourceFile;   ///< [in][out] Source code file.
+    uint32_t lineNumber;      ///< [in][out] Source code line number.
+    uint32_t columnNumber;    ///< [in][out] Source code column number.
+
+} ur_code_location_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Code location callback with user data.
+typedef ur_code_location_t (*ur_code_location_callback_t)(
+    void *pUserData ///< [in][out] pointer to data to be passed to callback
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a function callback for use by the loader to retrieve code
+///        location information.
+///
+/// @details
+///     - The code location callback is optional and provides additional
+///       information to the tracing layer about the entry point of the current
+///       execution flow.
+///     - This functionality can be used to match traced unified runtime
+///       function calls with higher-level user calls.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCodeloc`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigSetCodeLocationCallback(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    ur_code_location_callback_t pfnCodeloc,  ///< [in] Function pointer to code location callback.
+    void *pUserData                          ///< [in][out][optional] pointer to data to be passed to callback.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8617,6 +8661,16 @@ typedef struct ur_loader_config_enable_layer_params_t {
     ur_loader_config_handle_t *phLoaderConfig;
     const char **ppLayerName;
 } ur_loader_config_enable_layer_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigSetCodeLocationCallback
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_set_code_location_callback_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    ur_code_location_callback_t *ppfnCodeloc;
+    void **ppUserData;
+} ur_loader_config_set_code_location_callback_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet

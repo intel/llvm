@@ -7222,12 +7222,15 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 }
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
-                            const std::set<std::string> &enabledLayerNames) {
+                            const std::set<std::string> &enabledLayerNames,
+                            codeloc_data codelocData) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (!enabledLayerNames.count(name)) {
         return result;
     }
+
+    ur_tracing_layer::context.codelocData = codelocData;
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetGlobalProcAddrTable(
