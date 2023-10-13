@@ -112,9 +112,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    UR_CHECK_ERROR(
-        hipMemcpyHtoDAsync(hBuffer->Mem.BufferMem.getWithOffset(offset),
-                           const_cast<void *>(pSrc), size, HIPStream));
+    UR_CHECK_ERROR(hipMemcpyHtoDAsync(
+        std::get<BufferMem>(hBuffer->Mem).getWithOffset(offset),
+        const_cast<void *>(pSrc), size, HIPStream));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -159,7 +159,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     }
 
     UR_CHECK_ERROR(hipMemcpyDtoHAsync(
-        pDst, hBuffer->Mem.BufferMem.getWithOffset(offset), size, HIPStream));
+        pDst, std::get<BufferMem>(hBuffer->Mem).getWithOffset(offset), size,
+        HIPStream));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -518,7 +519,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
             UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  void *DevPtr = hBuffer->Mem.BufferMem.getVoid();
+  void *DevPtr = std::get<BufferMem>(hBuffer->Mem).getVoid();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -566,7 +567,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-  void *DevPtr = hBuffer->Mem.BufferMem.getVoid();
+  void *DevPtr = std::get<BufferMem>(hBuffer->Mem).getVoid();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -610,9 +611,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(size + srcOffset <= hBufferSrc->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hBufferSrc->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(size + dstOffset <= hBufferDst->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + dstOffset <= std::get<BufferMem>(hBufferDst->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -634,8 +635,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    auto Src = hBufferSrc->Mem.BufferMem.getWithOffset(srcOffset);
-    auto Dst = hBufferDst->Mem.BufferMem.getWithOffset(dstOffset);
+    auto Src = std::get<BufferMem>(hBufferSrc->Mem).getWithOffset(srcOffset);
+    auto Dst = std::get<BufferMem>(hBufferDst->Mem).getWithOffset(dstOffset);
 
     UR_CHECK_ERROR(hipMemcpyDtoDAsync(Dst, Src, size, Stream));
 
@@ -660,8 +661,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-  void *SrcPtr = hBufferSrc->Mem.BufferMem.getVoid();
-  void *DstPtr = hBufferDst->Mem.BufferMem.getVoid();
+  void *SrcPtr = std::get<BufferMem>(hBufferSrc->Mem).getVoid();
+  void *DstPtr = std::get<BufferMem>(hBufferDst->Mem).getVoid();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -733,7 +734,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + offset <= std::get<BufferMem>(hBuffer->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
@@ -770,7 +771,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    auto DstDevice = hBuffer->Mem.BufferMem.getWithOffset(offset);
+    auto DstDevice = std::get<BufferMem>(hBuffer->Mem).getWithOffset(offset);
     auto N = size / patternSize;
 
     // pattern size in bytes
@@ -904,7 +905,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
                                  phEventWaitList);
     }
 
-    hipArray *Array = hImage->Mem.SurfaceMem.getArray();
+    hipArray *Array = std::get<SurfaceMem>(hImage->Mem).getArray();
 
     hipArray_Format Format;
     size_t NumChannels;
@@ -915,7 +916,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     size_t ByteOffsetX = origin.x * ElementByteSize * NumChannels;
     size_t BytesToCopy = ElementByteSize * NumChannels * region.depth;
 
-    auto ImgType = hImage->Mem.SurfaceMem.getImageType();
+    auto ImgType = std::get<SurfaceMem>(hImage->Mem).getImageType();
 
     size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
     size_t SrcOffset[3] = {ByteOffsetX, origin.y, origin.z};
@@ -972,7 +973,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
                                  phEventWaitList);
     }
 
-    hipArray *Array = hImage->Mem.SurfaceMem.getArray();
+    hipArray *Array = std::get<SurfaceMem>(hImage->Mem).getArray();
 
     hipArray_Format Format;
     size_t NumChannels;
@@ -983,7 +984,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     size_t ByteOffsetX = origin.x * ElementByteSize * NumChannels;
     size_t BytesToCopy = ElementByteSize * NumChannels * region.depth;
 
-    auto ImgType = hImage->Mem.SurfaceMem.getImageType();
+    auto ImgType = std::get<SurfaceMem>(hImage->Mem).getImageType();
 
     size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
     size_t DstOffset[3] = {ByteOffsetX, origin.y, origin.z};
@@ -1029,8 +1030,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(hImageDst->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hImageSrc->Mem.SurfaceMem.getImageType() ==
-                hImageDst->Mem.SurfaceMem.getImageType(),
+  UR_ASSERT(std::get<SurfaceMem>(hImageSrc->Mem).getImageType() ==
+                std::get<SurfaceMem>(hImageDst->Mem).getImageType(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -1043,12 +1044,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
                                  phEventWaitList);
     }
 
-    hipArray *SrcArray = hImageSrc->Mem.SurfaceMem.getArray();
+    hipArray *SrcArray = std::get<SurfaceMem>(hImageSrc->Mem).getArray();
     hipArray_Format SrcFormat;
     size_t SrcNumChannels;
     getArrayDesc(SrcArray, SrcFormat, SrcNumChannels);
 
-    hipArray *DstArray = hImageDst->Mem.SurfaceMem.getArray();
+    hipArray *DstArray = std::get<SurfaceMem>(hImageDst->Mem).getArray();
     hipArray_Format DstFormat;
     size_t DstNumChannels;
     getArrayDesc(DstArray, DstFormat, DstNumChannels);
@@ -1064,7 +1065,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     size_t SrcByteOffsetX = srcOrigin.x * ElementByteSize * DstNumChannels;
     size_t BytesToCopy = ElementByteSize * SrcNumChannels * region.depth;
 
-    auto ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
+    auto ImgType = std::get<SurfaceMem>(hImageSrc->Mem).getImageType();
 
     size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.width};
     size_t SrcOffset[3] = {SrcByteOffsetX, srcOrigin.y, srcOrigin.z};
@@ -1111,22 +1112,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_event_handle_t *phEvent, void **ppRetMap) {
   UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.getSize(),
+  auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
+  UR_ASSERT(offset + size <= BufferImpl.getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_ERROR_INVALID_OPERATION;
   const bool IsPinned =
-      hBuffer->Mem.BufferMem.MemAllocMode ==
-      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
+      BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
   // Currently no support for overlapping regions
-  if (hBuffer->Mem.BufferMem.getMapPtr() != nullptr) {
+  if (BufferImpl.getMapPtr() != nullptr) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(size, offset, mapFlags);
-  *ppRetMap = hBuffer->Mem.BufferMem.getMapPtr();
+  auto HostPtr = BufferImpl.mapToPtr(size, offset, mapFlags);
+  *ppRetMap = std::get<BufferMem>(hBuffer->Mem).getMapPtr();
   if (HostPtr) {
     Result = UR_RESULT_SUCCESS;
   }
@@ -1171,23 +1172,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   ur_result_t Result = UR_RESULT_SUCCESS;
   UR_ASSERT(hMem->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() != nullptr,
+  UR_ASSERT(std::get<BufferMem>(hMem->Mem).getMapPtr() != nullptr,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() == pMappedPtr,
+  UR_ASSERT(std::get<BufferMem>(hMem->Mem).getMapPtr() == pMappedPtr,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  const bool IsPinned =
-      hMem->Mem.BufferMem.MemAllocMode ==
-      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
+  const bool IsPinned = std::get<BufferMem>(hMem->Mem).MemAllocMode ==
+                        BufferMem::AllocMode::AllocHostPtr;
 
-  if (!IsPinned && ((hMem->Mem.BufferMem.getMapFlags() & UR_MAP_FLAG_WRITE) ||
-                    (hMem->Mem.BufferMem.getMapFlags() &
-                     UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
+  if (!IsPinned &&
+      ((std::get<BufferMem>(hMem->Mem).getMapFlags() & UR_MAP_FLAG_WRITE) ||
+       (std::get<BufferMem>(hMem->Mem).getMapFlags() &
+        UR_MAP_FLAG_WRITE_INVALIDATE_REGION))) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(),
-        hMem->Mem.BufferMem.getMapSize(), pMappedPtr, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        hQueue, hMem, true, std::get<BufferMem>(hMem->Mem).getMapOffset(),
+        std::get<BufferMem>(hMem->Mem).getMapSize(), pMappedPtr,
+        numEventsInWaitList, phEventWaitList, phEvent);
   } else {
     ScopedContext Active(hQueue->getDevice());
 
@@ -1208,7 +1209,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     }
   }
 
-  hMem->Mem.BufferMem.unmap(pMappedPtr);
+  std::get<BufferMem>(hMem->Mem).unmap(pMappedPtr);
   return Result;
 }
 
