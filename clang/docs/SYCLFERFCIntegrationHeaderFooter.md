@@ -92,6 +92,8 @@ And for each kernel, each of its parameter is described in the kernel_signatures
 * an encoding of the type that is captured
 * its size and its offset
 
+This assumes that the layout of the lambda is the same on both the host and the device, which might not be the case when the host compiler is different.
+
 In the above example, the first two parameters are standard layout types (the int `i` and the struct `test_s`), the third one, although a standard layout type, is a type which needs special handling.   The last entry acts as a terminating entry.
 
 This allows the run-time library to recreate the function object on the device.
