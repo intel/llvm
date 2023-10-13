@@ -31,8 +31,8 @@ void cleanupSYCLCompilerMetadata(const Module &M, llvm::StringRef MD) {
 
 } // anonymous namespace
 
-PreservedAnalyses
-CleanupSYCLMetadataPass::run(Module &M, ModuleAnalysisManager &MAM) {
+PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
+                                               ModuleAnalysisManager &MAM) {
   // Remove SYCL module-level metadata that will never be used again to avoid
   // its duplication of their operands during llvm-link hence preventing
   // increase of the module size
