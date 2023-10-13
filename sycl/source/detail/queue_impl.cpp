@@ -26,6 +26,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
+
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;

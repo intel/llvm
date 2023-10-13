@@ -113,7 +113,9 @@ public:
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+                                 (MHostQueue ? true : MIsInorder)),
+        MQueueID{
+            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
@@ -142,6 +144,7 @@ public:
                   MDevice->is_host() ? 0 : MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+        xpti::addMetadata(TEvent, "queue_id", MQueueID);
       });
       PrepareNotify.notify();
     }
@@ -196,6 +199,9 @@ public:
       // This section is the second part of the instrumentation that uses the
       // tracepoint information and notifies
     }
+#if XPTI_ENABLE_INSTRUMENTATION
+    xpti::addMetadata(PrepareNotify.traceEvent(), "handle", getHandleRef());
+#endif
   }
 
 private:
@@ -231,6 +237,7 @@ private:
                   MDevice->is_host() ? 0 : MDevice->getHandleRef()));
         }
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+        xpti::addMetadata(TEvent, "queue_id", MQueueID);
       });
       PrepareNotify.notify();
     }
@@ -255,6 +262,9 @@ private:
           make_error_code(errc::invalid),
           "Device provided by native Queue not found in Context.");
     }
+#if XPTI_ENABLE_INSTRUMENTATION
+    xpti::addMetadata(PrepareNotify.traceEvent(), "handle", getHandleRef());
+#endif
   }
 
 public:
@@ -273,7 +283,9 @@ public:
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+                                 (MHostQueue ? true : MIsInorder)),
+        MQueueID{
+            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
   }
 
@@ -310,6 +322,8 @@ public:
                             (xpti::trace_event_data_t *)MTraceEvent,
                             MInstanceID,
                             static_cast<const void *>("queue_destroy"));
+      xpti::addMetadata(static_cast<xpti::trace_event_data_t *>(MTraceEvent),
+                        "queue_id", MQueueID);
     }
 #endif
     throw_asynchronous();
@@ -872,6 +886,9 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
+
+  unsigned long long MQueueID;
+  static std::atomic<unsigned long long> MNextAvailableQueueID;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };
