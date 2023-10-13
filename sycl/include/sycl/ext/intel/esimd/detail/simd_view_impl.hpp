@@ -12,7 +12,6 @@
 
 #include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 
 namespace sycl {
@@ -405,13 +404,11 @@ public:
   /// @param Other The source rvalue object.
   /// @return This object cast to the derived class.
   Derived &operator=(Derived &&Other) {
-    __esimd_move_test_proxy(Other);
     return write(Other.read());
   }
 
   /// Move assignment operator. Updates the target region viewed by this object.
   simd_view_impl &operator=(simd_view_impl &&Other) {
-    __esimd_move_test_proxy(Other);
     return write(Other.read());
   }
 
@@ -586,16 +583,9 @@ public:
   }
 
   /// @cond EXCLUDE
-public:
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 protected:
   // The reference to the base object, which must be a simd object
   BaseTy &M_base;
-
-  // The test proxy if enabled
-  __ESIMD_DECLARE_TEST_PROXY
 
   // The region applied on the base object. Its type could be
   // - region1d_t
