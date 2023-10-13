@@ -35,6 +35,7 @@
 #include "detail/graph_impl.hpp"
 
 #include <utility>
+#include <memory>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti/xpti_trace_framework.hpp"
@@ -694,6 +695,25 @@ public:
     return MGraph.lock();
   }
 
+  /* In-order queue specific: checks if host task submitted to queue is completed and adds command to postponed commands list if not. */
+  bool isImmediateEnqueueAllowed(Command* CommandToEnqueue)
+  {
+    assert(CommandToEnqueue);
+    std::lock_guard lock(MInOrderEnqueueMngtMutex);
+    // This path ios not applicable for out of order queue. For in order queue absence of MLastHostTaskEvent means that host task has never been submitted yet and no extra efforts for management needed. 
+    if (!MIsInorder || !MLastHostTaskEvent)
+      return true;
+    if (!MLastHostTaskEvent->isCompleted() || MPostponedCommandsToEnqueue.size())
+    {
+      MPostponedCommandsToEnqueue.push_back(CommandToEnqueue);
+      return false;
+    }
+
+    if (CommandToEnqueue->isHostTask())
+      MLastHostTaskEvent = CommandToEnqueue->getEvent();
+    return true;
+  }
+
 protected:
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
@@ -703,23 +723,16 @@ protected:
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
-
-      auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
-        return Type == CG::CGTYPE::CodeplayHostTask;
-      };
-
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
 
       if (MLastCGType == CG::CGTYPE::None)
         MLastCGType = Type;
-      // Also handles case when sync model changes. E.g. Last is host, new is
-      // kernel.
-      bool NeedSeparateDependencyMgmt =
-          IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
-
-      if (NeedSeparateDependencyMgmt)
+      // Kernel after host task -> will be handled on enqueue stage.
+      // Host after host task -> also handled on enqueue stage. No significant benefit to enqueue second task and make thread busy by waiting (if host task pool contains 1+ thread).
+      // Host after kernel -> adding dependency, it is ok to wait for event in host task thread.
+      if ((Type == CG::CGTYPE::CodeplayHostTask) && Type != MLastCGType)
         Handler.depends_on(MLastEvent);
 
       EventRet = Handler.finalize();
@@ -837,6 +850,11 @@ protected:
   // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
   // backend. Using type to setup explicit sync between host and pi tasks.
   CG::CGTYPE MLastCGType = CG::CGTYPE::None;
+  // If we have active host task for in-order queue it is essential to postponed pi commands enqueue to avoid reordering.
+  std::list<Command*> MPostponedCommandsForEnqueue;
+  // Host task will block next commands from being enqueued.
+  std::shared_ptr<event_impl> MLastHostTaskEvent;
+  std::mutex MInOrderEnqueueMngtMutex;
 
   const bool MIsInorder;
 

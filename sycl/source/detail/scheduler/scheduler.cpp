@@ -485,6 +485,25 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       Cmd->getEvent()->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    {
+      QueueImplPtr Queue = Cmd->getEvent()->getSubmittedQueue();
+      if (Queue && Queue->isInOrder())
+      {
+        std::lock_guard lock(MInOrderEnqueueMngtMutex);
+        auto it = Queue->MPostponedCommandsToEnqueue.begin();
+        while (it != Queue->MPostponedCommandsToEnqueue.end()) {
+          EnqueueResultT Res;
+          bool Enqueued =
+              GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
+          if (Enqueued)
+            it = Queue->MPostponedCommandsToEnqueue.erase(it);
+          else if (EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+            throw runtime_error("Enqueue process failed.",
+                                PI_ERROR_INVALID_OPERATION);
+          else break;                      
+        }
+      }
+    }
   }
   cleanupCommands(ToCleanUp);
 }
