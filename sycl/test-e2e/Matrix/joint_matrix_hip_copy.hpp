@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <random>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -32,21 +33,24 @@ void hip_matrix_copy() {
   OutType D[M * N];
   OutType E[M * N];
 
+  std::mt19937 gen(0);
+  std::uniform_real_distribution<float> dist(-100, 100);
+
   for (auto i = 0; i < M * K; ++i) {
-    A[i] = i % details::input_limit<InType, M, N>::value;
+    A[i] = static_cast<InType>(dist(gen));
   }
 
   for (auto i = 0; i < K * N; ++i) {
-    B[i] = i % details::input_limit<InType, M, N>::value;
+    B[i] = static_cast<InType>(dist(gen));
   }
 
   for (auto i = 0; i < M * N; ++i) {
     D[i] = 0;
-    C[i] = i;
+    C[i] = static_cast<OutType>(dist(gen));
     if (OutLayout == layout::row_major)
-      E[i] = i;
+      E[i] = C[i];
     else
-      E[(i % N) * M + int(i / M)] = i;
+      E[(i % N) * M + int(i / M)] = C[i];
   }
 
   try {
@@ -74,10 +78,6 @@ void hip_matrix_copy() {
                 joint_matrix<sub_group, InType, use::a, M, K, layout::col_major>
                     sub_a, sub_a_copy{};
 
-                joint_matrix_copy(sg, sub_c, sub_c_copy);
-                joint_matrix_copy(sg, sub_a, sub_a_copy);
-                joint_matrix_copy(sg, sub_b, sub_b_copy);
-
                 joint_matrix_load(
                     sg, sub_a_copy,
                     accA.template get_multi_ptr<access::decorated::yes>(), K);
@@ -88,6 +88,10 @@ void hip_matrix_copy() {
                     sg, sub_c_copy,
                     accC.template get_multi_ptr<access::decorated::yes>(), N,
                     layout::row_major);
+
+                joint_matrix_copy(sg, sub_c, sub_c_copy);
+                joint_matrix_copy(sg, sub_a, sub_a_copy);
+                joint_matrix_copy(sg, sub_b, sub_b_copy);
 
                 joint_matrix_mad(sg, sub_c_copy, sub_a_copy, sub_b_copy,
                                  sub_c_copy);

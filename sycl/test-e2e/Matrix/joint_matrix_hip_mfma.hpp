@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <random>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -29,21 +30,24 @@ void hip_matrix_mfma() {
   OutType D[M * N];
   OutType E[M * N];
 
+  std::mt19937 gen(0);
+  std::uniform_real_distribution<float> dist(-100, 100);
+
   for (auto i = 0; i < M * K; ++i) {
-    A[i] = i % input_limit<InType, M, N>::value;
+    A[i] = static_cast<InType>(dist(gen));
   }
 
   for (auto i = 0; i < K * N; ++i) {
-    B[i] = i % input_limit<InType, M, N>::value;
+    B[i] = static_cast<InType>(dist(gen));
   }
 
   for (auto i = 0; i < M * N; ++i) {
     D[i] = 0;
-    C[i] = i;
+    C[i] = static_cast<OutType>(dist(gen));
     if (OutLayout == layout::row_major)
-      E[i] = i;
+      E[i] = C[i];
     else
-      E[(i % N) * M + int(i / M)] = i;
+      E[(i % N) * M + int(i / M)] = C[i];
   }
 
   try {
