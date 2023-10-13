@@ -25,6 +25,8 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
                              const std::vector<std::string> &UserArgs,
                              std::string *LogPtr);
 
+bool OpenCLC_Compilation_Available();
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 

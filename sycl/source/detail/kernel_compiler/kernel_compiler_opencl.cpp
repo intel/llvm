@@ -54,6 +54,8 @@ void checkOclocLibrary(void *OclocLibrary) {
   }
 }
 
+static void *OclocLibrary = nullptr;
+
 // load the ocloc shared library, check it.
 void *loadOclocLibrary() {
 #ifdef __SYCL_RT_OS_WINDOWS
@@ -61,14 +63,34 @@ void *loadOclocLibrary() {
 #else
   static const std::string OclocLibraryName = "libocloc.so";
 #endif
-  void *OclocLibrary = sycl::detail::pi::loadOsLibrary(OclocLibraryName);
-  if (!OclocLibrary)
-    throw sycl::exception(make_error_code(errc::build),
-                          "Unable to load ocloc library " + OclocLibraryName);
+  void *tempPtr = OclocLibrary;
+  if (tempPtr == nullptr) {
+    tempPtr = sycl::detail::pi::loadOsLibrary(OclocLibraryName);
 
-  checkOclocLibrary(OclocLibrary);
+    if (tempPtr == nullptr)
+      throw sycl::exception(make_error_code(errc::build),
+                            "Unable to load ocloc library " + OclocLibraryName);
+
+    checkOclocLibrary(tempPtr);
+
+    OclocLibrary = tempPtr;
+  }
 
   return OclocLibrary;
+}
+
+bool OpenCLC_Compilation_Available() {
+  // Already loaded?
+  if (OclocLibrary != nullptr)
+    return true;
+
+  try {
+    // loads and checks version
+    loadOclocLibrary();
+    return true;
+  } catch (...) {
+    return false;
+  }
 }
 
 spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
@@ -84,7 +106,8 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
 
   // setup Library
   if (!oclocInvokeHandle) {
-    void *OclocLibrary = loadOclocLibrary();
+    if (OclocLibrary == nullptr)
+      loadOclocLibrary();
 
     oclocInvokeHandle =
         sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");

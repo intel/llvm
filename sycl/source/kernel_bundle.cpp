@@ -8,6 +8,7 @@
 
 #include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
@@ -370,8 +371,14 @@ using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
 bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
   // at the moment, OpenCL is the only language supported
   // and it's support is limited to the opencl and level_zero backends.
-  return (BE == sycl::backend::ext_oneapi_level_zero) ||
-         (BE == sycl::backend::opencl);
+  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
+                       (BE == sycl::backend::opencl);
+  if ((Language == source_language::opencl) && BE_Acceptable) {
+    return syclex::detail::OpenCLC_Compilation_Available();
+  }
+
+  // otherwise
+  return false;
 }
 
 /////////////////////////
@@ -380,8 +387,14 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 source_kb create_kernel_bundle_from_source(const context &SyclContext,
                                            syclex::source_language Language,
                                            const std::string &Source) {
-  // TODO -- throw errc::invalid if lang is not supported by BE.
-  // use syclex::is_source_kernel_bundle_supported(BE, Lang)
+  // TODO: if we later support a "reason" why support isn't present
+  // (like a missing shared library etc.) it'd be nice to include it in
+  // the exception message here.
+  backend BE = SyclContext.get_backend();
+  if (!is_source_kernel_bundle_supported(BE, Language))
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "kernel_bundle creation from source not supported");
+
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source);
   return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
