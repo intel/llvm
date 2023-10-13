@@ -79,13 +79,13 @@ void hip_matrix_copy() {
                     sub_a, sub_a_copy;
 
                 joint_matrix_load(
-                    sg, sub_a_copy,
+                    sg, sub_a,
                     accA.template get_multi_ptr<access::decorated::yes>(), K);
                 joint_matrix_load(
-                    sg, sub_b_copy,
+                    sg, sub_b,
                     accB.template get_multi_ptr<access::decorated::yes>(), N);
                 joint_matrix_load(
-                    sg, sub_c_copy,
+                    sg, sub_c,
                     accC.template get_multi_ptr<access::decorated::yes>(), N,
                     layout::row_major);
 
