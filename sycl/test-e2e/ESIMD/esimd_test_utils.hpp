@@ -8,10 +8,11 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
-#define NOMINMAX
 
+#define NOMINMAX
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -687,6 +688,19 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
     IsGE &= CurrentVersion >= RequiredVersion;
   }
   return IsGE;
+}
+
+template <typename T> T getRandomValue() {
+  using Tuint = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  Tuint v = rand();
+  if constexpr (sizeof(Tuint) > 4)
+    v = (v << 32) | rand();
+  return sycl::bit_cast<T>(v);
 }
 
 } // namespace esimd_test

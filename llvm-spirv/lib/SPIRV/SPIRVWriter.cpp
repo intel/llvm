@@ -4582,9 +4582,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
 LLVMToSPIRVBase::FPBuiltinType
 LLVMToSPIRVBase::getFPBuiltinType(IntrinsicInst *II, StringRef &OpName) {
   StringRef Name = II->getCalledFunction()->getName();
-  if (!Name.startswith("llvm.fpbuiltin"))
+  if (!Name.consume_front("llvm.fpbuiltin."))
     return FPBuiltinType::UNKNOWN;
-  Name.consume_front("llvm.fpbuiltin.");
   OpName = Name.split('.').first;
   FPBuiltinType Type =
       StringSwitch<FPBuiltinType>(OpName)
