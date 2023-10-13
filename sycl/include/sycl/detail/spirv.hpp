@@ -1028,6 +1028,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
 #if defined(__NVPTX__)
   __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
 #else
+  (void)g;
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.
@@ -1057,7 +1058,7 @@ struct is_tangle_or_opportunistic_group<
   template <__spv::GroupOperation Op, typename Group, typename T>              \
   inline typename std::enable_if_t<                                            \
       ext::oneapi::experimental::is_fixed_topology_group_v<Group>, T>          \
-      Group##Instruction(Group G, T x) {                                       \
+      Group##Instruction(Group, T x) {                                         \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \

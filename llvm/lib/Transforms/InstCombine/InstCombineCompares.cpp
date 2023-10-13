@@ -4245,7 +4245,12 @@ foldShiftIntoShiftInAnotherHandOfAndInICmp(ICmpInst &I, const SimplifyQuery SQ,
                       /*isNUW=*/false, SQ.getWithInstruction(&I)));
   if (!NewShAmt)
     return nullptr;
-  NewShAmt = ConstantExpr::getZExtOrBitCast(NewShAmt, WidestTy);
+  if (NewShAmt->getType() != WidestTy) {
+    NewShAmt =
+        ConstantFoldCastOperand(Instruction::ZExt, NewShAmt, WidestTy, SQ.DL);
+    if (!NewShAmt)
+      return nullptr;
+  }
   unsigned WidestBitWidth = WidestTy->getScalarSizeInBits();
 
   // Is the new shift amount smaller than the bit width?
@@ -5021,6 +5026,12 @@ InstCombinerImpl::foldICmpWithMinMaxImpl(Instruction &I,
     std::swap(CmpXZ, CmpYZ);
   }
 
+  auto FoldIntoCmpYZ = [&]() -> Instruction * {
+    if (CmpYZ.has_value())
+      return replaceInstUsesWith(I, ConstantInt::getBool(I.getType(), *CmpYZ));
+    return ICmpInst::Create(Instruction::ICmp, Pred, Y, Z);
+  };
+
   switch (Pred) {
   case ICmpInst::ICMP_EQ:
   case ICmpInst::ICMP_NE: {
@@ -5037,12 +5048,35 @@ InstCombinerImpl::foldICmpWithMinMaxImpl(Instruction &I,
         NewPred = ICmpInst::getInversePredicate(NewPred);
       return ICmpInst::Create(Instruction::ICmp, NewPred, X, Y);
     }
-    // Otherwise (X != Z, nofold):
-    //       Expr      Result
-    // min(X, Y) == Z X > Y || Y == Z
-    // max(X, Y) == Z X < Y || Y == Z
-    // min(X, Y) != Z X <= Y && Y != Z
-    // max(X, Y) != Z X >= Y && Y != Z
+    // Otherwise (X != Z):
+    ICmpInst::Predicate NewPred = MinMax->getPredicate();
+    auto MinMaxCmpXZ = IsCondKnownTrue(simplifyICmpInst(NewPred, X, Z, Q));
+    if (!MinMaxCmpXZ.has_value()) {
+      std::swap(X, Y);
+      std::swap(CmpXZ, CmpYZ);
+      // Re-check pre-condition X != Z
+      if (!CmpXZ.has_value() || (Pred == ICmpInst::ICMP_EQ) == *CmpXZ)
+        break;
+      MinMaxCmpXZ = IsCondKnownTrue(simplifyICmpInst(NewPred, X, Z, Q));
+    }
+    if (!MinMaxCmpXZ.has_value())
+      break;
+    if (*MinMaxCmpXZ) {
+      //    Expr         Fact    Result
+      // min(X, Y) == Z  X < Z   false
+      // max(X, Y) == Z  X > Z   false
+      // min(X, Y) != Z  X < Z    true
+      // max(X, Y) != Z  X > Z    true
+      return replaceInstUsesWith(
+          I, ConstantInt::getBool(I.getType(), Pred == ICmpInst::ICMP_NE));
+    } else {
+      //    Expr         Fact    Result
+      // min(X, Y) == Z  X > Z   Y == Z
+      // max(X, Y) == Z  X < Z   Y == Z
+      // min(X, Y) != Z  X > Z   Y != Z
+      // max(X, Y) != Z  X < Z   Y != Z
+      return FoldIntoCmpYZ();
+    }
     break;
   }
   case ICmpInst::ICMP_SLT:
@@ -5053,17 +5087,6 @@ InstCombinerImpl::foldICmpWithMinMaxImpl(Instruction &I,
   case ICmpInst::ICMP_UGT:
   case ICmpInst::ICMP_SGE:
   case ICmpInst::ICMP_UGE: {
-    auto FoldIntoConstant = [&](bool Value) {
-      return replaceInstUsesWith(
-          I, Constant::getIntegerValue(
-                 I.getType(), APInt(1U, static_cast<uint64_t>(Value))));
-    };
-    auto FoldIntoCmpYZ = [&]() -> Instruction * {
-      if (CmpYZ.has_value())
-        return FoldIntoConstant(*CmpYZ);
-      return ICmpInst::Create(Instruction::ICmp, Pred, Y, Z);
-    };
-
     bool IsSame = MinMax->getPredicate() == ICmpInst::getStrictPredicate(Pred);
     if (*CmpXZ) {
       if (IsSame) {
@@ -5072,7 +5095,7 @@ InstCombinerImpl::foldICmpWithMinMaxImpl(Instruction &I,
         // min(X, Y) <= Z   X <= Z  true
         // max(X, Y) > Z    X > Z   true
         // max(X, Y) >= Z   X >= Z  true
-        return FoldIntoConstant(true);
+        return replaceInstUsesWith(I, ConstantInt::getTrue(I.getType()));
       } else {
         //      Expr        Fact    Result
         // max(X, Y) < Z    X < Z   Y < Z
@@ -5095,7 +5118,7 @@ InstCombinerImpl::foldICmpWithMinMaxImpl(Instruction &I,
         // max(X, Y) <= Z   X > Z   false
         // min(X, Y) > Z    X <= Z  false
         // min(X, Y) >= Z   X < Z   false
-        return FoldIntoConstant(false);
+        return replaceInstUsesWith(I, ConstantInt::getFalse(I.getType()));
       }
     }
     break;
@@ -5421,6 +5444,14 @@ Instruction *InstCombinerImpl::foldICmpEquality(ICmpInst &I) {
         Pred, A,
         Builder.CreateIntrinsic(Op0->getType(), Intrinsic::fshl, {A, A, B}));
 
+  // Canonicalize:
+  // icmp eq/ne OneUse(A ^ Cst), B --> icmp eq/ne (A ^ B), Cst
+  Constant *Cst;
+  if (match(&I, m_c_ICmp(PredUnused,
+                         m_OneUse(m_Xor(m_Value(A), m_ImmConstant(Cst))),
+                         m_CombineAnd(m_Value(B), m_Unless(m_ImmConstant())))))
+    return new ICmpInst(Pred, Builder.CreateXor(A, B), Cst);
+
   return nullptr;
 }
 
@@ -5556,25 +5587,20 @@ Instruction *InstCombinerImpl::foldICmpWithZextOrSext(ICmpInst &ICmp) {
   if (!C)
     return nullptr;
 
-  // Compute the constant that would happen if we truncated to SrcTy then
-  // re-extended to DestTy.
+  // If a lossless truncate is possible...
   Type *SrcTy = CastOp0->getSrcTy();
-  Type *DestTy = CastOp0->getDestTy();
-  Constant *Res1 = ConstantExpr::getTrunc(C, SrcTy);
-  Constant *Res2 = ConstantExpr::getCast(CastOp0->getOpcode(), Res1, DestTy);
-
-  // If the re-extended constant didn't change...
-  if (Res2 == C) {
+  Constant *Res = getLosslessTrunc(C, SrcTy, CastOp0->getOpcode());
+  if (Res) {
     if (ICmp.isEquality())
-      return new ICmpInst(ICmp.getPredicate(), X, Res1);
+      return new ICmpInst(ICmp.getPredicate(), X, Res);
 
     // A signed comparison of sign extended values simplifies into a
     // signed comparison.
     if (IsSignedExt && IsSignedCmp)
-      return new ICmpInst(ICmp.getPredicate(), X, Res1);
+      return new ICmpInst(ICmp.getPredicate(), X, Res);
 
     // The other three cases all fold into an unsigned comparison.
-    return new ICmpInst(ICmp.getUnsignedPredicate(), X, Res1);
+    return new ICmpInst(ICmp.getUnsignedPredicate(), X, Res);
   }
 
   // The re-extended constant changed, partly changed (in the case of a vector),

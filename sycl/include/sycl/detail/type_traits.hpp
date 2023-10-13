@@ -338,6 +338,8 @@ struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
 template <typename T>
 struct is_pointer : is_pointer_impl<std::remove_cv_t<T>> {};
 
+template <typename T> inline constexpr bool is_pointer_v = is_pointer<T>::value;
+
 // is_multi_ptr
 template <typename T> struct is_multi_ptr : std::false_type {};
 
@@ -411,6 +413,10 @@ struct is_address_space_compliant_impl<multi_ptr<T, Space, DecorateAddress>,
 template <typename T, typename SpaceList>
 struct is_address_space_compliant
     : is_address_space_compliant_impl<std::remove_cv_t<T>, SpaceList> {};
+
+template <typename T, typename SpaceList>
+inline constexpr bool is_address_space_compliant_v =
+    is_address_space_compliant<T, SpaceList>::value;
 
 // make_type_t
 template <typename T, typename TL> struct make_type_impl {

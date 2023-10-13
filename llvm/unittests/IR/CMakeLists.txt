@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   Passes
   SYCLLowerIR
+  TargetParser
   TransformUtils
   ScalarOpts
   )
