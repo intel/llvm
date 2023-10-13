@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out | FileCheck %s
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 
 // CHECK: This extended deleter should be called at ctx destruction.
 
