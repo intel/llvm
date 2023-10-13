@@ -53,9 +53,12 @@ function(add_conformance_test name)
         if(UR_BUILD_ADAPTER_L0)
             add_test_adapter(${name} adapter_level_zero)
         endif()
+        if(UR_BUILD_ADAPTER_OPENCL)
+            add_test_adapter(${name} adapter_opencl)
+        endif()
 
-        if(NOT (UR_BUILD_ADAPTER_CUDA
-            OR UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_L0))
+        if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
+                OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL))
             add_test_adapter(${name} adapter_null)
         endif()
     endif()
