@@ -628,13 +628,13 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Read the annotation values and create the new annotation string.
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
-  for (const auto &[propName, propVal] : Properties) {
+  for (const auto &[PropName, PropVal] : Properties) {
     // sycl-alignment is converted to align on
     // previous parseAlignmentAndApply(), dropping here
-    if (propName == "sycl-alignment")
+    if (PropName == "sycl-alignment")
       continue;
 
-    auto DecorIt = SpirvDecorMap.find(*propName);
+    auto DecorIt = SpirvDecorMap.find(*PropName);
     if (DecorIt == SpirvDecorMap.end())
       continue;
     uint32_t DecorCode = DecorIt->second.Code;
@@ -644,8 +644,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     // string values are handled correctly. Note that " around values are
     // always valid, even if the decoration parameters are not strings.
     NewAnnotString += "{" + std::to_string(DecorCode);
-    if (propVal)
-      NewAnnotString += ":\"" + propVal->str() + "\"";
+    if (PropVal)
+      NewAnnotString += ":\"" + PropVal->str() + "\"";
     NewAnnotString += "}";
   }
 
