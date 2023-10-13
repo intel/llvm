@@ -7,8 +7,7 @@ Discourse topic details:
 
 This RFC is intended to discuss proposed changes to compilation flow for
 offloading SYCL kernels specifically to SPIR-based targets. Most of the changes
-will be made in the `clang-linker-wrapper` tool. To be posted to the Clang
-Frontend category.
+will be made in the `clang-linker-wrapper` tool.
 
 ## Introduction
 
@@ -67,12 +66,15 @@ Example usage of the external `clang-offload-packager` call:
 `clang-offload-packager --image=file=<name>,triple=<triple>,kind=<kind>`
 
 In the proposed offloading model, the compiler driver is responsible for
-creating the multi-targeted object. LLVM IR is used to represent device code
-embedded in this multi-targeted object. LLVM IR is known to change across
-releases and this rate of change poses a challenge to maintain code compatibility
-in libraries and several other pre-compiled multi-targeted objects.
-An alternate approach is to represent device code using the more stable SPIR-V IR.
-We request comments on this alternate approach from the community.
+creating the multi-targeted object.
+
+LLVM IR is used to represent device code embedded in this multi-targeted
+object. LLVM IR is known to change across releases of clang and this rate of
+change poses a challenge to maintain code compatibility in static libraries and
+object files which contain device code IR. We are considering an alternative
+approach where static libraries and object files contain a device-specific IR
+instead of LLVM IR. For Intel GPUs, we would use SPIR-V, which is more stable
+than LLVM IR. We request comments on this alternate approach from the community.
 
 `clang-offload-packager` will be used to embed device code into the host code.
 Following changes will be added to the packager. A new offload kind (SYCL_OFK)
