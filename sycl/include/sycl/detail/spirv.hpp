@@ -12,7 +12,7 @@
 
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
-#include <sycl/detail/memcpy.hpp> // sycl::memcpy
+#include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
 
 namespace sycl {
 inline namespace _V1 {

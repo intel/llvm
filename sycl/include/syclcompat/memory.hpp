@@ -33,6 +33,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -888,8 +889,7 @@ public:
     assert(init_list.size() <= in_range.size());
     _host_ptr = (value_t *)std::malloc(_size);
     std::memset(_host_ptr, 0, _size);
-    sycl::detail::memcpy(_host_ptr, init_list.begin(),
-                         init_list.size() * sizeof(T));
+    std::memcpy(_host_ptr, init_list.begin(), init_list.size() * sizeof(T));
   }
 
   /// Constructor of 2-D array with initializer list
