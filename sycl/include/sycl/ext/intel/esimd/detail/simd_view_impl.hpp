@@ -403,9 +403,7 @@ public:
   /// region viewed by this object.
   /// @param Other The source rvalue object.
   /// @return This object cast to the derived class.
-  Derived &operator=(Derived &&Other) {
-    return write(Other.read());
-  }
+  Derived &operator=(Derived &&Other) { return write(Other.read()); }
 
   /// Move assignment operator. Updates the target region viewed by this object.
   simd_view_impl &operator=(simd_view_impl &&Other) {
