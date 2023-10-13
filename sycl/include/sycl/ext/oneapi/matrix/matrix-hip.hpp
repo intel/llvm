@@ -19,10 +19,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
-namespace experimental {
-namespace matrix {} // namespace matrix
-} // namespace experimental
-
 namespace detail {
 
 template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
@@ -33,6 +29,14 @@ template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
 struct joint_matrix_hip;
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD_MFMA__)
+
+using bfloat16x4 = __attribute__((__vector_size__(4 * sizeof(__bf16)))) __fp16;
+using float16x4 = __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16;
+using floatx4 = __attribute__((__vector_size__(4 * sizeof(float)))) float;
+using floatx16 = __attribute__((__vector_size__(16 * sizeof(float)))) float;
+using int32x4 = __attribute__((__vector_size__(4 * sizeof(int32_t)))) int;
+using int32x16 = __attribute__((__vector_size__(16 * sizeof(int32_t)))) int;
+using doublex4 = __attribute__((__vector_size__(4 * sizeof(double)))) double;
 
 template <typename T> struct to_hip_type {
   using type = T;
@@ -61,10 +65,7 @@ template <> struct to_hip_type<int8_t> {
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    using ext_array_t = __attribute__((                                        \
-        __vector_size__(SIZE * sizeof(typename to_hip_type<TYPE>::type))))     \
-    typename to_hip_type<TYPE>::type;                                          \
-    ext_array_t data = {0};                                                    \
+    sycl::marray<TYPE, SIZE> data;                                             \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
@@ -80,35 +81,19 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(half, b, 8, 32, 4)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, a, 16, 4, 1)
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(double, b, 4, 16, 1)
 
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 32, 8, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 8, 32, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, a, 16, 16, 4)
+__SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
+
 #undef __SYCL_JOINT_MATRIX_OVERLOAD_ARR
-
-#define __SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(USE, M, N, SIZE)                 \
-  template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \
-  struct joint_matrix_hip<                                                     \
-      int8_t, sycl::ext::oneapi::experimental::matrix::use::USE, M, N, Layout, \
-      typename std::enable_if_t<                                               \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
-          Layout ==                                                            \
-              sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    int8_t data[SIZE];                                                         \
-  };
-
-__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(a, 32, 8, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(b, 8, 32, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(a, 16, 16, 4)
-__SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR(b, 16, 16, 4)
-
-#undef __SYCL_JOINT_MATRIX_OVERLOAD_INT8_ARR
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(TYPE, M, N)                       \
   template <>                                                                  \
   struct joint_matrix_hip<                                                     \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
       sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
-    using ext_array_t =                                                        \
-        __attribute__((__vector_size__((M * N) / 64 * sizeof(TYPE)))) TYPE;    \
-    ext_array_t data = {0};                                                    \
+    sycl::marray<TYPE, (M * N) / 64> data;                                     \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16)
@@ -198,10 +183,6 @@ void load_accumulator_hip(
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout layout, Group &sg) {
-  static_assert(std::is_same_v<S, int32_t> || std::is_same_v<S, float> ||
-                    std::is_same_v<S, double>,
-                "Unsupported matrix type!");
-
   if (layout == sycl::ext::oneapi::experimental::matrix::layout::row_major)
     load_accumulator_layoutT<
         sycl::ext::oneapi::experimental::matrix::layout::row_major>(res, src,
@@ -225,10 +206,6 @@ template <
 void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
                            multi_ptr<T, Space, IsDecorated> src, size_t stride,
                            Group &sg) {
-  static_assert(std::is_same_v<S, half> || std::is_same_v<S, bfloat16> ||
-                    std::is_same_v<S, int8_t> || std::is_same_v<S, double>,
-                "Unsupported matrix type!");
-
   const auto idx = sg.get_group_linear_id() * sg.get_local_range()[0] +
                    sg.get_local_linear_id();
 
@@ -365,37 +342,60 @@ void joint_matrix_mad_hip(
         sycl::ext::oneapi::experimental::matrix::layout::dynamic> &C) {
   if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
-      D.data = __builtin_amdgcn_mfma_f32_16x16x16f16(A.data, B.data, C.data, 0,
-                                                     0, 0);
+      auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
+          *reinterpret_cast<const float16x4 *>(&A.data),
+          *reinterpret_cast<const float16x4 *>(&B.data),
+          *reinterpret_cast<const floatx4 *>(&C.data), 0, 0, 0);
+      for (int i = 0; i < 4; ++i)
+        D.data[i] = result[i];
     } else if constexpr (M == 32 && N == 32) {
-      D.data =
-          __builtin_amdgcn_mfma_f32_32x32x8f16(A.data, B.data, C.data, 0, 0, 0);
+      auto result = __builtin_amdgcn_mfma_f32_32x32x8f16(
+          *reinterpret_cast<const float16x4 *>(&A.data),
+          *reinterpret_cast<const float16x4 *>(&B.data),
+          *reinterpret_cast<const floatx16 *>(&C.data), 0, 0, 0);
+      for (int i = 0; i < 16; ++i)
+        D.data[i] = result[i];
     }
   } else if constexpr (std::is_same_v<Tm, bfloat16>) {
     if constexpr (M == 16 && N == 16) {
-      D.data = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(A.data, B.data, C.data,
-                                                         0, 0, 0);
+      auto result = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
+          *reinterpret_cast<const bfloat16x4 *>(&A.data),
+          *reinterpret_cast<const bfloat16x4 *>(&B.data),
+          *reinterpret_cast<const floatx4 *>(&C.data), 0, 0, 0);
+      for (int i = 0; i < 4; ++i)
+        D.data[i] = result[i];
     } else if constexpr (M == 32 && N == 32) {
-      D.data = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(A.data, B.data, C.data,
-                                                        0, 0, 0);
+      auto result = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
+          *reinterpret_cast<const bfloat16x4 *>(&A.data),
+          *reinterpret_cast<const bfloat16x4 *>(&B.data),
+          *reinterpret_cast<const floatx16 *>(&C.data), 0, 0, 0);
+      for (int i = 0; i < 16; ++i)
+        D.data[i] = result[i];
     }
   } else if constexpr (std::is_same_v<Tm, double>) {
     if constexpr (M == 16 && N == 16) {
-      D.data = __builtin_amdgcn_mfma_f64_16x16x4f64(A.data[0], B.data[0],
-                                                    C.data, 0, 0, 0);
+      auto result = __builtin_amdgcn_mfma_f64_16x16x4f64(
+          A.data[0], B.data[0], *reinterpret_cast<const doublex4 *>(&C.data), 0,
+          0, 0);
+      for (int i = 0; i < 4; ++i)
+        D.data[i] = result[i];
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
     if constexpr (M == 16 && N == 16) {
-      D.data = __builtin_amdgcn_mfma_i32_16x16x16i8(
-          *reinterpret_cast<const Tc *>(A.data),
-          *reinterpret_cast<const Tc *>(B.data), C.data, 0, 0, 0);
+      auto result = __builtin_amdgcn_mfma_i32_16x16x16i8(
+          *reinterpret_cast<const Tc *>(&A.data),
+          *reinterpret_cast<const Tc *>(&B.data),
+          *reinterpret_cast<const int32x4 *>(&C.data), 0, 0, 0);
+      for (int i = 0; i < 4; ++i)
+        D.data[i] = result[i];
     } else if constexpr (M == 32 && N == 32) {
-      D.data = __builtin_amdgcn_mfma_i32_32x32x8i8(
-          *reinterpret_cast<const Tc *>(A.data),
-          *reinterpret_cast<const Tc *>(B.data), C.data, 0, 0, 0);
+      auto result = __builtin_amdgcn_mfma_i32_32x32x8i8(
+          *reinterpret_cast<const Tc *>(&A.data),
+          *reinterpret_cast<const Tc *>(&B.data),
+          *reinterpret_cast<const int32x16 *>(&C.data), 0, 0, 0);
+      for (int i = 0; i < 16; ++i)
+        D.data[i] = result[i];
     }
-  } else {
-    static_assert(false && "Invalid configuration!");
   }
 }
 
@@ -407,16 +407,16 @@ void joint_matrix_apply(joint_matrix_hip<S, Use, M, N, Layout> &jm,
   if constexpr (std::is_same_v<S, double> &&
                 Use !=
                     sycl::ext::oneapi::experimental::matrix::use::accumulator) {
-    jm.data[0] = lambda(jm.data[0]);
+    lambda(jm.data[0]);
   } else if constexpr (
       Use != sycl::ext::oneapi::experimental::matrix::use::accumulator ||
       (Use == sycl::ext::oneapi::experimental::matrix::use::accumulator &&
        M == 16)) {
     for (auto i = 0; i < 4; ++i)
-      jm.data[i] = lambda(jm.data[i]);
+      lambda(jm.data[i]);
   } else {
     for (auto i = 0; i < 16; ++i)
-      jm.data[i] = lambda(jm.data[i]);
+      lambda(jm.data[i]);
   }
 }
 

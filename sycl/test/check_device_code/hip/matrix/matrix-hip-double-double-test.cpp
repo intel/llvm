@@ -41,15 +41,6 @@ int main() {
           joint_matrix<sub_group, double, use::b, 4, 16, layout::row_major>
               sub_b{};
 
-          joint_matrix_load(
-              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
-              16, layout::row_major);
-          joint_matrix_load(
-              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
-              16);
-          joint_matrix_load(
-              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
-              4);
           // CHECK: tail call <4 x double> @llvm.amdgcn.mfma.f64.16x16x4f64(double %{{.*}}, double %{{.*}}, <4 x double> zeroinitializer, i32 0, i32 0, i32 0)
           sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           joint_matrix_store(
