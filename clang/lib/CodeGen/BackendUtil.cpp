@@ -1127,7 +1127,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       }
 
       // Remove SYCL metadata added by the frontend, like sycl_aspects
-      // Note, this pass should be in the end of the pipeline
+      // Note, this pass should be at the end of the pipeline
       MPM.addPass(CleanupSYCLMetadataPass());
     }
   }

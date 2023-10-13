@@ -34,7 +34,7 @@ void cleanupSYCLCompilerMetadata(const Module &M, llvm::StringRef MD) {
 PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
                                                ModuleAnalysisManager &MAM) {
   // Remove SYCL module-level metadata that will never be used again to avoid
-  // its duplication of their operands during llvm-link hence preventing
+  // duplication of their operands during llvm-link hence preventing
   // increase of the module size
   llvm::SmallVector<llvm::StringRef, 2> ModuleMDToRemove = {
       "sycl_aspects", "sycl_types_that_use_aspects"};
