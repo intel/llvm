@@ -41,7 +41,6 @@ function get_pre_release_igfx() {
         | jq -r '. as $raw | try .artifacts[0].archive_download_url catch error($raw)')
     curl -s -L -H "$HEADER" $ARCH_URL > $HASH.zip
     unzip $HASH.zip && rm $HASH.zip
-    sudo apt-get --assume-yes install libllvm14 # workaround, since image doesn't have some required packages
 }
 
 TBB_INSTALLED=false
@@ -167,9 +166,6 @@ then
 else
     IGFX_DEV=""
 fi
-
-# workaround, since image doesn't have some required packages
-sudo apt-get --assume-yes install curl
 
 while [ "${1:-}" != "" ]; do
   case "$1" in

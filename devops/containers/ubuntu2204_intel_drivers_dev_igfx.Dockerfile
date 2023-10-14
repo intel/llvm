@@ -6,7 +6,7 @@ FROM $base_image:$base_tag
 ENV DEBIAN_FRONTEND=noninteractive
 
 ARG compute_runtime_tag=latest
-ARG igc_tag=latest
+ARG igc_dev_hash=latest
 ARG cm_tag=latest
 ARG level_zero_tag=latest
 ARG tbb_tag=latest
@@ -14,6 +14,7 @@ ARG fpgaemu_tag=latest
 ARG cpu_tag=latest
 
 RUN apt update && apt install -yqq wget
+RUN apt install -yqq libllvm14
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
