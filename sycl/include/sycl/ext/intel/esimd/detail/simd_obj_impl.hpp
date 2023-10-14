@@ -340,20 +340,10 @@ public:
       typename = std::enable_if_t<
           detail::is_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
           is_simd_flag_type_v<Flags>>>
-  simd_obj_impl(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-                uint64_t offset,
-#else
-                uint32_t offset,
-#endif
+  simd_obj_impl(AccessorT acc, DeviceAccessorOffsetT offset,
                 Flags = {}) noexcept {
-    __esimd_dbg_print(simd_obj_impl(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-                                    uint64_t offset,
-#else
-                                    uint32_t offset,
-#endif
-                                    Flags));
+    __esimd_dbg_print(
+        simd_obj_impl(AccessorT acc, DeviceAccessorOffsetT offset, Flags));
     copy_from(acc, offset, Flags{});
   }
 
@@ -747,6 +737,8 @@ public:
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param addr the memory address to copy from. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
+  // TODO: ChunkSize is not used anymore; remove it when API-breaking changes
+  // are allowed.
   template <typename Flags = element_aligned_tag, int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_from(const Ty *addr, Flags = {}) SYCL_ESIMD_FUNCTION;
@@ -754,25 +746,23 @@ public:
   /// Copy a contiguous block of data from memory into this simd_obj_impl
   /// object. The amount of memory copied equals the total size of vector
   /// elements in this object. Source memory location is represented via a
-  /// global accessor and offset.
+  /// device accessor and offset.
   /// None of the template parameters except documented ones can/should be
   /// specified by callers.
-  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam AccessorT Type of the device accessor (auto-deduced).
   /// @tparam Flags Alignment control for the copy operation.
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from (in bytes).
   template <typename AccessorT, typename Flags = element_aligned_tag,
-            int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, void>
-  copy_from(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-            uint64_t offset,
-#else
-            uint32_t offset,
-#endif
-            Flags = {}) SYCL_ESIMD_FUNCTION;
+            int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<
+      is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
+      is_simd_flag_type_v<Flags>>
+  copy_from(AccessorT acc, DeviceAccessorOffsetT offset,
+            Flags = {}) SYCL_ESIMD_FUNCTION {
+    copy_from_impl<ChunkSize, Flags>(acc, offset);
+  };
 
   /// Copy a contiguous block of data from memory into this simd_obj_impl
   /// object. The amount of memory copied equals the total size of vector
@@ -786,12 +776,13 @@ public:
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from (in bytes).
   template <typename AccessorT, typename Flags = element_aligned_tag,
-            int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+            int ChunkSize = 32>
   ESIMD_INLINE std::enable_if_t<
-      detail::is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_read>,
-      void>
-  copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION;
+      is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
+      is_simd_flag_type_v<Flags>>
+  copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION {
+    copy_from_impl<ChunkSize, Flags>(acc, offset);
+  }
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// None of the template parameters should be be specified by callers.
@@ -799,30 +790,30 @@ public:
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param addr the memory address to copy to. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
+  // TODO: ChunkSize is not used anymore; remove it when API-breaking changes
+  // are allowed.
   template <typename Flags = element_aligned_tag, int ChunkSize = 32,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_to(Ty *addr, Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
-  /// Destination memory location is represented via a global accessor and
+  /// Destination memory location is represented via a device accessor and
   /// offset.
   /// None of the template parameters should be be specified by callers.
-  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam AccessorT Type of the device accessor (auto-deduced).
   /// @tparam Flags Alignment control for the copy operation.
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
   template <typename AccessorT, typename Flags = element_aligned_tag,
-            int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, void>
-  copy_to(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-          uint64_t offset,
-#else
-          uint32_t offset,
-#endif
-          Flags = {}) const SYCL_ESIMD_FUNCTION;
+            int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<
+      is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_write> &&
+      is_simd_flag_type_v<Flags>>
+  copy_to(AccessorT acc, DeviceAccessorOffsetT offset,
+          Flags = {}) const SYCL_ESIMD_FUNCTION {
+    copy_to_impl<ChunkSize, Flags>(acc, offset);
+  }
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// Destination memory location is represented via a local accessor and
@@ -834,12 +825,14 @@ public:
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
   template <typename AccessorT, typename Flags = element_aligned_tag,
-            int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+            int ChunkSize = 32>
   ESIMD_INLINE std::enable_if_t<
-      detail::is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_write>,
-      void>
-  copy_to(AccessorT acc, uint32_t offset, Flags = {}) const SYCL_ESIMD_FUNCTION;
+      is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_write> &&
+      is_simd_flag_type_v<Flags>>
+  copy_to(AccessorT acc, uint32_t offset,
+          Flags = {}) const SYCL_ESIMD_FUNCTION {
+    copy_to_impl<ChunkSize, Flags>(acc, offset);
+  }
 
   // Unary operations.
 
@@ -848,8 +841,7 @@ public:
   /// @return Copy of this object with all elements bitwise inverted.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
   Derived operator~() const {
-    return Derived{
-        detail::vector_unary_op<detail::UnaryOp::bit_not, T1, N>(data())};
+    return Derived{vector_unary_op<UnaryOp::bit_not, T1, N>(data())};
   }
 
   /// Unary logical negation operator, available in all subclasses, but only for
@@ -870,8 +862,8 @@ public:
   /** @tparam SimdT The argument object type(auto-deduced).                 */ \
   /** @param RHS The argument object.                                       */ \
   template <class T1, class SimdT,                                             \
-            class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
-                                      is_simd_type_v<SimdT>)&&COND>>           \
+            class = std::enable_if_t<                                          \
+                (is_simd_type_v<Derived> == is_simd_type_v<SimdT>) && COND>>   \
   Derived &operator OPASSIGN(                                                  \
       const __ESIMD_DNS::simd_obj_impl<T1, N, SimdT> &RHS) {                   \
     auto Res = *this BINOP RHS;                                                \
@@ -888,10 +880,9 @@ public:
   /** @param RHS The argument object.                                       */ \
   template <class SimdT1, class RegionT1,                                      \
             class T1 = typename RegionT1::element_type,                        \
-            class = std::enable_if_t<                                          \
-                (is_simd_type_v<Derived> ==                                    \
-                 is_simd_type_v<SimdT1>)&&(RegionT1::length == length) &&      \
-                COND>>                                                         \
+            class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
+                                      is_simd_type_v<SimdT1>) &&               \
+                                     (RegionT1::length == length) && COND>>    \
   Derived &operator OPASSIGN(                                                  \
       const __ESIMD_NS::simd_view<SimdT1, RegionT1> &RHS) {                    \
     auto Res = *this BINOP RHS.read();                                         \
