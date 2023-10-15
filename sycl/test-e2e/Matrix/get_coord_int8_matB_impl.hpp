@@ -113,8 +113,7 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B,
 
        sycl::sub_group sg = spmd_item.get_sub_group();
 
-       joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                    ext::intel::experimental::matrix::layout::packed>
+       joint_matrix<sub_group, int8_t, use::b, TK, TN, layout::ext_intel_packed>
            sub_b;
 
        joint_matrix_load(sg, sub_b,
@@ -124,22 +123,16 @@ void matrix_sum_cols(queue q, big_matrix<T, K, N> &B,
                          N * VF);
 
        int32_t sum_local_cols[N] = {0};
-       auto wiData =
-           sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-
-       // each WI calculates local sum of cols
-       for (int i = 0; i < wiData.length(); ++i) {
-         // get the index of the element in the submatrix
-         auto dataItem = wiData[i];
-         // the coordinates returned are in the logical range [K,N]
-         // If users want to retrieve the VNNIed coordinates, they can be
-         // obtained using
-         // colVNNI = col/VF
-         // rowVNNI = row*VF
-         auto [row, col] = dataItem.get_coord();
-         size_t global_index = col + global_idy / SG_SZ * TN;
-         sum_local_cols[global_index] += dataItem;
-       }
+       ext::intel::experimental::matrix::joint_matrix_apply(
+           sg, sub_b, [&](int8_t &x, size_t row, size_t col) {
+             // the coordinates returned are in the logical range [K,N]
+             // If users want to retrieve the VNNIed coordinates, they can be
+             // obtained using
+             // colVNNI = col/VF
+             // rowVNNI = row*VF
+             size_t global_index = col + global_idy / SG_SZ * TN;
+             sum_local_cols[global_index] += x;
+           });
 
        for (int i = 0; i < N; i++) {
          sum_local_cols[i] =

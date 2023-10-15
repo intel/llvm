@@ -4,9 +4,17 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e6343f4cca9a37b17bc63f3a81968ac3f486be8a)
+  #commit b38855ed815ffd076bfde5e5e06170ca4f723dc1
+  #Merge: e6343f4 6a2c548
+  #Author: Piotr Balcer <piotr.balcer@intel.com>
+  #Date:   Thu Oct 5 12:15:42 2023 +0200
+  #    Merge pull request #920 from jsji/localcopy
+  #        [UR][L0] Copy prebuilt L0 to avoid leaking shared folder path
+  set(UNIFIED_RUNTIME_TAG b38855ed815ffd076bfde5e5e06170ca4f723dc1)
 
-  set(UR_BUILD_ADAPTER_L0 ON)
+  if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_L0 ON)
+  endif()
 
   if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     set(UR_BUILD_ADAPTER_CUDA ON)
@@ -65,33 +73,92 @@ target_include_directories(UnifiedRuntime-Headers
 
 find_package(Threads REQUIRED)
 
-add_sycl_plugin(unified_runtime
+set(UNIFIED_RUNTIME_PLUGIN_ARGS
   SOURCES
     # These are short-term shared with Unified Runtime
-    # The two plugins define a few things differrently so must
+    # The two plugins define a few things differently so must
     # be built separately. This difference is spelled in
     # their "ur_bindings.hpp" files.
-    #
     "ur_bindings.hpp"
     "pi2ur.hpp"
     "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
-    LIBRARIES
+  LIBRARIES
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-    LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
-add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+# We need for #include <ze_api.h> in common.h
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+    list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS LevelZeroLoader-Headers)
+endif()
+
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+    list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS OpenCL-ICD)
+endif()
+
+add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
+
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+endif()
+
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl-runtime-libraries ur_adapter_hip)
 endif()
 
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl-runtime-libraries ur_adapter_cuda)
+endif()
+
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Build OpenCL adapter
+  add_sycl_library("ur_adapter_opencl" SHARED
+    SOURCES
+      "ur/ur.hpp"
+      "ur/ur.cpp"
+      "ur/adapters/opencl/adapter.cpp"
+      "ur/adapters/opencl/adapter.hpp"
+      "ur/adapters/opencl/command_buffer.hpp"
+      "ur/adapters/opencl/command_buffer.cpp"
+      "ur/adapters/opencl/common.cpp"
+      "ur/adapters/opencl/common.hpp"
+      "ur/adapters/opencl/context.cpp"
+      "ur/adapters/opencl/context.hpp"
+      "ur/adapters/opencl/device.cpp"
+      "ur/adapters/opencl/device.hpp"
+      "ur/adapters/opencl/enqueue.cpp"
+      "ur/adapters/opencl/event.cpp"
+      "ur/adapters/opencl/image.cpp"
+      "ur/adapters/opencl/kernel.cpp"
+      "ur/adapters/opencl/memory.cpp"
+      "ur/adapters/opencl/platform.cpp"
+      "ur/adapters/opencl/platform.hpp"
+      "ur/adapters/opencl/program.cpp"
+      "ur/adapters/opencl/queue.cpp"
+      "ur/adapters/opencl/sampler.cpp"
+      "ur/adapters/opencl/ur_interface_loader.cpp"
+      "ur/adapters/opencl/usm.cpp"
+      "ur/adapters/opencl/usm_p2p.cpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      Threads::Threads
+      OpenCL-ICD
+    )
+
+  # Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION.
+  # Define all symbols up to OpenCL 3.0.
+  target_compile_definitions(ur_adapter_opencl PRIVATE CL_TARGET_OPENCL_VERSION=300)
+
+  set_target_properties("ur_adapter_opencl" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -154,8 +221,10 @@ if (TARGET UnifiedRuntimeLoader)
 endif()
 
 # Install the UR adapters too
-install(TARGETS ur_adapter_level_zero
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  install(TARGETS ur_adapter_level_zero
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
 )
+endif()
