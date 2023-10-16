@@ -1041,7 +1041,7 @@ public:
       ++ChildIndex;
       auto BinOrErr = C.getAsBinary();
 
-      std::unique_ptr<FileHandler> FHP{nullptr};
+      std::unique_ptr<FileHandler> FH{nullptr};
       std::unique_ptr<MemoryBuffer> Buf{nullptr};
 
       if (!BinOrErr) {
@@ -1049,7 +1049,7 @@ public:
           return Err;
 
         /* Handle BC Files */
-        FHP = std::make_unique<BinaryFileHandler>(BundlerConfig);
+        FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
         auto MR = C.getMemoryBufferRef();
         if (!MR) {
           dbgs() << "No memory buffer\n";
@@ -1074,18 +1074,18 @@ public:
         Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
 
         // Collect the list of bundles from the object.
-        FHP =
+        FH =
             std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
-      if (Error Err = FHP->ReadHeader(*Buf))
+      if (Error Err = FH->ReadHeader(*Buf))
         return Err;
-      Expected<std::optional<StringRef>> NameOrErr = FHP->ReadBundleStart(*Buf);
+      Expected<std::optional<StringRef>> NameOrErr = FH->ReadBundleStart(*Buf);
       if (!NameOrErr)
         return NameOrErr.takeError();
       while (*NameOrErr) {
         ++Bundles[**NameOrErr];
-        NameOrErr = FHP->ReadBundleStart(*Buf);
+        NameOrErr = FH->ReadBundleStart(*Buf);
         if (!NameOrErr)
           return NameOrErr.takeError();
       }
@@ -1138,7 +1138,7 @@ public:
         continue;
       }
 
-      std::unique_ptr<FileHandler> FHP{nullptr};
+      std::unique_ptr<FileHandler> FH{nullptr};
       std::unique_ptr<MemoryBuffer> Buf{nullptr};
       StringRef Ext("o");
       if (BundlerConfig.FilesType == "aocr" ||
@@ -1154,7 +1154,7 @@ public:
         if (BundlerConfig.FilesType == "aoo") {
           /* Handle BC Files */
           Ext = "bc";
-          FHP = std::make_unique<BinaryFileHandler>(BundlerConfig);
+          FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
           auto MR = C.getMemoryBufferRef();
           if (!MR) {
             dbgs() << "No memory buffer\n";
@@ -1168,13 +1168,13 @@ public:
           continue;
         auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
         Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
-        FHP =
+        FH =
             std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
-      if (Error Err = FHP->ReadHeader(*Buf))
+      if (Error Err = FH->ReadHeader(*Buf))
         return Err;
-      Expected<std::optional<StringRef>> NameOrErr = FHP->ReadBundleStart(*Buf);
+      Expected<std::optional<StringRef>> NameOrErr = FH->ReadBundleStart(*Buf);
       if (!NameOrErr)
         return NameOrErr.takeError();
       while (*NameOrErr) {
@@ -1194,7 +1194,7 @@ public:
             if (EC)
               return createFileError(ChildFileName, EC);
 
-            if (Error Err = FHP->ReadBundle(ChildOS, *Buf))
+            if (Error Err = FH->ReadBundle(ChildOS, *Buf))
               return Err;
 
             if (ChildOS.has_error())
@@ -1205,7 +1205,7 @@ public:
             OS << ChildFileName << "\n";
           } else if (Mode == OutputType::Object) {
             // Extract the bundle to the output file in single file mode.
-            if (Error Err = FHP->ReadBundle(OS, *Buf))
+            if (Error Err = FH->ReadBundle(OS, *Buf))
               return Err;
           } else if (Mode == OutputType::Archive) {
             auto ChildNameOrErr = C.getName();
@@ -1215,7 +1215,7 @@ public:
             // Extract the bundle to a buffer.
             SmallVector<char> Data;
             raw_svector_ostream ChildOS{Data};
-            if (Error Err = FHP->ReadBundle(ChildOS, *Buf))
+            if (Error Err = FH->ReadBundle(ChildOS, *Buf))
               return Err;
 
             // Add new archive member.
@@ -1224,10 +1224,10 @@ public:
             Member.Buf = MemoryBuffer::getMemBufferCopy(ChildOS.str(), Name);
             Member.MemberName = Member.Buf->getBufferIdentifier();
           }
-          if (Error Err = FHP->ReadBundleEnd(*Buf))
+          if (Error Err = FH->ReadBundleEnd(*Buf))
             return Err;
         }
-        NameOrErr = FHP->ReadBundleStart(*Buf);
+        NameOrErr = FH->ReadBundleStart(*Buf);
         if (!NameOrErr)
           return NameOrErr.takeError();
       }
