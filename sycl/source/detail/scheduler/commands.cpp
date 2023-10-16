@@ -794,7 +794,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
   if (!(xptiCheckTraceEnabled(MStreamID, Type) && MTraceEvent))
     return;
   // Trace event notifier that emits a Type event
-  xpti::addMetadata(detail::GSYCLGraphEvent, "queue_id",
+  xpti::addMetadata(static_cast<xpti_td *>(MTraceEvent), "queue_id",
                     MEvent->getSubmittedQueue()->getQueueID());
   xptiNotifySubscribers(MStreamID, Type, detail::GSYCLGraphEvent,
                         static_cast<xpti_td *>(MTraceEvent), MInstanceID,
