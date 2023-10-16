@@ -470,3 +470,444 @@ TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
   EXPECT_LT(submit_time, start_time);
   EXPECT_LT(submit_time, end_time);
 }
+
+namespace {
+size_t LastMemopsQuery = 0;
+constexpr const char *USMFillHelperKernelNameLong = "__usmfill2d_long";
+constexpr const char *USMFillHelperKernelNameChar = "__usmfill2d_char";
+constexpr const char *USMMemcpyHelperKernelNameLong = "__usmmemcpy2d_long";
+constexpr const char *USMMemcpyHelperKernelNameChar = "__usmmemcpy2d_char";
+
+struct Fill2DStruct {
+  pi_queue queue;
+  void *ptr;
+  size_t pitch;
+  size_t pattern_size;
+  const void *pattern;
+  size_t width;
+  size_t height;
+  pi_uint32 num_events_in_waitlist;
+  const pi_event *events_waitlist;
+  pi_event *event;
+} LastFill2D;
+
+struct Memset2DStruct {
+  pi_queue queue;
+  void *ptr;
+  size_t pitch;
+  int value;
+  size_t width;
+  size_t height;
+  pi_uint32 num_events_in_waitlist;
+  const pi_event *events_waitlist;
+  pi_event *event;
+} LastMemset2D;
+
+struct Memcpy2DStruct {
+  pi_queue queue;
+  pi_bool blocking;
+  void *dst_ptr;
+  size_t dst_pitch;
+  const void *src_ptr;
+  size_t src_pitch;
+  size_t width;
+  size_t height;
+  pi_uint32 num_events_in_waitlist;
+  const pi_event *events_waitlist;
+  pi_event *event;
+} LastMemcpy2D;
+
+std::map<pi_kernel, std::string> KernelToNameMap;
+
+template <bool MemfillSupported, bool MemsetSupported, bool MemcpySupported>
+pi_result after_piContextGetInfo(pi_context context, pi_context_info param_name,
+                                 size_t param_value_size, void *param_value,
+                                 size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+    LastMemopsQuery = param_name;
+    if (param_value)
+      *static_cast<pi_bool *>(param_value) = MemfillSupported;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_bool);
+    return PI_SUCCESS;
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
+    LastMemopsQuery = param_name;
+    if (param_value)
+      *static_cast<pi_bool *>(param_value) = MemsetSupported;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_bool);
+    return PI_SUCCESS;
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    LastMemopsQuery = param_name;
+    if (param_value)
+      *static_cast<pi_bool *>(param_value) = MemcpySupported;
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_bool);
+    return PI_SUCCESS;
+  default:;
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
+                                size_t param_value_size, void *param_value,
+                                size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
+    if (param_value) {
+      assert(param_value_size == 3 * sizeof(size_t));
+      size_t *Ptr = static_cast<size_t *>(param_value);
+      Ptr[0] = 32;
+      Ptr[1] = 32;
+      Ptr[2] = 32;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = 3 * sizeof(size_t);
+    return PI_SUCCESS;
+  case PI_DEVICE_INFO_MAX_COMPUTE_UNITS:
+    if (param_value) {
+      assert(param_value_size == sizeof(pi_uint32));
+      *static_cast<pi_uint32 *>(param_value) = 256;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = 3 * sizeof(size_t);
+    return PI_SUCCESS;
+  default:;
+  }
+
+  return PI_SUCCESS;
+}
+
+template <pi_usm_type USMType>
+pi_result after_piextUSMGetMemAllocInfo(pi_context, const void *,
+                                        pi_mem_alloc_info param_name,
+                                        size_t param_value_size,
+                                        void *param_value,
+                                        size_t *param_value_size_ret) {
+  switch (param_name) {
+  case PI_MEM_ALLOC_TYPE: {
+    if (param_value) {
+      assert(param_value_size == sizeof(pi_usm_type));
+      *static_cast<pi_usm_type *>(param_value) = USMType;
+    }
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_usm_type);
+    return PI_SUCCESS;
+  }
+  default:;
+  }
+
+  return PI_SUCCESS;
+}
+
+pi_result redefine_piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                         size_t pitch, size_t pattern_size,
+                                         const void *pattern, size_t width,
+                                         size_t height,
+                                         pi_uint32 num_events_in_waitlist,
+                                         const pi_event *events_waitlist,
+                                         pi_event *event) {
+  LastFill2D =
+      Fill2DStruct{queue,           ptr,   pitch,  pattern_size,
+                   pattern,         width, height, num_events_in_waitlist,
+                   events_waitlist, event};
+  return PI_SUCCESS;
+}
+
+pi_result redefine_piextUSMEnqueueMemset2D(pi_queue queue, void *ptr,
+                                           size_t pitch, int value,
+                                           size_t width, size_t height,
+                                           pi_uint32 num_events_in_waitlist,
+                                           const pi_event *events_waitlist,
+                                           pi_event *event) {
+  LastMemset2D = Memset2DStruct{queue,
+                                ptr,
+                                pitch,
+                                value,
+                                width,
+                                height,
+                                num_events_in_waitlist,
+                                events_waitlist,
+                                event};
+  return PI_SUCCESS;
+}
+
+pi_result redefine_piextUSMEnqueueMemcpy2D(
+    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
+    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
+    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
+    pi_event *event) {
+  LastMemcpy2D =
+      Memcpy2DStruct{queue,           blocking, dst_ptr,
+                     dst_pitch,       src_ptr,  src_pitch,
+                     width,           height,   num_events_in_waitlist,
+                     events_waitlist, event};
+  return PI_SUCCESS;
+}
+
+pi_result after_piKernelCreate(pi_program, const char *kernel_name,
+                               pi_kernel *ret_kernel) {
+  KernelToNameMap[*ret_kernel] = kernel_name;
+  return PI_SUCCESS;
+}
+
+std::string LastEnqueuedKernel;
+
+pi_result after_piEnqueueKernelLaunch(pi_queue, pi_kernel kernel, pi_uint32,
+                                      const size_t *, const size_t *,
+                                      const size_t *, pi_uint32,
+                                      const pi_event *, pi_event *) {
+  auto KernelIt = KernelToNameMap.find(kernel);
+  EXPECT_TRUE(KernelIt != KernelToNameMap.end());
+  LastEnqueuedKernel = KernelIt->second;
+  return PI_SUCCESS;
+}
+} // namespace
+
+TEST(GetProfilingInfo, fallback_profiling_mock_piextUSMEnqueueFill2D) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Q{Ctx, Dev,
+                sycl::property_list{sycl::property::queue::enable_profiling{}}};
+
+  std::shared_ptr<sycl::_V1::detail::queue_impl> QueueImpl =
+      sycl::detail::getSyclObjImpl(Q);
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
+      after_piContextGetInfo<true, false, false>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
+      after_piKernelCreate);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
+      after_piEnqueueKernelLaunch);
+  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueFill2D>(
+      redefine_piextUSMEnqueueFill2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+
+  static constexpr size_t Size = 10;
+
+  long *Ptr1 = sycl::malloc_host<long>(Size, Q);
+  long *Ptr2 = sycl::malloc_device<long>(Size * 2, Q);
+
+  DeviceTimerCalled = true;
+
+  auto event = Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
+  event.wait();
+
+  event = Q.ext_oneapi_fill2d(Ptr2, 5, 42l, 4, 2);
+  event.wait();
+
+  auto submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+  // bool Pass = sycl::info::event_command_status::complete ==
+  // Event.get_info<sycl::info::event::command_execution_status>();
+
+  // assert((submit_time && start_time && end_time) &&
+  //        "Profiling information failed.");
+  // EXPECT_LT(submit_time, start_time);
+  // EXPECT_LT(submit_time, end_time);
+
+  sycl::free(Ptr1, Q);
+  sycl::free(Ptr2, Q);
+}
+
+TEST(GetProfilingInfo, fallback_profiling_mock_piextUSMEnqueuememcpy2d) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Q{Ctx, Dev,
+                sycl::property_list{sycl::property::queue::enable_profiling{}}};
+
+  std::shared_ptr<sycl::_V1::detail::queue_impl> QueueImpl =
+      sycl::detail::getSyclObjImpl(Q);
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
+      after_piContextGetInfo<false, false, true>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
+      after_piKernelCreate);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
+      after_piEnqueueKernelLaunch);
+  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
+      redefine_piextUSMEnqueueMemcpy2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+
+  static constexpr size_t Size_h = 10;
+  static constexpr size_t Size_d = 16;
+
+  long *Ptr1 = sycl::malloc_host<long>(Size_h, Q);
+  long *Ptr2 = sycl::malloc_device<long>(Size_d, Q);
+  long *Ptr3 = sycl::malloc_device<long>(Size_d, Q);
+
+  DeviceTimerCalled = true;
+
+  auto event = Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2,
+                                     8 * sizeof(long), 4 * sizeof(long), 2);
+  event.wait();
+
+  event = Q.ext_oneapi_memcpy2d(Ptr2, 5 * sizeof(long), Ptr3, 8 * sizeof(long),
+                                4 * sizeof(long), 2);
+  event.wait();
+
+  auto submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+  // assert((submit_time && start_time && end_time) &&
+  //        "Profiling information failed.");
+  // EXPECT_LT(submit_time, start_time);
+  // EXPECT_LT(submit_time, end_time);
+
+  sycl::free(Ptr1, Q);
+  sycl::free(Ptr2, Q);
+  sycl::free(Ptr3, Q);
+}
+
+TEST(GetProfilingInfo, fallback_profiling_mock_piextUSMEnqueuememset2d) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Q{Ctx, Dev,
+                sycl::property_list{sycl::property::queue::enable_profiling{}}};
+
+  std::shared_ptr<sycl::_V1::detail::queue_impl> QueueImpl =
+      sycl::detail::getSyclObjImpl(Q);
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
+      after_piContextGetInfo<false, true, false>);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
+      after_piKernelCreate);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
+      after_piEnqueueKernelLaunch);
+  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemset2D>(
+      redefine_piextUSMEnqueueMemset2D);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
+      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+
+  static constexpr size_t Size_h = 10;
+  static constexpr size_t Size_d = 16;
+
+  long *Ptr1 = sycl::malloc_host<long>(Size_h, Q);
+  long *Ptr2 = sycl::malloc_device<long>(Size_d, Q);
+
+  DeviceTimerCalled = true;
+
+  auto event =
+      Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
+  event.wait();
+
+  event =
+      Q.ext_oneapi_memset2d(Ptr2, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
+  event.wait();
+
+  // auto submit_time =
+  //     event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  // auto start_time =
+  //     event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  // auto end_time =
+  //     event.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+  // assert((submit_time && start_time && end_time) &&
+  //        "Profiling information failed.");
+  // EXPECT_LT(submit_time, start_time);
+  // EXPECT_LT(submit_time, end_time);
+
+  sycl::free(Ptr1, Q);
+  sycl::free(Ptr2, Q);
+}
+
+TEST(GetProfilingInfo, fallback_profiling_mock_piextEnqueue_copy_fill_memset) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  // sycl::queue Q{Ctx, Dev,
+  // sycl::property_list{sycl::property::queue::enable_profiling{}}};
+
+  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Q{Ctx, Dev,
+                sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID});
+
+  static constexpr size_t Size_h = 10;
+  static constexpr size_t Size_d = 16;
+
+  long *Ptr1 = sycl::malloc_host<long>(Size_h, Q);
+  long *Ptr2 = sycl::malloc_device<long>(Size_d, Q);
+
+  DeviceTimerCalled = true;
+
+  auto event = Q.memset(Ptr1, 0, sizeof(long) * Size_h);
+  event = Q.memcpy(Ptr2, Ptr1, sizeof(long) * Size_h);
+  // event = Q.fill(Ptr2, 2, Size_d);
+
+  auto submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+  // assert((submit_time && start_time && end_time) &&
+  //        "Profiling information failed.");
+  // EXPECT_LT(submit_time, start_time);
+  // EXPECT_LT(submit_time, end_time);
+
+  sycl::free(Ptr1, Q);
+  sycl::free(Ptr2, Q);
+}
