@@ -106,7 +106,7 @@ implementation supports.
  feature-test macro always has this value.
 |===
 
-[[ext-aspects]]
+[#ext-aspects]
 === Extension to `enum class aspect`
 
 [source]
