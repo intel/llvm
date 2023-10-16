@@ -693,3 +693,12 @@ be more developer-friendly, but would not be compatible with the current
 positioning of the `depEvents` and `event` parameters. Bundling a kernel object
 with its arguments via an intermediate object may be a good alternative.
 --
+
+. What about `accessor` overloads and `update_host`?
++
+--
+*UNRESOLVED*: Supporting `accessor` overloads with this new approach is
+possible, but additional design work is required to understand how to handle
+placeholder accessors. Whether `update_host` should be exposed via this new
+free-function interface is an open question.
+--
