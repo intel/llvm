@@ -42,7 +42,6 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
-#include <sycl/detail/memcpy.hpp> // detail::memcpy
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/usm.hpp>
@@ -905,8 +904,7 @@ public:
     auto tmp_data = _host_ptr;
     for (auto sub_list : init_list) {
       assert(sub_list.size() <= in_range[1]);
-      sycl::detail::memcpy(tmp_data, sub_list.begin(),
-                           sub_list.size() * sizeof(T));
+      std::memcpy(tmp_data, sub_list.begin(), sub_list.size() * sizeof(T));
       tmp_data += in_range[1];
     }
   }
