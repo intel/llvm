@@ -18,7 +18,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi::experimental {
+namespace ext::oneapi {
 
 namespace detail {
 template <size_t N>
@@ -294,6 +294,6 @@ BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(trunc)
 
 #undef BFLOAT16_MATH_FP32_WRAPPERS
 #undef BFLOAT16_MATH_FP32_WRAPPERS_MARRAY
-} // namespace ext::oneapi::experimental
+} // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
