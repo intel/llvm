@@ -86,9 +86,6 @@ enum InternalOp {
 enum InternalDecoration {
   IDecRuntimeAlignedINTEL = 5940,
   IDecCallableFunctionINTEL = 6087,
-  IDecHostAccessINTEL = 6147,
-  IDecInitModeINTEL = 6148,
-  IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
   IDecCacheControlLoadINTEL = 6442,
   IDecCacheControlStoreINTEL = 6443,
@@ -257,12 +254,6 @@ constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
-constexpr Decoration DecorationHostAccessINTEL =
-    static_cast<Decoration>(IDecHostAccessINTEL);
-constexpr Decoration DecorationInitModeINTEL =
-    static_cast<Decoration>(IDecInitModeINTEL);
-constexpr Decoration DecorationImplementInCSRINTEL =
-    static_cast<Decoration>(IDecImplementInCSRINTEL);
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
 constexpr Decoration DecorationFuncParamKindINTEL =

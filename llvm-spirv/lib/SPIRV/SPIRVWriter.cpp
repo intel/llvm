@@ -2662,7 +2662,8 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
           Target, Name->getString().str(), TypeKind));
       break;
     }
-    case spv::internal::DecorationHostAccessINTEL: {
+
+    case DecorationHostAccessINTEL: {
       checkIsGlobalVar(Target, DecoKind);
 
       ErrLog.checkError(NumOperands == 3, SPIRVEC_InvalidLlvmModule,
@@ -2673,16 +2674,20 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ErrLog.checkError(
           AccessMode, SPIRVEC_InvalidLlvmModule,
           "HostAccessINTEL requires first extra operand to be an int");
+
+      HostAccessQualifier Q =
+          static_cast<HostAccessQualifier>(AccessMode->getZExtValue());
       auto *Name = dyn_cast<MDString>(DecoMD->getOperand(2));
       ErrLog.checkError(
           Name, SPIRVEC_InvalidLlvmModule,
           "HostAccessINTEL requires second extra operand to be a string");
 
-      Target->addDecorate(new SPIRVDecorateHostAccessINTEL(
-          Target, AccessMode->getZExtValue(), Name->getString().str()));
+      Target->addDecorate(
+          new SPIRVDecorateHostAccessINTEL(Target, Q, Name->getString().str()));
       break;
     }
-    case spv::internal::DecorationInitModeINTEL: {
+
+    case DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
       ErrLog.checkError(static_cast<SPIRVVariable *>(Target)->getInitializer(),
                         SPIRVEC_InvalidLlvmModule,
@@ -2692,27 +2697,32 @@ static void transMetadataDecorations(Metadata *MD, SPIRVEntry *Target) {
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
                         "InitModeINTEL requires exactly 1 extra operand");
       auto *Trigger = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
-      ErrLog.checkError(
-          Trigger, SPIRVEC_InvalidLlvmModule,
-          "InitModeINTEL requires extra operand to be an integer");
+      ErrLog.checkError(Trigger, SPIRVEC_InvalidLlvmModule,
+                        "InitModeINTEL requires extra operand to be an int");
 
-      Target->addDecorate(
-          new SPIRVDecorateInitModeINTEL(Target, Trigger->getZExtValue()));
+      InitializationModeQualifier Q =
+          static_cast<InitializationModeQualifier>(Trigger->getZExtValue());
+
+      Target->addDecorate(new SPIRVDecorateInitModeINTEL(Target, Q));
+
       break;
     }
-    case spv::internal::DecorationImplementInCSRINTEL: {
+    case DecorationImplementInRegisterMapINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-      ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
-                        "ImplementInCSRINTEL requires exactly 1 extra operand");
-      auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
       ErrLog.checkError(
-          Value, SPIRVEC_InvalidLlvmModule,
-          "ImplementInCSRINTEL requires extra operand to be an integer");
+          NumOperands == 2, SPIRVEC_InvalidLlvmModule,
+          "ImplementInRegisterMapINTEL requires exactly 1 extra operand");
+      auto *Value = mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(1));
+      ErrLog.checkError(Value, SPIRVEC_InvalidLlvmModule,
+                        "ImplementInRegisterMapINTEL requires extra operand to "
+                        "be an integer");
 
-      Target->addDecorate(
-          new SPIRVDecorateImplementInCSRINTEL(Target, Value->getZExtValue()));
+      Target->addDecorate(new SPIRVDecorateImplementInRegisterMapINTEL(
+          Target, Value->getZExtValue()));
+
       break;
     }
+
     case spv::internal::DecorationCacheControlLoadINTEL: {
       ErrLog.checkError(
           NumOperands == 3, SPIRVEC_InvalidLlvmModule,

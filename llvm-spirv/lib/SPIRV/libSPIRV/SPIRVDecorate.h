@@ -187,10 +187,12 @@ public:
       return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
     case internal::DecorationRuntimeAlignedINTEL:
       return ExtensionID::SPV_INTEL_runtime_aligned;
-    case internal::DecorationHostAccessINTEL:
-    case internal::DecorationInitModeINTEL:
-    case internal::DecorationImplementInCSRINTEL:
-      return ExtensionID::SPV_INTEL_global_variable_decorations;
+    case DecorationInitModeINTEL:
+    case DecorationImplementInRegisterMapINTEL:
+      return ExtensionID::SPV_INTEL_global_variable_fpga_decorations;
+    case DecorationHostAccessINTEL:
+      return ExtensionID::SPV_INTEL_global_variable_host_access;
+
     case DecorationConduitKernelArgumentINTEL:
     case DecorationRegisterMapKernelArgumentINTEL:
     case DecorationStableKernelArgumentINTEL:
@@ -745,9 +747,10 @@ public:
 class SPIRVDecorateHostAccessINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVHostAccessINTEL
-  SPIRVDecorateHostAccessINTEL(SPIRVEntry *TheTarget, SPIRVWord AccessMode,
+  SPIRVDecorateHostAccessINTEL(SPIRVEntry *TheTarget,
+                               HostAccessQualifier AccessMode,
                                const std::string &VarName)
-      : SPIRVDecorate(spv::internal::DecorationHostAccessINTEL, TheTarget) {
+      : SPIRVDecorate(DecorationHostAccessINTEL, TheTarget) {
     Literals.push_back(AccessMode);
     for (auto &I : getVec(VarName))
       Literals.push_back(I);
@@ -763,7 +766,7 @@ public:
                              const std::vector<SPIRVWord> &Literals) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
     if (SPIRVUseTextFormat) {
-      Encoder << Literals.front();
+      Encoder << (HostAccessQualifier)Literals.front();
       std::string Name = getString(Literals.cbegin() + 1, Literals.cend());
       Encoder << Name;
     } else
@@ -775,7 +778,7 @@ public:
                              std::vector<SPIRVWord> &Literals) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
     if (SPIRVUseTextFormat) {
-      SPIRVWord Mode;
+      HostAccessQualifier Mode;
       Decoder >> Mode;
       std::string Name;
       Decoder >> Name;
@@ -792,17 +795,42 @@ public:
 class SPIRVDecorateInitModeINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVInitModeINTEL
-  SPIRVDecorateInitModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Trigger)
-      : SPIRVDecorate(spv::internal::DecorationInitModeINTEL, TheTarget,
-                      Trigger) {}
+  SPIRVDecorateInitModeINTEL(SPIRVEntry *TheTarget,
+                             InitializationModeQualifier Trigger)
+      : SPIRVDecorate(DecorationInitModeINTEL, TheTarget) {
+    Literals.push_back(Trigger);
+    WordCount += Literals.size();
+  }
+  static void encodeLiterals(SPIRVEncoder &Encoder,
+                             const std::vector<SPIRVWord> &Literals) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+    if (SPIRVUseTextFormat) {
+      Encoder << (InitializationModeQualifier)Literals.back();
+    } else
+#endif
+      Encoder << Literals;
+  }
+
+  static void decodeLiterals(SPIRVDecoder &Decoder,
+                             std::vector<SPIRVWord> &Literals) {
+#ifdef _SPIRV_SUPPORT_TEXT_FMT
+    if (SPIRVUseTextFormat) {
+      InitializationModeQualifier Q;
+      Decoder >> Q;
+      Literals.back() = Q;
+    } else
+#endif
+      Decoder >> Literals;
+  }
 };
 
-class SPIRVDecorateImplementInCSRINTEL : public SPIRVDecorate {
+class SPIRVDecorateImplementInRegisterMapINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVImplementInCSRINTEL
-  SPIRVDecorateImplementInCSRINTEL(SPIRVEntry *TheTarget, SPIRVWord Value)
-      : SPIRVDecorate(spv::internal::DecorationImplementInCSRINTEL, TheTarget,
-                      Value) {}
+  SPIRVDecorateImplementInRegisterMapINTEL(SPIRVEntry *TheTarget,
+                                           SPIRVWord Value)
+      : SPIRVDecorate(DecorationImplementInRegisterMapINTEL, TheTarget, Value) {
+  }
 };
 
 class SPIRVDecorateCacheControlLoadINTEL : public SPIRVDecorate {
