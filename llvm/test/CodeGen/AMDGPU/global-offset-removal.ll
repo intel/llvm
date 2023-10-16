@@ -10,6 +10,8 @@ entry:
 ; CHECK-NOT: @llvm.amdgcn.implicit.offset()
 ; CHECK-NOT: getelementptr
 ; CHECK-NOT: load
+; CHECK: [[REG:%[0-9]+]] = zext i{{[0-9]+}} 0 to i{{[0-9]+}}
+; CHECK: ret i{{[0-9]+}} [[REG]]
   %0 = tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
   %1 = getelementptr inbounds i32, ptr addrspace(5) %0, i64 1
   %2 = load i32, ptr addrspace(5) %1, align 4
