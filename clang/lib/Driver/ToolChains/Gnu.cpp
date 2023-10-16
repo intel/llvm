@@ -577,8 +577,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.getType() == types::TY_Host_Dependencies_Image)
     CmdArgs.push_back("--unresolved-symbols=ignore-all");
 
-  Args.AddAllArgs(CmdArgs, options::OPT_L);
-  Args.AddAllArgs(CmdArgs, options::OPT_u);
+  Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_u});
 
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 

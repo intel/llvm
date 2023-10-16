@@ -72,7 +72,9 @@ using namespace llvm::opt;
 static void CheckPreprocessingOptions(const Driver &D, const ArgList &Args) {
   if (Arg *A = Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC,
                                options::OPT_fminimize_whitespace,
-                               options::OPT_fno_minimize_whitespace)) {
+                               options::OPT_fno_minimize_whitespace,
+                               options::OPT_fkeep_system_includes,
+                               options::OPT_fno_keep_system_includes)) {
     if (!Args.hasArg(options::OPT_E) && !Args.hasArg(options::OPT__SLASH_P) &&
         !Args.hasArg(options::OPT__SLASH_EP) && !D.CCCIsCPP()) {
       D.Diag(clang::diag::err_drv_argument_only_allowed_with)
@@ -1456,7 +1458,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     }
   }
 
-  Args.AddAllArgs(CmdArgs,
+  Args.addAllArgs(CmdArgs,
                   {options::OPT_D, options::OPT_U, options::OPT_I_Group,
                    options::OPT_F, options::OPT_index_header_map});
 
@@ -7461,9 +7463,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_fno_minimize_whitespace, false)) {
     types::ID InputType = Inputs[0].getType();
     if (!isDerivedFromC(InputType))
-      D.Diag(diag::err_drv_minws_unsupported_input_type)
-          << types::getTypeName(InputType);
+      D.Diag(diag::err_drv_opt_unsupported_input_type)
+          << "-fminimize-whitespace" << types::getTypeName(InputType);
     CmdArgs.push_back("-fminimize-whitespace");
+  }
+
+  // -fno-keep-system-includes is default.
+  if (Args.hasFlag(options::OPT_fkeep_system_includes,
+                   options::OPT_fno_keep_system_includes, false)) {
+    types::ID InputType = Inputs[0].getType();
+    if (!isDerivedFromC(InputType))
+      D.Diag(diag::err_drv_opt_unsupported_input_type)
+          << "-fkeep-system-includes" << types::getTypeName(InputType);
+    CmdArgs.push_back("-fkeep-system-includes");
   }
 
   // -fms-extensions=0 is default.
@@ -9277,6 +9289,11 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     if (!DepFile.empty())
       CmdArgs.push_back(TCArgs.MakeArgString("-input=" + DepFile));
   }
+  if (TCArgs.hasFlag(options::OPT_offload_compress,
+                     options::OPT_no_offload_compress, false))
+    CmdArgs.push_back("-compress");
+  if (TCArgs.hasArg(options::OPT_v))
+    CmdArgs.push_back("-verbose");
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -9471,6 +9488,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
+  if (TCArgs.hasArg(options::OPT_v))
+    CmdArgs.push_back("-verbose");
 
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
