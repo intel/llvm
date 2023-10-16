@@ -423,7 +423,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
       }
     }
     return ReturnValue(Result);
-    return UR_RESULT_SUCCESS;
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
     return ReturnValue(Event->RefCount.load());
