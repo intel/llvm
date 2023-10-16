@@ -211,9 +211,12 @@ enum PropKind : uint32_t {
   MaxPrivateCopies = 41,
   NumReplicates = 42,
   Datapath = 43,
-  UsmKind = 44,
+  ESIMDL1CacheHint = 44,
+  ESIMDL2CacheHint = 45,
+  ESIMDL3CacheHint = 46,
+  UsmKind = 47,
   // PropKindSize must always be the last value.
-  PropKindSize = 45,
+  PropKindSize = 48,
 };
 
 // This trait must be specialized for all properties and must have a unique

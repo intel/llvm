@@ -8,10 +8,11 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
-#define NOMINMAX
 
+#define NOMINMAX
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -37,10 +38,7 @@ namespace esimd_test {
 // Require GPU device
 inline int ESIMDSelector(const device &device) {
   const std::string intel{"Intel(R) Corporation"};
-  if (device.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 1000;
-  } else if (device.is_gpu() &&
-             (device.get_info<info::device::vendor>() == intel)) {
+  if (device.is_gpu() && (device.get_info<info::device::vendor>() == intel)) {
     // pick gpu device if esimd not available but give it a lower score in
     // order not to compete with the esimd in environments where both are
     // present
@@ -690,6 +688,19 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
     IsGE &= CurrentVersion >= RequiredVersion;
   }
   return IsGE;
+}
+
+template <typename T> T getRandomValue() {
+  using Tuint = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  Tuint v = rand();
+  if constexpr (sizeof(Tuint) > 4)
+    v = (v << 32) | rand();
+  return sycl::bit_cast<T>(v);
 }
 
 } // namespace esimd_test

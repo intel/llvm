@@ -1,7 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: gpu
+
 // Check expected runtime exceptions for annotated USM allocations
+// Note this test does not work on gpu because the shared allocation tests
+// expect to raise an error when the target device does not have the
+// corresponding aspect, while the gpu runtime has different behavior
 
 #include <sycl/sycl.hpp>
 

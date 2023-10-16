@@ -83,9 +83,9 @@ int main() {
     h.single_task<class check>([=] {
       //CHECK-OPAQUE: tail call half @llvm.nvvm.ldg.global.f.f16.p0(ptr %{{.*}}, i32 2)
       auto cached_h = ldg(&in_h[0]);
-      //CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call noundef float @llvm.nvvm.ldg.global.f.f32.p0(ptr %{{.*}}, i32 4)
       auto cached_f = ldg(&in_f[0]);
-      //CHECK-OPAQUE: tail call double @llvm.nvvm.ldg.global.f.f64.p0(ptr %{{.*}}, i32 8)
+      //CHECK-OPAQUE: tail call noundef double @llvm.nvvm.ldg.global.f.f64.p0(ptr %{{.*}}, i32 8)
       auto cached_d = ldg(&in_d[0]);
 
       //CHECK-OPAQUE: tail call <2 x half> @llvm.nvvm.ldg.global.f.v2f16.p0(ptr %{{.*}}, i32 4)
@@ -115,27 +115,27 @@ int main() {
       // Unsigned variants are identical to signed variants, but this leads to
       // correct behavior.
 
-      //CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
+      //CHECK-OPAQUE: tail call noundef i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
       auto cached_c = ldg(&in_c[0]);
-      //CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
+      //CHECK-OPAQUE: tail call noundef i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
       auto cached_sc = ldg(&in_sc[0]);
-      //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
+      //CHECK-OPAQUE: tail call noundef i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
       auto cached_s = ldg(&in_s[0]);
-      //CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call noundef i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
       auto cached_i = ldg(&in_i[0]);
-      //CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+      //CHECK-OPAQUE: tail call noundef i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
       auto cached_l = ldg(&in_l[0]);
-      //CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+      //CHECK-OPAQUE: tail call noundef i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
       auto cached_ll = ldg(&in_ll[0]);
-      //CHECK-OPAQUE: tail call i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
+      //CHECK-OPAQUE: tail call noundef i8 @llvm.nvvm.ldg.global.i.i8.p0(ptr %{{.*}}, i32 1)
       auto cached_uc = ldg(&in_uc[0]);
-      //CHECK-OPAQUE: tail call i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
+      //CHECK-OPAQUE: tail call noundef i16 @llvm.nvvm.ldg.global.i.i16.p0(ptr %{{.*}}, i32 2)
       auto cached_us = ldg(&in_us[0]);
-      //CHECK-OPAQUE: tail call i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
+      //CHECK-OPAQUE: tail call noundef i32 @llvm.nvvm.ldg.global.i.i32.p0(ptr %{{.*}}, i32 4)
       auto cached_ui = ldg(&in_ui[0]);
-      //CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+      //CHECK-OPAQUE: tail call noundef i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
       auto cached_ul = ldg(&in_ul[0]);
-      //CHECK-OPAQUE: tail call i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
+      //CHECK-OPAQUE: tail call noundef i64 @llvm.nvvm.ldg.global.i.i64.p0(ptr %{{.*}}, i32 8)
       auto cached_ull = ldg(&in_ull[0]);
 
       //CHECK-OPAQUE: tail call <2 x i8> @llvm.nvvm.ldg.global.i.v2i8.p0(ptr %{{.*}}, i32 2)

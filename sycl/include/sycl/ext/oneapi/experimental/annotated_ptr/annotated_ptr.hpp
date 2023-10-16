@@ -10,6 +10,7 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -27,51 +28,6 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-
-//===----------------------------------------------------------------------===//
-//        Specific properties of annotated_ptr
-//===----------------------------------------------------------------------===//
-
-struct usm_kind_key {
-  template <sycl::usm::alloc Kind>
-  using value_t =
-      property_value<usm_kind_key,
-                     std::integral_constant<sycl::usm::alloc, Kind>>;
-};
-
-template <sycl::usm::alloc Kind>
-inline constexpr usm_kind_key::value_t<Kind> usm_kind;
-inline constexpr usm_kind_key::value_t<sycl::usm::alloc::device>
-    usm_kind_device;
-inline constexpr usm_kind_key::value_t<sycl::usm::alloc::host> usm_kind_host;
-inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared>
-    usm_kind_shared;
-
-template <> struct is_property_key<usm_kind_key> : std::true_type {};
-
-template <typename T, sycl::usm::alloc Kind>
-struct is_valid_property<T, usm_kind_key::value_t<Kind>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<usm_kind_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
-
-namespace detail {
-
-template <> struct PropertyToKind<usm_kind_key> {
-  static constexpr PropKind Kind = PropKind::UsmKind;
-};
-
-template <> struct IsCompileTimeProperty<usm_kind_key> : std::true_type {};
-
-template <sycl::usm::alloc Kind>
-struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
-  static constexpr const char *name = "sycl-usm-kind";
-  static constexpr sycl::usm::alloc value = Kind;
-};
-
-} // namespace detail
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
@@ -104,7 +60,7 @@ struct PropertiesFilter {
       std::tuple<>>::type...>;
 };
 } // namespace
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -188,7 +144,7 @@ annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,

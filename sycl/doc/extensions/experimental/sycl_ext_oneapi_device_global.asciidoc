@@ -188,7 +188,7 @@ maintains its state even when it is referenced from a kernel in a different
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class device_global {
   ...
 ----
@@ -219,7 +219,7 @@ The section below and the table following describe the constructors, member func
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class device_global {
   using subscript_return_t =
     std::remove_reference_t<decltype(std::declval<T>()[std::ptrdiff_t{}])>;
@@ -1132,7 +1132,7 @@ A sketch of the anticipated constructor interface is:
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class device_global {
 public:
   using element_type = std::remove_extent_t<T>; 

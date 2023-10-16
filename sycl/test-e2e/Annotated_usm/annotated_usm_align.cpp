@@ -1,7 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: gpu
+
 // E2E tests for annotated USM allocation functions
+// Note this test does not work on gpu because some tests expect to return
+// nullptr, e.g. when the alignment argument is not a power of 2, while the gpu
+// runtime has different behavior
 
 #include <sycl/sycl.hpp>
 
@@ -465,8 +470,8 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
 
 int main() {
   sycl::queue q;
-  // testAlign<char>(q, 4);
+  testAlign<char>(q, 4);
   testAlign<int>(q, 128);
-  // testAlign<std::complex<double>>(q, 4);
+  testAlign<std::complex<double>>(q, 4);
   return 0;
 }
