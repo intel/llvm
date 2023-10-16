@@ -1208,7 +1208,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
         __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
     __ESIMD_NS::simd<T, NElts>>
@@ -1332,7 +1332,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
                                  __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc,
@@ -1388,7 +1388,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
         __ESIMD_NS::is_simd_flag_type_v<FlagsT>,
     __ESIMD_NS::simd<T, NElts>>
@@ -1597,7 +1597,7 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 lsc_prefetch(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1633,7 +1633,7 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
@@ -1663,7 +1663,7 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 lsc_prefetch(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1856,7 +1856,7 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
 lsc_scatter(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1896,7 +1896,7 @@ template <typename T, int NElts = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
@@ -2092,7 +2092,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<
-    !std::is_pointer<AccessorTy>::value &&
+    !std::is_pointer_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
     __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc,
@@ -2215,7 +2215,7 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
-__ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value &&
+__ESIMD_API std::enable_if_t<!std::is_pointer_v<AccessorTy> &&
                              __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -3690,7 +3690,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 0 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
@@ -3702,7 +3702,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 0 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              simd<T, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd_mask<N> mask) {
@@ -3714,7 +3714,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 0 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              simd<T, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
@@ -3727,7 +3727,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API
     __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                      __ESIMD_DNS::get_num_args<Op>() == 1 &&
-                                     !std::is_pointer<AccessorTy>::value,
+                                     !std::is_pointer_v<AccessorTy>,
                                  simd<T, N>>
     atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
                   simd_mask<N> mask) {
@@ -3741,7 +3741,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API
     __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                      __ESIMD_DNS::get_num_args<Op>() == 1 &&
-                                     !std::is_pointer<AccessorTy>::value,
+                                     !std::is_pointer_v<AccessorTy>,
                                  simd<T, N>>
     atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
                   simd<T, N> src0, simd_mask<N> mask) {
@@ -3753,7 +3753,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 1 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              simd<T, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0,
               simd_mask<N> mask) {
@@ -3766,7 +3766,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 2 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              simd<T, N>>
 atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask) {
@@ -3782,7 +3782,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 2 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              simd<T, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask) {
@@ -3794,7 +3794,7 @@ template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
                                  __ESIMD_DNS::get_num_args<Op>() == 2 &&
-                                 !std::is_pointer<AccessorTy>::value,
+                                 !std::is_pointer_v<AccessorTy>,
                              __ESIMD_NS::simd<T, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<T, N> src0, simd<T, N> src1,
               simd_mask<N> mask) {

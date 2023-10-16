@@ -1052,9 +1052,9 @@ public:
   template <typename CoordT, int Dims = Dimensions,
             typename = std::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (detail::is_genint<CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessReadOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyRead))>>
+                (detail::is_genint_v<CoordT>)&&(
+                    (IsImageAcc && IsImageAccessReadOnly) ||
+                    (IsHostImageAcc && IsImageAccessAnyRead))>>
   DataT read(const CoordT &Coords) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
@@ -1093,12 +1093,13 @@ public:
   // (accessTarget == access::target::host_image && (accessMode ==
   // access::mode::write || accessMode == access::mode::discard_write ||
   // accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (detail::is_genint<CoordT>::value) &&
-                (IsValidCoordDataT<Dims, CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessWriteOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyWrite))>>
+  template <
+      typename CoordT, int Dims = Dimensions,
+      typename = std::enable_if_t<(Dims > 0) &&
+                                  (detail::is_genint_v<CoordT>)&&(
+                                      IsValidCoordDataT<Dims, CoordT>::value) &&
+                                  ((IsImageAcc && IsImageAccessWriteOnly) ||
+                                   (IsHostImageAcc && IsImageAccessAnyWrite))>>
   void write(const CoordT &Coords, const DataT &Color) const {
 #ifdef __SYCL_DEVICE_ONLY__
     __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);

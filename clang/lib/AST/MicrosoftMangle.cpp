@@ -2906,6 +2906,17 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
       else
         Out << "w";
       break;
+    case CC_OpenCLKernel:
+      // This can occur on the SYCl NativeCPU device
+      // where device code is compiled with the same
+      // target triple (eg for Windows) as host code.
+      // FIXME: 1.) provide mangling if needed
+      //        2.) check if other conventions need to be handled.
+      if (!getASTContext().getLangOpts().SYCLIsNativeCPU)
+        // Currently we only allow this convention in
+        // SYCLNativeCPU and raise the usual error otherwise.
+        llvm_unreachable("Unsupported CC for mangling");
+      break;
   }
 }
 void MicrosoftCXXNameMangler::mangleCallingConvention(const FunctionType *T) {

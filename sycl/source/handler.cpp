@@ -527,6 +527,10 @@ void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                           "are not allowed to be used in command graphs.");
   }
   detail::Requirement *Req = AccImpl.get();
+  if (Req->MAccessMode != sycl::access_mode::read) {
+    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    SYCLMemObj->handleWriteAccessorCreation();
+  }
   // Add accessor to the list of requirements.
   if (Req->MAccessRange.size() != 0)
     CGData.MRequirements.push_back(Req);
@@ -816,7 +820,8 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-  device Dev = detail::getDeviceFromHandler(*this);
+  device Dev =
+      (MGraph) ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
@@ -1154,13 +1159,10 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-
-  throwIfGraphAssociated<ext::oneapi::experimental::detail::
-                             UnsupportedGraphFeatures::sycl_kernel_bundle>();
-
   std::shared_ptr<detail::queue_impl> PrimaryQueue =
       MImpl->MSubmissionPrimaryQueue;
-  if (PrimaryQueue->get_context() != ExecBundle.get_context())
+  if ((!MGraph && (PrimaryQueue->get_context() != ExecBundle.get_context())) ||
+      (MGraph && (MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "

@@ -494,6 +494,37 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       else
         CompileOpts.erase(Pos, OptLen);
     }
+    static const std::string TargetRegisterAllocMode =
+        "-ftarget-register-alloc-mode=";
+    auto OptPos = CompileOpts.find(TargetRegisterAllocMode);
+    while (OptPos != std::string::npos) {
+      auto EndOfOpt = CompileOpts.find(" ", OptPos);
+      // Extract everything after the equals until the end of the option
+      auto OptValue = CompileOpts.substr(
+          OptPos + TargetRegisterAllocMode.size(),
+          EndOfOpt - OptPos - TargetRegisterAllocMode.size());
+      auto ColonPos = OptValue.find(":");
+      auto Device = OptValue.substr(0, ColonPos);
+      std::string BackendStrToAdd;
+      bool IsPVC =
+          std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
+            return IsIntelGPU &&
+                   (Dev.get_info<ext::intel::info::device::device_id>() &
+                    0xFF00) == 0x0B00;
+          });
+      // Currently 'pvc' is the only supported device.
+      if (Device == "pvc" && IsPVC)
+        BackendStrToAdd = " " + OptValue.substr(ColonPos + 1) + " ";
+
+      // Extract everything before this option
+      std::string NewCompileOpts =
+          CompileOpts.substr(0, OptPos) + BackendStrToAdd;
+      // Extract everything after this option and add it to the above.
+      if (EndOfOpt != std::string::npos)
+        NewCompileOpts += CompileOpts.substr(EndOfOpt);
+      CompileOpts = NewCompileOpts;
+      OptPos = CompileOpts.find(TargetRegisterAllocMode);
+    }
   }
 }
 

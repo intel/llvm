@@ -1456,7 +1456,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //   (4)|(5)
   //     \|/
   //     (B2)
-  //     /|\ 
+  //     /|\
   //    / | \
   // (6) (7) (8) (those nodes also have B1 as a predecessor)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
@@ -1606,24 +1606,6 @@ TEST_F(CommandGraphTest, SpecializationConstant) {
             int Value = CGH.get_specialization_constant<SpecConst1>();
             (void)Value;
           });
-        } catch (const sycl::exception &e) {
-          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
-          throw;
-        }
-      },
-      sycl::exception);
-}
-
-// Tests that using kernel bundles in a graph will throw.
-TEST_F(CommandGraphTest, KernelBundle) {
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-          Queue.get_context(), {Dev});
-
-  ASSERT_THROW(
-      {
-        try {
-          Graph.add([&](handler &CGH) { CGH.use_kernel_bundle(KernelBundle); });
         } catch (const sycl::exception &e) {
           ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
           throw;
