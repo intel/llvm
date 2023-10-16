@@ -101,6 +101,7 @@ public:
                                 _burst_coalesce | _cache |
                                     _dont_statically_coalesce | _prefetch,
                                 _cache_val) = Val;
+    }
 #else
     (void)Properties;
     *Ptr = Val;

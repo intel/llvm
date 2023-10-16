@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/latency_control/properties.hpp> // for latency_co...
+#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
 
 #include <stdint.h>    // for int32_t
 #include <type_traits> // for conditional_t
