@@ -7276,7 +7276,16 @@ static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
 /// Handle the [[intel::singlepump]] attribute.
 static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelSinglePumpAttr>(S, D, AL);
+  // 'singlepump' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelSinglePumpAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
 
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
@@ -7290,7 +7299,16 @@ static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
 /// Handle the [[intel::doublepump]] attribute.
 static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelDoublePumpAttr>(S, D, AL);
+  // 'doublepump' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelDoublePumpAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
 
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
@@ -7351,7 +7369,18 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
 /// This is incompatible with most of the other memory attributes.
 static void handleSYCLIntelRegisterAttr(Sema &S, Decl *D,
 		                        const ParsedAttr &A) {
-  checkForDuplicateAttribute<SYCLIntelRegisterAttr>(S, D, A);
+
+  // 'fpga_register' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelRegisterAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(A.getLoc(), diag::warn_duplicate_attribute_exact) << &A;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
+
   if (checkIntelFPGARegisterAttrCompatibility(S, D, A))
     return;
 
@@ -7530,7 +7559,16 @@ static void handleSYCLIntelNumBanksAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
 static void handleIntelSimpleDualPortAttr(Sema &S, Decl *D,
                                           const ParsedAttr &AL) {
-  checkForDuplicateAttribute<SYCLIntelSimpleDualPortAttr>(S, D, AL);
+  // 'simple_dual_port' Attribute does not take any argument. Give a warning for
+  // duplicate attributes but not if it's one we've implicitly added and drop
+  // any duplicates.
+  if (const auto *ExistingAttr = D->getAttr<SYCLIntelSimpleDualPortAttr>()) {
+    if (ExistingAttr && !ExistingAttr->isImplicit()) {
+      S.Diag(AL.getLoc(), diag::warn_duplicate_attribute_exact) << &AL;
+      S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
+      return;
+    }
+  }
 
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
     D->addAttr(SYCLIntelMemoryAttr::CreateImplicit(
@@ -10914,134 +10952,6 @@ static void handleZeroCallUsedRegsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(ZeroCallUsedRegsAttr::Create(S.Context, Kind, AL));
 }
 
-static void handleCountedByAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
-        << AL << AANT_ArgumentIdentifier;
-    return;
-  }
-
-  IdentifierLoc *IL = AL.getArgAsIdent(0);
-  CountedByAttr *CBA =
-      ::new (S.Context) CountedByAttr(S.Context, AL, IL->Ident);
-  CBA->setCountedByFieldLoc(IL->Loc);
-  D->addAttr(CBA);
-}
-
-namespace {
-
-// Callback to only accept typo corrections that are for field members of
-// the given struct or union.
-class FieldDeclValidatorCCC final : public CorrectionCandidateCallback {
-public:
-  explicit FieldDeclValidatorCCC(const RecordDecl *RD) : Record(RD) {}
-
-  bool ValidateCandidate(const TypoCorrection &candidate) override {
-    FieldDecl *FD = candidate.getCorrectionDeclAs<FieldDecl>();
-    return FD && FD->getDeclContext()->getRedeclContext()->Equals(Record);
-  }
-
-  std::unique_ptr<CorrectionCandidateCallback> clone() override {
-    return std::make_unique<FieldDeclValidatorCCC>(*this);
-  }
-
-private:
-  const RecordDecl *Record;
-};
-
-} // end anonymous namespace
-
-bool Sema::CheckCountedByAttr(Scope *S, const FieldDecl *FD) {
-  const RecordDecl *RD = FD->getParent();
-  const auto *CBA = FD->getAttr<CountedByAttr>();
-  const IdentifierInfo *FieldName = CBA->getCountedByField();
-
-  auto Pred = [&](const Decl *D) {
-    if (const auto *Field = dyn_cast<FieldDecl>(D))
-      return Field->getName() == FieldName->getName();
-    return false;
-  };
-  const FieldDecl *Field = RD->findFieldIf(Pred);
-
-  if (!Field) {
-    // The "counted_by" field needs to exist within the struct.
-    DeclarationNameInfo NameInfo(FieldName,
-                                 CBA->getCountedByFieldLoc().getBegin());
-    LookupResult Result(*this, NameInfo, Sema::LookupOrdinaryName);
-
-    LookupName(Result, S);
-    if (Result.getResultKind() == LookupResult::Found) {
-      SourceRange SR = CBA->getCountedByFieldLoc();
-      Diag(SR.getBegin(),
-           diag::err_flexible_array_counted_by_attr_field_not_found_in_struct)
-          << CBA->getCountedByField() << SR;
-
-      SR = Result.getAsSingle<NamedDecl>()->getSourceRange();
-      Diag(SR.getBegin(), diag::note_var_declared_here)
-          << Result.getAsSingle<NamedDecl>() << SR;
-    } else {
-      SourceRange SR = CBA->getCountedByFieldLoc();
-      FieldDeclValidatorCCC CCC(RD);
-
-      if (TypoCorrection Corrected =
-              CorrectTypo(NameInfo, Sema::LookupMemberName, /*Scope=*/nullptr,
-                          /*SS=*/nullptr, CCC, Sema::CTK_ErrorRecovery,
-                          const_cast<RecordDecl *>(RD))) {
-        diagnoseTypo(
-            Corrected,
-            PDiag(
-                diag::
-                    err_flexible_array_counted_by_attr_field_not_found_suggest)
-                << FieldName);
-      } else {
-        Diag(SR.getBegin(),
-             diag::err_flexible_array_counted_by_attr_field_not_found)
-            << CBA->getCountedByField() << SR;
-      }
-    }
-
-    return true;
-  }
-
-  LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
-      Context.getLangOpts().getStrictFlexArraysLevel();
-
-  if (!Decl::isFlexibleArrayMemberLike(Context, FD, FD->getType(),
-                                       StrictFlexArraysLevel, true)) {
-    // The "counted_by" attribute must be on a flexible array member.
-    SourceRange SR = FD->getLocation();
-    Diag(SR.getBegin(),
-         diag::err_counted_by_attr_not_on_flexible_array_member)
-        << SR;
-    return true;
-  }
-
-  if (Field->hasAttr<CountedByAttr>()) {
-    // The "counted_by" field can't point to the flexible array member.
-    SourceRange SR = CBA->getCountedByFieldLoc();
-    Diag(SR.getBegin(),
-         diag::err_flexible_array_counted_by_attr_refers_to_self)
-        << CBA->getCountedByField() << SR;
-    return true;
-  }
-
-  if (!Field->getType()->isIntegerType() ||
-      Field->getType()->isBooleanType()) {
-    // The "counted_by" field must have an integer type.
-    SourceRange SR = Field->getLocation();
-    Diag(SR.getBegin(),
-         diag::err_flexible_array_counted_by_attr_field_not_integer)
-        << Field << SR;
-
-    SR = CBA->getCountedByFieldLoc();
-    Diag(SR.getBegin(), diag::note_flexible_array_counted_by_attr_field)
-        << CBA->getCountedByField() << SR;
-    return true;
-  }
-
-  return false;
-}
-
 static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,
                                            const ParsedAttr &AL) {
   StringRef KindStr;
@@ -12195,10 +12105,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
 
   case ParsedAttr::AT_AvailableOnlyInDefaultEvalMethod:
     handleAvailableOnlyInDefaultEvalMethod(S, D, AL);
-    break;
-
-  case ParsedAttr::AT_CountedBy:
-    handleCountedByAttr(S, D, AL);
     break;
 
   // Microsoft attributes:

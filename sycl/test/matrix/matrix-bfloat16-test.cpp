@@ -68,7 +68,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            // the packed_b layout. By default, the layout is row_major and size
            // is (TK, TN).
            joint_matrix<sycl::sub_group, bfloat16, use::b, TK, TN,
-                        sycl::ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
            joint_matrix<sycl::sub_group, float, use::accumulator, TM, TN> sub_c;
 
@@ -89,7 +89,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<sycl::access::decorated::no>() +
                      (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
                  N * 2);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,
