@@ -399,7 +399,7 @@ SmallVector<IfCondition> UniformityAnalysis::collectBranchConditions(
         getParentsOfType<RegionBranchOpInterface>(
             *mod.getOperation()->getBlock());
     for (RegionBranchOpInterface branchOp : enclosingBranches) {
-      if (isa<affine::AffineForOp, scf::ForOp>(branchOp))
+      if (isa<affine::AffineForOp, scf::ForOp, scf::ExecuteRegionOp>(branchOp))
         continue;
 
       std::optional<IfCondition> condition =
