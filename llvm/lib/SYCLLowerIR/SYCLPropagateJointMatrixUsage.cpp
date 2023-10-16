@@ -127,6 +127,7 @@ void fillFunctionToJointMatrixMapValuesMap(
   //   - sycl-joint-matrix-mad-type-A
   //   - sycl-joint-matrix-mad-type-B
   //   - sycl-joint-matrix-mad-type-C
+  //   - sycl-joint-matrix-mad-type-D
   //   - sycl-joint-matrix-mad-size-M
   //   - sycl-joint-matrix-mad-size-K
   //   - sycl-joint-matrix-mad-size-N
@@ -139,6 +140,9 @@ void fillFunctionToJointMatrixMapValuesMap(
   Result += ",";
   Result +=
       F->getFnAttribute("sycl-joint-matrix-mad-type-C").getValueAsString();
+  Result += ",";
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-type-D").getValueAsString();
   Result += ",";
   Result +=
       F->getFnAttribute("sycl-joint-matrix-mad-size-M").getValueAsString();

@@ -91,10 +91,10 @@ attributes #4 = { "sycl-joint-matrix-cols"="12" "sycl-joint-matrix-rows"="12" "s
 attributes #5 = { "sycl-joint-matrix-cols"="12" "sycl-joint-matrix-rows"="12" "sycl-joint-matrix-type"="matrix_type::sint8" "sycl-joint-matrix-use"="use::a" }
 attributes #6 = { "sycl-joint-matrix-cols"="12" "sycl-joint-matrix-rows"="12" "sycl-joint-matrix-type"="matrix_type::sint32" "sycl-joint-matrix-use"="use::accumulator" "sycl-module-id"="test.cpp" }
 attributes #7 = { "sycl-joint-matrix-cols"="12" "sycl-joint-matrix-rows"="12" "sycl-joint-matrix-type"="matrix_type::sint32" "sycl-joint-matrix-use"="use::accumulator" }
-attributes #8 = { "sycl-joint-matrix-mad-size-M"="12" "sycl-joint-matrix-mad-size-K"="48" "sycl-joint-matrix-mad-size-N"="12" "sycl-joint-matrix-mad-type-A"="matrix_type::sint8" "sycl-joint-matrix-mad-type-B"="matrix_type::sint8" "sycl-joint-matrix-mad-type-C"="matrix_type::sint32" }
+attributes #8 = { "sycl-joint-matrix-mad-size-M"="12" "sycl-joint-matrix-mad-size-K"="48" "sycl-joint-matrix-mad-size-N"="12" "sycl-joint-matrix-mad-type-A"="matrix_type::sint8" "sycl-joint-matrix-mad-type-B"="matrix_type::sint8" "sycl-joint-matrix-mad-type-C"="matrix_type::sint32" "sycl-joint-matrix-mad-type-D"="matrix_type::sint32" }
 
 ; CHECK: ![[#ID0]] = !{!"matrix_type::sint8,use::a,12,12;matrix_type::sint8,use::a,12,48;matrix_type::sint8,use::b,48,12"}
 ; CHECK: ![[#ID1]] = !{!"matrix_type::sint32,use::accumulator,12,12;matrix_type::sint8,use::a,12,12;matrix_type::sint8,use::a,12,48;matrix_type::sint8,use::b,48,12"}
-; CHECK: ![[#ID2]] = !{!"matrix_type::sint8,matrix_type::sint8,matrix_type::sint32,12,48,12"}
+; CHECK: ![[#ID2]] = !{!"matrix_type::sint8,matrix_type::sint8,matrix_type::sint32,matrix_type::sint32,12,48,12"}
 ; CHECK: ![[#ID3]] = !{!"matrix_type::sint8,use::b,48,12"}
 ; CHECK: ![[#ID4]] = !{!"matrix_type::sint8,use::a,12,12"}

@@ -372,15 +372,15 @@ template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
 #if defined(__SYCL_DEVICE_ONLY__)
 [[__sycl_detail__::add_ir_attributes_function(
     "sycl-joint-matrix-mad-type-A", "sycl-joint-matrix-mad-type-B",
-    "sycl-joint-matrix-mad-type-C", "sycl-joint-matrix-mad-type-D", "sycl-joint-matrix-mad-size-M",
-    "sycl-joint-matrix-mad-size-K", "sycl-joint-matrix-mad-size-N",
-    detail::convertTypeToMatrixTypeString<Ta>(),
+    "sycl-joint-matrix-mad-type-C", "sycl-joint-matrix-mad-type-D",
+    "sycl-joint-matrix-mad-size-M", "sycl-joint-matrix-mad-size-K",
+    "sycl-joint-matrix-mad-size-N", detail::convertTypeToMatrixTypeString<Ta>(),
     detail::convertTypeToMatrixTypeString<Tb>(),
-    detail::convertTypeToMatrixTypeString<Tc>(), 
-    detail::convertTypeToMatrixTypeString<Td>(),
-    M, K, N)]]
+    detail::convertTypeToMatrixTypeString<Tc>(),
+    detail::convertTypeToMatrixTypeString<Td>(), M, K, N)]]
 #endif // defined(__SYCL_DEVICE_ONLY__)
-inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_mad(
     Group,
     joint_matrix<Group, Td, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
