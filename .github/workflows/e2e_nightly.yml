@@ -19,6 +19,14 @@ jobs:
     runs-on: ${{matrix.adapter.name}}
 
     steps:
+    # Workspace on self-hosted runners is not cleaned automatically.
+    # We have to delete the files created outside of using actions.
+    - name: Cleanup self-hosted workspace
+      if: always()
+      run: |
+        ls -la ./
+        rm -rf ./* || true
+
     - name: Checkout UR
       uses: actions/checkout@v4
       with:
@@ -36,12 +44,6 @@ jobs:
       working-directory: ${{github.workspace}}/ur-repo
       run: pip install -r third_party/requirements.txt
 
-    - name: Download DPC++
-      run: |
-        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-09-21/sycl_linux.tar.gz
-        mkdir dpcpp_compiler
-        tar -xvf dpcpp_compiler.tar.gz -C dpcpp_compiler
-
     - name: Configure CMake UR
       working-directory: ${{github.workspace}}/ur-repo
       run: >
@@ -53,7 +55,6 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
-        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
 
     - name: Build UR
       run: LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
@@ -112,11 +113,3 @@ jobs:
 
     - name: Run e2e tests
       run: ninja -C build-e2e check-sycl-e2e
-
-    # Workspace on self-hosted runners is not cleaned automatically.
-    # We have to delete the files created outside of using actions.
-    - name: Cleanup self-hosted workspace
-      if: always()
-      run: |
-        ls -la ./
-        rm -rf ./* || true
