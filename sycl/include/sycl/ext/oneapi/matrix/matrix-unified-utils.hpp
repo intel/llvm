@@ -28,15 +28,21 @@ class tf32 {
   tf32() = delete;
 };
 } // namespace precision
+} // namespace matrix
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 
 namespace detail {
-using UseToStringPair = std::pair<use, const char *>;
+using UseToUseStringPair =
+    std::pair<ext::oneapi::experimental::matrix::use, const char *>;
 
-constexpr const char *convertMatrixUseToString(use Use) {
-  constexpr UseToStringPair UseToStringMap[] = {
-      {use::a, "use::a"},
-      {use::b, "use::b"},
-      {use::accumulator, "use::accumulator"},
+constexpr const char *
+convertMatrixUseToString(ext::oneapi::experimental::matrix::use Use) {
+  constexpr UseToUseStringPair UseToUseStringMap[] = {
+      {ext::oneapi::experimental::matrix::use::a, "use::a"},
+      {ext::oneapi::experimental::matrix::use::b, "use::b"},
+      {ext::oneapi::experimental::matrix::use::accumulator, "use::accumulator"},
   };
 
   for (const auto &Item : UseToStringMap) {
@@ -46,10 +52,5 @@ constexpr const char *convertMatrixUseToString(use Use) {
   return "";
 }
 } // namespace detail
-
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
 } // namespace _V1
 } // namespace sycl

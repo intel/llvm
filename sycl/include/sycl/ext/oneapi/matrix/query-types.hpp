@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/bfloat16.hpp>
-#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for tf32
 
 namespace sycl {
 inline namespace _V1 {
@@ -44,39 +44,55 @@ struct combination {
   matrix_type dtype;
 };
 
+} // namespace ext::oneapi::experimental::matrix
+
 namespace detail {
 template <typename T> constexpr const char *convertTypeToMatrixTypeString() {
-  if (std::is_same_v<T, sycl::ext::oneapi::bfloat16>)
-    return "matrix_type::bf16";
-  else if (std::is_same_v<T, sycl::half>)
-    return "matrix_type::fp16";
-  else if (std::is_same_v<
-               T, sycl::ext::oneapi::experimental::matrix::precision::tf32>)
-    return "matrix_type::tf32";
-  else if (std::is_same_v<T, float>)
-    return "matrix_type::fp32";
-  else if (std::is_same_v<T, double>)
-    return "matrix_type::fp64";
-  else if (std::is_same_v<T, int8_t>)
-    return "matrix_type::sint8";
-  else if (std::is_same_v<T, int16_t>)
-    return "matrix_type::sint16";
-  else if (std::is_same_v<T, int32_t>)
-    return "matrix_type::sint32";
-  else if (std::is_same_v<T, int64_t>)
-    return "matrix_type::sint64";
-  else if (std::is_same_v<T, uint8_t>)
-    return "matrix_type::uint8";
-  else if (std::is_same_v<T, uint16_t>)
-    return "matrix_type::uint16";
-  else if (std::is_same_v<T, uint32_t>)
-    return "matrix_type::uint32";
-  else if (std::is_same_v<T, uint64_t>)
-    return "matrix_type::uint64";
   return "";
 }
+template <>
+constexpr const char *
+convertTypeToMatrixTypeString<sycl::ext::oneapi::bfloat16>() {
+  return "matrix_type::bf16";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<sycl::half>() {
+  return "matrix_type::fp16";
+}
+template <>
+constexpr const char *convertTypeToMatrixTypeString<
+    sycl::ext::oneapi::experimental::matrix::precision::tf32>() {
+  return "matrix_type::tf32";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<float>() {
+  return "matrix_type::fp32";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<double>() {
+  return "matrix_type::fp64";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<int8_t>() {
+  return "matrix_type::sint8";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<int16_t>() {
+  return "matrix_type::sint16";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<int32_t>() {
+  return "matrix_type::sint32";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<int64_t>() {
+  return "matrix_type::sint64";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<uint8_t>() {
+  return "matrix_type::uint8";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<uint16_t>() {
+  return "matrix_type::uint16";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<uint32_t>() {
+  return "matrix_type::uint32";
+}
+template <> constexpr const char *convertTypeToMatrixTypeString<uint64_t>() {
+  return "matrix_type::uint64";
+}
 } // namespace detail
-
-} // namespace ext::oneapi::experimental::matrix
 } // namespace _V1
 } // namespace sycl
