@@ -202,57 +202,74 @@ int main(int argc, char** argv)
 
 // CHECK-LABEL:   func.func @main(
 // CHECK-SAME:                    %[[VAL_0:.*]]: i32,
-// CHECK-SAME:                    %[[VAL_1:.*]]: memref<?xmemref<?xi8>>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 0 : i32
-// CHECK:           %[[VAL_3:.*]] = arith.constant 42 : i32
-// CHECK:           %[[VAL_4:.*]] = arith.constant 1200 : i32
-// CHECK:           %[[VAL_5:.*]] = arith.constant 1400 : i32
-// CHECK:           %[[VAL_6:.*]] = memref.alloca() : memref<1xf64>
-// CHECK:           %[[VAL_25:.*]] = llvm.mlir.undef : f64
-// CHECK:           affine.store %[[VAL_25]], %[[VAL_6]][0] : memref<1xf64>
-// CHECK:           %[[VAL_7:.*]] = memref.alloc() : memref<1400x1200xf64>
-// CHECK:           %[[VAL_8:.*]] = memref.alloc() : memref<1200x1200xf64>
-// CHECK:           %[[VAL_9:.*]] = memref.alloc() : memref<1200xf64>
-// CHECK:           %[[VAL_10:.*]] = memref.alloc() : memref<1200xf64>
-// CHECK:           %[[VAL_11:.*]] = memref.cast %[[VAL_6]] : memref<1xf64> to memref<?xf64>
-// CHECK:           %[[VAL_12:.*]] = memref.cast %[[VAL_7]] : memref<1400x1200xf64> to memref<?x1200xf64>
-// CHECK:           call @init_array(%[[VAL_4]], %[[VAL_5]], %[[VAL_11]], %[[VAL_12]]) : (i32, i32, memref<?xf64>, memref<?x1200xf64>) -> ()
-// CHECK:           %[[VAL_13:.*]] = affine.load %[[VAL_6]][0] : memref<1xf64>
-// CHECK:           %[[VAL_14:.*]] = memref.cast %[[VAL_8]] : memref<1200x1200xf64> to memref<?x1200xf64>
-// CHECK:           %[[VAL_15:.*]] = memref.cast %[[VAL_9]] : memref<1200xf64> to memref<?xf64>
-// CHECK:           %[[VAL_16:.*]] = memref.cast %[[VAL_10]] : memref<1200xf64> to memref<?xf64>
-// CHECK:           call @kernel_correlation(%[[VAL_4]], %[[VAL_5]], %[[VAL_13]], %[[VAL_12]], %[[VAL_14]], %[[VAL_15]], %[[VAL_16]]) : (i32, i32, f64, memref<?x1200xf64>, memref<?x1200xf64>, memref<?xf64>, memref<?xf64>) -> ()
-// CHECK:           %[[VAL_17:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_3]] : i32
-// CHECK:           scf.if %[[VAL_17]] {
-// CHECK:             %[[VAL_19:.*]] = affine.load %[[VAL_1]][0] : memref<?xmemref<?xi8>>
-// CHECK:             %[[VAL_20:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
-// CHECK:             %[[VAL_21:.*]] = "polygeist.pointer2memref"(%[[VAL_20]]) : (!llvm.ptr) -> memref<?xi8>
-// CHECK:             %[[VAL_22:.*]] = func.call @strcmp(%[[VAL_19]], %[[VAL_21]]) : (memref<?xi8>, memref<?xi8>) -> i32
-// CHECK:             %[[VAL_23:.*]] = arith.cmpi eq, %[[VAL_22]], %[[VAL_2]] : i32
-// CHECK:             scf.if %[[VAL_23]] {
-// CHECK:               func.call @print_array(%[[VAL_4]], %[[VAL_14]]) : (i32, memref<?x1200xf64>) -> ()
+// CHECK-SAME:                    %[[VAL_1:.*]]: memref<?xmemref<?xi8>>) -> i32
+// CHECK:           %[[VAL_2:.*]] = arith.constant 8 : i32
+// CHECK:           %[[VAL_3:.*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_4:.*]] = arith.constant 42 : i32
+// CHECK:           %[[VAL_5:.*]] = arith.constant 1200 : i64
+// CHECK:           %[[VAL_6:.*]] = arith.constant 1440000 : i64
+// CHECK:           %[[VAL_7:.*]] = arith.constant 1680000 : i64
+// CHECK:           %[[VAL_8:.*]] = arith.constant 1200 : i32
+// CHECK:           %[[VAL_9:.*]] = arith.constant 1400 : i32
+// CHECK:           %[[VAL_10:.*]] = memref.alloca() : memref<1xf64>
+// CHECK:           %[[VAL_UNDEF:.*]] = llvm.mlir.undef : f64
+// CHECK:           affine.store %[[VAL_UNDEF]], %[[VAL_10]][0] : memref<1xf64>
+// CHECK:           %[[VAL_11:.*]] = call @polybench_alloc_data(%[[VAL_7]], %[[VAL_2]]) : (i64, i32) -> !llvm.ptr
+// CHECK:           %[[VAL_12:.*]] = "polygeist.pointer2memref"(%[[VAL_11]]) : (!llvm.ptr) -> memref<1400x1200xf64>
+// CHECK:           %[[VAL_13:.*]] = call @polybench_alloc_data(%[[VAL_6]], %[[VAL_2]]) : (i64, i32) -> !llvm.ptr
+// CHECK:           %[[VAL_14:.*]] = "polygeist.pointer2memref"(%[[VAL_13]]) : (!llvm.ptr) -> memref<1200x1200xf64>
+// CHECK:           %[[VAL_15:.*]] = call @polybench_alloc_data(%[[VAL_5]], %[[VAL_2]]) : (i64, i32) -> !llvm.ptr
+// CHECK:           %[[VAL_16:.*]] = "polygeist.pointer2memref"(%[[VAL_15]]) : (!llvm.ptr) -> memref<1200xf64>
+// CHECK:           %[[VAL_17:.*]] = call @polybench_alloc_data(%[[VAL_5]], %[[VAL_2]]) : (i64, i32) -> !llvm.ptr
+// CHECK:           %[[VAL_18:.*]] = "polygeist.pointer2memref"(%[[VAL_17]]) : (!llvm.ptr) -> memref<1200xf64>
+// CHECK:           %[[VAL_19:.*]] = memref.cast %[[VAL_10]] : memref<1xf64> to memref<?xf64>
+// CHECK:           %[[VAL_20:.*]] = "polygeist.pointer2memref"(%[[VAL_11]]) : (!llvm.ptr) -> memref<?x1200xf64>
+// CHECK:           call @init_array(%[[VAL_8]], %[[VAL_9]], %[[VAL_19]], %[[VAL_20]]) : (i32, i32, memref<?xf64>, memref<?x1200xf64>) -> ()
+// CHECK:           %[[VAL_21:.*]] = affine.load %[[VAL_10]][0] : memref<1xf64>
+// CHECK:           %[[VAL_22:.*]] = "polygeist.pointer2memref"(%[[VAL_13]]) : (!llvm.ptr) -> memref<?x1200xf64>
+// CHECK:           %[[VAL_23:.*]] = "polygeist.pointer2memref"(%[[VAL_15]]) : (!llvm.ptr) -> memref<?xf64>
+// CHECK:           %[[VAL_24:.*]] = "polygeist.pointer2memref"(%[[VAL_17]]) : (!llvm.ptr) -> memref<?xf64>
+// CHECK:           call @kernel_correlation(%[[VAL_8]], %[[VAL_9]], %[[VAL_21]], %[[VAL_20]], %[[VAL_22]], %[[VAL_23]], %[[VAL_24]]) : (i32, i32, f64, memref<?x1200xf64>, memref<?x1200xf64>, memref<?xf64>, memref<?xf64>) -> ()
+// CHECK:           %[[VAL_25:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_4]] : i32
+// CHECK:           scf.if %[[VAL_25]] {
+// CHECK:             %[[VAL_26:.*]] = affine.load %[[VAL_1]][0] : memref<?xmemref<?xi8>>
+// CHECK:             %[[VAL_27:.*]] = llvm.mlir.addressof @str0 : !llvm.ptr
+// CHECK:             %[[VAL_28:.*]] = "polygeist.pointer2memref"(%[[VAL_27]]) : (!llvm.ptr) -> memref<?xi8>
+// CHECK:             %[[VAL_29:.*]] = func.call @strcmp(%[[VAL_26]], %[[VAL_28]]) : (memref<?xi8>, memref<?xi8>) -> i32
+// CHECK:             %[[VAL_30:.*]] = arith.cmpi eq, %[[VAL_29]], %[[VAL_3]] : i32
+// CHECK:             scf.if %[[VAL_30]] {
+// CHECK:               func.call @print_array(%[[VAL_8]], %[[VAL_22]]) : (i32, memref<?x1200xf64>) -> ()
 // CHECK:             }
 // CHECK:           }
-// CHECK:           memref.dealloc %[[VAL_7]] : memref<1400x1200xf64>
-// CHECK:           memref.dealloc %[[VAL_8]] : memref<1200x1200xf64>
-// CHECK:           memref.dealloc %[[VAL_9]] : memref<1200xf64>
-// CHECK:           memref.dealloc %[[VAL_10]] : memref<1200xf64>
-// CHECK:           return %[[VAL_2]] : i32
+// CHECK:           memref.dealloc %[[VAL_12]] : memref<1400x1200xf64>
+// CHECK:           memref.dealloc %[[VAL_14]] : memref<1200x1200xf64>
+// CHECK:           memref.dealloc %[[VAL_16]] : memref<1200xf64>
+// CHECK:           memref.dealloc %[[VAL_18]] : memref<1200xf64>
+// CHECK:           return %[[VAL_3]] : i32
+// CHECK:         }
+
+// CHECK-LABEL:   func.func private @polybench_alloc_data(
+// CHECK-SAME:                                            %[[VAL_0:.*]]: i64,
+// CHECK-SAME:                                            %[[VAL_1:.*]]: i32) -> !llvm.ptr
+// CHECK:           %[[VAL_EXT:.*]] = arith.extsi %[[VAL_1]] : i32 to i64
+// CHECK:           %[[VAL_2:.*]] = arith.muli %[[VAL_0]], %[[VAL_EXT]] : i64
+// CHECK:           %[[VAL_3:.*]] = call @malloc(%[[VAL_2]]) : (i64) -> !llvm.ptr
+// CHECK:           return %[[VAL_3]] : !llvm.ptr
 // CHECK:         }
 
 // CHECK-LABEL:   func.func private @init_array(
 // CHECK-SAME:                                  %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32,
 // CHECK-SAME:                                  %[[VAL_2:.*]]: memref<?xf64>,
-// CHECK-SAME:                                  %[[VAL_3:.*]]: memref<?x1200xf64>) attributes {llvm.linkage = #llvm.linkage<internal>} {
+// CHECK-SAME:                                  %[[VAL_3:.*]]: memref<?x1200xf64>)
 // CHECK:           %[[VAL_4:.*]] = arith.constant 1.200000e+03 : f64
 // CHECK:           %[[VAL_5:.*]] = arith.constant 1.400000e+03 : f64
 // CHECK:           affine.store %[[VAL_5]], %[[VAL_2]][0] : memref<?xf64>
 // CHECK:           affine.for %[[VAL_6:.*]] = 0 to 1400 {
-// CHECK:             %[[VAL_14:.*]] = arith.index_cast %[[VAL_6]] : index to i32
-// CHECK:             %[[VAL_7:.*]] = arith.sitofp %[[VAL_14]] : i32 to f64
+// CHECK:             %[[VAL_IC:.*]] = arith.index_cast %[[VAL_6]] : index to i32
+// CHECK:             %[[VAL_7:.*]] = arith.sitofp %[[VAL_IC]] : i32 to f64
 // CHECK:             affine.for %[[VAL_8:.*]] = 0 to 1200 {
 // CHECK:               %[[VAL_9:.*]] = arith.index_cast %[[VAL_8]] : index to i32
-// CHECK:               %[[VAL_10:.*]] = arith.muli %[[VAL_14]], %[[VAL_9]] : i32
+// CHECK:               %[[VAL_10:.*]] = arith.muli %[[VAL_IC]], %[[VAL_9]] : i32
 // CHECK:               %[[VAL_11:.*]] = arith.sitofp %[[VAL_10]] : i32 to f64
 // CHECK:               %[[VAL_12:.*]] = arith.divf %[[VAL_11]], %[[VAL_4]] : f64
 // CHECK:               %[[VAL_13:.*]] = arith.addf %[[VAL_12]], %[[VAL_7]] : f64
@@ -266,15 +283,15 @@ int main(int argc, char** argv)
 // CHECK-SAME:                                          %[[VAL_0:.*]]: i32, %[[VAL_1:.*]]: i32,
 // CHECK-SAME:                                          %[[VAL_2:.*]]: f64,
 // CHECK-SAME:                                          %[[VAL_3:.*]]: memref<?x1200xf64>, %[[VAL_4:.*]]: memref<?x1200xf64>,
-// CHECK-SAME:                                          %[[VAL_5:.*]]: memref<?xf64>, %[[VAL_6:.*]]: memref<?xf64>) attributes {llvm.linkage = #llvm.linkage<internal>} {
+// CHECK-SAME:                                          %[[VAL_5:.*]]: memref<?xf64>, %[[VAL_6:.*]]: memref<?xf64>)
 // CHECK:           %[[VAL_7:.*]] = arith.constant 1.000000e-01 : f64
 // CHECK:           %[[VAL_8:.*]] = arith.constant 0.000000e+00 : f64
 // CHECK:           %[[VAL_9:.*]] = arith.constant 1.000000e+00 : f64
-// CHECK:           %[[VAL_IDX:.*]] = arith.index_cast %[[VAL_1]] : i32 to index
+// CHECK:           %[[VAL_IC:.*]] = arith.index_cast %[[VAL_1]] : i32 to index
 // CHECK:           %[[VAL_10:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
 // CHECK:           affine.for %[[VAL_11:.*]] = 0 to %[[VAL_10]] {
 // CHECK:             affine.store %[[VAL_8]], %[[VAL_5]]{{\[}}%[[VAL_11]]] : memref<?xf64>
-// CHECK:             affine.for %[[VAL_12:.*]] = 0 to %[[VAL_IDX]] {
+// CHECK:             affine.for %[[VAL_12:.*]] = 0 to %[[VAL_IC]] {
 // CHECK:               %[[VAL_13:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_12]], %[[VAL_11]]] : memref<?x1200xf64>
 // CHECK:               %[[VAL_14:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_11]]] : memref<?xf64>
 // CHECK:               %[[VAL_15:.*]] = arith.addf %[[VAL_14]], %[[VAL_13]] : f64
@@ -286,7 +303,7 @@ int main(int argc, char** argv)
 // CHECK:           }
 // CHECK:           affine.for %[[VAL_18:.*]] = 0 to %[[VAL_10]] {
 // CHECK:             affine.store %[[VAL_8]], %[[VAL_6]]{{\[}}%[[VAL_18]]] : memref<?xf64>
-// CHECK:             affine.for %[[VAL_19:.*]] = 0 to %[[VAL_IDX]] {
+// CHECK:             affine.for %[[VAL_19:.*]] = 0 to %[[VAL_IC]] {
 // CHECK:               %[[VAL_20:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_19]], %[[VAL_18]]] : memref<?x1200xf64>
 // CHECK:               %[[VAL_21:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_18]]] : memref<?xf64>
 // CHECK:               %[[VAL_22:.*]] = arith.subf %[[VAL_20]], %[[VAL_21]] : f64
@@ -303,7 +320,7 @@ int main(int argc, char** argv)
 // CHECK:             affine.store %[[VAL_30]], %[[VAL_6]]{{\[}}%[[VAL_18]]] : memref<?xf64>
 // CHECK:           }
 // CHECK:           %[[VAL_31:.*]] = math.sqrt %[[VAL_2]] : f64
-// CHECK:           affine.for %[[VAL_32:.*]] = 0 to %[[VAL_IDX]] {
+// CHECK:           affine.for %[[VAL_32:.*]] = 0 to %[[VAL_IC]] {
 // CHECK:             affine.for %[[VAL_33:.*]] = 0 to %[[VAL_10]] {
 // CHECK:               %[[VAL_34:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_33]]] : memref<?xf64>
 // CHECK:               %[[VAL_35:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_32]], %[[VAL_33]]] : memref<?x1200xf64>
@@ -319,7 +336,7 @@ int main(int argc, char** argv)
 // CHECK:             affine.store %[[VAL_9]], %[[VAL_4]]{{\[}}%[[VAL_40]], %[[VAL_40]]] : memref<?x1200xf64>
 // CHECK:             affine.for %[[VAL_41:.*]] = #[[$ATTR_1]](%[[VAL_40]]) to %[[VAL_10]] {
 // CHECK:               affine.store %[[VAL_8]], %[[VAL_4]]{{\[}}%[[VAL_40]], %[[VAL_41]]] : memref<?x1200xf64>
-// CHECK:               affine.for %[[VAL_42:.*]] = 0 to %[[VAL_IDX]] {
+// CHECK:               affine.for %[[VAL_42:.*]] = 0 to %[[VAL_IC]] {
 // CHECK:                 %[[VAL_43:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_42]], %[[VAL_40]]] : memref<?x1200xf64>
 // CHECK:                 %[[VAL_44:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_42]], %[[VAL_41]]] : memref<?x1200xf64>
 // CHECK:                 %[[VAL_45:.*]] = arith.mulf %[[VAL_43]], %[[VAL_44]] : f64
@@ -334,11 +351,12 @@ int main(int argc, char** argv)
 // CHECK:           affine.store %[[VAL_9]], %[[VAL_4]][symbol(%[[VAL_10]]) - 1, symbol(%[[VAL_10]]) - 1] : memref<?x1200xf64>
 // CHECK:           return
 // CHECK:         }
-// CHECK-LABEL:   func.func private @strcmp(memref<?xi8>, memref<?xi8>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>}
+// CHECK:         func.func private @strcmp(memref<?xi8>, memref<?xi8>) -> i32
+
 // CHECK-LABEL:   func.func private @print_array(
 // CHECK-SAME:                                   %[[VAL_0:.*]]: i32,
-// CHECK-SAME:                                   %[[VAL_1:.*]]: memref<?x1200xf64>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK:           %[[VAL_IDX:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
+// CHECK-SAME:                                   %[[VAL_1:.*]]: memref<?x1200xf64>)
+// CHECK:           %[[VAL_IC:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.addressof @stderr : !llvm.ptr
 // CHECK:           %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.addressof @str1 : !llvm.ptr
@@ -349,12 +367,12 @@ int main(int argc, char** argv)
 // CHECK:           %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_8]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<15 x i8>
 // CHECK:           %[[VAL_10:.*]] = llvm.mlir.addressof @str3 : !llvm.ptr
 // CHECK:           %[[VAL_11:.*]] = llvm.getelementptr inbounds %[[VAL_10]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<5 x i8>
-// CHECK:           %[[VAL_12:.*]] = llvm.call @fprintf(%[[VAL_7]], %[[VAL_9]], %[[VAL_11]])  vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_12:.*]] = llvm.call @fprintf(%[[VAL_7]], %[[VAL_9]], %[[VAL_11]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> i32
 // CHECK:           %[[VAL_13:.*]] = llvm.mlir.addressof @str5 : !llvm.ptr
 // CHECK:           %[[VAL_14:.*]] = llvm.getelementptr inbounds %[[VAL_13]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<8 x i8>
-// CHECK:           affine.for %[[VAL_15:.*]] = 0 to %[[VAL_IDX]] {
-// CHECK:             affine.for %[[VAL_16:.*]] = 0 to %[[VAL_IDX]] {
-// CHECK:               affine.if #[[$ATTR_2]](%[[VAL_16]], %[[VAL_15]]){{\[}}%[[VAL_IDX]]] {
+// CHECK:           affine.for %[[VAL_15:.*]] = 0 to %[[VAL_IC]] {
+// CHECK:             affine.for %[[VAL_16:.*]] = 0 to %[[VAL_IC]] {
+// CHECK:               affine.if #[[$ATTR_2]](%[[VAL_16]], %[[VAL_15]]){{\[}}%[[VAL_IC]]] {
 // CHECK:                 %[[VAL_17:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
 // CHECK:                 %[[VAL_18:.*]] = llvm.mlir.addressof @str4 : !llvm.ptr
 // CHECK:                 %[[VAL_19:.*]] = llvm.getelementptr inbounds %[[VAL_18]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<2 x i8>
@@ -375,5 +393,6 @@ int main(int argc, char** argv)
 // CHECK:           %[[VAL_31:.*]] = llvm.call @fprintf(%[[VAL_28]], %[[VAL_30]]) vararg(!llvm.func<i32 (ptr, ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
 // CHECK:           return
 // CHECK:         }
+// CHECK:         func.func private @malloc(i64) -> !llvm.ptr
 
 // EXEC: {{[0-9]\.[0-9]+}}

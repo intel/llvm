@@ -502,7 +502,6 @@ syclcompat/atomic/atomic_arith.cpp
 syclcompat/atomic/atomic_class.cpp
 syclcompat/atomic/atomic_comp_exchange.cpp
 syclcompat/memory/local_memory.cpp
-syclcompat/util/util_cast_value_test.cpp
 syclcompat/util/util_complex.cpp
 syclcompat/util/util_vectorized_isgreater_test.cpp
 syclcompat/util/util_vectorized_max_test.cpp

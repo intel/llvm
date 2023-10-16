@@ -19,14 +19,18 @@ void init_array (int n)
 }
 
 
-// CHECK:  func @init_array(%arg0: i32)
-// CHECK-NEXT:    %cst = arith.constant 3.000000e+00 : f64
-// CHECK-NEXT:    %alloc = memref.alloc() : memref<20xf64>
-// CHECK-NEXT:    affine.store %cst, %alloc[2] : memref<20xf64>
-// CHECK-NEXT:    %cast = memref.cast %alloc : memref<20xf64> to memref<?xf64>
-// CHECK-NEXT:    call @use(%cast) : (memref<?xf64>) -> ()
-// CHECK-NEXT:    return
-// CHECK-NEXT:  }
+// CHECK-LABEL:   func.func @init_array(
+// CHECK-SAME:                          %[[VAL_0:.*]]: i32)
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 8 : i32
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 3.000000e+00 : f64
+// CHECK-NEXT:      %[[VAL_3:.*]] = arith.constant 20 : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = call @polybench_alloc_data(%[[VAL_3]], %[[VAL_1]]) : (i64, i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_4]][2] : (!llvm.ptr) -> !llvm.ptr, f64
+// CHECK-NEXT:      llvm.store %[[VAL_2]], %[[VAL_5]] : f64, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_4]]) : (!llvm.ptr) -> memref<?xf64>
+// CHECK-NEXT:      call @use(%[[VAL_6]]) : (memref<?xf64>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
 
-// FULLRANK: %[[VAL0:.*]] = memref.alloc() : memref<20xf64>
+// FULLRANK: %[[VAL0:.*]] = "polygeist.pointer2memref"(%{{.*}}) : (!llvm.ptr) -> memref<20xf64>
 // FULLRANK: call @use(%[[VAL0]]) : (memref<20xf64>) -> ()
