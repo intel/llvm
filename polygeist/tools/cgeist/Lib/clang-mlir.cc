@@ -757,15 +757,22 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     assert(Sub.val);
     Value Val = Sub.getValue(Builder);
 
-    if (!isa<IntegerType>(Val.getType())) {
-      U->dump();
-      Val.dump();
+    Type Ty = Val.getType();
+    TypedAttr AllOnesAttr;
+    if (isa<IntegerType>(Ty)) {
+      AllOnesAttr =
+          IntegerAttr::get(Ty, APInt::getAllOnes(Ty.getIntOrFloatBitWidth()));
+    } else if (auto VecTy = dyn_cast<VectorType>(Ty);
+               VecTy && isa<IntegerType>(VecTy.getElementType())) {
+      AllOnesAttr = DenseIntElementsAttr::get(
+          VecTy, APInt::getAllOnes(VecTy.getElementTypeBitWidth()));
+    } else {
+      llvm_unreachable("Bitwise 'not' is supported only on integers or vectors "
+                       "of integers.");
     }
 
-    auto Ty = cast<IntegerType>(Val.getType());
-    auto C1 = Builder.create<arith::ConstantIntOp>(
-        Loc, APInt::getAllOnes(Ty.getWidth()).getSExtValue(), Ty);
-    return ValueCategory(Builder.create<arith::XOrIOp>(Loc, Val, C1),
+    auto AllOnes = Builder.create<arith::ConstantOp>(Loc, Ty, AllOnesAttr);
+    return ValueCategory(Builder.create<arith::XOrIOp>(Loc, Val, AllOnes),
                          /*isReference*/ false);
   }
 
