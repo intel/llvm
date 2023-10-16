@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 

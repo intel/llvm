@@ -251,6 +251,18 @@ void elf::addReservedSymbols() {
   ElfSym::edata2 = add("_edata", -1);
 }
 
+// Fully static executables don't support MTE globals at this point in time, as
+// we currently rely on:
+//   - A dynamic loader to process relocations, and
+//   - Dynamic entries.
+// This restriction could be removed in future by re-using some of the ideas
+// that ifuncs use in fully static executables.
+bool elf::canHaveMemtagGlobals() {
+  return config->emachine == EM_AARCH64 &&
+         config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE &&
+         (config->relocatable || config->shared || needsInterpSection());
+}
+
 static OutputSection *findSection(StringRef name, unsigned partition = 1) {
   for (SectionCommand *cmd : script->sectionCommands)
     if (auto *osd = dyn_cast<OutputDesc>(cmd))
@@ -345,11 +357,7 @@ template <class ELFT> void elf::createSyntheticSections() {
         std::make_unique<SymbolTableSection<ELFT>>(*part.dynStrTab);
     part.dynamic = std::make_unique<DynamicSection<ELFT>>();
 
-    if (config->emachine == EM_AARCH64 &&
-        config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
-      if (!config->relocatable && !config->shared && !needsInterpSection())
-        error("--android-memtag-mode is incompatible with fully-static "
-              "executables (-static)");
+    if (canHaveMemtagGlobals()) {
       part.memtagAndroidNote = std::make_unique<MemtagAndroidNote>();
       add(*part.memtagAndroidNote);
       part.memtagDescriptors = std::make_unique<MemtagDescriptors>();
@@ -464,6 +472,11 @@ template <class ELFT> void elf::createSyntheticSections() {
         !script->hasSectionsCommand) || script->seenRelroEnd)) {
     in.relroPadding = std::make_unique<RelroPaddingSection>();
     add(*in.relroPadding);
+  }
+
+  if (config->emachine == EM_ARM) {
+    in.armCmseSGSection = std::make_unique<ArmCmseSGSection>();
+    add(*in.armCmseSGSection);
   }
 
   // _GLOBAL_OFFSET_TABLE_ is defined relative to either .got.plt or .got. Treat
@@ -607,6 +620,9 @@ template <class ELFT> void Writer<ELFT>::run() {
     if (auto e = buffer->commit())
       fatal("failed to write output '" + buffer->getPath() +
             "': " + toString(std::move(e)));
+
+    if (!config->cmseOutputLib.empty())
+      writeARMCmseImportLib<ELFT>();
   }
 }
 
@@ -1664,6 +1680,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
       changed |= a32p.createFixes();
     }
 
+    finalizeSynthetic(in.got.get());
     if (in.mipsGot)
       in.mipsGot->updateAllocSize();
 
@@ -2012,6 +2029,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
 
   removeUnusedSyntheticSections();
   script->diagnoseOrphanHandling();
+  script->diagnoseMissingSGSectionAddress();
 
   sortSections();
 
@@ -2163,6 +2181,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     // static symbol table.
     finalizeSynthetic(in.symTab.get());
     finalizeSynthetic(in.ppc64LongBranchTarget.get());
+    finalizeSynthetic(in.armCmseSGSection.get());
   }
 
   // Relaxation to delete inter-basic block jumps created by basic block
