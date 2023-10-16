@@ -203,6 +203,9 @@ public:
 }
 ----
 
+All constructors for `launch_config` are guaranteed to deduce the class
+template parameters.
+
 [NOTE]
 ====
 The template parameters for `launch_config` are currently unspecified, while we
