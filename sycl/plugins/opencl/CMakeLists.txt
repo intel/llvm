@@ -28,6 +28,7 @@ add_sycl_plugin(opencl
     "../unified_runtime/ur/adapters/opencl/enqueue.cpp"
     "../unified_runtime/ur/adapters/opencl/image.cpp"
     "../unified_runtime/ur/adapters/opencl/kernel.cpp"
+    "../unified_runtime/ur/adapters/opencl/physical_mem.cpp"
     "../unified_runtime/ur/adapters/opencl/platform.cpp"
     "../unified_runtime/ur/adapters/opencl/platform.hpp"
     "../unified_runtime/ur/adapters/opencl/sampler.cpp"
@@ -39,6 +40,7 @@ add_sycl_plugin(opencl
     "../unified_runtime/ur/adapters/opencl/command_buffer.hpp"
     "../unified_runtime/ur/adapters/opencl/command_buffer.cpp"
     "../unified_runtime/ur/adapters/opencl/usm_p2p.cpp"
+    "../unified_runtime/ur/adapters/opencl/virtual_mem.cpp"
     # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"

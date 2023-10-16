@@ -129,6 +129,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/opencl/image.cpp"
       "ur/adapters/opencl/kernel.cpp"
       "ur/adapters/opencl/memory.cpp"
+      "ur/adapters/opencl/physical_mem.cpp"
       "ur/adapters/opencl/platform.cpp"
       "ur/adapters/opencl/platform.hpp"
       "ur/adapters/opencl/program.cpp"
@@ -137,6 +138,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/opencl/ur_interface_loader.cpp"
       "ur/adapters/opencl/usm.cpp"
       "ur/adapters/opencl/usm_p2p.cpp"
+      "ur/adapters/opencl/virtual_mem.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
