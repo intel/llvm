@@ -82,6 +82,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/Passes/OptimizationLevel.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"

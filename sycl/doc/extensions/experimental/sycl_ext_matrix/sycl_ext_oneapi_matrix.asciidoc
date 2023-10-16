@@ -57,7 +57,8 @@ optional kernel features as defined in section 5.7 of the core SYCL
 specification.  Each device supports only certain values for the `M`,
 `N`, and `K` template parameters and only certain types for the `Ta`,
 `Tb`, and `Tc` template parameters. Applications can use the query API
-in `matrix_params` or `get_info<experimental::info::device::matrix>`
+in `matrix_params` or 
+`get_info<ext::oneapi::experimental::info::device::matrix_combinations>` 
 to determine the set of legal parameters for each device.  If the
 application submits a kernel using an unsupported `joint_matrix` type
 or calls `joint_matrix_mad` with an unsupported combination, the
@@ -317,18 +318,18 @@ void joint_matrix_fill(Group g, joint_matrix<Group, T, Use, Rows,
 namespace sycl::ext::oneapi::experimental::matrix {
 
 template <typename Group, typename T1, typename T2, size_t Rows,
-          size_t Cols, use Use1, use Use2, layout Layout> 
+          size_t Cols, use Use1, use Use2, layout Layout1, layout Layout2>
 void joint_matrix_copy(Group g,
-                       joint_matrix<Group, T1, Use1, Rows, Cols, Layout> &src,
-                       joint_matrix<Group, T2, Use2, Rows, Cols, Layout> &dest);
+                      joint_matrix<Group, T1, Use1, Rows, Cols, Layout1> &src,
+                      joint_matrix<Group, T2, Use2, Rows, Cols, Layout2> &dest);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 This function copies `Rows x Cols` elements of type `T1` from joint
 matrix `src` to `Rows x Cols` elements of type `T2` of joint matrix
-`dest`. The two matrices must have the same scope, shape, and
-layout. Use and type can be different so this function converts
-between different `use` of matrices.
+`dest`. The two matrices must have the same scope and shape. Use,
+type, and layout can be different so this function converts between
+different `use` of matrices.
 
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
@@ -814,7 +815,7 @@ each of these members has the value zero
 the combination. these are of type `matrix_type` which tells the list
 of types that are supported for the A, B, C, and D matrices in
 the `T` template parameter as follows: +
-`bf16`: `sycl::bfloat16` +
+`bf16`: `sycl::ext::oneapi::bfloat16` +
 `fp16`: `sycl::half` +
 `tf32`: `sycl::ext::oneapi::experimental::matrix::precision::tf32` +
 `fp32`: `float` +

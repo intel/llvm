@@ -1040,7 +1040,7 @@ constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
 
-  MC.mangleTypeName(KernelNameType, Out);
+  MC.mangleCanonicalTypeName(KernelNameType, Out);
   std::string MangledName(Out.str());
 
   std::string StableName =

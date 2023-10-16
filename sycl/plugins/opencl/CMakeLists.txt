@@ -12,9 +12,41 @@
 
 add_sycl_plugin(opencl
   SOURCES
+    # Some code is shared with the UR adapter
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/opencl/adapter.cpp"
+    "../unified_runtime/ur/adapters/opencl/adapter.hpp"
+    "../unified_runtime/ur/adapters/opencl/common.cpp"
+    "../unified_runtime/ur/adapters/opencl/common.hpp"
+    "../unified_runtime/ur/adapters/opencl/context.cpp"
+    "../unified_runtime/ur/adapters/opencl/context.hpp"
+    "../unified_runtime/ur/adapters/opencl/device.cpp"
+    "../unified_runtime/ur/adapters/opencl/device.hpp"
+    "../unified_runtime/ur/adapters/opencl/enqueue.cpp"
+    "../unified_runtime/ur/adapters/opencl/image.cpp"
+    "../unified_runtime/ur/adapters/opencl/kernel.cpp"
+    "../unified_runtime/ur/adapters/opencl/platform.cpp"
+    "../unified_runtime/ur/adapters/opencl/platform.hpp"
+    "../unified_runtime/ur/adapters/opencl/sampler.cpp"
+    "../unified_runtime/ur/adapters/opencl/memory.cpp"
+    "../unified_runtime/ur/adapters/opencl/usm.cpp"
+    "../unified_runtime/ur/adapters/opencl/program.cpp"
+    "../unified_runtime/ur/adapters/opencl/event.cpp"
+    "../unified_runtime/ur/adapters/opencl/queue.cpp"
+    "../unified_runtime/ur/adapters/opencl/command_buffer.hpp"
+    "../unified_runtime/ur/adapters/opencl/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/opencl/usm_p2p.cpp"
+    # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"
+  INCLUDE_DIRS
+    ${sycl_inc_dir}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES
+    UnifiedRuntime-Headers
     OpenCL-ICD
 )
 
