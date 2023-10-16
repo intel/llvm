@@ -1365,12 +1365,6 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool AssumeRef = false;
     auto SubType =
         getMLIRType(CT->getElementType(), &AssumeRef, /*AllowMerge*/ false);
-    if (MemRefABI && AllowMerge) {
-      assert(!AssumeRef);
-      if (ImplicitRef)
-        *ImplicitRef = true;
-      return mlir::MemRefType::get(2, SubType);
-    }
     mlir::Type Types[2] = {SubType, SubType};
     return mlir::LLVM::LLVMStructType::getLiteral(TheModule->getContext(),
                                                   Types);
