@@ -426,6 +426,7 @@ and not recommended to use in production environment.
     "stateless" memory accesses.
 
 **`-ftarget-compile-fast`** [EXPERIMENTAL]
+
     Instructs the target backend to reduce compilation time, potentially
     at the cost of runtime performance. Currently only supported on Intel GPUs.
 
@@ -435,6 +436,13 @@ and not recommended to use in production environment.
     visibility to other modules.
 
     NOTE: This flag is only supported for spir64_gen AOT targets.
+
+**`-ftarget-register-alloc-mode=<arg>`**
+
+    Specify a register allocation mode for specific hardware for use by supported
+    target backends. The format of the argument is "Device0:Mode0[,Device1:Mode1...]".
+    Currently the only supported Device is "pvc". The supported modes are
+    "default","small","large", and "auto".
 
 # Example: SYCL device code compilation
 
