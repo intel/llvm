@@ -55,7 +55,7 @@ specification.*
 == Backend support status
 
 The APIs in this extension may be used only on a device that has one or more of
-the <<ext-aspects,extension aspects>>. The application must check that the
+the xref:ext-aspects[extension aspects]. The application must check that the
 device has this aspect before submitting a kernel using any of the APIs in this
 extension. If the application fails to do this, the implementation throws a
 synchronous exception with the `errc::kernel_not_supported` error code when the
