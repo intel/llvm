@@ -313,7 +313,7 @@ template <typename KernelName, typename ExecutorType, typename KernelType, typen
 void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::handler`, and
-`LaunchConfig` is `launch_config`.
+`LaunchConfig` is convertible to `launch_config`.
 
 _Effects_: Enqueues a single task to the executor `ex` with the specified
 launch configuration.
@@ -337,7 +337,7 @@ template <typename KernelName, typename ExecutorType, typename KernelType, typen
 void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::queue`, and
-`LaunchConfig` is `launch_config`.
+`LaunchConfig` is convertible to `launch_config`.
 
 _Effects_: Enqueues a single task to the executor `ex` with the specified
 launch configuration. The command will not execute until each of the events in
@@ -379,8 +379,8 @@ template <typename KernelName, typename ExecutorType, typename LaunchConfig, typ
 void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::queue`,
-`LaunchConfig` is `launch_config`, and the launch configuration was constructed
-from a `sycl::range`.
+`LaunchConfig` is convertible to `launch_config`, and the constructed launch
+configuration is associated with a `sycl::range`.
 
 _Effects_: Enqueues a basic kernel to the executor `ex` with the specified
 launch configuration. The command will not execute until each of the events in
@@ -409,8 +409,8 @@ template <typename KernelName, typename ExecutorType, typename LaunchConfig, typ
 void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::handler`,
-`LaunchConfig` is `launch_config`, and the launch configuration was constructed
-from a `sycl::nd_range`.
+`LaunchConfig` is convertible to `launch_config`, and the constructed launch
+configuration is associated with a `sycl::nd_range`.
 
 _Effects_: Enqueues an ND-range kernel to the executor `ex` with the specified
 launch configuration.
@@ -422,8 +422,8 @@ template <typename KernelName, typename ExecutorType, typename LaunchConfig, typ
 void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
 ----
 _Constraints_: Available only if `ExecutorType` is `sycl::queue`,
-`LaunchConfig` is `launch_config`, and the launch configuration was constructed
-from a `sycl::nd_range`.
+`LaunchConfig` is convertible to `launch_config`, and the constructed launch
+configuration is assocaited with a `sycl::nd_range`.
 
 _Effects_: Enqueues an ND-range kernel to the executor `ex` with the specified
 launch configuration. The command will not execute until each of the events in
