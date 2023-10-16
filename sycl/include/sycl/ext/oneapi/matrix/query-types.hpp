@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
+#include <sycl/ext/oneapi/bfloat16.hpp>                    // for bfloat16
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for tf32
 
 namespace sycl {
