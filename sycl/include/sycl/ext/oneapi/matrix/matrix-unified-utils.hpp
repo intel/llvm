@@ -45,7 +45,7 @@ convertMatrixUseToString(ext::oneapi::experimental::matrix::use Use) {
       {ext::oneapi::experimental::matrix::use::accumulator, "use::accumulator"},
   };
 
-  for (const auto &Item : UseToStringMap) {
+  for (const auto &Item : UseToUseStringMap) {
     if (Item.first == Use)
       return Item.second;
   }
