@@ -121,7 +121,7 @@ enum class aspect {
 }
 ----
 
-If a SYCL device has these aspects that device supports the non-uniform groups
+If a SYCL device has these aspects, that device supports the non-uniform groups
 as follows:
 
 [%header,cols="2,3"]
