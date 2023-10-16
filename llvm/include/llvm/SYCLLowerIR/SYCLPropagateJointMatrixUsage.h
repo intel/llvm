@@ -22,7 +22,6 @@ namespace llvm {
 class SYCLPropagateJointMatrixUsagePass
     : public PassInfoMixin<SYCLPropagateJointMatrixUsagePass> {
 public:
-  SYCLPropagateJointMatrixUsagePass(){};
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 

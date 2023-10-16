@@ -21,6 +21,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 
@@ -75,7 +76,7 @@ void fillCallGraph(Function *F, CallGraphTy &CG) {
   }
 }
 
-using JointMatrixValuesSetTy = std::set<std::string>;
+using JointMatrixValuesSetTy = std::set<SmallString<24>>;
 using FunctionToJointMatrixValuesMapTy =
     DenseMap<Function *, JointMatrixValuesSetTy>;
 
@@ -86,25 +87,26 @@ void fillFunctionToJointMatrixValuesMap(
     FunctionToJointMatrixValuesMapTy &FunctionToJointMatrixValues) {
   // assume we have other sycl-joint-matrix-* attributes if
   // sycl-joint-matrix-type is present
-  if (F->hasFnAttribute("sycl-joint-matrix-type")) {
-    std::string Result;
-    // NB! The order of attributes must not change as it is used later in SYCL
-    // RT
-    // The order is:
-    //   - sycl-joint-matrix-type
-    //   - sycl-joint-matrix-use
-    //   - sycl-joint-matrix-rows
-    //   - sycl-joint-matrix-cols
-    // NB! Values must be separated with a comma
-    Result += F->getFnAttribute("sycl-joint-matrix-type").getValueAsString();
-    Result += ",";
-    Result += F->getFnAttribute("sycl-joint-matrix-use").getValueAsString();
-    Result += ",";
-    Result += F->getFnAttribute("sycl-joint-matrix-rows").getValueAsString();
-    Result += ",";
-    Result += F->getFnAttribute("sycl-joint-matrix-cols").getValueAsString();
-    FunctionToJointMatrixValues[F].insert(Result);
-  }
+  if (!F->hasFnAttribute("sycl-joint-matrix-type"))
+    return;
+
+  SmallString<24> Result;
+  // NB! The order of attributes must not change as it is used later in SYCL
+  // RT
+  // The order is:
+  //   - sycl-joint-matrix-type
+  //   - sycl-joint-matrix-use
+  //   - sycl-joint-matrix-rows
+  //   - sycl-joint-matrix-cols
+  // NB! Values must be separated with a comma
+  Result += F->getFnAttribute("sycl-joint-matrix-type").getValueAsString();
+  Result += ",";
+  Result += F->getFnAttribute("sycl-joint-matrix-use").getValueAsString();
+  Result += ",";
+  Result += F->getFnAttribute("sycl-joint-matrix-rows").getValueAsString();
+  Result += ",";
+  Result += F->getFnAttribute("sycl-joint-matrix-cols").getValueAsString();
+  FunctionToJointMatrixValues[F].insert(Result);
 }
 
 /// Creates mapping between a function and an information about matrix types and
@@ -115,37 +117,38 @@ void fillFunctionToJointMatrixMapValuesMap(
     FunctionToJointMatrixValuesMapTy &FunctionToJointMatrixMapValues) {
   // assume we have other sycl-joint-matrix-mad-* attributes if
   // sycl-joint-matrix-mad-type-A is present
-  if (F->hasFnAttribute("sycl-joint-matrix-mad-type-A")) {
-    std::string Result;
-    // NB! The order of attributes must not change as it is used later in SYCL
-    // RT
-    // The order is:
-    //   - sycl-joint-matrix-mad-type-A
-    //   - sycl-joint-matrix-mad-type-B
-    //   - sycl-joint-matrix-mad-type-C
-    //   - sycl-joint-matrix-mad-size-M
-    //   - sycl-joint-matrix-mad-size-K
-    //   - sycl-joint-matrix-mad-size-N
-    // NB! Values must be separated with a comma
-    Result +=
-        F->getFnAttribute("sycl-joint-matrix-mad-type-A").getValueAsString();
-    Result += ",";
-    Result +=
-        F->getFnAttribute("sycl-joint-matrix-mad-type-B").getValueAsString();
-    Result += ",";
-    Result +=
-        F->getFnAttribute("sycl-joint-matrix-mad-type-C").getValueAsString();
-    Result += ",";
-    Result +=
-        F->getFnAttribute("sycl-joint-matrix-mad-size-M").getValueAsString();
-    Result += ",";
-    Result +=
-        F->getFnAttribute("sycl-joint-matrix-mad-size-K").getValueAsString();
-    Result += ",";
-    Result +=
-        F->getFnAttribute("sycl-joint-matrix-mad-size-N").getValueAsString();
-    FunctionToJointMatrixMapValues[F].insert(Result);
-  }
+  if (!F->hasFnAttribute("sycl-joint-matrix-mad-type-A"))
+    return;
+
+  SmallString<24> Result;
+  // NB! The order of attributes must not change as it is used later in SYCL
+  // RT
+  // The order is:
+  //   - sycl-joint-matrix-mad-type-A
+  //   - sycl-joint-matrix-mad-type-B
+  //   - sycl-joint-matrix-mad-type-C
+  //   - sycl-joint-matrix-mad-size-M
+  //   - sycl-joint-matrix-mad-size-K
+  //   - sycl-joint-matrix-mad-size-N
+  // NB! Values must be separated with a comma
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-type-A").getValueAsString();
+  Result += ",";
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-type-B").getValueAsString();
+  Result += ",";
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-type-C").getValueAsString();
+  Result += ",";
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-size-M").getValueAsString();
+  Result += ",";
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-size-K").getValueAsString();
+  Result += ",";
+  Result +=
+      F->getFnAttribute("sycl-joint-matrix-mad-size-N").getValueAsString();
+  FunctionToJointMatrixMapValues[F].insert(Result);
 }
 
 /// Propagates joint matrix values from leaves up to the top of call graph.
@@ -183,11 +186,10 @@ void propagateJointMatrixValuesThroughCG(
                                            LocalJointMatrixMadValues.end());
 }
 
-void setSyclJointMatrixMetadata(std::string MetadataName, Module *M,
-                                Function *F,
+void setSyclJointMatrixMetadata(StringRef MetadataName, Module *M, Function *F,
                                 FunctionToJointMatrixValuesMapTy ValuesMap) {
   JointMatrixValuesSetTy Values = ValuesMap[F];
-  std::string StringValue;
+  SmallString<256> StringValue;
   for (auto it = Values.begin(); it != Values.end(); it++) {
     StringValue += *it;
     // NB! Each information about joint_matrix type and joint_matrix_mad
@@ -195,11 +197,12 @@ void setSyclJointMatrixMetadata(std::string MetadataName, Module *M,
     if (std::next(it) != Values.end())
       StringValue += ";";
   }
-  if (!StringValue.empty()) {
-    MDString *MDStringValue = MDString::get(M->getContext(), StringValue);
-    MDNode *MDN = MDNode::get(M->getContext(), MDStringValue);
-    F->setMetadata(MetadataName, MDN);
-  }
+  if (StringValue.empty())
+    return;
+
+  MDString *MDStringValue = MDString::get(M->getContext(), StringValue);
+  MDNode *MDN = MDNode::get(M->getContext(), MDStringValue);
+  F->setMetadata(MetadataName, MDN);
 }
 
 } // anonymous namespace

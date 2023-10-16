@@ -73,7 +73,7 @@ template <typename T> constexpr const char *convertTypeToMatrixTypeString() {
     return "matrix_type::uint32";
   else if (std::is_same_v<T, uint64_t>)
     return "matrix_type::uint64";
-  return "unsupported-type";
+  return "";
 }
 } // namespace detail
 

@@ -25,13 +25,19 @@ class tf32 {
 } // namespace precision
 
 namespace detail {
+using UseToStringPair = std::pair<use, const char *>;
+
 constexpr const char *convertMatrixUseToString(use Use) {
-  if (Use == use::a)
-    return "use::a";
-  else if (Use == use::b)
-    return "use::b";
-  else if (Use == use::accumulator)
-    return "use::accumulator";
+  constexpr UseToStringPair UseToStringMap[] = {
+      {use::a, "use::a"},
+      {use::b, "use::b"},
+      {use::accumulator, "use::accumulator"},
+  };
+
+  for (const auto &Item : UseToStringMap) {
+    if (Item.first == Use)
+      return Item.second;
+  }
   return "";
 }
 } // namespace detail
