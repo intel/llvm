@@ -11,6 +11,8 @@ entry:
 ; CHECK-NOT: @llvm.nvvm.implicit.offset()
 ; CHECK-NOT: getelementptr
 ; CHECK-NOT: load
+; CHECK: [[REG:%[0-9]+]] = zext i{{[0-9]+}} 0 to i{{[0-9]+}}
+; CHECK: ret i{{[0-9]+}} [[REG]]
   %0 = tail call ptr @llvm.nvvm.implicit.offset()
   %1 = getelementptr inbounds i32, ptr %0, i64 1
   %2 = load i32, ptr %1, align 4

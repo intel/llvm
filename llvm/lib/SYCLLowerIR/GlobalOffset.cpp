@@ -59,6 +59,19 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
+void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
+              SmallVectorImpl<LoadInst *> &Loads) {
+  Traversed.push_back(P);
+  auto *L = dyn_cast<LoadInst>(P);
+  if (L)
+    Loads.push_back(L);
+  else {
+    assert(isa<GetElementPtrInst>(*P));
+    for (Value *V : P->users())
+      getLoads(cast<Instruction>(V), Traversed, Loads);
+  }
+}
+
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   AT = TargetHelpers::getArchType(M);
@@ -75,24 +88,10 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     SmallVector<LoadInst *, 4> LI;
     SmallVector<Instruction *, 4> PtrUses;
 
-    std::function<void(Instruction *)> getLoads = [&](Instruction *P) {
-      PtrUses.push_back(P);
-      if (isa<LoadInst>(*P))
-        LI.push_back(cast<LoadInst>(P));
-      else {
-        for (Value *V : P->users()) {
-          assert(isa<GetElementPtrInst>(*V) || isa<LoadInst>(*V));
-          getLoads(cast<Instruction>(V));
-        }
-      }
-    };
     for (Value *V : ImplicitOffsetIntrinsic->users()) {
-      assert(isa<CallInst>(*V));
       Worklist.push_back(cast<CallInst>(V));
-      for (Value *V2 : V->users()) {
-        assert(isa<LoadInst>(*V2) || isa<GetElementPtrInst>(*V2));
-        getLoads(cast<Instruction>(V2));
-      }
+      for (Value *V2 : V->users())
+        getLoads(cast<Instruction>(V2), PtrUses, LI);
     }
     for (LoadInst *L : LI)
       L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
@@ -101,7 +100,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
       I->eraseFromParent();
 
     for (CallInst *CI : Worklist) {
-      Instruction *I = cast<Instruction>(CI);
+      auto *I = cast<Instruction>(CI);
       I->eraseFromParent();
     }
   } else {
@@ -126,10 +125,10 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
 
     // Add implicit parameters to all direct and indirect users of the offset
     addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
-
-    // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
-    // it.
   }
+
+  // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
+  // it.
   assert(ImplicitOffsetIntrinsic->use_empty() &&
          "Not all uses of intrinsic removed");
   ImplicitOffsetIntrinsic->eraseFromParent();
