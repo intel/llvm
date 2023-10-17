@@ -123,16 +123,12 @@ public:
     /// encapsulated in a function
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    std::cout << "queue_impl: " << NotificationTraceType << std::endl;
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
                             SYCL_STREAM_NAME, "queue_create");
     // Cache the trace event, stream id and instance IDs for the destructor
     if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
                               NotificationTraceType)) {
-    std::cout << "enabled: " << NotificationTraceType << std::endl;
-
       MTraceEvent = (void *)PrepareNotify.traceEvent();
-      std::cout << "MTraceEvent "<< MTraceEvent << std::endl; 
       MStreamID = PrepareNotify.streamID();
       MInstanceID = PrepareNotify.instanceID();
       // Add the function to capture meta data for the XPTI trace event

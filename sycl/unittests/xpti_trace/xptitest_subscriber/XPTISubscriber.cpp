@@ -23,6 +23,10 @@ XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t TraceType) {
   GAnalyzedTraceTypes.insert(TraceType);
 }
 
+XPTI_CALLBACK_API void clearAnalyzedTraceTypes() {
+  GAnalyzedTraceTypes.clear();
+}
+
 XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t * /*Parent*/,
                                     xpti::trace_event_data_t *Event,
