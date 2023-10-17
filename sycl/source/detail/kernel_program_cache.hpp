@@ -73,6 +73,10 @@ public:
   };
 
   using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
+  /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
+   * when debugging environment variables are set and we can just ignore them
+   * since all kernels will have their build options overridden with the same
+   * string*/
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      sycl::detail::pi::PiDevice>;
   using CommonProgramKeyT =
