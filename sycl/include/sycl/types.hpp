@@ -1660,15 +1660,15 @@ public:
 #endif
   }
 
-  vec<rel_t, NumElements> operator!() const {
+  template <typename T = DataT, int N = NumElements>
+  vec<T, N> operator!() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec<rel_t, NumElements>{
-        (typename vec<rel_t, NumElements>::DataType) !m_Data};
+    return vec<T, N>{(typename vec<T, N>::DataType) !m_Data};
 #else
-    vec<rel_t, NumElements> Ret{};
-    for (size_t I = 0; I < NumElements; ++I) {
+    vec<T, N> Ret{};
+    for (size_t I = 0; I < N; ++I) {
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
     }
     return Ret;
