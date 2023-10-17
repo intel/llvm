@@ -509,19 +509,6 @@ a compile error if `PropertyListT` does not contain a property with the
 Available only if `propertyT` is the property key class of a compile-time
 constant property.
 
-|===
-
-Free functions of the following form are defined for the overloaded operators for
-types `annotated_arg<T, ...>` and `annotated_arg<T2, ...>`. Let `operatorOP` denote
-the operator used. The overloaded operator `operatorOP` utilizes `operatorOP(T2)`
-of type `T` and is available only if `operatorOP(T2)` is valid for objects of type `T`.
-The value and result is the same as the result of `operatorOP(T2)` applied to the
-objects of type `T` and `T2`.
-
-[frame="topbot",options="header"]
-|===
-|Function |Description
-
 a|
 [source,c++]
 ----
@@ -529,20 +516,16 @@ template <typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() OP std::declval<T2>())>
 R operatorOP(const annotated_arg<T2, PropertyList2> &other) const;
 ----
-a|
+|
+Defines the overloaded operators for types `annotated_arg<T, ...>` and
+`annotated_arg<T2, ...>`. Let `operatorOP` denote the operator used.
+The overloaded operator `operatorOP` utilizes `operatorOP(T2)` of type `T`
+and is available only if `operatorOP(T2)` is valid for objects of type `T`.
+The value and result is the same as the result of `operatorOP(T2)` applied to the
+objects of type `T` and `T2`.
 
-`operatorOP` can be any of the following:
-
-* `operator+`
-* `operator-`
-* `operator*`
-* `operator/`
-* `operator%`
-* `operator&`
-* `operator\|`
-* `operator^`
-* `operator>>`
-* `operator<<`
+`operatorOP` is any of the following: `operator+`, `operator-`, `operator*`, `operator/`,
+`operator%`, `operator&`, `operator\|`, `operator^`, `operator>>`, and `operator<<`.
 
 |===
 
@@ -553,11 +536,6 @@ if `operatorOP(T, T2)` is valid for objects of type `T` and `T2`. The value and 
 is the same as the result of `operatorOP(T, T2)` applied to the underlying objects of
 type `T` and `T2`.
 
-[frame="topbot",options="header"]
-|===
-|Function |Description
-
-a|
 [source,c++]
 ----
 template <typename T, typename PropertyList, typename T2,
@@ -567,23 +545,9 @@ template <typename T, typename T2, typename PropertyList2,
           typename R = decltype(std::declval<T>() OP std::declval<T2>())>
 R operatorOP(const T &a, const annotated_arg<T2, PropertyList2> &b);
 ----
-a|
 
-`operatorOP` can be any of the following:
-
-* `operator+`
-* `operator-`
-* `operator*`
-* `operator/`
-* `operator%`
-* `operator&`
-* `operator\|`
-* `operator^`
-* `operator>>`
-* `operator<<`
-
-|===
-
+`operatorOP` is any of the following: `operator+`, `operator-`, `operator*`, `operator/`,
+`operator%`, `operator&`, `operator\|`, `operator^`, `operator>>`, and `operator<<`.
 
 == Issues
 
