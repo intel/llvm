@@ -350,9 +350,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
     return mapCLErrorToUR(CLErr);
   }
 
-  clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
+  cl_ext::clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
   ur_result_t RetVal =
-      cl_ext::getExtFuncFromContext<clEnqueueReadHostPipeINTEL_fn>(
+      cl_ext::getExtFuncFromContext<cl_ext::clEnqueueReadHostPipeINTEL_fn>(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueReadHostPipeINTELCache,
           cl_ext::EnqueueReadHostPipeName, &FuncPtr);
 
@@ -382,9 +382,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     return mapCLErrorToUR(CLErr);
   }
 
-  clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
+  cl_ext::clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
   ur_result_t RetVal =
-      cl_ext::getExtFuncFromContext<clEnqueueWriteHostPipeINTEL_fn>(
+      cl_ext::getExtFuncFromContext<cl_ext::clEnqueueWriteHostPipeINTEL_fn>(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueWriteHostPipeINTELCache,
           cl_ext::EnqueueWriteHostPipeName, &FuncPtr);
 
