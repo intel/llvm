@@ -107,7 +107,7 @@ inline constexpr bool is_accessor_with_v =
 
 template <typename T, accessor_mode_cap_val_t Capability, typename RetT>
 using EnableIfAccessor =
-    std::enable_if_t<detail::is_accessor_with_v<T, Capability>, RetT>;
+    std::enable_if_t<detail::is_device_accessor_with_v<T, Capability>, RetT>;
 
 template <typename T, int Dimensions>
 __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
