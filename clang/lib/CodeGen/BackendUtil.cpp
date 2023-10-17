@@ -43,6 +43,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
@@ -1127,6 +1128,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       if (LangOpts.SYCLIsNativeCPU) {
         MPM.addPass(PrepareSYCLNativeCPUPass());
       }
+
+      // Remove SYCL metadata added by the frontend, like sycl_aspects
+      // Note, this pass should be at the end of the pipeline
+      MPM.addPass(CleanupSYCLMetadataPass());
     }
   }
 

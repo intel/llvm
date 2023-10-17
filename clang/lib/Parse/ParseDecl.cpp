@@ -4039,11 +4039,11 @@ void Parser::ParseDeclarationSpecifiers(
       isStorageClass = true;
       break;
     case tok::kw_auto:
-      if (getLangOpts().CPlusPlus11) {
+      if (getLangOpts().CPlusPlus11 || getLangOpts().C23) {
         if (isKnownToBeTypeSpecifier(GetLookAheadToken(1))) {
           isInvalid = DS.SetStorageClassSpec(Actions, DeclSpec::SCS_auto, Loc,
                                              PrevSpec, DiagID, Policy);
-          if (!isInvalid)
+          if (!isInvalid && !getLangOpts().C23)
             Diag(Tok, diag::ext_auto_storage_class)
               << FixItHint::CreateRemoval(DS.getStorageClassSpecLoc());
         } else

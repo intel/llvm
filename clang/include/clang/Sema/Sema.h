@@ -5066,8 +5066,6 @@ public:
   bool CheckAlwaysInlineAttr(const Stmt *OrigSt, const Stmt *CurSt,
                              const AttributeCommonInfo &A);
 
-  bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
-
   /// Adjust the calling convention of a method to be the ABI default if it
   /// wasn't specified explicitly.  This handles method types formed from
   /// function type typedefs and typename template arguments.
@@ -8730,9 +8728,9 @@ public:
                                          SourceLocation PrevPtOfInstantiation,
                                          bool &SuppressNew);
 
-  bool CheckDependentFunctionTemplateSpecialization(FunctionDecl *FD,
-                    const TemplateArgumentListInfo &ExplicitTemplateArgs,
-                                                    LookupResult &Previous);
+  bool CheckDependentFunctionTemplateSpecialization(
+      FunctionDecl *FD, const TemplateArgumentListInfo *ExplicitTemplateArgs,
+      LookupResult &Previous);
 
   bool CheckFunctionTemplateSpecialization(
       FunctionDecl *FD, TemplateArgumentListInfo *ExplicitTemplateArgs,
@@ -12897,6 +12895,10 @@ public:
                                          SourceLocation StartLoc,
                                          SourceLocation LParenLoc,
                                          SourceLocation EndLoc);
+
+  /// Called on a well-formed 'ompx_bare' clause.
+  OMPClause *ActOnOpenMPXBareClause(SourceLocation StartLoc,
+                                    SourceLocation EndLoc);
 
   /// The kind of conversion being performed.
   enum CheckedConversionKind {
