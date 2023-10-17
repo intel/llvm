@@ -58,8 +58,8 @@ Tc matrix_ref_mn(const int &m, const int &n, Tm *A, Tm *B, Tc *C) {
   return res;
 }
 
-template <typename Tm, typename Tc, typename Td, size_t Sub_Tiles_M, size_t Sub_Tiles_K,
-          size_t Sub_Tiles_N, size_t M, size_t K, size_t N,
+template <typename Tm, typename Tc, typename Td, size_t Sub_Tiles_M,
+          size_t Sub_Tiles_K, size_t Sub_Tiles_N, size_t M, size_t K, size_t N,
           typename T3 = std::remove_const_t<Tm>>
 void test(queue &q) {
   // total number of M dimension matrix elements for the "Big matrix".
@@ -124,8 +124,7 @@ void test(queue &q) {
       accessor<Tm, 1, access::mode::read, target::device> accA(bufA, cgh);
       accessor<Tm, 1, access::mode::read, target::device> accB(bufB, cgh);
       accessor<Tc, 1, access::mode::read, target::device> accC(bufC, cgh);
-      accessor<Td, 1, access::mode::write, target::device>
-          accD(bufD, cgh);
+      accessor<Td, 1, access::mode::write, target::device> accD(bufD, cgh);
 
       range<2> LocalRange = {1, N_THREADS_PER_MATRIX_OP};
       range<2> GlobalRange = {Sub_Tiles_M,
@@ -146,9 +145,7 @@ void test(queue &q) {
             joint_matrix<sycl::sub_group, std::remove_const_t<Tc>,
                          use::accumulator, M, N>
                 sub_c;
-            joint_matrix<sycl::sub_group, Td,
-                         use::accumulator, M, N>
-                sub_d;
+            joint_matrix<sycl::sub_group, Td, use::accumulator, M, N> sub_d;
 
             joint_matrix_load(
                 sg, sub_c,

@@ -363,49 +363,45 @@ void store_layoutT(
     multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
   if constexpr (NumRows == 16 && NumCols == 16) {
     if constexpr (std::is_same_v<T, float>) {
-      __hmma_m16n16k16_st_c_f32(dst.get(),
-                                &src.wi_marray[0],
-                                stride, get_layout_id<Layout>());
+      __hmma_m16n16k16_st_c_f32(dst.get(), &src.wi_marray[0], stride,
+                                get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      __imma_m16n16k16_st_c_i32(dst.get(),
-                                &src.wi_marray[0],
-                                stride, get_layout_id<Layout>());
+      __imma_m16n16k16_st_c_i32(dst.get(), &src.wi_marray[0], stride,
+                                get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
-      __hmma_m16n16k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
-                                reinterpret_cast<const int32_t *>(&src.wi_marray[0]),
-                                stride, get_layout_id<Layout>());
+      __hmma_m16n16k16_st_c_f16(
+          reinterpret_cast<int32_t *>(dst.get()),
+          reinterpret_cast<const int32_t *>(&src.wi_marray[0]), stride,
+          get_layout_id<Layout>());
     }
   } else if constexpr (NumRows == 8 && NumCols == 32) {
     if constexpr (std::is_same_v<T, float>) {
-      __hmma_m8n32k16_st_c_f32(dst.get(),
-                               &src.wi_marray[0],
-                               stride, get_layout_id<Layout>());
+      __hmma_m8n32k16_st_c_f32(dst.get(), &src.wi_marray[0], stride,
+                               get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      __imma_m8n32k16_st_c_i32(dst.get(),
-                               &src.wi_marray[0],
-                               stride, get_layout_id<Layout>());
+      __imma_m8n32k16_st_c_i32(dst.get(), &src.wi_marray[0], stride,
+                               get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
-      __hmma_m8n32k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
-                               reinterpret_cast<const int32_t *>(&src.wi_marray[0]),
-                               stride, get_layout_id<Layout>());
+      __hmma_m8n32k16_st_c_f16(
+          reinterpret_cast<int32_t *>(dst.get()),
+          reinterpret_cast<const int32_t *>(&src.wi_marray[0]), stride,
+          get_layout_id<Layout>());
     }
   } else if constexpr (NumRows == 32 && NumCols == 8) {
     if constexpr (std::is_same_v<T, float>) {
-      __hmma_m32n8k16_st_c_f32(dst.get(),
-                               &src.wi_marray[0],
-                               stride, get_layout_id<Layout>());
+      __hmma_m32n8k16_st_c_f32(dst.get(), &src.wi_marray[0], stride,
+                               get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, int32_t>) {
-      __imma_m32n8k16_st_c_i32(dst.get(),
-                               &src.wi_marray[0],
-                               stride, get_layout_id<Layout>());
+      __imma_m32n8k16_st_c_i32(dst.get(), &src.wi_marray[0], stride,
+                               get_layout_id<Layout>());
     } else if constexpr (std::is_same_v<T, half>) {
-      __hmma_m32n8k16_st_c_f16(reinterpret_cast<int32_t *>(dst.get()),
-                               reinterpret_cast<const int32_t *>(&src.wi_marray[0]),
-                               stride, get_layout_id<Layout>());
+      __hmma_m32n8k16_st_c_f16(
+          reinterpret_cast<int32_t *>(dst.get()),
+          reinterpret_cast<const int32_t *>(&src.wi_marray[0]), stride,
+          get_layout_id<Layout>());
     }
   } else if constexpr (std::is_same_v<T, double>) {
-    __dmma_m8n8k4_st_c_f64(dst.get(),
-                           &src.wi_marray[0], stride,
+    __dmma_m8n8k4_st_c_f64(dst.get(), &src.wi_marray[0], stride,
                            get_layout_id<Layout>());
   }
 }

@@ -23,46 +23,62 @@ int main() {
 
   if (computeCapability >= 7.0) {
     // A/B half, Accumulator float
-    test<half, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
-    test<half, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
-    test<half, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
+    test<half, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(
+        Q);
+    test<half, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(
+        Q);
+    test<half, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(
+        Q);
 
-    test<const half, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16,
-         16>(Q);
-    test<const half, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16,
-         32>(Q);
-    test<const half, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16,
-         8>(Q);
+    test<const half, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
+         16, 16, 16>(Q);
+    test<const half, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
+         8, 16, 32>(Q);
+    test<const half, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
+         32, 16, 8>(Q);
 
     // A/B/Accumulator half
-    test<half, half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
+    test<half, half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(
+        Q);
     test<half, half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
     test<half, half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
 
-    test<const half, const half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16,
-         16>(Q);
-    test<const half, const half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16,
-         32>(Q);
-    test<const half, const half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16,
-         8>(Q);
+    test<const half, const half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
+         16, 16, 16>(Q);
+    test<const half, const half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8,
+         16, 32>(Q);
+    test<const half, const half, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
+         32, 16, 8>(Q);
 
     // A/B/D half, C float
-    test<half, float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
-    test<half, float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
-    test<half, float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
+    test<half, float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(
+        Q);
+    test<half, float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(
+        Q);
+    test<half, float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(
+        Q);
 
-    test<half, const float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
-    test<half, const float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
-    test<half, const float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
+    test<half, const float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16,
+         16>(Q);
+    test<half, const float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16,
+         32>(Q);
+    test<half, const float, half, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16,
+         8>(Q);
 
     // A/B/C half, D float
-    test<half, half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
-    test<half, half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
-    test<half, half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
+    test<half, half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(
+        Q);
+    test<half, half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(
+        Q);
+    test<half, half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(
+        Q);
 
-    test<half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>(Q);
-    test<half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>(Q);
-    test<half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>(Q);
+    test<half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16,
+         16>(Q);
+    test<half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16,
+         32>(Q);
+    test<half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16,
+         8>(Q);
 
     auto apply_add = [](auto &x) { x = x + 2; };
     float D[MATRIX_M][MATRIX_N];
