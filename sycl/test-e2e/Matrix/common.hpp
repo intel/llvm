@@ -71,9 +71,9 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
 
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
-      if (std::is_same_v<T, bfloat16> || std::is_same_v<T, float>) {
+      if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float>) {
         src[i * cols + j] = T(fdistr(dev));
-      } else if (std::is_same_v<T, int8_t> || std::is_same_v<T, int32_t>) {
+      } else if constexpr (std::is_same_v<T, int8_t> || std::is_same_v<T, int32_t>) {
         src[i * cols + j] = T(idistr(dev));
       } else {
         assert(false && "Unsupported type in matrix_rand.");
