@@ -1,3 +1,5 @@
+#include <cmath>
+#include <iostream>
 #include <random>
 #include <sycl/sycl.hpp>
 
@@ -23,14 +25,17 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-void matrix_multiply_ref(bfloat16 *A, bfloat16 *B, float *C, int MATRIX_M,
-                         int MATRIX_N, int MATRIX_K, bool transpose_c = false) {
-  for (unsigned int i = 0; i < MATRIX_M; i++) {
-    for (unsigned int k = 0; k < MATRIX_K; k++) {
-      for (unsigned int j = 0; j < MATRIX_N; j++) {
-        int c_ind = transpose_c ? (j * MATRIX_M + i) : i * MATRIX_N + j;
-        C[c_ind] +=
-            make_fp32(A[i * MATRIX_K + k]) * make_fp32(B[k * MATRIX_N + j]);
+template <typename Ta, typename Tc>
+void matrix_multiply_ref(Ta *A, Ta *B, Tc *C, int M, int N, int K,
+                         bool transpose_c = false) {
+  for (unsigned int m = 0; m < M; m++) {
+    for (unsigned int n = 0; n < N; n++) {
+      for (unsigned int k = 0; k < K; k++) {
+        int c_ind = transpose_c ? (n * M + m) : m * N + n;
+        if (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>)
+          C[c_ind] += make_fp32(A[m * K + k]) * make_fp32(B[k * N + n]);
+        if (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>)
+          C[c_ind] += A[m * K + k] * B[k * N + n];
       }
     }
   }
@@ -72,13 +77,24 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
 
 template <typename T1, typename T2>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
-  bool res = true;
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if ((fabs(src[i * cols + j] - (T1)ref[i * cols + j])) > BF16_EPSILON) {
-        res = false;
+      if constexpr (std::is_same_v<T1, float> || std::is_same_v<T1, bfloat16>) {
+        if (std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]) >
+            BF16_EPSILON) {
+          std::cout << "Incorrect result in matrix\n";
+          return false;
+        }
+      } else if (std::is_same_v<T1, int32_t>) {
+        if (src[i * cols + j] != ref[i * cols + j]) {
+          std::cout << "Incorrect result in matrix\n";
+          return false;
+        }
+      } else {
+        std::cout << "Unsupported type in matrix_compare\n";
+        return false;
       }
     }
   }
-  return res;
+  return true;
 }
