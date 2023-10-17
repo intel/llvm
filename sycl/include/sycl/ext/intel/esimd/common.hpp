@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/native/common.hpp>
 
