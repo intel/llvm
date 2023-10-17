@@ -4,13 +4,13 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-  #commit e8e14150613ac838f676242436c3a30733a534cf
+  #commit 652393202469f404bb2a1eb08c1e86c43161a71a
   #Merge: TODO
   #Author: Ewan Crawford <ewan@codeplay.com>
   #Date:   Mon Oct 16 16:26:44 2023 +0100
   #        TODO
   #        [Command-buffer][L0] Reset sync-point events
-  set(UNIFIED_RUNTIME_TAG e8e14150613ac838f676242436c3a30733a534cf)
+  set(UNIFIED_RUNTIME_TAG 652393202469f404bb2a1eb08c1e86c43161a71a)
 
   if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
     set(UR_BUILD_ADAPTER_L0 ON)

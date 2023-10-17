@@ -163,8 +163,11 @@ created on UR command-buffer enqueue.
 
 There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
+This WaitEvent is reset at the end of the suffix, along with reset commands
+to reset the L0 events used to implement the UR sync-points back to the
+non-signaled state.
 
-![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
+![L0 command-buffer diagram](images/L0_UR_command_buffer.jpg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit two
