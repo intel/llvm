@@ -106,9 +106,9 @@ sycl/source/detail/jit_device_binaries.cpp @intel/dpcpp-kernel-fusion-reviewers
 sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 
 # Matrix
-sycl/include/sycl/ext/oneapi/matrix/ @dkhaldi @YuriPlyakhin @yubingex007-a11y
-sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
-sycl/test/matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
+sycl/include/sycl/ext/oneapi/matrix/ @intel/sycl-matrix-reviewers
+sycl/test-e2e/Matrix @intel/sycl-matrix-reviewers
+sycl/test/matrix @intel/sycl-matrix-reviewers
 
 # Native CPU
 llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
