@@ -2,6 +2,7 @@
 
 // This test checks the correctness of matrix types converted into strings
 
+//           "matrix_type,use,rows,cols"
 // CHECK: !{!"matrix_type::bf16,use::a,12,12"}
 // CHECK: !{!"matrix_type::fp16,use::a,12,12"}
 // CHECK: !{!"matrix_type::tf32,use::a,12,12"}
