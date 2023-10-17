@@ -320,10 +320,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_execution_info_t value
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_win32_handle_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_cubemap_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value);
@@ -1068,6 +1070,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
         break;
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1317,6 +1322,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES: {
         const ur_exp_sampler_addr_modes_t *pstruct = (const ur_exp_sampler_addr_modes_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES: {
+        const ur_exp_sampler_cubemap_properties_t *pstruct = (const ur_exp_sampler_cubemap_properties_t *)ptr;
         printPtr(os, pstruct);
     } break;
     default:
@@ -2545,6 +2555,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -4150,6 +4166,30 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
+    case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
     default:
         os << "unknown enumerator";
         return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -5325,6 +5365,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
         break;
     case UR_MEM_TYPE_IMAGE1D_BUFFER:
         os << "UR_MEM_TYPE_IMAGE1D_BUFFER";
+        break;
+    case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
+        os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -9137,6 +9180,24 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_sampler_cubemap_filter_mode_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value) {
+    switch (value) {
+    case UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED:
+        os << "UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED";
+        break;
+    case UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS:
+        os << "UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_file_descriptor_t type
 /// @returns
 ///     std::ostream &
@@ -9254,6 +9315,31 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_ad
         os << (params.addrModes[i]);
     }
     os << "}";
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_sampler_cubemap_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_cubemap_properties_t params) {
+    os << "(struct ur_exp_sampler_cubemap_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".cubemapFilterMode = ";
+
+    os << (params.cubemapFilterMode);
 
     os << "}";
     return os;
