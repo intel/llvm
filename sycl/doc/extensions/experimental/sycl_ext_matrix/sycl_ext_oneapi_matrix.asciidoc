@@ -934,7 +934,7 @@ supported parameter combination is specified in the following table.
 |======================
 | A and B type | C type | D type | M | N | K | Minimum Compute Capability
 .3+| `matrix_type::fp16`  .3+| `matrix_type::fp32` .3+| `matrix_type::fp32`
-|16 |16 |16 .6+| sm_70
+|16 |16 |16 .12+| sm_70
 |8 |32 |16
 |32 |8 |16
 .3+| `matrix_type::fp16`  .3+| `matrix_type::fp16` .3+| `matrix_type::fp16`
@@ -942,10 +942,10 @@ supported parameter combination is specified in the following table.
 |8 |32 |16
 |32 |8 |16
 .3+| `matrix_type::fp16`  .3+| `matrix_type::fp32` .3+| `matrix_type::fp16`
-|16 |16 |16 .6+| sm_70
+|16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::fp16`  .3+| `matrix_type::fp32` .3+| `matrix_type::fp16`
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16` .3+| `matrix_type::fp32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
