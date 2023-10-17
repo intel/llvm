@@ -112,7 +112,7 @@ void fillFunctionToJointMatrixValuesMap(
 /// Creates mapping between a function and an information about matrix types and
 /// sizes of sycl::ext::oneapi::experimental::matrix::joint_matrix_mad()
 /// function
-void fillFunctionToJointMatrixMapValuesMap(
+void fillFunctionToJointMatrixMadValuesMap(
     Function *F,
     FunctionToJointMatrixValuesMapTy &FunctionToJointMatrixMapValues) {
   // assume we have other sycl-joint-matrix-mad-* attributes if
@@ -219,7 +219,7 @@ SYCLPropagateJointMatrixUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   CallGraphTy CG;
   for (Function &F : M.functions()) {
     fillFunctionToJointMatrixValuesMap(&F, FunctionToJointMatrixValues);
-    fillFunctionToJointMatrixMapValuesMap(&F, FunctionToJointMatrixMadValues);
+    fillFunctionToJointMatrixMadValuesMap(&F, FunctionToJointMatrixMadValues);
     fillCallGraph(&F, CG);
 
     if (isEntryPoint(F))
