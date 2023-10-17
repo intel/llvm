@@ -149,12 +149,19 @@ static inline void *malloc(size_t size, sycl::queue q) {
 
 /// Calculate pitch (padded length of major dimension \p x) by rounding up to
 /// multiple of 32.
-/// \param x The dimension to be padded
-/// \returns size_t representing pitched length of dimension x.
+/// \param x The dimension to be padded (in bytes)
+/// \returns size_t representing pitched length of dimension x (in bytes).
 static inline constexpr size_t get_pitch(size_t x) {
   return ((x) + 31) & ~(0x1F);
 }
 
+/// @brief Malloc pitched 3D data
+/// @param [out] pitch returns the calculated pitch (in bytes)
+/// @param [in] x width of the allocation (in bytes)
+/// @param [in] y height of the allocation
+/// @param [in] z depth of the allocation
+/// @param [in] q The queue in which the operation is done.
+/// \returns A pointer to the allocated memory
 static inline void *malloc(size_t &pitch, size_t x, size_t y, size_t z,
                            sycl::queue q) {
   pitch = get_pitch(x);
