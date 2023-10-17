@@ -865,22 +865,20 @@ void executable_command_graph::finalizeImpl() {
   // Create PI command-buffers for each device in the finalized context
   impl->schedule();
 
-  auto Context = impl->getContext();
-  for (const auto &Device : Context.get_devices()) {
-    bool CmdBufSupport =
-        Device.get_info<
-            ext::oneapi::experimental::info::device::graph_support>() ==
-        graph_support_level::native;
+  auto Device = impl->getGraphImpl()->getDevice();
+  bool CmdBufSupport =
+      Device
+          .get_info<ext::oneapi::experimental::info::device::graph_support>() ==
+      graph_support_level::native;
 
 #if FORCE_EMULATION_MODE
-    // Above query should still succeed in emulation mode, but ignore the
-    // result and use emulation.
-    CmdBufSupport = false;
+  // Above query should still succeed in emulation mode, but ignore the
+  // result and use emulation.
+  CmdBufSupport = false;
 #endif
 
-    if (CmdBufSupport) {
-      impl->createCommandBuffers(Device);
-    }
+  if (CmdBufSupport) {
+    impl->createCommandBuffers(Device);
   }
 }
 
