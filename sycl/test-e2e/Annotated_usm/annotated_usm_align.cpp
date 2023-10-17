@@ -74,9 +74,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   auto MHost = [&](auto... args) {
     return malloc_host_annotated(N, args...).get();
   };
-  auto MShared = [&](auto... args) {
-    return malloc_shared_annotated(N, args...).get();
-  };
+
   auto MAnnotated = [&](auto... args) {
     return malloc_annotated(N, args...).get();
   };
@@ -87,9 +85,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   auto AHost = [&](size_t align, auto... args) {
     return aligned_alloc_host_annotated(align, N, args...).get();
   };
-  auto AShared = [&](size_t align, auto... args) {
-    return aligned_alloc_shared_annotated(align, N, args...).get();
-  };
+
   auto AAnnotated = [&](size_t align, auto... args) {
     return aligned_alloc_annotated(align, N, args...).get();
   };
@@ -107,16 +103,10 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() { return MHost(q, ALN0); },
           [&]() { return MHost(Ctx); },
           [&]() { return MHost(Ctx, ALN0); },
-          [&]() { return MShared(q); },
-          [&]() { return MShared(q, ALN0); },
-          [&]() { return MShared(dev, Ctx); },
-          [&]() { return MShared(dev, Ctx, ALN0); },
           [&]() { return MAnnotated(dev, Ctx, alloc::device); },
           [&]() { return MAnnotated(dev, Ctx, alloc::device, ALN0); },
           [&]() { return MAnnotated(dev, Ctx, alloc::host); },
           [&]() { return MAnnotated(dev, Ctx, alloc::host, ALN0); },
-          [&]() { return MAnnotated(dev, Ctx, alloc::shared); },
-          [&]() { return MAnnotated(dev, Ctx, alloc::shared, ALN0); },
           [&]() { return MAnnotated(dev, Ctx, properties{usm_kind_device}); },
           [&]() {
             return MAnnotated(dev, Ctx,
@@ -126,11 +116,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() {
             return MAnnotated(dev, Ctx,
                               properties{usm_kind_host, alignment<0>});
-          },
-          [&]() { return MAnnotated(dev, Ctx, properties{usm_kind_shared}); },
-          [&]() {
-            return MAnnotated(dev, Ctx,
-                              properties{usm_kind_shared, alignment<0>});
           }
 
           // Case: `aligned_alloc_xxx` with no alignment constraint, this
@@ -146,16 +131,21 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() { return AHost(0, q, ALN0); },
           [&]() { return AHost(0, Ctx); },
           [&]() { return AHost(0, Ctx, ALN0); },
-          [&]() { return AShared(0, q); },
-          [&]() { return AShared(0, q, ALN0); },
-          [&]() { return AShared(0, dev, Ctx); },
-          [&]() { return AShared(0, dev, Ctx, ALN0); },
           [&]() { return AAnnotated(0, dev, Ctx, alloc::device); },
           [&]() { return AAnnotated(0, dev, Ctx, alloc::device, ALN0); },
           [&]() { return AAnnotated(0, dev, Ctx, alloc::host); },
-          [&]() { return AAnnotated(0, dev, Ctx, alloc::host, ALN0); },
-          [&]() { return AAnnotated(0, dev, Ctx, alloc::shared); },
-          [&]() { return AAnnotated(0, dev, Ctx, alloc::shared, ALN0); }});
+          [&]() { return AAnnotated(0, dev, Ctx, alloc::host, ALN0); }});
+
+  // Case: `aligned_alloc_xxx` with alignment argument (power of 2) and no
+  // alignment property
+  CheckAlignAll(
+      align,
+      std::tuple{[&]() { return ADevice(align, q); },
+                 [&]() { return ADevice(align, dev, Ctx); },
+                 [&]() { return AHost(align, q); },
+                 [&]() { return AHost(align, Ctx); },
+                 [&]() { return AAnnotated(align, dev, Ctx, alloc::device); },
+                 [&]() { return AAnnotated(align, dev, Ctx, alloc::host); }});
 
   // Case: `malloc_xxx<T>` with no alignment constraint, the alignment is
   // sizeof(T)
@@ -164,9 +154,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   };
   auto THost = [&](auto... args) {
     return malloc_host_annotated<T>(N, args...).get();
-  };
-  auto TShared = [&](auto... args) {
-    return malloc_shared_annotated<T>(N, args...).get();
   };
   auto TAnnotated = [&](auto... args) {
     return malloc_annotated<T>(N, args...).get();
@@ -177,9 +164,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   };
   auto ATHost = [&](size_t align, auto... args) {
     return aligned_alloc_host_annotated<T>(align, N, args...).get();
-  };
-  auto ATShared = [&](size_t align, auto... args) {
-    return aligned_alloc_shared_annotated<T>(align, N, args...).get();
   };
   auto ATAnnotated = [&](size_t align, auto... args) {
     return aligned_alloc_annotated<T>(align, N, args...).get();
@@ -234,16 +218,10 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() { return THost(q, ALN0); },
           [&]() { return THost(Ctx); },
           [&]() { return THost(Ctx, ALN0); },
-          [&]() { return TShared(q); },
-          [&]() { return TShared(q, ALN0); },
-          [&]() { return TShared(dev, Ctx); },
-          [&]() { return TShared(dev, Ctx, ALN0); },
           [&]() { return TAnnotated(dev, Ctx, alloc::device); },
           [&]() { return TAnnotated(dev, Ctx, alloc::device, ALN0); },
           [&]() { return TAnnotated(dev, Ctx, alloc::host); },
           [&]() { return TAnnotated(dev, Ctx, alloc::host, ALN0); },
-          [&]() { return TAnnotated(dev, Ctx, alloc::shared); },
-          [&]() { return TAnnotated(dev, Ctx, alloc::shared, ALN0); },
           [&]() { return TAnnotated(dev, Ctx, properties{usm_kind_device}); },
           [&]() {
             return TAnnotated(dev, Ctx,
@@ -253,11 +231,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() {
             return TAnnotated(dev, Ctx,
                               properties{usm_kind_host, alignment<0>});
-          },
-          [&]() { return TAnnotated(dev, Ctx, properties{usm_kind_shared}); },
-          [&]() {
-            return TAnnotated(dev, Ctx,
-                              properties{usm_kind_shared, alignment<0>});
           }
 
           // Case: `aligned_alloc_xxx<T>` with no alignment constraint, this
@@ -273,16 +246,11 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() { return ATHost(0, q, ALN0); },
           [&]() { return ATHost(0, Ctx); },
           [&]() { return ATHost(0, Ctx, ALN0); },
-          [&]() { return ATShared(0, q); },
-          [&]() { return ATShared(0, q, ALN0); },
-          [&]() { return ATShared(0, dev, Ctx); },
-          [&]() { return ATShared(0, dev, Ctx, ALN0); },
           [&]() { return ATAnnotated(0, dev, Ctx, alloc::device); },
           [&]() { return ATAnnotated(0, dev, Ctx, alloc::device, ALN0); },
           [&]() { return ATAnnotated(0, dev, Ctx, alloc::host); },
           [&]() { return ATAnnotated(0, dev, Ctx, alloc::host, ALN0); },
-          [&]() { return ATAnnotated(0, dev, Ctx, alloc::shared); },
-          [&]() { return ATAnnotated(0, dev, Ctx, alloc::shared, ALN0); }});
+      });
 
   // Case: malloc_xxx<T> with compile-time alignment<K> (K is a power of 2), the
   // alignment is the least-common-multiple of K and sizeof(T)
@@ -291,35 +259,36 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
        {4, sizeof(T)},
        {8, sizeof(T)},
        {16, sizeof(T)},
-       {32, sizeof(T)},
-       {64, sizeof(T)},
        {128, sizeof(T)},
        {256, sizeof(T)},
-       {512, sizeof(T)},
        {16, sizeof(T)},
-       {64, sizeof(T)},
-       {256, sizeof(T)}},
-      std::tuple{
-          [&]() { return TDevice(q, ALN2); },
-          [&]() { return TDevice(dev, Ctx, ALN4); },
-          [&]() { return THost(q, ALN8); }, [&]() { return THost(Ctx, ALN16); },
-          [&]() { return TShared(q, ALN32); },
-          [&]() { return TShared(dev, Ctx, ALN64); },
-          [&]() { return TAnnotated(dev, Ctx, alloc::device, ALN128); },
-          [&]() { return TAnnotated(dev, Ctx, alloc::host, ALN256); },
-          [&]() { return TAnnotated(dev, Ctx, alloc::shared, ALN512); },
-          [&]() {
-            return TAnnotated(dev, Ctx,
-                              properties{usm_kind_device, alignment<16>});
-          },
-          [&]() {
-            return TAnnotated(dev, Ctx,
-                              properties{usm_kind_host, alignment<64>});
-          },
-          [&]() {
-            return TAnnotated(dev, Ctx,
-                              properties{usm_kind_shared, alignment<256>});
-          }});
+       {64, sizeof(T)}},
+      std::tuple{[&]() { return TDevice(q, ALN2); },
+                 [&]() { return TDevice(dev, Ctx, ALN4); },
+                 [&]() { return THost(q, ALN8); },
+                 [&]() { return THost(Ctx, ALN16); },
+                 [&]() { return TAnnotated(dev, Ctx, alloc::device, ALN128); },
+                 [&]() { return TAnnotated(dev, Ctx, alloc::host, ALN256); },
+                 [&]() {
+                   return TAnnotated(
+                       dev, Ctx, properties{usm_kind_device, alignment<16>});
+                 },
+                 [&]() {
+                   return TAnnotated(dev, Ctx,
+                                     properties{usm_kind_host, alignment<64>});
+                 }});
+
+  // Case: aligned_alloc_xxx<T> with alignment argument K (K is a power of 2)
+  // and no alignment properties, the alignment is the least-common-multiple of
+  // K and sizeof(T)
+  CheckAlignAll(
+      std::lcm(align, sizeof(T)),
+      std::tuple{[&]() { return ATDevice(align, q); },
+                 [&]() { return ATDevice(align, dev, Ctx); },
+                 [&]() { return ATHost(align, q); },
+                 [&]() { return ATHost(align, Ctx); },
+                 [&]() { return ATAnnotated(align, dev, Ctx, alloc::device); },
+                 [&]() { return ATAnnotated(align, dev, Ctx, alloc::host); }});
 
   // Case: aligned_alloc_xxx<T> with alignment argument K (K is a power of 2)
   // and no alignment properties, the alignment is the least-common-multiple of
@@ -330,22 +299,16 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           {4, sizeof(T)},
           {8, sizeof(T)},
           {16, sizeof(T)},
-          {32, sizeof(T)},
-          {64, sizeof(T)},
           {128, sizeof(T)},
           {256, sizeof(T)},
-          {512, sizeof(T)},
       },
       std::tuple{
           [&]() { return ATDevice(2, q); },
           [&]() { return ATDevice(4, dev, Ctx, ALN4); },
           [&]() { return ATHost(8, q, ALN8); },
           [&]() { return ATHost(16, Ctx, ALN16); },
-          [&]() { return ATShared(32, q, ALN32); },
-          [&]() { return ATShared(64, dev, Ctx, ALN64); },
           [&]() { return ATAnnotated(128, dev, Ctx, alloc::device, ALN128); },
-          [&]() { return ATAnnotated(256, dev, Ctx, alloc::host, ALN256); },
-          [&]() { return ATAnnotated(512, dev, Ctx, alloc::shared, ALN512); }});
+          [&]() { return ATAnnotated(256, dev, Ctx, alloc::host, ALN256); }});
 
   // Case: aligned_alloc_xxx<T> with compile-time alignment<K> (K is a power of
   // 2), the alignment is the least-common-multiple of the alignment argument (a
@@ -356,13 +319,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           {align, 4, sizeof(T)},
           {align, 8, sizeof(T)},
           {align, 16, sizeof(T)},
-          {align, 32, sizeof(T)},
-          {align, 64, sizeof(T)},
           {align, 128, sizeof(T)},
-          {align, 256, sizeof(T)},
-          {align, 512, sizeof(T)},
-          {align, 16, sizeof(T)},
-          {align, 64, sizeof(T)},
           {align, 256, sizeof(T)},
       },
       std::tuple{
@@ -370,13 +327,8 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() { return ATDevice(align, dev, Ctx, ALN4); },
           [&]() { return ATHost(align, q, ALN8); },
           [&]() { return ATHost(align, Ctx, ALN16); },
-          [&]() { return ATShared(align, q, ALN32); },
-          [&]() { return ATShared(align, dev, Ctx, ALN64); },
           [&]() { return ATAnnotated(align, dev, Ctx, alloc::device, ALN128); },
-          [&]() { return ATAnnotated(align, dev, Ctx, alloc::host, ALN256); },
-          [&]() {
-            return ATAnnotated(align, dev, Ctx, alloc::shared, ALN512);
-          }});
+          [&]() { return ATAnnotated(align, dev, Ctx, alloc::host, ALN256); }});
 
   // Test cases that are expected to return null
   auto check_null = [&q](auto AllocFn, int Line = __builtin_LINE(),
@@ -408,8 +360,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return MDevice(dev, Ctx, properties{alignment<5>}); },
       [&]() { return MHost(q, properties{alignment<7>}); },
       [&]() { return MHost(Ctx, properties{alignment<9>}); },
-      [&]() { return MShared(q, properties{alignment<11>}); },
-      [&]() { return MShared(dev, Ctx, properties{alignment<13>}); },
       [&]() { return MAnnotated(q, alloc::device, properties{alignment<15>}); },
       [&]() {
         return MAnnotated(dev, Ctx, alloc::host, properties{alignment<17>});
@@ -429,8 +379,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return TDevice(dev, Ctx, properties{alignment<5>}); },
       [&]() { return THost(q, properties{alignment<7>}); },
       [&]() { return THost(Ctx, properties{alignment<9>}); },
-      [&]() { return TShared(q, properties{alignment<11>}); },
-      [&]() { return TShared(dev, Ctx, properties{alignment<13>}); },
       [&]() { return TAnnotated(q, alloc::device, properties{alignment<15>}); },
       [&]() {
         return TAnnotated(dev, Ctx, alloc::host, properties{alignment<17>});
@@ -449,8 +397,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return ADevice(5, dev, Ctx); },
       [&]() { return AHost(7, q); },
       [&]() { return AHost(9, Ctx); },
-      [&]() { return AShared(11, q); },
-      [&]() { return AShared(13, dev, Ctx); },
       [&]() { return AAnnotated(15, q, alloc::device); },
       [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
 
@@ -462,8 +408,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return ATDevice(5, dev, Ctx); },
       [&]() { return ATHost(7, q); },
       [&]() { return ATHost(9, Ctx); },
-      [&]() { return ATShared(11, q); },
-      [&]() { return ATShared(13, dev, Ctx); },
       [&]() { return ATAnnotated(15, q, alloc::device); },
       [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
 }
