@@ -8,9 +8,11 @@
 
 // The test checks that the types can be used to pass kernel parameters by value
 // RUN: %clangxx -fsycl -fsyntax-only %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %clangxx -fsycl -fsyntax-only -fpreview-major-release %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
 
 // Check that the test can be compiled with device compiler as well.
 // RUN: %clangxx -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
+// RUN: %clangxx -fsycl-device-only -fsyntax-only -fpreview-major-release %s -Wno-sycl-strict
 
 #include <sycl/sycl.hpp>
 
@@ -35,10 +37,22 @@ template <typename T> void check() {
 }
 
 SYCL_EXTERNAL void foo() {
+#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+
+  check<int>();
+  check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
+  check<SomeStructure>();
+  check<sycl::int4>();
+  check<sycl::long16>();
+
+#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+
 #ifdef __SYCL_DEVICE_ONLY__
   check<int>();
   check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
   check<SomeStructure>();
-#endif
+#endif // __SYCL_DEVICE_ONLY
+#endif //__SYCL_PREVIEW_MAJOR_RELEASE__
+
   check<SomeMarrayStructure>();
 }

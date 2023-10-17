@@ -249,7 +249,7 @@ using Vec3StorageT = StorageT __attribute__((ext_vector_type(3)));
 using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
 using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
-#else
+#else // SYCL_DEVICE_ONLY
 using StorageT = detail::host_half_impl::half;
 // No need to extract underlying data type for built-in functions operating on
 // host
@@ -259,6 +259,13 @@ using BIsRepresentationT = half;
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
+#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+using Vec2StorageT = std::array<StorageT, 2>;
+using Vec3StorageT = std::array<StorageT, 3>;
+using Vec4StorageT = std::array<StorageT, 4>;
+using Vec8StorageT = std::array<StorageT, 8>;
+using Vec16StorageT = std::array<StorageT, 16>;
+#else  // __SYCL_PREVIEW_MAJOR_RELEASE__
 template <int NumElements> struct half_vec {
   alignas(
       vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
@@ -281,7 +288,8 @@ using Vec3StorageT = half_vec<3>;
 using Vec4StorageT = half_vec<4>;
 using Vec8StorageT = half_vec<8>;
 using Vec16StorageT = half_vec<16>;
-#endif
+#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // SYCL_DEVICE_ONLY
 
 #ifndef __SYCL_DEVICE_ONLY__
 class half {

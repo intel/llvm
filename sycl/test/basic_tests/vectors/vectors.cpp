@@ -1,7 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t_default.out
 // RUN: %t_default.out
-// RUN: %clangxx -fsycl -D__NO_EXT_VECTOR_TYPE_ON_HOST__ %s -o %t_noext.out
-// RUN: %t_noext.out
+// RUN: %clangxx -fsycl -fpreview-major-release %s -o %t_vec.out
+// RUN: %t_vec.out
+
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
