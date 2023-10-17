@@ -40,7 +40,7 @@ struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  mutable sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols,
+  sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols,
                                                        Layout>
       cuda_impl;
 #elif defined(__SPIR__)
@@ -373,7 +373,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   if constexpr (std::is_same<Ta, Tb>::value) {
-    sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
+    sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, Td, M, K, N, LayoutA,
                                                      LayoutB>(
         D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
   } else {
