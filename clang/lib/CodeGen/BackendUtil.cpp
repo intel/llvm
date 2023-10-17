@@ -966,14 +966,14 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
-    if (LangOpts.SYCLIsDevice) {
+    if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
       });
-    } else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
+    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDRemoveHostCodePass());
