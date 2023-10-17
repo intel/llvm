@@ -146,9 +146,9 @@ public:
           __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     } else {
       detail::annotated<__ocl_RPipeTy<_dataT>, _functionPropertiesT>
-          annotated_ptr(_RPipe);
+          annotated_wrapper(_RPipe);
       Success = !static_cast<bool>(__spirv_ReadPipe(
-          annotated_ptr.MValue, &TempData, m_Size, m_Alignment));
+          annotated_wrapper.MValue, &TempData, m_Size, m_Alignment));
     }
     return TempData;
 #else
@@ -178,9 +178,9 @@ public:
           __spirv_WritePipe(_WPipe, &Data, m_Size, m_Alignment));
     } else {
       detail::annotated<__ocl_WPipeTy<_dataT>, _functionPropertiesT>
-          annotated_ptr(_WPipe);
-      Success = !static_cast<bool>(
-          __spirv_WritePipe(annotated_ptr.MValue, &Data, m_Size, m_Alignment));
+          annotated_wrapper(_WPipe);
+      Success = !static_cast<bool>(__spirv_WritePipe(
+          annotated_wrapper.MValue, &Data, m_Size, m_Alignment));
     }
 #else
     (void)Success;
@@ -258,8 +258,8 @@ public:
       __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     } else {
       detail::annotated<__ocl_RPipeTy<_dataT>, _functionPropertiesT>
-          annotated_ptr(_RPipe);
-      __spirv_ReadPipeBlockingINTEL(annotated_ptr.MValue, &TempData, m_Size,
+          annotated_wrapper(_RPipe);
+      __spirv_ReadPipeBlockingINTEL(annotated_wrapper.MValue, &TempData, m_Size,
                                     m_Alignment);
     }
     return TempData;
@@ -286,8 +286,8 @@ public:
       __spirv_WritePipeBlockingINTEL(_WPipe, &Data, m_Size, m_Alignment);
     } else {
       detail::annotated<__ocl_WPipeTy<_dataT>, _functionPropertiesT>
-          annotated_ptr(_WPipe);
-      __spirv_WritePipeBlockingINTEL(annotated_ptr.MValue, &Data, m_Size,
+          annotated_wrapper(_WPipe);
+      __spirv_WritePipeBlockingINTEL(annotated_wrapper.MValue, &Data, m_Size,
                                      m_Alignment);
     }
 #else

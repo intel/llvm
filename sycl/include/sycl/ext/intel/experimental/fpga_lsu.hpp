@@ -56,19 +56,16 @@ public:
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    if constexpr (std::is_same_v<
+    _T *P = Ptr;
+    if constexpr (!std::is_same_v<
                       _propertiesT,
                       oneapi::experimental::detail::empty_properties_t>) {
-      return *__builtin_intel_fpga_mem(
-          (_T *)Ptr,
-          _burst_coalesce | _cache | _dont_statically_coalesce | _prefetch,
-          _cache_val);
+      detail::annotated<_T *, _propertiesT> annotated_wrapper(Ptr);
+      P = annotated_wrapper.MValue;
     }
-    detail::annotated<_T *, _propertiesT> annotated_ptr(Ptr);
-    return *__builtin_intel_fpga_mem((_T *)annotated_ptr.MValue,
-                                     _burst_coalesce | _cache |
-                                         _dont_statically_coalesce | _prefetch,
-                                     _cache_val);
+    return *__builtin_intel_fpga_mem(
+        P, _burst_coalesce | _cache | _dont_statically_coalesce | _prefetch,
+        _cache_val);
 #else
     (void)Properties;
     return *Ptr;
@@ -88,20 +85,16 @@ public:
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    if constexpr (std::is_same_v<
+    _T *P = Ptr;
+    if constexpr (!std::is_same_v<
                       _propertiesT,
                       oneapi::experimental::detail::empty_properties_t>) {
-      *__builtin_intel_fpga_mem((_T *)Ptr,
-                                _burst_coalesce | _cache |
-                                    _dont_statically_coalesce | _prefetch,
-                                _cache_val) = Val;
-    } else {
-      detail::annotated<_T *, _propertiesT> annotated_ptr(Ptr);
-      *__builtin_intel_fpga_mem((_T *)annotated_ptr.MValue,
-                                _burst_coalesce | _cache |
-                                    _dont_statically_coalesce | _prefetch,
-                                _cache_val) = Val;
+      detail::annotated<_T *, _propertiesT> annotated_wrapper(Ptr);
+      P = annotated_wrapper.MValue;
     }
+    *__builtin_intel_fpga_mem(
+        P, _burst_coalesce | _cache | _dont_statically_coalesce | _prefetch,
+        _cache_val) = Val;
 #else
     (void)Properties;
     *Ptr = Val;
