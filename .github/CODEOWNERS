@@ -108,6 +108,7 @@ sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 # Matrix
 sycl/include/sycl/ext/oneapi/matrix/ @dkhaldi @YuriPlyakhin @yubingex007-a11y
 sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
+sycl/test/matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
 
 # Native CPU
 llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
