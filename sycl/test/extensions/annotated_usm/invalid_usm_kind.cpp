@@ -1,10 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -ferror-limit=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 // Expected failed tests for annotated USM allocation:
-// 1. Given properties contain invalid runtime property
-// 2. Given properties contain invalid compile-time property
-// 3. usm_kind in the property list conflicts with the function name
-// 4. required usm_kind is not provided in the property list
+// 1. required usm_kind is not provided in the property list
+// 2. usm_kind in the property list conflicts with the function name
 
 #include <sycl/sycl.hpp>
 

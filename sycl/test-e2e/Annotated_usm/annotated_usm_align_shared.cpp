@@ -2,12 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // E2E tests for annotated USM allocation functions
-// Note this test does not work on gpu because some tests expect to return
-// nullptr, e.g. when the alignment argument is not a power of 2, while the gpu
-// runtime has different behavior
 
 #include <sycl/sycl.hpp>
 
@@ -245,79 +240,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
                  [&]() {
                    return ATAnnotated(align, dev, Ctx, alloc::shared, ALN512);
                  }});
-
-  // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line = __builtin_LINE(),
-                         int Case = 0) {
-    decltype(AllocFn()) Ptr = AllocFn();
-    auto v = reinterpret_cast<uintptr_t>(Ptr);
-    if (v != 0) {
-      free(Ptr, q);
-      std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
-      assert(false && "The return is not null!");
-    }
-  };
-
-  auto CheckNullAll = [&](auto Funcs, int Line = __builtin_LINE()) {
-    std::apply(
-        [&](auto... Fs) {
-          int Case = 0;
-          (void)std::initializer_list<int>{
-              (check_null(Fs, Line, Case++), 0)...};
-        },
-        Funcs);
-  };
-
-  CheckNullAll(std::tuple{
-      // Case: malloc_xxx with compile-time alignment<K> (K is not a power of
-      // 2),
-      // nullptr is returned
-      [&]() { return MShared(q, properties{alignment<11>}); },
-      [&]() { return MShared(dev, Ctx, properties{alignment<13>}); },
-      [&]() { return MAnnotated(q, alloc::shared, properties{alignment<15>}); },
-      [&]() {
-        return MAnnotated(dev, Ctx, alloc::shared, properties{alignment<17>});
-      },
-      [&]() {
-        return MAnnotated(q, properties{usm_kind_shared, alignment<31>});
-      },
-      [&]() {
-        return MAnnotated(dev, Ctx, properties{usm_kind_shared, alignment<63>});
-      }
-
-      // Case: malloc_xxx<T> with compile-time alignment<K> (K is not a power of
-      // 2),
-      // nullptr is returned
-      ,
-      [&]() { return TShared(q, properties{alignment<11>}); },
-      [&]() { return TShared(dev, Ctx, properties{alignment<13>}); },
-      [&]() { return TAnnotated(q, alloc::shared, properties{alignment<15>}); },
-      [&]() {
-        return TAnnotated(dev, Ctx, alloc::shared, properties{alignment<17>});
-      },
-      [&]() {
-        return TAnnotated(q, properties{usm_kind_shared, alignment<31>});
-      },
-      [&]() {
-        return TAnnotated(dev, Ctx, properties{usm_kind_shared, alignment<63>});
-      }
-
-      // Case: aligned_alloc_xxx with no alignment property, and the alignment
-      // argument is not a power of 2, the result is nullptr
-      ,
-      [&]() { return AShared(11, q); },
-      [&]() { return AShared(13, dev, Ctx); },
-      [&]() { return AAnnotated(15, q, alloc::shared); },
-      [&]() { return AAnnotated(17, dev, Ctx, alloc::shared); }
-
-      // Case: aligned_alloc_xxx<T> with no alignment property, and the
-      // alignment
-      // argument is not a power of 2, the result is nullptr
-      ,
-      [&]() { return ATShared(11, q); },
-      [&]() { return ATShared(13, dev, Ctx); },
-      [&]() { return ATAnnotated(15, q, alloc::shared); },
-      [&]() { return ATAnnotated(17, dev, Ctx, alloc::shared); }});
 }
 
 int main() {

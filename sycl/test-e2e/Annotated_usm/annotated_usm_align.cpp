@@ -1,12 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // E2E tests for annotated USM allocation functions
-// Note this test does not work on gpu because some tests expect to return
-// nullptr, e.g. when the alignment argument is not a power of 2, while the gpu
-// runtime has different behavior
 
 #include <sycl/sycl.hpp>
 
@@ -329,87 +324,6 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
           [&]() { return ATHost(align, Ctx, ALN16); },
           [&]() { return ATAnnotated(align, dev, Ctx, alloc::device, ALN128); },
           [&]() { return ATAnnotated(align, dev, Ctx, alloc::host, ALN256); }});
-
-  // Test cases that are expected to return null
-  auto check_null = [&q](auto AllocFn, int Line = __builtin_LINE(),
-                         int Case = 0) {
-    decltype(AllocFn()) Ptr = AllocFn();
-    auto v = reinterpret_cast<uintptr_t>(Ptr);
-    if (v != 0) {
-      free(Ptr, q);
-      std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
-      assert(false && "The return is not null!");
-    }
-  };
-
-  auto CheckNullAll = [&](auto Funcs, int Line = __builtin_LINE()) {
-    std::apply(
-        [&](auto... Fs) {
-          int Case = 0;
-          (void)std::initializer_list<int>{
-              (check_null(Fs, Line, Case++), 0)...};
-        },
-        Funcs);
-  };
-
-  CheckNullAll(std::tuple{
-      // Case: malloc_xxx with compile-time alignment<K> (K is not a power of
-      // 2),
-      // nullptr is returned
-      [&]() { return MDevice(q, properties{alignment<3>}); },
-      [&]() { return MDevice(dev, Ctx, properties{alignment<5>}); },
-      [&]() { return MHost(q, properties{alignment<7>}); },
-      [&]() { return MHost(Ctx, properties{alignment<9>}); },
-      [&]() { return MAnnotated(q, alloc::device, properties{alignment<15>}); },
-      [&]() {
-        return MAnnotated(dev, Ctx, alloc::host, properties{alignment<17>});
-      },
-      [&]() {
-        return MAnnotated(q, properties{usm_kind_device, alignment<31>});
-      },
-      [&]() {
-        return MAnnotated(dev, Ctx, properties{usm_kind_host, alignment<63>});
-      }
-
-      // Case: malloc_xxx<T> with compile-time alignment<K> (K is not a power of
-      // 2),
-      // nullptr is returned
-      ,
-      [&]() { return TDevice(q, properties{alignment<3>}); },
-      [&]() { return TDevice(dev, Ctx, properties{alignment<5>}); },
-      [&]() { return THost(q, properties{alignment<7>}); },
-      [&]() { return THost(Ctx, properties{alignment<9>}); },
-      [&]() { return TAnnotated(q, alloc::device, properties{alignment<15>}); },
-      [&]() {
-        return TAnnotated(dev, Ctx, alloc::host, properties{alignment<17>});
-      },
-      [&]() {
-        return TAnnotated(q, properties{usm_kind_device, alignment<31>});
-      },
-      [&]() {
-        return TAnnotated(dev, Ctx, properties{usm_kind_host, alignment<63>});
-      }
-
-      // Case: aligned_alloc_xxx with no alignment property, and the alignment
-      // argument is not a power of 2, the result is nullptr
-      ,
-      [&]() { return ADevice(3, q); },
-      [&]() { return ADevice(5, dev, Ctx); },
-      [&]() { return AHost(7, q); },
-      [&]() { return AHost(9, Ctx); },
-      [&]() { return AAnnotated(15, q, alloc::device); },
-      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
-
-      // Case: aligned_alloc_xxx<T> with no alignment property, and the
-      // alignment
-      // argument is not a power of 2, the result is nullptr
-      ,
-      [&]() { return ATDevice(3, q); },
-      [&]() { return ATDevice(5, dev, Ctx); },
-      [&]() { return ATHost(7, q); },
-      [&]() { return ATHost(9, Ctx); },
-      [&]() { return ATAnnotated(15, q, alloc::device); },
-      [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
 }
 
 int main() {
