@@ -640,13 +640,15 @@ template <typename Type, int NumElements> class vec {
   // vector extension. This is for MSVC compatibility, which has a max alignment
   // of 64 for direct params. If we drop MSVC, we can have alignment the same as
   // size and use vector extensions for all sizes.
-  static constexpr bool IsUsingArray =
+  static constexpr bool IsUsingArrayOnDevice =
       (IsHostHalf || IsSizeGreaterThanMaxAlign);
 
 #if defined(__SYCL_DEVICE_ONLY__)
-  static constexpr bool NativeVec = NumElements > 1 && !IsUsingArray;
+  static constexpr bool NativeVec = NumElements > 1 && !IsUsingArrayOnDevice;
+  static constexpr bool IsUsingArrayOnHost = false; // not compiling for host.
 #else
   static constexpr bool NativeVec = false;
+  static constexpr bool IsUsingArrayOnHost = true; // host always std::array.
 #endif
 
 #endif // __SYCL_PREVIEW_MAJOR_RELEASE__
@@ -851,6 +853,16 @@ public:
   }
 
 #ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+
+  template <typename T = void>
+  using EnableIfUsingArray =
+      typename std::enable_if_t<IsUsingArrayOnDevice || IsUsingArrayOnHost, T>;
+
+  template <typename T = void>
+  using EnableIfNotUsingArray =
+      typename std::enable_if_t<!IsUsingArrayOnDevice && !IsUsingArrayOnHost,
+                                T>;
+
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
@@ -859,13 +871,15 @@ public:
   using EnableIfHostHalf = typename std::enable_if_t<IsHostHalf, T>;
 
   template <typename T = void>
-  using EnableIfUsingArray = typename std::enable_if_t<IsUsingArray, T>;
+  using EnableIfUsingArrayOnDevice =
+      typename std::enable_if_t<IsUsingArrayOnDevice, T>;
 
   template <typename T = void>
-  using EnableIfNotUsingArray = typename std::enable_if_t<!IsUsingArray, T>;
+  using EnableIfNotUsingArrayOnDevice =
+      typename std::enable_if_t<!IsUsingArrayOnDevice, T>;
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfNotUsingArray<Ty> &arg)
+  explicit constexpr vec(const EnableIfNotUsingArrayOnDevice<Ty> &arg)
       : m_Data{DataType(vec_data<Ty>::get(arg))} {}
 
   template <typename Ty = DataT>
@@ -873,13 +887,13 @@ public:
       std::is_fundamental_v<vec_data_t<Ty>> ||
           std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
-  operator=(const EnableIfNotUsingArray<Ty> &Rhs) {
+  operator=(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) {
     m_Data = (DataType)vec_data<Ty>::get(Rhs);
     return *this;
   }
 
   template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfUsingArray<Ty> &arg)
+  explicit constexpr vec(const EnableIfUsingArrayOnDevice<Ty> &arg)
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
             std::make_index_sequence<NumElements>()} {}
@@ -889,7 +903,7 @@ public:
       std::is_fundamental_v<vec_data_t<Ty>> ||
           std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
-  operator=(const EnableIfUsingArray<Ty> &Rhs) {
+  operator=(const EnableIfUsingArrayOnDevice<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
       setValue(i, Rhs);
     }
@@ -925,22 +939,22 @@ public:
       std::is_convertible_v<T, DataT> && NumElements == IdxNum, DataT>;
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
-                const EnableIfNotUsingArray<Ty> Arg1)
+                const EnableIfNotUsingArrayOnDevice<Ty> Arg1)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
-                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2)
+                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
                vec_data<Ty>::get(Arg2)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
-                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2,
+                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2,
                 const Ty Arg3)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
                vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
-                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2,
+                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2,
                 const DataT Arg3, const DataT Arg4, const DataT Arg5,
                 const DataT Arg6, const DataT Arg7)
       : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
@@ -949,7 +963,7 @@ public:
                vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7)} {}
   template <typename Ty = DataT>
   constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
-                const EnableIfNotUsingArray<Ty> Arg1, const DataT Arg2,
+                const EnableIfNotUsingArrayOnDevice<Ty> Arg1, const DataT Arg2,
                 const DataT Arg3, const DataT Arg4, const DataT Arg5,
                 const DataT Arg6, const DataT Arg7, const DataT Arg8,
                 const DataT Arg9, const DataT ArgA, const DataT ArgB,
@@ -989,7 +1003,7 @@ public:
                 std::is_same<vector_t_, vector_t>::value &&
                 !std::is_same<vector_t_, DataT>::value>>
   constexpr vec(vector_t openclVector) {
-    if constexpr (!IsUsingArray) {
+    if constexpr (!IsUsingArrayOnDevice) {
       m_Data = openclVector;
     } else {
       m_Data = bit_cast<DataType>(openclVector);
@@ -997,7 +1011,7 @@ public:
   }
 
   operator vector_t() const {
-    if constexpr (!IsUsingArray) {
+    if constexpr (!IsUsingArrayOnDevice) {
       return m_Data;
     } else {
       auto ptr = bit_cast<const VectorDataType *>((&m_Data)->data());
@@ -1295,7 +1309,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfNotUsingArray<Ty> &Rhs) const {             \
+  vec operator BINOP(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {     \
     vec Ret;                                                                   \
     Ret.m_Data = m_Data BINOP Rhs.m_Data;                                      \
     if constexpr (std::is_same<Type, bool>::value && CONVERT) {                \
@@ -1304,7 +1318,7 @@ public:
     return Ret;                                                                \
   }                                                                            \
   template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfUsingArray<Ty> &Rhs) const {                \
+  vec operator BINOP(const EnableIfUsingArrayOnDevice<Ty> &Rhs) const {        \
     vec Ret;                                                                   \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
       Ret.setValue(I, (getValue(I) BINOP Rhs.getValue(I)));                    \
@@ -1530,6 +1544,100 @@ public:
   __SYCL_UOP(--, -=)
 #undef __SYCL_UOP
 
+#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+
+  // operator~() available only when: dataT != float && dataT != double
+  // && dataT != half
+  template <typename T = DataT>
+  typename std::enable_if_t<!std::is_floating_point_v<vec_data_t<T>> &&
+                                (!IsUsingArrayOnDevice && !IsUsingArrayOnHost),
+                            vec>
+  operator~() const {
+    vec Ret{(typename vec::DataType) ~m_Data};
+    if constexpr (std::is_same<Type, bool>::value) {
+      Ret.ConvertToDataT();
+    }
+    return Ret;
+  }
+  template <typename T = DataT>
+  typename std::enable_if_t<!std::is_floating_point_v<vec_data_t<T>> &&
+                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
+                            vec>
+  operator~() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I) {
+      Ret.setValue(I, ~getValue(I));
+    }
+    return Ret;
+  }
+
+  // operator!
+  template <typename T = DataT, int N = NumElements>
+  EnableIfNotUsingArray<vec<T, N>> operator!() const {
+    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data};
+  }
+
+  // std::byte neither supports ! unary op or casting, so special handling is
+  // needed. And, worse, Windows has a conflict with 'byte'.
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  template <typename T = DataT, int N = NumElements>
+  typename std::enable_if_t<std::is_same<std::byte, T>::value &&
+                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
+                            vec<T, N>>
+  operator!() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I) {
+      Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
+    }
+    return Ret;
+  }
+
+  template <typename T = DataT, int N = NumElements>
+  typename std::enable_if_t<!std::is_same<std::byte, T>::value &&
+                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
+                            vec<T, N>>
+  operator!() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+    return Ret;
+  }
+#else
+  template <typename T = DataT, int N = NumElements>
+  EnableIfUsingArray<vec<T, N>> operator!() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+    return Ret;
+  }
+#endif
+
+  // operator +
+  template <typename T = vec> EnableIfNotUsingArray<T> operator+() const {
+    return vec{+m_Data};
+  }
+
+  template <typename T = vec> EnableIfUsingArray<T> operator+() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret.setValue(I, vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
+    return Ret;
+  }
+
+  // operator -
+  template <typename T = vec> EnableIfNotUsingArray<T> operator-() const {
+    return vec{-m_Data};
+  }
+
+  template <typename T = vec> EnableIfUsingArray<T> operator-() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
+    return Ret;
+  }
+
+#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+
   // Available only when: dataT != cl_float && dataT != cl_double
   // && dataT != cl_half
   template <typename T = DataT>
@@ -1593,6 +1701,8 @@ public:
 #endif
   }
 
+#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+
   // OP is: &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
   // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
@@ -1608,7 +1718,7 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfNotUsingArray<Ty> &Rhs) const {
+  operatorHelper(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataType> Op;
     Result.m_Data = Op(m_Data, Rhs.m_Data);
@@ -1618,7 +1728,7 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfUsingArray<Ty> &Rhs) const {
+  operatorHelper(const EnableIfUsingArrayOnDevice<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataT> Op;
     for (size_t I = 0; I < NumElements; ++I) {
