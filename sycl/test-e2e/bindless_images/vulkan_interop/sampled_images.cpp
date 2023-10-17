@@ -379,10 +379,8 @@ bool run_tests() {
                     sycl::image_channel_order::r, class int16_3d>({64, 32, 64},
                                                                   {4, 2, 4}, 0);
 
-  if (!valid) {
-    std::cout << "sampled images test has failure(s)\n";
-  } else {
-    std::cout << "sampled images test passes\n";
+  if (valid) {
+    std::cout << "All tests passed!\n";
   }
 
   return valid;
