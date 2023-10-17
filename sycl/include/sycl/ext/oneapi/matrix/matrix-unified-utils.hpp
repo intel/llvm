@@ -28,6 +28,7 @@ class tf32 {
   tf32() = delete;
 };
 } // namespace precision
+
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi
