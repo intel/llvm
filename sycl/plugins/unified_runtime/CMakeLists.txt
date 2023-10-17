@@ -3,9 +3,14 @@
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  # TODO remove me before merging
-  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG b002e003933169c28f5ac9d31ff8ccda8cb5114a)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  #commit f0de2f4d7930696d8dabcbbc2c39d0ccd77c7681 (HEAD -> adapters, upstream/adapters)
+  #Merge: 1f149fb 496d694
+  #Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  #Date:   Tue Oct 17 13:47:03 2023 +0100
+  # Merge pull request #943 from hdelan/re-add-extended-deleters
+  # [HIP] Re add extended deleters
+  set(UNIFIED_RUNTIME_TAG f0de2f4d7930696d8dabcbbc2c39d0ccd77c7681)
 
   if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
     set(UR_BUILD_ADAPTER_L0 ON)
