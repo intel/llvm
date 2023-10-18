@@ -275,7 +275,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct build_options {
   std::vector<std::string> opts;
-  build_options(const std::string &name);               (1)
+  build_options(const std::string &opt);               (1)
   build_options(const std::vector<std::string> &opts);  (2)
 };
 using build_options_key = build_options;
