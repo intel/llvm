@@ -1032,15 +1032,37 @@ struct urKernelExecutionTest : urKernelTest {
         ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
                                             mem_handle));
 
-        // This emulates the offset struct sycl adds for a 1D buffer accessor.
-        struct {
-            size_t offsets[1] = {0};
-        } accessor;
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
-                                           sizeof(accessor), nullptr,
-                                           &accessor));
+        // SYCL device kernels have different interfaces depending on the
+        // backend being used. Typically a kernel which takes a buffer argument
+        // will take a pointer to the start of the buffer and a sycl::id param
+        // which is a struct that encodes the accessor to the buffer. However
+        // the AMD backend handles this differently and uses three separate
+        // arguments for each of the three dimensions of the accessor.
 
-        current_arg_index += 2;
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        if (backend == UR_PLATFORM_BACKEND_HIP) {
+            // this emulates the three offset params for buffer accessor on AMD.
+            size_t val = 0;
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
+                                               sizeof(size_t), nullptr, &val));
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 2,
+                                               sizeof(size_t), nullptr, &val));
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 3,
+                                               sizeof(size_t), nullptr, &val));
+            current_arg_index += 4;
+        } else {
+            // This emulates the offset struct sycl adds for a 1D buffer accessor.
+            struct {
+                size_t offsets[1] = {0};
+            } accessor;
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
+                                               sizeof(accessor), nullptr,
+                                               &accessor));
+            current_arg_index += 2;
+        }
+
         buffer_args.push_back(mem_handle);
         *out_buffer = mem_handle;
     }

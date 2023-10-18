@@ -7,6 +7,14 @@
 
 struct urKernelSetArgSamplerTest : uur::urKernelTest {
     void SetUp() {
+        // Images and samplers are not available on AMD
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        if (backend == UR_PLATFORM_BACKEND_HIP) {
+            GTEST_SKIP() << "Sampler are not supported on hip.";
+        }
+
         program_name = "image_copy";
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
         ur_sampler_desc_t sampler_desc = {

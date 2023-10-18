@@ -266,6 +266,17 @@ std::string KernelsEnvironment::getSupportedILPostfix(uint32_t device_index) {
         return {};
     }
 
+    // special case for AMD as it doesn't support IL.
+    ur_platform_backend_t backend;
+    if (urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, sizeof(backend),
+                          &backend, nullptr)) {
+        error = "failed to get backend from platform.";
+        return {};
+    }
+    if (backend == UR_PLATFORM_BACKEND_HIP) {
+        return ".bin";
+    }
+
     auto device = instance->GetDevices()[device_index];
     std::string IL_version;
     if (uur::GetDeviceILVersion(device, IL_version)) {
