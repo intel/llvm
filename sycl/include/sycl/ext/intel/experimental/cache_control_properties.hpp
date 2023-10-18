@@ -19,7 +19,7 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-enum class level : std::uint16_t { L1=0, L2, L3, L4 };
+enum class level : std::uint16_t { L1 = 0, L2, L3, L4 };
 
 template <typename PropertyT, typename... Ts>
 using property_value =

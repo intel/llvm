@@ -19,7 +19,6 @@ using annotated_ptr_store =
                              cache_control_write_through<level::L1>,
                              cache_control_write_back<level::L2, level::L3>))>;
 
-
 void cache_control_read_func() {
   queue q;
   constexpr int N = 10;
@@ -36,14 +35,14 @@ void cache_control_read_func() {
 void cache_control_write_func() {
   queue q;
   constexpr int N = 10;
-  float* ArrayA = malloc_shared<float>(N, q);
-  q.submit([&](handler& cgh) {
+  float *ArrayA = malloc_shared<float>(N, q);
+  q.submit([&](handler &cgh) {
     cgh.parallel_for<>(range<1>(N), [=](item<1> item) {
       auto item_id = item.get_linear_id();
-      annotated_ptr_store dst{ &ArrayA[item_id] };
+      annotated_ptr_store dst{&ArrayA[item_id]};
       *dst = 55.0f;
-      });
     });
+  });
 }
 
 // CHECK-IR: spir_kernel{{.*}}cache_control_read_func
@@ -53,7 +52,7 @@ void cache_control_write_func() {
 // CHECK-IR: spir_kernel{{.*}}cache_control_write_func
 // CHECK-IR: {{.*}}getelementptr inbounds float{{.*}}!spirv.Decorations [[WDECOR:.*]]
 // CHECK-IR: ret void
-// 
+
 // CHECK-IR: [[RDECOR]] = !{[[RDECOR1:.*]], [[RDECOR2:.*]], [[RDECOR3:.*]], [[RDECOR4:.*]]}
 // CHECK-IR: [[RDECOR1]] = !{i32 6442, i32 0, i32 1}
 // CHECK-IR: [[RDECOR2]] = !{i32 6442, i32 1, i32 0}

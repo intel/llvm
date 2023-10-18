@@ -22,9 +22,6 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/TargetParser/Triple.h"
 
-#include <iostream>
-#include "llvm/Support/raw_ostream.h"
-
 using namespace llvm;
 
 namespace {
