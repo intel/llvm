@@ -9819,8 +9819,15 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
       llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
       Targets += TT.normalize();
     } else {
-      std::string NormalizedTriple =
-          Dep.DependentToolChain->getTriple().normalize();
+      auto &Triple = Dep.DependentToolChain->getTriple();
+      std::string NormalizedTriple;
+      if (Triple.getEnvironment() == llvm::Triple::SYCLMLIR) {
+        llvm::Triple Tmp{Triple.getArchName(), Triple.getVendorName(),
+                         Triple.getOSName()};
+        NormalizedTriple = Tmp.normalize();
+      } else {
+        NormalizedTriple = Triple.normalize();
+      }
       Targets += NormalizedTriple;
     }
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
