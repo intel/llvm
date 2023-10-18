@@ -1,3 +1,12 @@
+// Ensure that bundled BC files in archives can work with:
+// TEST1:  clang-offload-bundler -list
+// TEST2:  clang-offload-bundler -check-section
+// TEST3:  clang-offload-bundler -unbundle             with single target
+// TEST4:  clang-offload-bundler -unbundle             with multiple targets
+//
+// In all these tests also ensure functionality with bundled object files still
+// works correctly.
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make bundled object with targets:
 // sycl-spir64-unknown-unknown
@@ -25,6 +34,7 @@
 // RUN: llvm-ar cr %t_bundled.a %t1_bundled.bc %t2_bundled.bc %t3_bundled.bc %t_bundled.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TEST1
 // Check that -list with various archive types can find all targets
 // RUN: clang-offload-bundler -list -type=ao  -input=%t_bundled.a | FileCheck --check-prefixes=CHECK-LIST %s
 // RUN: clang-offload-bundler -list -type=aoo -input=%t_bundled.a | FileCheck --check-prefixes=CHECK-LIST %s
@@ -41,6 +51,7 @@
 // CHECK-LIST-LENGTH: 5
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TEST2
 // Test -check-section
 // RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown
 // RUN:     clang-offload-bundler -check-section -type=ao  -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu
@@ -69,6 +80,7 @@
 // RUN: clang-offload-bundler -unbundle -type=o -input=%t_bundled.o -targets=host-x86_64-unknown-linux-gnu -output=%t_unbundled_B.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TEST3
 // Test archive unbundling
 // RUN: clang-offload-bundler -unbundle -type=aoo -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown   -output=%t_list1.txt
 // RUN: clang-offload-bundler -unbundle -type=aoo -input=%t_bundled.a -targets=host-x86_64-unknown-linux-gnu -output=%t_list2.txt
@@ -83,6 +95,7 @@
 // RUN: cmp %t3.bc           `cat %t_list5.txt`
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TEST4
 // Test archive unbundling for multiple targets
 // RUN: clang-offload-bundler -unbundle -type=aoo -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown,host-spir64_gen -output=%t_listA.txt -output=%t_listB.txt
 

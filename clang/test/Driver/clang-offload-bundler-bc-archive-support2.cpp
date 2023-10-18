@@ -1,3 +1,6 @@
+// Test archive unbundling with multiple files with the same target
+// One of the files is a bundled BC file and the other file is a bundled object file
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Create BC file to be bundled
 // RUN: %clangxx -emit-llvm -c %s -o %t.bc
@@ -30,9 +33,5 @@
 // RUN: cmp %t_unbundled.bc `cat %t_list.txt | grep .bc$`
 // RUN: cmp %t_unbundled.o  `cat %t_list.txt | grep .o$`
 
-#include <iostream>
-
-int main() {
-  std::cout << "Hi\n";
-  return 0;
+void foo() {
 }
