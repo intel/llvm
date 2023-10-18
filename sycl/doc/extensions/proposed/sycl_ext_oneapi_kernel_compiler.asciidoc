@@ -155,7 +155,7 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   source_language lang,
   const std::string& source)
 
-} // namespace sycl::ext::oneapi::experimental {
+} // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
@@ -328,15 +328,16 @@ build.
 When a build fails, an `exception` is thrown and the exception's `what` string
 provides a description of the error.
 
-Instead, the `build_log` property provides information about a build operation that
-succeeds.
+Instead, the `build_log` property provides information about a build operation
+that succeeds.
 This might include warning messages or other diagnostics.
 Each source language specification can define specific information that is
 provided in the log.
 In general, the log information is intended for human consumption, and the
 format may not be stable across implementations of this extension.
 
-_Effects (1):_ Constructs a `build_log` property with a pointer to a `std::string`.
+_Effects (1):_ Constructs a `build_log` property with a pointer to a
+`std::string`.
 When the `build` function completes successfully, this string will contain the
 log.
 
