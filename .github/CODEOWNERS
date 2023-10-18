@@ -47,6 +47,12 @@ sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
 sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
+# CUDA specific runtime implementations
+sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
+
+# CUDA device code tests
+sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
+
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
 xptifw/ @intel/llvm-reviewers-runtime
