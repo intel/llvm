@@ -235,11 +235,14 @@ event handler::finalize() {
 
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
+      //uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent, 
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
-
+        #ifdef XPTI_ENABLE_INSTRUMENTATION
+         //emitInstrumentation(xpti::trace_task_begin, nullptr);
+        #endif
         if (MQueue->is_host()) {
           MHostKernel->call(MNDRDesc, (NewEvent)
                                           ? NewEvent->getHostProfilingInfo()
@@ -264,6 +267,9 @@ event handler::finalize() {
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
+        #ifdef XPTI_ENABLE_INSTRUMENTATION
+         //emitInstrumentation(xpti::trace_task_end, nullptr);
+        #endif
         return Result;
       };
 

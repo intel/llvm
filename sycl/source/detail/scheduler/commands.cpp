@@ -64,6 +64,17 @@ bool CurrentCodeLocationValid() {
   return (FileName && FileName[0] != '\0') ||
          (FunctionName && FunctionName[0] != '\0');
 }
+
+void emitInstrumentation(uint32_t StreamID, QueueImplPtr Queue, uint64_t InstanceID, xpti_td* TraceEvent, uint16_t Type, const char *Txt) {
+  if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
+    return;
+  // Trace event notifier that emits a Type event
+  xpti::addMetadata(TraceEvent, "queue_id",
+                    Queue->getQueueID());
+  xptiNotifySubscribers(StreamID, Type, detail::GSYCLGraphEvent,
+                        static_cast<xpti_td *>(TraceEvent), InstanceID,
+                        static_cast<const void *>(Txt));
+}
 #endif
 
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
@@ -789,19 +800,6 @@ void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 #endif
 }
 
-void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiCheckTraceEnabled(MStreamID, Type) && MTraceEvent))
-    return;
-  // Trace event notifier that emits a Type event
-  xpti::addMetadata(static_cast<xpti_td *>(MTraceEvent), "queue_id",
-                    MEvent->getSubmittedQueue()->getQueueID());
-  xptiNotifySubscribers(MStreamID, Type, detail::GSYCLGraphEvent,
-                        static_cast<xpti_td *>(MTraceEvent), MInstanceID,
-                        static_cast<const void *>(Txt));
-#endif
-}
-
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -832,14 +830,14 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // reason, as determined by the scheduler
     std::string Info = "enqueue.barrier[";
     Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
+    emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_barrier_begin, Info.c_str());
 #endif
 
     // Wait if blocking
     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
       ;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
+    emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_barrier_end, Info.c_str());
 #endif
   }
 
@@ -850,7 +848,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     return true;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  emitInstrumentation(xpti::trace_task_begin, nullptr);
+  emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_task_begin, nullptr);
 #endif
 
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
@@ -888,7 +886,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // Emit this correlation signal before the task end
   emitEnqueuedEventSignal(MEvent->getHandleRef());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  emitInstrumentation(xpti::trace_task_end, nullptr);
+  emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_task_end, nullptr);
 #endif
   return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
 }

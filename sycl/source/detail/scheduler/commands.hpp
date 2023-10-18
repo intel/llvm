@@ -29,6 +29,7 @@ namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 bool CurrentCodeLocationValid();
+void emitInstrumentation(uint32_t StreamID, QueueImplPtr Queue, uint64_t InstanceID, xpti_td* TraceEvent, uint16_t Type, const char *Txt);
 #endif
 
 class queue_impl;
@@ -196,8 +197,6 @@ public:
   /// If prolog has been run, run epilog; this must be guarded by a check for
   /// xptiTraceEnabled().
   void makeTraceEventEpilog();
-  /// Emits an event of Type.
-  void emitInstrumentation(uint16_t Type, const char *Txt = nullptr);
 
   // End Methods needed to support SYCL instrumentation
 
