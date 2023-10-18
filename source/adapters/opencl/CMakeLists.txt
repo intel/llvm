@@ -43,41 +43,24 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 
 find_package(Threads REQUIRED)
 
-if (NOT DEFINED OpenCL_LIBRARY OR NOT DEFINED OpenCL_INCLUDE_DIR)
-    message(WARNING "OpenCL_LIBRARY and OpenCL_INCLUDE_DIR are not set. Using find_package() to find an OpenCL installation in the system.")
+# The OpenCL target can be set manually on upstream cmake to avoid using find_package().
+if (NOT UR_OPENCL_ICD_LOADER_LIBRARY)
     find_package(OpenCL REQUIRED)
+    message(STATUS "OpenCL_LIBRARY: ${OpenCL_LIBRARY}")
+    message(STATUS "OpenCL_INCLUDE_DIR: ${OpenCL_INCLUDE_DIR}")
+    set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL::OpenCL)
 endif()
-
-message(STATUS "OpenCL_LIBRARY: ${OpenCL_LIBRARY}")
-message(STATUS "OpenCL_INCLUDE_DIR: ${OpenCL_INCLUDE_DIR}")
 
 # Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION.
 # Define all symbols up to OpenCL 3.0.
 target_compile_definitions(ur_adapter_opencl PRIVATE CL_TARGET_OPENCL_VERSION=300 CL_USE_DEPRECATED_OPENCL_1_2_APIS)
-
-# Make imported library global to use it within the project.
-add_library(OpenCL-ICD SHARED IMPORTED GLOBAL)
-
-if (WIN32)
-    set_target_properties(
-            OpenCL-ICD PROPERTIES
-            IMPORTED_IMPLIB               ${OpenCL_LIBRARY}
-            INTERFACE_INCLUDE_DIRECTORIES ${OpenCL_INCLUDE_DIR}
-    )
-else()
-    set_target_properties(
-            OpenCL-ICD PROPERTIES
-            IMPORTED_LOCATION             ${OpenCL_LIBRARY}
-            INTERFACE_INCLUDE_DIRECTORIES ${OpenCL_INCLUDE_DIR}
-    )
-endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::common
         ${PROJECT_NAME}::unified_malloc_framework
         Threads::Threads
-        OpenCL-ICD
+        ${UR_OPENCL_ICD_LOADER_LIBRARY}
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
