@@ -141,7 +141,6 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
                  Vals = block_load<T, N>(In, ElemOffset * sizeof(T));
              }
            }
-
          } else { // if CheckProperties
            if constexpr (UsePassThruOperand) {
              // TODO: these 2 lines work-around the problem with scalar
