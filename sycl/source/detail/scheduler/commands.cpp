@@ -1935,8 +1935,7 @@ void instrumentationAddExtraKernelMetadata(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName,
-            nullptr);
+            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2417,7 +2416,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   } else {
     std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName, nullptr);
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
   auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
@@ -2522,26 +2521,18 @@ pi_int32 enqueueImpKernel(
     Kernel = MSyclKernel->getHandleRef();
     auto SyclProg = MSyclKernel->getProgramImpl();
     Program = SyclProg->getHandleRef();
-    if (SyclProg->is_cacheable()) {
-      sycl::detail::pi::PiKernel FoundKernel = nullptr;
-      std::tie(FoundKernel, KernelMutex, EliminatedArgMask, std::ignore) =
-          detail::ProgramManager::getInstance().getOrCreateKernel(
-              ContextImpl, DeviceImpl, KernelName, SyclProg.get());
-      assert(FoundKernel == Kernel);
-    } else {
-      // Non-cacheable kernels use mutexes from kernel_impls.
-      // TODO this can still result in a race condition if multiple SYCL
-      // kernels are created with the same native handle. To address this,
-      // we need to either store and use a pi_native_handle -> mutex map or
-      // reuse and return existing SYCL kernels from make_native to avoid
-      // their duplication in such cases.
-      KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
-      EliminatedArgMask = MSyclKernel->getKernelArgMask();
-    }
+    // Non-cacheable kernels use mutexes from kernel_impls.
+    // TODO this can still result in a race condition if multiple SYCL
+    // kernels are created with the same native handle. To address this,
+    // we need to either store and use a pi_native_handle -> mutex map or
+    // reuse and return existing SYCL kernels from make_native to avoid
+    // their duplication in such cases.
+    KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
+    EliminatedArgMask = MSyclKernel->getKernelArgMask();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, nullptr);
+            ContextImpl, DeviceImpl, KernelName);
   }
 
   // We may need more events for the launch, so we make another reference.
