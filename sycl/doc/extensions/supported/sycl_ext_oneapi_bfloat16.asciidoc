@@ -39,7 +39,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 5.
+This extension is written against the SYCL 2020 specification, Revision 7.
 
 == Status
 
@@ -83,17 +83,8 @@ tolerate lower precision. Some implementations may still perform operations
  on this type using 32-bit math. For example, they may convert the `bfloat16`
  value to `float`, and then perform the operation on the 32-bit `float`.
 
-This extension also adds `bfloat16` support to the `fma`, `fmin`, `fmax`, `fabs`,
-`isnan`, `ceil`, `floor`, `cos`, `sin`, `exp`, `exp2`, `exp10`, `log`, `log2`,
-`log10`, `rint`, `sqrt`, `rsqrt` and `trunc` SYCL floating point math functions.
-These functions can be used as element wise operations on matrices, supplementing
-the `bfloat16` support in the sycl_ext_oneapi_matrix extension.
-
-The descriptions of the `fma`, `fmin`, `fmax`, `fabs`, `isnan`, `ceil`, `floor`,
-`cos`, `sin`, `exp`, `exp2`, `exp10`, `log`, `log2`, `log10`, `rint`, `sqrt`,
-`rsqrt` and `trunc` SYCL floating point math functions can be found in the SYCL
-specification:
-https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
+This extension also adds bfloat16 support to several of the SYCL math functions,
+which are listed below in the section "Math Functions".
 
 [NOTE]
 The bfloat16 type and math functions are supported on all devices. DPC++
@@ -103,6 +94,24 @@ in software.
 
 == Specification
 
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_BFLOAT16` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
 
 === New `bfloat16` class
 
