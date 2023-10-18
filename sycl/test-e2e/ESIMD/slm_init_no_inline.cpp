@@ -1,4 +1,5 @@
 // TODO: Investigate fail of this test on Gen12 platform
+// REQUIRES-INTEL-DRIVER: lin: 26516, win: 101.4827
 // REQUIRES: gpu-intel-pvc
 // DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
 // RUN: %{build} %{inlineflags} -o %t.out
@@ -24,12 +25,6 @@ int main() {
   std::cout << "Running on " << D.get_info<info::device::name>()
             << ", driver=" << D.get_info<info::device::driver_version>()
             << std::endl;
-
-  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "26516",
-                     "101.4827")) {
-    std::cout << "Skipped. The test requires GPU driver 1.3.26516 or newer.\n";
-    return 0;
-  }
 
   constexpr int Size = VL * 2;
   int *A = malloc_shared<int>(Size, Q);
