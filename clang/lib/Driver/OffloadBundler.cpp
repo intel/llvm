@@ -1048,12 +1048,10 @@ public:
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
 
-        /* Handle BC Files */
+        /* Handle bundled BC Files */
         FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
         auto MR = C.getMemoryBufferRef();
-        if (!MR) {
-          dbgs() << "No memory buffer\n";
-        }
+        assert(MR);
         Buf = MemoryBuffer::getMemBuffer(*MR, false);
       } else {
         auto &Bin = BinOrErr.get();
@@ -1152,13 +1150,11 @@ public:
           return Err;
 
         if (BundlerConfig.FilesType == "aoo") {
-          /* Handle BC Files */
+          /* Handle bundled BC Files */
           Ext = "bc";
           FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
           auto MR = C.getMemoryBufferRef();
-          if (!MR) {
-            dbgs() << "No memory buffer\n";
-          }
+          assert(MR);
           Buf = MemoryBuffer::getMemBuffer(*MR, false);
         } else
           continue;
