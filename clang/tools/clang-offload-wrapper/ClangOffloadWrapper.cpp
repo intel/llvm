@@ -276,6 +276,7 @@ static cl::opt<bool> AddOpenMPOffloadNotes(
 
 namespace {
 
+// return initializer value of the variable with name Name as a StringRef
 auto getValueAsStringRef(const Module *M, Constant *Name) {
   auto Var = M->getGlobalVariable(Name->getName(), true);
   auto Initializer = Var->getInitializer();
@@ -293,13 +294,10 @@ auto getValueAsStringRef(const Module *M, Constant *Name) {
   return StringRef;
 }
 
-StringRef removeNullTerminator(StringRef S) {
-  return S.substr(0, S.size() - 1);
-}
-
 auto getInitializerNumElements(Constant *Initializer) {
   Type *Ty = Initializer->getType();
   auto *ArrTy = dyn_cast<ArrayType>(Ty);
+  assert(ArrTy && "Initializer must be of ArrayType");
   return ArrTy->getNumElements();
 }
 
@@ -844,11 +842,11 @@ private:
         auto Entry_AsStringRef =
             getValueAsStringRef(Current_SymProps_M.get(), Entry_Name);
 
-        EntriesInits.push_back(ConstantStruct::get(
-            getEntryTy(), NullPtr,
-            addStringToModule(removeNullTerminator(Entry_AsStringRef),
-                              "__sycl_offload_entry_name"),
-            Zero, i32Zero, i32Zero));
+        EntriesInits.push_back(
+            ConstantStruct::get(getEntryTy(), NullPtr,
+                                addStringToModule(Entry_AsStringRef.rtrim('\0'),
+                                                  "__sycl_offload_entry_name"),
+                                Zero, i32Zero, i32Zero));
       }
     } else {
       Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
@@ -1013,9 +1011,8 @@ private:
                 static_cast<ConstantInt *>(Property_ValSize)->getZExtValue();
 
             if (Property_Type_AsUInt64 == llvm::util::PropertyValue::UINT32) {
-              PropSet.insert(
-                  std::pair(removeNullTerminator(Property_Name_AsStringRef),
-                            Property_ValSize_AsUInt64));
+              PropSet.insert(std::pair(Property_Name_AsStringRef.rtrim('\0'),
+                                       Property_ValSize_AsUInt64));
             } else if (Property_Type_AsUInt64 ==
                        llvm::util::PropertyValue::BYTE_ARRAY) {
               auto Data_AsStringRef = getValueAsStringRef(
@@ -1032,15 +1029,14 @@ private:
                       Data_AsStringRef.data()) +
                       sizeof(llvm::util::PropertyValue::SizeTy),
                   DataBitSize);
-              PropSet.insert(std::pair(
-                  removeNullTerminator(Property_Name_AsStringRef), PV));
+              PropSet.insert(
+                  std::pair(Property_Name_AsStringRef.rtrim('\0'), PV));
             } else {
               llvm_unreachable_internal("unsupported property");
             }
           }
         }
-        PropRegistry->add(removeNullTerminator(PropertySet_Name_AsStringRef),
-                          PropSet);
+        PropRegistry->add(PropertySet_Name_AsStringRef.rtrim('\0'), PropSet);
       }
     } else {
       if (PropRegistryFile.empty()) {
