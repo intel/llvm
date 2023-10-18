@@ -1422,7 +1422,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
     GenXArgs.erase(GenXArgs.begin());
   }
 
-  CallInst *NewCI = IntrinsicInst::Create( // xxyy
+  CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
       &CI);

@@ -201,7 +201,7 @@ __esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param surf_ind is the surface index.
-/// @param OldValues contains the vector which elements are copied
+/// @param PassThru contains the vector which elements are copied
 /// to the returned result when the corresponding element of \p pred is 0.
 /// @return is a vector of type T and N * to_int<VS>()
 template <typename T, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
@@ -212,7 +212,7 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_merge_bti(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets, SurfIndAliasT surf_ind,
-    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> OldValues = 0)
+    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru = 0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
@@ -221,7 +221,7 @@ __esimd_lsc_load_merge_bti(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Similar to __esimd_lsc_load_merge_bti(), but the argument OldValues is not
+/// Similar to __esimd_lsc_load_merge_bti(), but the argument PassThru is not
 /// explicitly specified, which results into random values in those elements of
 /// the returned result for which the corresponding element in \p pred is 0.
 template <typename T, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
@@ -656,7 +656,7 @@ ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the load addresses.
-/// @param old_values is the vector of values copied to the result when the
+/// @param pass_thru is the vector of values copied to the result when the
 /// corresponding element in \p pred is unset.
 /// @return is a vector of type T and N * to_int<VS>()
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
@@ -667,7 +667,7 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_merge_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
-    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> old_values =
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru =
         0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
