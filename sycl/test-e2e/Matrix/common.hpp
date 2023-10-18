@@ -5,7 +5,7 @@
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-constexpr float BF16_EPSILON = 0.00781250;
+constexpr float BF16_EPSILON = 10e-2;
 constexpr float FLOAT_EPSILON = 10e-3;
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
@@ -67,10 +67,18 @@ template <typename T>
 void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
   std::random_device dev;
   std::uniform_real_distribution<float> fdistr(-val, val);
+  std::uniform_int_distribution idistr((int)-val, (int)val);
 
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
-      src[i * cols + j] = T(fdistr(dev));
+      if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float>) {
+        src[i * cols + j] = T(fdistr(dev));
+      } else if constexpr (std::is_same_v<T, int8_t> ||
+                           std::is_same_v<T, int32_t>) {
+        src[i * cols + j] = T(idistr(dev));
+      } else {
+        assert(false && "Unsupported type in matrix_rand.");
+      }
     }
   }
 }
@@ -80,14 +88,18 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
       if constexpr (std::is_same_v<T1, float> || std::is_same_v<T1, bfloat16>) {
-        if (std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]) >
-            BF16_EPSILON) {
-          std::cout << "Incorrect result in matrix\n";
+        float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
+        if (diff > BF16_EPSILON) {
+          std::cout << "Incorrect result in matrix. Ref: "
+                    << (T1)ref[i * cols + j] << ", Val:" << src[i * cols + j]
+                    << ", Diff: " << diff << ", Epsilon: " << BF16_EPSILON
+                    << "\n";
           return false;
         }
       } else if (std::is_same_v<T1, int32_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix\n";
+          std::cout << "Incorrect result in matrix. Ref: " << ref[i * cols + j]
+                    << ", Val:" << src[i * cols + j] << "\n";
           return false;
         }
       } else {

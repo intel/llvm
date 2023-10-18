@@ -7,9 +7,9 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi-device-selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi-device-selector) for a full description.   |
-| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl-device-filter) below for `SYCL_DEVICE_FILTER` description. |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl-device-allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl_device_filter) below for `SYCL_DEVICE_FILTER` description. |
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
@@ -23,7 +23,7 @@ compiler and runtime.
 | `SYCL_RT_WARNING_LEVEL` | Positive integer | The higher warning level is used the more warnings and performance hints the runtime library may print. Default value is '0', which means no warning/hint messages from the runtime library are allowed. The value '1' enables performance warnings from device runtime/codegen. The values greater than 1 are reserved for future use. |
 | `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 | `SYCL_EAGER_INIT` | Integer | Enable by specifying non-zero value. Tells the SYCL runtime to do as much as possible initialization at objects construction as opposed to doing lazy initialization on the fly. This may mean doing some redundant work at warmup but ensures fastest possible execution on the following hot and reportable paths. It also instructs PI plugins to do the same. Default is "0".  |
-| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl-reduction-preferred-workgroup-size) | Controls the preferred work-group size of reductions. |
+| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
 | `SYCL_ENABLE_FUSION_CACHING` | '1' or '0' | Enable ('1') or disable ('0') caching of JIT compilations for kernel fusion. Caching avoids repeatedly running the JIT compilation pipeline if the same sequence of kernels is fused multiple times. Default value is '1'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
@@ -192,10 +192,10 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_PI_TRACE` | Described [below](#sycl-pi-trace-options)  | Enable specified level of tracing for PI. |
+| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
-| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl-print-execution-graph-options) | Print execution graph to DOT text file. |
+| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable regular cleanup of enqueued (or finished, in case of host tasks) non-leaf command nodes. If disabled, command nodes will be cleaned up only during the destruction of the last remaining memory object used by them. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` (deprecated) | Any(\*) | Use `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` instead. |
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
