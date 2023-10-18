@@ -251,3 +251,20 @@ their source string.
   OpenCL C kernel?
   We should have a complete list of allowed arguments and describe how each is
   passed from the SYCL host code.
+
+* Do we need to document some restrictions on the OpenCL C
+  https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_C.html#work-item-functions[
+  work-item functions] that the kernel can call, which depends on how the
+  kernel was launched?
+  For example, can a kernel launched with the simple `range` form of
+  `parallel_for` call `get_local_size`?
+  In OpenCL, there is only one way to launch kernels
+  (`clEnqueueNDRangeKernel`), so it is always legal to call any of the
+  work-item functions.
+  If an OpenCL kernel is launched with a NULL `local_work_size` (which is
+  roughly equivalent to SYCL's `range` form of `parallel_for`), the
+  `get_local_size` function returns the local work-group size that is chosen by
+  the implementation.
+  Level Zero, similarly, has only one way to launch kernels.
+  Therefore, maybe it is OK to let kernels in this extension call any of the
+  work-item functions, regardless of how they are launched?
