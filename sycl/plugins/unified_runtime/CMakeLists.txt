@@ -4,14 +4,26 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG cuda-cmd-buffers)
+  # commit b70280fc977f273403a9f5826e671cea45707c97
+  # Author: Ben Tracy <ben.tracy@codeplay.com>
+  # Date:   Fri Oct 6 12:57:03 2023 +0100
+  #     [CUDA][EXP] CUDA adapter support for command buffers
+  #     - Implement initial subset of command buffer functions for CUDA
+  #     - Report command buffer extension as supported from device query
+  #     - Some additional methods and refactoring to reuse existing adapter code
+  set(UNIFIED_RUNTIME_TAG b70280fc977f273403a9f5826e671cea45707c97)
 
-  set(UR_BUILD_ADAPTER_L0 ON)
+  if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_L0 ON)
+  endif()
 
   if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     set(UR_BUILD_ADAPTER_CUDA ON)
   endif()
 
+  if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+    set(UR_BUILD_ADAPTER_HIP ON)
+  endif()
   set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -62,99 +74,92 @@ target_include_directories(UnifiedRuntime-Headers
 
 find_package(Threads REQUIRED)
 
-add_sycl_plugin(unified_runtime
+set(UNIFIED_RUNTIME_PLUGIN_ARGS
   SOURCES
     # These are short-term shared with Unified Runtime
-    # The two plugins define a few things differrently so must
+    # The two plugins define a few things differently so must
     # be built separately. This difference is spelled in
     # their "ur_bindings.hpp" files.
-    #
     "ur_bindings.hpp"
     "pi2ur.hpp"
     "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
-    LIBRARIES
+  LIBRARIES
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-    LevelZeroLoader-Headers # we need for #include <ze_api.h> in common.h
 )
 
-add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+# We need for #include <ze_api.h> in common.h
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+    list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS LevelZeroLoader-Headers)
+endif()
+
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+    list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS OpenCL-ICD)
+endif()
+
+add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
+
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+endif()
+
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_hip)
+endif()
 
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl-runtime-libraries ur_adapter_cuda)
 endif()
 
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build HIP adapter
-  add_sycl_library("ur_adapter_hip" SHARED
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  # Build OpenCL adapter
+  add_sycl_library("ur_adapter_opencl" SHARED
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"
-      "ur/adapters/hip/adapter.cpp"
-      "ur/adapters/hip/adapter.hpp"
-      "ur/adapters/hip/command_buffer.cpp"
-      "ur/adapters/hip/command_buffer.hpp"
-      "ur/adapters/hip/common.cpp"
-      "ur/adapters/hip/common.hpp"
-      "ur/adapters/hip/context.cpp"
-      "ur/adapters/hip/context.hpp"
-      "ur/adapters/hip/device.cpp"
-      "ur/adapters/hip/device.hpp"
-      "ur/adapters/hip/enqueue.cpp"
-      "ur/adapters/hip/event.cpp"
-      "ur/adapters/hip/event.hpp"
-      "ur/adapters/hip/image.cpp"
-      "ur/adapters/hip/kernel.cpp"
-      "ur/adapters/hip/kernel.hpp"
-      "ur/adapters/hip/memory.cpp"
-      "ur/adapters/hip/memory.hpp"
-      "ur/adapters/hip/platform.cpp"
-      "ur/adapters/hip/platform.hpp"
-      "ur/adapters/hip/program.cpp"
-      "ur/adapters/hip/program.hpp"
-      "ur/adapters/hip/queue.cpp"
-      "ur/adapters/hip/queue.hpp"
-      "ur/adapters/hip/sampler.cpp"
-      "ur/adapters/hip/sampler.hpp"
-      "ur/adapters/hip/ur_interface_loader.cpp"
-      "ur/adapters/hip/usm.cpp"
-      "ur/adapters/hip/usm.hpp"
-      "ur/adapters/hip/usm_p2p.cpp"
+      "ur/adapters/opencl/adapter.cpp"
+      "ur/adapters/opencl/adapter.hpp"
+      "ur/adapters/opencl/command_buffer.hpp"
+      "ur/adapters/opencl/command_buffer.cpp"
+      "ur/adapters/opencl/common.cpp"
+      "ur/adapters/opencl/common.hpp"
+      "ur/adapters/opencl/context.cpp"
+      "ur/adapters/opencl/context.hpp"
+      "ur/adapters/opencl/device.cpp"
+      "ur/adapters/opencl/device.hpp"
+      "ur/adapters/opencl/enqueue.cpp"
+      "ur/adapters/opencl/event.cpp"
+      "ur/adapters/opencl/image.cpp"
+      "ur/adapters/opencl/kernel.cpp"
+      "ur/adapters/opencl/memory.cpp"
+      "ur/adapters/opencl/platform.cpp"
+      "ur/adapters/opencl/platform.hpp"
+      "ur/adapters/opencl/program.cpp"
+      "ur/adapters/opencl/queue.cpp"
+      "ur/adapters/opencl/sampler.cpp"
+      "ur/adapters/opencl/ur_interface_loader.cpp"
+      "ur/adapters/opencl/usm.cpp"
+      "ur/adapters/opencl/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
       Threads::Threads
-  )
+      OpenCL-ICD
+    )
 
-  set_target_properties("ur_adapter_hip" PROPERTIES
+  # Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION.
+  # Define all symbols up to OpenCL 3.0.
+  target_compile_definitions(ur_adapter_opencl PRIVATE CL_TARGET_OPENCL_VERSION=300)
+
+  set_target_properties("ur_adapter_opencl" PROPERTIES
     VERSION "0.0.0"
     SOVERSION "0"
   )
-
-  if(UMF_ENABLE_POOL_TRACKING)
-    target_compile_definitions("ur_adapter_hip" PRIVATE
-      UMF_ENABLE_POOL_TRACKING)
-  else()
-    message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-  endif()
-
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
-    # Set HIP define to select AMD platform
-    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_AMD__)
-  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
-    target_link_libraries(ur_adapter_hip PUBLIC cudadrv cudart)
-    # Set HIP define to select NVIDIA platform
-    target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_NVIDIA__)
-  else()
-    message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
-  endif()
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -217,8 +222,10 @@ if (TARGET UnifiedRuntimeLoader)
 endif()
 
 # Install the UR adapters too
-install(TARGETS ur_adapter_level_zero
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  install(TARGETS ur_adapter_level_zero
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
 )
+endif()

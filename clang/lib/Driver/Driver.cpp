@@ -856,7 +856,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                    [](std::pair<types::ID, const llvm::opt::Arg *> &I) {
                      return types::isHIP(I.first);
                    }) ||
-      C.getInputArgs().hasArg(options::OPT_hip_link);
+      C.getInputArgs().hasArg(options::OPT_hip_link) ||
+      C.getInputArgs().hasArg(options::OPT_hipstdpar);
   if (IsCuda && IsHIP) {
     Diag(clang::diag::err_drv_mix_cuda_hip);
     return;
@@ -3214,6 +3215,10 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
         }
       }
 
+      if ((Ty == types::TY_C || Ty == types::TY_CXX) &&
+          Args.hasArgNoClaim(options::OPT_hipstdpar))
+        Ty = types::TY_HIP;
+
       if (DiagnoseInputExistence(Args, Value, Ty, /*TypoCorrect=*/true))
         Inputs.push_back(std::make_pair(Ty, A));
 
@@ -5203,77 +5208,6 @@ class OffloadingActionBuilder final {
       }
     }
 
-    // Return whether to use native bfloat16 library.
-    bool selectBfloatLibs(const ToolChain *TC, bool &useNative) {
-      const char *TargetOpt = nullptr;
-      const char *DeviceOpt = nullptr;
-      bool needLibs = false;
-      for (auto *A : Args) {
-        llvm::Triple *TargetBE = nullptr;
-
-        auto GetTripleIt = [&, this](llvm::StringRef Triple) {
-          llvm::Triple TargetTriple{Triple};
-          auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
-            return SYCLTriple == TargetTriple;
-          });
-          return TripleIt != SYCLTripleList.end() ? &*TripleIt : nullptr;
-        };
-
-        if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
-          // spir64 target is actually JIT compilation, so we defer selection of
-          // bfloat16 libraries to runtime. For AOT we need libraries, but skip
-          // for Nvidia.
-          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch &&
-                     !TC->getTriple().isNVPTX();
-          TargetBE = GetTripleIt(A->getValue(0));
-          if (TargetBE)
-            TargetOpt = A->getValue(0);
-          else
-            continue;
-        } else if (A->getOption().matches(options::OPT_Xsycl_backend_EQ)) {
-          // Passing device args: -Xsycl-target-backend=<triple> <opt>
-          TargetBE = GetTripleIt(A->getValue(0));
-          if (TargetBE)
-            DeviceOpt = A->getValue(1);
-          else
-            continue;
-        } else if (A->getOption().matches(options::OPT_Xsycl_backend)) {
-          // Passing device args: -Xsycl-target-backend <opt>
-          TargetBE = &SYCLTripleList.front();
-          DeviceOpt = A->getValue(0);
-        } else if (A->getOption().matches(options::OPT_Xs_separate)) {
-          // Passing device args: -Xs <opt>
-          DeviceOpt = A->getValue(0);
-        } else {
-          continue;
-        };
-      }
-      useNative = false;
-      if (needLibs)
-        if (TC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-            TargetOpt && DeviceOpt) {
-
-          auto checkBF = [=](std::string &Dev) {
-            static const std::regex BFFs("pvc.*|ats.*");
-            return std::regex_match(Dev, BFFs);
-          };
-
-          needLibs = true;
-          std::string Params{DeviceOpt};
-          size_t DevicesPos = Params.find("-device ");
-          useNative = false;
-          if (DevicesPos != std::string::npos) {
-            useNative = true;
-            std::istringstream Devices(Params.substr(DevicesPos + 8));
-            for (std::string S; std::getline(Devices, S, ',');) {
-              useNative &= checkBF(S);
-            }
-          }
-        }
-
-      return needLibs;
-    }
-
     bool addSYCLNativeCPULibs(const ToolChain *TC,
                               ActionList &DeviceLinkObjects) {
       std::string LibSpirvFile;
@@ -5323,146 +5257,48 @@ class OffloadingActionBuilder final {
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
-      struct DeviceLibOptInfo {
-        StringRef devicelib_name;
-        StringRef devicelib_option;
-      };
-
-      bool NoDeviceLibs = false;
       int NumOfDeviceLibLinked = 0;
-      // Currently, all SYCL device libraries will be linked by default. Linkage
-      // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
-      llvm::StringMap<bool> devicelib_link_info = {
-          {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
-          {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
-          {"libm-bfloat16", true}, {"internal", true}};
-      if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
-                                   options::OPT_fno_sycl_device_lib_EQ)) {
-        if (A->getValues().size() == 0)
-          C.getDriver().Diag(diag::warn_drv_empty_joined_argument)
-              << A->getAsString(Args);
-        else {
-          if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
-            NoDeviceLibs = true;
-
-          for (StringRef Val : A->getValues()) {
-            if (Val == "all") {
-              for (const auto &K : devicelib_link_info.keys())
-                devicelib_link_info[K] =
-                    true && (!NoDeviceLibs || K.equals("internal"));
-              break;
-            }
-            auto LinkInfoIter = devicelib_link_info.find(Val);
-            if (LinkInfoIter == devicelib_link_info.end() ||
-                Val.equals("internal")) {
-              // TODO: Move the diagnostic to the SYCL section of
-              // Driver::CreateOffloadingDeviceToolChains() to minimize code
-              // duplication.
-              C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
-                  << A->getSpelling() << Val;
-            }
-            devicelib_link_info[Val] = true && !NoDeviceLibs;
-          }
-        }
-      }
-
       SmallVector<SmallString<128>, 4> LibLocCandidates;
       SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
-      StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
-      using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
-      const SYCLDeviceLibsList sycl_device_wrapper_libs = {
-        {"libsycl-crt", "libc"},
-        {"libsycl-complex", "libm-fp32"},
-        {"libsycl-complex-fp64", "libm-fp64"},
-        {"libsycl-cmath", "libm-fp32"},
-        {"libsycl-cmath-fp64", "libm-fp64"},
-#if defined(_WIN32)
-        {"libsycl-msvc-math", "libm-fp32"},
-#endif
-        {"libsycl-imf", "libimf-fp32"},
-        {"libsycl-imf-fp64", "libimf-fp64"},
-        {"libsycl-imf-bf16", "libimf-bf16"},
-      };
-      // For AOT compilation, we need to link sycl_device_fallback_libs as
-      // default too.
-      const SYCLDeviceLibsList sycl_device_fallback_libs = {
-          {"libsycl-fallback-cassert", "libc"},
-          {"libsycl-fallback-cstring", "libc"},
-          {"libsycl-fallback-complex", "libm-fp32"},
-          {"libsycl-fallback-complex-fp64", "libm-fp64"},
-          {"libsycl-fallback-cmath", "libm-fp32"},
-          {"libsycl-fallback-cmath-fp64", "libm-fp64"},
-          {"libsycl-fallback-imf", "libimf-fp32"},
-          {"libsycl-fallback-imf-fp64", "libimf-fp64"},
-          {"libsycl-fallback-imf-bf16", "libimf-bf16"}};
-      const SYCLDeviceLibsList sycl_device_bfloat16_fallback_lib = {
-          {"libsycl-fallback-bfloat16", "libm-bfloat16"}};
-      const SYCLDeviceLibsList sycl_device_bfloat16_native_lib = {
-          {"libsycl-native-bfloat16", "libm-bfloat16"}};
-      // ITT annotation libraries are linked in separately whenever the device
-      // code instrumentation is enabled.
-      const SYCLDeviceLibsList sycl_device_annotation_libs = {
-          {"libsycl-itt-user-wrappers", "internal"},
-          {"libsycl-itt-compiler-wrappers", "internal"},
-          {"libsycl-itt-stubs", "internal"}};
-      auto addInputs = [&](const SYCLDeviceLibsList &LibsList) {
+      SmallVector<std::string, 8> DeviceLibraries;
+      DeviceLibraries =
+          tools::SYCL::getDeviceLibraries(C, TC->getTriple(), isSpirvAOT);
+
+      for (const auto &DeviceLib : DeviceLibraries) {
         bool LibLocSelected = false;
         for (const auto &LLCandidate : LibLocCandidates) {
           if (LibLocSelected)
             break;
-          for (const DeviceLibOptInfo &Lib : LibsList) {
-            if (!devicelib_link_info[Lib.devicelib_option])
-              continue;
-            SmallString<128> LibName(LLCandidate);
-            llvm::sys::path::append(LibName, Lib.devicelib_name);
-            llvm::sys::path::replace_extension(LibName, LibSuffix);
-            if (llvm::sys::fs::exists(LibName)) {
-              ++NumOfDeviceLibLinked;
-              Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
-                                           Args.MakeArgString(LibName));
-              auto *SYCLDeviceLibsInputAction =
-                  C.MakeAction<InputAction>(*InputArg, types::TY_Object);
-              auto *SYCLDeviceLibsUnbundleAction =
-                  C.MakeAction<OffloadUnbundlingJobAction>(
-                      SYCLDeviceLibsInputAction);
+          SmallString<128> LibName(LLCandidate);
+          llvm::sys::path::append(LibName, DeviceLib);
+          if (llvm::sys::fs::exists(LibName)) {
+            ++NumOfDeviceLibLinked;
+            Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                         Args.MakeArgString(LibName));
+            auto *SYCLDeviceLibsInputAction =
+                C.MakeAction<InputAction>(*InputArg, types::TY_Object);
+            auto *SYCLDeviceLibsUnbundleAction =
+                C.MakeAction<OffloadUnbundlingJobAction>(
+                    SYCLDeviceLibsInputAction);
 
-              // We are using BoundArch="" here since the NVPTX bundles in
-              // the devicelib .o files do not contain any arch information
-              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
-              OffloadAction::DeviceDependences Dep;
-              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
-                      Action::OFK_SYCL);
-              auto *SYCLDeviceLibsDependenciesAction =
-                  C.MakeAction<OffloadAction>(
-                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+            // We are using BoundArch="" here since the NVPTX bundles in
+            // the devicelib .o files do not contain any arch information
+            SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                TC, /*BoundArch=*/"", Action::OFK_SYCL);
+            OffloadAction::DeviceDependences Dep;
+            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+                    Action::OFK_SYCL);
+            auto *SYCLDeviceLibsDependenciesAction =
+                C.MakeAction<OffloadAction>(
+                    Dep, SYCLDeviceLibsUnbundleAction->getType());
 
-              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
-              if (!LibLocSelected)
-                LibLocSelected = !LibLocSelected;
-            }
+            DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            if (!LibLocSelected)
+              LibLocSelected = !LibLocSelected;
           }
         }
-      };
-
-      addInputs(sycl_device_wrapper_libs);
-      if (isSpirvAOT || TC->getTriple().isNVPTX())
-        addInputs(sycl_device_fallback_libs);
-
-      bool nativeBfloatLibs;
-      bool needBfloatLibs = selectBfloatLibs(TC, nativeBfloatLibs);
-      if (needBfloatLibs) {
-        // Add native or fallback bfloat16 library.
-        if (nativeBfloatLibs)
-          addInputs(sycl_device_bfloat16_native_lib);
-        else
-          addInputs(sycl_device_bfloat16_fallback_lib);
       }
-
-      if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                       options::OPT_fno_sycl_instrument_device_code, true))
-        addInputs(sycl_device_annotation_libs);
 
       // For NVPTX backend we need to also link libclc and CUDA libdevice
       // at the same stage that we link all of the unbundled SYCL libdevice
@@ -6940,6 +6776,11 @@ void Driver::handleArguments(Compilation &C, DerivedArgList &Args,
   phases::ID FinalPhase = getFinalPhase(Args, &FinalPhaseArg);
 
   if (FinalPhase == phases::Link) {
+    if (Args.hasArgNoClaim(options::OPT_hipstdpar)) {
+      Args.AddFlagArg(nullptr, getOpts().getOption(options::OPT_hip_link));
+      Args.AddFlagArg(nullptr,
+                      getOpts().getOption(options::OPT_frtlib_add_rpath));
+    }
     // Emitting LLVM while linking disabled except in HIPAMD Toolchain
     if (Args.hasArg(options::OPT_emit_llvm) && !Args.hasArg(options::OPT_hip_link))
       Diag(clang::diag::err_drv_emit_llvm_link);

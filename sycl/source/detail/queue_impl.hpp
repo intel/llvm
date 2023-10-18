@@ -155,7 +155,8 @@ public:
       if (MDevice->has(aspect::queue_profiling)) {
         // When piGetDeviceAndHostTimer is not supported, compute the
         // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+        if (!getDeviceImplPtr()->is_host() &&
+            !getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
           MFallbackProfiling = true;
       } else {
         throw sycl::exception(make_error_code(errc::feature_not_supported),
