@@ -328,7 +328,7 @@ build.
 When a build fails, an `exception` is thrown and the exception's `what` string
 provides a description of the error.
 
-Instead, the `log` property provides information about a build operation that
+Instead, the `build_log` property provides information about a build operation that
 succeeds.
 This might include warning messages or other diagnostics.
 Each source language specification can define specific information that is
@@ -336,7 +336,7 @@ provided in the log.
 In general, the log information is intended for human consumption, and the
 format may not be stable across implementations of this extension.
 
-_Effects (1):_ Constructs a `log` property with a pointer to a `std::string`.
+_Effects (1):_ Constructs a `build_log` property with a pointer to a `std::string`.
 When the `build` function completes successfully, this string will contain the
 log.
 
