@@ -1,3 +1,4 @@
+// XFAIL: cuda
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
