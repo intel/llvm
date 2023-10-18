@@ -146,7 +146,7 @@ bool test(queue Q, uint32_t PMask = ~0) {
           Tuint ExpectedVal =
               IsMaskSet ? (ExpectedValBase + ChannelId + J * NChannels) & VMask
                         : sycl::bit_cast<Tuint>(MergeValue);
-          Tuint ComputedVal = sycl::bit_cast<Tuint>(Out[OutIndex]);
+          Tuint ComputedVal = sycl::bit_cast<Tuint>(Out[OutIndex]) & VMask;
           if (ComputedVal != ExpectedVal && NErrors++ < 32) {
             std::cout << "Error: " << OutIndex << ": Value = " << ComputedVal
                       << ", Expected value = " << ExpectedVal

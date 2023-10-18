@@ -80,11 +80,6 @@ namespace llvm {
                        LibFunc DoubleFn, LibFunc FloatFn, LibFunc LongDoubleFn,
                        LibFunc &TheLibFunc);
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  /// Return V if it is an i8*, otherwise cast it to i8*.
-  Value *castToCStr(Value *V, IRBuilderBase &B);
-
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   /// Emit a call to the strlen function to the builder, for the specified
   /// pointer. Ptr is required to be some pointer type, and the return value has
   /// 'size_t' type.

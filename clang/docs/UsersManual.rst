@@ -1724,9 +1724,18 @@ floating point semantic models: precise (the default), strict, and fast.
    and ``fast``.
    Details:
 
-   * ``precise`` Disables optimizations that are not value-safe on floating-point data, although FP contraction (FMA) is enabled (``-ffp-contract=on``).  This is the default behavior.
-   * ``strict`` Enables ``-frounding-math`` and ``-ffp-exception-behavior=strict``, and disables contractions (FMA).  All of the ``-ffast-math`` enablements are disabled. Enables ``STDC FENV_ACCESS``: by default ``FENV_ACCESS`` is disabled. This option setting behaves as though ``#pragma STDC FENV_ACCESS ON`` appeared at the top of the source file.
-   * ``fast`` Behaves identically to specifying both ``-ffast-math`` and ``ffp-contract=fast``
+   * ``precise`` Disables optimizations that are not value-safe on
+     floating-point data, although FP contraction (FMA) is enabled
+     (``-ffp-contract=on``). This is the default behavior. This value resets
+     ``-fmath-errno`` to its target-dependent default.
+   * ``strict`` Enables ``-frounding-math`` and
+     ``-ffp-exception-behavior=strict``, and disables contractions (FMA).  All
+     of the ``-ffast-math`` enablements are disabled. Enables
+     ``STDC FENV_ACCESS``: by default ``FENV_ACCESS`` is disabled. This option
+     setting behaves as though ``#pragma STDC FENV_ACCESS ON`` appeared at the
+     top of the source file.
+   * ``fast`` Behaves identically to specifying both ``-ffast-math`` and
+     ``ffp-contract=fast``
 
    Note: If your command line specifies multiple instances
    of the ``-ffp-model`` option, or if your command line option specifies
@@ -2759,9 +2768,6 @@ programs using the same instrumentation method as ``-fprofile-generate``.
   overhead. ``prefer-atomic`` will be transformed to ``atomic`` when supported
   by the target, or ``single`` otherwise.
 
-  This option currently works with ``-fprofile-arcs`` and ``-fprofile-instr-generate``,
-  but not with ``-fprofile-generate``.
-
 Disabling Instrumentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -3172,7 +3178,7 @@ Differences between various standard modes
 
 clang supports the -std option, which changes what language mode clang uses.
 The supported modes for C are c89, gnu89, c94, c99, gnu99, c11, gnu11, c17,
-gnu17, c2x, gnu2x, and various aliases for those modes. If no -std option is
+gnu17, c23, gnu23, and various aliases for those modes. If no -std option is
 specified, clang defaults to gnu17 mode. Many C99 and C11 features are
 supported in earlier modes as a conforming extension, with a warning. Use
 ``-pedantic-errors`` to request an error if a feature from a later standard
@@ -3223,6 +3229,19 @@ Differences between ``*99`` and ``*11`` modes:
 Differences between ``*11`` and ``*17`` modes:
 
 -  ``__STDC_VERSION__`` is defined to ``201710L`` rather than ``201112L``.
+
+Differences between ``*17`` and ``*23`` modes:
+
+- ``__STDC_VERSION__`` is defined to ``202311L`` rather than ``201710L``.
+- ``nullptr`` and ``nullptr_t`` are supported, only in ``*23`` mode.
+- ``ATOMIC_VAR_INIT`` is removed from ``*23`` mode.
+- ``bool``, ``true``, ``false``, ``alignas``, ``alignof``, ``static_assert``,
+  and ``thread_local` are now first-class keywords, only in ``*23`` mode.
+- ``typeof`` and ``typeof_unqual`` are supported, only ``*23`` mode.
+- Bit-precise integers (``_BitInt(N)``) are supported by default in ``*23``
+  mode, and as an extension in ``*17`` and earlier modes.
+- ``[[]]`` attributes are supported by default in ``*23`` mode, and as an
+  extension in ``*17`` and earlier modes.
 
 GCC extensions not implemented yet
 ----------------------------------
@@ -4277,8 +4296,8 @@ Execute ``clang-cl /?`` to see a list of supported options:
       /Yc<filename>           Generate a pch file for all code up to and including <filename>
       /Yu<filename>           Load a pch file and use it instead of all code up to and including <filename>
       /Z7                     Enable CodeView debug information in object files
-      /Zc:char8_t             Enable C++2a char8_t type
-      /Zc:char8_t-            Disable C++2a char8_t type
+      /Zc:char8_t             Enable C++20 char8_t type
+      /Zc:char8_t-            Disable C++20 char8_t type
       /Zc:dllexportInlines-   Don't dllexport/dllimport inline member functions of dllexport/import classes
       /Zc:dllexportInlines    dllexport/dllimport inline member functions of dllexport/import classes (default)
       /Zc:sizedDealloc-       Disable C++14 sized global deallocation functions
@@ -4364,6 +4383,7 @@ Execute ``clang-cl /?`` to see a list of supported options:
       -fno-sanitize-trap=<value>
                               Disable trapping for specified sanitizers
       -fno-standalone-debug   Limit debug information produced to reduce size of debug binary
+      -fno-strict-aliasing    Disable optimizations based on strict aliasing rules (default)
       -fobjc-runtime=<value>  Specify the target Objective-C runtime kind and version
       -fprofile-exclude-files=<value>
                               Instrument only functions from files where names don't match all the regexes separated by a semi-colon
@@ -4425,6 +4445,7 @@ Execute ``clang-cl /?`` to see a list of supported options:
                               behavior. See user manual for available checks
       -fsplit-lto-unit        Enables splitting of the LTO unit.
       -fstandalone-debug      Emit full debug info for all types used by the program
+      -fstrict-aliasing	      Enable optimizations based on strict aliasing rules
       -fsyntax-only           Run the preprocessor, parser and semantic analysis stages
       -fwhole-program-vtables Enables whole-program vtable optimization. Requires -flto
       -gcodeview-ghash        Emit type record hashes in a .debug$H section
@@ -4703,3 +4724,16 @@ The Visual C++ Toolset has a slightly more elaborate mechanism for detection.
     The registry information is used to help locate the installation as a final
     fallback.  This is only possible for pre-VS2017 installations and is
     considered deprecated.
+
+Restrictions and Limitations compared to Clang
+----------------------------------------------
+
+Strict Aliasing
+^^^^^^^^^^^^^^^
+
+Strict aliasing (TBAA) is always off by default in clang-cl. Whereas in clang,
+strict aliasing is turned on by default for all optimization levels.
+
+To enable LLVM optimizations based on strict aliasing rules (e.g., optimizations
+based on type of expressions in C/C++), user will need to explicitly pass
+`-fstrict-aliasing` to clang-cl.

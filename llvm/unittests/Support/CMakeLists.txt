@@ -76,12 +76,14 @@ add_llvm_unittest(SupportTests
   SimpleTableTest.cpp
   ScopedPrinterTest.cpp
   SHA256.cpp
+  SignalsTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
   SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
   TarWriterTest.cpp
   ThreadPool.cpp
+  ThreadSafeAllocatorTest.cpp
   Threading.cpp
   TimerTest.cpp
   TimeProfilerTest.cpp

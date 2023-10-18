@@ -20,7 +20,7 @@ target triple = "spir"
 define spir_kernel void @test(<8 x i32> %v) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 ; CHECK-LLVM: <8 x i32>
   %1 = alloca <8 x i32>, align 32
-  store <8 x i32> %v, <8 x i32>* %1, align 32
+  store <8 x i32> %v, ptr %1, align 32
   ret void
 }
 

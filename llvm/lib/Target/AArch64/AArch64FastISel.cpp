@@ -341,7 +341,11 @@ CCAssignFn *AArch64FastISel::CCAssignFnForCall(CallingConv::ID CC) const {
     return CC_AArch64_GHC;
   if (CC == CallingConv::CFGuard_Check)
     return CC_AArch64_Win64_CFGuard_Check;
-  return Subtarget->isTargetDarwin() ? CC_AArch64_DarwinPCS : CC_AArch64_AAPCS;
+  if (Subtarget->isTargetDarwin())
+    return CC_AArch64_DarwinPCS;
+  if (Subtarget->isTargetWindows())
+    return CC_AArch64_Win64PCS;
+  return CC_AArch64_AAPCS;
 }
 
 unsigned AArch64FastISel::fastMaterializeAlloca(const AllocaInst *AI) {
@@ -5034,7 +5038,7 @@ bool AArch64FastISel::selectGetElementPtr(const Instruction *I) {
 }
 
 bool AArch64FastISel::selectAtomicCmpXchg(const AtomicCmpXchgInst *I) {
-  assert(TM.getOptLevel() == CodeGenOpt::None &&
+  assert(TM.getOptLevel() == CodeGenOptLevel::None &&
          "cmpxchg survived AtomicExpand at optlevel > -O0");
 
   auto *RetPairTy = cast<StructType>(I->getType());
@@ -5187,8 +5191,8 @@ FastISel *AArch64::createFastISel(FunctionLoweringInfo &FuncInfo,
                                         const TargetLibraryInfo *LibInfo) {
 
   SMEAttrs CallerAttrs(*FuncInfo.Fn);
-  if (CallerAttrs.hasZAState() ||
-      (!CallerAttrs.hasStreamingInterface() && CallerAttrs.hasStreamingBody()))
+  if (CallerAttrs.hasZAState() || CallerAttrs.hasStreamingInterfaceOrBody() ||
+      CallerAttrs.hasStreamingCompatibleInterface())
     return nullptr;
   return new AArch64FastISel(FuncInfo, LibInfo);
 }

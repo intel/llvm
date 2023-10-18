@@ -36,15 +36,14 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @test(i32 addrspace(1)* %fp, i32 addrspace(1)* %data) #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @test(ptr addrspace(1) %fp, ptr addrspace(1) %data) #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %data, i64 1
-  %0 = load i32, i32 addrspace(1)* %arrayidx, align 4, !tbaa !8
-  %1 = load i32, i32 addrspace(1)* %fp, align 4, !tbaa !8
-  %2 = inttoptr i32 %1 to i32 (i32)*
+  %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %data, i64 1
+  %0 = load i32, ptr addrspace(1) %arrayidx, align 4, !tbaa !8
+  %1 = load i32, ptr addrspace(1) %fp, align 4, !tbaa !8
+  %2 = inttoptr i32 %1 to ptr
   %call = call spir_func i32 %2(i32 %0) #1
-  %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %data, i64 0
-  store i32 %call, i32 addrspace(1)* %arrayidx1, align 4, !tbaa !8
+  store i32 %call, ptr addrspace(1) %data, align 4, !tbaa !8
   ret void
 }
 

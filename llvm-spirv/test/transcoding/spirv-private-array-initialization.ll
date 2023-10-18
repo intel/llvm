@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=1 <%s -o %t.bc
+; RUN: llvm-as <%s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t_4mspirv.bc
@@ -43,15 +43,15 @@ define spir_func void @test() #0 {
 entry:
   %arr = alloca [3 x i32], align 4
   %arr2 = alloca [3 x i32], align 4
-  %0 = bitcast [3 x i32]* %arr to i8*
-  call void @llvm.memcpy.p0i8.p2i8.i32(i8* align 4 %0, i8 addrspace(2)* align 4 bitcast ([3 x i32] addrspace(2)* @__const.test.arr to i8 addrspace(2)*), i32 12, i1 false)
-  %1 = bitcast [3 x i32]* %arr2 to i8*
-  call void @llvm.memcpy.p0i8.p2i8.i32(i8* align 4 %1, i8 addrspace(2)* align 4 bitcast ([3 x i32] addrspace(2)* @__const.test.arr2 to i8 addrspace(2)*), i32 12, i1 false)
+  %0 = bitcast ptr %arr to ptr
+  call void @llvm.memcpy.p0.p2.i32(ptr align 4 %0, ptr addrspace(2) align 4 @__const.test.arr, i32 12, i1 false)
+  %1 = bitcast ptr %arr2 to ptr
+  call void @llvm.memcpy.p0.p2.i32(ptr align 4 %1, ptr addrspace(2) align 4 @__const.test.arr2, i32 12, i1 false)
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.memcpy.p0i8.p2i8.i32(i8* nocapture writeonly, i8 addrspace(2)* nocapture readonly, i32, i1) #1
+declare void @llvm.memcpy.p0.p2.i32(ptr nocapture writeonly, ptr addrspace(2) nocapture readonly, i32, i1) #1
 
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }

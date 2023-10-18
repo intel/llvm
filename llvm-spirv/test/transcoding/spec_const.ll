@@ -32,48 +32,48 @@
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 ; Function Attrs: nofree norecurse nounwind writeonly
- define spir_kernel void @foo(i8 addrspace(1)* nocapture %b, i8 addrspace(1)* nocapture %c, i16 addrspace(1)* nocapture %s, i32 addrspace(1)* nocapture %i, i64 addrspace(1)* nocapture %l, half addrspace(1)* nocapture %h, float addrspace(1)* nocapture %f, double addrspace(1)* nocapture %d) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+ define spir_kernel void @foo(ptr addrspace(1) nocapture %b, ptr addrspace(1) nocapture %c, ptr addrspace(1) nocapture %s, ptr addrspace(1) nocapture %i, ptr addrspace(1) nocapture %l, ptr addrspace(1) nocapture %h, ptr addrspace(1) nocapture %f, ptr addrspace(1) nocapture %d) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
   ; CHECK-LLVM: store i8 0, ptr addrspace(1) %b, align 1
   ; CHECK-LLVM-SPEC: store i8 1, ptr addrspace(1) %b, align 1
   %0 = call i1 @_Z20__spirv_SpecConstantib(i32 0, i1 false)
   %conv = zext i1 %0 to i8
-  store i8 %conv, i8 addrspace(1)* %b, align 1
+  store i8 %conv, ptr addrspace(1) %b, align 1
 
   ; CHECK-LLVM: store i8 100, ptr addrspace(1) %c, align 1
   ; CHECK-LLVM-SPEC: store i8 11, ptr addrspace(1) %c, align 1
   %1 = call i8 @_Z20__spirv_SpecConstantia(i32 1, i8 100)
-  store i8 %1, i8 addrspace(1)* %c, align 1
+  store i8 %1, ptr addrspace(1) %c, align 1
 
   ; CHECK-LLVM: store i16 1, ptr addrspace(1) %s, align 2
   ; CHECK-LLVM-SPEC: store i16 22, ptr addrspace(1) %s, align 2
   %2 = call i16 @_Z20__spirv_SpecConstantis(i32 2, i16 1)
-  store i16 %2, i16 addrspace(1)* %s, align 2
+  store i16 %2, ptr addrspace(1) %s, align 2
 
   ; CHECK-LLVM: store i32 2, ptr addrspace(1) %i, align 4
   ; CHECK-LLVM-SPEC: store i32 33, ptr addrspace(1) %i, align 4
   %3 = call i32 @_Z20__spirv_SpecConstantii(i32 3, i32 2)
-  store i32 %3, i32 addrspace(1)* %i, align 4
+  store i32 %3, ptr addrspace(1) %i, align 4
 
   ; CHECK-LLVM: store i64 3, ptr addrspace(1) %l, align 8
   ; CHECK-LLVM-SPEC: store i64 4609589727908835759, ptr addrspace(1) %l, align 8
   %4 = call i64 @_Z20__spirv_SpecConstantix(i32 4, i64 3)
-  store i64 %4, i64 addrspace(1)* %l, align 8
+  store i64 %4, ptr addrspace(1) %l, align 8
 
   ; CHECK-LLVM: store half 0xH3800, ptr addrspace(1) %h, align 2
   ; CHECK-LLVM-SPEC: store half 0xH4580, ptr addrspace(1) %h, align 2
   %5 = call half @_Z20__spirv_SpecConstantih(i32 5, half 0xH3800)
-  store half %5, half addrspace(1)* %h, align 2
+  store half %5, ptr addrspace(1) %h, align 2
 
   ; CHECK-LLVM: store float 1.250000e+00, ptr addrspace(1) %f, align 4
   ; CHECK-LLVM-SPEC: store float 0x401A666660000000, ptr addrspace(1) %f, align 4
   %6 = call float @_Z20__spirv_SpecConstantif(i32 6, float 1.250000e+00)
-  store float %6, float addrspace(1)* %f, align 4
+  store float %6, ptr addrspace(1) %f, align 4
 
   ; CHECK-LLVM: store double 2.125000e+00, ptr addrspace(1) %d, align 8
   ; CHECK-LLVM-SPEC: store double 7.700000e+00, ptr addrspace(1) %d, align 8
   %7 = call double @_Z20__spirv_SpecConstantid(i32 7, double 2.125000e+00)
-  store double %7, double addrspace(1)* %d, align 8
+  store double %7, ptr addrspace(1) %d, align 8
   ret void
 }
 

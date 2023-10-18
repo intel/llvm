@@ -124,13 +124,8 @@ static void EmitDeclDestroy(CodeGenFunction &CGF, const VarDecl &D,
     if (CGF.getContext().getLangOpts().OpenCL) {
       auto DestAS =
           CGM.getTargetCodeGenInfo().getAddrSpaceOfCxaAtexitPtrParam();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       auto DestTy = llvm::PointerType::get(
           CGM.getLLVMContext(), CGM.getContext().getTargetAddressSpace(DestAS));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      auto DestTy = CGF.getTypes().ConvertType(Type)->getPointerTo(
-          CGM.getContext().getTargetAddressSpace(DestAS));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       auto SrcAS = D.getType().getQualifiers().getAddressSpace();
       if (DestAS == SrcAS)
         Argument = llvm::ConstantExpr::getBitCast(Addr.getPointer(), DestTy);
@@ -139,12 +134,7 @@ static void EmitDeclDestroy(CodeGenFunction &CGF, const VarDecl &D,
         // of the global destructor function should be adjusted accordingly.
         Argument = llvm::ConstantPointerNull::get(DestTy);
     } else {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Argument = Addr.getPointer();
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Argument = llvm::ConstantExpr::getBitCast(
-          Addr.getPointer(), CGF.getTypes().ConvertType(Type)->getPointerTo());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     }
   // Otherwise, the standard logic requires a helper function.
   } else {
@@ -212,13 +202,8 @@ void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
   unsigned ActualAddrSpace = GV->getAddressSpace();
   llvm::Constant *DeclPtr = GV;
   if (ActualAddrSpace != ExpectedAddrSpace) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::PointerType *PTy =
         llvm::PointerType::get(getLLVMContext(), ExpectedAddrSpace);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    llvm::PointerType *PTy = llvm::PointerType::getWithSamePointeeType(
-        GV->getType(), ExpectedAddrSpace);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     DeclPtr = llvm::ConstantExpr::getAddrSpaceCast(DeclPtr, PTy);
   }
 
@@ -236,7 +221,7 @@ void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
         D.needsDestruction(getContext()) == QualType::DK_cxx_destructor;
     if (PerformInit)
       EmitDeclInit(*this, D, DeclAddr);
-    if (CGM.isTypeConstant(D.getType(), true, !NeedsDtor))
+    if (D.getType().isConstantStorage(getContext(), true, !NeedsDtor))
       EmitDeclInvariant(*this, D, DeclPtr);
     else
       EmitDeclDestroy(*this, D, DeclAddr);
@@ -674,6 +659,10 @@ void CodeGenModule::EmitCXXThreadLocalInitFunc() {
 */
 
 void CodeGenModule::EmitCXXModuleInitFunc(Module *Primary) {
+  assert(Primary->isInterfaceOrPartition() &&
+         "The function should only be called for C++20 named module interface"
+         " or partition.");
+
   while (!CXXGlobalInits.empty() && !CXXGlobalInits.back())
     CXXGlobalInits.pop_back();
 
@@ -681,19 +670,35 @@ void CodeGenModule::EmitCXXModuleInitFunc(Module *Primary) {
   // Module initializers for imported modules are emitted first.
 
   // Collect all the modules that we import
-  SmallVector<Module *> AllImports;
+  llvm::SmallSetVector<Module *, 8> AllImports;
   // Ones that we export
   for (auto I : Primary->Exports)
-    AllImports.push_back(I.getPointer());
+    AllImports.insert(I.getPointer());
   // Ones that we only import.
   for (Module *M : Primary->Imports)
-    AllImports.push_back(M);
+    AllImports.insert(M);
+  // Ones that we import in the global module fragment or the private module
+  // fragment.
+  for (Module *SubM : Primary->submodules()) {
+    assert((SubM->isGlobalModule() || SubM->isPrivateModule()) &&
+           "The sub modules of C++20 module unit should only be global module "
+           "fragments or private module framents.");
+    assert(SubM->Exports.empty() &&
+           "The global mdoule fragments and the private module fragments are "
+           "not allowed to export import modules.");
+    for (Module *M : SubM->Imports)
+      AllImports.insert(M);
+  }
 
   SmallVector<llvm::Function *, 8> ModuleInits;
   for (Module *M : AllImports) {
     // No Itanium initializer in header like modules.
     if (M->isHeaderLikeModule())
       continue; // TODO: warn of mixed use of module map modules and C++20?
+    // We're allowed to skip the initialization if we are sure it doesn't
+    // do any thing.
+    if (!M->isNamedModuleInterfaceHasInit())
+      continue;
     llvm::FunctionType *FTy = llvm::FunctionType::get(VoidTy, false);
     SmallString<256> FnName;
     {
@@ -750,8 +755,7 @@ void CodeGenModule::EmitCXXModuleInitFunc(Module *Primary) {
     // If we have a completely empty initializer then we do not want to create
     // the guard variable.
     ConstantAddress GuardAddr = ConstantAddress::invalid();
-    if (!AllImports.empty() || !PrioritizedCXXGlobalInits.empty() ||
-        !CXXGlobalInits.empty()) {
+    if (!ModuleInits.empty()) {
       // Create the guard var.
       llvm::GlobalVariable *Guard = new llvm::GlobalVariable(
           getModule(), Int8Ty, /*isConstant=*/false,

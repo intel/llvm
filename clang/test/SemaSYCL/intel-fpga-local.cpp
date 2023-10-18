@@ -19,7 +19,7 @@ void diagnostics()
   unsigned int dpump_spump[64];
 
   //expected-warning@+2{{attribute 'doublepump' is already applied}}
-  [[intel::doublepump]]
+  [[intel::doublepump]] //expected-note{{previous attribute is here}}
   [[intel::doublepump]] unsigned int dpump[64];
 
   //expected-error@+2{{attributes are not compatible}}
@@ -38,7 +38,7 @@ void diagnostics()
   unsigned int spump_dpump[64];
 
   //expected-warning@+2{{attribute 'singlepump' is already applied}}
-  [[intel::singlepump]]
+  [[intel::singlepump]] //expected-note{{previous attribute is here}}
   [[intel::singlepump]] unsigned int spump[64];
 
   //expected-error@+2{{attributes are not compatible}}
@@ -51,8 +51,9 @@ void diagnostics()
   //expected-warning@+1 {{unknown attribute 'register' ignored}}
   [[intelfpga::register]] unsigned int reg_var[64];
 
-  //expected-warning@+1{{attribute 'fpga_register' is already applied}}
-  [[intel::fpga_register]] [[intel::fpga_register]] unsigned int reg_reg[64];
+  //expected-warning@+2{{attribute 'fpga_register' is already applied}}
+  [[intel::fpga_register]] //expected-note{{previous attribute is here}}
+  [[intel::fpga_register]] unsigned int reg_reg[64];
 
   //expected-error@+2{{attributes are not compatible}}
   [[intel::fpga_register]]
@@ -191,6 +192,10 @@ void diagnostics()
   //expected-error@+1{{'simple_dual_port' and 'fpga_register' attributes are not compatible}}
   [[intel::simple_dual_port]] unsigned int sdp_reg[64];
 
+  //expected-warning@+2{{attribute 'simple_dual_port' is already applied}}
+  [[intel::simple_dual_port]] //expected-note{{previous attribute is here}}
+  [[intel::simple_dual_port]] unsigned int dual_port_var_dup[64];
+
   // Checking of different argument values.
   //expected-warning@+2{{attribute 'bankwidth' is already applied}}
   [[intel::bankwidth(8)]] // expected-note {{previous attribute is here}}
@@ -285,7 +290,7 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int mrg_reg[4];
 
-  //expected-error@+1{{attribute requires a string}}
+  //expected-error@+1{{expected string literal as argument of 'merge' attribute}}
   [[intel::merge(3, 9.0f)]] unsigned int mrg_float[4];
 
   //expected-error@+1{{attribute requires exactly 2 arguments}}
@@ -298,9 +303,22 @@ void diagnostics()
   [[intel::merge("mrg4", "depths")]] unsigned int mrg_invalid_arg[4];
 
   // Checking of different argument values.
-  //expected-warning@+2{{attribute 'merge' is already applied}}
-  [[intel::merge("mrg4", "depth")]]
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg4", "depth")]] // expected-note {{previous attribute is here}}
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
+
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg6", "depth")]] // expected-note {{previous attribute is here}}
+  [[intel::merge("mrg6", "width")]] unsigned int mrg_mrg1[4];
+
+  //expected-warning@+2{{attribute 'merge' is already applied with different arguments}}
+  [[intel::merge("mrg7", "width")]] // expected-note {{previous attribute is here}}
+  [[intel::merge("mrg8", "width")]] unsigned int mrg_mrg2[4];
+
+  // Checking of duplicate argument values.
+  // No diagnostic is emitted because the arguments match.
+  [[intel::merge("mrg9", "depth")]]
+  [[intel::merge("mrg9", "depth")]] unsigned int mrg_mrg3[4]; // OK
 
   // **bank_bits
   //expected-error@+2 1{{'fpga_register' and 'bank_bits' attributes are not compatible}}
@@ -336,9 +354,9 @@ void diagnostics()
   //expected-warning@+1 {{unknown attribute 'force_pow2_depth' ignored}}
   [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0_var[64];
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(2)]] unsigned int force_p2d_above_max[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}
@@ -459,7 +477,7 @@ void check_template_parameters() {
   //expected-note@-1 {{conflicting attribute is here}}
   [[intel::bankwidth(C)]] unsigned int max_bankwidth_reg;
 
-  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
+  //expected-error@+1{{'force_pow2_depth' attribute requires integer constant value 0 or 1}}
   [[intel::force_pow2_depth(A)]] unsigned int force_p2d_below_min[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute takes one argument}}

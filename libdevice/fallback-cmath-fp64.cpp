@@ -42,6 +42,9 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_round(double x) { return __spirv_ocl_round(x); }
 
 DEVICE_EXTERN_C_INLINE
+double __devicelib_floor(double x) { return __spirv_ocl_floor(x); }
+
+DEVICE_EXTERN_C_INLINE
 double __devicelib_exp2(double x) { return __spirv_ocl_exp2(x); }
 
 DEVICE_EXTERN_C_INLINE

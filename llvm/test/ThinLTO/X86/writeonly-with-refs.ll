@@ -1,6 +1,6 @@
-; RUN: opt -thinlto-bc -opaque-pointers %s -o %t1
+; RUN: opt -thinlto-bc %s -o %t1
 ; RUN: opt -thinlto-bc %p/Inputs/writeonly-with-refs.ll -o %t2
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1 %t2 -o %t-out \
+; RUN: llvm-lto2 run -save-temps %t1 %t2 -o %t-out \
 ; RUN:    -r=%t1,main,plx \
 ; RUN:    -r=%t1,_Z3foov,l \
 ; RUN:    -r=%t2,_Z3foov,pl \
@@ -13,7 +13,7 @@
 ; CHECK: @outer = internal local_unnamed_addr global %struct.Q zeroinitializer
 
 ; Test again in distributed ThinLTO mode.
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1 %t2 -o %t-out \
+; RUN: llvm-lto2 run -save-temps %t1 %t2 -o %t-out \
 ; RUN:    -thinlto-distributed-indexes \
 ; RUN:    -r=%t1,main,plx \
 ; RUN:    -r=%t1,_Z3foov,l \

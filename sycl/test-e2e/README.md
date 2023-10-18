@@ -97,8 +97,8 @@ llvm-lit --param sycl_devices="backend0:device0[;backendN:deviceN]*" <repo_path>
 ```
 
 to limit execution to particular devices, where `backend` is one of `opencl`,
-`ext_oneapi_hip`, `ext_oneapi_cuda`, `ext_oneapi_level_zero`,
-`ext_intel_esimd_emulator` and `device` is one of `cpu`, `gpu` or `acc`.
+`ext_oneapi_hip`, `ext_oneapi_cuda`, `ext_oneapi_level_zero`, and `device`
+is one of `cpu`, `gpu` or `acc`.
 
 To run individual test use the path to it instead of the top level `test-e2e`
 directory.

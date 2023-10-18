@@ -1,10 +1,21 @@
 #include <stdint.h>
 #include <sys/prctl.h>
 
-void write_simd_regs() {
+// If SSVE is defined, this program will start in streaming SVE mode. Otherwise,
+// if SVE is defined, it will start in non-streaming mode and activate the SVE
+// registers by writing to one of them. If neither SSVE or SVE are defined,
+// the program will start in non-streaming mode, with the SVE registers
+// inactive.
+//
+// For most programs the difference between inactive non-streaming SVE and
+// active is transparent. For lldb, there are some differences in how we use
+// ptrace in either scenario.
+
+// base is added to each value. If base = 2, then v0 = 2, v1 = 3, etc.
+void write_simd_regs(unsigned base) {
 #define WRITE_SIMD(NUM)                                                        \
   asm volatile("MOV v" #NUM ".d[0], %0\n\t"                                    \
-               "MOV v" #NUM ".d[1], %0\n\t" ::"r"(NUM))
+               "MOV v" #NUM ".d[1], %0\n\t" ::"r"(base + NUM))
 
   WRITE_SIMD(0);
   WRITE_SIMD(1);
@@ -102,7 +113,7 @@ int main() {
 #endif
   // else test plain SIMD access.
 
-  write_simd_regs();
+  write_simd_regs(0);
 
   return verify_simd_regs(); // Set a break point here.
 }

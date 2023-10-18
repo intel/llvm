@@ -1,9 +1,7 @@
 ; This test checks that the Local Accessor to Shared Memory pass runs with the
 ; `amdgcn-amd-amdhsa` triple and does not if the option is not present.
-; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-; RUN: llc -opaque-pointers -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
-; RUN: llc -opaque-pointers -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
-; end
+; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
 
 ; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-valid-triple.ll"

@@ -1,4 +1,4 @@
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 ; CHECK: call void asm "", "=*rm,r"(ptr elementtype(i32) %p1, ptr %p2)
 define void @test_call(i32* %p1, i32* %p2) {

@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
@@ -161,7 +162,12 @@ constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
 ///   types.hpp, used to disable invalid specializations.
 ///
 template <typename RawTy, int N, class Derived, class SFINAE>
+#ifndef __SYCL_DEVICE_ONLY__
 class simd_obj_impl {
+#else
+class [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_intel_esimd)]] simd_obj_impl {
+#endif
   /// @cond ESIMD_DETAIL
 
   // For the is_simd_obj_impl_derivative helper to work correctly, all derived

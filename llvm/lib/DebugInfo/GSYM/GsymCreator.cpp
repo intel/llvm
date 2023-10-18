@@ -61,9 +61,7 @@ uint32_t GsymCreator::copyFile(const GsymCreator &SrcGC, uint32_t FileIdx) {
   return insertFileEntry(DstFE);
 }
 
-
-llvm::Error GsymCreator::save(StringRef Path,
-                              llvm::support::endianness ByteOrder,
+llvm::Error GsymCreator::save(StringRef Path, llvm::endianness ByteOrder,
                               std::optional<uint64_t> SegmentSize) const {
   if (SegmentSize)
     return saveSegments(Path, ByteOrder, *SegmentSize);
@@ -270,11 +268,9 @@ llvm::Error GsymCreator::finalize(llvm::raw_ostream &OS) {
           }
         } else {
           if (Prev.Range.size() == 0 && Curr.Range.contains(Prev.Range.start())) {
-            if (!Quiet) {
-              OS << "warning: removing symbol:\n"
-                << Prev << "\nKeeping:\n"
-                << Curr << "\n";
-            }
+            // Symbols on macOS don't have address ranges, so if the range
+            // doesn't match and the size is zero, then we replace the empty
+            // symbol function info with the current one.
             std::swap(Prev, Curr);
           } else {
             FinalizedFuncs.emplace_back(std::move(Curr));
@@ -480,7 +476,7 @@ uint64_t GsymCreator::copyFunctionInfo(const GsymCreator &SrcGC, size_t FuncIdx)
 }
 
 llvm::Error GsymCreator::saveSegments(StringRef Path,
-                                      llvm::support::endianness ByteOrder,
+                                      llvm::endianness ByteOrder,
                                       uint64_t SegmentSize) const {
   if (SegmentSize == 0)
     return createStringError(std::errc::invalid_argument,

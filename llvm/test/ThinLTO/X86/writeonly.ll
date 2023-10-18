@@ -2,7 +2,7 @@
 ; -stats requires asserts
 ; REQUIRES: asserts
 
-; RUN: opt -module-summary -opaque-pointers %s -o %t1.bc
+; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto-action=thinlink -o %t3.index.bc %t1.bc %t2.bc
 

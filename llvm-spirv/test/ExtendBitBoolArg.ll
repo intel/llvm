@@ -34,13 +34,12 @@ define linkonce_odr dso_local spir_func void @foo(<2 x i1> %vec1, <2 x i1> %vec2
   %3 = addrspacecast ptr %1 to ptr addrspace(4)
   %4 = addrspacecast ptr %2 to ptr addrspace(4)
   %5 = load ptr addrspace(4), ptr addrspace(4) %3, align 8
-  %6 = getelementptr inbounds %"class.ac", ptr addrspace(4) %5, i32 0, i32 0
-  %7 = load i1, ptr addrspace(4) %6, align 1
-  %8 = load i32, ptr addrspace(4) %4, align 4
-  %9 = trunc i32 %8 to i1
-  %10 = lshr i1 %7, %9
-  %11 = zext i1 %10 to i32
-  %12 = and i32 %11, 1
-  %13 = lshr <2 x i1> %vec1, %vec2
+  %6 = load i1, ptr addrspace(4) %5, align 1
+  %7 = load i32, ptr addrspace(4) %4, align 4
+  %8 = trunc i32 %7 to i1
+  %9 = lshr i1 %6, %8
+  %10 = zext i1 %9 to i32
+  %11 = and i32 %10, 1
+  %12 = lshr <2 x i1> %vec1, %vec2
   ret void
 }

@@ -1349,8 +1349,9 @@ void BTFDebug::beginInstruction(const MachineInstr *MI) {
     // If the insn is "r2 = LD_imm64 @<an TypeIdAttr global>",
     // The LD_imm64 result will be replaced with a btf type id.
     processGlobalValue(MI->getOperand(1));
-  } else if (MI->getOpcode() == BPF::CORE_MEM ||
-             MI->getOpcode() == BPF::CORE_ALU32_MEM ||
+  } else if (MI->getOpcode() == BPF::CORE_LD64 ||
+             MI->getOpcode() == BPF::CORE_LD32 ||
+             MI->getOpcode() == BPF::CORE_ST ||
              MI->getOpcode() == BPF::CORE_SHIFT) {
     // relocation insn is a load, store or shift insn.
     processGlobalValue(MI->getOperand(3));
@@ -1517,10 +1518,8 @@ bool BTFDebug::InstLower(const MachineInstr *MI, MCInst &OutMI) {
           return false;
         }
 
-        if (Reloc == BPFCoreSharedInfo::ENUM_VALUE_EXISTENCE ||
-            Reloc == BPFCoreSharedInfo::ENUM_VALUE ||
-            Reloc == BPFCoreSharedInfo::BTF_TYPE_ID_LOCAL ||
-            Reloc == BPFCoreSharedInfo::BTF_TYPE_ID_REMOTE)
+        if (Reloc == BTF::ENUM_VALUE_EXISTENCE || Reloc == BTF::ENUM_VALUE ||
+            Reloc == BTF::BTF_TYPE_ID_LOCAL || Reloc == BTF::BTF_TYPE_ID_REMOTE)
           OutMI.setOpcode(BPF::LD_imm64);
         else
           OutMI.setOpcode(BPF::MOV_ri);
@@ -1529,8 +1528,9 @@ bool BTFDebug::InstLower(const MachineInstr *MI, MCInst &OutMI) {
         return true;
       }
     }
-  } else if (MI->getOpcode() == BPF::CORE_MEM ||
-             MI->getOpcode() == BPF::CORE_ALU32_MEM ||
+  } else if (MI->getOpcode() == BPF::CORE_LD64 ||
+             MI->getOpcode() == BPF::CORE_LD32 ||
+             MI->getOpcode() == BPF::CORE_ST ||
              MI->getOpcode() == BPF::CORE_SHIFT) {
     const MachineOperand &MO = MI->getOperand(3);
     if (MO.isGlobal()) {

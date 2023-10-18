@@ -5,7 +5,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   using T = unsigned int;
 
@@ -63,6 +63,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExec);
     });
+    Event.wait();
   }
 
   for (unsigned n = 0; n < Iterations; n++) {
@@ -70,6 +71,7 @@ int main() {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExecAdditional);
     });
+    Event.wait();
   }
 
   Queue.wait_and_throw();

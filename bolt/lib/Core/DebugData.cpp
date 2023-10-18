@@ -414,25 +414,6 @@ uint32_t DebugAddrWriter::getIndexFromAddress(uint64_t Address, DWARFUnit &CU) {
   return Entry->second;
 }
 
-// Case1) Address is not in map insert in to AddresToIndex and IndexToAddres
-// Case2) Address is in the map but Index is higher or equal. Need to update
-// IndexToAddrss. Case3) Address is in the map but Index is lower. Need to
-// update AddressToIndex and IndexToAddress
-void DebugAddrWriter::addIndexAddress(uint64_t Address, uint32_t Index,
-                                      DWARFUnit &CU) {
-  std::lock_guard<std::mutex> Lock(WriterMutex);
-  const uint64_t CUID = getCUID(CU);
-  AddressForDWOCU &Map = AddressMaps[CUID];
-  auto Entry = Map.find(Address);
-  if (Entry != Map.end()) {
-    if (Entry->second > Index)
-      Map.updateAddressToIndex(Address, Index);
-    Map.updateIndexToAddrss(Address, Index);
-  } else {
-    Map.insert(Address, Index);
-  }
-}
-
 static void updateAddressBase(DIEBuilder &DIEBlder, DebugAddrWriter &AddrWriter,
                               DWARFUnit &CU, const uint64_t Offset) {
   DIE *Die = DIEBlder.getUnitDIEbyUnit(CU);
@@ -514,7 +495,8 @@ void DebugAddrWriterDwarf5::update(DIEBuilder &DIEBlder, DWARFUnit &CU) {
   const endianness Endian =
       BC->DwCtx->isLittleEndian() ? support::little : support::big;
   const DWARFSection &AddrSec = BC->DwCtx->getDWARFObj().getAddrSection();
-  DWARFDataExtractor AddrData(BC->DwCtx->getDWARFObj(), AddrSec, Endian, 0);
+  DWARFDataExtractor AddrData(BC->DwCtx->getDWARFObj(), AddrSec,
+                              Endian == support::little, 0);
   DWARFDebugAddrTable AddrTable;
   DIDumpOptions DumpOpts;
   constexpr uint32_t HeaderSize = 8;

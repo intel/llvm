@@ -10,6 +10,10 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST
 // RUN: %{run} %t.out
 
+#include "../common.hpp"
+#include <cstddef>
+
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../joint_matrix_bf16_fill_k_cache_impl.hpp"

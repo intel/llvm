@@ -110,15 +110,10 @@ class VAESKF_MV_I<bits<6> funct6, string opcodestr, Operand optype>
 //===----------------------------------------------------------------------===//
 
 let Predicates = [HasStdExtZvbb] in {
-  defm VANDN_V  : VALU_IV_V_X<"vandn", 0b000001>;
-  def  VBREV8_V : VALUVs2<0b010010, 0b01000, OPMVV, "vbrev8.v">;
   def  VBREV_V  : VALUVs2<0b010010, 0b01010, OPMVV, "vbrev.v">;
   def  VCLZ_V   : VALUVs2<0b010010, 0b01100, OPMVV, "vclz.v">;
   def  VCPOP_V  : VALUVs2<0b010010, 0b01110, OPMVV, "vcpop.v">;
   def  VCTZ_V   : VALUVs2<0b010010, 0b01101, OPMVV, "vctz.v">;
-  def  VREV8_V  : VALUVs2<0b010010, 0b01001, OPMVV, "vrev8.v">;
-  defm VROL_V   : VALU_IV_V_X<"vrol", 0b010101>;
-  defm VROR_V   : VROR_IV_V_X_I<"vror", 0b010100>;
   let Constraints = "@earlyclobber $vd", RVVConstraint = WidenV in
   defm VWSLL_V  : VSHT_IV_V_X_I<"vwsll", 0b110101>;
 } // Predicates = [HasStdExtZvbb]
@@ -127,6 +122,14 @@ let Predicates = [HasStdExtZvbc] in {
   defm VCLMUL_V  : VCLMUL_MV_V_X<"vclmul", 0b001100>;
   defm VCLMULH_V : VCLMUL_MV_V_X<"vclmulh", 0b001101>;
 } // Predicates = [HasStdExtZvbc]
+
+let Predicates = [HasStdExtZvkb] in {
+  defm VANDN_V  : VALU_IV_V_X<"vandn", 0b000001>;
+  def  VBREV8_V : VALUVs2<0b010010, 0b01000, OPMVV, "vbrev8.v">;
+  def  VREV8_V  : VALUVs2<0b010010, 0b01001, OPMVV, "vrev8.v">;
+  defm VROL_V   : VALU_IV_V_X<"vrol", 0b010101>;
+  defm VROR_V   : VROR_IV_V_X_I<"vror", 0b010100>;
+} // Predicates = [HasStdExtZvkb]
 
 let Predicates = [HasStdExtZvkg], RVVConstraint = NoConstraint in {
   def VGHSH_VV : PALUVVNoVm<0b101100, OPMVV, "vghsh.vv">;
@@ -336,7 +339,7 @@ multiclass VPseudoUnaryV_V<LMULInfo m> {
     defvar suffix = "_V_" # m.MX;
     def suffix : VPseudoUnaryNoMask<m.vrclass, m.vrclass>;
     def suffix # "_MASK" : VPseudoUnaryMask<m.vrclass, m.vrclass>,
-                                            RISCVMaskedPseudo</*MaskOpIdx*/ 2>;
+                                            RISCVMaskedPseudo<MaskIdx=2>;
   }
 }
 
@@ -352,15 +355,10 @@ multiclass VPseudoVALU_V {
 }
 
 let Predicates = [HasStdExtZvbb] in {
-  defm PseudoVANDN  : VPseudoVALU_VV_VX;
   defm PseudoVBREV  : VPseudoVALU_V;
-  defm PseudoVBREV8 : VPseudoVALU_V;
-  defm PseudoVREV8  : VPseudoVALU_V;
   defm PseudoVCLZ   : VPseudoVALU_V;
   defm PseudoVCTZ   : VPseudoVALU_V;
   defm PseudoVCPOP  : VPseudoVALU_V;
-  defm PseudoVROL   : VPseudoVALU_VV_VX;
-  defm PseudoVROR   : VPseudoVALU_VV_VX_VI<uimm6>;
   defm PseudoVWSLL : VPseudoVWALU_VV_VX_VI<uimm5>;
 } // Predicates = [HasStdExtZvbb]
 
@@ -368,6 +366,14 @@ let Predicates = [HasStdExtZvbc] in {
   defm PseudoVCLMUL  : VPseudoVCLMUL_VV_VX;
   defm PseudoVCLMULH : VPseudoVCLMUL_VV_VX;
 } // Predicates = [HasStdExtZvbc]
+
+let Predicates = [HasStdExtZvkb] in {
+  defm PseudoVANDN  : VPseudoVALU_VV_VX;
+  defm PseudoVBREV8 : VPseudoVALU_V;
+  defm PseudoVREV8  : VPseudoVALU_V;
+  defm PseudoVROL   : VPseudoVALU_VV_VX;
+  defm PseudoVROR   : VPseudoVALU_VV_VX_VI<uimm6>;
+} // Predicates = [HasStdExtZvkb]
 
 let Predicates = [HasStdExtZvkg] in {
   defm PseudoVGHSH : VPseudoVALU_VV_NoMask_Zvk;
@@ -404,9 +410,10 @@ let Predicates = [HasStdExtZvksh] in {
 // SDNode patterns
 //===----------------------------------------------------------------------===//
 
-multiclass VPatUnarySDNode_V<SDPatternOperator op, string instruction_name> {
+multiclass VPatUnarySDNode_V<SDPatternOperator op, string instruction_name,
+                             Predicate predicate = HasStdExtZvbb> {
   foreach vti = AllIntegerVectors in {
-    let Predicates = !listconcat([HasStdExtZvbb],
+    let Predicates = !listconcat([predicate],
                                  GetVTypePredicates<vti>.Predicates) in {
       def : Pat<(vti.Vector (op (vti.Vector vti.RegClass:$rs1))),
                 (!cast<Instruction>(instruction_name#"_V_"#vti.LMul.MX)
@@ -425,7 +432,7 @@ def riscv_vnot : PatFrag<(ops node:$rs1), (xor node:$rs1,
                                                (riscv_splat_vector -1))>;
 
 foreach vti = AllIntegerVectors in {
-  let Predicates = !listconcat([HasStdExtZvbb],
+  let Predicates = !listconcat([HasStdExtZvkb],
                                GetVTypePredicates<vti>.Predicates) in {
     def : Pat<(vti.Vector (and (riscv_vnot vti.RegClass:$rs1),
                                vti.RegClass:$rs2)),
@@ -446,7 +453,7 @@ foreach vti = AllIntegerVectors in {
 }
 
 defm : VPatUnarySDNode_V<bitreverse, "PseudoVBREV">;
-defm : VPatUnarySDNode_V<bswap, "PseudoVREV8">;
+defm : VPatUnarySDNode_V<bswap, "PseudoVREV8", HasStdExtZvkb>;
 defm : VPatUnarySDNode_V<ctlz, "PseudoVCLZ">;
 defm : VPatUnarySDNode_V<cttz, "PseudoVCTZ">;
 defm : VPatUnarySDNode_V<ctpop, "PseudoVCPOP">;
@@ -474,7 +481,7 @@ def InvRot64Imm : SDNodeXForm<imm, [{
 // Although there is no vrol.vi, an immediate rotate left can be achieved by
 // negating the immediate in vror.vi
 foreach vti = AllIntegerVectors in {
-  let Predicates = !listconcat([HasStdExtZvbb],
+  let Predicates = !listconcat([HasStdExtZvkb],
                                GetVTypePredicates<vti>.Predicates) in {
     def : Pat<(vti.Vector (rotl vti.RegClass:$rs2,
                                 (vti.Vector (SplatPat_uimm6 uimm6:$rs1)))),
@@ -520,9 +527,10 @@ foreach vtiToWti = AllWidenableIntVectors in {
 // VL patterns
 //===----------------------------------------------------------------------===//
 
-multiclass VPatUnaryVL_V<SDPatternOperator op, string instruction_name> {
+multiclass VPatUnaryVL_V<SDPatternOperator op, string instruction_name,
+                         Predicate predicate = HasStdExtZvbb> {
   foreach vti = AllIntegerVectors in {
-    let Predicates = !listconcat([HasStdExtZvbb],
+    let Predicates = !listconcat([predicate],
                                  GetVTypePredicates<vti>.Predicates) in {
       def : Pat<(vti.Vector (op (vti.Vector vti.RegClass:$rs1),
                                 (vti.Vector vti.RegClass:$merge),
@@ -540,7 +548,7 @@ multiclass VPatUnaryVL_V<SDPatternOperator op, string instruction_name> {
 }
 
 foreach vti = AllIntegerVectors in {
-  let Predicates = !listconcat([HasStdExtZvbb],
+  let Predicates = !listconcat([HasStdExtZvkb],
                                GetVTypePredicates<vti>.Predicates) in {
     def : Pat<(vti.Vector (riscv_and_vl (riscv_xor_vl
                                            (vti.Vector vti.RegClass:$rs1),
@@ -579,7 +587,7 @@ foreach vti = AllIntegerVectors in {
 }
 
 defm : VPatUnaryVL_V<riscv_bitreverse_vl, "PseudoVBREV">;
-defm : VPatUnaryVL_V<riscv_bswap_vl, "PseudoVREV8">;
+defm : VPatUnaryVL_V<riscv_bswap_vl, "PseudoVREV8", HasStdExtZvkb>;
 defm : VPatUnaryVL_V<riscv_ctlz_vl, "PseudoVCLZ">;
 defm : VPatUnaryVL_V<riscv_cttz_vl, "PseudoVCTZ">;
 defm : VPatUnaryVL_V<riscv_ctpop_vl, "PseudoVCPOP">;
@@ -588,7 +596,7 @@ defm : VPatBinaryVL_VV_VX<riscv_rotl_vl, "PseudoVROL">;
 // Although there is no vrol.vi, an immediate rotate left can be achieved by
 // negating the immediate in vror.vi
 foreach vti = AllIntegerVectors in {
-  let Predicates = !listconcat([HasStdExtZvbb],
+  let Predicates = !listconcat([HasStdExtZvkb],
                                GetVTypePredicates<vti>.Predicates) in {
     def : Pat<(riscv_rotl_vl vti.RegClass:$rs2,
                              (vti.Vector (SplatPat_uimm6 uimm6:$rs1)),
@@ -630,6 +638,33 @@ foreach vtiToWti = AllWidenableIntVectors in {
     def : Pat<(riscv_shl_vl
                  (wti.Vector (zext_oneuse (vti.Vector vti.RegClass:$rs2))),
                  (wti.Vector (SplatPat_uimm5 uimm5:$rs1)),
+                 (wti.Vector wti.RegClass:$merge),
+                 (vti.Mask V0), VLOpFrag),
+              (!cast<Instruction>("PseudoVWSLL_VI_"#vti.LMul.MX#"_MASK")
+                 wti.RegClass:$merge, vti.RegClass:$rs2, uimm5:$rs1,
+                 (vti.Mask V0), GPR:$vl, vti.Log2SEW, TAIL_AGNOSTIC)>;
+
+    def : Pat<(riscv_vwsll_vl
+                 (vti.Vector vti.RegClass:$rs2),
+                 (vti.Vector vti.RegClass:$rs1),
+                 (wti.Vector wti.RegClass:$merge),
+                 (vti.Mask V0), VLOpFrag),
+              (!cast<Instruction>("PseudoVWSLL_VV_"#vti.LMul.MX#"_MASK")
+                 wti.RegClass:$merge, vti.RegClass:$rs2, vti.RegClass:$rs1,
+                 (vti.Mask V0), GPR:$vl, vti.Log2SEW, TAIL_AGNOSTIC)>;
+
+    def : Pat<(riscv_vwsll_vl
+                 (vti.Vector vti.RegClass:$rs2),
+                 (vti.Vector (Low8BitsSplatPat (XLenVT GPR:$rs1))),
+                 (wti.Vector wti.RegClass:$merge),
+                 (vti.Mask V0), VLOpFrag),
+              (!cast<Instruction>("PseudoVWSLL_VX_"#vti.LMul.MX#"_MASK")
+                 wti.RegClass:$merge, vti.RegClass:$rs2, GPR:$rs1,
+                 (vti.Mask V0), GPR:$vl, vti.Log2SEW, TAIL_AGNOSTIC)>;
+
+    def : Pat<(riscv_vwsll_vl
+                 (vti.Vector vti.RegClass:$rs2),
+                 (vti.Vector (SplatPat_uimm5 uimm5:$rs1)),
                  (wti.Vector wti.RegClass:$merge),
                  (vti.Mask V0), VLOpFrag),
               (!cast<Instruction>("PseudoVWSLL_VI_"#vti.LMul.MX#"_MASK")
@@ -687,7 +722,7 @@ multiclass VPatUnaryV_V_NoMask_Zvk<string intrinsic, string instruction,
                           vti.LMul, vti.RegClass, vti.RegClass>;
 }
 
-multiclass VPatUnaryV_S_NoMaskVectorCtypto<string intrinsic, string instruction,
+multiclass VPatUnaryV_S_NoMaskVectorCrypto<string intrinsic, string instruction,
                                list<VTypeInfo> vtilist> {
   foreach vti = vtilist in
     foreach vti_vs2 = ZvkI32IntegerVectors<vti.LMul.MX>.vs2_types in
@@ -699,7 +734,7 @@ multiclass VPatUnaryV_S_NoMaskVectorCtypto<string intrinsic, string instruction,
 multiclass VPatUnaryV_V_S_NoMask_Zvk<string intrinsic, string instruction,
                                 list<VTypeInfo> vtilist> {
   defm : VPatUnaryV_V_NoMask_Zvk<intrinsic, instruction, vtilist>;
-  defm : VPatUnaryV_S_NoMaskVectorCtypto<intrinsic, instruction, vtilist>;
+  defm : VPatUnaryV_S_NoMaskVectorCrypto<intrinsic, instruction, vtilist>;
 }
 
 multiclass VPatBinaryV_VV_NoMask<string intrinsic, string instruction,
@@ -832,15 +867,10 @@ multiclass VPatBinaryW_VV_VX_VI_VWSLL<string intrinsic, string instruction,
       VPatBinaryW_VI_VWSLL<intrinsic, instruction, vtilist>;
 
 let Predicates = [HasStdExtZvbb] in {
-  defm : VPatBinaryV_VV_VX<"int_riscv_vandn", "PseudoVANDN", AllIntegerVectors>;
   defm : VPatUnaryV_V<"int_riscv_vbrev", "PseudoVBREV", AllIntegerVectors>;
-  defm : VPatUnaryV_V<"int_riscv_vbrev8", "PseudoVBREV8", AllIntegerVectors>;
-  defm : VPatUnaryV_V<"int_riscv_vrev8", "PseudoVREV8", AllIntegerVectors>;
   defm : VPatUnaryV_V<"int_riscv_vclz", "PseudoVCLZ", AllIntegerVectors>;
   defm : VPatUnaryV_V<"int_riscv_vctz", "PseudoVCTZ", AllIntegerVectors>;
   defm : VPatUnaryV_V<"int_riscv_vcpopv", "PseudoVCPOP", AllIntegerVectors>;
-  defm : VPatBinaryV_VV_VX_VROL<"int_riscv_vrol", "PseudoVROL", "PseudoVROR", AllIntegerVectors>;
-  defm : VPatBinaryV_VV_VX_VI_VROR<"int_riscv_vror", "PseudoVROR", AllIntegerVectors>;
   defm : VPatBinaryW_VV_VX_VI_VWSLL<"int_riscv_vwsll", "PseudoVWSLL", AllWidenableIntVectors>;
 } // Predicates = [HasStdExtZvbb]
 
@@ -848,6 +878,14 @@ let Predicates = [HasStdExtZvbc] in {
   defm : VPatBinaryV_VV_VX<"int_riscv_vclmul", "PseudoVCLMUL", I64IntegerVectors>;
   defm : VPatBinaryV_VV_VX<"int_riscv_vclmulh", "PseudoVCLMULH", I64IntegerVectors>;
 } // Predicates = [HasStdExtZvbc]
+
+let Predicates = [HasStdExtZvkb] in {
+  defm : VPatBinaryV_VV_VX<"int_riscv_vandn", "PseudoVANDN", AllIntegerVectors>;
+  defm : VPatUnaryV_V<"int_riscv_vbrev8", "PseudoVBREV8", AllIntegerVectors>;
+  defm : VPatUnaryV_V<"int_riscv_vrev8", "PseudoVREV8", AllIntegerVectors>;
+  defm : VPatBinaryV_VV_VX_VROL<"int_riscv_vrol", "PseudoVROL", "PseudoVROR", AllIntegerVectors>;
+  defm : VPatBinaryV_VV_VX_VI_VROR<"int_riscv_vror", "PseudoVROR", AllIntegerVectors>;
+} // Predicates = [HasStdExtZvkb]
 
 let Predicates = [HasStdExtZvkg] in {
   defm : VPatBinaryV_VV_NoMask<"int_riscv_vghsh", "PseudoVGHSH", I32IntegerVectors>;
@@ -861,7 +899,7 @@ let Predicates = [HasStdExtZvkned] in {
   defm : VPatUnaryV_V_S_NoMask_Zvk<"int_riscv_vaesem", "PseudoVAESEM", I32IntegerVectors>;
   defm : VPatBinaryV_VI_NoMaskTU<"int_riscv_vaeskf1", "PseudoVAESKF1", I32IntegerVectors>;
   defm : VPatBinaryV_VI_NoMask<"int_riscv_vaeskf2", "PseudoVAESKF2", I32IntegerVectors>;
-  defm : VPatUnaryV_S_NoMaskVectorCtypto<"int_riscv_vaesz", "PseudoVAESZ", I32IntegerVectors>;
+  defm : VPatUnaryV_S_NoMaskVectorCrypto<"int_riscv_vaesz", "PseudoVAESZ", I32IntegerVectors>;
 } // Predicates = [HasStdExtZvkned]
 
 let Predicates = [HasStdExtZvknha] in {

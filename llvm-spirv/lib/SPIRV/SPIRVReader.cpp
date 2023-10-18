@@ -1096,6 +1096,9 @@ static void applyFPFastMathModeDecorations(const SPIRVValue *BV,
 Value *SPIRVToLLVM::transShiftLogicalBitwiseInst(SPIRVValue *BV, BasicBlock *BB,
                                                  Function *F) {
   SPIRVBinary *BBN = static_cast<SPIRVBinary *>(BV);
+  if (BV->getType()->isTypeCooperativeMatrixKHR()) {
+    return mapValue(BV, transSPIRVBuiltinFromInst(BBN, BB));
+  }
   Instruction::BinaryOps BO;
   auto OP = BBN->getOpCode();
   if (isLogicalOpCode(OP))
@@ -1609,8 +1612,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (BVar->isBuiltin(&BVKind))
       BV->setName(prefixSPIRVName(SPIRVBuiltInNameMap::map(BVKind)));
     auto *LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy,
-                                   /*Initializer=*/nullptr, BV->getName(), 0,
-                                   GlobalVariable::NotThreadLocal, AddrSpace);
+                                    /*Initializer=*/nullptr, BV->getName(), 0,
+                                    GlobalVariable::NotThreadLocal, AddrSpace);
     auto *Res = mapValue(BV, LVar);
     if (Init)
       Initializer = dyn_cast<Constant>(transValue(Init, F, BB, false));
@@ -1703,16 +1706,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpRestoreMemoryINTEL: {
+    IRBuilder<> Builder(BB);
     auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
     llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB);
-    Function *StackRestore =
-        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
-    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
+    auto *StackRestore = Builder.CreateStackRestore(Ptr);
+    return mapValue(BV, StackRestore);
   }
 
   case OpSaveMemoryINTEL: {
-    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
-    return mapValue(BV, CallInst::Create(StackSave, "", BB));
+    IRBuilder<> Builder(BB);
+    auto *StackSave = Builder.CreateStackSave();
+    return mapValue(BV, StackSave);
   }
 
   case OpBranch: {
@@ -1906,7 +1910,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *Vector = transValue(VTS->getVector(), F, BB);
     auto *VecTy = cast<FixedVectorType>(Vector->getType());
     unsigned VecSize = VecTy->getNumElements();
-    auto *NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
+    auto *NewVec =
+        Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
     auto *Scale = Builder.CreateFMul(Vector, NewVec, "scale");
     return mapValue(BV, Scale);
@@ -1959,10 +1964,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     IRBuilder<> Builder(BB);
     auto *Scalar = transValue(MTS->getScalar(), F, BB);
     auto *Matrix = transValue(MTS->getMatrix(), F, BB);
+
+    if (MTS->getMatrix()->getType()->isTypeCooperativeMatrixKHR()) {
+      return mapValue(BV, transSPIRVBuiltinFromInst(
+                              static_cast<SPIRVInstruction *>(BV), BB));
+    }
+
     uint64_t ColNum = Matrix->getType()->getArrayNumElements();
     auto *ColType = cast<ArrayType>(Matrix->getType())->getElementType();
     auto VecSize = cast<FixedVectorType>(ColType)->getNumElements();
-    auto *NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
+    auto *NewVec =
+        Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
 
     Value *V = UndefValue::get(Matrix->getType());
@@ -2171,6 +2183,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *AC = static_cast<SPIRVAccessChainBase *>(BV);
     auto *Base = transValue(AC->getBase(), F, BB);
     SPIRVType *BaseSPVTy = AC->getBase()->getType();
+    if (BaseSPVTy->isTypePointer() &&
+        BaseSPVTy->getPointerElementType()->isTypeCooperativeMatrixKHR()) {
+      return mapValue(BV, transSPIRVBuiltinFromInst(AC, BB));
+    }
     Type *BaseTy =
         BaseSPVTy->isTypeVector()
             ? transType(
@@ -2338,8 +2354,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpFunctionCall: {
     SPIRVFunctionCall *BC = static_cast<SPIRVFunctionCall *>(BV);
     auto *Call = CallInst::Create(transFunction(BC->getFunction()),
-                                 transValue(BC->getArgumentValues(), F, BB),
-                                 BC->getName(), BB);
+                                  transValue(BC->getArgumentValues(), F, BB),
+                                  BC->getName(), BB);
     setCallingConv(Call);
     setAttrByCalledFunc(Call);
     return mapValue(BV, Call);
@@ -2404,6 +2420,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       Builder.SetInsertPoint(BB);
     }
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
+    if (BV->getType()->isTypeCooperativeMatrixKHR()) {
+      return mapValue(BV, transSPIRVBuiltinFromInst(BC, BB));
+    }
     auto *Neg =
         Builder.CreateNeg(transValue(BC->getOperand(0), F, BB), BV->getName());
     if (auto *NegInst = dyn_cast<Instruction>(Neg)) {
@@ -2456,8 +2475,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpFNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
+    if (BV->getType()->isTypeCooperativeMatrixKHR()) {
+      return mapValue(BV, transSPIRVBuiltinFromInst(BC, BB));
+    }
     auto *Neg = UnaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
-                                         BV->getName(), BB);
+                                          BV->getName(), BB);
     applyFPFastMathModeDecorations(BV, Neg);
     return mapValue(BV, Neg);
   }
@@ -3841,20 +3863,66 @@ transDecorationsToMetadataList(llvm::LLVMContext *Context,
   return MDNode::get(*Context, MDs);
 }
 
-void SPIRVToLLVM::transVarDecorationsToMetadata(SPIRVValue *BV, Value *V) {
-  if (!BV->isVariable())
+void SPIRVToLLVM::transDecorationsToMetadata(SPIRVValue *BV, Value *V) {
+  if (!BV->isVariable() && !BV->isInst())
     return;
 
-  if (auto *GV = dyn_cast<GlobalVariable>(V)) {
+  auto SetDecorationsMetadata = [&](auto V) {
     std::vector<SPIRVDecorate const *> Decorates = BV->getDecorations();
     if (!Decorates.empty()) {
       MDNode *MDList = transDecorationsToMetadataList(Context, Decorates);
-      GV->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+      V->setMetadata(SPIRV_MD_DECORATIONS, MDList);
     }
-  }
+  };
+
+  if (auto *GV = dyn_cast<GlobalVariable>(V))
+    SetDecorationsMetadata(GV);
+  else if (auto *I = dyn_cast<Instruction>(V))
+    SetDecorationsMetadata(I);
 }
 
+namespace {
+
+static float convertSPIRVWordToFloat(SPIRVWord Spir) {
+  union {
+    float F;
+    SPIRVWord Spir;
+  } FPMaxError;
+  FPMaxError.Spir = Spir;
+  return FPMaxError.F;
+}
+
+static bool transFPMaxErrorDecoration(SPIRVValue *BV, Value *V,
+                                      LLVMContext *Context) {
+  SPIRVWord ID;
+  if (Instruction *I = dyn_cast<Instruction>(V))
+    if (BV->hasDecorate(DecorationFPMaxErrorDecorationINTEL, 0, &ID)) {
+      auto Literals =
+          BV->getDecorationLiterals(DecorationFPMaxErrorDecorationINTEL);
+      assert(Literals.size() == 1 &&
+             "FP Max Error decoration shall have 1 operand");
+      auto F = convertSPIRVWordToFloat(Literals[0]);
+      if (CallInst *CI = dyn_cast<CallInst>(I)) {
+        // Add attribute
+        auto A = llvm::Attribute::get(*Context, "fpbuiltin-max-error",
+                                      std::to_string(F));
+        CI->addFnAttr(A);
+      } else {
+        // Add metadata
+        MDNode *N =
+            MDNode::get(*Context, MDString::get(*Context, std::to_string(F)));
+        I->setMetadata("fpbuiltin-max-error", N);
+      }
+      return true;
+    }
+  return false;
+}
+} // namespace
+
 bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
+  if (transFPMaxErrorDecoration(BV, V, Context))
+    return true;
+
   if (!transAlign(BV, V))
     return false;
 
@@ -3863,7 +3931,7 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
 
   // Decoration metadata is only enabled in SPIR-V friendly mode
   if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR)
-    transVarDecorationsToMetadata(BV, V);
+    transDecorationsToMetadata(BV, V);
 
   DbgTran->transDbgInfo(BV, V);
   return true;
@@ -4063,7 +4131,8 @@ bool SPIRVToLLVM::transMetadata() {
     }
     // Generate metadata for intel_reqd_sub_group_size
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
-      auto *SizeMD = ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
+      auto *SizeMD =
+          ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for max_work_group_size
@@ -4463,8 +4532,8 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(DecorationPipelineEnableINTEL)) {
     auto Literals = BF->getDecorationLiterals(DecorationPipelineEnableINTEL);
     std::vector<Metadata *> MetadataVec;
-    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
-    F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, Literals[0])));
+    F->setMetadata(kSPIR2MD::PipelineKernel,
                    MDNode::get(*Context, MetadataVec));
   }
   return true;

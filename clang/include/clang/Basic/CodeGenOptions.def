@@ -38,6 +38,7 @@ CODEGENOPT(PreserveAsmComments, 1, 1) ///< -dA, -fno-preserve-as-comments.
 CODEGENOPT(AssumeSaneOperatorNew , 1, 1) ///< implicit __attribute__((malloc)) operator new
 CODEGENOPT(AssumeUniqueVTables , 1, 1) ///< Assume a class has only one vtable.
 CODEGENOPT(Autolink          , 1, 1) ///< -fno-autolink
+CODEGENOPT(AutoImport        , 1, 1) ///< -fno-auto-import
 CODEGENOPT(ObjCAutoRefCountExceptions , 1, 0) ///< Whether ARC should be EH-safe.
 CODEGENOPT(Backchain         , 1, 0) ///< -mbackchain
 CODEGENOPT(ControlFlowGuardNoChecks  , 1, 0) ///< -cfguard-no-checks
@@ -427,6 +428,8 @@ VALUE_CODEGENOPT(InlineMaxStackSize, 32, UINT_MAX)
 // Vector functions library to use.
 ENUM_CODEGENOPT(VecLib, VectorLibrary, 3, NoLibrary)
 
+ENUM_CODEGENOPT(AltMathLib, AltMathLibrary, 3, NoAltMathLibrary)
+
 /// The default TLS model to use.
 ENUM_CODEGENOPT(DefaultTLSModel, TLSModel, 2, GeneralDynamicTLSModel)
 
@@ -517,10 +520,6 @@ ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
 /// checksum calculations or not.
 CODEGENOPT(SYCLUseMainFileName, 1, 0)
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-/// Whether to use opaque pointers.
-CODEGENOPT(OpaquePointers, 1, 0)
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 /// Modify C++ ABI to returning `this` pointer from constructors and
 /// non-deleting destructors. (No effect on Microsoft ABI.)

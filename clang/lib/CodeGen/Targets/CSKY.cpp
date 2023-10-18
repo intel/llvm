@@ -63,15 +63,8 @@ Address CSKYABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 
   // Empty records are ignored for parameter passing purposes.
   if (isEmptyRecord(getContext(), Ty, true)) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     return Address(CGF.Builder.CreateLoad(VAListAddr),
                    CGF.ConvertTypeForMem(Ty), SlotSize);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Address Addr = Address(CGF.Builder.CreateLoad(VAListAddr),
-                           getVAListElementType(CGF), SlotSize);
-    Addr = CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
-    return Addr;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   auto TInfo = getContext().getTypeInfoInChars(Ty);

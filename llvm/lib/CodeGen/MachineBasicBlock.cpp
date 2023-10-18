@@ -960,6 +960,10 @@ const MachineBasicBlock *MachineBasicBlock::getSingleSuccessor() const {
   return Successors.size() == 1 ? Successors[0] : nullptr;
 }
 
+const MachineBasicBlock *MachineBasicBlock::getSinglePredecessor() const {
+  return Predecessors.size() == 1 ? Predecessors[0] : nullptr;
+}
+
 MachineBasicBlock *MachineBasicBlock::getFallThrough(bool JumpToFallThrough) {
   MachineFunction::iterator Fallthrough = getIterator();
   ++Fallthrough;
@@ -1734,11 +1738,6 @@ bool MachineBasicBlock::sizeWithoutDebugLargerThan(unsigned Limit) const {
       return true;
   }
   return false;
-}
-
-unsigned MachineBasicBlock::getBBIDOrNumber() const {
-  uint8_t BBAddrMapVersion = getParent()->getContext().getBBAddrMapVersion();
-  return BBAddrMapVersion < 2 ? getNumber() : *getBBID();
 }
 
 const MBBSectionID MBBSectionID::ColdSectionID(MBBSectionID::SectionType::Cold);

@@ -1,4 +1,4 @@
-; RUN: llc -opaque-pointers < %s -mtriple=x86_64-unknown-linux-gnu
+; RUN: llc < %s -mtriple=x86_64-unknown-linux-gnu
 ; PR6196
 
 %"char[]" = type [1 x i8]

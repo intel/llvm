@@ -126,6 +126,19 @@ def WebKitAlpha : Package<"webkit">, ParentPackage<Alpha>;
 
 let ParentPackage = Core in {
 
+def BitwiseShiftChecker : Checker<"BitwiseShift">,
+  HelpText<"Finds cases where bitwise shift operation causes undefined behaviour.">,
+  CheckerOptions<[
+    CmdLineOption<Boolean,
+                  "Pedantic",
+                  "If set to true, the checker reports undefined behavior even "
+                  "if it is supported by most compilers. (This flag has no "
+                  "effect in C++20 where these constructs are legal.)",
+                  "false",
+                  Released>,
+  ]>,
+  Documentation<HasDocumentation>;
+
 def CallAndMessageModeling : Checker<"CallAndMessageModeling">,
   HelpText<"Responsible for essential modeling and assumptions after a "
            "function/method call. For instance, if we can't reason about the "
@@ -744,6 +757,11 @@ def ContainerModeling : Checker<"ContainerModeling">,
   HelpText<"Models C++ containers">,
   Documentation<NotDocumented>,
   Hidden;
+
+def CXXArrayDeleteChecker : Checker<"ArrayDelete">,
+  HelpText<"Reports destructions of arrays of polymorphic objects that are "
+           "destructed as their base class.">,
+  Documentation<HasDocumentation>;
 
 def DeleteWithNonVirtualDtorChecker : Checker<"DeleteWithNonVirtualDtor">,
   HelpText<"Reports destructions of polymorphic objects with a non-virtual "

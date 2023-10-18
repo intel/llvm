@@ -132,6 +132,19 @@ struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
   static constexpr bool value = Enable;
 };
 
+// Filter allowing additional conditions for selecting when to include meta
+// information for properties for device_global.
+template <typename PropT, typename Properties>
+struct DeviceGlobalMetaInfoFilter : std::true_type {};
+
+// host_access cannot be honored for device_global variables without the
+// device_image_scope property, as the runtime needs to write the common USM
+// pointer during first launch.
+template <host_access_enum Access, typename Properties>
+struct DeviceGlobalMetaInfoFilter<host_access_key::value_t<Access>, Properties>
+    : std::bool_constant<
+          Properties::template has_property<device_image_scope_key>()> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

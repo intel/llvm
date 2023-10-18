@@ -20,7 +20,7 @@ COPY scripts/install_drivers.sh /
 
 RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
-RUN /install_drivers.sh --all
+RUN --mount=type=secret,id=github_token GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh --all
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 

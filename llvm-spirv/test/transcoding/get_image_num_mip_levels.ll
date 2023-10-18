@@ -49,36 +49,36 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: TypeImage [[IMAGE2D_ARRAY_DEPTH_T:[0-9]+]] [[VOID]] 1 1 1 0 0 0 0
 
 ; Function Attrs: convergent noinline norecurse nounwind optnone
-define dso_local spir_func void @testimage1d(%opencl.image1d_ro_t addrspace(1)* %img1, %opencl.image2d_ro_t addrspace(1)* %img2, %opencl.image3d_ro_t addrspace(1)* %img3, %opencl.image1d_array_ro_t addrspace(1)* %img4, %opencl.image2d_array_ro_t addrspace(1)* %img5, %opencl.image2d_depth_ro_t addrspace(1)* %img6, %opencl.image2d_array_depth_ro_t addrspace(1)* %img7) #0 {
+define dso_local spir_func void @testimage1d(ptr addrspace(1) %img1, ptr addrspace(1) %img2, ptr addrspace(1) %img3, ptr addrspace(1) %img4, ptr addrspace(1) %img5, ptr addrspace(1) %img6, ptr addrspace(1) %img7) #0 {
 entry:
-  %img1.addr = alloca %opencl.image1d_ro_t addrspace(1)*, align 4
-  %img2.addr = alloca %opencl.image2d_ro_t addrspace(1)*, align 4
-  %img3.addr = alloca %opencl.image3d_ro_t addrspace(1)*, align 4
-  %img4.addr = alloca %opencl.image1d_array_ro_t addrspace(1)*, align 4
-  %img5.addr = alloca %opencl.image2d_array_ro_t addrspace(1)*, align 4
-  %img6.addr = alloca %opencl.image2d_depth_ro_t addrspace(1)*, align 4
-  %img7.addr = alloca %opencl.image2d_array_depth_ro_t addrspace(1)*, align 4
-  store %opencl.image1d_ro_t addrspace(1)* %img1, %opencl.image1d_ro_t addrspace(1)** %img1.addr, align 4
-  store %opencl.image2d_ro_t addrspace(1)* %img2, %opencl.image2d_ro_t addrspace(1)** %img2.addr, align 4
-  store %opencl.image3d_ro_t addrspace(1)* %img3, %opencl.image3d_ro_t addrspace(1)** %img3.addr, align 4
-  store %opencl.image1d_array_ro_t addrspace(1)* %img4, %opencl.image1d_array_ro_t addrspace(1)** %img4.addr, align 4
-  store %opencl.image2d_array_ro_t addrspace(1)* %img5, %opencl.image2d_array_ro_t addrspace(1)** %img5.addr, align 4
-  store %opencl.image2d_depth_ro_t addrspace(1)* %img6, %opencl.image2d_depth_ro_t addrspace(1)** %img6.addr, align 4
-  store %opencl.image2d_array_depth_ro_t addrspace(1)* %img7, %opencl.image2d_array_depth_ro_t addrspace(1)** %img7.addr, align 4
-  %0 = load %opencl.image1d_ro_t addrspace(1)*, %opencl.image1d_ro_t addrspace(1)** %img1.addr, align 4
-  %call = call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(%opencl.image1d_ro_t addrspace(1)* %0) #2
-  %1 = load %opencl.image2d_ro_t addrspace(1)*, %opencl.image2d_ro_t addrspace(1)** %img2.addr, align 4
-  %call1 = call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)* %1) #2
-  %2 = load %opencl.image3d_ro_t addrspace(1)*, %opencl.image3d_ro_t addrspace(1)** %img3.addr, align 4
-  %call2 = call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image3d_ro(%opencl.image3d_ro_t addrspace(1)* %2) #2
-  %3 = load %opencl.image1d_array_ro_t addrspace(1)*, %opencl.image1d_array_ro_t addrspace(1)** %img4.addr, align 4
-  %call3 = call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image1d_array_ro(%opencl.image1d_array_ro_t addrspace(1)* %3) #2
-  %4 = load %opencl.image2d_array_ro_t addrspace(1)*, %opencl.image2d_array_ro_t addrspace(1)** %img5.addr, align 4
-  %call4 = call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)* %4) #2
-  %5 = load %opencl.image2d_depth_ro_t addrspace(1)*, %opencl.image2d_depth_ro_t addrspace(1)** %img6.addr, align 4
-  %call5 = call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(%opencl.image2d_depth_ro_t addrspace(1)* %5) #2
-  %6 = load %opencl.image2d_array_depth_ro_t addrspace(1)*, %opencl.image2d_array_depth_ro_t addrspace(1)** %img7.addr, align 4
-  %call6 = call spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(%opencl.image2d_array_depth_ro_t addrspace(1)* %6) #2
+  %img1.addr = alloca ptr addrspace(1), align 4
+  %img2.addr = alloca ptr addrspace(1), align 4
+  %img3.addr = alloca ptr addrspace(1), align 4
+  %img4.addr = alloca ptr addrspace(1), align 4
+  %img5.addr = alloca ptr addrspace(1), align 4
+  %img6.addr = alloca ptr addrspace(1), align 4
+  %img7.addr = alloca ptr addrspace(1), align 4
+  store ptr addrspace(1) %img1, ptr %img1.addr, align 4
+  store ptr addrspace(1) %img2, ptr %img2.addr, align 4
+  store ptr addrspace(1) %img3, ptr %img3.addr, align 4
+  store ptr addrspace(1) %img4, ptr %img4.addr, align 4
+  store ptr addrspace(1) %img5, ptr %img5.addr, align 4
+  store ptr addrspace(1) %img6, ptr %img6.addr, align 4
+  store ptr addrspace(1) %img7, ptr %img7.addr, align 4
+  %0 = load ptr addrspace(1), ptr %img1.addr, align 4
+  %call = call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(ptr addrspace(1) %0) #2
+  %1 = load ptr addrspace(1), ptr %img2.addr, align 4
+  %call1 = call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image2d_ro(ptr addrspace(1) %1) #2
+  %2 = load ptr addrspace(1), ptr %img3.addr, align 4
+  %call2 = call spir_func i32 @_Z24get_image_num_mip_levels14ocl_image3d_ro(ptr addrspace(1) %2) #2
+  %3 = load ptr addrspace(1), ptr %img4.addr, align 4
+  %call3 = call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image1d_array_ro(ptr addrspace(1) %3) #2
+  %4 = load ptr addrspace(1), ptr %img5.addr, align 4
+  %call4 = call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_array_ro(ptr addrspace(1) %4) #2
+  %5 = load ptr addrspace(1), ptr %img6.addr, align 4
+  %call5 = call spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(ptr addrspace(1) %5) #2
+  %6 = load ptr addrspace(1), ptr %img7.addr, align 4
+  %call6 = call spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(ptr addrspace(1) %6) #2
   ret void
 }
 
@@ -114,25 +114,25 @@ entry:
 ; CHECK-SPV-IR: call spir_func i32 @_Z24__spirv_ImageQueryLevelsPU3AS133__spirv_Image__void_1_1_1_0_0_0_0(target("spirv.Image", void, 1, 1, 1, 0, 0, 0, 0)
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(%opencl.image1d_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image1d_ro(ptr addrspace(1)) #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image2d_ro(%opencl.image2d_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image2d_ro(ptr addrspace(1)) #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image3d_ro(%opencl.image3d_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels14ocl_image3d_ro(ptr addrspace(1)) #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels20ocl_image1d_array_ro(%opencl.image1d_array_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels20ocl_image1d_array_ro(ptr addrspace(1)) #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_array_ro(ptr addrspace(1)) #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(%opencl.image2d_depth_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels20ocl_image2d_depth_ro(ptr addrspace(1)) #1
 
 ; Function Attrs: convergent
-declare spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(%opencl.image2d_array_depth_ro_t addrspace(1)*) #1
+declare spir_func i32 @_Z24get_image_num_mip_levels26ocl_image2d_array_depth_ro(ptr addrspace(1)) #1
 
 attributes #0 = { convergent noinline norecurse nounwind optnone "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #1 = { convergent "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

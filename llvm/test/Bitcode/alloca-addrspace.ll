@@ -1,4 +1,4 @@
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck %s
 
 target datalayout = "A2"
 

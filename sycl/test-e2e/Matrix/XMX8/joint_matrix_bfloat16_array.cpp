@@ -10,6 +10,9 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-static constexpr int SG_SZ = 8;
+#include "../common.hpp"
+
+#define SG_SZ 8
+static constexpr int TN = 8;
 
 #include "../joint_matrix_bfloat16_array_impl.hpp"

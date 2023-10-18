@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains a pass that modifies PUSH/POP instructions from Zca
-// standard to use their non prolog/epilog related functionalities
-// and generates POPRET instruction.
+// This file contains a pass that replaces Zcmp POP instructions with
+// POPRET[Z] where possible.
 //
 //===----------------------------------------------------------------------===//
 
@@ -132,7 +131,8 @@ bool RISCVPushPopOpt::runOnMachineFunction(MachineFunction &Fn) {
   for (auto &MBB : Fn) {
     MachineBasicBlock::iterator MBBI = containsPop(MBB);
     MachineBasicBlock::iterator NextI = next_nodbg(MBBI, MBB.end());
-    if (MBBI != MBB.end() && NextI->getOpcode() == RISCV::PseudoRET)
+    if (MBBI != MBB.end() && NextI != MBB.end() &&
+        NextI->getOpcode() == RISCV::PseudoRET)
       Modified |= usePopRet(MBBI, NextI, adjustRetVal(MBBI));
   }
   return Modified;

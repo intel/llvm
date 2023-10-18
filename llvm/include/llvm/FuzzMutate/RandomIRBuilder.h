@@ -96,12 +96,7 @@ struct RandomIRBuilder {
                              Value *V);
   /// Create a user for \c V in \c BB.
   Instruction *newSink(BasicBlock &BB, ArrayRef<Instruction *> Insts, Value *V);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *findPointer(BasicBlock &BB, ArrayRef<Instruction *> Insts);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *findPointer(BasicBlock &BB, ArrayRef<Instruction *> Insts,
-                     ArrayRef<Value *> Srcs, fuzzerop::SourcePred Pred);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   /// Return a uniformly choosen type from \c AllowedTypes
   Type *randomType();
   Function *createFunctionDeclaration(Module &M, uint64_t ArgNum);

@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary -o %t0.o %S/Inputs/type-mapping-bug2.ll
 ; RUN: opt -module-summary -o %t1.o %s
-; RUN: llvm-lto2 run -opaque-pointers -o %t2 %t0.o %t1.o -r %t0.o,c,px -r %t1.o,a,px -r %t1.o,b,px
+; RUN: llvm-lto2 run -o %t2 %t0.o %t1.o -r %t0.o,c,px -r %t1.o,a,px -r %t1.o,b,px
 ;
 ; Test for the issue described in https://bugs.llvm.org/show_bug.cgi?id=37684
 

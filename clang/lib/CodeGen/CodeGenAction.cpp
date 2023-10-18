@@ -1104,10 +1104,6 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
   if (BA != Backend_EmitNothing && !OS)
     return nullptr;
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  VMContext->setOpaquePointers(CI.getCodeGenOpts().OpaquePointers);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-
   // Load bitcode modules to link with, if we need to.
   if (loadLinkModules(CI))
     return nullptr;
@@ -1142,10 +1138,6 @@ std::unique_ptr<llvm::Module>
 CodeGenAction::loadModule(MemoryBufferRef MBRef) {
   CompilerInstance &CI = getCompilerInstance();
   SourceManager &SM = CI.getSourceManager();
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  VMContext->setOpaquePointers(CI.getCodeGenOpts().OpaquePointers);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   auto DiagErrors = [&](Error E) -> std::unique_ptr<llvm::Module> {
     unsigned DiagID =

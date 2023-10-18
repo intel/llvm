@@ -1425,13 +1425,6 @@ StringRef llvm::getFloatFn(const Module *M, const TargetLibraryInfo *TLI,
 
 //- Emit LibCalls ------------------------------------------------------------//
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-Value *llvm::castToCStr(Value *V, IRBuilderBase &B) {
-  unsigned AS = V->getType()->getPointerAddressSpace();
-  return B.CreateBitCast(V, B.getInt8PtrTy(AS), "cstr");
-}
-
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 static IntegerType *getIntTy(IRBuilderBase &B, const TargetLibraryInfo *TLI) {
   return B.getIntNTy(TLI->getIntSize());
 }
@@ -1464,22 +1457,13 @@ static Value *emitLibCall(LibFunc TheLibFunc, Type *ReturnType,
 Value *llvm::emitStrLen(Value *Ptr, IRBuilderBase &B, const DataLayout &DL,
                         const TargetLibraryInfo *TLI) {
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_strlen, SizeTTy,
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                     B.getInt8PtrTy(), Ptr, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     B.getInt8PtrTy(), castToCStr(Ptr, B), B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strlen, SizeTTy, B.getInt8PtrTy(), Ptr, B, TLI);
 }
 
 Value *llvm::emitStrDup(Value *Ptr, IRBuilderBase &B,
                         const TargetLibraryInfo *TLI) {
-  return emitLibCall(LibFunc_strdup, B.getInt8PtrTy(), B.getInt8PtrTy(),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                     Ptr, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     castToCStr(Ptr, B), B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strdup, B.getInt8PtrTy(), B.getInt8PtrTy(), Ptr, B,
+                     TLI);
 }
 
 Value *llvm::emitStrChr(Value *Ptr, char C, IRBuilderBase &B,
@@ -1487,47 +1471,28 @@ Value *llvm::emitStrChr(Value *Ptr, char C, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   return emitLibCall(LibFunc_strchr, I8Ptr, {I8Ptr, IntTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                      {Ptr, ConstantInt::get(IntTy, C)}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Ptr, B), ConstantInt::get(IntTy, C)}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitStrNCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
                          const DataLayout &DL, const TargetLibraryInfo *TLI) {
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(
-      LibFunc_strncmp, IntTy,
-      {B.getInt8PtrTy(), B.getInt8PtrTy(), SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      {Ptr1, Ptr2, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      {castToCStr(Ptr1, B), castToCStr(Ptr2, B), Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strncmp, IntTy,
+                     {B.getInt8PtrTy(), B.getInt8PtrTy(), SizeTTy},
+                     {Ptr1, Ptr2, Len}, B, TLI);
 }
 
 Value *llvm::emitStrCpy(Value *Dst, Value *Src, IRBuilderBase &B,
                         const TargetLibraryInfo *TLI) {
   Type *I8Ptr = Dst->getType();
-  return emitLibCall(LibFunc_strcpy, I8Ptr, {I8Ptr, I8Ptr},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                     {Dst, Src}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dst, B), castToCStr(Src, B)}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strcpy, I8Ptr, {I8Ptr, I8Ptr}, {Dst, Src}, B, TLI);
 }
 
 Value *llvm::emitStpCpy(Value *Dst, Value *Src, IRBuilderBase &B,
                         const TargetLibraryInfo *TLI) {
   Type *I8Ptr = B.getInt8PtrTy();
-  return emitLibCall(LibFunc_stpcpy, I8Ptr, {I8Ptr, I8Ptr},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                     {Dst, Src}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dst, B), castToCStr(Src, B)}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_stpcpy, I8Ptr, {I8Ptr, I8Ptr}, {Dst, Src}, B, TLI);
 }
 
 Value *llvm::emitStrNCpy(Value *Dst, Value *Src, Value *Len, IRBuilderBase &B,
@@ -1535,11 +1500,7 @@ Value *llvm::emitStrNCpy(Value *Dst, Value *Src, Value *Len, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *SizeTTy = getSizeTTy(B, TLI);
   return emitLibCall(LibFunc_strncpy, I8Ptr, {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                      {Dst, Src, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dst, B), castToCStr(Src, B), Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitStpNCpy(Value *Dst, Value *Src, Value *Len, IRBuilderBase &B,
@@ -1547,11 +1508,7 @@ Value *llvm::emitStpNCpy(Value *Dst, Value *Src, Value *Len, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *SizeTTy = getSizeTTy(B, TLI);
   return emitLibCall(LibFunc_stpncpy, I8Ptr, {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                      {Dst, Src, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dst, B), castToCStr(Src, B), Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitMemCpyChk(Value *Dst, Value *Src, Value *Len, Value *ObjSize,
@@ -1566,13 +1523,9 @@ Value *llvm::emitMemCpyChk(Value *Dst, Value *Src, Value *Len, Value *ObjSize,
                           Attribute::NoUnwind);
   Type *I8Ptr = B.getInt8PtrTy();
   Type *SizeTTy = getSizeTTy(B, TLI);
-  FunctionCallee MemCpy = getOrInsertLibFunc(M, *TLI, LibFunc_memcpy_chk,
-      AttributeList::get(M->getContext(), AS), I8Ptr,
-      I8Ptr, I8Ptr, SizeTTy, SizeTTy);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Dst = castToCStr(Dst, B);
-  Src = castToCStr(Src, B);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  FunctionCallee MemCpy = getOrInsertLibFunc(
+      M, *TLI, LibFunc_memcpy_chk, AttributeList::get(M->getContext(), AS),
+      I8Ptr, I8Ptr, I8Ptr, SizeTTy, SizeTTy);
   CallInst *CI = B.CreateCall(MemCpy, {Dst, Src, Len, ObjSize});
   if (const Function *F =
           dyn_cast<Function>(MemCpy.getCallee()->stripPointerCasts()))
@@ -1594,13 +1547,8 @@ Value *llvm::emitMemChr(Value *Ptr, Value *Val, Value *Len, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_memchr, I8Ptr,
-                     {I8Ptr, IntTy, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_memchr, I8Ptr, {I8Ptr, IntTy, SizeTTy},
                      {Ptr, Val, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Ptr, B), Val, Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitMemRChr(Value *Ptr, Value *Val, Value *Len, IRBuilderBase &B,
@@ -1608,13 +1556,8 @@ Value *llvm::emitMemRChr(Value *Ptr, Value *Val, Value *Len, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_memrchr, I8Ptr,
-                     {I8Ptr, IntTy, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_memrchr, I8Ptr, {I8Ptr, IntTy, SizeTTy},
                      {Ptr, Val, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Ptr, B), Val, Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitMemCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
@@ -1622,13 +1565,8 @@ Value *llvm::emitMemCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_memcmp, IntTy,
-                     {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_memcmp, IntTy, {I8Ptr, I8Ptr, SizeTTy},
                      {Ptr1, Ptr2, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Ptr1, B), castToCStr(Ptr2, B), Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitBCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
@@ -1636,13 +1574,8 @@ Value *llvm::emitBCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_bcmp, IntTy,
-                     {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_bcmp, IntTy, {I8Ptr, I8Ptr, SizeTTy},
                      {Ptr1, Ptr2, Len}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Ptr1, B), castToCStr(Ptr2, B), Len}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitMemCCpy(Value *Ptr1, Value *Ptr2, Value *Val, Value *Len,
@@ -1661,11 +1594,7 @@ Value *llvm::emitSNPrintf(Value *Dest, Value *Size, Value *Fmt,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   SmallVector<Value *, 8> Args{Dest, Size, Fmt};
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  SmallVector<Value *, 8> Args{castToCStr(Dest, B), Size, castToCStr(Fmt, B)};
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::append_range(Args, VariadicArgs);
   return emitLibCall(LibFunc_snprintf, IntTy,
                      {I8Ptr, SizeTTy, I8Ptr},
@@ -1677,11 +1606,7 @@ Value *llvm::emitSPrintf(Value *Dest, Value *Fmt,
                          const TargetLibraryInfo *TLI) {
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   SmallVector<Value *, 8> Args{Dest, Fmt};
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  SmallVector<Value *, 8> Args{castToCStr(Dest, B), castToCStr(Fmt, B)};
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::append_range(Args, VariadicArgs);
   return emitLibCall(LibFunc_sprintf, IntTy,
                      {I8Ptr, I8Ptr}, Args, B, TLI,
@@ -1691,51 +1616,31 @@ Value *llvm::emitSPrintf(Value *Dest, Value *Fmt,
 Value *llvm::emitStrCat(Value *Dest, Value *Src, IRBuilderBase &B,
                         const TargetLibraryInfo *TLI) {
   return emitLibCall(LibFunc_strcat, B.getInt8PtrTy(),
-                     {B.getInt8PtrTy(), B.getInt8PtrTy()},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                     {Dest, Src}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dest, B), castToCStr(Src, B)}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+                     {B.getInt8PtrTy(), B.getInt8PtrTy()}, {Dest, Src}, B, TLI);
 }
 
 Value *llvm::emitStrLCpy(Value *Dest, Value *Src, Value *Size, IRBuilderBase &B,
                          const TargetLibraryInfo *TLI) {
   Type *I8Ptr = B.getInt8PtrTy();
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_strlcpy, SizeTTy,
-                     {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strlcpy, SizeTTy, {I8Ptr, I8Ptr, SizeTTy},
                      {Dest, Src, Size}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dest, B), castToCStr(Src, B), Size}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitStrLCat(Value *Dest, Value *Src, Value *Size, IRBuilderBase &B,
                          const TargetLibraryInfo *TLI) {
   Type *I8Ptr = B.getInt8PtrTy();
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_strlcat, SizeTTy,
-                     {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strlcat, SizeTTy, {I8Ptr, I8Ptr, SizeTTy},
                      {Dest, Src, Size}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dest, B), castToCStr(Src, B), Size}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitStrNCat(Value *Dest, Value *Src, Value *Size, IRBuilderBase &B,
                          const TargetLibraryInfo *TLI) {
   Type *I8Ptr = B.getInt8PtrTy();
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(LibFunc_strncat, I8Ptr,
-                     {I8Ptr, I8Ptr, SizeTTy},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_strncat, I8Ptr, {I8Ptr, I8Ptr, SizeTTy},
                      {Dest, Src, Size}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dest, B), castToCStr(Src, B), Size}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *llvm::emitVSNPrintf(Value *Dest, Value *Size, Value *Fmt, Value *VAList,
@@ -1743,27 +1648,17 @@ Value *llvm::emitVSNPrintf(Value *Dest, Value *Size, Value *Fmt, Value *VAList,
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
   Type *SizeTTy = getSizeTTy(B, TLI);
-  return emitLibCall(
-      LibFunc_vsnprintf, IntTy,
-      {I8Ptr, SizeTTy, I8Ptr, VAList->getType()},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      {Dest, Size, Fmt, VAList}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      {castToCStr(Dest, B), Size, castToCStr(Fmt, B), VAList}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_vsnprintf, IntTy,
+                     {I8Ptr, SizeTTy, I8Ptr, VAList->getType()},
+                     {Dest, Size, Fmt, VAList}, B, TLI);
 }
 
 Value *llvm::emitVSPrintf(Value *Dest, Value *Fmt, Value *VAList,
                           IRBuilderBase &B, const TargetLibraryInfo *TLI) {
   Type *I8Ptr = B.getInt8PtrTy();
   Type *IntTy = getIntTy(B, TLI);
-  return emitLibCall(LibFunc_vsprintf, IntTy,
-                     {I8Ptr, I8Ptr, VAList->getType()},
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return emitLibCall(LibFunc_vsprintf, IntTy, {I8Ptr, I8Ptr, VAList->getType()},
                      {Dest, Fmt, VAList}, B, TLI);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {castToCStr(Dest, B), castToCStr(Fmt, B), VAList}, B, TLI);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 /// Append a suffix to the function name according to the type of 'Op'.
@@ -1915,11 +1810,7 @@ Value *llvm::emitPutS(Value *Str, IRBuilderBase &B,
   FunctionCallee PutS = getOrInsertLibFunc(M, *TLI, LibFunc_puts, IntTy,
                                            B.getInt8PtrTy());
   inferNonMandatoryLibFuncAttrs(M, PutsName, *TLI);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   CallInst *CI = B.CreateCall(PutS, Str, PutsName);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  CallInst *CI = B.CreateCall(PutS, castToCStr(Str, B), PutsName);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   if (const Function *F =
           dyn_cast<Function>(PutS.getCallee()->stripPointerCasts()))
     CI->setCallingConv(F->getCallingConv());
@@ -1958,11 +1849,7 @@ Value *llvm::emitFPutS(Value *Str, Value *File, IRBuilderBase &B,
                                         B.getInt8PtrTy(), File->getType());
   if (File->getType()->isPointerTy())
     inferNonMandatoryLibFuncAttrs(M, FPutsName, *TLI);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   CallInst *CI = B.CreateCall(F, {Str, File}, FPutsName);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  CallInst *CI = B.CreateCall(F, {castToCStr(Str, B), File}, FPutsName);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (const Function *Fn =
           dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
@@ -1985,12 +1872,7 @@ Value *llvm::emitFWrite(Value *Ptr, Value *Size, Value *File, IRBuilderBase &B,
   if (File->getType()->isPointerTy())
     inferNonMandatoryLibFuncAttrs(M, FWriteName, *TLI);
   CallInst *CI =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      B.CreateCall(F, {Ptr, Size,
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      B.CreateCall(F, {castToCStr(Ptr, B), Size,
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-                       ConstantInt::get(SizeTTy, 1), File});
+      B.CreateCall(F, {Ptr, Size, ConstantInt::get(SizeTTy, 1), File});
 
   if (const Function *Fn =
           dyn_cast<Function>(F.getCallee()->stripPointerCasts()))

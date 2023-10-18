@@ -55,8 +55,8 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" = type { i8 }
-%struct._ZTS8iteratorI6vectorE.iterator = type { i32 addrspace(4)* }
-%struct._ZTS6vector.vector = type { i32 addrspace(4)* }
+%struct._ZTS8iteratorI6vectorE.iterator = type { ptr addrspace(4) }
+%struct._ZTS6vector.vector = type { ptr addrspace(4) }
 
 $_ZTS3foo = comdat any
 
@@ -65,57 +65,50 @@ $_ZN8iteratorI6vectorEC2Ev = comdat any
 define weak_odr dso_local spir_kernel void @_ZTS3foo() #0 comdat !dbg !12 !kernel_arg_addr_space !10 !kernel_arg_access_qual !10 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !10 !kernel_arg_host_accessible !10 !kernel_arg_pipe_depth !10 !kernel_arg_pipe_io !10 !kernel_arg_buffer_location !10 {
 entry:
   %0 = alloca %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon", align 1
-  %1 = bitcast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  call void @llvm.dbg.declare(metadata %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0, metadata !15, metadata !DIExpression()), !dbg !23
-  %2 = addrspacecast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)*, !dbg !24
-  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %2), !dbg !24
-  %3 = bitcast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to i8*, !dbg !23
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5, !dbg !23
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #5
+  call void @llvm.dbg.declare(metadata ptr %0, metadata !15, metadata !DIExpression()), !dbg !23
+  %1 = addrspacecast ptr %0 to ptr addrspace(4), !dbg !24
+  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(ptr addrspace(4) %1), !dbg !24
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #5, !dbg !23
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #2
 
 ; Function Attrs: inlinehint
-define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this) #3 align 2 !dbg !26 {
+define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(ptr addrspace(4) %this) #3 align 2 !dbg !26 {
 entry:
-  %this.addr = alloca %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)*, align 8
+  %this.addr = alloca ptr addrspace(4), align 8
   %IV = alloca %struct._ZTS8iteratorI6vectorE.iterator, align 8
   %V = alloca %struct._ZTS6vector.vector, align 8
-  store %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this, %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)** %this.addr, align 8, !tbaa !52
-  call void @llvm.dbg.declare(metadata %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)** %this.addr, metadata !28, metadata !DIExpression()), !dbg !56
-  %0 = bitcast %struct._ZTS8iteratorI6vectorE.iterator* %IV to i8*, !dbg !57
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #5, !dbg !57
-  call void @llvm.dbg.declare(metadata %struct._ZTS8iteratorI6vectorE.iterator* %IV, metadata !30, metadata !DIExpression()), !dbg !58
-  %1 = addrspacecast %struct._ZTS8iteratorI6vectorE.iterator* %IV to %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)*, !dbg !58
-  call spir_func void @_ZN8iteratorI6vectorEC2Ev(%struct._ZTS8iteratorI6vectorE.iterator addrspace(4)* %1), !dbg !58
-  %2 = bitcast %struct._ZTS6vector.vector* %V to i8*, !dbg !59
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %2) #5, !dbg !59
-  call void @llvm.dbg.declare(metadata %struct._ZTS6vector.vector* %V, metadata !51, metadata !DIExpression()), !dbg !60
-  %3 = bitcast %struct._ZTS6vector.vector* %V to i8*, !dbg !61
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %3) #5, !dbg !61
-  %4 = bitcast %struct._ZTS8iteratorI6vectorE.iterator* %IV to i8*, !dbg !61
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %4) #5, !dbg !61
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !52
+  call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !28, metadata !DIExpression()), !dbg !56
+  call void @llvm.lifetime.start.p0(i64 8, ptr %IV) #5, !dbg !57
+  call void @llvm.dbg.declare(metadata ptr %IV, metadata !30, metadata !DIExpression()), !dbg !58
+  %0 = addrspacecast ptr %IV to ptr addrspace(4), !dbg !58
+  call spir_func void @_ZN8iteratorI6vectorEC2Ev(ptr addrspace(4) %0), !dbg !58
+  call void @llvm.lifetime.start.p0(i64 8, ptr %V) #5, !dbg !59
+  call void @llvm.dbg.declare(metadata ptr %V, metadata !51, metadata !DIExpression()), !dbg !60
+  call void @llvm.lifetime.end.p0(i64 8, ptr %V) #5, !dbg !61
+  call void @llvm.lifetime.end.p0(i64 8, ptr %IV) #5, !dbg !61
   ret void, !dbg !61
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: nounwind
-define linkonce_odr dso_local spir_func void @_ZN8iteratorI6vectorEC2Ev(%struct._ZTS8iteratorI6vectorE.iterator addrspace(4)* %this) unnamed_addr #4 comdat align 2 !dbg !62 {
+define linkonce_odr dso_local spir_func void @_ZN8iteratorI6vectorEC2Ev(ptr addrspace(4) %this) unnamed_addr #4 comdat align 2 !dbg !62 {
 entry:
-  %this.addr = alloca %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)*, align 8
-  store %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)* %this, %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)** %this.addr, align 8, !tbaa !52
-  call void @llvm.dbg.declare(metadata %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)** %this.addr, metadata !64, metadata !DIExpression()), !dbg !66
-  %this1 = load %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)*, %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)** %this.addr, align 8
-  %Itr = getelementptr inbounds %struct._ZTS8iteratorI6vectorE.iterator, %struct._ZTS8iteratorI6vectorE.iterator addrspace(4)* %this1, i32 0, i32 0, !dbg !67
-  store i32 addrspace(4)* null, i32 addrspace(4)* addrspace(4)* %Itr, align 8, !dbg !67, !tbaa !68
+  %this.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !52
+  call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !64, metadata !DIExpression()), !dbg !66
+  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
+  store ptr addrspace(4) null, ptr addrspace(4) %this1, align 8, !dbg !67, !tbaa !68
   ret void, !dbg !70
 }
 

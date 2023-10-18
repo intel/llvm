@@ -261,13 +261,7 @@ private:
   FunctionCallee SanCovTraceGepFunction;
   FunctionCallee SanCovTraceSwitchFunction;
   GlobalVariable *SanCovLowestStack;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Type *PtrTy, *IntptrTy, *Int64Ty, *Int32Ty, *Int16Ty, *Int8Ty, *Int1Ty;
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *Int128PtrTy, *IntptrTy, *IntptrPtrTy, *Int64Ty, *Int64PtrTy, *Int32Ty,
-      *Int32PtrTy, *Int16PtrTy, *Int16Ty, *Int8Ty, *Int8PtrTy, *Int1Ty,
-      *Int1PtrTy;
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Module *CurModule;
   std::string CurModuleUniqueId;
   Triple TargetTriple;
@@ -335,19 +329,10 @@ ModuleSanitizerCoverage::CreateSecStartEnd(Module &M, const char *Section,
 
   // Account for the fact that on windows-msvc __start_* symbols actually
   // point to a uint64_t before the start of the array.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   auto SecStartI8Ptr = IRB.CreatePointerCast(SecStart, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  auto SecStartI8Ptr = IRB.CreatePointerCast(SecStart, Int8PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   auto GEP = IRB.CreateGEP(Int8Ty, SecStartI8Ptr,
                            ConstantInt::get(IntptrTy, sizeof(uint64_t)));
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return std::make_pair(GEP, SecEnd);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  return std::make_pair(IRB.CreatePointerCast(GEP, PointerType::getUnqual(Ty)),
-                        SecEnd);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Function *ModuleSanitizerCoverage::CreateInitCallsForSections(
@@ -357,9 +342,6 @@ Function *ModuleSanitizerCoverage::CreateInitCallsForSections(
   auto SecStart = SecStartEnd.first;
   auto SecEnd = SecStartEnd.second;
   Function *CtorFunc;
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PtrTy = PointerType::getUnqual(Ty);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   std::tie(CtorFunc, std::ignore) = createSanitizerCtorAndInitFunctions(
       M, CtorName, InitFunctionName, {PtrTy, PtrTy}, {SecStart, SecEnd});
   assert(CtorFunc->getName() == CtorName);
@@ -405,21 +387,9 @@ bool ModuleSanitizerCoverage::instrumentModule(
   FunctionPCsArray = nullptr;
   FunctionCFsArray = nullptr;
   IntptrTy = Type::getIntNTy(*C, DL->getPointerSizeInBits());
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   PtrTy = PointerType::getUnqual(*C);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  IntptrPtrTy = PointerType::getUnqual(IntptrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Type *VoidTy = Type::getVoidTy(*C);
   IRBuilder<> IRB(*C);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Int128PtrTy = PointerType::getUnqual(IRB.getInt128Ty());
-  Int64PtrTy = PointerType::getUnqual(IRB.getInt64Ty());
-  Int16PtrTy = PointerType::getUnqual(IRB.getInt16Ty());
-  Int32PtrTy = PointerType::getUnqual(IRB.getInt32Ty());
-  Int8PtrTy = PointerType::getUnqual(IRB.getInt8Ty());
-  Int1PtrTy = PointerType::getUnqual(IRB.getInt1Ty());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Int64Ty = IRB.getInt64Ty();
   Int32Ty = IRB.getInt32Ty();
   Int16Ty = IRB.getInt16Ty();
@@ -458,66 +428,17 @@ bool ModuleSanitizerCoverage::instrumentModule(
       M.getOrInsertFunction(SanCovTraceConstCmp8, VoidTy, Int64Ty, Int64Ty);
 
   // Loads.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   SanCovLoadFunction[0] = M.getOrInsertFunction(SanCovLoad1, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovLoadFunction[0] = M.getOrInsertFunction(SanCovLoad1, VoidTy, Int8PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovLoadFunction[1] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad2, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad2, VoidTy, Int16PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovLoadFunction[2] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad4, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad4, VoidTy, Int32PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovLoadFunction[3] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad8, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad8, VoidTy, Int64PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovLoadFunction[4] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad16, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovLoad16, VoidTy, Int128PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  SanCovLoadFunction[1] = M.getOrInsertFunction(SanCovLoad2, VoidTy, PtrTy);
+  SanCovLoadFunction[2] = M.getOrInsertFunction(SanCovLoad4, VoidTy, PtrTy);
+  SanCovLoadFunction[3] = M.getOrInsertFunction(SanCovLoad8, VoidTy, PtrTy);
+  SanCovLoadFunction[4] = M.getOrInsertFunction(SanCovLoad16, VoidTy, PtrTy);
   // Stores.
-  SanCovStoreFunction[0] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore1, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore1, VoidTy, Int8PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovStoreFunction[1] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore2, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore2, VoidTy, Int16PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovStoreFunction[2] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore4, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore4, VoidTy, Int32PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovStoreFunction[3] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore8, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore8, VoidTy, Int64PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-  SanCovStoreFunction[4] =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore16, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovStore16, VoidTy, Int128PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  SanCovStoreFunction[0] = M.getOrInsertFunction(SanCovStore1, VoidTy, PtrTy);
+  SanCovStoreFunction[1] = M.getOrInsertFunction(SanCovStore2, VoidTy, PtrTy);
+  SanCovStoreFunction[2] = M.getOrInsertFunction(SanCovStore4, VoidTy, PtrTy);
+  SanCovStoreFunction[3] = M.getOrInsertFunction(SanCovStore8, VoidTy, PtrTy);
+  SanCovStoreFunction[4] = M.getOrInsertFunction(SanCovStore16, VoidTy, PtrTy);
 
   {
     AttributeList AL;
@@ -530,11 +451,7 @@ bool ModuleSanitizerCoverage::instrumentModule(
   SanCovTraceGepFunction =
       M.getOrInsertFunction(SanCovTraceGep, VoidTy, IntptrTy);
   SanCovTraceSwitchFunction =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       M.getOrInsertFunction(SanCovTraceSwitchName, VoidTy, Int64Ty, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovTraceSwitchName, VoidTy, Int64Ty, Int64PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   Constant *SanCovLowestStackConstant =
       M.getOrInsertGlobal(SanCovLowestStackName, IntptrTy);
@@ -551,11 +468,7 @@ bool ModuleSanitizerCoverage::instrumentModule(
 
   SanCovTracePC = M.getOrInsertFunction(SanCovTracePCName, VoidTy);
   SanCovTracePCGuard =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       M.getOrInsertFunction(SanCovTracePCGuardName, VoidTy, PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      M.getOrInsertFunction(SanCovTracePCGuardName, VoidTy, Int32PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   for (auto &F : M)
     instrumentFunction(F, DTCallback, PDTCallback);
@@ -577,24 +490,16 @@ bool ModuleSanitizerCoverage::instrumentModule(
   }
   if (Ctor && Options.PCTable) {
     auto SecStartEnd = CreateSecStartEnd(M, SanCovPCsSectionName, IntptrTy);
-    FunctionCallee InitFunction = declareSanitizerInitFunction(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-        M, SanCovPCsInitName, {PtrTy, PtrTy});
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-        M, SanCovPCsInitName, {IntptrPtrTy, IntptrPtrTy});
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+    FunctionCallee InitFunction =
+        declareSanitizerInitFunction(M, SanCovPCsInitName, {PtrTy, PtrTy});
     IRBuilder<> IRBCtor(Ctor->getEntryBlock().getTerminator());
     IRBCtor.CreateCall(InitFunction, {SecStartEnd.first, SecStartEnd.second});
   }
 
   if (Ctor && Options.CollectControlFlow) {
     auto SecStartEnd = CreateSecStartEnd(M, SanCovCFsSectionName, IntptrTy);
-    FunctionCallee InitFunction = declareSanitizerInitFunction(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-        M, SanCovCFsInitName, {PtrTy, PtrTy});
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-        M, SanCovCFsInitName, {IntptrPtrTy, IntptrPtrTy});
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+    FunctionCallee InitFunction =
+        declareSanitizerInitFunction(M, SanCovCFsInitName, {PtrTy, PtrTy});
     IRBuilder<> IRBCtor(Ctor->getEntryBlock().getTerminator());
     IRBCtor.CreateCall(InitFunction, {SecStartEnd.first, SecStartEnd.second});
   }
@@ -820,40 +725,19 @@ ModuleSanitizerCoverage::CreatePCArray(Function &F,
   IRBuilder<> IRB(&*F.getEntryBlock().getFirstInsertionPt());
   for (size_t i = 0; i < N; i++) {
     if (&F.getEntryBlock() == AllBlocks[i]) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PCs.push_back((Constant *)IRB.CreatePointerCast(&F, PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      PCs.push_back((Constant *)IRB.CreatePointerCast(&F, IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-      PCs.push_back((Constant *)IRB.CreateIntToPtr(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-          ConstantInt::get(IntptrTy, 1), PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-          ConstantInt::get(IntptrTy, 1), IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+      PCs.push_back(
+          (Constant *)IRB.CreateIntToPtr(ConstantInt::get(IntptrTy, 1), PtrTy));
     } else {
       PCs.push_back((Constant *)IRB.CreatePointerCast(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
           BlockAddress::get(AllBlocks[i]), PtrTy));
       PCs.push_back(Constant::getNullValue(PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-          BlockAddress::get(AllBlocks[i]), IntptrPtrTy));
-      PCs.push_back(Constant::getNullValue(IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
   }
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PCArray = CreateFunctionLocalArrayInSection(N * 2, F, PtrTy,
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PCArray = CreateFunctionLocalArrayInSection(N * 2, F, IntptrPtrTy,
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
-                                                    SanCovPCsSectionName);
+  auto *PCArray =
+      CreateFunctionLocalArrayInSection(N * 2, F, PtrTy, SanCovPCsSectionName);
   PCArray->setInitializer(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       ConstantArray::get(ArrayType::get(PtrTy, N * 2), PCs));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      ConstantArray::get(ArrayType::get(IntptrPtrTy, N * 2), PCs));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   PCArray->setConstant(true);
 
   return PCArray;
@@ -930,10 +814,9 @@ void ModuleSanitizerCoverage::InjectTraceForSwitch(
           Int64Ty->getScalarSizeInBits())
         Cond = IRB.CreateIntCast(Cond, Int64Ty, false);
       for (auto It : SI->cases()) {
-        Constant *C = It.getCaseValue();
-        if (C->getType()->getScalarSizeInBits() <
-            Int64Ty->getScalarSizeInBits())
-          C = ConstantExpr::getCast(CastInst::ZExt, It.getCaseValue(), Int64Ty);
+        ConstantInt *C = It.getCaseValue();
+        if (C->getType()->getScalarSizeInBits() < 64)
+          C = ConstantInt::get(C->getContext(), C->getValue().zext(64));
         Initializers.push_back(C);
       }
       llvm::sort(drop_begin(Initializers, 2),
@@ -947,11 +830,7 @@ void ModuleSanitizerCoverage::InjectTraceForSwitch(
           ConstantArray::get(ArrayOfInt64Ty, Initializers),
           "__sancov_gen_cov_switch_values");
       IRB.CreateCall(SanCovTraceSwitchFunction,
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                      {Cond, IRB.CreatePointerCast(GV, PtrTy)});
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                     {Cond, IRB.CreatePointerCast(GV, Int64PtrTy)});
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
   }
 }
@@ -996,22 +875,13 @@ void ModuleSanitizerCoverage::InjectTraceForLoadsAndStores(
            : TypeSize == 128 ? 4
                              : -1;
   };
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PointerType[5] = {Int8PtrTy, Int16PtrTy, Int32PtrTy, Int64PtrTy,
-                          Int128PtrTy};
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   for (auto *LI : Loads) {
     InstrumentationIRBuilder IRB(LI);
     auto Ptr = LI->getPointerOperand();
     int Idx = CallbackIdx(LI->getType());
     if (Idx < 0)
       continue;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     IRB.CreateCall(SanCovLoadFunction[Idx], Ptr);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-    IRB.CreateCall(SanCovLoadFunction[Idx],
-                   IRB.CreatePointerCast(Ptr, PointerType[Idx]));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
   for (auto *SI : Stores) {
     InstrumentationIRBuilder IRB(SI);
@@ -1019,12 +889,7 @@ void ModuleSanitizerCoverage::InjectTraceForLoadsAndStores(
     int Idx = CallbackIdx(SI->getValueOperand()->getType());
     if (Idx < 0)
       continue;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     IRB.CreateCall(SanCovStoreFunction[Idx], Ptr);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-    IRB.CreateCall(SanCovStoreFunction[Idx],
-                   IRB.CreatePointerCast(Ptr, PointerType[Idx]));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
 }
 
@@ -1089,11 +954,7 @@ void ModuleSanitizerCoverage::InjectCoverageAtBlock(Function &F, BasicBlock &BB,
     auto GuardPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePointerCast(FunctionGuardArray, IntptrTy),
                       ConstantInt::get(IntptrTy, Idx * 4)),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         PtrTy);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-        Int32PtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     IRB.CreateCall(SanCovTracePCGuard, GuardPtr)->setCannotMerge();
   }
   if (Options.Inline8bitCounters) {
@@ -1123,11 +984,7 @@ void ModuleSanitizerCoverage::InjectCoverageAtBlock(Function &F, BasicBlock &BB,
     Module *M = F.getParent();
     Function *GetFrameAddr = Intrinsic::getDeclaration(
         M, Intrinsic::frameaddress,
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         IRB.getPtrTy(M->getDataLayout().getAllocaAddrSpace()));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-        IRB.getInt8PtrTy(M->getDataLayout().getAllocaAddrSpace()));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     auto FrameAddrPtr =
         IRB.CreateCall(GetFrameAddr, {Constant::getNullValue(Int32Ty)});
     auto FrameAddrInt = IRB.CreatePtrToInt(FrameAddrPtr, IntptrTy);
@@ -1178,76 +1035,39 @@ void ModuleSanitizerCoverage::createFunctionControlFlow(Function &F) {
   for (auto &BB : F) {
     // blockaddress can not be used on function's entry block.
     if (&BB == &F.getEntryBlock())
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       CFs.push_back((Constant *)IRB.CreatePointerCast(&F, PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      CFs.push_back((Constant *)IRB.CreatePointerCast(&F, IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     else
-      CFs.push_back((Constant *)IRB.CreatePointerCast(BlockAddress::get(&BB),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                                                      PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                                                      IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+      CFs.push_back(
+          (Constant *)IRB.CreatePointerCast(BlockAddress::get(&BB), PtrTy));
 
     for (auto SuccBB : successors(&BB)) {
       assert(SuccBB != &F.getEntryBlock());
-      CFs.push_back((Constant *)IRB.CreatePointerCast(BlockAddress::get(SuccBB),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                                                      PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                                                      IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+      CFs.push_back(
+          (Constant *)IRB.CreatePointerCast(BlockAddress::get(SuccBB), PtrTy));
     }
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     CFs.push_back((Constant *)Constant::getNullValue(PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-    CFs.push_back((Constant *)Constant::getNullValue(IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
     for (auto &Inst : BB) {
       if (CallBase *CB = dyn_cast<CallBase>(&Inst)) {
         if (CB->isIndirectCall()) {
           // TODO(navidem): handle indirect calls, for now mark its existence.
           CFs.push_back((Constant *)IRB.CreateIntToPtr(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
               ConstantInt::get(IntptrTy, -1), PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-              ConstantInt::get(IntptrTy, -1), IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
         } else {
           auto CalledF = CB->getCalledFunction();
           if (CalledF && !CalledF->isIntrinsic())
-            CFs.push_back(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-                (Constant *)IRB.CreatePointerCast(CalledF, PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                (Constant *)IRB.CreatePointerCast(CalledF, IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+            CFs.push_back((Constant *)IRB.CreatePointerCast(CalledF, PtrTy));
         }
       }
     }
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     CFs.push_back((Constant *)Constant::getNullValue(PtrTy));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-    CFs.push_back((Constant *)Constant::getNullValue(IntptrPtrTy));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
-  FunctionCFsArray = CreateFunctionLocalArrayInSection(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-      CFs.size(), F, PtrTy, SanCovCFsSectionName);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      CFs.size(), F, IntptrPtrTy, SanCovCFsSectionName);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  FunctionCFsArray = CreateFunctionLocalArrayInSection(CFs.size(), F, PtrTy,
+                                                       SanCovCFsSectionName);
   FunctionCFsArray->setInitializer(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       ConstantArray::get(ArrayType::get(PtrTy, CFs.size()), CFs));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      ConstantArray::get(ArrayType::get(IntptrPtrTy, CFs.size()), CFs));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   FunctionCFsArray->setConstant(true);
 }

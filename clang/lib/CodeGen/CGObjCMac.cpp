@@ -1713,8 +1713,8 @@ public:
 /// A helper class for performing the null-initialization of a return
 /// value.
 struct NullReturnState {
-  llvm::BasicBlock *NullBB;
-  NullReturnState() : NullBB(nullptr) {}
+  llvm::BasicBlock *NullBB = nullptr;
+  NullReturnState() = default;
 
   /// Perform a null-check of the given receiver.
   void init(CodeGenFunction &CGF, llvm::Value *receiver) {
@@ -1958,9 +1958,8 @@ llvm::Constant *CGObjCMac::getNSConstantStringClassRef() {
 
   llvm::Type *PTy = llvm::ArrayType::get(CGM.IntTy, 0);
   auto GV = CGM.CreateRuntimeVariable(PTy, str);
-  auto V = llvm::ConstantExpr::getBitCast(GV, CGM.IntTy->getPointerTo());
-  ConstantStringClassRef = V;
-  return V;
+  ConstantStringClassRef = GV;
+  return GV;
 }
 
 llvm::Constant *CGObjCNonFragileABIMac::getNSConstantStringClassRef() {
@@ -1972,12 +1971,8 @@ llvm::Constant *CGObjCNonFragileABIMac::getNSConstantStringClassRef() {
     StringClass.empty() ? "OBJC_CLASS_$_NSConstantString"
                         : "OBJC_CLASS_$_" + StringClass;
   llvm::Constant *GV = GetClassGlobal(str, NotForDefinition);
-
-  // Make sure the result is of the correct type.
-  auto V = llvm::ConstantExpr::getBitCast(GV, CGM.IntTy->getPointerTo());
-
-  ConstantStringClassRef = V;
-  return V;
+  ConstantStringClassRef = GV;
+  return GV;
 }
 
 ConstantAddress
@@ -1996,11 +1991,8 @@ CGObjCCommonMac::GenerateConstantNSString(const StringLiteral *Literal) {
   // If we don't already have it, construct the type for a constant NSString.
   if (!NSConstantStringType) {
     NSConstantStringType =
-      llvm::StructType::create({
-        CGM.Int32Ty->getPointerTo(),
-        CGM.Int8PtrTy,
-        CGM.IntTy
-      }, "struct.__builtin_NSString");
+        llvm::StructType::create({CGM.UnqualPtrTy, CGM.Int8PtrTy, CGM.IntTy},
+                                 "struct.__builtin_NSString");
   }
 
   ConstantInitBuilder Builder(CGM);
@@ -5013,13 +5005,8 @@ void CGObjCMac::EmitObjCStrongCastAssign(CodeGen::CodeGenFunction &CGF,
 }
 
 void CGObjCMac::EmitGCMemmoveCollectable(CodeGen::CodeGenFunction &CGF,
-                                         Address DestPtr,
-                                         Address SrcPtr,
+                                         Address DestPtr, Address SrcPtr,
                                          llvm::Value *size) {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  SrcPtr = CGF.Builder.CreateElementBitCast(SrcPtr, CGF.Int8Ty);
-  DestPtr = CGF.Builder.CreateElementBitCast(DestPtr, CGF.Int8Ty);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *args[] = { DestPtr.getPointer(), SrcPtr.getPointer(), size };
   CGF.EmitNounwindRuntimeCall(ObjCTypes.GcMemmoveCollectableFn(), args);
 }
@@ -7689,14 +7676,8 @@ void CGObjCNonFragileABIMac::EmitObjCStrongCastAssign(
 }
 
 void CGObjCNonFragileABIMac::EmitGCMemmoveCollectable(
-  CodeGen::CodeGenFunction &CGF,
-  Address DestPtr,
-  Address SrcPtr,
-  llvm::Value *Size) {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  SrcPtr = CGF.Builder.CreateElementBitCast(SrcPtr, CGF.Int8Ty);
-  DestPtr = CGF.Builder.CreateElementBitCast(DestPtr, CGF.Int8Ty);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+    CodeGen::CodeGenFunction &CGF, Address DestPtr, Address SrcPtr,
+    llvm::Value *Size) {
   llvm::Value *args[] = { DestPtr.getPointer(), SrcPtr.getPointer(), Size };
   CGF.EmitNounwindRuntimeCall(ObjCTypes.GcMemmoveCollectableFn(), args);
 }

@@ -351,30 +351,69 @@ public:
   kernel
   get_kernel(const kernel_id &KernelID,
              const std::shared_ptr<detail::kernel_bundle_impl> &Self) const {
+    using ImageImpl = std::shared_ptr<detail::device_image_impl>;
+    // Selected image.
+    ImageImpl SelectedImage = nullptr;
+    // Image where specialization constants are replaced with default values.
+    ImageImpl ImageWithReplacedSpecConsts = nullptr;
+    // Original image where specialization constants are not replaced with
+    // default values.
+    ImageImpl OriginalImage = nullptr;
+    // Used to track if any of the candidate images has specialization values
+    // set.
+    bool SpecConstsSet = false;
+    for (auto &DeviceImage : MDeviceImages) {
+      if (!DeviceImage.has_kernel(KernelID))
+        continue;
 
-    auto It = std::find_if(MDeviceImages.begin(), MDeviceImages.end(),
-                           [&KernelID](const device_image_plain &DeviceImage) {
-                             return DeviceImage.has_kernel(KernelID);
-                           });
+      const auto DeviceImageImpl = detail::getSyclObjImpl(DeviceImage);
+      SpecConstsSet |= DeviceImageImpl->is_any_specialization_constant_set();
 
-    if (MDeviceImages.end() == It)
+      // Remember current image in corresponding variable depending on whether
+      // specialization constants are replaced with default value or not.
+      (DeviceImageImpl->specialization_constants_replaced_with_default()
+           ? ImageWithReplacedSpecConsts
+           : OriginalImage) = DeviceImageImpl;
+
+      if (SpecConstsSet) {
+        // If specialization constant is set in any of the candidate images
+        // then we can't use ReplacedImage, so we select NativeImage if any or
+        // we select OriginalImage and keep iterating in case there is an image
+        // with native support.
+        SelectedImage = OriginalImage;
+        if (SelectedImage &&
+            SelectedImage->all_specialization_constant_native())
+          break;
+      } else {
+        // For now select ReplacedImage but it may be reset if any of the
+        // further device images has specialization constant value set. If after
+        // all iterations specialization constant values are not set in any of
+        // the candidate images then that will be the selected image.
+        // Also we don't want to use ReplacedImage if device image has native
+        // support.
+        if (ImageWithReplacedSpecConsts &&
+            !ImageWithReplacedSpecConsts->all_specialization_constant_native())
+          SelectedImage = ImageWithReplacedSpecConsts;
+        else
+          // In case if we don't have or don't use ReplacedImage.
+          SelectedImage = OriginalImage;
+      }
+    }
+
+    if (!SelectedImage)
       throw sycl::exception(make_error_code(errc::invalid),
                             "The kernel bundle does not contain the kernel "
                             "identified by kernelId.");
-
-    const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
-        detail::getSyclObjImpl(*It);
 
     sycl::detail::pi::PiKernel Kernel = nullptr;
     const KernelArgMask *ArgMask = nullptr;
     std::tie(Kernel, std::ignore, ArgMask) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
-            DeviceImageImpl->get_program_ref());
+            SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl =
-        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
-                                      DeviceImageImpl, Self, ArgMask);
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }

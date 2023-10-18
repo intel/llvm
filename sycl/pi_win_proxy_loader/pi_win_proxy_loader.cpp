@@ -70,8 +70,8 @@ std::wstring getCurrentDSODir() {
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileName(
       reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
-      sizeof(Path));
-  assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
+      MAX_PATH);
+  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
   assert(Ret > 0 && "GetModuleFileName failed");
   (void)Ret;
 

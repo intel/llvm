@@ -193,19 +193,27 @@ public:
           static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
     }
 #endif
-    sycl::detail::pi::PiResult R;
+    sycl::detail::pi::PiResult R = PI_SUCCESS;
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
       std::cout << "---> " << FnName << "(" << std::endl;
       sycl::detail::pi::printArgs(Args...);
-      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
-      std::cout << ") ---> ";
-      sycl::detail::pi::printArgs(R);
-      sycl::detail::pi::printOuts(Args...);
-      std::cout << std::endl;
+      if (!pluginReleased) {
+        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+        std::cout << ") ---> ";
+        sycl::detail::pi::printArgs(R);
+        sycl::detail::pi::printOuts(Args...);
+        std::cout << std::endl;
+      } else {
+        std::cout << ") ---> ";
+        std::cout << "API Called After Plugin Teardown, Functon Call ignored.";
+        std::cout << std::endl;
+      }
     } else {
-      R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+      if (!pluginReleased) {
+        R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
+      }
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Close the function begin with a call to function end
@@ -240,7 +248,10 @@ public:
 
   void *getLibraryHandle() const { return MLibraryHandle; }
   void *getLibraryHandle() { return MLibraryHandle; }
-  int unload() { return sycl::detail::pi::unloadPlugin(MLibraryHandle); }
+  int unload() {
+    this->pluginReleased = true;
+    return sycl::detail::pi::unloadPlugin(MLibraryHandle);
+  }
 
   // return the index of PiPlatforms.
   // If not found, add it and return its index.
@@ -290,6 +301,7 @@ public:
   }
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+  bool pluginReleased = false;
 
 private:
   std::shared_ptr<sycl::detail::pi::PiPlugin> MPlugin;

@@ -39,32 +39,26 @@ struct GroupOpBool {};
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger_v<T>>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger_v<T>>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat_v<T>>> {
   using type = GroupOpFP;
 };
 
 template <typename T>
-struct GroupOpTag<
-    T, std::enable_if_t<std::is_same<T, std::complex<half>>::value ||
-                        std::is_same<T, std::complex<float>>::value ||
-                        std::is_same<T, std::complex<double>>::value>> {
-  using type = GroupOpC;
-};
-
-template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_genbool<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_genbool_v<T>>> {
   using type = GroupOpBool;
 };
+
+// GroupOpC (std::complex) is handled in sycl/stl_wrappers/complex.
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <__spv::GroupOperation O, typename Group, typename T>               \

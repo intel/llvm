@@ -23,6 +23,7 @@
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
@@ -752,16 +753,18 @@ Sema::ActOnDependentIdExpression(const CXXScopeSpec &SS,
     IsEnum = isa_and_nonnull<EnumType>(NNS->getAsType());
 
   if (!MightBeCxx11UnevalField && !isAddressOfOperand && !IsEnum &&
-      isa<CXXMethodDecl>(DC) && cast<CXXMethodDecl>(DC)->isInstance()) {
-    QualType ThisType = cast<CXXMethodDecl>(DC)->getThisType();
+      isa<CXXMethodDecl>(DC) &&
+      cast<CXXMethodDecl>(DC)->isImplicitObjectMemberFunction()) {
+    QualType ThisType = cast<CXXMethodDecl>(DC)->getThisType().getNonReferenceType();
 
     // Since the 'this' expression is synthesized, we don't need to
     // perform the double-lookup check.
     NamedDecl *FirstQualifierInScope = nullptr;
 
     return CXXDependentScopeMemberExpr::Create(
-        Context, /*This*/ nullptr, ThisType, /*IsArrow*/ true,
-        /*Op*/ SourceLocation(), SS.getWithLocInContext(Context), TemplateKWLoc,
+        Context, /*This=*/nullptr, ThisType,
+        /*IsArrow=*/!Context.getLangOpts().HLSL,
+        /*Op=*/SourceLocation(), SS.getWithLocInContext(Context), TemplateKWLoc,
         FirstQualifierInScope, NameInfo, TemplateArgs);
   }
 
@@ -1256,9 +1259,13 @@ bool Sema::AttachTypeConstraint(NestedNameSpecifierLoc NS,
   if (ImmediatelyDeclaredConstraint.isInvalid())
     return true;
 
-  ConstrainedParameter->setTypeConstraint(NS, NameInfo,
-                                          /*FoundDecl=*/NamedConcept,
-                                          NamedConcept, ArgsAsWritten,
+  auto *CL = ConceptReference::Create(Context, /*NNS=*/NS,
+                                      /*TemplateKWLoc=*/SourceLocation{},
+                                      /*ConceptNameInfo=*/NameInfo,
+                                      /*FoundDecl=*/NamedConcept,
+                                      /*NamedConcept=*/NamedConcept,
+                                      /*ArgsWritten=*/ArgsAsWritten);
+  ConstrainedParameter->setTypeConstraint(CL,
                                           ImmediatelyDeclaredConstraint.get());
   return false;
 }
@@ -4941,13 +4948,13 @@ Sema::CheckConceptTemplateId(const CXXScopeSpec &SS,
                       TemplateArgs->getRAngleLoc()),
           Satisfaction))
     return ExprError();
-
-  return ConceptSpecializationExpr::Create(
+  auto *CL = ConceptReference::Create(
       Context,
       SS.isSet() ? SS.getWithLocInContext(Context) : NestedNameSpecifierLoc{},
       TemplateKWLoc, ConceptNameInfo, FoundDecl, NamedConcept,
-      ASTTemplateArgumentListInfo::Create(Context, *TemplateArgs), CSD,
-      AreArgsDependent ? nullptr : &Satisfaction);
+      ASTTemplateArgumentListInfo::Create(Context, *TemplateArgs));
+  return ConceptSpecializationExpr::Create(
+      Context, CL, CSD, AreArgsDependent ? nullptr : &Satisfaction);
 }
 
 ExprResult Sema::BuildTemplateIdExpr(const CXXScopeSpec &SS,
@@ -7073,7 +7080,8 @@ CheckTemplateArgumentPointerToMember(Sema &S, NonTypeTemplateParmDecl *Param,
       isa<CXXMethodDecl>(DRE->getDecl())) {
     assert((isa<FieldDecl>(DRE->getDecl()) ||
             isa<IndirectFieldDecl>(DRE->getDecl()) ||
-            !cast<CXXMethodDecl>(DRE->getDecl())->isStatic()) &&
+            cast<CXXMethodDecl>(DRE->getDecl())
+                ->isImplicitObjectMemberFunction()) &&
            "Only non-static member pointers can make it here");
 
     // Okay: this is the address of a non-static member, and therefore
@@ -7625,7 +7633,10 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
         if (DiagnoseUseOfDecl(Fn, Arg->getBeginLoc()))
           return ExprError();
 
-        Arg = FixOverloadedFunctionReference(Arg, FoundResult, Fn);
+        ExprResult Res = FixOverloadedFunctionReference(Arg, FoundResult, Fn);
+        if (Res.isInvalid())
+          return ExprError();
+        Arg = Res.get();
         ArgType = Arg->getType();
       } else
         return ExprError();
@@ -7676,8 +7687,10 @@ ExprResult Sema::CheckTemplateArgument(NonTypeTemplateParmDecl *Param,
                                                                 FoundResult)) {
         if (DiagnoseUseOfDecl(Fn, Arg->getBeginLoc()))
           return ExprError();
-
-        Arg = FixOverloadedFunctionReference(Arg, FoundResult, Fn);
+        ExprResult Res = FixOverloadedFunctionReference(Arg, FoundResult, Fn);
+        if (Res.isInvalid())
+          return ExprError();
+        Arg = Res.get();
         ArgType = Arg->getType();
       } else
         return ExprError();
@@ -9321,10 +9334,9 @@ Sema::CheckSpecializationInstantiationRedecl(SourceLocation NewLoc,
 ///
 /// There really isn't any useful analysis we can do here, so we
 /// just store the information.
-bool
-Sema::CheckDependentFunctionTemplateSpecialization(FunctionDecl *FD,
-                   const TemplateArgumentListInfo &ExplicitTemplateArgs,
-                                                   LookupResult &Previous) {
+bool Sema::CheckDependentFunctionTemplateSpecialization(
+    FunctionDecl *FD, const TemplateArgumentListInfo *ExplicitTemplateArgs,
+    LookupResult &Previous) {
   // Remove anything from Previous that isn't a function template in
   // the correct context.
   DeclContext *FDLookupContext = FD->getDeclContext()->getRedeclContext();
@@ -9348,13 +9360,14 @@ Sema::CheckDependentFunctionTemplateSpecialization(FunctionDecl *FD,
   }
   F.done();
 
+  bool IsFriend = FD->getFriendObjectKind() != Decl::FOK_None;
   if (Previous.empty()) {
-    Diag(FD->getLocation(),
-         diag::err_dependent_function_template_spec_no_match);
+    Diag(FD->getLocation(), diag::err_dependent_function_template_spec_no_match)
+        << IsFriend;
     for (auto &P : DiscardedCandidates)
       Diag(P.second->getLocation(),
            diag::note_dependent_function_template_spec_discard_reason)
-          << P.first;
+          << P.first << IsFriend;
     return true;
   }
 
@@ -10105,6 +10118,17 @@ DeclResult Sema::ActOnExplicitInstantiation(
         ClassTemplate, CanonicalConverted, PrevDecl);
     SetNestedNameSpecifier(*this, Specialization, SS);
 
+    // A MSInheritanceAttr attached to the previous declaration must be
+    // propagated to the new node prior to instantiation.
+    if (PrevDecl) {
+      if (const auto *A = PrevDecl->getAttr<MSInheritanceAttr>()) {
+        auto *Clone = A->clone(getASTContext());
+        Clone->setInherited(true);
+        Specialization->addAttr(Clone);
+        Consumer.AssignInheritanceModel(Specialization);
+      }
+    }
+
     if (!HasNoEffect && !PrevDecl) {
       // Insert the new specialization.
       ClassTemplate->AddSpecialization(Specialization, InsertPos);
@@ -10219,11 +10243,6 @@ DeclResult Sema::ActOnExplicitInstantiation(
         Context.getTargetInfo().getTriple().isWindowsGNUEnvironment() &&
         PrevDecl->hasAttr<DLLExportAttr>()) {
       dllExportImportClassTemplateSpecialization(*this, Def);
-    }
-
-    if (Def->hasAttr<MSInheritanceAttr>()) {
-      Specialization->addAttr(Def->getAttr<MSInheritanceAttr>());
-      Consumer.AssignInheritanceModel(Specialization);
     }
 
     // Set the template specialization kind. Make sure it is set before

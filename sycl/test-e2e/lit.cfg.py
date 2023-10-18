@@ -223,8 +223,14 @@ else:
 config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
 config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
 
-vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
+if platform.system() == "Windows":
+    config.substitutions.append(
+        ('%link-vulkan',
+         '-l %s -I %s' % (config.vulkan_lib, config.vulkan_include_dir)))
+else:
+    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+    config.substitutions.append(('%link-vulkan', '-L %s -lvulkan -I %s' %
+                                 (vulkan_lib_path, config.vulkan_include_dir)))
 
 if config.vulkan_found == "TRUE":
     config.available_features.add('vulkan')
@@ -258,18 +264,11 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu'),
                      'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:
           lit_config.error('Unsupported device {}'.format(d))
-
-# Run only tests in ESIMD subforlder for the ext_intel_esimd_emulator
-# TODO: Can it work in multiple devices configuration at all?
-if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'ext_intel_esimd_emulator:gpu':
-     config.test_source_root += "/ESIMD"
-     config.test_exec_root += "/ESIMD"
 
 # If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
 supported_hip_platforms=["AMD", "NVIDIA"]
@@ -387,6 +386,9 @@ for sycl_device in config.sycl_devices:
 # That has to be executed last so that all device-independent features have been
 # discovered already.
 config.sycl_dev_features = {}
+
+# Version of the driver for a given device. Empty for non-Intel devices.
+config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env['ONEAPI_DEVICE_SELECTOR'] = sycl_device
@@ -410,11 +412,25 @@ for sycl_device in config.sycl_devices:
 
     dev_aspects = []
     dev_sg_sizes = []
+    # See format.py's parse_min_intel_driver_req for explanation.
+    is_intel_driver = False
+    intel_driver_ver = {}
     for line in sp.stdout.splitlines():
-        if re.search(r'^ *Aspects *:', line):
+        if re.match(r' *Vendor *: Intel\(R\) Corporation', line):
+            is_intel_driver = True
+        if re.match(r' *Driver *:', line):
+            _, driver_str = line.split(':', 1)
+            driver_str = driver_str.strip()
+            lin = re.match(r'[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{5})', driver_str)
+            if lin:
+                intel_driver_ver['lin'] = int(lin.group(1))
+            win = re.match(r'[0-9]{1,2}\.[0-9]{1,2}\.([0-9]{3})\.([0-9]{4})', driver_str)
+            if win:
+                intel_driver_ver['win'] = (int(win.group(1)), int(win.group(2)))
+        if re.match(r' *Aspects *:', line):
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))
-        if re.search(r'^ *info::device::sub_group_sizes:', line):
+        if re.match(r' *info::device::sub_group_sizes:', line):
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace('info::device::sub_group_sizes: ', '')
             dev_sg_sizes.append(sg_sizes_str.strip().split(' '))
@@ -449,6 +465,10 @@ for sycl_device in config.sycl_devices:
     features.add(be.replace('ext_intel_', '').replace('ext_oneapi_', ''))
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
+    if is_intel_driver:
+        config.intel_driver_ver[sycl_device] = intel_driver_ver
+    else:
+        config.intel_driver_ver[sycl_device] = {}
 
 # Set timeout for a single test
 try:

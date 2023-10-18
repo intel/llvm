@@ -156,10 +156,9 @@ void zos::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("/dev/null");
   }
 
-  Args.AddAllArgs(CmdArgs, options::OPT_u);
-
   // Add archive library search paths.
-  Args.AddAllArgs(CmdArgs, options::OPT_L);
+  Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_u});
+
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
   // Specify linker input file(s)
@@ -188,11 +187,10 @@ void zos::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(
           Args.MakeArgString("//'" + LEHLQ + ".SCEELIB(CELQS003)'"));
     } else {
-      char *ld_side_deck = strdup(ld_env_var.str().c_str());
-      ld_side_deck = strtok(ld_side_deck, ":");
-      while (ld_side_deck != nullptr) {
-        CmdArgs.push_back(ld_side_deck);
-        ld_side_deck = strtok(nullptr, ":");
+      SmallVector<StringRef> ld_side_deck;
+      ld_env_var.split(ld_side_deck, ":");
+      for (StringRef ld_loc : ld_side_deck) {
+        CmdArgs.push_back((ld_loc.str()).c_str());
       }
     }
   }

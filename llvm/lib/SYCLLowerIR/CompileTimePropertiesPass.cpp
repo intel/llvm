@@ -68,6 +68,21 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
+/// Builds a metadata node for a SPIR-V decoration (decoration code is
+/// \c uint32_t integers) with no value.
+///
+/// @param Ctx    [in] the LLVM Context.
+/// @param OpCode [in] the SPIR-V OpCode code.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode) {
+  auto *Ty = Type::getInt32Ty(Ctx);
+  SmallVector<Metadata *, 2> MD;
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
+  return MDNode::get(Ctx, MD);
+}
+
 /// Builds a metadata node for a SPIR-V decoration (both decoration code
 /// and value are \c uint32_t integers).
 ///
@@ -100,38 +115,39 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
 /// and its values.
 MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
                                  uint32_t OpCode, uint32_t CacheLevel) {
-  enum class LoadCachePropINTEL {
-    Uncached = 0,
-    Cached = 1,
-    Streaming = 2,
-    InvalidateAfterRead = 3,
-    ConstCached = 4
+  enum class cache_control_read_type {
+    uncached = 0,
+    cached = 1,
+    streaming = 2,
+    invalidate_after_read = 3,
+    const_cached = 4
   };
-  enum class StoreCachePropINTEL {
-    Uncached = 0,
-    WriteThrough = 1,
-    WriteBack = 2,
-    Streaming = 3
+  enum class cache_control_write_type {
+    uncached = 0,
+    write_through = 1,
+    write_back = 2,
+    streaming = 3
   };
   uint32_t CacheProp;
   if (Name == "sycl-cache-read-uncached")
-    CacheProp = static_cast<int>(LoadCachePropINTEL::Uncached);
+    CacheProp = static_cast<int>(cache_control_read_type::uncached);
   else if (Name == "sycl-cache-read-cached")
-    CacheProp = static_cast<int>(LoadCachePropINTEL::Cached);
+    CacheProp = static_cast<int>(cache_control_read_type::cached);
   else if (Name == "sycl-cache-read-streaming")
-    CacheProp = static_cast<int>(LoadCachePropINTEL::Streaming);
+    CacheProp = static_cast<int>(cache_control_read_type::streaming);
   else if (Name == "sycl-cache-read-invalidate-after-read")
-    CacheProp = static_cast<int>(LoadCachePropINTEL::InvalidateAfterRead);
+    CacheProp =
+        static_cast<int>(cache_control_read_type::invalidate_after_read);
   else if (Name == "sycl-cache-read-const-cached")
-    CacheProp = static_cast<int>(LoadCachePropINTEL::ConstCached);
+    CacheProp = static_cast<int>(cache_control_read_type::const_cached);
   else if (Name == "sycl-cache-write-uncached")
-    CacheProp = static_cast<int>(StoreCachePropINTEL::Uncached);
+    CacheProp = static_cast<int>(cache_control_write_type::uncached);
   else if (Name == "sycl-cache-write-through")
-    CacheProp = static_cast<int>(StoreCachePropINTEL::WriteThrough);
+    CacheProp = static_cast<int>(cache_control_write_type::write_through);
   else if (Name == "sycl-cache-write-back")
-    CacheProp = static_cast<int>(StoreCachePropINTEL::WriteBack);
+    CacheProp = static_cast<int>(cache_control_write_type::write_back);
   else if (Name == "sycl-cache-write-streaming")
-    CacheProp = static_cast<int>(StoreCachePropINTEL::Streaming);
+    CacheProp = static_cast<int>(cache_control_write_type::streaming);
 
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 3> MD;
@@ -159,9 +175,7 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   SmallVector<Metadata *, 2> MD;
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, OpCode))));
-  MD.push_back(
-      ConstantAsMetadata::get(ConstantDataArray::getString(Ctx, Value,
-                                                           /*AddNull=*/true)));
+  MD.push_back(MDString::get(Ctx, Value));
   return MDNode::get(Ctx, MD);
 }
 
@@ -232,6 +246,8 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
     return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
   case DecorValueTy::string:
     return buildSpirvDecorMetadata(Ctx, DecorCode, Attr.getValueAsString());
+  case DecorValueTy::none:
+    return buildSpirvDecorMetadata(Ctx, DecorCode);
   default:
     llvm_unreachable("Unhandled decorator type.");
   }
@@ -369,7 +385,7 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
 
   auto AnnotValsIntrOpd = IntrInst->getArgOperand(4);
   const GlobalVariable *AnnotValsGV = nullptr;
-  if (AnnotValsIntrOpd->getType()->isOpaquePointerTy())
+  if (AnnotValsIntrOpd->getType()->isPointerTy())
     AnnotValsGV = dyn_cast<GlobalVariable>(AnnotValsIntrOpd);
   else if (const auto *Cast = dyn_cast<BitCastOperator>(AnnotValsIntrOpd))
     AnnotValsGV = dyn_cast<GlobalVariable>(Cast->getOperand(0));
@@ -587,7 +603,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
   const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
-  if (IntrAnnotStringArg->getType()->isOpaquePointerTy())
+  if (IntrAnnotStringArg->getType()->isPointerTy())
     AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
   else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
@@ -656,7 +672,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
   const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
-  if (IntrAnnotStringArg->getType()->isOpaquePointerTy())
+  if (IntrAnnotStringArg->getType()->isPointerTy())
     AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
   else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
@@ -680,26 +696,26 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   uint32_t CacheLevelsSpecifiedStore = 0;
   bool CacheProp = false;
   bool FPGAProp = false;
-  for (auto &Property : Properties) {
+  for (const auto &[PropName, PropVal] : Properties) {
     // sycl-alignment is converted to align on
     // previous parseAlignmentAndApply(), dropping here
-    if (*Property.first == "sycl-alignment")
+    if (PropName == "sycl-alignment")
       continue;
 
-    auto DecorIt = SpirvDecorMap.find(*Property.first);
+    auto DecorIt = SpirvDecorMap.find(*PropName);
     if (DecorIt == SpirvDecorMap.end())
       continue;
     uint32_t DecorCode = DecorIt->second.Code;
 
     // Handle cache control properties
-    if ((*Property.first).starts_with("sycl-cache-")) {
+    if ((*PropName).starts_with("sycl-cache-")) {
       CacheProp = true;
-      auto DecorValue = Property.second;
+      auto DecorValue = PropVal;
       uint32_t AttrVal;
       DecorValue->getAsInteger(0, AttrVal);
       // Check that a particular cache level is specified only once for
       // load/store.
-      if ((*Property.first).starts_with("sycl-cache-read-")) {
+      if ((*PropName).starts_with("sycl-cache-read-")) {
         assert(
             (AttrVal & CacheLevelsSpecifiedLoad) == 0 &&
             "Conflicting Read cache control specified in pointer annotation");
@@ -721,8 +737,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
         // The attribute value encodes cache levels as L1->bit0, L2->bit1,
         // L3->bit2 and L4->bit3. The SPIR-V encoding uses numbers 0..3.
         if (AttrVal & 1)
-          MDOpsCacheProp.push_back(buildSpirvDecorCacheProp(
-              Ctx, *Property.first, DecorCode, CacheLevel));
+          MDOpsCacheProp.push_back(
+              buildSpirvDecorCacheProp(Ctx, *PropName, DecorCode, CacheLevel));
         ++CacheLevel;
         AttrVal >>= 1;
       }
@@ -733,8 +749,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       // string values are handled correctly. Note that " around values are
       // always valid, even if the decoration parameters are not strings.
       NewAnnotString += "{" + std::to_string(DecorCode);
-      if (Property.second)
-        NewAnnotString += ":\"" + Property.second->str() + "\"";
+      if (PropVal)
+        NewAnnotString += ":\"" + PropVal->str() + "\"";
       NewAnnotString += "}";
     }
   }

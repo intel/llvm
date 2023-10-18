@@ -12,7 +12,7 @@ target datalayout = "e-p:64:64-i64:64-n8:16:32"
 target triple = "spir64"
 
 
-@global_var = external global i32** #2
+@global_var = external global ptr #2
 
 ; SPV-DAG: Name [[def:[0-9]+]] "_Z24__cm_intrinsic_impl_sdivu2CMvb1_cS_"
 ; SPV-DAG: Name [[a:[0-9]+]] "a"

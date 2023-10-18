@@ -4,30 +4,30 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
 
   auto S1 = add_node(SubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2.0f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2; });
   });
 
   add_node(
       SubGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, S1);
-        CGH.parallel_for(N, [=](id<1> it) { X[it] += 0.5f; });
+        CGH.parallel_for(N, [=](id<1> it) { X[it] += 1; });
       },
       S1);
 
   auto ExecSubGraph = SubGraph.finalize();
 
   auto P1 = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] = 1.0f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] = 1; });
   });
 
   auto P2 = add_node(
@@ -42,7 +42,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, P2);
-        CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] *= -1.0f; });
+        CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] *= -1; });
       },
       P2);
 
@@ -58,11 +58,11 @@ int main() {
 
   auto E = Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), X, N * sizeof(float), E).wait();
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), X, N * sizeof(int), E).wait();
 
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == -4.5f);
+    assert(Output[i] == -5);
   }
 
   sycl::free(X, Queue);

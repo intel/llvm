@@ -25,10 +25,7 @@ filecheck_args.extend(sys.argv[3:-1])
 bitcode_file = sys.argv[-1]
 ir_file = bitcode_file + ".ll"
 
-# NOTE: llvm-dis is always invoked with -opaque-pointers. This is not an
-# issue with existing tests using this script.
-# Remove the option once llvm-dis can handle opaque pointers by default.
-disassemble = subprocess.Popen([llvm_dis, "-opaque-pointers", "--preserve-ll-uselistorder", "-o", ir_file, bitcode_file])
+disassemble = subprocess.Popen([llvm_dis, "--preserve-ll-uselistorder", "-o", ir_file, bitcode_file])
 if os.path.exists(ir_file + ".0"):
     ir_file = ir_file + ".0"
 

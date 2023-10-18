@@ -43,7 +43,7 @@ static const MachineMemOperand::Flags MONoClobber =
 
 /// Utility to store machine instructions worklist.
 struct SIInstrWorklist {
-  SIInstrWorklist() : InstrList() {}
+  SIInstrWorklist() = default;
 
   void insert(MachineInstr *MI);
 
@@ -221,6 +221,9 @@ public:
   bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 
   bool isIgnorableUse(const MachineOperand &MO) const override;
+
+  bool isSafeToSink(MachineInstr &MI, MachineBasicBlock *SuccToSinkTo,
+                    MachineCycleInfo *CI) const override;
 
   bool areLoadsFromSameBasePtr(SDNode *Load0, SDNode *Load1, int64_t &Offset0,
                                int64_t &Offset1) const override;
@@ -670,7 +673,9 @@ public:
 
   static bool isWWMRegSpillOpcode(uint16_t Opcode) {
     return Opcode == AMDGPU::SI_SPILL_WWM_V32_SAVE ||
-           Opcode == AMDGPU::SI_SPILL_WWM_V32_RESTORE;
+           Opcode == AMDGPU::SI_SPILL_WWM_AV32_SAVE ||
+           Opcode == AMDGPU::SI_SPILL_WWM_V32_RESTORE ||
+           Opcode == AMDGPU::SI_SPILL_WWM_AV32_RESTORE;
   }
 
   static bool isDPP(const MachineInstr &MI) {
@@ -1394,6 +1399,13 @@ namespace AMDGPU {
   const uint64_t RSRC_TID_ENABLE = UINT64_C(1) << (32 + 23);
 
 } // end namespace AMDGPU
+
+namespace AMDGPU {
+enum AsmComments {
+  // For sgpr to vgpr spill instructions
+  SGPR_SPILL = MachineInstr::TAsmComments
+};
+} // namespace AMDGPU
 
 namespace SI {
 namespace KernelInputOffsets {

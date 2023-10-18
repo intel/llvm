@@ -4,7 +4,7 @@
 
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t.o %s
 
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t.o \
+; RUN: llvm-lto2 run -save-temps %t.o \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZTV1B, \

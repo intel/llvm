@@ -57,17 +57,16 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 target triple = "spir64-unknown-unknown"
 
 %structtype = type { [72 x i1] }
-%"QNCA_a0$float" = type { float addrspace(4)*, i64, i64, i64, i64, i64, [1 x %structtype2] }
+%"QNCA_a0$float" = type { ptr addrspace(4), i64, i64, i64, i64, i64, [1 x %structtype2] }
 %structtype2 = type { i64, i64, i64 }
 
 ; Function Attrs: noinline nounwind
-define spir_kernel void @__omp_offloading_811_198142f_random_fill_sp_l25(i32 addrspace(1)* noalias %0, %structtype* byval(%structtype) %"ascast$val", [1000 x i32] addrspace(1)* noalias %"ascastB$val") #0 !kernel_arg_addr_space !9 !kernel_arg_access_qual !10 !kernel_arg_type !11 !kernel_arg_type_qual !12 !kernel_arg_base_type !11 {
+define spir_kernel void @__omp_offloading_811_198142f_random_fill_sp_l25(ptr addrspace(1) noalias %0, ptr byval(%structtype) %"ascast$val", ptr addrspace(1) noalias %"ascastB$val") #0 !kernel_arg_addr_space !9 !kernel_arg_access_qual !10 !kernel_arg_type !11 !kernel_arg_type_qual !12 !kernel_arg_base_type !11 {
 newFuncRoot:
-  %.ascast = bitcast %structtype* %"ascast$val" to %"QNCA_a0$float"*
-  call void @llvm.dbg.value(metadata %"QNCA_a0$float"* %.ascast, metadata !13, metadata !DIExpression(DW_OP_deref)), !dbg !27
-  call void @llvm.dbg.value(metadata %"QNCA_a0$float"* %.ascast, metadata !28, metadata !DIExpression(DW_OP_deref)), !dbg !42
-  call void @llvm.dbg.value(metadata [1000 x i32] addrspace(1)* %"ascastB$val", metadata !47, metadata !DIExpression(DW_OP_deref)), !dbg !51
-  call void @llvm.dbg.value(metadata i32 addrspace(1)* %0, metadata !54, metadata !DIExpression(DW_OP_deref)), !dbg !59
+  call void @llvm.dbg.value(metadata ptr %"ascast$val", metadata !13, metadata !DIExpression(DW_OP_deref)), !dbg !27
+  call void @llvm.dbg.value(metadata ptr %"ascast$val", metadata !28, metadata !DIExpression(DW_OP_deref)), !dbg !42
+  call void @llvm.dbg.value(metadata ptr addrspace(1) %"ascastB$val", metadata !47, metadata !DIExpression(DW_OP_deref)), !dbg !51
+  call void @llvm.dbg.value(metadata ptr addrspace(1) %0, metadata !54, metadata !DIExpression(DW_OP_deref)), !dbg !59
   ret void
 }
 

@@ -270,93 +270,6 @@ void testParallelForProperties(
                           Is...>(G, Q, Props, KernelFunctor);
 }
 
-/// Tries to enqueue oneapi barrier to the graph G
-/// It tests that an invalid exception has been thrown
-/// Since sycl_ext_oneapi_enqueue_barrier extension can not be used
-/// along with SYCL Graph.
-template <OperationPath PathKind> void testEnqueueBarrier() {
-  sycl::context Context;
-  sycl::queue Q1(Context, sycl::default_selector_v);
-
-  experimental::command_graph<experimental::graph_state::modifiable> Graph1{
-      Q1.get_context(), Q1.get_device()};
-
-  Graph1.add([&](sycl::handler &cgh) {});
-  Graph1.add([&](sycl::handler &cgh) {});
-
-  if constexpr (PathKind != OperationPath::Explicit) {
-    Graph1.begin_recording(Q1);
-  }
-
-  // call queue::ext_oneapi_submit_barrier()
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    if constexpr (PathKind == OperationPath::Shortcut) {
-      Q1.ext_oneapi_submit_barrier();
-    }
-    if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q1.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier(); });
-    }
-    if constexpr (PathKind == OperationPath::Explicit) {
-      Graph1.add([&](handler &CGH) { CGH.ext_oneapi_barrier(); });
-    }
-
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  if constexpr (PathKind != OperationPath::Explicit) {
-    Graph1.end_recording();
-  }
-
-  sycl::queue Q2(Context, sycl::default_selector_v);
-  sycl::queue Q3(Context, sycl::default_selector_v);
-
-  experimental::command_graph<experimental::graph_state::modifiable> Graph2{
-      Q2.get_context(), Q2.get_device()};
-  experimental::command_graph<experimental::graph_state::modifiable> Graph3{
-      Q3.get_context(), Q3.get_device()};
-
-  Graph2.begin_recording(Q2);
-  Graph3.begin_recording(Q3);
-
-  auto Event1 = Q2.submit([&](sycl::handler &cgh) {});
-  auto Event2 = Q3.submit([&](sycl::handler &cgh) {});
-
-  if constexpr (PathKind == OperationPath::Explicit) {
-    Graph2.end_recording();
-    Graph3.end_recording();
-  }
-
-  // call handler::barrier(const std::vector<event> &WaitList)
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    if constexpr (PathKind == OperationPath::Shortcut) {
-      Q3.ext_oneapi_submit_barrier({Event1, Event2});
-    }
-    if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q3.submit([&](sycl::handler &CGH) {
-        CGH.ext_oneapi_barrier({Event1, Event2});
-      });
-    }
-    if constexpr (PathKind == OperationPath::Explicit) {
-      Graph3.add([&](handler &CGH) {
-        CGH.ext_oneapi_barrier({Event1, Event2});
-      });
-    }
-
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  if constexpr (PathKind != OperationPath::Explicit) {
-    Graph2.end_recording();
-    Graph3.end_recording();
-  }
-}
-
 /// Tries to add a memcpy2D node to the graph G
 /// It tests that an invalid exception has been thrown
 /// Since sycl_ext_oneapi_memcpy2d extension can not be used
@@ -554,7 +467,11 @@ class CommandGraphTest : public ::testing::Test {
 public:
   CommandGraphTest()
       : Mock{}, Plat{Mock.getPlatform()}, Dev{Plat.get_devices()[0]},
-        Queue{Dev}, Graph{Queue.get_context(), Dev} {}
+        Queue{Dev},
+        Graph{Queue.get_context(),
+              Dev,
+              {experimental::property::graph::assume_buffer_outlives_graph{}}} {
+  }
 
 protected:
   void SetUp() override {}
@@ -1302,10 +1219,282 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
 }
 
-TEST_F(CommandGraphTest, EnqueueBarrierExceptionCheck) {
-  testEnqueueBarrier<OperationPath::Explicit>();
-  testEnqueueBarrier<OperationPath::RecordReplay>();
-  testEnqueueBarrier<OperationPath::Shortcut>();
+TEST_F(CommandGraphTest, ExplicitBarrierException) {
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto Barrier =
+        Graph.add([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+TEST_F(CommandGraphTest, EnqueueBarrier) {
+  Graph.begin_recording(Queue);
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Barrier =
+      Queue.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
+
+  auto Node4Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | /
+  //     (B)
+  //     / \
+  //   (4) (5)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto BarrierNode = Node->MSuccessors.front();
+    ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
+    ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
+              sycl::detail::getSyclObjImpl(Barrier));
+    ASSERT_EQ(BarrierNode->MPredecessors.size(), 3lu);
+    ASSERT_EQ(BarrierNode->MSuccessors.size(), 2lu);
+  }
+}
+
+TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
+  sycl::queue Queue2{Queue.get_context(), Dev};
+  Graph.begin_recording({Queue, Queue2});
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Barrier =
+      Queue2.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
+
+  auto Node4Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording();
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | /
+  //     (B)
+  //     / \
+  //   (4) (5)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto BarrierNode = Node->MSuccessors.front();
+    ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
+    ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
+              sycl::detail::getSyclObjImpl(Barrier));
+    ASSERT_EQ(BarrierNode->MPredecessors.size(), 3lu);
+    ASSERT_EQ(BarrierNode->MSuccessors.size(), 2lu);
+  }
+}
+
+TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
+  Graph.begin_recording(Queue);
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Barrier = Queue.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Node1Graph, Node2Graph});
+  });
+
+  auto Node4Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(Node3Graph);
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+
+  Graph.end_recording(Queue);
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |   |
+  //    \ |   |
+  //     (B)  |
+  //     / \ /
+  //   (4) (5)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto SuccNode = Node->MSuccessors.front();
+    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+                sycl::detail::getSyclObjImpl(Barrier));
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 2lu);
+    } else {
+      // Node 5
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+    }
+  }
+}
+
+TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
+  sycl::queue Queue2{Queue.get_context(), Dev};
+  Graph.begin_recording({Queue, Queue2});
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue2.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  // Node1Graph comes from Queue, and Node2Graph comes from Queue2
+  auto Barrier = Queue.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Node1Graph, Node2Graph});
+  });
+
+  auto Node4Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(Node3Graph);
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+
+  auto Barrier2 = Queue2.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Barrier, Node4Graph, Node5Graph});
+  });
+
+  Graph.end_recording();
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |   |
+  //    \ |   |
+  //     (B)  |
+  //     /|\ /
+  //   (4)|(5)
+  //    \ | /
+  //     \|/
+  //     (B2)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto SuccNode = Node->MSuccessors.front();
+    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+                sycl::detail::getSyclObjImpl(Barrier));
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
+    } else {
+      // Node 5
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+    }
+  }
+}
+
+TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
+  Graph.begin_recording(Queue);
+  auto Node1Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto Barrier1 = Queue.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Node1Graph, Node2Graph});
+  });
+
+  auto Node4Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node5Graph = Queue.submit([&](sycl::handler &cgh) {
+    cgh.depends_on(Node3Graph);
+    cgh.single_task<TestKernel<>>([]() {});
+  });
+
+  auto Barrier2 =
+      Queue.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
+
+  auto Node6Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node7Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node8Graph = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.end_recording(Queue);
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |   |
+  //    \ |   |
+  //    (B1)  |
+  //     /|\ /
+  //   (4)|(5)
+  //     \|/
+  //     (B2)
+  //     /|\
+  //    / | \
+  // (6) (7) (8) (those nodes also have B1 as a predecessor)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  for (auto Node : GraphImpl->MRoots) {
+    ASSERT_EQ(Node->MSuccessors.size(), 1lu);
+    auto SuccNode = Node->MSuccessors.front();
+    if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
+      ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
+                sycl::detail::getSyclObjImpl(Barrier1));
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 6lu);
+      for (auto SuccBarrier1 : SuccNode->MSuccessors) {
+        if (SuccBarrier1->MCGType == sycl::detail::CG::Barrier) {
+          ASSERT_EQ(GraphImpl->getEventForNode(SuccBarrier1),
+                    sycl::detail::getSyclObjImpl(Barrier2));
+          ASSERT_EQ(SuccBarrier1->MPredecessors.size(), 3lu);
+          ASSERT_EQ(SuccBarrier1->MSuccessors.size(), 3lu);
+          for (auto SuccBarrier2 : SuccBarrier1->MSuccessors) {
+            // Nodes 6, 7, 8
+            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 2lu);
+            ASSERT_EQ(SuccBarrier2->MSuccessors.size(), 0lu);
+          }
+        } else {
+          // Node 4 or Node 5
+          if (GraphImpl->getEventForNode(SuccBarrier1) ==
+              sycl::detail::getSyclObjImpl(Node4Graph)) {
+            // Node 4
+            ASSERT_EQ(SuccBarrier1->MPredecessors.size(), 1lu);
+            ASSERT_EQ(SuccBarrier1->MSuccessors.size(), 1lu);
+          }
+        }
+      }
+    } else {
+      // Node 5
+      ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 1lu);
+    }
+  }
 }
 
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
@@ -1417,24 +1606,6 @@ TEST_F(CommandGraphTest, SpecializationConstant) {
             int Value = CGH.get_specialization_constant<SpecConst1>();
             (void)Value;
           });
-        } catch (const sycl::exception &e) {
-          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
-          throw;
-        }
-      },
-      sycl::exception);
-}
-
-// Tests that using kernel bundles in a graph will throw.
-TEST_F(CommandGraphTest, KernelBundle) {
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-          Queue.get_context(), {Dev});
-
-  ASSERT_THROW(
-      {
-        try {
-          Graph.add([&](handler &CGH) { CGH.use_kernel_bundle(KernelBundle); });
         } catch (const sycl::exception &e) {
           ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
           throw;
@@ -1569,6 +1740,164 @@ TEST_F(CommandGraphTest, GetProfilingInfoExceptionCheck) {
     ExceptionCode = Exception.code();
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+TEST_F(CommandGraphTest, MakeEdgeErrors) {
+  // Set up some nodes in the graph
+  auto NodeA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto NodeB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  // Test error on calling make_edge when a queue is recording to the graph
+  Graph.begin_recording(Queue);
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeA, NodeB);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  Graph.end_recording(Queue);
+
+  // Test error on Src and Dest being the same
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeA, NodeA);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  // Test Src or Dest not being found in the graph
+  experimental::command_graph<experimental::graph_state::modifiable> GraphOther{
+      Queue.get_context(), Queue.get_device()};
+  auto NodeOther = GraphOther.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeA, NodeOther);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeOther, NodeB);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  // Test that adding a cycle with cycle checks leaves the graph in the correct
+  // state.
+
+  auto CheckGraphStructure = [&]() {
+    auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
+    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+
+    ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
+    ASSERT_EQ(*(GraphImpl->MRoots.begin()), NodeAImpl);
+
+    ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
+    ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
+    ASSERT_EQ(NodeAImpl->MSuccessors.front(), NodeBImpl);
+
+    ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
+    ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
+    ASSERT_EQ(NodeBImpl->MPredecessors.front().lock(), NodeAImpl);
+  };
+  // Make a normal edge
+  ASSERT_NO_THROW(Graph.make_edge(NodeA, NodeB));
+
+  // Check the expected structure of the graph
+  CheckGraphStructure();
+
+  // Introduce a cycle, make sure it throws
+  ASSERT_THROW(
+      {
+        try {
+          Graph.make_edge(NodeB, NodeA);
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+
+  // Re-check graph structure to make sure the graph state has not been modified
+  CheckGraphStructure();
+}
+
+TEST_F(CommandGraphTest, InvalidBuffer) {
+  // Check that using a buffer with write_back enabled in a graph will throw.
+  int Data;
+  // Create a buffer which does not have write-back disabled.
+  buffer<int> Buffer{&Data, range<1>{1}};
+
+  // Use this buffer in the graph, this should throw.
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            auto Acc = Buffer.get_access<access::mode::read_write>(CGH);
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+TEST_F(CommandGraphTest, InvalidHostAccessor) {
+  // Check that creating a host_accessor on a buffer which is in use by a graph
+  // will throw.
+
+  // Create a buffer which does not have write-back disabled.
+  buffer<int> Buffer{range<1>{1}};
+
+  {
+    // Create a graph in local scope so we can destroy it
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    // Add the buffer to the graph.
+    Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access<access::mode::read_write>(CGH);
+    });
+
+    // Attempt to create a host_accessor, which should throw.
+    ASSERT_THROW(
+        {
+          try {
+            host_accessor HostAcc{Buffer};
+          } catch (const sycl::exception &e) {
+            ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+            throw;
+          }
+        },
+        sycl::exception);
+  }
+  // Graph is now out of scope so we should be able to create a host_accessor
+  ASSERT_NO_THROW({ host_accessor HostAcc{Buffer}; });
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {
@@ -1737,18 +2066,21 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
 TEST_F(MultiThreadGraphTest, Finalize) {
   addKernels(Graph);
 
+  std::mutex MutexMap;
+
   std::map<int,
            experimental::command_graph<experimental::graph_state::executable>>
       GraphsExecMap;
   auto FinalizeGraph = [&](int ThreadNum) {
     SyncPoint.wait();
     auto GraphExec = Graph.finalize();
+    Queue.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
 
+    std::lock_guard<std::mutex> Guard(MutexMap);
     GraphsExecMap.insert(
         std::map<int, experimental::command_graph<
                           experimental::graph_state::executable>>::
             value_type(ThreadNum, GraphExec));
-    Queue.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   };
 
   for (unsigned i = 0; i < NumThreads; ++i) {
