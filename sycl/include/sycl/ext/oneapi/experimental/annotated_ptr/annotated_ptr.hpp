@@ -191,9 +191,25 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
   // buffer_location and alignment are allowed for annotated_ref
-  using allowed_properties =
-      std::tuple<decltype(ext::intel::experimental::buffer_location<0>),
-                 decltype(ext::oneapi::experimental::alignment<0>)>;
+  using allowed_properties = std::tuple<
+      decltype(ext::intel::experimental::buffer_location<0>),
+      decltype(ext::oneapi::experimental::alignment<0>),
+      decltype(ext::oneapi::experimental::cache_control_read_cached<level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_read_uncached<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_read_streaming<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_invalidate_after_read<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_read_const_cached<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_write_uncached<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_write_streaming<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_write_through<
+               level::L1>),
+      decltype(ext::oneapi::experimental::cache_control_write_back<level::L1>)>;
   using filtered_properties =
       typename PropertiesFilter<allowed_properties, Props...>::tuple;
 

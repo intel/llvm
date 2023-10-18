@@ -201,8 +201,17 @@ enum PropKind : uint32_t {
   RegisterAllocMode = 31,
   GRFSize = 32,
   GRFSizeAutomatic = 33,
+  CacheControlReadCached = 34,
+  CacheControlReadUncached = 35,
+  CacheControlReadStreaming = 36,
+  CacheControlReadInvalidateAfterRead = 37,
+  CacheControlReadConstCached = 38,
+  CacheControlWriteUncached = 39,
+  CacheControlWriteStreaming = 40,
+  CacheControlWriteThrough = 41,
+  CacheControlWriteBack = 42,
   // PropKindSize must always be the last value.
-  PropKindSize = 34,
+  PropKindSize = 42,
 };
 
 // This trait must be specialized for all properties and must have a unique
