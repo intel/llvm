@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
 
 // REQUIRES: gpu
+// REQUIRES: sg-32
 
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out

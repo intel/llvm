@@ -29,10 +29,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
-namespace intel::experimental::matrix::layout {
-constexpr sycl::ext::oneapi::experimental::matrix::layout packed =
-    static_cast<sycl::ext::oneapi::experimental::matrix::layout>(2);
-}
 namespace oneapi {
 namespace experimental {
 namespace matrix {
@@ -48,8 +44,7 @@ template <layout Layout> struct spv_matrix_layout_traits {
 
 SPV_MATRIX_LAYOUT_TRAITS(layout::row_major, __spv::MatrixLayout::RowMajor)
 SPV_MATRIX_LAYOUT_TRAITS(layout::col_major, __spv::MatrixLayout::ColumnMajor)
-SPV_MATRIX_LAYOUT_TRAITS(sycl::ext::intel::experimental::matrix::layout::packed,
-                         __spv::MatrixLayout::Packed)
+SPV_MATRIX_LAYOUT_TRAITS(layout::ext_intel_packed, __spv::MatrixLayout::Packed)
 SPV_MATRIX_LAYOUT_TRAITS(layout::dynamic, __spv::MatrixLayout::Dynamic)
 
 template <use Use> struct spv_matrix_use_traits {
@@ -94,10 +89,6 @@ struct jm_type_interpretation_helper_trait<
   using element_type = sycl::ext::oneapi::experimental::matrix::precision::tf32;
   using storage_element_type = float;
 };
-} // namespace detail
-} // namespace oneapi
-
-namespace intel::experimental::matrix {
 
 using namespace sycl::ext::oneapi::experimental::matrix;
 // Begin wi_element definition
@@ -121,12 +112,12 @@ public:
              std::size_t i)
       : M(Mat), idx(i) {}
 
-  inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
+  inline __SYCL_ALWAYS_INLINE std::tuple<size_t, size_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
     __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
-    const uint32_t row = coord[0];
-    const uint32_t col = coord[1];
+    const size_t row = coord[0];
+    const size_t col = coord[1];
     return std::make_tuple(row, col);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
@@ -196,7 +187,7 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
-  template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
+  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
         static_cast<storage_element_type>(                                     \
@@ -211,7 +202,7 @@ public:
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
-  template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
+  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
@@ -269,7 +260,7 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
-    return std::fabs(static_cast<float>(
+    return sycl::fabs(static_cast<float>(
                __spirv_VectorExtractDynamic<
                    sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16,
                    NumRows, NumCols, spv_matrix_use_traits<Use>::value,
@@ -315,7 +306,7 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
         __spirv_VectorExtractDynamic<                                          \
@@ -328,7 +319,7 @@ public:
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
@@ -479,7 +470,10 @@ get_wi_data(Group sg, sycl::ext::oneapi::experimental::matrix::joint_matrix<
 }
 
 // End wi_data definition
+} // namespace detail
+} // namespace oneapi
 
+namespace intel::experimental::matrix {
 template <
     typename Group, typename T, typename Tp,
     sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
@@ -489,15 +483,14 @@ template <
                          Use == sycl::ext::oneapi::experimental::matrix::use::b,
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
-joint_matrix_store(Group sg,
-                   sycl::ext::oneapi::experimental::matrix::joint_matrix<
+joint_matrix_store(Group,
+                   const sycl::ext::oneapi::experimental::matrix::joint_matrix<
                        Group, Tp, Use, NumRows, NumCols, Layout> &src,
                    multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
   static_assert(Space != access::address_space::private_space,
                 "Joint Matrix doesn't support store to private memory!");
 #if defined(__NVPTX__)
-  std::ignore = sg;
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
@@ -520,7 +513,6 @@ joint_matrix_store(Group sg,
       sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
 #endif // defined(__NVPTX__)
 #else
-  std::ignore = sg;
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
@@ -528,6 +520,43 @@ joint_matrix_store(Group sg,
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
+
+template <typename Group, typename T,
+          sycl::ext::oneapi::experimental::matrix::use Use, size_t Rows,
+          size_t Cols, sycl::ext::oneapi::experimental::matrix::layout Layout,
+          typename F>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
+    Group sg,
+    sycl::ext::oneapi::experimental::matrix::joint_matrix<Group, T, Use, Rows,
+                                                          Cols, Layout> &jm,
+    F &&lambda) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  for (int i = 0; i < jm.cuda_impl.wi_marray.size(); i++) {
+    lambda(jm.cuda_impl.wi_marray[i]);
+  }
+#else // NVPTX
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
+  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, jm);
+  for (int i = 0; i < wi_data_c.length(); i++) {
+    storage_element_type element = wi_data_c[i];
+    auto [row, col] = wi_data_c[i].get_coord();
+    lambda(element, row, col);
+    wi_data_c[i] = element;
+  }
+#endif
+#else
+  std::ignore = sg;
+  std::ignore = jm;
+  std::ignore = lambda;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
 } // namespace intel::experimental::matrix
 
 } // namespace ext

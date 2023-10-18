@@ -37,8 +37,11 @@
 // each work-item is mapped to a separate OS thread on host device.
 #define ESIMD_PRIVATE thread_local
 #define ESIMD_REGISTER(n)
-
+#ifdef __ESIMD_BUILD_HOST_CODE
 #define __ESIMD_API ESIMD_INLINE
+#else // __ESIMD_BUILD_HOST_CODE
+#define __ESIMD_API ESIMD_NOINLINE __attribute__((internal_linkage))
+#endif // __ESIMD_BUILD_HOST_CODE
 #endif // __SYCL_DEVICE_ONLY__
 
 // Mark a function being noinline

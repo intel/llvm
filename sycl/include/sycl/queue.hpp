@@ -339,8 +339,9 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   template <typename T>
-  event submit(T CGF, const detail::code_location &CodeLoc =
-                          detail::code_location::current()) {
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
+      T CGF,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -375,7 +376,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
-  event submit(
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -2180,8 +2181,7 @@ public:
       _KERNELFUNCPARAM(KernelFunc),
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
-        ext::oneapi::experimental::detail::empty_properties_t{}, KernelFunc,
-        CodeLoc);
+        ext::oneapi::experimental::empty_properties_t{}, KernelFunc, CodeLoc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2225,8 +2225,8 @@ public:
       event DepEvent, _KERNELFUNCPARAM(KernelFunc),
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
-        DepEvent, ext::oneapi::experimental::detail::empty_properties_t{},
-        KernelFunc, CodeLoc);
+        DepEvent, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
+        CodeLoc);
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2273,8 +2273,8 @@ public:
       const std::vector<event> &DepEvents, _KERNELFUNCPARAM(KernelFunc),
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return single_task<KernelName, KernelType>(
-        DepEvents, ext::oneapi::experimental::detail::empty_properties_t{},
-        KernelFunc, CodeLoc);
+        DepEvents, ext::oneapi::experimental::empty_properties_t{}, KernelFunc,
+        CodeLoc);
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -2517,8 +2517,7 @@ public:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     return parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{},
-        Rest...);
+        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -2880,8 +2879,7 @@ private:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{},
-        Rest...);
+        Range, ext::oneapi::experimental::empty_properties_t{}, Rest...);
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -2919,8 +2917,8 @@ private:
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, DepEvent,
-        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
+        Range, DepEvent, ext::oneapi::experimental::empty_properties_t{},
+        Rest...);
   }
 
   /// parallel_for_impl version with a kernel represented as a lambda + range
@@ -2962,8 +2960,8 @@ private:
                           const std::vector<event> &DepEvents,
                           RestT &&...Rest) {
     return parallel_for_impl<KernelName>(
-        Range, DepEvents,
-        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
+        Range, DepEvents, ext::oneapi::experimental::empty_properties_t{},
+        Rest...);
   }
 
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();

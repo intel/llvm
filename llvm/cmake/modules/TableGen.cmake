@@ -4,8 +4,6 @@
 # Adds the name of the generated file to TABLEGEN_OUTPUT.
 include(LLVMDistributionSupport)
 
-list(APPEND LLVM_TABLEGEN_FLAGS "-DINTEL_SYCL_OPAQUEPOINTER_READY")
-
 function(tablegen project ofn)
   cmake_parse_arguments(ARG "" "" "DEPENDS;EXTRA_INCLUDES" ${ARGN})
 

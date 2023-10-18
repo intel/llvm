@@ -381,9 +381,9 @@ public:
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
 
-        HostTask.MHostTask->call(IH);
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
       } else
-        HostTask.MHostTask->call();
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -2388,8 +2388,31 @@ pi_int32 enqueueImpCommandBufferKernel(
   pi_program PiProgram = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
+  auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
   const KernelArgMask *EliminatedArgMask = nullptr;
-  if (Kernel != nullptr) {
+
+  // Use kernel_bundle if available unless it is interop.
+  // Interop bundles can't be used in the first branch, because the kernels
+  // in interop kernel bundles (if any) do not have kernel_id
+  // and can therefore not be looked up, but since they are self-contained
+  // they can simply be launched directly.
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
+    std::shared_ptr<device_image_impl> DeviceImageImpl;
+    auto KernelName = CommandGroup.MKernelName;
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel SyclKernel =
+        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+    PiKernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    PiProgram = DeviceImageImpl->get_program_ref();
+    std::tie(PiKernel, KernelMutex, EliminatedArgMask) =
+        detail::ProgramManager::getInstance().getOrCreateKernel(
+            KernelBundleImplPtr->get_context(), KernelName,
+            /*PropList=*/{}, PiProgram);
+  } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
   } else {
     std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
@@ -3159,11 +3182,22 @@ pi_int32 KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
+  // We need to release the queue here because KernelFusionCommands are
+  // held back by the scheduler thus prevent the deallocation of the queue.
+  resetQueue();
   return PI_SUCCESS;
 }
 
 void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
   MStatus = Status;
+}
+
+void KernelFusionCommand::resetQueue() {
+  assert(MStatus != FusionStatus::ACTIVE &&
+         "Cannot release the queue attached to the KernelFusionCommand if it "
+         "is active.");
+  MQueue.reset();
+  MWorkerQueue.reset();
 }
 
 void KernelFusionCommand::emitInstrumentationData() {

@@ -1044,12 +1044,11 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
       BF->addDecorate(new SPIRVDecorateMaxConcurrencyINTEL(BF, Invocations));
     }
   }
-  if (MDNode *DisableLoopPipelining =
-          F->getMetadata(kSPIR2MD::DisableLoopPipelining)) {
+  if (MDNode *PipelineKernel = F->getMetadata(kSPIR2MD::PipelineKernel)) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
-      size_t Disable = getMDOperandAsInt(DisableLoopPipelining, 0);
-      BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
+      size_t Pipeline = getMDOperandAsInt(PipelineKernel, 0);
+      BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, Pipeline));
     }
   }
 
@@ -3548,6 +3547,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
+  case Intrinsic::ubsantrap:
   case Intrinsic::arithmetic_fence:
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
@@ -4000,6 +4000,18 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addBinaryInst(OpFAdd, Ty, Mul,
                              transValue(II->getArgOperand(2), BB), BB);
   }
+  case Intrinsic::fptoui_sat: {
+    auto *UI = BM->addUnaryInst(OpConvertFToU, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB), BB);
+    UI->setSaturatedConversion(true);
+    return UI;
+  }
+  case Intrinsic::fptosi_sat: {
+    auto *UI = BM->addUnaryInst(OpConvertFToS, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB), BB);
+    UI->setSaturatedConversion(true);
+    return UI;
+  }
   case Intrinsic::uadd_sat:
   case Intrinsic::usub_sat:
   case Intrinsic::sadd_sat:
@@ -4264,6 +4276,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // llvm.trap intrinsic is not implemented. But for now don't crash. This
   // change is pending the trap/abort intrinsic implementation.
   case Intrinsic::trap:
+  case Intrinsic::ubsantrap:
   // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
   case Intrinsic::instrprof_increment_step:
@@ -4498,17 +4511,43 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     if (FPClass & fcZero) {
       // Create zero integer constant and check for equality with bitcasted to
       // int float value
+      auto SetUpCMPToZero = [&](SPIRVValue *BitCastToInt,
+                                bool IsPositive) -> SPIRVValue * {
+        APInt ZeroInt = APInt::getZero(BitSize);
+        if (IsPositive) {
+          auto *ZeroConst =
+              transValue(Constant::getIntegerValue(IntOpLLVMTy, ZeroInt), BB);
+          return BM->addCmpInst(OpIEqual, ResTy, BitCastToInt, ZeroConst, BB);
+        }
+        // Created 'negated' zero
+        ZeroInt.setSignBit();
+        auto *NegZeroConst =
+            transValue(Constant::getIntegerValue(IntOpLLVMTy, ZeroInt), BB);
+        return BM->addCmpInst(OpIEqual, ResTy, BitCastToInt, NegZeroConst, BB);
+      };
       auto *BitCastToInt =
           BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
-      auto *ZeroConst = transValue(
-          Constant::getIntegerValue(IntOpLLVMTy, APInt::getZero(BitSize)), BB);
-      auto *TestIsZero =
-          BM->addCmpInst(OpIEqual, ResTy, BitCastToInt, ZeroConst, BB);
-      if (FPClass & fcPosZero && FPClass & fcNegZero)
+      if (FPClass & fcPosZero && FPClass & fcNegZero) {
+        APInt ZeroInt = APInt::getZero(BitSize);
+        auto *ZeroConst =
+            transValue(Constant::getIntegerValue(IntOpLLVMTy, ZeroInt), BB);
+        APInt MaskToClearSignBit = APInt::getSignedMaxValue(BitSize);
+        auto *MaskToClearSignBitConst = transValue(
+            Constant::getIntegerValue(IntOpLLVMTy, MaskToClearSignBit), BB);
+        auto *BitwiseAndRes = BM->addBinaryInst(
+            OpBitwiseAnd, OpSPIRVTy, BitCastToInt, MaskToClearSignBitConst, BB);
+        auto *TestIsZero =
+            BM->addCmpInst(OpIEqual, ResTy, BitwiseAndRes, ZeroConst, BB);
         ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsZero));
-      else
-        ResultVec.emplace_back(GetInvertedTestIfNeeded(
-            GetNegPosInstTest(TestIsZero, FPClass & fcNegZero)));
+      } else if (FPClass & fcPosZero) {
+        auto *TestIsPosZero =
+            SetUpCMPToZero(BitCastToInt, true /*'positive' zero*/);
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsPosZero));
+      } else {
+        auto *TestIsNegZero =
+            SetUpCMPToZero(BitCastToInt, false /*'negated' zero*/);
+        ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsNegZero));
+      }
     }
     if (ResultVec.size() == 1)
       return ResultVec.back();
@@ -4542,9 +4581,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
 LLVMToSPIRVBase::FPBuiltinType
 LLVMToSPIRVBase::getFPBuiltinType(IntrinsicInst *II, StringRef &OpName) {
   StringRef Name = II->getCalledFunction()->getName();
-  if (!Name.startswith("llvm.fpbuiltin"))
+  if (!Name.consume_front("llvm.fpbuiltin."))
     return FPBuiltinType::UNKNOWN;
-  Name.consume_front("llvm.fpbuiltin.");
   OpName = Name.split('.').first;
   FPBuiltinType Type =
       StringSwitch<FPBuiltinType>(OpName)

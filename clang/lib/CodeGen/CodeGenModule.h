@@ -954,7 +954,8 @@ public:
 
   // Return whether RTTI information should be emitted for this target.
   bool shouldEmitRTTI(bool ForEH = false) {
-    return (ForEH || getLangOpts().RTTI) && !getLangOpts().CUDAIsDevice &&
+    return (ForEH || getLangOpts().RTTI) && !getLangOpts().SYCLIsDevice &&
+           !getLangOpts().CUDAIsDevice &&
            !(getLangOpts().OpenMP && getLangOpts().OpenMPIsTargetDevice &&
              getTriple().isNVPTX());
   }
@@ -1289,6 +1290,12 @@ public:
                               CGCalleeInfo CalleeInfo,
                               llvm::AttributeList &Attrs, unsigned &CallingConv,
                               bool AttrOnCallSite, bool IsThunk);
+
+  /// Adjust Memory attribute to ensure that the BE gets the right attribute
+  // in order to generate the library call or the intrinsic for the function
+  // name 'Name'.
+  void AdjustMemoryAttribute(StringRef Name, CGCalleeInfo CalleeInfo,
+                             llvm::AttributeList &Attrs);
 
   /// Like the overload taking a `Function &`, but intended specifically
   /// for frontends that want to build on Clang's target-configuration logic.

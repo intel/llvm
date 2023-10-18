@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -emit-llvm -o - %s -Xclang -opaque-pointers | FileCheck %s
+// RUN: %clangxx -fsycl-device-only -S -emit-llvm -o - %s | FileCheck %s
 
 // Check that SROA and mem2reg won't leave alloca of matrix type in IR
 // CHECK-NOT: alloca target("spirv.JointMatrixINTEL"

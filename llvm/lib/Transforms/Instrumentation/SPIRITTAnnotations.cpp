@@ -153,7 +153,12 @@ Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   FunctionCallee FC = M.getOrInsertFunction(FunctionName, FT);
   assert(FC.getCallee() && "Instruction creation failed");
-  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  Function *F = cast<Function>(FC.getCallee());
+  F->setCallingConv(CallingConv::SPIR_FUNC);
+  CallInst *NewCall =
+      CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  NewCall->setCallingConv(F->getCallingConv());
+  return NewCall;
 }
 
 // Insert instrumental annotation calls, that has no arguments (for example
@@ -238,6 +243,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
 
 PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
+  assert(StringRef(M.getTargetTriple()).startswith("spir"));
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
       SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL,  SPIRV_GROUP_ANY,
