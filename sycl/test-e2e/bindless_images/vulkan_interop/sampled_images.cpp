@@ -379,10 +379,6 @@ bool run_tests() {
                     sycl::image_channel_order::r, class int16_3d>({64, 32, 64},
                                                                   {4, 2, 4}, 0);
 
-  if (valid) {
-    std::cout << "All tests passed!\n";
-  }
-
   return valid;
 }
 
@@ -410,10 +406,11 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  if (!result_ok) {
-    std::cerr << "test(s) failed\n";
-    return EXIT_FAILURE;
+  if (result_ok) {
+    std::cout << "All tests passed!\n";
+    return EXIT_SUCCESS;
   }
 
-  return EXIT_SUCCESS;
+  std::cerr << "Test failed\n";
+  return EXIT_FAILURE;
 }
