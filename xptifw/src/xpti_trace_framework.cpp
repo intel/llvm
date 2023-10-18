@@ -352,9 +352,6 @@ public:
     // Protect simultaneous insert operations on the metadata tables
     {
       std::lock_guard<std::mutex> HashLock(MMetadataMutex);
-      if (Event->reserved.metadata.count(KeyID)) {
-        return xpti::result_t::XPTI_RESULT_DUPLICATE;
-      }
       Event->reserved.metadata[KeyID] = ValueID;
       return xpti::result_t::XPTI_RESULT_SUCCESS;
     }

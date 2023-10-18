@@ -52,6 +52,18 @@ public:
   
   static constexpr char FileName[] = "QueueIDCheck.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
+
+  void checkTaskBeginEnd(const std::string& QueueIDStr)
+  {
+    uint16_t TraceType = 0;
+    std::string Message;
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_begin);
+    EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDStr));
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_end);
+    EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDStr));
+  }
 };
 
 TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
@@ -85,9 +97,6 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
 }
 
 TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
-  uint16_t TraceType = 0;
-  std::string Message;
-
   sycl::queue Q0;
   sycl::queue Q1;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
@@ -101,25 +110,12 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   EXPECT_NE(Queue1ImplPtr->getQueueID(), Queue0ImplPtr->getQueueID());
   auto QueueIDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
   // alloca
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_begin);
-  EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDSTr));
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_end);
-  EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDSTr));
+  checkTaskBeginEnd(QueueIDSTr);
   // kernel
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_begin);
-  EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDSTr));
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_end);
-  EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDSTr));
+  checkTaskBeginEnd(QueueIDSTr);
 }
 
 TEST_F(QueueID, QueueCreationUSMOperations) {
-  uint16_t TraceType = 0;
-  std::string Message;
-
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
   auto QueueIDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
@@ -127,77 +123,46 @@ TEST_F(QueueID, QueueCreationUSMOperations) {
   unsigned char *AllocSrc = (unsigned char *)sycl::malloc_shared(1, Q0);
   unsigned char *AllocDst = (unsigned char *)sycl::malloc_shared(1, Q0);
   Q0.memset(AllocSrc, 42, 1).wait();
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_begin);
-  EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDSTr));
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_end);
-  EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDSTr));
+  checkTaskBeginEnd(QueueIDSTr);
+
   Q0.memcpy(AllocDst, AllocSrc, 1).wait();
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_begin);
-  EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDSTr));
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_end);
-  EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDSTr));
+  checkTaskBeginEnd(QueueIDSTr);
 
   Q0.submit(
         [&](handler &Cgh) {
           Cgh.memset(AllocSrc, 42, 1);}).wait();
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_begin);
-  EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDSTr));
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_end);
-  EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDSTr));
+  checkTaskBeginEnd(QueueIDSTr);
+
   Q0.submit(
         [&](handler &Cgh) {
           Cgh.memcpy(AllocDst, AllocSrc, 1);}).wait();
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_begin);
-  EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + QueueIDSTr));
-  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-  EXPECT_EQ(TraceType, xpti::trace_task_end);
-  EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + QueueIDSTr));
+  checkTaskBeginEnd(QueueIDSTr);
 
   sycl::free(AllocSrc, Q0);
   sycl::free(AllocDst, Q0);
 }
 
-// TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
-//   uint16_t TraceType = 0;
-//   std::string Message;
-
-//   sycl::queue Q0; 
-//   sycl::queue Q1;
+TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
+  sycl::queue Q0; 
+  sycl::queue Q1;
   
-//   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-//   auto Queue0IDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
+  auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
+  auto Queue0IDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
   
-//   auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
-//   auto Queue1IDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
+  auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
+  auto Queue1IDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
 
-//   Q0.submit(
-//         [&](handler &Cgh) {
-//           Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
-//         }, { FileName, FunctionName, 1, 0});
-//   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-//   EXPECT_EQ(TraceType, xpti::trace_task_begin);
-//   EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + Queue0IDSTr));
-//   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-//   EXPECT_EQ(TraceType, xpti::trace_task_end);
-//   EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + Queue0IDSTr));
-//   Q1.submit(
-//         [&](handler &Cgh) {
-//           Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
-//         }, { FileName, FunctionName, 2, 0}).wait();
+  Q0.submit(
+        [&](handler &Cgh) {
+          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+        }, { FileName, FunctionName, 1, 0});
+    checkTaskBeginEnd(Queue0IDSTr);
 
-//   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-//   EXPECT_EQ(TraceType, xpti::trace_task_begin);
-//   EXPECT_THAT(Message, HasSubstr("task_begin:queue_id:" + Queue1IDSTr));
-//   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
-//   EXPECT_EQ(TraceType, xpti::trace_task_end);
-//   EXPECT_THAT(Message, HasSubstr("task_end:queue_id:" + Queue1IDSTr));
-// }
+  Q1.submit(
+        [&](handler &Cgh) {
+          Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
+        }, { FileName, FunctionName, 2, 0}).wait();
+  checkTaskBeginEnd(Queue1IDSTr);
+}
 
 //host + kernel tasks

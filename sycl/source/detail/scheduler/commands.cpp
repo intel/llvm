@@ -2023,17 +2023,19 @@ void instrumentationFillCommonData(const std::string &KernelName,
 }
 #endif
 
-void emitKernelInstrumentationData(
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+std::pair<xpti_td*, uint64_t> emitKernelInstrumentationData(int32_t StreamID,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, const std::string &SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+
+  auto XptiObjects = std::make_pair<xpti_td*, uint64_t>(nullptr, -1);
+
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
-    return;
+    return XptiObjects;
 
   void *Address = nullptr;
   std::optional<bool> FromSource;
@@ -2041,8 +2043,8 @@ void emitKernelInstrumentationData(
       SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
       FromSource);
 
-  xpti_td *CmdTraceEvent = nullptr;
-  uint64_t InstanceID = -1;
+  auto& [CmdTraceEvent, InstanceID] = XptiObjects;
+
   std::string FileName =
       CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
   instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
@@ -2060,16 +2062,10 @@ void emitKernelInstrumentationData(
         static_cast<const void *>(
             commandToNodeType(Command::CommandType::RUN_CG).c_str()));
   }
-#else
-  std::ignore = SyclKernel;
-  std::ignore = CodeLoc;
-  std::ignore = SyclKernelName;
-  std::ignore = Queue;
-  std::ignore = NDRDesc;
-  std::ignore = KernelBundleImplPtr;
-  std::ignore = CGArgs;
-#endif
+
+  return XptiObjects;
 }
+#endif
 
 void ExecCGCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
