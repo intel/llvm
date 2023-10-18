@@ -90,32 +90,16 @@
 // RUN: cmp %t2.bc           `cat %t_listB.txt`
 
 #include <sycl/sycl.hpp>
-#include <iostream>
 
-using namespace sycl;
+SYCL_EXTERNAL int foo(int x) {
 
-const std::string secret { "Ifmmp-!xpsme\"\012J"};
-
-const auto sz = secret.size();
-
-int main() {
-  queue Q;
-
-  char *result = malloc_shared<char>(sz,Q);
-
-  std::memcpy(result,secret.data(),sz);
-
-  Q.parallel_for(sz,[=](auto&i) {
 #ifdef TYPE1
-    result[i] -= 13;
+  return x+13;
 #elif TYPE2
-    result[i] *= 17;
+  return x+17;
 #elif TYPE3
-    result[i] += 23;
+  return x+23;
+#else
+  return x+29;
 #endif
-    
-  }).wait();
-
-  std::cout << result << "\n";
-  return 0;
 }
