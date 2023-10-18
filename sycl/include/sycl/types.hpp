@@ -1661,13 +1661,30 @@ public:
   }
 
   template <typename T = DataT, int N = NumElements>
-  vec<T, N> operator!() const {
+  typename std::enable_if_t<std::is_same<std::byte, T>::value, vec<T, N>>
+  operator!() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
     return vec<T, N>{(typename vec<T, N>::DataType) !m_Data};
 #else
-    vec<T, N> Ret{};
+    vec<T, N> Ret;
+    for (size_t I = 0; I < N; ++I) {
+      Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
+    }
+    return Ret;
+#endif
+  }
+
+  template <typename T = DataT, int N = NumElements>
+  typename std::enable_if_t<!std::is_same<std::byte, T>::value, vec<T, N>>
+  operator!() const {
+// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
+// by SYCL device compiler only.
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<T, N>{(typename vec<T, N>::DataType) !m_Data}; // T, N
+#else
+    vec<T, N> Ret;
     for (size_t I = 0; I < N; ++I) {
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
     }
