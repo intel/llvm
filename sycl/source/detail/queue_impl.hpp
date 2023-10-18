@@ -748,7 +748,7 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    if (MPreventSubmit) {
+    if (MPreventSubmit.count(std::this_thread::get_id())) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
@@ -757,7 +757,11 @@ protected:
 
     auto SetMPreventSubmit = [&](bool Value) -> void {
       std::lock_guard<std::mutex> Lock(MMutex);
-      MPreventSubmit = Value;
+      if (Value) {
+        MPreventSubmit.insert(std::this_thread::get_id());
+      } else {
+        MPreventSubmit.erase(std::this_thread::get_id());
+      }
     };
 
     handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
@@ -846,8 +850,8 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
-  // Flag used to detect nested calls to submit and report an error.
-  bool MPreventSubmit = false;
+  // Set used to detect nested calls to submit and report an error.
+  std::unordered_set<std::thread::id> MPreventSubmit;
 
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
