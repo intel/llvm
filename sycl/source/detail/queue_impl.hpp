@@ -752,7 +752,7 @@ protected:
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
-          "function objects should call sycl::handler::submit instead.");
+          "function objects should use the sycl::handler API instead.");
     }
 
     auto SetMPreventSubmit = [&](bool Value) -> void {

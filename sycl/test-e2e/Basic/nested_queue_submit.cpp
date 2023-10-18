@@ -26,7 +26,7 @@ int main() {
     assert(e.code() == sycl::errc::invalid && "Invalid error code");
     assert(std::string(e.what()) ==
                "Calls to sycl::queue::submit cannot be nested. Command group "
-               "function objects should call sycl::handler::submit instead." &&
+               "function objects should use the sycl::handler API instead." &&
            "Invalid e.what() string");
   }
   std::cout << "test passed" << std::endl;
