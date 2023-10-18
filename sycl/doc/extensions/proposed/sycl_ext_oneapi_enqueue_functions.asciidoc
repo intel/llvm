@@ -71,20 +71,19 @@ This extension addresses these issues by:
 2. Using free-functions instead of member functions.
 3. Requiring developers to opt-in to the creation of `event` objects.
 4. Bundling everything related to a kernel's launch configuration (i.e., its
-range, any properties, and any reductions) into a single object.
+range, any launch properties) into a single object.
+5. Moving the reductions parameter pack after the kernel.
 
 This extension makes SYCL simpler and easier to document. It is also expected
 to improve the performance of many SYCL applications, where `event` objects are
 not required to describe application behavior.
 
 All functions proposed in this extension accept as their first argument an
-object that represents where a command should be submitted. For now, we refer
-to this as an "Executor". This argument can currently be either a
-`sycl::handler` or a `sycl::queue`, allowing the new functions to be used
-either at command-group scope or as a replacement for existing queue shortcuts.
-It is expected that a future version of this extension will adjust this
-overload set to include functions compatible with future C++ concepts (such as
-senders and receivers).
+object that represents where a command should be submitted, allowing the new
+functions to be used either at command-group scope or as a replacement for
+existing queue shortcuts. A future version of this extension may adjust this
+overload set to include functions compatible with future C++ concepts (e.g,
+by accepting a scheduler and returning a sender).
 
 
 === Usage example
@@ -110,7 +109,7 @@ std::vector<sycl::event> depEvents = /* some dependencies */;
 sycl::event e = q.parallel_for(sycl::nd_range<1>{1024, 16}, depEvents,
   sycl::reduction(output, sycl::plus<>()),
   [=](sycl::nd_item<1> it, auto& sum) {
-  sum += it.get_global_id();
+    sum += it.get_global_id();
 });
 e.wait();
 sycl::free(output, q);
@@ -133,12 +132,14 @@ syclex::submit(q, [&](sycl::handler& h) {
 float* output = sycl::malloc_shared<int>(1, q);
 *output = 0;
 std::vector<sycl::event> depEvents = /* some dependencies */;
-sycl::event e;
-syclex::nd_launch(q,
-  syclex::launch_config(sycl::nd_range<1>{1024, 16}, sycl::reduction(output, sycl::plus<>())),
-  [=](sycl::nd_item<1> it, auto& sum) {
-  sum += it.get_global_id();
-}, depEvents, &e);
+sycl::event e = syclex::submit_with_event(q, [&](sycl::handler& h) {
+  h.depends_on(depEvents);
+  syclex::nd_launch(h, sycl::nd_range<1>{1024, 16},
+    [=](sycl::nd_item<1> it, auto& sum) {
+      sum += it.get_global_id();
+    },
+    sycl::reduction(output, sycl::plus<>())
+});
 e.wait();
 sycl::free(output, q);
 ----
@@ -174,527 +175,501 @@ together all components of a kernel's launch configuration, including:
 
 1. The range of execution.
 2. Any compile-time properties.
-3. Any reductions.
+
+[NOTE]
+====
+Any compile-time properties passed to a `launch_config` do not affect the
+type of the enqueued kernel, and are primarily intended to be used for
+properties with run-time values that may impact how a kernel is launched
+by an underlying backend.
+====
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template </* unspecified */>
-class launch_config
-{
+// Available only when Range is sycl::range or sycl::nd_range
+template <typename Range, typename Properties = empty_properties_t>
+class launch_config {
 public:
-
-  launch_config(Properties p);
-
-  // Available only when:
-  // 1) Range is sycl::range or sycl::nd_range
-  // 2) Reductions is a parameter pack of sycl::reduction
-  launch_config(Range r, Reductions... reductions);
-
-  // Available only when:
-  // 1) Range is sycl::range or sycl::nd_range
-  // 2) Properties is a compile-time property list
-  // 3) Reductions is a parameter pack of sycl::reduction
-  launch_config(Range r, Properties, Reductions... reductions);
-
+    launch_config(Range, Properties = {});
 };
 
 }
 ----
 
-All constructors for `launch_config` are guaranteed to deduce the class
-template parameters.
-
-[NOTE]
-====
-The template parameters for `launch_config` are currently unspecified, while we
-gain implementation experience. An implementation must be able to identify and
-extract the type of range (`sycl::range`, `sycl::nd_range`, or no range) and
-other properties from the `launch_config`.
-====
-
 [source,c++]
 ----
-launch_config(Properties p);
-----
-_Effects_: Constructs a `launch_config` with no range or reductions.
-
-[NOTE]
-====
-The only current use-case for this constructor is to create a `launch_config`
-used to pass properties to `single_task`.
-====
-
-[source,c++]
-----
-launch_config(Range r, Reductions... reductions);
+launch_config(Range, Properties);
 ----
 _Constraints_: Available only if `Range` is a `sycl::range` or
-`sycl::nd_range`, and `Reductions` is a parameter pack of `sycl::reduction`.
+`sycl::nd_range`, and `Properties` is a compile-time property list.
 
 _Effects_: Constructs a `launch_config` from the specified range and
-reductions.
-
-[NOTE]
-====
-Because this constructor accepts an empty parameter pack, it remains possible
-to enqueue a kernel as `sycl::parallel_for(q, range, lambda)`, and avoid
-explicitly typing `launch_config()` in simple cases.
-====
-
-[source,c++]
-----
-launch_config(Range r, Properties, Reductions... reductions);
-----
-_Constraints_: Available only if `Range` is a `sycl::range` or
-`sycl::nd_range`, `Properties` is a compile-time property list,
-and `Reductions` is a parameter pack of `sycl::reduction`.
-
-_Effects_: Constructs a `launch_config` from the specified range,
-properties and reductions.
+properties.
 
 
-=== Command group submission
+=== Command-group submission
 
+When specifying event dependencies or requesting the creation of events,
+commands must be wrapped in a _command-group_.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename ExecutorType, typename CommandGroupFunc>
-void submit(ExecutorType ex, CommandGroupFunc&& cgf, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename CommandGroupFunc>
+void submit(sycl::queue q, CommandGroupFunc&& cgf);
 
 }
 ----
+!====
+_Effects_: Submits a command-group function to the `sycl::queue`.
 
-[source,c++]
-----
-template <typename ExecutorType, typename CommandGroupFunc>
-void submit(ExecutorType ex, CommandGroupFunc&& cgf, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
-
-_Effects_: Submit a command group function object to be scheduled for execution
-on `ex`. The submitted command will not execute until each of the events in
-`depEvents` is complete. An optional event representing this command can be
-returned via `outEvent`.
-
-
-=== Single tasks
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, typename ExecutorType, typename KernelType>
-void single_task(ExecutorType ex, const KernelType& kernelFunc);
-
-template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
-void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
-
-template <typename KernelName, typename ExecutorType, typename KernelType>
-void single_task(ExecutorType ex, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
-void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename CommandGroupFunc>
+sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf);
 
 }
 ----
+!====
+_Effects_: Submits a command-group function to the `sycl::queue`.
 
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename KernelType>
-void single_task(ExecutorType ex, const KernelType& kernelFunc);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+_Returns_: A `sycl::event` associated with the submitted command.
 
-_Effects_: Enqueues a single task to the executor `ex`.
-
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
-void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`, and
-`LaunchConfig` is convertible to `launch_config`.
-
-_Effects_: Enqueues a single task to the executor `ex` with the specified
-launch configuration.
+|====
 
 
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename KernelType>
-void single_task(ExecutorType ex, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+=== Commands
 
-_Effects_: Enqueues a single task to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional
-event representing this command can be returned via `outEvent`.
+==== Single tasks
 
-
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename KernelType, typename LaunchConfig>
-void single_task(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`, and
-`LaunchConfig` is convertible to `launch_config`.
-
-_Effects_: Enqueues a single task to the executor `ex` with the specified
-launch configuration. The command will not execute until each of the events in
-`depEvents` is complete. An optional event representing this command can be
-returned via `outEvent`.
-
-
-=== Basic kernels
-
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
+template <typename KernelName, typename KernelType>
+void single_task(sycl::queue q, const KernelType& k);
 
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename KernelName, typename KernelType>
+void single_task(sycl::handler h, const KernelType& k);
 
 }
 ----
+!====
+_Effects_: Enqueues a kernel function to the `sycl::queue` or `sycl::handler`
+as a single task.
 
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`,
-`LaunchConfig` is `launch_config`, and the launch configuration was constructed
-from a `sycl::range`.
-
-_Effects_: Enqueues a basic kernel to the executor `ex` with the specified
-launch configuration.
-
-
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void parallel_for(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`,
-`LaunchConfig` is convertible to `launch_config`, and the constructed launch
-configuration is associated with a `sycl::range`.
-
-_Effects_: Enqueues a basic kernel to the executor `ex` with the specified
-launch configuration. The command will not execute until each of the events in
-`depEvents` is complete. An optional event representing this command can be
-returned via `outEvent`.
-
-
-=== ND-range kernels
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
+template <typename Args...>
+void single_task(sycl::queue q, const sycl::kernel& k, Args&&... args);
 
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename Args...>
+void single_task(sycl::handler h, const sycl::kernel& k, Args&&... args);
 
 }
 ----
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler` as
+a single task. The arguments in `args` are passed to the kernel in the same
+order.
 
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`,
-`LaunchConfig` is convertible to `launch_config`, and the constructed launch
-configuration is associated with a `sycl::nd_range`.
-
-_Effects_: Enqueues an ND-range kernel to the executor `ex` with the specified
-launch configuration.
+|====
 
 
-[source,c++]
-----
-template <typename KernelName, typename ExecutorType, typename LaunchConfig, typename KernelType>
-void nd_launch(ExecutorType ex, LaunchConfig lc, const KernelType& kernelFunc, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`,
-`LaunchConfig` is convertible to `launch_config`, and the constructed launch
-configuration is assocaited with a `sycl::nd_range`.
+==== Basic kernels
 
-_Effects_: Enqueues an ND-range kernel to the executor `ex` with the specified
-launch configuration. The command will not execute until each of the events in
-`depEvents` is complete. An optional event representing this command can be
-returned via `outEvent`.
-
-
-=== Memory operations
-
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename ExecutorType>
-void memcpy(ExecutorType ex, void* dest, const void* src, size_t numBytes);
+template <typename KernelName, int Dimensions, typename KernelType, typename... Reductions>
+void parallel_for(sycl::queue q, sycl::range<Dimensions> r, const KernelType& k, Reductions&&... reductions);
 
-template <typename ExecutorType>
-void memcpy(ExecutorType ex, void* dest, const void* src, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename ExecutorType, typename T>
-void copy(ExecutorType ex, const T* src, T* dest, size_t count);
-
-template <typename ExecutorType, typename T>
-void copy(ExecutorType ex, const T* src, T* dest, size_t count, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename ExecutorType>
-void memset(ExecutorType ex, void* ptr, int value, size_t numBytes);
-
-template <typename ExecutorType>
-void memset(ExecutorType ex, void* ptr, int value, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename ExecutorType, typename T>
-void fill(ExecutorType ex, T* ptr, const T& pattern, size_t count);
-
-template <typename ExecutorType, typename T>
-void fill(ExecutorType ex, T* ptr, const T& pattern, size_t count, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename ExecutorType>
-void prefetch(ExecutorType ex, void* ptr, size_t numBytes);
-
-template <typename ExecutorType>
-void prefetch(ExecutorType ex, void* ptr, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename ExecutorType>
-void mem_advise(ExecutorType ex, void* ptr, size_t numBytes, int advice);
-
-template <typename ExecutorType>
-void mem_advise(ExecutorType ex, void* ptr, size_t numBytes, int advice, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+template <typename KernelName, int Dimensions, typename KernelType, typename... Reductions>
+void parallel_for(sycl::handler h, sycl::range<Dimensions> r, const KernelType& k, Reductions&&... reductions);
 
 }
 ----
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
 
+_Effects_: Enqueues a kernel function to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a `sycl::range`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void memcpy(ExecutorType ex, void* dest, const void* src, size_t numBytes);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename Properties, typename KernelType, typename... Reductions>
+void parallel_for(sycl::queue q, launch_config<sycl::range<Dimensions>, Properties> c, const KernelType& k, Reductions&&... reductions);
+
+template <typename KernelName, int Dimensions, typename Properties, typename KernelType, typename... Reductions>
+void parallel_for(sycl::handler h, launch_config<sycl::range<Dimensions>, Properties> c, const KernelType& k, Reductions&&... reductions);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
 
-_Effects_: Enqueues a `memcpy` to the executor `ex`.
+_Effects_: Enqueues a kernel function to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the launch configuration specified by a
+`launch_config`.
 
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void memcpy(ExecutorType ex, void* dest, const void* src, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename... Args>
+void parallel_for(sycl::queue q, sycl::range<Dimensions> r, const sycl::kernel& k, Args&&... args);
+
+template <typename KernelName, int Dimensions, typename... Args>
+void parallel_for(sycl::handler h, sycl::range<Dimensions> r, const sycl::kernel& k, Args&&... args);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a `sycl::range`.
+The arguments in `args` are passed to the kernel in the same order.
 
-_Effects_: Enqueues a `memcpy` to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional event
-representing this command can be returned via `outEvent`.
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType, typename T>
-void copy(ExecutorType ex, const T* src, T* dest, size_t count);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename Properties, typename... Args>
+void parallel_for(sycl::queue q, launch_config<sycl::range<Dimensions>, Properties> c, const sycl::kernel& k, Args&& args...);
+
+template <typename KernelName, int Dimensions, typename Properties, typename... Args>
+void parallel_for(sycl::handler h, launch_config<sycl::range<Dimensions>, Properties> c, const sycl::kernel& k, Args&& args...);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the launch configuration specified by a
+`launch_config`. The arguments in `args` are passed to the kernel in the same
+order.
 
-_Effects_: Enqueues a `copy` to the executor `ex`.
+|====
 
+
+==== ND-range kernels
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType, typename T>
-void copy(ExecutorType ex, const T* src, T* dest, size_t count, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename KernelType, typename... Reductions>
+void parallel_for(sycl::queue q, sycl::nd_range<Dimensions> r, const KernelType& k, Reductions&&... reductions);
+
+template <typename KernelName, int Dimensions, typename KernelType, typename... Reductions>
+void parallel_for(sycl::handler h, sycl::nd_range<Dimensions> r, const KernelType& k, Reductions&&... reductions);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
 
-_Effects_: Enqueues a `copy` to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional event
-representing this command can be returned via `outEvent`.
+_Effects_: Enqueues a kernel function to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a
+`sycl::nd_range`.
 
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void memset(ExecutorType ex, void* ptr, int value, size_t numBytes);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename Properties, typename KernelType, typename... Reductions>
+void parallel_for(sycl::queue q, launch_config<sycl::nd_range<Dimensions>, Properties> c, const KernelType& k, Reductions&&... reductions);
+
+template <typename KernelName, int Dimensions, typename Properties, typename KernelType, typename... Reductions>
+void parallel_for(sycl::handler h, launch_config<sycl::nd_range<Dimensions>, Properties> c, const KernelType& k, Reductions&&... reductions);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
 
-_Effects_: Enqueues a `memset` to the executor `ex`.
+_Effects_: Enqueues a kernel function to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the launch configuration specified by a
+`launch_config`.
 
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void memset(ExecutorType ex, void* ptr, int value, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename... Args>
+void parallel_for(sycl::queue q, sycl::nd_range<Dimensions> r, const sycl::kernel& k, Args&&... args);
+
+template <typename KernelName, int Dimensions, typename... Args>
+void parallel_for(sycl::handler h, sycl::nd_range<Dimensions> r, const sycl::kernel& k, Args&&... args);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the number of work-items specified by a
+`sycl::nd_range`. The arguments in `args` are passed to the kernel in the same
+order.
 
-_Effects_: Enqueues a `memset` to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional event
-representing this command can be returned via `outEvent`.
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType, typename T>
-void fill(ExecutorType ex, T* ptr, const T& pattern, size_t count);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename Properties, typename... Args>
+void parallel_for(sycl::queue q, launch_config<sycl::nd_range<Dimensions>, Properties> c, const sycl::kernel& k, Args&& args...);
+
+template <typename KernelName, int Dimensions, typename Properties, typename... Args>
+void parallel_for(sycl::handler h, launch_config<sycl::nd_range<Dimensions>, Properties> c, const sycl::kernel& k, Args&& args...);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+!====
+_Effects_: Enqueues a kernel object to the `sycl::queue` or `sycl::handler`
+as a basic kernel, using the launch configuration specified by a
+`launch_config`. The arguments in `args` are passed to the kernel in the same
+order.
 
-_Effects_: Enqueues a `fill` to the executor `ex`.
+|====
 
+
+==== Memory operations
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType, typename T>
-void fill(ExecutorType ex, T* ptr, const T& pattern, size_t count, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+namespace sycl::ext::oneapi::experimental {
+
+void memcpy(sycl::queue q, void* dest, const void* src, size_t numBytes);
+
+void memcpy(sycl::handler h, void* dest, const void* src, size_t numBytes);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+!====
+_Effects_: Enqueues a `memcpy` to the `sycl::queue` or `sycl::handler`.
 
-_Effects_: Enqueues a `fill` to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional event
-representing this command can be returned via `outEvent`.
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void prefetch(ExecutorType ex, void* ptr, size_t numBytes);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void copy(sycl::queue q, const T* src, T* dest, size_t count);
+
+template <typename T>
+void copy(sycl::handler h, const T* src, T* dest, size_t count);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+!====
+_Effects_: Enqueues a `copy` to the `sycl::queue` or `sycl::handler`.
 
-_Effects_: Enqueues a `prefetch` to the executor `ex`.
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void prefetch(ExecutorType ex, void* ptr, size_t numBytes, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+namespace sycl::ext::oneapi::experimental {
+
+void memset(sycl::queue q, void* ptr, int value, size_t numBytes);
+
+void memset(sycl::handler h, void* ptr, int value, size_t numBytes);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+!====
+_Effects_: Enqueues a `memset` to the `sycl::queue` or `sycl::handler`.
 
-_Effects_: Enqueues a `prefetch` to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional event
-representing this command can be returned via `outEvent`.
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void mem_advise(ExecutorType ex, void* ptr, size_t numBytes, int advice);
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void fill(sycl::queue q, T* ptr, const T& pattern, size_t count);
+
+template <typename T>
+void fill(sycl::handler h, T* ptr, const T& pattern, size_t count);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+!====
+_Effects_: Enqueues a `fill` to the `sycl::queue` or `sycl::handler`.
 
-_Effects_: Enqueues a `mem_advise` to the executor `ex`.
-
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void mem_advise(ExecutorType ex, void* ptr, size_t numBytes, int advice, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+namespace sycl::ext::oneapi::experimental {
+
+void prefetch(sycl::queue q, void* ptr, size_t numBytes);
+
+void prefetch(sycl::handler h, void* ptr, size_t numBytes);
+
+}
 ----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+!====
+_Effects_: Enqueues a `prefetch` to the `sycl::queue` or `sycl::handler`.
 
-_Effects_: Enqueues a `mem_advise` to the executor `ex`. The command will not
-execute until each of the events in `depEvents` is complete. An optional event
-representing this command can be returned via `outEvent`.
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void mem_advise(sycl::queue q, void* ptr, size_t numBytes, int advice);
+
+void mem_advise(sycl::handler h, void* ptr, size_t numBytes, int advice);
+
+}
+----
+!====
+_Effects_: Enqueues a `mem_advise` to the `sycl::queue` or `sycl::handler`.
+
+|====
 
 
-=== Command barriers
+==== Command barriers
 
 The functions in this section are only available if the
 link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[
   sycl_ext_oneapi_enqueue_barrier] extension is supported.
 
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename ExecutorType>
-void barrier(ExecutorType ex);
+void barrier(sycl::queue q);
 
-template <typename ExecutorType>
-void barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-
-template <typename ExecutorType>
-void partial_barrier(ExecutorType ex);
-
-template <typename ExecutorType>
-void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
+void barrier(sycl::handler h);
 
 }
 ----
+_Effects_: Enqueues a command barrier to the `sycl::queue` or `sycl::handler`.
+Any commands submitted after this barrier cannot begin execution until all
+previously submitted commands (and any commands associated with dependendent
+events) have completed.
 
+a|
+[frame=all,grid=none]
+!====
+a!
 [source,c++]
 ----
-template <typename ExecutorType>
-void barrier(ExecutorType ex);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
+namespace sycl::ext::oneapi::experimental {
 
-_Effects_: Enqueues a command barrier to the executor `ex`. Any commands
-submitted after this barrier cannot begin execution until all commands
-previously submitted to the associated `queue` (and any commands associated
-with dependendent events associated with the handler) have completed. An
-optional event representing this command can be returned via `outEvent`.
+void partial_barrier(sycl::queue q, const std::vector<sycl::event>& events);
 
-[source,c++]
-----
-template <typename ExecutorType>
-void barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
+void partial_barrier(sycl::handler h, const std::vector<sycl::event>& events);
 
-_Effects_: Enqueues a command barrier to the executor `ex`. Any commands
-submitted after this barrier cannot begin execution until all commands
-previously submitted to the associated `queue` (and any commands associated
-with events explicitly listed in `depEvents`) have completed. An optional event
-representing this command can be returned via `outEvent`.
-
-[source,c++]
+}
 ----
-template <typename ExecutorType>
-void partial_barrier(ExecutorType ex);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::handler`.
-
-_Effects_: Enqueues a _partial_ command barrier to the executor `ex`. Any
-commands submitted after this barrier cannot begin execution until all commands
-associated with any dependent events associated with the handler (i.e., via
-`depends_on`) have completed.
-
-[source,c++]
-----
-template <typename ExecutorType>
-void partial_barrier(ExecutorType ex, const std::vector<event>& depEvents = {}, event* outEvent = nullptr);
-----
-_Constraints_: Available only if `ExecutorType` is `sycl::queue`.
-
-_Effects_: Enqueues a _partial_ command barrier to the executor `ex`. Any
-commands submitted after this barrier cannot begin execution until all commands
-associated with events listed in `depEvents` have completed. An optional event
-representing this command can be returned via `outEvent`.
+_Effects_: Enqueues a _partial_ command barrier to the `sycl::queue` or
+`sycl::handler`. Any commands submitted after this barrier cannot begin
+execution until all commands associated with `events` (and any commands
+associated with other dependent events) have completed.
 
 [NOTE]
 ====
-If `depEvents` is empty, a partial barrier is not required to wait for any
+If `events` is empty and a partial barrier has no other dependencies (e.g.,
+specified by `handler::depends_on`), it is not required to wait for any
 commands unless the `queue` is in-order. Implementations may be able to
-optimize such partial barriers.
+optimized such partial barriers.
 ====
+|====
 
 
 == Issues
 
-. How should functions accepting `kernel` objects behave?
+. What should `submit_with_event` be called?
 +
 --
-*UNRESOLVED*: Ideally, we would have new function names for these cases, since
-they have a very different usage model. Unlike other enqueues, functions
-accepting `kernel` objects currently require a developers to call
-`set_arg` on the handler. Accepting kernel arguments via a parameter pack would
-be more developer-friendly, but would not be compatible with the current
-positioning of the `depEvents` and `event` parameters. Bundling a kernel object
-with its arguments via an intermediate object may be a good alternative.
+*UNRESOLVED*: `submit_with_event` is descriptive but verbose. Synonyms for
+`submit` like `enqueue` do not obviously mean "return an event". `record` may
+be confused with the recording functionality associated with SYCL graphs.
 --
 
 . What about `accessor` overloads and `update_host`?
