@@ -9169,10 +9169,20 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     ForeachInputs.push_back(Input);
 
   if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR ||
-      InputType == types::TY_FPGA_AOCR_EMU)
+      InputType == types::TY_FPGA_AOCR_EMU) {
     // Override type with AOCX/AOCR which will unbundle to a list containing
-    // binaries.
-    TypeArg = "aoo";
+    // binaries with the appropriate extension (.aocx/.aocr)
+    // TODO - representation of the output file from the unbundle for these
+    // types (aocx/aocr) are always list files.  We should represent this
+    // better in the output extension and type for improved understanding
+    // of file contents and debuggability.
+    TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
+    // When the output is a Tempfilelist, we know we are generating unbundling
+    // the .bc files from the archive.
+    if (!getToolChain().getTriple().isSPIR() ||
+        JA.getType() == types::TY_Tempfilelist)
+      TypeArg = "aoo";
+  }
   if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
     TypeArg = "aoo";
   if (IsFPGADepUnbundle)
@@ -9234,12 +9244,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           TT.setArchName(TypeName);
           TT.setVendorName("intel");
           TT.setOS(getToolChain().getTriple().getOS());
-          if (InputType == types::TY_FPGA_AOCX ||
-              InputType == types::TY_FPGA_AOCR ||
-              InputType == types::TY_FPGA_AOCR_EMU)
-            // AOCX/AOCR device is bundled in the host section
+          if ((InputType == types::TY_FPGA_AOCX ||
+               InputType == types::TY_FPGA_AOCR ||
+               InputType == types::TY_FPGA_AOCR_EMU) &&
+              JA.getType() == types::TY_Tempfilelist)
+            // AOCX device and AOCR bc info is bundled in the host kind
             Triples += "host-";
           else
+            // AOCR device is bundled in the sycl kind
             Triples += "sycl-";
           Triples += TT.normalize();
           continue;
@@ -9389,9 +9401,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     llvm::Triple TT = getToolChain().getTriple();
     SmallString<128> TargetTripleOpt = TT.getArchName();
-    bool Early = false;
+    bool WrapFPGADevice = false;
+    bool FPGAEarly = false;
     if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
-      Early = (A->getValue() == StringRef("early"));
+      WrapFPGADevice = true;
+      FPGAEarly = (A->getValue() == StringRef("early"));
       // When wrapping an FPGA aocx binary to archive, do not emit registration
       // functions
       if (A->getValue() == StringRef("image"))
@@ -9400,11 +9414,14 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // When wrapping an FPGA device binary, we need to be sure to apply the
     // appropriate triple that corresponds (fpga_aocr-intel-<os>)
     // to the target triple setting.
-    if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga && Early) {
+    if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga && WrapFPGADevice) {
       SmallString<16> FPGAArch("fpga_");
-      FPGAArch += "aocr";
-      if (C.getDriver().IsFPGAEmulationMode())
-        FPGAArch += "_emu";
+      if (FPGAEarly) {
+        FPGAArch += "aocr";
+        if (C.getDriver().IsFPGAEmulationMode())
+          FPGAArch += "_emu";
+      } else
+        FPGAArch += "aocx";
       TT.setArchName(FPGAArch);
       TT.setVendorName("intel");
       TargetTripleOpt = TT.str();
@@ -9469,17 +9486,16 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
-    StringRef BaseInput = Inputs[0].getBaseInput();
     // For FPGA toolchains, we can add additional wrapped bc input files to
     // the wrapped step.  This is done for AOCR based files that contain the
     // Symbols and Properties from a previous compilation step.
-    if (TC.getTriple().isSPIR() &&
+    if (TC.getTriple().isSPIR() && Inputs.size() == 2 &&
         TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-      for (const auto &AOCRFile : C.getDriver().getAOCRUnbundleList()) {
-        if (AOCRFile == BaseInput)
-          WrapperArgs.push_back(C.getArgs().MakeArgString(
-              Twine("--wrapped-bc-input=") + AOCRFile));
-      }
+      // If there is an additional input argument passed in, that is considered
+      // the .bc file to include in this wrapping job.
+      const InputInfo &I = Inputs[1];
+      WrapperArgs.push_back(C.getArgs().MakeArgString(
+          Twine("--sym-prop-bc-files=") + I.getFilename()));
     }
 
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");

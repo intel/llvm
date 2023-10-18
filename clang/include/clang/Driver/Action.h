@@ -820,6 +820,7 @@ class FileTableTformJobAction : public JobAction {
 public:
   static constexpr const char *COL_CODE = "Code";
   static constexpr const char *COL_ZERO = "0";
+  static constexpr const char *COL_SYM_AND_PROPS = "SymAndProps";
 
   struct Tform {
     enum Kind {

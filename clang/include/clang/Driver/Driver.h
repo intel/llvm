@@ -859,10 +859,6 @@ private:
   /// gathered during creation of offloading device toolchains.
   mutable llvm::opt::ArgStringList SYCLDeviceTraitsMacrosArgs;
 
-  /// Vector of AOCR based files to keep track of the output filename for when
-  /// the contents are extracted.
-  mutable std::vector<StringRef> AOCRUnbundleFileList;
-
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
 
@@ -948,17 +944,6 @@ public:
   /// getSYCLUniqueID - Get the Unique ID associated with the file.
   StringRef getSYCLUniqueID(StringRef FileName) const {
     return SYCLUniqueIDList[FileName];
-  }
-
-  /// addAOCRUnBundleInfo - Add the output file name associated with an AOCR
-  /// based file being unbundled.
-  void addAOCRUnbundleInfo(StringRef FileName) const {
-    AOCRUnbundleFileList.push_back(FileName);
-  }
-
-  /// getAOCRUnbundleList - Get the list of unbundled AOCR files
-  llvm::ArrayRef<StringRef> getAOCRUnbundleList(void) const {
-    return AOCRUnbundleFileList;
   }
 
   /// Reads device config file to find information about the SYCL targets in
