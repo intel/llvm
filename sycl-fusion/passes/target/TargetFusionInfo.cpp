@@ -13,10 +13,12 @@
 #include "NDRangesHelper.h"
 
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 
 using namespace jit_compiler;
@@ -82,6 +84,27 @@ public:
   virtual bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
                            const NDRange &FusedNDRange) const = 0;
 
+  virtual Expected<Function *>
+  scanForBuiltinsToRemap(Function *F, Remapper &R,
+                         const jit_compiler::NDRange &SrcNDRange,
+                         const jit_compiler::NDRange &FusedNDRange) const {
+    for (auto &I : instructions(F)) {
+      if (auto *Call = dyn_cast<CallBase>(&I)) {
+        // Recursive call
+        auto *OldF = Call->getCalledFunction();
+        auto ErrOrNewF = R.remapBuiltins(OldF, SrcNDRange, FusedNDRange);
+        if (auto Err = ErrOrNewF.takeError()) {
+          return std::move(Err);
+        }
+        // Override called function.
+        auto *NewF = *ErrOrNewF;
+        Call->setCalledFunction(NewF);
+        Call->setCallingConv(NewF->getCallingConv());
+        Call->setAttributes(NewF->getAttributes());
+      }
+    }
+  }
+
   virtual bool isSafeToNotRemapBuiltin(Function *F) const = 0;
 
   virtual unsigned getIndexSpaceBuiltinBitwidth() const = 0;
@@ -94,7 +117,7 @@ public:
 
   virtual Function *
   createRemapperFunction(const Remapper &R, BuiltinKind K, StringRef OrigName,
-                         StringRef Name, Module *M, const NDRange &SrcNDRange,
+                         Module *M, const NDRange &SrcNDRange,
                          const NDRange &FusedNDRange) const = 0;
 
 protected:
@@ -379,9 +402,11 @@ public:
   }
 
   Function *createRemapperFunction(
-      const Remapper &R, BuiltinKind K, StringRef OrigName, StringRef Name,
-      Module *M, const jit_compiler::NDRange &SrcNDRange,
+      const Remapper &R, BuiltinKind K, StringRef OrigName, Module *M,
+      const jit_compiler::NDRange &SrcNDRange,
       const jit_compiler::NDRange &FusedNDRange) const override {
+    const auto Name = Remapper::getFunctionName(K, SrcNDRange, FusedNDRange);
+    assert(!M->getFunction(Name) && "Function name should be unique");
     auto &Ctx = M->getContext();
     IRBuilder<> Builder(Ctx);
 
@@ -467,71 +492,6 @@ public:
         {"target-cpu", "target-features", "uniform-work-group-size"}};
     return Keys;
   }
-};
-
-//
-// NVPTXTargetFusionInfo
-//
-#ifdef FUSION_JIT_SUPPORT_PTX
-class NVPTXTargetFusionInfo : public NVPTXAMDGCNTargetFusionInfoBase {
-public:
-  using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
-
-  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("nvvm.annotations",
-                                                           Funcs);
-  }
-
-  void addKernelFunction(Function *KernelFunc) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("nvvm.annotations",
-                                                       KernelFunc);
-  }
-
-  void createBarrierCall(IRBuilderBase &Builder,
-                         BarrierFlags BarrierFlags) const override {
-    if (isNoBarrierFlag(BarrierFlags)) {
-      return;
-    }
-    // Emit a call to llvm.nvvm.barrier0. From the user manual of the NVPTX
-    // backend: "The ‘@llvm.nvvm.barrier0()’ intrinsic emits a PTX bar.sync 0
-    // instruction, equivalent to the __syncthreads() call in CUDA."
-    Builder.CreateIntrinsic(Intrinsic::NVVMIntrinsics::nvvm_barrier0, {}, {});
-  }
-
-  // Corresponds to the definitions in the LLVM NVPTX backend user guide:
-  // https://llvm.org/docs/NVPTXUsage.html#address-spaces
-  unsigned getPrivateAddressSpace() const override { return 0; }
-  unsigned getLocalAddressSpace() const override { return 3; }
-
-  std::optional<BuiltinKind> getBuiltinKind(Function *F) const override {
-    // PTX doesn't have intrinsics for global sizes and global IDs:
-    // https://www.llvm.org/docs/NVPTXUsage.html#reading-ptx-special-registers
-
-    if (!F->isIntrinsic())
-      return {};
-    switch (F->getIntrinsicID()) {
-    case Intrinsic::nvvm_implicit_offset:
-      return BuiltinKind::GlobalOffsetRemapper;
-    case Intrinsic::nvvm_read_ptx_sreg_tid_x:
-    case Intrinsic::nvvm_read_ptx_sreg_tid_y:
-    case Intrinsic::nvvm_read_ptx_sreg_tid_z:
-      return BuiltinKind::LocalIDRemapper;
-    case Intrinsic::nvvm_read_ptx_sreg_ctaid_x:
-    case Intrinsic::nvvm_read_ptx_sreg_ctaid_y:
-    case Intrinsic::nvvm_read_ptx_sreg_ctaid_z:
-      return BuiltinKind::GroupIDRemapper;
-    case Intrinsic::nvvm_read_ptx_sreg_ntid_x:
-    case Intrinsic::nvvm_read_ptx_sreg_ntid_y:
-    case Intrinsic::nvvm_read_ptx_sreg_ntid_z:
-      return BuiltinKind::LocalSizeRemapper;
-    case Intrinsic::nvvm_read_ptx_sreg_nctaid_x:
-    case Intrinsic::nvvm_read_ptx_sreg_nctaid_y:
-    case Intrinsic::nvvm_read_ptx_sreg_nctaid_z:
-      return BuiltinKind::NumWorkGroupsRemapper;
-    default:
-      return {};
-    }
-  }
 
   bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
                    const NDRange &FusedNDRange) const override {
@@ -549,14 +509,6 @@ public:
     default:
       llvm_unreachable("Unhandled kind");
     }
-  }
-
-  bool isSafeToNotRemapBuiltin(Function *F) const override {
-    // `SubgroupLocalInvocationId` lowers to the `laneid`.
-    // Other subgroup-related builtins are computed from standard getters
-    // (workgroup size, local ID etc.) and constants (subgroup max size := 32),
-    // so we can't filter them out here.
-    return F->getIntrinsicID() != Intrinsic::nvvm_read_ptx_sreg_laneid;
   }
 
   unsigned getIndexSpaceBuiltinBitwidth() const override { return 32; }
@@ -588,6 +540,10 @@ public:
     F->setMemoryEffects(MemoryEffects::none());
   }
 
+  virtual void getLocalGridInfoIntrinsics(uint32_t Idx, unsigned &WorkGroupId,
+                                          unsigned &LocalSize,
+                                          unsigned &LocalId) const = 0;
+
   Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
                                   const NDRange &FusedNDRange,
                                   uint32_t Idx) const override {
@@ -607,13 +563,18 @@ public:
       auto *EntryBlock = BasicBlock::Create(Builder.getContext(), "entry", F);
       Builder.SetInsertPoint(EntryBlock);
 
+      unsigned WorkGroupIdIntrin;
+      unsigned LocalSizeIntrin;
+      unsigned LocalIdIntrin;
+
+      getLocalGridInfoIntrinsics(Idx, WorkGroupIdIntrin, LocalSizeIntrin,
+                                 LocalIdIntrin);
+
       // Compute `global_id.i = group_id.i * local_size.i + local_id.i`.
-      auto *WorkGroupId = Builder.CreateIntrinsic(
-          I32Ty, Intrinsic::nvvm_read_ptx_sreg_ctaid_x + Idx, {});
-      auto *LocalSize = Builder.CreateIntrinsic(
-          I32Ty, Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx, {});
-      auto *LocalId = Builder.CreateIntrinsic(
-          I32Ty, Intrinsic::nvvm_read_ptx_sreg_tid_x + Idx, {});
+      auto *WorkGroupId = Builder.CreateIntrinsic(I32Ty, WorkGroupIdIntrin, {});
+      auto *LocalSize = Builder.CreateIntrinsic(I32Ty, LocalSizeIntrin, {});
+      auto *LocalId = Builder.CreateIntrinsic(I32Ty, LocalIdIntrin, {});
+
       Builder.CreateRet(Builder.CreateAdd(
           Builder.CreateMul(WorkGroupId, LocalSize), LocalId));
       Builder.restoreIP(IP);
@@ -626,10 +587,10 @@ public:
     return Call;
   }
 
-  Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
-                                   StringRef OrigName, StringRef Name,
-                                   Module *M, const NDRange &SrcNDRange,
-                                   const NDRange &FusedNDRange) const override {
+  Function *createRemapperFunctionWithIdx(const Remapper &R, BuiltinKind K,
+                                          uint32_t Idx, StringRef Name,
+                                          Module *M, const NDRange &SrcNDRange,
+                                          const NDRange &FusedNDRange) const {
     auto &Ctx = M->getContext();
     IRBuilder<> Builder(Ctx);
 
@@ -678,16 +639,8 @@ public:
     // trickery to map the x/y/z suffixes to indices, and vice versa.
     auto WrapValInFunc =
         [&](std::function<Value *(uint32_t)> ValueFn) -> Function * {
-      auto Suffix = OrigName.take_back();
-      assert(Suffix[0] >= 'x' && Suffix[0] <= 'z');
-      uint32_t Idx = Suffix[0] - 'x';
-
-      std::string RemapperName =
-          (Name + Twine('_') + Twine(static_cast<char>('x' + Idx))).str();
-
       auto *FTy = FunctionType::get(Builder.getInt32Ty(), /*isVarArg*/ false);
-      auto *F =
-          Function::Create(FTy, Function::InternalLinkage, RemapperName, *M);
+      auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
@@ -750,13 +703,120 @@ public:
     }
   }
 };
+
+//
+// NVPTXTargetFusionInfo
+//
+#ifdef FUSION_JIT_SUPPORT_PTX
+class NVPTXTargetFusionInfo final : public NVPTXAMDGCNTargetFusionInfoBase {
+public:
+  using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
+
+  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
+    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("nvvm.annotations",
+                                                           Funcs);
+  }
+
+  void addKernelFunction(Function *KernelFunc) const override {
+    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("nvvm.annotations",
+                                                       KernelFunc);
+  }
+
+  void createBarrierCall(IRBuilderBase &Builder,
+                         BarrierFlags BarrierFlags) const override {
+    if (isNoBarrierFlag(BarrierFlags)) {
+      return;
+    }
+    // Emit a call to llvm.nvvm.barrier0. From the user manual of the NVPTX
+    // backend: "The ‘@llvm.nvvm.barrier0()’ intrinsic emits a PTX bar.sync 0
+    // instruction, equivalent to the __syncthreads() call in CUDA."
+    Builder.CreateIntrinsic(Intrinsic::NVVMIntrinsics::nvvm_barrier0, {}, {});
+  }
+
+  // Corresponds to the definitions in the LLVM NVPTX backend user guide:
+  // https://llvm.org/docs/NVPTXUsage.html#address-spaces
+  unsigned getPrivateAddressSpace() const override { return 0; }
+  unsigned getLocalAddressSpace() const override { return 3; }
+
+  std::optional<BuiltinKind> getBuiltinKind(Function *F) const override {
+    // PTX doesn't have intrinsics for global sizes and global IDs:
+    // https://www.llvm.org/docs/NVPTXUsage.html#reading-ptx-special-registers
+
+    if (!F->isIntrinsic())
+      return {};
+    switch (F->getIntrinsicID()) {
+    case Intrinsic::nvvm_implicit_offset:
+      return BuiltinKind::GlobalOffsetRemapper;
+    case Intrinsic::nvvm_read_ptx_sreg_tid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_tid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_tid_z:
+      return BuiltinKind::LocalIDRemapper;
+    case Intrinsic::nvvm_read_ptx_sreg_ctaid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_ctaid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_ctaid_z:
+      return BuiltinKind::GroupIDRemapper;
+    case Intrinsic::nvvm_read_ptx_sreg_ntid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_ntid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_ntid_z:
+      return BuiltinKind::LocalSizeRemapper;
+    case Intrinsic::nvvm_read_ptx_sreg_nctaid_x:
+    case Intrinsic::nvvm_read_ptx_sreg_nctaid_y:
+    case Intrinsic::nvvm_read_ptx_sreg_nctaid_z:
+      return BuiltinKind::NumWorkGroupsRemapper;
+    default:
+      return {};
+    }
+  }
+
+  bool isSafeToNotRemapBuiltin(Function *F) const override {
+    // `SubgroupLocalInvocationId` lowers to the `laneid`.
+    // Other subgroup-related builtins are computed from standard getters
+    // (workgroup size, local ID etc.) and constants (subgroup max size := 32),
+    // so we can't filter them out here.
+    return F->getIntrinsicID() != Intrinsic::nvvm_read_ptx_sreg_laneid;
+  }
+
+  void getLocalGridInfoIntrinsics(uint32_t Idx, unsigned &WorkGroupId,
+                                  unsigned &LocalSize,
+                                  unsigned &LocalId) const override {
+
+    WorkGroupId = Intrinsic::nvvm_read_ptx_sreg_ctaid_x + Idx;
+    LocalSize = Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx;
+    LocalId = Intrinsic::nvvm_read_ptx_sreg_tid_x + Idx;
+  }
+
+  Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
+                                   StringRef OrigName, Module *M,
+                                   const NDRange &SrcNDRange,
+                                   const NDRange &FusedNDRange) const override {
+    auto &Ctx = M->getContext();
+    IRBuilder<> Builder(Ctx);
+    uint32_t Idx = -1;
+
+    // Handle global offset first because its return type is different from the
+    // other index space getters.
+    if (K != BuiltinKind::GlobalOffsetRemapper) {
+      auto Suffix = OrigName.take_back();
+      assert(Suffix[0] >= 'x' && Suffix[0] <= 'z');
+      Idx = Suffix[0] - 'x';
+    }
+    const std::string Name =
+        Remapper::getFunctionName(K, SrcNDRange, FusedNDRange, Idx);
+    assert(!M->getFunction(Name) && "Function name should be unique");
+
+    return createRemapperFunctionWithIdx(R, K, Idx, Name, M, SrcNDRange,
+                                         FusedNDRange);
+  }
+};
 #endif // FUSION_JIT_SUPPORT_PTX
 
 //
 // AMDGCNTargetFusionInfo
 //
 #ifdef FUSION_JIT_SUPPORT_AMDGCN
-class AMDGCNTargetFusionInfo : public NVPTXAMDGCNTargetFusionInfoBase {
+class AMDGCNTargetFusionInfo final : public NVPTXAMDGCNTargetFusionInfoBase {
+  using Base = NVPTXAMDGCNTargetFusionInfoBase;
+
 public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
 
@@ -830,6 +890,196 @@ public:
   // https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces
   unsigned getPrivateAddressSpace() const override { return 5; }
   unsigned getLocalAddressSpace() const override { return 3; }
+
+  std::optional<BuiltinKind> getBuiltinKind(Function *F) const override {
+    if (!F->isIntrinsic())
+      return {};
+    switch (F->getIntrinsicID()) {
+    case Intrinsic::amdgcn_implicit_offset:
+      return BuiltinKind::GlobalOffsetRemapper;
+    case Intrinsic::amdgcn_workitem_id_x:
+    case Intrinsic::amdgcn_workitem_id_y:
+    case Intrinsic::amdgcn_workitem_id_z:
+      return BuiltinKind::LocalIDRemapper;
+    case Intrinsic::amdgcn_workgroup_id_x:
+    case Intrinsic::amdgcn_workgroup_id_y:
+    case Intrinsic::amdgcn_workgroup_id_z:
+      return BuiltinKind::GroupIDRemapper;
+    case Intrinsic::amdgcn_dispatch_ptr:
+    case Intrinsic::amdgcn_implicitarg_ptr:
+      llvm_unreachable("amdgcn_dispatch_ptr and amdgcn_implicitarg_ptr "
+                       "requires complex mapping");
+    default:
+      return {};
+    }
+    return {};
+  }
+
+  bool isSafeToNotRemapBuiltin(Function *F) const override {
+    // `SubgroupLocalInvocationId` lowers to the `mbcnt`.
+    // Other subgroup-related builtins are computed from standard getters
+    // (workgroup size, local ID etc.) and constants (subgroup max size := 32),
+    // so we can't filter them out here.
+    return F->getIntrinsicID() != Intrinsic::amdgcn_mbcnt_hi ||
+           F->getIntrinsicID() != Intrinsic::amdgcn_mbcnt_lo;
+  }
+
+  void getLocalGridInfoIntrinsics(uint32_t Idx, unsigned &WorkGroupId,
+                                  unsigned &LocalSize,
+                                  unsigned &LocalId) const override {
+
+    WorkGroupId = Intrinsic::nvvm_read_ptx_sreg_ctaid_x + Idx;
+    LocalSize = Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx;
+    LocalId = Intrinsic::nvvm_read_ptx_sreg_tid_x + Idx;
+  }
+
+  Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
+                                   StringRef OrigName, Module *M,
+                                   const NDRange &SrcNDRange,
+                                   const NDRange &FusedNDRange) const override {
+    auto &Ctx = M->getContext();
+    IRBuilder<> Builder(Ctx);
+    uint32_t Idx = 0;
+
+    // Handle global offset first because its return type is different from the
+    // other index space getters.
+    if (K != BuiltinKind::GlobalOffsetRemapper) {
+      auto Suffix = OrigName.take_back();
+      assert(Suffix[0] >= 'x' && Suffix[0] <= 'z');
+      Idx = Suffix[0] - 'x';
+    }
+    const std::string Name =
+        Remapper::getFunctionName(K, SrcNDRange, FusedNDRange, Idx);
+    assert(!M->getFunction(Name) && "Function name should be unique");
+
+    return createRemapperFunctionWithIdx(R, K, Idx, Name, M, SrcNDRange,
+                                         FusedNDRange);
+  }
+
+  Error collectDispatchedId(
+      Instruction *Call,
+      llvm::SmallMapVector<Instruction *, std::pair<BuiltinKind, uint32_t>, 16>
+          &IdxAccess) const {
+    llvm::SmallVector<std::pair<Instruction *, APInt>, 32> OffsetTracker;
+    const DataLayout &DL = Call->getModule()->getDataLayout();
+    llvm::for_each(Call->users(), [&](User *U) {
+      if (Instruction *I = dyn_cast<Instruction>(U)) {
+        OffsetTracker.push_back({I, APInt{32, 0, /*isSigned=*/true}});
+      }
+    });
+
+    while (!OffsetTracker.empty()) {
+      auto [I, Offset] = OffsetTracker.pop_back_val();
+      for (User *U : I->users()) {
+        Instruction *InsnUser = dyn_cast<Instruction>(U);
+        if (!InsnUser)
+          continue;
+        if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(U)) {
+          APInt GEPOffset{DL.getIndexSizeInBits(GEP->getPointerAddressSpace()),
+                          0, /*isSigned=*/true};
+          if (GEP->accumulateConstantOffset(DL, GEPOffset)) {
+            OffsetTracker.push_back({GEP, Offset + GEPOffset});
+          }
+        } else if (LoadInst *Load = dyn_cast<LoadInst>(U)) {
+          BuiltinKind BK;
+          uint32_t dim = 0;
+          int64_t OffsetInt = Offset.getSExtValue();
+          // Offset are in byte
+          switch (OffsetInt) {
+          case 4:
+            BK = BuiltinKind::LocalSizeRemapper;
+            dim = 0;
+            break;
+          case 6:
+            BK = BuiltinKind::LocalSizeRemapper;
+            dim = 1;
+            break;
+          case 8:
+            BK = BuiltinKind::LocalSizeRemapper;
+            dim = 2;
+            break;
+          case 12:
+            BK = BuiltinKind::GlobalSizeRemapper;
+            dim = 0;
+            break;
+          case 16:
+            BK = BuiltinKind::GlobalSizeRemapper;
+            dim = 1;
+            break;
+          case 20:
+            BK = BuiltinKind::GlobalSizeRemapper;
+            dim = 2;
+            break;
+          default:
+            if (OffsetInt >= 4 && OffsetInt <= 23) {
+              return createStringError(inconvertibleErrorCode(),
+                                       "Internal error, invalid offset");
+            }
+            // dispatch ptr is used for various usage, no remapping needed in
+            // those cases.
+            return Error::success();
+          }
+          IdxAccess.insert({Load, {BK, dim}});
+        }
+
+        return createStringError(inconvertibleErrorCode(),
+                                 "Cannot track dispatch ptr use");
+      }
+    }
+  }
+
+  Expected<Function *> scanForBuiltinsToRemap(
+      Function *F, Remapper &R, const jit_compiler::NDRange &SrcNDRange,
+      const jit_compiler::NDRange &FusedNDRange) const override {
+    llvm::SmallMapVector<Instruction *, std::pair<BuiltinKind, uint32_t>, 16>
+        IdxAccess;
+
+    for (auto &I : instructions(F)) {
+      if (auto *Call = dyn_cast<CallBase>(&I)) {
+        // Recursive call
+        auto *OldF = Call->getCalledFunction();
+        if (OldF->getIntrinsicID() == Intrinsic::amdgcn_dispatch_ptr) {
+          collectDispatchedId(Call, IdxAccess);
+          continue;
+        }
+        auto ErrOrNewF = R.remapBuiltins(OldF, SrcNDRange, FusedNDRange);
+        if (auto Err = ErrOrNewF.takeError()) {
+          return std::move(Err);
+        }
+        // Override called function.
+        auto *NewF = *ErrOrNewF;
+        Call->setCalledFunction(NewF);
+        Call->setCallingConv(NewF->getCallingConv());
+        Call->setAttributes(NewF->getAttributes());
+      }
+    }
+
+    llvm::SmallDenseMap<
+        std::tuple<uint8_t, uint32_t, const NDRange *, const NDRange *>,
+        Function *>
+        DispatchRemap;
+    Module *M = F->getParent();
+    for (auto &Elt : IdxAccess) {
+      auto *V = Elt.first;
+      auto [BK, Idx] = Elt.second;
+      Function *&Cache = DispatchRemap[decltype(DispatchRemap)::key_type{
+          static_cast<uint8_t>(BK), Idx, &SrcNDRange, &FusedNDRange}];
+      if (!Cache) {
+        const auto Name =
+            Remapper::getFunctionName(BK, SrcNDRange, FusedNDRange, Idx);
+
+        if (!(Cache = M->getFunction(Name))) {
+          Cache = createRemapperFunctionWithIdx(
+              R, BK, Idx, Name, F->getParent(), SrcNDRange, FusedNDRange);
+        }
+      }
+      IRBuilder<> Builder(V);
+      auto *Call = Builder.CreateCall(F);
+      Call->setAttributes(F->getAttributes());
+      Call->setCallingConv(F->getCallingConv());
+      V->replaceAllUsesWith(Call);
+    }
+  }
 };
 #endif // FUSION_JIT_SUPPORT_ADMGCN
 
@@ -911,6 +1161,13 @@ bool TargetFusionInfo::shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
   return Impl->shouldRemap(K, SrcNDRange, FusedNDRange);
 }
 
+Expected<Function *> TargetFusionInfo::scanForBuiltinsToRemap(
+    Function *F, jit_compiler::Remapper &R,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange) const {
+  return Impl->scanForBuiltinsToRemap(F, R, SrcNDRange, FusedNDRange);
+}
+
 bool TargetFusionInfo::isSafeToNotRemapBuiltin(Function *F) const {
   return Impl->isSafeToNotRemapBuiltin(F);
 }
@@ -930,9 +1187,9 @@ Value *TargetFusionInfo::getGlobalIDWithoutOffset(IRBuilderBase &Builder,
 }
 
 Function *TargetFusionInfo::createRemapperFunction(
-    const Remapper &R, BuiltinKind K, StringRef OrigName, StringRef Name,
-    Module *M, const NDRange &SrcNDRange, const NDRange &FusedNDRange) const {
-  return Impl->createRemapperFunction(R, K, OrigName, Name, M, SrcNDRange,
+    const Remapper &R, BuiltinKind K, Function *F, Module *M,
+    const NDRange &SrcNDRange, const NDRange &FusedNDRange) const {
+  return Impl->createRemapperFunction(R, K, F->getName(), M, SrcNDRange,
                                       FusedNDRange);
 }
 
