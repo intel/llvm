@@ -88,13 +88,14 @@ satisfied.
 
 ## Device headers and libraries
 
-SYCL runtime headers declare various algorithms and built-in functions to be
-used in device code. A large portion of such algorithms and built-in functions
-are simple enough to be implemented in the headers (for example, those directly
-lowered into SPIR-V built-ins), but some have more complex implementations (for
-example, fallback implementations for functionality that might not be supported
-natively). The more complex implementations are available in the form of several
-pre-built device libraries that are linked with the user device code either
-during ahead-of-time compilation or at runtime by the program manager, using the
-information about device library dependencies embedded in device image wrappers
-by SYCL compilation tools.
+SYCL runtime headers provide declarations of various algorithms and
+built-in functions to be used in device code. A large portion of such
+algorithms and built-in functions are simple enough to be implemented in
+the headers (for example, those directly lowered into SPIR-V built-ins),
+but some have more complex implementations (for example, fallback
+implementations for functionality that might not be supported natively).
+The more complex implementations are available in the form of several
+pre-built device libraries that are linked with the user device code
+either during ahead-of-time compilation or at runtime by the program
+manager, using the information about device library dependencies
+embedded in device image wrappers by SYCL compilation tools.
