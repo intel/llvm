@@ -85,6 +85,10 @@ Adapter Change Process
     *   Update the `UNIFIED_RUNTIME_TAG`_ to point at the
         *oneapi-src/unified-runtime* commit/tag containing the merged adapter
         changes.
+    *   Update the pull request description, linking to any other *intel/llvm*
+        pull requests who's changes have been merged into
+        *oneapi-src/unified-runtime* but have not yet been merge into
+        *intel/llvm*.
     *   Mark the *intel/llvm* pull request as ready for review and follow their
         review process.
 
