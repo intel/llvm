@@ -205,7 +205,7 @@ transformation.
 
 === Load/Store/Fill With Out-of-Bounds Checks
 `joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_fill`
-operations do not do bounds checking. When the global matrix size is
+operations do not perform bounds checking. When the global matrix size is
 not multiple of the joint matrix size, this extension adds a new form
 of API to load, store, and fill joint matrix while checking the
 bounds. For load and fill, the out-of-bounds elements are set to
@@ -216,6 +216,35 @@ checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
 `joint_matrix_store`, but they take extra arguments to determine the
 global bounds `Height` and `Width` of the two-dimensional region to
 load to or store from.
+
+The two-dimensional memory region is interpreted as follows, where
+`Height` is number of rows in the memory matrix, `Width` is number of
+columns in the memory matrix, `stride` is number of rows that include
+the out of bounds data (depicted as x here).
+
+|<-------------`Width`---------->|
+
+|DDDDDDDDDDDDDDDDDxxx|
+
+|DDDDDDDDDDDDDDDDDxxx|
+
+|......................................................| `Height`
+
+|DDDDDDDDDDDDDDDDDxxx|
+
+|DDDDDDDDDDDDDDDDDxxx|
+
+|<------------`Stride`---------->|
+ 
+Note that joint matrix shape `Rows` and `Cols` represents a sub-block
+of the picture above for each sub-group execution. At the last
+iteration of the range of the launched kernel, the remainder that
+should exclude the out-of-bounds data is checked against `Width` and
+`Height`. For instance, load of `sub_b` defined as
+`joint_matrix<sub_group, bfloat16, use::b, 2, 3, layout::row_major> sub_b;`
+checks that `Height=10` is not multiple of `3` and the data (2
+elements left) that exceeds getting the total `10` rows will be filled
+by zero.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -395,4 +424,6 @@ q.wait();
 |Rev |Date       |Author     |Changes
 |1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API,
 layout information, and `joint_matrix_apply` with coordinates API
+|2   |2023-10-19 |Dounia Khaldi |Add Intel-specific out-of-bounds
+load/store/fill APIs
 |======================
