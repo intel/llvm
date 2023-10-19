@@ -748,32 +748,26 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    if (MPreventSubmit.count(std::this_thread::get_id())) {
+    // Flag used to detect nested calls to submit and report an error.
+    thread_local static bool PreventSubmit = false;
+
+    if (PreventSubmit) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Calls to sycl::queue::submit cannot be nested. Command group "
           "function objects should use the sycl::handler API instead.");
     }
 
-    auto SetMPreventSubmit = [&](bool Value) -> void {
-      std::lock_guard<std::mutex> Lock(MMutex);
-      if (Value) {
-        MPreventSubmit.insert(std::this_thread::get_id());
-      } else {
-        MPreventSubmit.erase(std::this_thread::get_id());
-      }
-    };
-
     handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
-    SetMPreventSubmit(true);
+    PreventSubmit = true;
     try {
       CGF(Handler);
     } catch (...) {
-      SetMPreventSubmit(false);
+      PreventSubmit = false;
       throw;
     }
-    SetMPreventSubmit(false);
+    PreventSubmit = false;
 
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
@@ -849,9 +843,6 @@ protected:
   /// Indicates that a native out-of-order queue could not be created and we
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
-
-  // Set used to detect nested calls to submit and report an error.
-  std::unordered_set<std::thread::id> MPreventSubmit;
 
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
