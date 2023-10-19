@@ -79,6 +79,10 @@ int main() {
               sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
               N, layout::row_major);
 
+          auto round_lambda = [](auto &x) { x = round_to_tf32(x); };
+          //CHECK-OPAQUE: tail call i32 @llvm.nvvm.f2tf32.rna(float %{{.*}})
+          joint_matrix_apply(sg, sub_a, round_lambda);
+
           joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 {{.*}}
           joint_matrix_store(
