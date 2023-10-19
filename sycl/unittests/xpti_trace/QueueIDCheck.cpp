@@ -66,7 +66,22 @@ public:
   }
 };
 
+pi_queue QueueHandle = nullptr;
+inline pi_result redefinedQueueCreate(pi_context, pi_device,
+                                    pi_queue_properties*,
+                                    pi_queue *queue) {
+  std::cout << "called" << std::endl;
+  QueueHandle = nullptr;                     
+  if (queue)
+    QueueHandle = *queue;
+  return PI_SUCCESS;
+}
+
 TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
+  sycl::platform Plt{MockPlugin.getPlatform()};
+  MockPlugin.redefineAfter<detail::PiApiKind::piextQueueCreate>(
+      redefinedQueueCreate);
+  sycl::context Context{Plt};
   addAnalyzedTraceType(xpti::trace_queue_create);
   addAnalyzedTraceType(xpti::trace_queue_destroy);
   uint16_t TraceType = 0;
@@ -74,18 +89,23 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
   std::string Queue0IDSTr;
   std::string Queue1IDSTr;
   {
-    sycl::queue Q0; 
+    sycl::queue Q0{Context, sycl::default_selector{}}; 
     auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
     Queue0IDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue0IDSTr));
-    sycl::queue Q1;
+    ASSERT_NE(QueueHandle, nullptr);
+    EXPECT_THAT(Message, HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
+
+    sycl::queue Q1{Context, sycl::default_selector{}};
     auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
     Queue1IDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue1IDSTr));
+    ASSERT_NE(QueueHandle, nullptr);
+    EXPECT_THAT(Message, HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
   }
 
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));

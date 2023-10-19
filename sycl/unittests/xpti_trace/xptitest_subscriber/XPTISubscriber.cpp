@@ -77,10 +77,10 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
             Message.append(std::string("create:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
             Message.append(";");
           }
-          // else if (Key == "handle") {
-          //   Message.append(Key.data() + std::string(":") /*+ Item.second*/);
-          //   Message.append(";");
-          // }
+          else if (Key == "handle") {
+            Message.append(Key.data() + std::string(":") + std::to_string(ulong(xpti::getMetadata<void*>(Item).second)));
+            Message.append(";");
+          }
         }
         GReceivedNotifications.push_back(
                 std::make_pair(TraceType, Message));
@@ -96,10 +96,10 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
             Message.append(std::string("destroy:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
             Message.append(";");
           }
-          // else if (Key == "handle") {
-          //   Message.append(Key.data() + std::string(":") /*+ Item.second*/);
-          //   Message.append(";");
-          // }
+          else if (Key == "handle") {
+            Message.append(Key.data() + std::string(":") + std::to_string(ulong(xpti::getMetadata<void*>(Item).second)));
+            Message.append(";");
+          }
         }
         GReceivedNotifications.push_back(
                 std::make_pair(TraceType, Message));
