@@ -358,12 +358,6 @@ public:
         {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
 
-        // intrinsics to query thread's coordinates:
-        {"group_id_x", {"group.id.x", {}}},
-        {"group_id_y", {"group.id.y", {}}},
-        {"group_id_z", {"group.id.z", {}}},
-        {"local_id", {"local.id", {}}},
-        {"local_size", {"local.size", {}}},
         {"svm_atomic0", {"svm.atomic", {ai1(1), a(0), u(-1)}, bo(0)}},
         {"svm_atomic1", {"svm.atomic", {ai1(2), a(0), a(1), u(-1)}, bo(0)}},
         {"svm_atomic2",
