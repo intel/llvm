@@ -519,10 +519,10 @@ R operatorOP(const annotated_arg<T2, PropertyList2> &other) const;
 |
 Defines the overloaded operators for types `annotated_arg<T, ...>` and
 `annotated_arg<T2, ...>`. Let `operatorOP` denote the operator used.
-The overloaded operator `operatorOP` utilizes `operatorOP(T2)` of type `T`
-and is available only if `operatorOP(T2)` is valid for objects of type `T`.
-The value and result is the same as the result of `operatorOP(T2)` applied to the
-objects of type `T` and `T2`.
+The overloaded operator `operatorOP` utilizes `operatorOP(T, T2)` and
+is available only if `operatorOP(T, T2)` is well formed. The value and result
+is the same as the result of `operatorOP(T, T2)` applied to the objects of
+type `T` and `T2`.
 
 `operatorOP` is any of the following: `operator+`, `operator-`, `operator*`, `operator/`,
 `operator%`, `operator&`, `operator\|`, `operator^`, `operator>>`, and `operator<<`.
@@ -532,9 +532,8 @@ objects of type `T` and `T2`.
 Free functions of the following form are defined for the overloaded operators for types
 `annotated_arg<T, ...>` and raw type `T2`. Let `operatorOP` denote the operator used.
 The overloaded operator `operatorOP` utilizes `operatorOP(T, T2)` and is available only
-if `operatorOP(T, T2)` is valid for objects of type `T` and `T2`. The value and result
-is the same as the result of `operatorOP(T, T2)` applied to the underlying objects of
-type `T` and `T2`.
+if `operatorOP(T, T2)` is well formed. The value and result is the same as the result of
+`operatorOP(T, T2)` applied to the underlying objects of type `T` and `T2`.
 
 [source,c++]
 ----
