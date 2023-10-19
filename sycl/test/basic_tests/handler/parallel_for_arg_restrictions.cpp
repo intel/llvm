@@ -84,6 +84,15 @@ int main() {
     CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
   });
 #endif // SYCL2020_CONFORMANT_APIS
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for(sycl::range{1}, [=](auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
+  });
+  Q.submit([&](sycl::handler &CGH) {
+    CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
+  });
 
   // Range parallel_for with nd_item.
   Q.submit([&](sycl::handler &CGH) {
