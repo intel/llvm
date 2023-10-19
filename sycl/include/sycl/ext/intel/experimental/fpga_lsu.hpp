@@ -57,10 +57,9 @@ public:
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     _T *P = Ptr;
-    if constexpr (!std::is_same_v<
-                      _propertiesT,
-                      oneapi::experimental::detail::empty_properties_t>) {
-      detail::annotated<_T *, _propertiesT> annotated_wrapper(Ptr);
+    if constexpr (!std::is_same_v<_propertiesT,
+                                  oneapi::experimental::empty_properties_t>) {
+      detail::AnnotatedMemberValue<_T *, _propertiesT> annotated_wrapper(Ptr);
       P = annotated_wrapper.MValue;
     }
     return *__builtin_intel_fpga_mem(
@@ -86,10 +85,9 @@ public:
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
     _T *P = Ptr;
-    if constexpr (!std::is_same_v<
-                      _propertiesT,
-                      oneapi::experimental::detail::empty_properties_t>) {
-      detail::annotated<_T *, _propertiesT> annotated_wrapper(Ptr);
+    if constexpr (!std::is_same_v<_propertiesT,
+                                  oneapi::experimental::empty_properties_t>) {
+      detail::AnnotatedMemberValue<_T *, _propertiesT> annotated_wrapper(Ptr);
       P = annotated_wrapper.MValue;
     }
     *__builtin_intel_fpga_mem(

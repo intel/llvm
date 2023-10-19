@@ -139,13 +139,12 @@ public:
     __ocl_RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
-    if constexpr (std::is_same_v<
-                      _functionPropertiesT,
-                      oneapi::experimental::detail::empty_properties_t>) {
+    if constexpr (std::is_same_v<_functionPropertiesT,
+                                 oneapi::experimental::empty_properties_t>) {
       Success = !static_cast<bool>(
           __spirv_ReadPipe(_RPipe, &TempData, m_Size, m_Alignment));
     } else {
-      detail::annotated<__ocl_RPipeTy<_dataT>, _functionPropertiesT>
+      detail::AnnotatedMemberValue<__ocl_RPipeTy<_dataT>, _functionPropertiesT>
           annotated_wrapper(_RPipe);
       Success = !static_cast<bool>(__spirv_ReadPipe(
           annotated_wrapper.MValue, &TempData, m_Size, m_Alignment));
@@ -171,13 +170,12 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
-    if constexpr (std::is_same_v<
-                      _functionPropertiesT,
-                      oneapi::experimental::detail::empty_properties_t>) {
+    if constexpr (std::is_same_v<_functionPropertiesT,
+                                 oneapi::experimental::empty_properties_t>) {
       Success = !static_cast<bool>(
           __spirv_WritePipe(_WPipe, &Data, m_Size, m_Alignment));
     } else {
-      detail::annotated<__ocl_WPipeTy<_dataT>, _functionPropertiesT>
+      detail::AnnotatedMemberValue<__ocl_WPipeTy<_dataT>, _functionPropertiesT>
           annotated_wrapper(_WPipe);
       Success = !static_cast<bool>(__spirv_WritePipe(
           annotated_wrapper.MValue, &Data, m_Size, m_Alignment));
@@ -252,12 +250,11 @@ public:
     __ocl_RPipeTy<_dataT> _RPipe =
         __spirv_CreatePipeFromPipeStorage_read<_dataT>(&m_Storage);
     _dataT TempData;
-    if constexpr (std::is_same_v<
-                      _functionPropertiesT,
-                      oneapi::experimental::detail::empty_properties_t>) {
+    if constexpr (std::is_same_v<_functionPropertiesT,
+                                 oneapi::experimental::empty_properties_t>) {
       __spirv_ReadPipeBlockingINTEL(_RPipe, &TempData, m_Size, m_Alignment);
     } else {
-      detail::annotated<__ocl_RPipeTy<_dataT>, _functionPropertiesT>
+      detail::AnnotatedMemberValue<__ocl_RPipeTy<_dataT>, _functionPropertiesT>
           annotated_wrapper(_RPipe);
       __spirv_ReadPipeBlockingINTEL(annotated_wrapper.MValue, &TempData, m_Size,
                                     m_Alignment);
@@ -280,12 +277,11 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_WPipeTy<_dataT> _WPipe =
         __spirv_CreatePipeFromPipeStorage_write<_dataT>(&m_Storage);
-    if constexpr (std::is_same_v<
-                      _functionPropertiesT,
-                      oneapi::experimental::detail::empty_properties_t>) {
+    if constexpr (std::is_same_v<_functionPropertiesT,
+                                 oneapi::experimental::empty_properties_t>) {
       __spirv_WritePipeBlockingINTEL(_WPipe, &Data, m_Size, m_Alignment);
     } else {
-      detail::annotated<__ocl_WPipeTy<_dataT>, _functionPropertiesT>
+      detail::AnnotatedMemberValue<__ocl_WPipeTy<_dataT>, _functionPropertiesT>
           annotated_wrapper(_WPipe);
       __spirv_WritePipeBlockingINTEL(annotated_wrapper.MValue, &Data, m_Size,
                                      m_Alignment);

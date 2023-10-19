@@ -33,17 +33,18 @@ struct _GetValue<_Type, _T1, _T...> {
 };
 
 template <typename T, typename PropertyListT =
-                          ext::oneapi::experimental::detail::empty_properties_t>
-class annotated {
+                          ext::oneapi::experimental::empty_properties_t>
+class AnnotatedMemberValue {
   static_assert(oneapi::experimental::is_property_list<PropertyListT>::value,
                 "Property list is invalid.");
 };
 
 template <typename T, typename... Props>
-class annotated<T, oneapi::experimental::detail::properties_t<Props...>> {
+class AnnotatedMemberValue<
+    T, oneapi::experimental::detail::properties_t<Props...>> {
 public:
-  annotated() {}
-  annotated(T Value) : MValue(Value) {}
+  AnnotatedMemberValue() {}
+  AnnotatedMemberValue(T Value) : MValue(Value) {}
   T MValue [[__sycl_detail__::add_ir_annotations_member(
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]];
