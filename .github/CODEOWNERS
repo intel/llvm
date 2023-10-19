@@ -161,4 +161,3 @@ sycl/test-e2e/DeviceCodeSplit/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers
-sycl/test-e2e/Plugin/*level_zero* @intel/dpcpp-l0-pi-reviewers
