@@ -76,7 +76,7 @@ class device_global {/*...*/};
 template <typename T, typename ...Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_global_variable(
+  [[__sycl_detail__::add_ir_annotations_global_variable(
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
@@ -99,7 +99,7 @@ namespace sycl::ext::oneapi {
 
 template </* ... */> class
 #ifdef __SYCL_DEVICE_ONLY__
-  [[__sycl_detail__::add_ir_attributes_global_variable(
+  [[__sycl_detail__::add_ir_annotations_global_variable(
     "sycl-device-image-scope",  // Name of first property
     "sycl-host-access",         // Name of second property
     nullptr,                    // First property has no parameter
@@ -110,12 +110,15 @@ template </* ... */> class
 
 } // namespace sycl::ext::oneapi
 ```
+An entry is added to the `@llvm.global.annotations` list, as described in
+[IR representation via `@llvm.global.annotations`][5], whenever a 
+[LLVM IR global variable][3] which is associated with a type decorated with
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute is 
+defined. Associations may include, but are not limited to:
 
-When the device compiler creates an [LLVM IR global variable][3] of the 
-annotated class it will use the
-`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute to generate
-entries in the `@llvm.global.annotations` list, as described in
-[IR representation via `@llvm.global.annotations`][5].
+* A type that is directly decorated by the attribute
+* An array of the type that is decorated by the attribute
+* A type whose member variable is decorated by the attribute
 
 In the example below, the annotated type `fpga_mem` itself has
 `[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute. Both the
@@ -123,13 +126,33 @@ attributes on the `device_global` and on `fpga_mem` will generate entries in the
 `@llvm.global.annotations` list.
 
 ```cpp
-device_global<fpga_mem<int[4], decltype(properties(word_size<2>))>, decltype(properties(host_access_none))> dg;
+namespace sycl::ext::intel {
+
+template <typename T, typename ...Props>
+class
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_annotations_global_variable(
+    "sycl-resource", Props::meta_name..., "DEFAULT", Props::meta_value...
+    )]]
+#endif
+  fpga_mem<T, properties<Props...>> {/*...*/};
+
+} // namespace sycl::ext::intel
+
+namespace intel = sycl::ext::intel;
+namespace oneapi = sycl::ext::oneapi;
+
+oneapi::device_global<
+  intel::fpga_mem<
+    int[4],
+    decltype(oneapi::properties(intel::word_size<2>))>,
+  decltype(oneapi::properties(oneapi::host_access_none))> dg;
 ```
 
 The device compiler front-end ignores the
 `[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute when it is
-applied not to the object definition, and the variable of that type is not
-declared at namespace scope. 
+applied not to the object definition, or a variable of a type decorated with 
+this attribute is not declared at namespace scope. 
 
 Note that the front-end does not need to understand any of the properties in
 order to do this translation.
@@ -621,7 +644,14 @@ annotation was applied.
 * ptr to annotation arguments, `null` pointer in our case 
 
 ```cpp
-device_global<fpga_mem<int[4], decltype(properties(word_size<2>))>, decltype(properties(host_access_none))> dg;
+namespace intel = sycl::ext::intel;
+namespace oneapi = sycl::ext::oneapi;
+
+oneapi::device_global<
+  intel::fpga_mem<
+    int[4],
+    decltype(oneapi::properties(intel::word_size<2>))>,
+  decltype(oneapi::properties(oneapi::host_access_none))> dg;
 ```
 
 Below is what the LLVM IR will look like for the SYCL code above.
@@ -630,9 +660,9 @@ Below is what the LLVM IR will look like for the SYCL code above.
 %"fpga_mem" = type { [4 x i32] }
 %"device_global" = type { %"fpga_mem" }
 
-@.str = private unnamed_addr addrspace(1) constant [25 x i8] c"{5826:DEFAULT}{5884:2}\00"
+@.str = private unnamed_addr addrspace(1) constant [25 x i8] c"{sycl-resource:DEFAULT}{5884:2}\00"
 @.str.1 = private unnamed_addr addrspace(1) constant [14 x i8] c"example.cpp\00"
-@.str.2 = private unnamed_addr addrspace(1) constant [11 x i8] c"{6168:0}\00"
+@.str.2 = private unnamed_addr addrspace(1) constant [11 x i8] c"{sycl-word-size:2}\00"
 
 @dg = dso_local local_unnamed_addr addrspace(1) global { %"device_global" } zeroinitializer
 @llvm.global.annotations = appending global 
@@ -832,9 +862,9 @@ define spir_kernel void @MyKernel(%arg1, %arg2) !spirv.ParameterDecorations !0 {
 When a property on a global variable needs to be represented in SPIR-V, we
 generally translate the property into a SPIR-V **OpDecorate** instruction for
 the corresponding module scope (global) **OpVariable**. If the property is 
-applied onto a nested property it will still be translated into a SPIR-V
-**OpDecorate** instruction but will just be applied onto the result of a SPIR-V
-**SpecConstantOp** call.
+applied on any of the nested member variables of the global variable it will
+still be translated into a SPIR-V **OpDecorate** instruction but will just be
+applied onto the result of a SPIR-V **SpecConstantOp** call.
 
 An LLVM IR global variable definition may optionally have a metadata kind of
 `!spirv.Decorations`.  If it does, that metadata node has one operand for each
