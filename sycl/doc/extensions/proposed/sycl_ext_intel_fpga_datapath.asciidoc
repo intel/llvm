@@ -129,7 +129,7 @@ class fpga_datapath {
 `fpga_datapath` is a class template, parameterized by the type of the underlying
 allocation _T_ which encodes the size of the allocation.
 
-`fpga_datapath` initializes the underlying object of type `T` with the values passed into its constructor. If no values are passed into the constructor C++ default initialization rules will dictate the value of the underlying object `T`.
+`fpga_datapath` initializes the underlying object of type `T` with the values passed into its constructor. If no values are passed into the constructor, the C++ default-initialization rules will dictate the value of the underlying object `T`.
 
 [NOTE]
 ====
