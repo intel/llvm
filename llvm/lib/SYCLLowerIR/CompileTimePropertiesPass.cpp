@@ -645,8 +645,14 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     // always valid, even if the decoration parameters are not strings.
     NewAnnotString += "{" + std::to_string(DecorCode);
     if (PropVal)
-      NewAnnotString += ":\"" + PropVal->str() + "\"";
-    NewAnnotString += "}";
+      NewAnnotString += ":\"" + PropVal->str();
+
+    if (PropName == "sycl-prefetch-hint")
+      NewAnnotString += ",1"; // WriteThroughINTEL
+    if (PropName == "sycl-prefetch-hint-nt")
+      NewAnnotString += ",2"; // WriteBackINTEL
+
+    NewAnnotString += "\"}";
   }
 
   // If the new annotation string is empty there is no reason to keep it, so
