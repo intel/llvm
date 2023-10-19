@@ -47,6 +47,12 @@ sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
 sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
+# CUDA specific runtime implementations
+sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
+
+# CUDA device code tests
+sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
+
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
 xptifw/ @intel/llvm-reviewers-runtime
@@ -108,6 +114,7 @@ sycl/test-e2e/KernelFusion @intel/dpcpp-kernel-fusion-reviewers
 # Matrix
 sycl/include/sycl/ext/oneapi/matrix/ @dkhaldi @YuriPlyakhin @yubingex007-a11y
 sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
+sycl/test/matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
 
 # Native CPU
 llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 

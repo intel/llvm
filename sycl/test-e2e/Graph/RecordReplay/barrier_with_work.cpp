@@ -62,7 +62,7 @@ event run_kernels_usm_with_barrier(queue Q, const size_t Size, T *DataA,
 }
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   using T = int;
 

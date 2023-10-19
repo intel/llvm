@@ -138,6 +138,9 @@ void test_permute_sub_group_by_xor() {
 
   dev_ct1.queues_wait_and_throw();
   verify_data<unsigned int>(dev_data_u, expect2, DATA_NUM);
+
+  sycl::free(dev_data, *q_ct1);
+  sycl::free(dev_data_u, *q_ct1);
 }
 
 int main() {

@@ -789,9 +789,8 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (FD->hasAttr<SYCLIntelDisableLoopPipeliningAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt32(1))};
-    Fn->setMetadata("disable_loop_pipelining",
-                    llvm::MDNode::get(Context, AttrMDArgs));
+        llvm::ConstantAsMetadata::get(Builder.getInt32(0))};
+    Fn->setMetadata("pipeline_kernel", llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
@@ -1438,11 +1437,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       SkippedChecks.set(SanitizerKind::ObjectSize, true);
       QualType ThisTy = MD->getThisType();
 
-      // If this is the call operator of a lambda with no capture-default, it
+      // If this is the call operator of a lambda with no captures, it
       // may have a static invoker function, which may call this operator with
       // a null 'this' pointer.
-      if (isLambdaCallOperator(MD) &&
-          MD->getParent()->getLambdaCaptureDefault() == LCD_None)
+      if (isLambdaCallOperator(MD) && MD->getParent()->isCapturelessLambda())
         SkippedChecks.set(SanitizerKind::Null, true);
 
       EmitTypeCheck(
