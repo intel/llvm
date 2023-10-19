@@ -30,8 +30,8 @@
 
 // CHECK-LIST-LENGTH: 2
 
-// RUN: cmp %t_unbundled.bc `cat %t_list.txt | grep .bc$`
-// RUN: cmp %t_unbundled.o  `cat %t_list.txt | grep .o$`
+// RUN: cmp %t_unbundled.bc `grep .bc$ %t_list.txt`
+// RUN: cmp %t_unbundled.o  `grep .o$  %t_list.txt`
 
 void foo() {
 }
