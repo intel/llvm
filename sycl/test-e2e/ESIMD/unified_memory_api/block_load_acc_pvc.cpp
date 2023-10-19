@@ -1,4 +1,4 @@
-//==------- block_load_usm_pvc.cpp - DPC++ ESIMD on-device test ------------==//
+//==------- block_load_acc_pvc.cpp - DPC++ ESIMD on-device test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

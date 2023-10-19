@@ -225,7 +225,7 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 
 namespace detail {
 // Accessors may get either 32-bit offset or 64-bit depending on
-// the -fsycl-esimd-force-stateles-mem mode settigs.
+// the -fsycl-esimd-force-stateles-mem mode setting.
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 using DeviceAccessorOffsetT = uint64_t;
 #else
@@ -394,7 +394,6 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
 /// @tparam AccessorT is the \ref sycl::accessor type.

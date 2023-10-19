@@ -197,7 +197,7 @@ __esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @tparam SurfIndAliasT is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param surf_ind is the surface index.
@@ -268,6 +268,10 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// TODO: Either remove this function as unused, or (better) use it instead
+// of __esimd_gather_masked_scaled2() as more efficient in those cases
+// when the mask is not explicitly passed to esimd::gather() call.
+//
 // Low-level surface-based gather. Collects elements located at given offsets in
 // a surface and returns them as a single \ref simd object. Element can be
 // 1, 2 or 4-byte value, but is always returned as a 4-byte value within the
@@ -280,8 +284,6 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 // @tparam TySizeLog2 - Log2 of the number of bytes read per element:
 //   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
 // @tparam Scale - offset scaling factor; must be zero currently
-// @tparam L1H - L1 cache hint
-// @tparam L2H - L2 cache hint
 //
 // Formal parameters:
 // @param surf_ind - the surface index, taken from the SYCL memory object
@@ -317,8 +319,6 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 // @tparam TySizeLog2 - Log2 of the number of bytes written per element:
 //   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
 // @tparam Scale - offset scale; only 0 is supported for now
-// @tparam L1H - L1 cache hint
-// @tparam L2H - L2 cache hint
 //
 // Formal parameters:
 // @param pred - per-element predicates; elements with zero corresponding
