@@ -1,6 +1,6 @@
 // RUN: %clangxx -%fsycl-host-only -c -ffp-accuracy=high -faltmathlib=SVMLAltMathLibrary -fno-math-errno %s
 
-#include <sycl/sycl.hpp> 
+#include <sycl/sycl.hpp>
 using namespace sycl;
 
 int main() {
@@ -8,8 +8,8 @@ int main() {
   double Value = 5.;
 
   deviceQueue.submit([&](handler &cgh) {
-    cgh.single_task<class Kernel0>([=]() { double res=  std::sin(Value); });
-   });
+    cgh.single_task<class Kernel0>([=]() { double res = std::sin(Value); });
+  });
 
   return 0;
 }
