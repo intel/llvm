@@ -3,9 +3,9 @@
 ; Test checks that the pass is able to propagate information about used joint_matrix
 ; through a call graph
 ;
-;    K1  K2
-;    |   / \
-;    |  F4 JMM1
+;    K1  K2         F5
+;    |   / \        / \
+;    |  F4 JMM1   JM5 JM6
 ;    | /  \
 ;    F1   JM4
 ;   / | \
@@ -83,6 +83,23 @@ define spir_func void @joint_matrix_mad1() #8 {
   ret void
 }
 
+; CHECK: define spir_func void @func5() #0 !sycl_joint_matrix ![[#ID5:]] {
+define spir_func void @func5() #0 {
+  call spir_func void @joint_matrix5()
+  call spir_func void @joint_matrix6()
+  ret void
+}
+
+; CHECK: define spir_func void @joint_matrix5() #1 {
+define spir_func void @joint_matrix5() #1 {
+  ret void
+}
+
+; CHECK: define spir_func void @joint_matrix6() #3 {
+define spir_func void @joint_matrix6() #3 {
+  ret void
+}
+
 attributes #0 = { "sycl-joint-matrix-cols"="48" "sycl-joint-matrix-rows"="12" "sycl-joint-matrix-type"="matrix_type::sint8" "sycl-joint-matrix-use"="use::a" "sycl-module-id"="test.cpp" }
 attributes #1 = { "sycl-joint-matrix-cols"="48" "sycl-joint-matrix-rows"="12" "sycl-joint-matrix-type"="matrix_type::sint8" "sycl-joint-matrix-use"="use::a" }
 attributes #2 = { "sycl-joint-matrix-cols"="12" "sycl-joint-matrix-rows"="48" "sycl-joint-matrix-type"="matrix_type::sint8" "sycl-joint-matrix-use"="use::b" "sycl-module-id"="test.cpp" }
@@ -98,3 +115,4 @@ attributes #8 = { "sycl-joint-matrix-mad-size-M"="12" "sycl-joint-matrix-mad-siz
 ; CHECK: ![[#ID2]] = !{!"matrix_type::sint8,matrix_type::sint8,matrix_type::sint32,matrix_type::sint32,12,48,12"}
 ; CHECK: ![[#ID3]] = !{!"matrix_type::sint8,use::b,48,12"}
 ; CHECK: ![[#ID4]] = !{!"matrix_type::sint8,use::a,12,12"}
+; CHECK: ![[#ID5]] = !{!"matrix_type::sint8,use::a,12,48;matrix_type::sint8,use::b,48,12"}
