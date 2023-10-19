@@ -10,7 +10,8 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   #Date:   Tue Oct 17 13:47:03 2023 +0100
   # Merge pull request #943 from hdelan/re-add-extended-deleters
   # [HIP] Re add extended deleters
-  set(UNIFIED_RUNTIME_TAG f0de2f4d7930696d8dabcbbc2c39d0ccd77c7681)
+  # TODO don't merge
+  set(UNIFIED_RUNTIME_TAG 657ffde9a7fa720eb08bade5878287f383a9da79)
 
   if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
     set(UR_BUILD_ADAPTER_L0 ON)
