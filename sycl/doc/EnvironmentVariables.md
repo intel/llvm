@@ -90,9 +90,9 @@ Notes:
   `info::partition_affinity_domain::next_partitionable`.
   (See the SYCL 2020 specification for a precise definition.)
   The root device is determined by the underlying backend.
-- When using the Level Zero or OpenCL backends, see also the documentation of
-  the [`ZE_FLAT_DEVICE_HIERARCHY`][ze-env] environment variable because it
-  affects how these backends expose root devices to SYCL.
+- When using the Level Zero backend, see also the documentation of the
+  [`ZE_FLAT_DEVICE_HIERARCHY`][ze-env] environment variable because it affects
+  how this backend exposes root devices to SYCL.
   For Intel GPUs, the sub-device and sub-sub-device syntax can be used to
   expose tiles or CCSs to the SYCL application as SYCL root devices, however
   the exact mapping is determined by the `ZE_FLAT_DEVICE_HIERARCHY` environment
