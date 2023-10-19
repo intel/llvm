@@ -652,7 +652,9 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     if (PropName == "sycl-prefetch-hint-nt")
       NewAnnotString += ",2"; // WriteBackINTEL
 
-    NewAnnotString += "\"}";
+    if (PropVal)
+      NewAnnotString += "\"";
+    NewAnnotString += "}";
   }
 
   // If the new annotation string is empty there is no reason to keep it, so
