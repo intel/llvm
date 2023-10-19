@@ -92,25 +92,23 @@ public:
 template <class _A1, class _A2 = void, class _A3 = void>
 class __promote : public __promote_imp<_A1, _A2, _A3> {};
 
-template <class _Tp, bool = std::is_integral<_Tp>::value, bool = is_genfloat<_Tp>::value>
+template <class _Tp, bool = std::is_integral<_Tp>::value,
+          bool = is_genfloat<_Tp>::value>
 struct __libcpp_complex_overload_traits {};
 
 // Integral Types
-template <class _Tp>
-struct __libcpp_complex_overload_traits<_Tp, true, false> {
+template <class _Tp> struct __libcpp_complex_overload_traits<_Tp, true, false> {
   typedef double _ValueType;
   typedef complex<double> _ComplexType;
 };
 
 // Floating point types
-template <class _Tp>
-struct __libcpp_complex_overload_traits<_Tp, false, true> {
+template <class _Tp> struct __libcpp_complex_overload_traits<_Tp, false, true> {
   typedef _Tp _ValueType;
   typedef complex<_Tp> _ComplexType;
 };
 
 } // namespace cplx::detail
-
 
 ////////////////////////////////////////////////////////////////////////////////
 /// FUNCTIONS
