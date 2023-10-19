@@ -62,7 +62,7 @@ device_global<int, decltype(properties{device_image_scope, host_access_read})>
 ```
 
 The header file represents these properties with an internal C++ attribute
-named `[[__sycl_detail__::add_ir_attributes_global_variable()]]` whose value
+named `[[__sycl_detail__::add_ir_annotations_global_variable()]]` whose value
 is a list that is created through a template parameter pack expansion:
 
 ```
@@ -85,7 +85,7 @@ class
 } // namespace sycl::ext::oneapi
 ```
 
-The `[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute has an
+The `[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute has an
 even number of parameters, assuming that the optional "filter list" parameter
 is not specified (see below for a description of this parameter).  The first
 half of the parameters are the names of the properties, and the second half of
@@ -113,12 +113,12 @@ template </* ... */> class
 
 When the device compiler creates an [LLVM IR global variable][3] of the 
 annotated class it will use the
-`[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute to generate
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute to generate
 entries in the `@llvm.global.annotations` list, as described in
 [IR representation via `@llvm.global.annotations`][5].
 
 In the example below, the annotated type `fpga_mem` itself has
-`[[__sycl_detail__::add_ir_attributes_global_variable()]]` attribute. Both the
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute. Both the
 attributes on the `device_global` and on `fpga_mem` will generate entries in the
 `@llvm.global.annotations` list.
 
@@ -127,7 +127,7 @@ device_global<fpga_mem<int[4], decltype(properties(word_size<2>))>, decltype(pro
 ```
 
 The device compiler front-end ignores the
-[[__sycl_detail__::add_ir_attributes_global_variable()]] attribute when it is
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute when it is
 applied not to the object definition, and the variable of that type is not
 declared at namespace scope. 
 
@@ -537,6 +537,7 @@ to perform these optimizations.
 As noted above, there are several C++ attributes that convey property names and
 values to the front-end:
 
+* `[[__sycl_detail__::add_ir_annotations_global_variable()]]`
 * `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
 * `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
 * `[[__sycl_detail__::add_ir_attributes_function()]]`
@@ -570,6 +571,7 @@ SYCL property has no value the header passes `nullptr`.
 Properties that are implemented using the following C++ attributes are
 represented in LLVM IR as IR attributes:
 
+* `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
 * `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
 * `[[__sycl_detail__::add_ir_attributes_function()]]`
 
@@ -598,7 +600,7 @@ types listed above.
 ### IR representation via `@llvm.global.annotations`
 
 Properties that are implemented using
-`[[__sycl_detail__::add_ir_attributes_global_variable()]]`, are represented in 
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]`, are represented in 
 LLVM IR as elements in the global variable `@llvm.global.annotations`.
 `@llvm.global.annotations` is an array of `{ ptr, ptr, ptr, i32, ptr}` structs,
 where each struct represents an annotation on a global pointer. The values of
@@ -609,7 +611,7 @@ there are nested annotations on the global variable, constant `getelementptr`
 instructions can be used to specify at which level the annotation is applied.
 * pointer to global string, representing the annotation. Each global string is
 a list of `{name:value}` pairs from the
-`[[__sycl_detail__::add_ir_attributes_global_variable()]]` annotation. Property
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]` annotation. Property
 values are converted to strings in the same way as described above, except that
 the `nullptr` value is represented as an empty string, `{name}`.
 * pointer to global string, representing the path of the source file where the
@@ -698,6 +700,7 @@ interpreted as "kernel parameter attributes" while other are interpreted as
 To handle these cases, each of the following C++ attributes takes an optional
 first parameter that is a brace-enclosed list of property names:
 
+* `[[__sycl_detail__::add_ir_annotations_global_variable()]]`
 * `[[__sycl_detail__::add_ir_attributes_global_variable()]]`
 * `[[__sycl_detail__::add_ir_attributes_kernel_parameter()]]`
 * `[[__sycl_detail__::add_ir_attributes_function()]]`
@@ -832,6 +835,22 @@ the corresponding module scope (global) **OpVariable**. If the property is
 applied onto a nested property it will still be translated into a SPIR-V
 **OpDecorate** instruction but will just be applied onto the result of a SPIR-V
 **SpecConstantOp** call.
+
+An LLVM IR global variable definition may optionally have a metadata kind of
+`!spirv.Decorations`.  If it does, that metadata node has one operand for each
+of the global variable's decorations.  To illustrate:
+
+```
+@MyVariable = global %MyClass !spirv.Decorations !0
+!0 = !{!1, !2}            ; Each operand in this metadata represents one
+                          ;   decoration on the variable.
+!1 = !{i32 7744}          ; This is the integer value of the first decoration.
+!2 = !{i32 7745, i32 20}  ; The first operand is the integer value of the
+                          ;   second decoration.  Additional operands are
+                          ;   "extra operands" to the decoration.  These
+                          ;   operands may be either integer literals or string
+                          ;   literals.
+```
 
 ### Property on a structure member of a non-global variable
 
