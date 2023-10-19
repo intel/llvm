@@ -38,17 +38,17 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
-            // for transposeC
-            // which TN x TM in N x M:
-            //  M x N => TM x N => TM x TN => TN x TM
-            //           m=sg_startx
-            //                      sg_starty/SG_SZ
-            // linear_index = M * (sg_starty/SG_SZ *TN) + TM *sg_startx
+           // for transposeC
+           // which TN x TM in N x M:
+           //  M x N => TM x N => TM x TN => TN x TM
+           //           m=sg_startx
+           //                      sg_starty/SG_SZ
+           // linear_index = M * (sg_starty/SG_SZ *TN) + TM *sg_startx
            joint_matrix_load(sg, sub_c,
-                             pC + M * (sg_starty/SG_SZ *TN) + TM *sg_startx,
+                             pC + M * (sg_starty / SG_SZ * TN) + TM * sg_startx,
                              M, layout::col_major);
            joint_matrix_store(
-               sg, sub_c, pC + M * (sg_starty/SG_SZ *TN) + TM *sg_startx, M,
+               sg, sub_c, pC + M * (sg_starty / SG_SZ * TN) + TM * sg_startx, M,
                layout::col_major);
          }); // parallel for
    }).wait();
