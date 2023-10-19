@@ -806,7 +806,10 @@ void handler::extractArgsAndReqsFromLambda(
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
 const char *handler::getKernelName() {
-  return MKernel->get_info<info::kernel::function_name>().c_str();
+  const std::string& kernelName = MKernel->get_info<info::kernel::function_name>();
+    char* kernelNameCStr = new char[kernelName.length() + 1];
+    strcpy(kernelNameCStr, kernelName.c_str());
+    return kernelNameCStr;
 }
 
 void handler::verifyUsedKernelBundle(const std::string &KernelName) {
