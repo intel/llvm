@@ -1072,8 +1072,7 @@ public:
         Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
 
         // Collect the list of bundles from the object.
-        FH =
-            std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
+        FH = std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
       if (Error Err = FH->ReadHeader(*Buf))
@@ -1164,8 +1163,7 @@ public:
           continue;
         auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
         Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
-        FH =
-            std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
+        FH = std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
       if (Error Err = FH->ReadHeader(*Buf))
