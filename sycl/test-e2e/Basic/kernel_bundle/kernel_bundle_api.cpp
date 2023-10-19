@@ -384,7 +384,6 @@ int main() {
         KernelBundleDupeTestBuilt =
             sycl::build(KernelBundleDupTest, {Dev, Dev});
     assert(KernelBundleDupeTestBuilt.get_devices().size() == 1);
-
   }
 
   return 0;
