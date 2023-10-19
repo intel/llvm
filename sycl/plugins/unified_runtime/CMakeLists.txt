@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #Date:   Thu Oct 5 12:15:42 2023 +0200
   #    Merge pull request #920 from jsji/localcopy
   #        [UR][L0] Copy prebuilt L0 to avoid leaking shared folder path
-  set(UNIFIED_RUNTIME_TAG b38855ed815ffd076bfde5e5e06170ca4f723dc1)
+  set(UNIFIED_RUNTIME_TAG 6180a78e8bff683c8d944686823b45d3fe939468)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
