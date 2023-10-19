@@ -1454,13 +1454,8 @@ __ESIMD_API std::enable_if_t<
         sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
     simd<T, N>>
-gather(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-       simd<uint64_t, N> offsets, uint64_t glob_offset = 0,
-#else
-       simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
-#endif
-       simd_mask<N> mask = 1) {
+gather(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+       detail::DeviceAccessorOffsetT glob_offset = 0, simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
                       offsets, mask);
@@ -1507,18 +1502,8 @@ __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
     sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
-scatter(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-        simd<uint64_t, N> offsets,
-#else
-        simd<uint32_t, N> offsets,
-#endif
-        simd<T, N> vals,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-        uint64_t glob_offset = 0,
-#else
-        uint32_t glob_offset = 0,
-#endif
+scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+        simd<T, N> vals, detail::DeviceAccessorOffsetT glob_offset = 0,
         simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
@@ -1800,12 +1785,8 @@ __ESIMD_API std::enable_if_t<
      !std::is_pointer_v<AccessorT> &&
      !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>),
     simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-            simd<uint64_t, N> offsets, uint64_t global_offset = 0,
-#else
-            simd<uint32_t, N> offsets, uint32_t global_offset = 0,
-#endif
+gather_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+            detail::DeviceAccessorOffsetT global_offset = 0,
             simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather_rgba<RGBAMask>(
@@ -1857,18 +1838,9 @@ __ESIMD_API std::enable_if_t<
     (N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
     !std::is_pointer_v<AccessorT> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
-scatter_rgba(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-             simd<uint64_t, N> offsets,
-#else
-             simd<uint32_t, N> offsets,
-#endif
+scatter_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-             uint64_t global_offset = 0,
-#else
-             uint32_t global_offset = 0,
-#endif
+             detail::DeviceAccessorOffsetT global_offset = 0,
              simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
 #ifdef __ESIMD_FORCE_STATELESS_MEM
