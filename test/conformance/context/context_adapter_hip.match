@@ -1,1 +1,2 @@
 urContextCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
+urContextGetInfoTestWithInfoParam.Success/AMD_HIP_BACKEND___{{.*}}
