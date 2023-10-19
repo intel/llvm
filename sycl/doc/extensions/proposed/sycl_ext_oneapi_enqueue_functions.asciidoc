@@ -229,7 +229,8 @@ void submit(sycl::queue q, CommandGroupFunc&& cgf);
 }
 ----
 !====
-_Effects_: Submits a command-group function to the `sycl::queue`.
+_Effects_: Submits a command-group function object (as defined by the SYCL
+specification) to the `sycl::queue`.
 
 a|
 [frame=all,grid=none]
@@ -245,7 +246,8 @@ sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf);
 }
 ----
 !====
-_Effects_: Submits a command-group function to the `sycl::queue`.
+_Effects_: Submits a command-group function object (as defined by the SYCL
+specification) to the `sycl::queue`.
 
 _Returns_: A `sycl::event` associated with the submitted command.
 
