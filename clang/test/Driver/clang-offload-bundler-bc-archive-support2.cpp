@@ -1,3 +1,6 @@
+// Target "host-x86_64-unknown-linux-gnu" only works on Linux
+// REQUIRES: system-linux
+
 // Test archive unbundling with multiple files with the same target
 // One of the files is a bundled BC file and the other file is a bundled object file
 

@@ -1,3 +1,6 @@
+// Target "host-x86_64-unknown-linux-gnu" only works on Linux
+// REQUIRES: system-linux
+
 // Ensure that bundled BC files in archives can work with:
 // TEST1:  clang-offload-bundler -list
 // TEST2:  clang-offload-bundler -check-section
