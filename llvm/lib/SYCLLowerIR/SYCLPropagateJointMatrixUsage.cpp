@@ -1,5 +1,4 @@
-//===---- SYCLPropagateJointMatrixUsage.cpp - SYCLPropagateJointMatrixUsage Pass
-//--===//
+//===------------------ SYCLPropagateJointMatrixUsage.cpp -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -76,7 +75,8 @@ void fillCallGraph(Function *F, CallGraphTy &CG) {
   }
 }
 
-using JointMatrixValuesSetTy = std::set<SmallString<24>>;
+using JointMatrixValueStringTy = SmallString<40>;
+using JointMatrixValuesSetTy = std::set<JointMatrixValueStringTy>;
 using FunctionToJointMatrixValuesMapTy =
     DenseMap<Function *, JointMatrixValuesSetTy>;
 
@@ -90,7 +90,7 @@ void fillFunctionToJointMatrixValuesMap(
   if (!F->hasFnAttribute("sycl-joint-matrix-type"))
     return;
 
-  SmallString<24> Result;
+  JointMatrixValueStringTy Result;
   // NB! The order of attributes must not change as it is used later in SYCL
   // RT
   // The order is:
@@ -120,7 +120,7 @@ void fillFunctionToJointMatrixMadValuesMap(
   if (!F->hasFnAttribute("sycl-joint-matrix-mad-type-A"))
     return;
 
-  SmallString<24> Result;
+  JointMatrixValueStringTy Result;
   // NB! The order of attributes must not change as it is used later in SYCL
   // RT
   // The order is:
@@ -194,11 +194,11 @@ void setSyclJointMatrixMetadata(StringRef MetadataName, Module *M, Function *F,
                                 FunctionToJointMatrixValuesMapTy ValuesMap) {
   JointMatrixValuesSetTy Values = ValuesMap[F];
   SmallString<256> StringValue;
-  for (auto it = Values.begin(); it != Values.end(); it++) {
-    StringValue += *it;
+  for (auto It = Values.begin(); It != Values.end(); It++) {
+    StringValue += *It;
     // NB! Each information about joint_matrix type and joint_matrix_mad
     // function should be separated by a semicolon
-    if (std::next(it) != Values.end())
+    if (std::next(It) != Values.end())
       StringValue += ";";
   }
   if (StringValue.empty())
@@ -215,7 +215,7 @@ PreservedAnalyses
 SYCLPropagateJointMatrixUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   FunctionToJointMatrixValuesMapTy FunctionToJointMatrixValues;
   FunctionToJointMatrixValuesMapTy FunctionToJointMatrixMadValues;
-  std::vector<Function *> EntryPoints;
+  SmallVector<Function *, 16> EntryPoints;
   CallGraphTy CG;
   for (Function &F : M.functions()) {
     fillFunctionToJointMatrixValuesMap(&F, FunctionToJointMatrixValues);
