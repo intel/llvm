@@ -18,12 +18,9 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto pA = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(A);
-  auto pB = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(B);
-  auto pC = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(C);
+  auto pA = multi_ptr<T2, sycl::access::address_space::global_space>(A);
+  auto pB = multi_ptr<T2, sycl::access::address_space::global_space>(B);
+  auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
@@ -40,28 +37,18 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
-               sub_a;
-
-           // For B, since current implementation does not support non-packed
-           // layout, users need to specify the packed_b layout.
-           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        layout::ext_intel_packed>
-               sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
+            // for transposeC
+            // which TN x TM in N x M:
+            //  M x N => TM x N => TM x TN => TN x TM
+            //           m=sg_startx
+            //                      sg_starty/SG_SZ
+            // linear_index = M * (sg_starty/SG_SZ *TN) + TM *sg_startx
            joint_matrix_load(sg, sub_c,
-                             pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
-                             N, layout::col_major);
-           for (int k = 0; k < K; k += TK) {
-             joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
-             // Assume we alreay in vnni format.
-             joint_matrix_load(sg, sub_b,
-                               pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
-                               N * vnniFactor);
-             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
-           }
+                             pC + M * (sg_starty/SG_SZ *TN) + TM *sg_startx,
+                             M, layout::col_major);
            joint_matrix_store(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
+               sg, sub_c, pC + M * (sg_starty/SG_SZ *TN) + TM *sg_startx, M,
                layout::col_major);
          }); // parallel for
    }).wait();
@@ -88,8 +75,6 @@ int main() {
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / vnniFactor,
                   MATRIX_N * vnniFactor, MATRIX_M, MATRIX_N>(C, A, vnniB, q,
                                                              vnniFactor);
-  matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K,
-                      true /*transposed c*/);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, C, D);
 
