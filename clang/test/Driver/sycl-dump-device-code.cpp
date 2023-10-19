@@ -17,3 +17,7 @@
 
 // CHK-FSYCL-DUMP-DEVICE-CODE: llvm-foreach{{.*}} "--in-file-list={{.+\.txt}}" "--in-replace={{.+\.txt}}" "--out-ext=spv" "--out-file-list={{.+\.txt}}" "--out-replace={{.+\.txt}}" "--out-dir=/user/input/path/"
 
+// RUN: %clang -fsycl  -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -fsycl-dump-device-code= %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefixes=CHK-FSYCL-DUMP-DEVICE-CODE-CWD
+
+// CHK-FSYCL-DUMP-DEVICE-CODE-CWD: llvm-foreach{{.*}} "--in-file-list={{.+\.txt}}" "--in-replace={{.+\.txt}}" "--out-ext=spv" "--out-file-list={{.+\.txt}}" "--out-replace={{.+\.txt}}" "--out-dir=./"
