@@ -623,7 +623,7 @@ void joint_matrix_mad_cuda(
         if constexpr (std::is_same<Td, float>::value) {
           __hmma_m32n8k16_mma_f32f16(
               reinterpret_cast<float *>(&D.wi_marray), ptrA, ptrB,
-              reinterpret_cast<int const *>(&C.wi_marray),
+              reinterpret_cast<const int32_t *>(&C.wi_marray),
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         } else {
           __hmma_m32n8k16_mma_f16f16(
