@@ -14,10 +14,12 @@
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
+#include <sycl/ext/intel/esimd/memory_properties.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/half_type.hpp>
 
+#include <algorithm>
 #include <cstdint>
 
 namespace sycl {
@@ -34,6 +36,8 @@ namespace ext::intel::esimd {
 /// lane (N is number of lanes).
 
 /// @defgroup sycl_esimd_memory_slm Shared local memory access functions.
+
+/// @defgroup sycl_esimd_memory_block Block load/prefetch/store functions.
 
 /// @} sycl_esimd_memory
 
@@ -62,49 +66,6 @@ __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
         detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
   }
 }
-
-// TODO @Pennycook
-// {quote}
-// ...I'd like us to think more about what we can do to make these interfaces
-// more user - friendly. A user providing cache hints has to provide a lot more
-// template arguments than required.Could we make this nicer by providing the
-// hints as tag - type arguments ?
-// ...
-//   // Without cache hints, type and length can be deduced from offsets
-//   float* p;
-//   simd<uint32_t, 16> offsets;
-//   auto result = flat_load(p, offsets);
-//
-//   // With cache hints as templates, verbosity increases significantly:
-//   // - Providing any cache hint forces the user to specify the type and
-//   length float* p; simd<uint32_t, 16> offsets; auto result =
-//   flat_load<uint32_t, 16, 1, CacheHint::Foo, CacheHint::Bar>(p, offsets);
-//
-//   // With cache hints as tag types, verbosity is reduced:
-//   // - Providing a cache hint does not prevent deduction of type and length
-//   float* p;
-//   simd <uint32_t, 16> offsets;
-//   auto result = flat_load(p, offsets, CacheHint::Foo{});
-//
-// Note also that the templated form prevents a developer from specifying an L3
-// hint without also explicitly specifying an L1 hint. If flat_load accepted a
-// list of hints, it might be possible to refactor the hints to specify them in
-// any order, and it may be more extensible to future cache hints:
-// {/quote}
-//
-// TODO @keryell
-// {quote}
-// An approach a la https ://github.com/chriskohlhoff/propria from
-// @chriskohlhoff would be to add a property to the pointer, such as
-//
-//    auto result = flat_load(p, offsets);
-//    auto result = flat_load(decorate<CacheHint::Foo, CacheHint::Bar>(p),
-//    offsets);
-// The advantage is that you do not have to change all tour API and all the uses
-// of this decorated pointer will benefit from this. decorate is to be bikeshed
-// accordingly.
-// {/quote}
-//
 
 /// Loads ("gathers") elements from different memory locations and returns a
 /// vector of them. Each memory location is base address plus an offset - a
@@ -262,6 +223,724 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
   scatter<Tx, N>(p, simd<Toffset, N>(offset), vals, mask);
 }
 
+namespace detail {
+// Accessors may get either 32-bit offset or 64-bit depending on
+// the -fsycl-esimd-force-stateles-mem mode settigs.
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+using DeviceAccessorOffsetT = uint64_t;
+#else
+using DeviceAccessorOffsetT = uint32_t;
+#endif
+
+template <typename T, int NElts, cache_hint L1H = cache_hint::none,
+          cache_hint L2H = cache_hint::none, typename FlagsT>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
+block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
+  // Verify input template arguments.
+  check_cache_hint<cache_action::load, L1H, L2H>();
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+  simd<LoadElemT, FactoredNElts> Result =
+      __esimd_lsc_load_stateless<LoadElemT, L1H, L2H, AddressScale, ImmOffset,
+                                 ActualDS, VS, Transposed, N>(pred.data(),
+                                                              Addrs.data());
+  return Result.template bit_cast_view<T>();
+}
+
+/// USM pointer transposed gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+/// Instruction can load max: DG2(64xD32 or 32xD64), PVC(64xD32 or 64xD64).
+///
+/// Accesses contiguous block of memory of `NElts * sizeof(T)` bytes  starting
+/// from the given address \p p. The maximum size of accessed block is 512 bytes
+/// for PVC and 256 bytes for ACM (DG2).
+/// When \c sizeof(T) equal to 8 the address must be 8-byte aligned,
+/// otherwise - 4-byte aligned.
+/// When T is 1- or 2-byte type, the memory block is loaded with DWORDs
+/// or QWORDs depending on the alignment.
+/// Allowed \c NElts values for 8-byte data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 4-byte data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 2-byte data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 1-byte data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8-byte alignment is required for 8-byte data, or if sizeof(T) * NElts > 256.
+/// Otherwise, 4-byte alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @param p is the base pointer.
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed.
+/// @param pass_thru contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @param flags is the alignment specifier type tag.
+/// @return is a vector of type T and size NElts.
+///
+template <typename T, int NElts, cache_hint L1H = cache_hint::none,
+          cache_hint L2H = cache_hint::none, typename FlagsT>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
+block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
+                FlagsT flags) {
+  // Verify input template arguments.
+  check_cache_hint<cache_action::load, L1H, L2H>();
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+  simd<LoadElemT, FactoredNElts> PassThru =
+      pass_thru.template bit_cast_view<LoadElemT>();
+  simd<LoadElemT, FactoredNElts> Result =
+      __esimd_lsc_load_merge_stateless<LoadElemT, L1H, L2H, AddressScale,
+                                       ImmOffset, ActualDS, VS, Transposed, N>(
+          pred.data(), Addrs.data(), PassThru.data());
+  return Result.template bit_cast_view<T>();
+}
+
+/// Accessor-based transposed gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+/// Instruction can load max: DG2(64xD32 or 32xD64), PVC(64xD32 or 64xD64).
+///
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+/// When \c sizeof(T) equal to 8 the address must be 8-byte aligned,
+/// otherwise - 4-byte aligned.
+/// When T is 1- or 2-byte type, the memory block is loaded with DWORDs
+/// or QWORDs depending on the alignment.
+/// Allowed \c NElts values for 8-byte data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 4-byte data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 2-byte data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 1-byte data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8-byte alignment is required for 8-byte data, or if sizeof(T) * NElts > 256.
+/// Otherwise, 4-byte alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AccessorT is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offset is the zero-based offset in bytes.
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed. The default is '1' - perform
+/// the operation.
+/// @param flags is the alignment specifier type tag.
+/// @return is a vector of type T and size NElts. The elements of the returned
+/// vector for which the corresponding element in \p pred is 0 are undefined.
+///
+template <typename T, int NElts, cache_hint L1H = cache_hint::none,
+          cache_hint L2H = cache_hint::none, typename AccessorT,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<
+    !std::is_pointer_v<AccessorT> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
+        is_simd_flag_type_v<FlagsT>,
+    simd<T, NElts>>
+block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset, simd_mask<1> pred,
+                FlagsT flags) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return block_load_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset),
+                                             pred, flags);
+#else  // !__ESIMD_FORCE_STATELESS_MEM
+  // Verify input template arguments.
+  check_cache_hint<cache_action::load, L1H, L2H>();
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr auto VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uint32_t, N> Offsets = offset;
+  auto SI = get_surface_index(acc);
+  simd<LoadElemT, FactoredNElts> Result =
+      __esimd_lsc_load_bti<LoadElemT, L1H, L2H, AddressScale, ImmOffset,
+                           ActualDS, VS, Transposed, N>(pred.data(),
+                                                        Offsets.data(), SI);
+  return Result.template bit_cast_view<T>();
+#endif // !__ESIMD_FORCE_STATELESS_MEM
+}
+
+/// Accessor-based transposed gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+/// Instruction can load max: DG2(64xD32 or 32xD64), PVC(64xD32 or 64xD64).
+///
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+/// When \c sizeof(T) equal to 8 the address must be 8-byte aligned,
+/// otherwise - 4-byte aligned.
+/// When T is 1- or 2-byte type, the memory block is loaded with DWORDs
+/// or QWORDs depending on the alignment.
+/// Allowed \c NElts values for 8-byte data are 1, 2, 3, 4, 8, 16, 32, 64.
+/// Allowed \c NElts values for 4-byte data are 1, 2, 3, 4, 8, 16, 32, 64, 128.
+/// Allowed \c NElts values for 2-byte data are 2, 4, 8, 16, 32, 64, 128, 256.
+/// Allowed \c NElts values for 1-byte data are 4, 8, 12, 16, 32, 64, 128, 256,
+/// 512.
+/// 8-byte alignment is required for 8-byte data, or if sizeof(T) * NElts > 256.
+/// Otherwise, 4-byte alignment is required.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offset is the zero-based offset in bytes.
+/// @param pred is operation predicate. Operation is skipped for index 'i'
+/// if pred[0] == 0 the result element is taken from \p pass_thru[i].
+/// Otherwise, the operation is performed and the result if it copied to
+/// the result.
+/// @param pass_thru contains the values copied to the result if \p pred is 0.
+/// @param flags is the alignment specifier type tag.
+/// @return is a vector of type T and size NElts
+///
+template <typename T, int NElts, cache_hint L1H = cache_hint::none,
+          cache_hint L2H = cache_hint::none, typename AccessorT,
+          typename FlagsT = dqword_element_aligned_tag>
+__ESIMD_API std::enable_if_t<
+    !std::is_pointer_v<AccessorT> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
+        is_simd_flag_type_v<FlagsT>,
+    simd<T, NElts>>
+block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset, simd_mask<1> pred,
+                simd<T, NElts> pass_thru, FlagsT flags) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return block_load_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset),
+                                             pred, pass_thru, flags);
+#else  // !__ESIMD_FORCE_STATELESS_MEM
+  // Verify input template arguments.
+  check_cache_hint<cache_action::load, L1H, L2H>();
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+  check_lsc_vector_size<FactoredNElts>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr auto VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uint32_t, N> Offsets = offset;
+  auto SI = get_surface_index(acc);
+  simd<LoadElemT, FactoredNElts> PassThru =
+      pass_thru.template bit_cast_view<LoadElemT>();
+  simd<LoadElemT, FactoredNElts> Result =
+      __esimd_lsc_load_merge_bti<LoadElemT, L1H, L2H, AddressScale, ImmOffset,
+                                 ActualDS, VS, Transposed, N>(
+          pred.data(), Offsets.data(), SI, PassThru.data());
+  return Result.template bit_cast_view<T>();
+#endif // !__ESIMD_FORCE_STATELESS_MEM
+}
+
+} // namespace detail
+
+/// Stores elements of the vector \p vals to a contiguous block of memory
+/// at the given address \p addr.
+/// The generated code depends on the combination {T, N, Flags}.
+/// Providing flags specifying the alignment of 16-bytes or more produces more
+/// efficient code. If the alignment is smaller than 16-bytes, then less
+/// efficient scatter is generated. If the stored vector is too long
+/// for 1 flat-store GPU instruction, then a series of flat-store and/or
+/// scatters may be generated.
+/// @tparam Tx Element type.
+/// @tparam N Number of elements to store.
+/// @tparam Flags The alignment specifier type tag.
+/// @param addr The memory address to store at.
+/// @param vals The vector to store.
+/// @param Flags Specifies the alignment.
+template <typename Tx, int N,
+          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
+block_store(Tx *addr, simd<Tx, N> vals, Flags = {}) {
+  using T = typename detail::__raw_t<Tx>;
+  using VecT = typename simd<T, N>::raw_vector_type;
+  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
+  __esimd_svm_block_st<T, N, Align>(reinterpret_cast<VecT *>(addr),
+                                    vals.data());
+}
+
+/// @addtogroup sycl_esimd_memory_block
+/// @{
+
+/// Each of the following block load functions loads a contiguous memory block
+/// from the address referenced by the USM pointer 'ptr', or from 'ptr +
+/// offset', where 'offset' is the offset in bytes (not in elements!). The
+/// parameter 'pred' is the one element predicate. If it is set to 1, then all
+/// 'N' elements are loaded. Otherwise, the block load operation is a NO-OP.
+/// The parameter 'pass_thru' specifies the values being copied to the returned
+/// result if 'pred' is set to 0.
+/// The parameter 'props' specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::cache_hint_L3, esimd::alignment.
+
+/// simd<T, N> block_load(const T* ptr, props={});                      // (1)
+/// simd<T, N> block_load(const T* ptr, size_t offset, props={});       // (2)
+
+/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred, props={});   // (3)
+/// simd<T, N> block_load(const T* ptr, size_t offset, simd_mask<1> pred,
+///                       props={});                                    // (4)
+
+/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
+///                       simd<T, N> pass_thru, props={});              // (5)
+/// simd<T, N> block_load(const T* ptr, size_t offset, simd_mask<1> pred,
+///                       simd<T, N> pass_thru, props={});              // (6)
+
+/// simd<T, N> block_load(const T* ptr, props={}); // (1)
+/// This function loads a contiguous memory block from USM pointer \p ptr.
+///
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions may apply
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
+    detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
+    constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            DefaultAlignment);
+
+    simd_mask<1> Mask = 1;
+    return detail::block_load_impl<T, N, L1Hint, L2Hint>(
+        ptr, Mask, overaligned_tag<Alignment>{});
+  } else {
+    // If the alignment property is not passed, then assume the pointer
+    // is element-aligned.
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+    return block_load<T, N>(ptr, overaligned_tag<Alignment>{});
+  }
+}
+
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset, props={}); // (2)
+/// This function loads a contiguous memory block from address referenced
+/// by USM pointer \p ptr and byte-offset \p byte_offset.
+///
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions may apply
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, size_t byte_offset, PropertyListT props = {}) {
+  const T *AdjustedPtr = reinterpret_cast<const T *>(
+      reinterpret_cast<const int8_t *>(ptr) + byte_offset);
+  return block_load<T, N>(AdjustedPtr, props);
+}
+
+/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred, props={}); // (3)
+/// This function loads a contiguous memory block from USM pointer \p ptr.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// returned value is undefined.
+///
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions are applied
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint and mask imposed - temporary:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, simd_mask<1> pred, PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+
+  return detail::block_load_impl<T, N, L1Hint, L2Hint>(
+      ptr, pred, overaligned_tag<Alignment>{});
+}
+
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
+///                       props={}); // (4)
+/// This function loads a contiguous memory block from address referenced
+/// by USM pointer \p ptr and byte-offset \p byte_offset.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// returned value is undefined.
+///
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions are applied
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint and mask imposed - temporary:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
+           PropertyListT props = {}) {
+  const T *AdjustedPtr = reinterpret_cast<const T *>(
+      reinterpret_cast<const int8_t *>(ptr) + byte_offset);
+  return block_load<T, N>(AdjustedPtr, pred, props);
+}
+
+/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
+///                       simd<T, N> pass_thru, props={}); // (5)
+/// This function loads a contiguous memory block from USM pointer \p ptr.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// vector \p pass_thru is returned.
+///
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions are applied
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint and mask imposed - temporary:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, simd_mask<1> pred, simd<T, N> pass_thru,
+           PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+
+  return detail::block_load_impl<T, N, L1Hint, L2Hint>(
+      ptr, pred, pass_thru, overaligned_tag<Alignment>{});
+}
+
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
+///                       simd<T, N> pass_thru, props={}); // (6)
+/// This function loads a contiguous memory block from address referenced
+/// by USM pointer \p ptr and byte-offset \p byte_offset.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// vector \p pass_thru is returned.
+///
+/// This function has temporary restrictions. See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions are applied
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint and mask imposed - temporary:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
+           simd<T, N> pass_thru, PropertyListT props = {}) {
+  const T *AdjustedPtr = reinterpret_cast<const T *>(
+      reinterpret_cast<const int8_t *>(ptr) + byte_offset);
+  return block_load<T, N>(AdjustedPtr, pred, pass_thru, props);
+}
+
 /// Loads a contiguous block of memory from the given memory address \p addr
 /// and returns the loaded data as a vector.
 /// The generated code depends on the combination {T, N, Flags}.
@@ -280,7 +959,7 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 template <typename Tx, int N,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>, simd<Tx, N>>
-block_load(const Tx *addr, Flags = {}) {
+block_load(const Tx *addr, Flags) {
   using T = typename detail::__raw_t<Tx>;
   using VecT = typename simd<T, N>::raw_vector_type;
   constexpr size_t Align = Flags::template alignment<simd<T, N>>;
@@ -310,16 +989,13 @@ template <typename Tx, int N, typename AccessorTy,
               sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
               !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
+__ESIMD_API simd<Tx, N>
+block_load(AccessorTy acc, detail::DeviceAccessorOffsetT offset, Flags flags) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-                                   uint64_t offset,
+  return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset),
+                           flags);
 #else
-                                   uint32_t offset,
-#endif
-                                   Flags = {}) {
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset));
-#else
+  std::ignore = flags;
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -342,30 +1018,289 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
 #endif
 }
 
-/// Stores elements of the vector \p vals to a contiguous block of memory
-/// at the given address \p addr.
-/// The generated code depends on the combination {T, N, Flags}.
-/// Providing flags specifying the alignment of 16-bytes or more produces more
-/// efficient code. If the alignment is smaller than 16-bytes, then less
-/// efficient scatter is generated. If the stored vector is too long
-/// for 1 flat-store GPU instruction, then a series of flat-store and/or
-/// scatters may be generated.
-/// @tparam Tx Element type.
-/// @tparam N Number of elements to store.
-/// @tparam Flags The alignment specifier type tag.
-/// @param addr The memory address to store at.
-/// @param vals The vector to store.
-/// @param Flags Specifies the alignment.
-template <typename Tx, int N,
-          typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
-__ESIMD_API __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
-block_store(Tx *addr, simd<Tx, N> vals, Flags = {}) {
-  using T = typename detail::__raw_t<Tx>;
-  using VecT = typename simd<T, N>::raw_vector_type;
-  constexpr size_t Align = Flags::template alignment<simd<T, N>>;
-  __esimd_svm_block_st<T, N, Align>(reinterpret_cast<VecT *>(addr),
-                                    vals.data());
+/// Each of the following block load functions loads a contiguous memory block
+/// from the address referenced by accessor 'acc', or from 'acc +
+/// offset', where 'offset' is the offset in bytes (not in elements!). The
+/// parameter 'pred' is the one element predicate. If it is set to 1, then all
+/// 'N' elements are loaded. Otherwise, the block load operation is a NO-OP.
+/// The parameter 'pass_thru' specifies the values being copied to the returned
+/// result if 'pred' is set to 0.
+/// The parameter 'props' specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::cache_hint_L3, esimd::alignment.
+
+/// simd<T, N>
+/// block_load(AccessorT acc, OffsetT offset, props = {});         // (acc-1)
+/// simd<T, N> block_load(AccessorT acc, props);                   // (acc-2)
+
+/// simd<T, N>
+/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
+///            simd<T, N> pass_thru, flags = {});                  // (acc-3)
+/// simd<T, N>
+/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
+///            flags = {});                                        // (acc-4)
+
+/// simd<T, N>
+/// block_load(AccessorT acc, simd_mask<1> pred,
+///            simd<T, N> pass_thru, flags = {});                  // (acc-5)
+/// simd<T, N>
+/// block_load(AccessorT acc, simd_mask<1> pred, flags = {});      // (acc-6)
+
+/// simd<T, N>
+/// block_load(AccessorT acc, OffsetT offset, props = {});         // (acc-1)
+/// This function loads a contiguous memory block referenced
+/// by accessor \p acc and byte-offset \p offset.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+/// (R1), (R2) and (R3) are not applied if there are no cache hints.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+    simd<T, N>>
+block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
+           PropertyListT props = {}) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return block_load<T, N>(detail::accessorToPointer<T>(acc, offset), props);
+#else  // !__ESIMD_FORCE_STATELESS_MEM
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  // If the alignment property is not passed, then assume the pointer
+  // is element-aligned.
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+
+  // Legacy surface index loads must be 1, 2, 4 or 8 owords long.
+  constexpr size_t Size = sizeof(T) * N;
+  constexpr size_t OWord = detail::OperandSize::OWORD;
+  constexpr bool IsLegacySize = Size == OWord || Size == 2 * OWord ||
+                                Size == 4 * OWord || Size == 8 * OWord;
+
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+                !IsLegacySize) {
+    return detail::block_load_impl<T, N, L1Hint, L2Hint>(
+        acc, offset, simd_mask<1>(1), overaligned_tag<Alignment>{});
+  } else {
+    return block_load<T, N>(acc, offset, overaligned_tag<Alignment>{});
+  }
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 }
+
+/// simd<T, N> block_load(AccessorT acc, props);                   // (acc-2)
+/// This function loads a contiguous memory block referenced
+/// by accessor \p acc using implied offset=0.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+/// (R1), (R2) and (R3) are not applied if there are no cache hints.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorT>,
+    simd<T, N>>
+block_load(AccessorT acc, PropertyListT props = {}) {
+  return block_load<T, N>(acc, 0, props);
+}
+
+/// simd<T, N>
+/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
+///            simd<T, N> pass_thru, flags = {});                  // (acc-3)
+/// This function loads a contiguous memory block referenced
+/// by accessor \p acc using the byte-offset \p offset.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// returned \p pass_thru is returned.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+/// (R1), (R2) and (R3) are not applied if there are no cache hints.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorT>,
+    simd<T, N>>
+block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
+           simd_mask<1> pred, simd<T, N> pass_thru, PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  // If the alignment property is not passed, then assume the offset
+  // is element-aligned and is at leat 4-bytes.
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  return detail::block_load_impl<T, N, L1Hint, L2Hint>(
+      acc, offset, pred, pass_thru, overaligned_tag<Alignment>{});
+}
+
+/// simd<T, N>
+/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
+///            flags = {});                                        // (acc-4)
+/// This function loads a contiguous memory block referenced
+/// by accessor \p acc using the byte-offset \p offset.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// returned value is undefined.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+/// (R1), (R2) and (R3) are not applied if there are no cache hints.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+    simd<T, N>>
+block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
+           simd_mask<1> pred, PropertyListT props = {}) {
+  simd<T, N> PassThru; // Intentionally uninitialized.
+  return block_load<T, N>(acc, offset, pred, PassThru, props);
+}
+
+/// simd<T, N>
+/// block_load(AccessorT acc, simd_mask<1> pred,
+///            simd<T, N> pass_thru, flags = {});                // (acc-5)
+/// Same as (acc-3) variant except that the byte-offset is not passed
+/// and is implied to be 0.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+    simd<T, N>>
+block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
+           PropertyListT props = {}) {
+  return block_load<T, N>(acc, 0, pred, pass_thru, props);
+}
+
+/// simd<T, N>
+/// block_load(AccessorT acc, simd_mask<1> pred, flags = {});    // (acc-6)
+/// Same as (acc-4) variant except that the byte-offset is not passed
+/// and is implied to be 0.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
+        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+    simd<T, N>>
+block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
+  simd<T, N> PassThru; // Intentionally uninitialized.
+  return block_load<T, N>(acc, 0, pred, PassThru, props);
+}
+
+/// @} sycl_esimd_memory_block
 
 /// Stores elements of a vector to a contiguous block of memory represented by
 /// an accessor and an offset within this accessor.
@@ -383,12 +1318,7 @@ template <typename Tx, int N, typename AccessorTy,
 __ESIMD_API std::enable_if_t<
     sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
     !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
-block_store(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-            uint64_t offset,
-#else
-            uint32_t offset,
-#endif
+block_store(AccessorTy acc, detail::DeviceAccessorOffsetT offset,
             simd<Tx, N> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   block_store<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset), vals);
@@ -419,7 +1349,7 @@ template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE
     ESIMD_NODEBUG std::enable_if_t<(sizeof(T) <= 4) &&
                                    (N == 1 || N == 8 || N == 16 || N == 32) &&
-                                   !std::is_pointer<AccessorTy>::value>
+                                   !std::is_pointer_v<AccessorTy>>
     scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
                  uint32_t glob_offset, simd_mask<N> mask) {
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
@@ -453,7 +1383,7 @@ ESIMD_INLINE
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value,
+        !std::is_pointer_v<AccessorTy>,
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
@@ -544,7 +1474,7 @@ gather(AccessorTy acc,
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+        !std::is_pointer_v<AccessorTy> && std::is_integral_v<Toffset> &&
         !std::is_same_v<Toffset, uint64_t>,
     simd<T, N>>
 gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
@@ -603,7 +1533,7 @@ scatter(AccessorTy acc,
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    !std::is_pointer<AccessorTy>::value && std::is_integral_v<Toffset> &&
+    !std::is_pointer_v<AccessorTy> && std::is_integral_v<Toffset> &&
     !std::is_same_v<Toffset, uint64_t>>
 scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
         uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
@@ -621,12 +1551,7 @@ scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
 ///
 template <typename T, typename AccessorTy>
 __ESIMD_API T scalar_load(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-                          uint64_t offset
-#else
-                          uint32_t offset
-#endif
-) {
+                          detail::DeviceAccessorOffsetT offset) {
   const simd<T, 1> Res =
       gather<T, 1, AccessorTy>(acc, simd<decltype(offset), 1>(offset));
   return Res[0];
@@ -641,12 +1566,7 @@ __ESIMD_API T scalar_load(AccessorTy acc,
 ///
 template <typename T, typename AccessorTy>
 __ESIMD_API void scalar_store(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-                              uint64_t offset,
-#else
-                              uint32_t offset,
-#endif
-                              T val) {
+                              detail::DeviceAccessorOffsetT offset, T val) {
   scatter<T, 1, AccessorTy>(acc, simd<decltype(offset), 1>(offset),
                             simd<T, 1>(val));
 }
@@ -1659,9 +2579,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, mask);
@@ -1691,7 +2610,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer<AccessorTy>::value &&
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
@@ -1816,9 +2735,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd_mask<N> mask) {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), mask);
@@ -1844,9 +2762,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
 }
@@ -1963,9 +2880,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
               simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, src1, mask);
@@ -1993,9 +2909,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset> &&
-                                 !std::is_pointer<AccessorTy>::value,
-                             simd<Tx, N>>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
               simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
@@ -2313,6 +3228,170 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
                                        __ESIMD_DNS::localAccessorToOffset(acc),
                                    vals, mask);
 }
+
+/// @addtogroup sycl_esimd_raw_send
+/// @{
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
+///  This is a low-level API not recommended for general usage.
+///
+/// @tparam exec_size is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam num_src0 is the number of GRFs for source-0.
+/// @tparam num_src1 is the number of GRFs for source-1.
+/// @tparam num_dst is the number of GRFs for destination.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msg_dst is the old value of the destination operand.
+/// @param msg_src0 is the first source operand of send message.
+/// @param msg_src1 is the second source operand of send message.
+/// @param ex_desc is the extended message descriptor.
+/// @param msg_desc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+/// @return the vector value read from memory.
+template <uint8_t exec_size, uint8_t sfid, uint8_t num_src0, uint8_t num_src1,
+          uint8_t num_dst, raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1,
+          typename T2, int n2, typename T3, int n3>
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_sends(__ESIMD_NS::simd<T1, n1> msg_dst, __ESIMD_NS::simd<T2, n2> msg_src0,
+          __ESIMD_NS::simd<T3, n3> msg_src1, uint32_t ex_desc,
+          uint32_t msg_desc, __ESIMD_NS::simd_mask<exec_size> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msg_src0");
+  constexpr unsigned _Width3 = n3 * sizeof(T3);
+  static_assert(_Width3 % 32 == 0, "Invalid size for raw send msg_src1");
+
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+  using ElemT3 = __ESIMD_DNS::__raw_t<T3>;
+
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+
+  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, exec_size>(
+      modifier, exec_size, mask.data(), num_src0, num_src1, num_dst, sfid,
+      ex_desc, msg_desc, msg_src0.data(), msg_src1.data(), msg_dst.data());
+}
+
+/// Raw send. This is a low-level API not recommended for general usage.
+///
+/// @tparam exec_size is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam num_src0 is the number of GRFs for source-0.
+/// @tparam num_dst is the number of GRFs for destination.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msg_dst is the old value of the destination operand.
+/// @param msg_src0 is the first source operand of send message.
+/// @param ex_desc is the extended message descriptor.
+/// @param msg_desc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+/// @return the vector value read from memory
+template <uint8_t exec_size, uint8_t sfid, uint8_t num_src0, uint8_t num_dst,
+          raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1,
+          typename T2, int n2>
+__ESIMD_API __ESIMD_NS::simd<T1, n1>
+raw_send(__ESIMD_NS::simd<T1, n1> msg_dst, __ESIMD_NS::simd<T2, n2> msg_src0,
+         uint32_t ex_desc, uint32_t msg_desc,
+         __ESIMD_NS::simd_mask<exec_size> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msg_src0");
+
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, exec_size>(
+      modifier, exec_size, mask.data(), num_src0, num_dst, sfid, ex_desc,
+      msg_desc, msg_src0.data(), msg_dst.data());
+}
+
+/// Raw sends. "s" suffix designates "split" variant - i.e. two sources.
+///  This is a low-level API not recommended for general usage.
+///
+/// @tparam exec_size is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam num_src0 is the number of GRFs for source-0.
+/// @tparam num_src1 is the number of GRFs for source-1.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msg_src0 is the first source operand of send message.
+/// @param msg_src1 is the second source operand of send message.
+/// @param ex_desc is the extended message descriptor.
+/// @param msg_desc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+template <uint8_t exec_size, uint8_t sfid, uint8_t num_src0, uint8_t num_src1,
+          raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1,
+          typename T2, int n2>
+__ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msg_src0,
+                           __ESIMD_NS::simd<T2, n2> msg_src1, uint32_t ex_desc,
+                           uint32_t msg_desc,
+                           __ESIMD_NS::simd_mask<exec_size> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msg_src0");
+  constexpr unsigned _Width2 = n2 * sizeof(T2);
+  static_assert(_Width2 % 32 == 0, "Invalid size for raw send msg_src1");
+
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
+
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, exec_size>(
+      modifier, exec_size, mask.data(), num_src0, num_src1, sfid, ex_desc,
+      msg_desc, msg_src0.data(), msg_src1.data());
+}
+
+/// Raw send. Generates a \c send or \c sendc instruction for the message
+/// gateway. This is a low-level API not recommended for general usage.
+///
+/// @tparam exec_size is the execution size.
+/// @tparam sfid is the shared function ID.
+/// @tparam num_src0 is the number of GRFs for source-0.
+/// @tparam eot is the flag that indicates whether this is an EOT message
+/// (optional - default to off).
+/// @tparam sendc is the flag that indicates whether sendc should be used
+/// (optional - default to off).
+/// @param msg_src0 is the first source operand of send message.
+/// @param ex_desc is the extended message descriptor.
+/// @param msg_desc is the message descriptor.
+/// @param mask is the predicate to specify enabled channels (optional - default
+/// to on).
+template <uint8_t exec_size, uint8_t sfid, uint8_t num_src0,
+          raw_send_eot eot = raw_send_eot::not_eot,
+          raw_send_sendc sendc = raw_send_sendc::not_sendc, typename T1, int n1>
+__ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msg_src0, uint32_t ex_desc,
+                          uint32_t msg_desc,
+                          __ESIMD_NS::simd_mask<exec_size> mask = 1) {
+  constexpr unsigned _Width1 = n1 * sizeof(T1);
+  static_assert(_Width1 % 32 == 0, "Invalid size for raw send msg_src0");
+  using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
+  constexpr uint8_t modifier =
+      ((eot == raw_send_eot::eot) << 1) | (sendc == raw_send_sendc::sendc);
+  __esimd_raw_send2_noresult<ElemT1, n1, exec_size>(
+      modifier, exec_size, mask.data(), num_src0, sfid, ex_desc, msg_desc,
+      msg_src0.data());
+}
+
+/// @} sycl_esimd_raw_send
+
 /// @} sycl_esimd_memory
 
 /// @cond EXCLUDE
@@ -2387,11 +3466,7 @@ template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                               sycl::access::target::device, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-                                           uint64_t offset,
-#else
-                                           uint32_t offset,
-#endif
+                                           detail::DeviceAccessorOffsetT offset,
                                            Flags) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   static_assert(sizeof(UT) == sizeof(T));
@@ -2549,11 +3624,7 @@ template <typename AccessorT, typename Flags, int ChunkSize, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                               sycl::access::target::device, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-                                         uint64_t offset,
-#else
-                                         uint32_t offset,
-#endif
+                                         detail::DeviceAccessorOffsetT offset,
                                          Flags) const SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   constexpr unsigned Size = sizeof(T) * N;

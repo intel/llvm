@@ -604,12 +604,6 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   double kernel_times = 0;
   unsigned num_iters = 10;
 
-  // Reducing number of iterations for esimd_emulator backend in order
-  // to avoid timeout failure
-  if (pQueue_->get_backend() == sycl::backend::ext_intel_esimd_emulator) {
-    num_iters = 2;
-  }
-
   const bool profiling =
       pQueue_->has_property<property::queue::enable_profiling>();
 

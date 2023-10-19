@@ -1,6 +1,7 @@
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
+#include "../../helpers.hpp"
 #include "support.h"
 #include <algorithm>
 #include <cassert>
@@ -13,23 +14,6 @@ using namespace sycl;
 
 template <class SpecializationKernelName, int TestNumber>
 class inclusive_scan_kernel;
-
-// std::inclusive_scan isn't implemented yet, so use serial implementation
-// instead
-namespace emu {
-template <typename InputIterator, typename OutputIterator,
-          class BinaryOperation, typename T>
-OutputIterator inclusive_scan(InputIterator first, InputIterator last,
-                              OutputIterator result, BinaryOperation binary_op,
-                              T init) {
-  T partial = init;
-  for (InputIterator it = first; it != last; ++it) {
-    partial = binary_op(partial, *it);
-    *(result++) = partial;
-  }
-  return result;
-}
-} // namespace emu
 
 template <typename SpecializationKernelName, typename InputContainer,
           typename OutputContainer, class BinaryOperation>

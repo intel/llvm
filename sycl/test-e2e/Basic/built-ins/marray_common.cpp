@@ -3,8 +3,8 @@
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES // To use math constants
-#include <cmath>
 #endif
+#include <cmath>
 
 #include <sycl/sycl.hpp>
 

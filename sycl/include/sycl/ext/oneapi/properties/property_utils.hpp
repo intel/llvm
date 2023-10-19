@@ -342,6 +342,24 @@ template <typename PropertiesT>
 struct NoConflictingProperties
     : NoConflictingPropertiesHelper<PropertiesT, PropertiesT> {};
 
+//******************************************************************************
+// Conditional property meta-info
+//******************************************************************************
+
+// Base class for property meta info that is ignored when propagating
+// information through the compiler.
+struct IgnoredPropertyMetaInfo {
+  static constexpr const char *name = "";
+  static constexpr std::nullptr_t value = nullptr;
+};
+
+// Trait for picking either property meta information for PropT if Condition is
+// true or ignored information if Condition is false.
+template <typename PropT, bool Condition>
+struct ConditionalPropertyMetaInfo
+    : std::conditional_t<Condition, PropertyMetaInfo<PropT>,
+                         IgnoredPropertyMetaInfo> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

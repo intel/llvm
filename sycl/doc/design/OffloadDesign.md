@@ -189,7 +189,7 @@ the driver.  The driver is also responsible for letting the
 
 |            Option                    |   Expected Behavior   |
 |--------------------------------------|-----------------------|
-| `--sycl-device-libraries=<arg>`      | A comma separated list of device libraries that are linked during the device link. |
+| `--sycl-device-libraries=<arg>`      | A comma separated list of device libraries that are linked during the device link |
 | `--sycl-device-library-location=<arg>`    | The location in which the device libraries reside |
 
 *Table: Options to pass device libraries to the clang-linker-wrapper*
@@ -208,9 +208,17 @@ The `sycl-post-link` tool is used after the device link is performed,
 applying any changes such as optimizations and code splitting before passing
 off to the `llvm-spirv` tool, which translates the LLVM-IR to SPIR-V.
 
-At this point, the SPIR-V binary is sent to the Ahead of Time compilation
-step to produce the final device binary or is wrapped before being linked into
-the final executable.
+|            Option                    |   Expected Behavior   |
+|--------------------------------------|-----------------------|
+| `--sycl-post-link-options=<arg>`     | Options that will control sycl-post-link step |
+| `--llvm-spirv-options=<arg>`         | Options that will control llvm-spirv step |
+
+*Table: Options to pass sycl-post-link and llvm-spirv options to the clang-linker-wrapper*
+
+Options that will be used by clang-linker-wrapper when invoking the `sycl-post-link`
+tool are provided by the driver via the `--sycl-post-link-options=<arg>` option.
+Options that will be used by clang-linker-wrapper when invoking the `llvm-spirv`
+tool are provided by the driver via the `--llvm-spirv-options=<arg>` option.
 
 ### Ahead Of Time Compilation
 

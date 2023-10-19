@@ -48,14 +48,19 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
     AggregatedData.append(static_cast<const char *>(UserData));
     GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
   } else if (TraceType == xpti::trace_node_create) {
-    auto Payload = xptiQueryPayload(Event);
-    xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-    for (const auto &Item : *Metadata) {
-      std::string_view Key{xptiLookupString(Item.first)};
-      if (Key == "kernel_name") {
-        GReceivedNotifications.push_back(
-            std::make_pair(TraceType, Payload->name));
+    std::string UData(static_cast<const char *>(UserData));
+    if (UData.find("command_group_node") != std::string::npos) {
+      auto Payload = xptiQueryPayload(Event);
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "kernel_name") {
+          GReceivedNotifications.push_back(
+              std::make_pair(TraceType, UData + std::string(Payload->name)));
+        }
       }
+    } else if (UData.find("memory_transfer_node") != std::string::npos) {
+      GReceivedNotifications.push_back(std::make_pair(TraceType, UData));
     }
   }
 }
