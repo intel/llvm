@@ -1,7 +1,6 @@
 #define TM 8
 #define TN SG_SZ
 #define TK 16
-#define BF16_EPSILON 0.00781250
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
