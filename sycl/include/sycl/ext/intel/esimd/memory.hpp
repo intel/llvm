@@ -225,7 +225,7 @@ scatter(Tx *p, Toffset offset, simd<Tx, N> vals, simd_mask<N> mask = 1) {
 
 namespace detail {
 // Accessors may get either 32-bit offset or 64-bit depending on
-// the -fsycl-esimd-force-stateles-mem mode settigs.
+// the -fsycl-esimd-force-stateles-mem mode setting.
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 using DeviceAccessorOffsetT = uint64_t;
 #else
@@ -394,7 +394,6 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
 /// @tparam AccessorT is the \ref sycl::accessor type.
@@ -1347,12 +1346,12 @@ block_store(AccessorTy acc, detail::DeviceAccessorOffsetT offset,
 // Implementations of accessor-based gather and scatter functions
 namespace detail {
 template <typename T, int N, typename AccessorTy>
-ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    detail::is_accessor_with_v<AccessorTy,
-                               detail::accessor_mode_cap::can_write>>
-scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-             uint32_t glob_offset, simd_mask<N> mask) {
+ESIMD_INLINE
+    ESIMD_NODEBUG std::enable_if_t<(sizeof(T) <= 4) &&
+                                   (N == 1 || N == 8 || N == 16 || N == 32) &&
+                                   !std::is_pointer_v<AccessorTy>>
+    scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+                 uint32_t glob_offset, simd_mask<N> mask) {
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
@@ -1384,8 +1383,7 @@ scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        detail::is_accessor_with_v<AccessorTy,
-                                   detail::accessor_mode_cap::can_read>,
+        !std::is_pointer_v<AccessorTy>,
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
@@ -1458,7 +1456,7 @@ __ESIMD_API std::enable_if_t<
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 gather(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
-       detail::DeviceAccessorOffsetT glob_offset = 0 simd_mask<N> mask = 1) {
+       detail::DeviceAccessorOffsetT glob_offset = 0, simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
                       offsets, mask);
@@ -1844,10 +1842,10 @@ __ESIMD_API
     std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
                      detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_write>>
-    scatter_rgba(
-        AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
-        simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
-        detail::DeviceAccessorOffsetT global_offset = 0 simd_mask<N> mask = 1) {
+    scatter_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+                 simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+                 detail::DeviceAccessorOffsetT global_offset = 0,
+                 simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter_rgba<RGBAMask>(__ESIMD_DNS::accessorToPointer<T>(acc, global_offset),
@@ -2961,11 +2959,8 @@ __ESIMD_API void barrier() {
 /// @return the linearized 2D block data read from surface.
 ///
 template <typename T, int m, int N, typename AccessorTy, unsigned plane = 0>
-__ESIMD_API
-    std::enable_if_t<detail::is_device_accessor_with_v<
-                         AccessorTy, detail::accessor_mode_cap::can_read>,
-                     simd<T, m * N>>
-    media_block_load(AccessorTy acc, unsigned x, unsigned y) {
+__ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
+                                            unsigned y) {
   constexpr unsigned Width = N * sizeof(T);
   static_assert(Width * m <= 256u,
                 "data does not fit into a single dataport transaction");
@@ -3005,12 +3000,8 @@ __ESIMD_API
 /// @param vals is the linearized 2D block data to be written to surface.
 ///
 template <typename T, int m, int N, typename AccessorTy, unsigned plane = 0>
-__ESIMD_API
-    std::enable_if_t<detail::is_device_accessor_with_v<
-                         AccessorT, detail::accessor_mode_cap::can_write>,
-                     void>
-    media_block_store(AccessorTy acc, unsigned x, unsigned y,
-                      simd<T, m * N> vals) {
+__ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
+                                   simd<T, m * N> vals) {
   constexpr unsigned Width = N * sizeof(T);
   static_assert(Width * m <= 256u,
                 "data does not fit into a single dataport transaction");
