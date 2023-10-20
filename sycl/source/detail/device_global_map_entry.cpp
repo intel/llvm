@@ -22,8 +22,7 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
-  assert(!MInitEvent.has_value() &&
-         "MInitEvent has not been cleaned up.");
+  assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
 OwnedPiEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
@@ -77,10 +76,9 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     // some pointer arithmetic to memcopy over this value to the usm_ptr. This
     // value inside of the device_global will be zero-initialized if it was not
     // given a value on construction.
-    MemoryManager::copy_usm(MDeviceGlobalPtr + sizeof(uintptr_t),
-                            QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
-                            std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent);
+    MemoryManager::copy_usm(
+        MDeviceGlobalPtr + sizeof(uintptr_t), QueueImpl, MDeviceGlobalTSize,
+        NewAlloc.MPtr, std::vector<sycl::detail::pi::PiEvent>{}, &InitEvent);
     NewAlloc.MInitEvent = InitEvent;
   }
 

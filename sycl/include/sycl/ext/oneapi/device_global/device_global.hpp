@@ -66,7 +66,7 @@ protected:
 public:
 #if __cpp_consteval
   template <typename... Args>
-  consteval explicit device_global_base(Args&&... args) : val{args...} {}
+  consteval explicit device_global_base(Args &&...args) : val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
@@ -103,7 +103,7 @@ protected:
 public:
 #if __cpp_consteval
   template <typename... Args>
-  consteval explicit device_global_base(Args&&... args) : val{args...} {}
+  consteval explicit device_global_base(Args &&...args) : val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
@@ -167,8 +167,8 @@ public:
                 "Property list is invalid.");
 
   // Inherit the base class' constructors
-  using detail::device_global_base<T,
-                            detail::properties_t<Props...>>::device_global_base;
+  using detail::device_global_base<
+      T, detail::properties_t<Props...>>::device_global_base;
 
   device_global(const device_global &) = delete;
   device_global(const device_global &&) = delete;
@@ -211,8 +211,8 @@ public:
 
   template <class RelayT = T>
   const std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) const noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
