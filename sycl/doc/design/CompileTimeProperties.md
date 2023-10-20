@@ -151,7 +151,7 @@ oneapi::device_global<
 
 The device compiler front-end ignores the
 `[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute when it is
-applied not to the object definition, or a variable of a type decorated with 
+not applied to the object definition, or a variable of a type decorated with 
 this attribute is not declared at namespace scope. 
 
 Note that the front-end does not need to understand any of the properties in
@@ -631,13 +631,13 @@ each field of the struct are as follows:
 
 * pointer to global object to be annotated, global variable in our case. If 
 there are nested annotations on the global variable, constant `getelementptr`
-instructions can be used to specify at which level the annotation is applied.
-* pointer to global string, representing the annotation. Each global string is
+instructions can be used to specify the level at which the annotation is applied.
+* pointer to global string representing the annotation. Each global string is
 a list of `{name:value}` pairs from the
 `[[__sycl_detail__::add_ir_annotations_global_variable()]]` annotation. Property
 values are converted to strings in the same way as described above, except that
 the `nullptr` value is represented as an empty string, `{name}`.
-* pointer to global string, representing the path of the source file where the
+* pointer to global string representing the path of the source file where the
 annotation was applied.
 * i32 integer representing the line number in the source file where the
 annotation was applied. 
@@ -862,9 +862,9 @@ define spir_kernel void @MyKernel(%arg1, %arg2) !spirv.ParameterDecorations !0 {
 When a property on a global variable needs to be represented in SPIR-V, we
 generally translate the property into a SPIR-V **OpDecorate** instruction for
 the corresponding module scope (global) **OpVariable**. If the property is 
-applied on any of the nested member variables of the global variable it will
+applied to any of the nested member variables of the global variable it will
 still be translated into a SPIR-V **OpDecorate** instruction but will just be
-applied onto the result of a SPIR-V **SpecConstantOp** call.
+applied to the result of a SPIR-V **SpecConstantOp** call.
 
 An LLVM IR global variable definition may optionally have a metadata kind of
 `!spirv.Decorations`.  If it does, that metadata node has one operand for each
