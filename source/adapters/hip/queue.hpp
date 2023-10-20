@@ -44,6 +44,7 @@ struct ur_queue_handle_t_ {
   unsigned int LastSyncTransferStreams;
   unsigned int Flags;
   ur_queue_flags_t URFlags;
+  int Priority;
   // When ComputeStreamSyncMutex and ComputeStreamMutex both need to be
   // locked at the same time, ComputeStreamSyncMutex should be locked first
   // to avoid deadlocks
@@ -56,7 +57,7 @@ struct ur_queue_handle_t_ {
   ur_queue_handle_t_(std::vector<native_type> &&ComputeStreams,
                      std::vector<native_type> &&TransferStreams,
                      ur_context_handle_t Context, ur_device_handle_t Device,
-                     unsigned int Flags, ur_queue_flags_t URFlags,
+                     unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
                      bool BackendOwns = true)
       : ComputeStreams{std::move(ComputeStreams)}, TransferStreams{std::move(
                                                        TransferStreams)},
@@ -66,7 +67,7 @@ struct ur_queue_handle_t_ {
         Device{Device}, RefCount{1}, EventCount{0}, ComputeStreamIdx{0},
         TransferStreamIdx{0}, NumComputeStreams{0}, NumTransferStreams{0},
         LastSyncComputeStreams{0}, LastSyncTransferStreams{0}, Flags(Flags),
-        URFlags(URFlags), HasOwnership{BackendOwns} {
+        URFlags(URFlags), Priority(Priority), HasOwnership{BackendOwns} {
     urContextRetain(Context);
     urDeviceRetain(Device);
   }
