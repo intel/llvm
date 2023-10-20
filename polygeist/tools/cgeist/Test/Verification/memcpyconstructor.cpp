@@ -78,3 +78,17 @@ void bar_u(int i) {
   foo_u(u);
   foo_u_mv(std::move(u));
 }
+
+class Empty {};
+
+// COM: Lowers to nop as no action shall be performed in the constructor.
+
+// CHECK-LABEL:   func.func @_Z9bar_emptyv()
+// CHECK:           return
+// CHECK:         }
+
+void bar_empty() {
+  Empty e;
+  Empty cpy(e);
+  Empty mv(std::move(e));
+}
