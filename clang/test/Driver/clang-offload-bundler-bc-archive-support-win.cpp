@@ -92,19 +92,19 @@
 // RUN: clang-offload-bundler -unbundle -type=aoo -input=%t_bundled.a -targets=host-spir64_x86_64            -output=%t_list5.txt
 
 // Backtick not supported on Windows
-// disabled_because_no_backtick_RUN: cmp %t_unbundled_A.o `cat %t_list1.txt`
-// disabled_because_no_backtick_RUN: cmp %t_unbundled_B.o `cat %t_list2.txt`
-// disabled_because_no_backtick_RUN: cmp %t1.bc           `cat %t_list3.txt`
-// disabled_because_no_backtick_RUN: cmp %t2.bc           `cat %t_list4.txt`
-// disabled_because_no_backtick_RUN: cmp %t3.bc           `cat %t_list5.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t_unbundled_A.o `cat %t_list1.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t_unbundled_B.o `cat %t_list2.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t1.bc           `cat %t_list3.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t2.bc           `cat %t_list4.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t3.bc           `cat %t_list5.txt`
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // TEST4
 // Test archive unbundling for multiple targets
 // RUN: clang-offload-bundler -unbundle -type=aoo -input=%t_bundled.a -targets=sycl-spir64-unknown-unknown,host-spir64_gen -output=%t_listA.txt -output=%t_listB.txt
 // Backtick not supported on Windows
-// disabled_because_no_backtick_RUN: cmp %t_unbundled_A.o `cat %t_listA.txt`
-// disabled_because_no_backtick_RUN: cmp %t2.bc           `cat %t_listB.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t_unbundled_A.o `cat %t_listA.txt`
+// disabled_because_backtick_not_supported_RUN: cmp %t2.bc           `cat %t_listB.txt`
 
 #include <sycl/sycl.hpp>
 
