@@ -211,7 +211,7 @@ allocation `T`, and a list of properties `PropertyListT`.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   ...
 ----
@@ -256,7 +256,7 @@ section following this one.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   public:
     using reference = annotated_ref<T, PropertyListT>;
@@ -519,7 +519,7 @@ stores to annotated_ptrs.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
