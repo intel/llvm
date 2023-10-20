@@ -111,8 +111,8 @@ bool handler::isStateExplicitKernelBundle() const {
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!MImpl->MKernelBundle && Insert) {
-    auto Ctx = (MGraph) ? MGraph->getContext() : MQueue->get_context();
-    auto Dev = (MGraph) ? MGraph->getDevice() : MQueue->get_device();
+    auto Ctx = MGraph ? MGraph->getContext() : MQueue->get_context();
+    auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
     MImpl->MKernelBundle = detail::getSyclObjImpl(
         get_kernel_bundle<bundle_state::input>(Ctx, {Dev}, {}));
   }
@@ -180,7 +180,7 @@ event handler::finalize() {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!KernelBundleImpPtr->isInterop() &&
           !MImpl->isStateExplicitKernelBundle()) {
-        auto Dev = (MGraph) ? MGraph->getDevice() : MQueue->get_device();
+        auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
@@ -821,7 +821,7 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
   device Dev =
-      (MGraph) ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
+      MGraph ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
