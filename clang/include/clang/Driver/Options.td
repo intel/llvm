@@ -3689,8 +3689,6 @@ defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "syc
            "Generates a copy of every device image that uses a specialization constant and "
            "replaces all usages of specialization constant with default values specified by specialization_id. "
            "If a device image doesn't use a specialization constant at all then no copy is generated. "
-           "SYCL Runtime then will be able to choose between new generated device image and "
-           "original one depending on whether a specialization constant value was changed from specified default value in specialization_id. "
            "This option is only useful if used in conjunction with Ahead of Time Compilation (AOT).">,
   NegFlag<SetFalse, [], [ClangOption],
            "Turns off generation of device image where all specialization constant usages are replaced "
