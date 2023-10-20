@@ -1,5 +1,9 @@
 // RUN: cgeist -O0 %s --function=* -S | FileCheck %s
 
+#include <utility>
+
+// A and C present trivial copy and move constructors.
+
 class C {
 public:
   C() = default;
@@ -20,6 +24,7 @@ private:
 };
 
 void foo(A);
+void foo_mv(A &&);
 
 // CHECK-LABEL:   func.func @_Z3barv()
 // CHECK:           %[[VAL_0:.*]] = arith.constant 72 : i64
@@ -31,12 +36,14 @@ void foo(A);
 // CHECK:           %[[VAL_5:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(i32, f32, struct<(i64, f64, ptr)>, array<10 x i32>)>
 // CHECK:           llvm.store %[[VAL_5]], %[[VAL_2]] : !llvm.struct<(i32, f32, struct<(i64, f64, ptr)>, array<10 x i32>)>, !llvm.ptr
 // CHECK:           call @_Z3foo1A(%[[VAL_2]]) : (!llvm.ptr) -> ()
+// CHECK:           call @_Z6foo_mvO1A(%[[VAL_4]]) : (!llvm.ptr) -> ()
 // CHECK:           return
 // CHECK:         }
 
 void bar() {
   A a;
   foo(a);
+  foo_mv(std::move(a));
 }
 
 union U {
@@ -48,6 +55,7 @@ union U {
 };
 
 void foo_u(U);
+void foo_u_mv(U &&);
 
 // CHECK-LABEL:   func.func @_Z5bar_ui(
 // CHECK-SAME:                         %[[VAL_0:.*]]: i32)
@@ -61,10 +69,12 @@ void foo_u(U);
 // CHECK:           %[[VAL_6:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr -> !llvm.struct<(struct<(i32, f32, struct<(i64, f64, ptr)>, array<10 x i32>)>)>
 // CHECK:           llvm.store %[[VAL_6]], %[[VAL_3]] : !llvm.struct<(struct<(i32, f32, struct<(i64, f64, ptr)>, array<10 x i32>)>)>, !llvm.ptr
 // CHECK:           call @_Z5foo_u1U(%[[VAL_3]]) : (!llvm.ptr) -> ()
+// CHECK:           call @_Z8foo_u_mvO1U(%[[VAL_5]]) : (!llvm.ptr) -> ()
 // CHECK:           return
 // CHECK:         }
 
 void bar_u(int i) {
   U u(i);
   foo_u(u);
+  foo_u_mv(std::move(u));
 }
