@@ -120,7 +120,7 @@ inline bool isSYCLExternalFunction(const Function *F) {
 constexpr char SYCLNATIVECPUSUFFIX[] = ".SYCLNCPU";
 constexpr char SYCLNATIVECPUKERNEL[] = ".NativeCPUKernel";
 inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
-  if(S.startswith("__dpcpp_nativecpu") || S.endswith(SYCLNATIVECPUKERNEL))
+  if (S.startswith("__dpcpp_nativecpu") || S.endswith(SYCLNATIVECPUKERNEL))
     return S;
   return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
 }

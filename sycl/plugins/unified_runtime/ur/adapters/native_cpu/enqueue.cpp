@@ -41,7 +41,8 @@ sycl::detail::NDRDescT getNDRDesc(uint32_t WorkDim,
   return Res;
 }
 
-static void runWorkGroupLoops(const sycl::detail::NDRDescT& ndr, ur_kernel_handle_t hKernel) {
+static void runWorkGroupLoops(const sycl::detail::NDRDescT &ndr,
+                              ur_kernel_handle_t hKernel) {
 
   __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
@@ -55,10 +56,10 @@ static void runWorkGroupLoops(const sycl::detail::NDRDescT& ndr, ur_kernel_handl
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
       for (unsigned g0 = 0; g0 < numWG0; g0++) {
 #ifdef NATIVECPU_USE_OCK
-         state.update(g0, g1, g2);
-         hKernel->_subhandler(hKernel->_args.data(), &state);
+        state.update(g0, g1, g2);
+        hKernel->_subhandler(hKernel->_args.data(), &state);
 #else
-         for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
+        for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
           for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
             for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
               state.update(g0, g1, g2, local0, local1, local2);
@@ -98,7 +99,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   hKernel->handleLocalArgs();
 
   runWorkGroupLoops(ndr, hKernel);
-  
+
   // TODO: we should avoid calling clear here by avoiding using push_back
   // in setKernelArgs.
   hKernel->_args.clear();

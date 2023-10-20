@@ -1,7 +1,7 @@
-#include "llvm/SYCLLowerIR/SYCLNativeCPUPipeline.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/SYCLNativeCPUPipeline.h"
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"

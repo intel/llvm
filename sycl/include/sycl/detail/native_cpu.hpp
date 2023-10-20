@@ -115,27 +115,28 @@ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_offset(
   return s->MGlobalOffset[dim];
 }
 
-__NCPU_ATTRS void __dpcpp_nativecpu_set_local_id(
-    unsigned dim, size_t value,  __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
+__NCPU_ATTRS void
+__dpcpp_nativecpu_set_local_id(unsigned dim, size_t value,
+                               __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   s->MLocal_id[dim] = value;
-    s->MGlobal_id[dim] =
-        s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] + s->MLocal_id[dim] + s->MGlobalOffset[dim];
+  s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
+                       s->MLocal_id[dim] + s->MGlobalOffset[dim];
 }
 
 __NCPU_ATTRS void __dpcpp_nativecpu_set_num_sub_groups(
     unsigned value, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
-  //Todo
+  // Todo
 }
 
-__NCPU_ATTRS void __dpcpp_nativecpu_set_sub_group_id (
-    unsigned value, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
-  //Todo
+__NCPU_ATTRS void
+__dpcpp_nativecpu_set_sub_group_id(unsigned value,
+                                   __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
+  // Todo
 }
-
 
 __NCPU_ATTRS void __dpcpp_nativecpu_set_max_sub_group_size(
     unsigned value, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
-  //Todo
+  // Todo
 }
 
 #undef __SYCL_NCPU_GLOBAL_AS

@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Converts SPIRV builtins to Mux builtins used by the oneAPI Construction 
+// Converts SPIRV builtins to Mux builtins used by the oneAPI Construction
 // Kit for SYCL Native CPU
 //
 //===----------------------------------------------------------------------===//
-
 
 #pragma once
 

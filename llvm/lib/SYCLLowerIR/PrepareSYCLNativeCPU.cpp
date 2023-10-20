@@ -48,6 +48,7 @@
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/attributes.h"
 #endif
 
 using namespace llvm;
@@ -205,11 +206,8 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
 }
 
 void fixUpKernelNameAfterBarrier(Function &F) {
-  Attribute Attr = F.getFnAttribute("mux-base-fn-name");
-  if (Attr.isValid()) {
-    auto Name = Attr.getValueAsString();
-    F.setName(Name);
-  }
+  auto Name = compiler::utils::getBaseFnNameOrFnName(F);
+  F.setName(Name);
 }
 
 static inline bool IsNativeCPUKernel(const Function *F) {
@@ -349,7 +347,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // just define __mux_work_group_barrier as a no-op to avoid linker errors.
   // Todo: currently we can't remove the function here even if it has no uses,
   // because we may still emit a declaration for in the offload-wrapper.
-  auto BarrierF = M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
+  auto BarrierF =
+      M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
   if (BarrierF && BarrierF->isDeclaration()) {
     IRBuilder<> Builder(M.getContext());
     auto BB = BasicBlock::Create(M.getContext(), "noop", BarrierF);

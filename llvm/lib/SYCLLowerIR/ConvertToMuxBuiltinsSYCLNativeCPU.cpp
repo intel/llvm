@@ -108,7 +108,7 @@ bool replaceBarriers(Module &M) {
     return false;
   }
   static auto *MuxBarrierFunc = getMuxBarrierFunc(M);
-  SmallVector<std::pair<Instruction *, Instruction*>> ToRemove;
+  SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
   auto *Zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
   for (auto &Use : SPIRVBarrierFunc->uses()) {
     auto *I = dyn_cast<CallInst>(Use.getUser());

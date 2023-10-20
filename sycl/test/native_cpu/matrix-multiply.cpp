@@ -46,7 +46,7 @@ using namespace cl::sycl;
 
 class mxm_kernel;
 
-void display_matrix(float* m, int matSize) {
+void display_matrix(float *m, int matSize) {
   if (matSize > 16) {
     return;
   }
@@ -65,7 +65,7 @@ void display_matrix(float* m, int matSize) {
 /* Implements a host C++ version of the matrix multiplication.
  * If compiler supports OpenMP, code is parallelized. Scheduling
  * uses static chunks of block_size. */
-void block_host(float* MA, float* MB, float* MC, int matSize) {
+void block_host(float *MA, float *MB, float *MC, int matSize) {
   /* We set the block size to 32 for simplicity, though the optimal
    * value will depend on the platform this is run on. */
   int block_size = 32;
@@ -123,7 +123,7 @@ inline bool isPowerOfTwo(int x) { return (x & (x - 1)) == 0; }
  * Note that this example only works for powers of two.
  * */
 template <typename T>
-bool local_mxm(cl::sycl::queue& q, T* MA, T* MB, T* MC, int matSize) {
+bool local_mxm(cl::sycl::queue &q, T *MA, T *MB, T *MC, int matSize) {
   // Make sure it is power of two before running
   if (!isPowerOfTwo(matSize)) {
     std::cout << " This example only works with power of two sizes "
@@ -155,7 +155,7 @@ bool local_mxm(cl::sycl::queue& q, T* MA, T* MB, T* MC, int matSize) {
     buffer<T> bB(MB, dimensions, props);
     buffer<T> bC(MC, dimensions, props);
 
-    q.submit([&](handler& cgh) {
+    q.submit([&](handler &cgh) {
       auto pA = bA.template get_access<access::mode::read>(cgh);
       auto pB = bB.template get_access<access::mode::read>(cgh);
       auto pC = bC.template get_access<access::mode::write>(cgh);
@@ -227,10 +227,10 @@ void usage(std::string programName) {
             << " Default is to use both " << std::endl;
 }
 
-int main(int argc, char* argv[]) {
-  float* MA;
-  float* MB;
-  float* MC;
+int main(int argc, char *argv[]) {
+  float *MA;
+  float *MB;
+  float *MC;
   bool sycl = true;
   bool omp = true;
   bool error = false;
@@ -278,7 +278,7 @@ int main(int argc, char* argv[]) {
         MA[i * matSize + j] = 1.0f;
       }
       MB[i * matSize + j] = 2.0f;
-      MC[i * matSize + j] = 0.0f;  // i * matSize + j;
+      MC[i * matSize + j] = 0.0f; // i * matSize + j;
     }
 
   std::cout << " Input matrix " << std::endl;
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
     // Matrix initialization
     for (int i = 0; i < matSize; i++)
       for (int j = 0; j < matSize; j++) {
-        MC[i * matSize + j] = 0.0f;  // i * matSize + j;
+        MC[i * matSize + j] = 0.0f; // i * matSize + j;
       }
 
     {
@@ -342,7 +342,7 @@ int main(int argc, char* argv[]) {
          * called. */
         queue q([&](exception_list eL) {
           try {
-            for (auto& e : eL) {
+            for (auto &e : eL) {
               std::rethrow_exception(e);
             }
           } catch (cl::sycl::exception e) {
