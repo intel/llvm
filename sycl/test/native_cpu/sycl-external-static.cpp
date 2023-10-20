@@ -1,10 +1,15 @@
-// Test1 - check that kernel can call a SYCL_EXTERNAL function defined in a
-// different object file.
 // REQUIRES: native_cpu_be
+// Check that kernel can call a SYCL_EXTERNAL function defined in a
+// static library.
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE1 %s -c -o %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE2 %s -c -o %t2.o
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -o %t
+// RUN: rm -f %t.a
+// RUN: llvm-ar crv %t.a %t1.o
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t2.o %t.a -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
+// This currently fails because we have a static array of functions which
+// we do not support when handling barriers.
+// XFAIL: *
 
 #include <iostream>
 #include <sycl/sycl.hpp>

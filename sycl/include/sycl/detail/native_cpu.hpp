@@ -51,6 +51,12 @@ struct __nativecpu_state {
     MLocal_id[2] = 0;
   }
 
+  void update(size_t group0, size_t group1, size_t group2) {
+    MWorkGroup_id[0] = group0;
+    MWorkGroup_id[1] = group1;
+    MWorkGroup_id[2] = group2;
+  }
+
   void update(size_t group0, size_t group1, size_t group2, size_t local0,
               size_t local1, size_t local2) {
     MWorkGroup_id[0] = group0;
@@ -74,12 +80,12 @@ struct __nativecpu_state {
   [[intel::device_indirectly_callable]]
 #define __NCPU_ATTRS extern "C" __SYCL_HC_ATTRS
 
-__NCPU_ATTRS size_t __dpcpp_nativecpu_global_id(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_id(
     unsigned dim, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return s->MGlobal_id[dim];
 }
 
-__NCPU_ATTRS size_t __dpcpp_nativecpu_global_range(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_range(
     unsigned dim, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return s->MGlobal_range[dim];
 }
@@ -108,6 +114,30 @@ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_offset(
     unsigned dim, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return s->MGlobalOffset[dim];
 }
+
+__NCPU_ATTRS void __dpcpp_nativecpu_set_local_id(
+    unsigned dim, size_t value,  __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
+  s->MLocal_id[dim] = value;
+    s->MGlobal_id[dim] =
+        s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] + s->MLocal_id[dim] + s->MGlobalOffset[dim];
+}
+
+__NCPU_ATTRS void __dpcpp_nativecpu_set_num_sub_groups(
+    unsigned value, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
+  //Todo
+}
+
+__NCPU_ATTRS void __dpcpp_nativecpu_set_sub_group_id (
+    unsigned value, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
+  //Todo
+}
+
+
+__NCPU_ATTRS void __dpcpp_nativecpu_set_max_sub_group_size(
+    unsigned value, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
+  //Todo
+}
+
 #undef __SYCL_NCPU_GLOBAL_AS
 #undef __SYCL_HC_ATTRS
 #undef __NCPU_ATTRS

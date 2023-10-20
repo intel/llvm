@@ -41,6 +41,37 @@ sycl::detail::NDRDescT getNDRDesc(uint32_t WorkDim,
   return Res;
 }
 
+static void runWorkGroupLoops(const sycl::detail::NDRDescT& ndr, ur_kernel_handle_t hKernel) {
+
+  __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
+                          ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
+                          ndr.LocalSize[2], ndr.GlobalOffset[0],
+                          ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
+
+  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
+  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
+  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
+  for (unsigned g2 = 0; g2 < numWG2; g2++) {
+    for (unsigned g1 = 0; g1 < numWG1; g1++) {
+      for (unsigned g0 = 0; g0 < numWG0; g0++) {
+#ifdef NATIVECPU_USE_OCK
+         state.update(g0, g1, g2);
+         hKernel->_subhandler(hKernel->_args.data(), &state);
+#else
+         for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
+          for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
+            for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
+              state.update(g0, g1, g2, local0, local1, local2);
+              hKernel->_subhandler(hKernel->_args.data(), &state);
+            }
+          }
+        }
+#endif
+      }
+    }
+  }
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -66,28 +97,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       getNDRDesc(workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize);
   hKernel->handleLocalArgs();
 
-  __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
-                          ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
-                          ndr.LocalSize[2], ndr.GlobalOffset[0],
-                          ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
-
-  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
-  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
-  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
-  for (unsigned g2 = 0; g2 < numWG2; g2++) {
-    for (unsigned g1 = 0; g1 < numWG1; g1++) {
-      for (unsigned g0 = 0; g0 < numWG0; g0++) {
-        for (unsigned local2 = 0; local2 < ndr.LocalSize[2]; local2++) {
-          for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
-            for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
-              state.update(g0, g1, g2, local0, local1, local2);
-              hKernel->_subhandler(hKernel->_args.data(), &state);
-            }
-          }
-        }
-      }
-    }
-  }
+  runWorkGroupLoops(ndr, hKernel);
+  
   // TODO: we should avoid calling clear here by avoiding using push_back
   // in setKernelArgs.
   hKernel->_args.clear();

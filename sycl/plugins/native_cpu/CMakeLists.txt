@@ -36,3 +36,42 @@ add_sycl_plugin(native_cpu
     sycl
     UnifiedRuntime-Headers
 )
+
+if(NOT DEFINED NATIVECPU_USE_OCK)
+  option(Native_CPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" On)
+endif()
+
+if(Native_CPU_USE_OCK)
+  # TODO: I'm not sure why we need this here, but we get errors when configuring without it 
+  if(NOT CMAKE_CLC_COMPILE_OBJECT)
+    set(CMAKE_CLC_COMPILE_OBJECT
+      "<CMAKE_CLC_COMPILER> <DEFINES> <INCLUDES> <FLAGS> -o <OBJECT> -c <SOURCE> -emit-llvm")
+  endif()
+  if(NOT CMAKE_CLC_CREATE_STATIC_LIBRARY)
+    set(CMAKE_CLC_CREATE_STATIC_LIBRARY
+      "<CMAKE_CLC_ARCHIVE> -o <TARGET> <OBJECTS>")
+  endif()
+  set(CMAKE_INCLUDE_FLAG_CLC "-I")
+
+  include(FetchContent)
+  FetchContent_Declare(oneapi-ck
+   GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
+   GIT_TAG        sycl_native_experimental
+  )
+  FetchContent_GetProperties(oneapi-ck)
+  if(NOT oneapi-ck_POPULATED)
+    message("Cloning oneAPI Construction Kit")
+    FetchContent_Populate(oneapi-ck)
+    message("oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
+    set(CA_NATIVE_CPU 1)
+    add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR})
+  endif()
+  target_compile_definitions(LLVMSYCLLowerIR PRIVATE  NATIVECPU_USE_OCK)
+  target_include_directories(LLVMSYCLLowerIR PRIVATE 
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
+    ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
+  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-utils)
+  target_compile_definitions(pi_native_cpu PRIVATE NATIVECPU_USE_OCK)
+
+endif()

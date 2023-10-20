@@ -200,6 +200,18 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       OpenCL-Headers
   )
 
+  if(NOT DEFINED NATIVECPU_USE_OCK)
+    option(Native_CPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" On)
+  endif()
+
+  if(Native_CPU_USE_OCK)
+    message("Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message("Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
+
   set_target_properties("ur_adapter_native_cpu" PROPERTIES
     VERSION "0.0.0"
     SOVERSION "0"

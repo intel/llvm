@@ -50,8 +50,8 @@ void gen() {
 }
 
 // Check name mangling 
-// CHECK-DAG: @_ZTS6init_aIiE.NativeCPUKernel({{.*}})
-// CHECK-DAG: @_ZTS6init_aIfE.NativeCPUKernel({{.*}})
+// CHECK-DAG: @_ZTS6init_aIiE({{.*}})
+// CHECK-DAG: @_ZTS6init_aIfE({{.*}})
 
 // Check Native CPU module flag
 // CHECK-DAG: !{{[0-9]*}} = !{i32 1, !"is-native-cpu", i32 1}
