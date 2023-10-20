@@ -15,6 +15,7 @@
 
 // XFAIL: gpu
 
+#include "../common.hpp"
 #include <iostream>
 #include <sycl/sycl.hpp>
 

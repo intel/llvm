@@ -12,9 +12,7 @@
 
 // XFAIL:cpu
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
+#include "common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
