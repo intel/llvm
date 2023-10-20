@@ -189,7 +189,7 @@ pipe can no longer accept new inputs.
 This property is not guaranteed to be respected if the pipe is an inter-kernel
 pipe. 
 
-This property will is only valid when the `protocol` property is *avalon_streaming*
+This property is only valid when the `protocol` property is *avalon_streaming*
 or *avalon_mm*.
 
 |`bits_per_symbol`
