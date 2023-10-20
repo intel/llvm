@@ -45,8 +45,5 @@ if(UR_BUILD_ADAPTER_HIP)
 endif()
 
 if(UR_BUILD_ADAPTER_OPENCL)
-    # Temporarily fetch the opencl adapter from a fork until the PR has been merged.
-    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/opencl")
-    FetchSource(https://github.com/fabiomestre/llvm.git opencl_adapter_unofficial "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
     add_subdirectory(opencl)
 endif()
