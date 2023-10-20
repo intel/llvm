@@ -47,8 +47,8 @@
 #include <vector>
 
 #ifdef NATIVECPU_USE_OCK
-#include "compiler/utils/builtin_info.h"
 #include "compiler/utils/attributes.h"
+#include "compiler/utils/builtin_info.h"
 #endif
 
 using namespace llvm;
