@@ -169,8 +169,6 @@ public:
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
-    /// This section of code is relying on scoped objects, so they cannot be
-    /// encapsulated in a function
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
@@ -230,8 +228,6 @@ private:
     // is the prolog section and the epilog section will initiate the
     // notification.
 #if XPTI_ENABLE_INSTRUMENTATION
-    /// This section of code is relying on scoped objects, so they cannot be
-    /// encapsulated in a function
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
@@ -320,10 +316,7 @@ public:
                             (xpti::trace_event_data_t *)MTraceEvent,
                             MInstanceID,
                             static_cast<const void *>("queue_destroy"));
-      xpti::addMetadata(static_cast<xpti::trace_event_data_t *>(MTraceEvent),
-                        "queue_id", MQueueID);
-      if (!MHostQueue)
-        xpti::addMetadata(static_cast<xpti::trace_event_data_t *>(MTraceEvent), "handle", getHandleRef());
+      xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
     }
 #endif
     throw_asynchronous();
