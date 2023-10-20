@@ -74,8 +74,6 @@ void duplicateNode(const std::shared_ptr<node_impl> Node,
   }
 }
 
-} // anonymous namespace
-
 /// Recursively add nodes to execution stack.
 /// @param NodeImpl Node to schedule.
 /// @param Schedule Execution ordering to add node to.
@@ -90,6 +88,7 @@ void sortTopological(std::shared_ptr<node_impl> NodeImpl,
 
   Schedule.push_front(NodeImpl);
 }
+} // anonymous namespace
 
 void exec_graph_impl::schedule() {
   if (MSchedule.empty()) {
@@ -122,8 +121,7 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
 
   // Find all exit nodes in the current graph and register the Inputs as
   // successors
-  for (size_t i = 0; i < MNodeStorage.size(); i++) {
-    auto NodeImpl = MNodeStorage[i];
+  for (auto &NodeImpl : MNodeStorage) {
     if (NodeImpl->MSuccessors.size() == 0) {
       for (auto &Input : Inputs) {
         NodeImpl->registerSuccessor(Input, NodeImpl);
@@ -184,16 +182,8 @@ graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
 
   MNodeStorage.push_back(NodeImpl);
-  // TODO: Encapsulate in separate function to avoid duplication
-  if (!Deps.empty()) {
-    for (auto &N : Deps) {
-      N->registerSuccessor(NodeImpl, N); // register successor
-      this->removeRoot(NodeImpl);        // remove receiver from root node
-                                         // list
-    }
-  } else {
-    this->addRoot(NodeImpl);
-  }
+
+  addDepsToNode(NodeImpl, Deps);
 
   return NodeImpl;
 }
@@ -268,7 +258,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       MemObj->markBeingUsedInGraph();
     }
     // Look through the graph for nodes which share this requirement
-    for (auto Node : MNodeStorage) {
+    for (auto &Node : MNodeStorage) {
       if (Node->hasRequirement(Req)) {
         bool ShouldAddDep = true;
         // If any of this node's successors have this requirement then we skip
@@ -304,15 +294,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       std::make_shared<node_impl>(CGType, std::move(CommandGroup));
   MNodeStorage.push_back(NodeImpl);
 
-  if (!Deps.empty()) {
-    for (auto &N : Deps) {
-      N->registerSuccessor(NodeImpl, N); // register successor
-      this->removeRoot(NodeImpl);        // remove receiver from root node
-                                         // list
-    }
-  } else {
-    this->addRoot(NodeImpl);
-  }
+  addDepsToNode(NodeImpl, Deps);
 
   // Set barrier nodes as prerequisites (new start points) for subsequent nodes
   if (CGType == sycl::detail::CG::Barrier) {
@@ -387,7 +369,7 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
 
   bool SrcFound = false;
   bool DestFound = false;
-  for (auto Node : MNodeStorage) {
+  for (const auto &Node : MNodeStorage) {
 
     SrcFound |= Node == Src;
     DestFound |= Node == Dest;

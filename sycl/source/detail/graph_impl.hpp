@@ -178,7 +178,7 @@ public:
     return nullptr;
   }
 
-  /// Tests is the caller is similar to Node, this is only used for testing.
+  /// Tests if the caller is similar to Node, this is only used for testing.
   /// @param Node The node to check for similarity.
   /// @param CompareContentOnly Skip comparisons related to graph structure,
   /// compare only the type and command groups of the nodes
@@ -381,7 +381,10 @@ public:
   /// List of root nodes.
   std::set<std::shared_ptr<node_impl>> MRoots;
 
-  /// Storage for all nodes contained within a graph
+  /// Storage for all nodes contained within a graph. Nodes are connected to
+  /// each other via weak_ptrs and so do not extend each other's lifetimes.
+  /// This storage allows easy iteration over all nodes in the graph, rather
+  /// than needing an expensive depth first search.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 
   /// Find the last node added to this graph from an in-order queue.
@@ -430,8 +433,8 @@ public:
   /// @param NodeA pointer to the first node for comparison
   /// @param NodeB pointer to the second node for comparison
   /// @return true is same structure found, false otherwise
-  bool checkNodeRecursive(std::shared_ptr<node_impl> NodeA,
-                          std::shared_ptr<node_impl> NodeB) const {
+  static bool checkNodeRecursive(std::shared_ptr<node_impl> NodeA,
+                                 std::shared_ptr<node_impl> NodeB) {
     size_t FoundCnt = 0;
     for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
       for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
@@ -564,6 +567,22 @@ private:
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
   addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
+
+  /// Adds dependencies for a new node, if it has no deps it will be
+  /// added as a root node.
+  /// @param Node The node to add deps for
+  /// @param Deps List of dependent nodes
+  void addDepsToNode(std::shared_ptr<node_impl> Node,
+                     const std::vector<std::shared_ptr<node_impl>> &Deps) {
+    if (!Deps.empty()) {
+      for (auto &N : Deps) {
+        N->registerSuccessor(Node, N);
+        this->removeRoot(Node);
+      }
+    } else {
+      this->addRoot(Node);
+    }
+  }
 
   /// Context associated with this graph.
   sycl::context MContext;
