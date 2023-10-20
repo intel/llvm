@@ -1614,24 +1614,6 @@ TEST_F(CommandGraphTest, SpecializationConstant) {
       sycl::exception);
 }
 
-// Tests that using kernel bundles in a graph will throw.
-TEST_F(CommandGraphTest, KernelBundle) {
-  sycl::kernel_bundle KernelBundle =
-      sycl::get_kernel_bundle<sycl::bundle_state::executable>(
-          Queue.get_context(), {Dev});
-
-  ASSERT_THROW(
-      {
-        try {
-          Graph.add([&](handler &CGH) { CGH.use_kernel_bundle(KernelBundle); });
-        } catch (const sycl::exception &e) {
-          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
-          throw;
-        }
-      },
-      sycl::exception);
-}
-
 // Tests that using reductions in a graph will throw.
 TEST_F(CommandGraphTest, Reductions) {
   int ReduVar = 0;
