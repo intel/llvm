@@ -42,6 +42,7 @@ complex<float> init_complex(){
 }
 
 // CHECK-LABEL:   func.func @_Z9init_realv() -> !llvm.struct<(struct<(f32, f32)>)> 
+// CHECK-NEXT:      %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 1.500000e+00 : f32
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 0.000000e+00 : f32
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
@@ -49,7 +50,7 @@ complex<float> init_complex(){
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      call @_ZNSt7complexIfEC1Eff(%[[VAL_4]], %[[VAL_1]], %[[VAL_1]]) : (!llvm.ptr, f32, f32) -> ()
 // CHECK-NEXT:      %[[VAL_5:.*]] = call @_ZNSt7complexIfEaSEf(%[[VAL_4]], %[[VAL_0]]) : (!llvm.ptr, f32) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_3]], %[[VAL_4]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:      return %[[VAL_6]] : !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:    }
@@ -67,16 +68,6 @@ complex<float> init_complex(){
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:      llvm.store %[[VAL_6]], %[[VAL_7]] : !llvm.struct<(f32, f32)>, !llvm.ptr
 // CHECK-NEXT:      return %[[VAL_0]] : !llvm.ptr
-// CHECK-NEXT:    }
-
-// CHECK-LABEL:   func.func @_ZNSt7complexIfEC1ERKS0_(
-// CHECK-SAME:                                        %[[VAL_0:.*]]: !llvm.ptr,
-// CHECK-SAME:                                        %[[VAL_1:.*]]: !llvm.ptr)
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f32, f32)>)>
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.struct<(f32, f32)>
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(struct<(f32, f32)>)>
-// CHECK-NEXT:      llvm.store %[[VAL_3]], %[[VAL_4]] : !llvm.struct<(f32, f32)>, !llvm.ptr
-// CHECK-NEXT:      return
 // CHECK-NEXT:    }
 
 complex<float> init_real(){
@@ -141,12 +132,13 @@ float access_imag(complex<float> c){
 // CHECK-LABEL:   func.func @_ZStmlIfESt7complexIT_ERKS2_S4_(
 // CHECK-SAME:                                               %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                                               %[[VAL_1:.*]]: !llvm.ptr) -> !llvm.struct<(struct<(f32, f32)>)> 
+// CHECK-NEXT:      %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_4]], %[[VAL_0]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_5:.*]] = call @_ZNSt7complexIfEmLIfEERS0_RKS_IT_E(%[[VAL_4]], %[[VAL_1]]) : (!llvm.ptr, !llvm.ptr) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_3]], %[[VAL_4]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:      return %[[VAL_6]] : !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:    }
@@ -172,13 +164,14 @@ complex<float> multiply_complex(complex<float> a, complex<float> b){
 // CHECK-LABEL:   func.func @_ZStmlIfESt7complexIT_ERKS2_RKS1_(
 // CHECK-SAME:                                                 %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                                                 %[[VAL_1:.*]]: memref<?xf32>) -> !llvm.struct<(struct<(f32, f32)>)> 
+// CHECK-NEXT:      %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_4]], %[[VAL_0]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_5:.*]] = affine.load %[[VAL_1]][0] : memref<?xf32>
 // CHECK-NEXT:      %[[VAL_6:.*]] = call @_ZNSt7complexIfEmLEf(%[[VAL_4]], %[[VAL_5]]) : (!llvm.ptr, f32) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_3]], %[[VAL_4]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:      return %[[VAL_7]] : !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:    }
@@ -202,12 +195,13 @@ complex<float> multiply_float(complex<float> a, float b){
 // CHECK-LABEL:   func.func @_ZStplIfESt7complexIT_ERKS2_S4_(
 // CHECK-SAME:                                               %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                                               %[[VAL_1:.*]]: !llvm.ptr) -> !llvm.struct<(struct<(f32, f32)>)> 
+// CHECK-NEXT:      %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_4]], %[[VAL_0]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_5:.*]] = call @_ZNSt7complexIfEpLIfEERS0_RKS_IT_E(%[[VAL_4]], %[[VAL_1]]) : (!llvm.ptr, !llvm.ptr) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_3]], %[[VAL_4]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:      return %[[VAL_6]] : !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:    }
@@ -233,13 +227,14 @@ complex<float> add_complex(complex<float> a, complex<float> b){
 // CHECK-LABEL:   func.func @_ZStplIfESt7complexIT_ERKS2_RKS1_(
 // CHECK-SAME:                                                 %[[VAL_0:.*]]: !llvm.ptr,
 // CHECK-SAME:                                                 %[[VAL_1:.*]]: memref<?xf32>) -> !llvm.struct<(struct<(f32, f32)>)> 
+// CHECK-NEXT:      %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(struct<(f32, f32)>)> : (i64) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_4]], %[[VAL_0]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_4]], %[[VAL_0]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_5:.*]] = affine.load %[[VAL_1]][0] : memref<?xf32>
 // CHECK-NEXT:      %[[VAL_6:.*]] = call @_ZNSt7complexIfEpLEf(%[[VAL_4]], %[[VAL_5]]) : (!llvm.ptr, f32) -> !llvm.ptr
-// CHECK-NEXT:      call @_ZNSt7complexIfEC1ERKS0_(%[[VAL_3]], %[[VAL_4]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_3]], %[[VAL_4]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:      %[[VAL_7:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:      return %[[VAL_7]] : !llvm.struct<(struct<(f32, f32)>)>
 // CHECK-NEXT:    }

@@ -392,6 +392,8 @@ private:
                                         bool isReference);
   ValueCategory EmitConditionalOperatorLValue(clang::ConditionalOperator *E);
   ValueCategory EvaluateExprAsBool(clang::Expr *E);
+  void EmitAggregateCopy(mlir::Location Loc, ValueCategory Dest,
+                         clang::QualType Ty, ValueCategory Src);
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,

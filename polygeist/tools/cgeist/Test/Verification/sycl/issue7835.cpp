@@ -8,6 +8,7 @@
 // CHECK-MLIR-LABEL: gpu.func @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE
 // CHECK-MLIR-SAME:        %[[VAL_151:.*]]: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef},
 // CHECK-MLIR-SAME:        %[[VAL_152:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.byval = !llvm.struct<(memref<?xi32, 1>)>, llvm.noundef}
+// CHECK-MLIR:             %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-MLIR:             %[[VAL_153:.*]] = arith.constant 0 : index
 // CHECK-MLIR:             %[[VAL_154:.*]] = arith.constant 1 : index
 // CHECK-MLIR:             %[[VAL_155:.*]] = arith.constant 1 : i64
@@ -26,8 +27,7 @@
 // CHECK-MLIR:             affine.store %[[VAL_166]], %[[VAL_163]][0] : memref<?x!sycl_range_1_>
 // CHECK-MLIR:             %[[VAL_167:.*]] = "polygeist.subindex"(%[[VAL_162]], %[[VAL_154]]) : (memref<?x!llvm.struct<(!sycl_range_1_, !llvm.struct<(memref<?xi32, 4>)>)>>, index) -> memref<?x!llvm.struct<(memref<?xi32, 4>)>>
 // CHECK-MLIR:             %[[VAL_168:.*]] = llvm.addrspacecast %[[VAL_152]] : !llvm.ptr to !llvm.ptr<4>
-// CHECK-MLIR:             %[[VAL_169:.*]] = llvm.addrspacecast %[[VAL_158]] : !llvm.ptr to !llvm.ptr<4>
-// CHECK-MLIR:             func.call @_ZZ4testRN4sycl3_V15queueEENUlNS0_2idILi1EEEE_C1ERKS5_(%[[VAL_169]], %[[VAL_168]]) : (!llvm.ptr<4>, !llvm.ptr<4>) -> ()
+// CHECK-MLIR:             "llvm.intr.memcpy"(%[[VAL_158]], %[[VAL_168]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr<4>, i64) -> ()
 // CHECK-MLIR:             %[[VAL_170:.*]] = llvm.load %[[VAL_158]] : !llvm.ptr -> !llvm.struct<(memref<?xi32, 4>)>
 // CHECK-MLIR:             affine.store %[[VAL_170]], %[[VAL_167]][0] : memref<?x!llvm.struct<(memref<?xi32, 4>)>>
 // CHECK-MLIR:             %[[VAL_171:.*]] = sycl.call @declptr() {MangledFunctionName = @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v} : () -> memref<?x!sycl_item_1_, 4>
@@ -53,15 +53,14 @@
 // CHECK-LLVM-NEXT:    store %"class.sycl::_V1::range.1" %10, ptr %7, align 8
 // CHECK-LLVM-NEXT:    %11 = getelementptr { %"class.sycl::_V1::range.1", { ptr addrspace(4) } }, ptr %6, i32 0, i32 1
 // CHECK-LLVM-NEXT:    %12 = addrspacecast ptr %1 to ptr addrspace(4)
-// CHECK-LLVM-NEXT:    %13 = addrspacecast ptr %4 to ptr addrspace(4)
-// CHECK-LLVM-NEXT:    call spir_func void @_ZZ4testRN4sycl3_V15queueEENUlNS0_2idILi1EEEE_C1ERKS5_(ptr addrspace(4) %13, ptr addrspace(4) %12)
-// CHECK-LLVM-NEXT:    %14 = load { ptr addrspace(4) }, ptr %4, align 8
-// CHECK-LLVM-NEXT:    store { ptr addrspace(4) } %14, ptr %11, align 8
-// CHECK-LLVM-NEXT:    %15 = call spir_func ptr addrspace(4) @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v()
-// CHECK-LLVM-NEXT:    %16 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(ptr addrspace(4) %15)
-// CHECK-LLVM-NEXT:    %17 = addrspacecast ptr %6 to ptr addrspace(4)
-// CHECK-LLVM-NEXT:    store %"class.sycl::_V1::item.1.true" %16, ptr %3, align 8
-// CHECK-LLVM-NEXT:    call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_(ptr addrspace(4) %17, ptr %3)
+// CHECK-LLVM-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr %4, ptr addrspace(4) %12, i64 8, i1 false)
+// CHECK-LLVM-NEXT:    %13 = load { ptr addrspace(4) }, ptr %4, align 8
+// CHECK-LLVM-NEXT:    store { ptr addrspace(4) } %13, ptr %11, align 8
+// CHECK-LLVM-NEXT:    %14 = call spir_func ptr addrspace(4) @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v()
+// CHECK-LLVM-NEXT:    %15 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(ptr addrspace(4) %14)
+// CHECK-LLVM-NEXT:    %16 = addrspacecast ptr %6 to ptr addrspace(4)
+// CHECK-LLVM-NEXT:    store %"class.sycl::_V1::item.1.true" %15, ptr %3, align 8
+// CHECK-LLVM-NEXT:    call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_(ptr addrspace(4) %16, ptr %3)
 // CHECK-LLVM-NEXT:    call spir_func void @__itt_offload_wi_finish_wrapper()
 // CHECK-LLVM-NEXT:    ret void
 

@@ -8,6 +8,7 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/IR/Verifier.h"
 #include "utils.h"
@@ -904,6 +905,50 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *Cons) {
   return VisitConstructCommon(Cons, /*name*/ nullptr, /*space*/ 0);
 }
 
+static bool isMemcpyEquivalentSpecialMember(const clang::CXXMethodDecl *D) {
+  auto *CD = dyn_cast<clang::CXXConstructorDecl>(D);
+  if (!(CD && CD->isCopyOrMoveConstructor()))
+    return false;
+
+  // We can emit a memcpy for a trivial copy or move constructor/assignment.
+  if (D->isTrivial() && !D->getParent()->mayInsertExtraPadding())
+    return true;
+
+  // We *must* emit a memcpy for a defaulted union copy or move op.
+  if (D->getParent()->isUnion() && D->isDefaulted())
+    return true;
+
+  return false;
+}
+
+void MLIRScanner::EmitAggregateCopy(mlir::Location Loc, ValueCategory Dest,
+                                    QualType Ty, ValueCategory Src) {
+  if (const auto *RT = Ty->getAs<RecordType>()) {
+    if (auto *Record = dyn_cast<CXXRecordDecl>(RT->getDecl())) {
+      assert((Record->hasTrivialCopyConstructor() ||
+              Record->hasTrivialCopyAssignment() ||
+              Record->hasTrivialMoveConstructor() ||
+              Record->hasTrivialMoveAssignment() ||
+              Record->hasAttr<TrivialABIAttr>() || Record->isUnion()) &&
+             "Trying to aggregate-copy a type without a trivial copy/move "
+             "constructor or assignment operator");
+      // Ignore empty classes in C++.
+      if (Record->isEmpty())
+        return;
+    }
+  }
+
+  TypeInfoChars TypeInfo = Glob.getCGM().getContext().getTypeInfoInChars(Ty);
+  Value SizeVal = Builder.create<arith::ConstantIntOp>(
+      Loc, TypeInfo.Width.getQuantity(), 64);
+
+  Dest = Dest.MemRef2Ptr(Builder, Loc);
+  Src = Src.MemRef2Ptr(Builder, Loc);
+
+  Builder.create<LLVM::MemcpyOp>(Loc, Dest.val, Src.val, SizeVal,
+                                 /*IsVolatile=*/Builder.getBoolAttr(false));
+}
+
 ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
                                                 VarDecl *Name, unsigned Memtype,
                                                 mlir::Value Op,
@@ -952,6 +997,20 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
   CXXConstructorDecl *CtorDecl = Cons->getConstructor();
   if (CtorDecl->isTrivial() && CtorDecl->isDefaultConstructor())
     return ValueCategory(Op, /*isReference*/ true, SubType);
+
+  // We will replace memcpy-equivalent constructors with an actual memcpy.
+  // In the case of SYCL constructors, we should instead be generating the
+  // relevant constructor operation and rely on lowering to convert to memcpy.
+  if (!isa<sycl::SYCLType>(SubType) &&
+      isMemcpyEquivalentSpecialMember(CtorDecl)) {
+    assert(Cons->getNumArgs() == 1 && "unexpected argcount for trivial ctor");
+
+    ValueCategory Dst(Op, /*isReference=*/true, SubType);
+    ValueCategory Src = EmitLValue(Cons->getArg(0));
+    EmitAggregateCopy(getMLIRLocation(Cons->getLocation()), Dst,
+                      Cons->getType(), Src);
+    return Dst;
+  }
 
   {
     OpBuilder::InsertionGuard InsGuard(Builder);
