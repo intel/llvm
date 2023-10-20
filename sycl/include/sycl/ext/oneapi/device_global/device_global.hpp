@@ -58,7 +58,7 @@ protected:
   // The pointer member is mutable to avoid the compiler optimizing it out when
   // accessing const-qualified device_global variables.
   mutable pointer_t usmptr{};
-  const T val{};
+  const T init_val{};
 
   pointer_t get_ptr() noexcept { return usmptr; }
   pointer_t get_ptr() const noexcept { return usmptr; }
@@ -66,7 +66,7 @@ protected:
 public:
 #if __cpp_consteval
   template <typename... Args>
-  consteval explicit device_global_base(Args &&...args) : val{args...} {}
+  consteval explicit device_global_base(Args &&...args) : init_val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
