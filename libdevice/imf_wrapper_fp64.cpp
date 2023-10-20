@@ -363,10 +363,10 @@ double __imf_copysign(double x, double y) {
 }
 
 DEVICE_EXTERN_C_INLINE
-double __devicelib_imf_rcp64h(double);
+double __devicelib_imf_drcp_h(double);
 
 DEVICE_EXTERN_C_INLINE
-double __imf_rcp64h(double x) { return __devicelib_imf_rcp64h(x); }
+double __imf_drcp_h(double x) { return __devicelib_imf_drcp_h(x); }
 
 DEVICE_EXTERN_C_INLINE
 _iml_half_internal __devicelib_imf_double2half(double);

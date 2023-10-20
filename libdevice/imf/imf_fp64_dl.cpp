@@ -26,7 +26,7 @@ DEVICE_EXTERN_C_INLINE double __devicelib_imf_fmin(double a, double b) {
   return __fmin(a, b);
 }
 
-DEVICE_EXTERN_C_INLINE double __devicelib_imf_rcp64h(double x) {
+DEVICE_EXTERN_C_INLINE double __devicelib_imf_drcp_h(double x) {
   double temp1 = 1.0 / x;
   uint64_t temp2 = __builtin_bit_cast(uint64_t, temp1);
   uint64_t temp3 = 0xFFFF'FFFF'0000'0000;
