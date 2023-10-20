@@ -51,13 +51,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  #commit f0de2f4d7930696d8dabcbbc2c39d0ccd77c7681 (HEAD -> adapters, upstream/adapters)
-  #Merge: 1f149fb 496d694
-  #Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  #Date:   Tue Oct 17 13:47:03 2023 +0100
-  # Merge pull request #943 from hdelan/re-add-extended-deleters
-  # [HIP] Re add extended deleters
-  set(UNIFIED_RUNTIME_TAG 657ffde9a7fa720eb08bade5878287f383a9da79)
+  # commit a76e3b185a5e1df9114dc483077227f88f522244
+  # Merge: 3653e582 657ffde9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Oct 20 12:12:15 2023 +0100
+  #     Merge pull request #972 from oneapi-src/revert-906-l0_usm_error_checking
+  #     Revert "[UR][L0] Propagate errors from `USMAllocationMakeResident`"
+  set(UNIFIED_RUNTIME_TAG a76e3b185a5e1df9114dc483077227f88f522244)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
