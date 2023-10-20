@@ -4628,8 +4628,7 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
   // Reject __try on unsupported targets.
   if (!Context.getTargetInfo().isSEHTrySupported()) {
     if (getLangOpts().SYCLIsDevice)
-      SYCLDiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported)
-          << KernelUseExceptions;
+      SYCLDiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
     else
       Diag(TryLoc, diag::err_seh_try_unsupported);
   }
