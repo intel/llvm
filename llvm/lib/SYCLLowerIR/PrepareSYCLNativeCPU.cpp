@@ -205,11 +205,6 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
   return F->getArg(FT->getNumParams() - 1);
 }
 
-void fixUpKernelNameAfterBarrier(Function &F) {
-  auto Name = compiler::utils::getBaseFnNameOrFnName(F);
-  F.setName(Name);
-}
-
 static inline bool IsNativeCPUKernel(const Function *F) {
   return F->getCallingConv() == llvm::CallingConv::SPIR_KERNEL;
 }
@@ -274,7 +269,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
-    fixUpKernelNameAfterBarrier(*OldF);
+    auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
+    OldF->setName(Name);
 #endif
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
