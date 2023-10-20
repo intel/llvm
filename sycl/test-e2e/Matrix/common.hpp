@@ -5,13 +5,12 @@
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-// The most of the time fails related to floating point calculations
-// (both float and bfloat16)
-// are caused by accumulate error rather than algorithm itself
-// If it's algorithm problem, the result is much diffrent from ref.
-// So we don't need to set too strict condition to compare
-// the result. Something like this should be good enough
-// to catch algorithm errors:
+// Most of the time, failures related to floating-point calculations (both float
+// and bfloat16) are caused by accumulation errors rather than the algorithm
+// itself. If it is an algorithm issue, the calculated result gap from the
+// reference would be much bigger. To avoid flaky test results while catching
+// algorithm errors, we are increasing the accuracy threshold.
+// Something like this should be good enough to catch algorithm errors:
 // fabs(ref[i] - val[i])/max(fabs(ref)) < 10e-2
 constexpr float FLOAT_EPSILON = 10e-2;
 
