@@ -2657,14 +2657,19 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  // Wait on host command dependencies
+  waitForPreparedHostEvents();
 
-  // Any non-allocation dependencies need to be waited on here since subsequent
+  // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  if (!RawEvents.empty()) {
+    const PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+  }
 
   sycl::detail::pi::PiEvent *Event =
       (MQueue->has_discard_events_support() &&
