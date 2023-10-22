@@ -8,22 +8,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using sycl::ext::oneapi::bfloat16;
 
-namespace details {
-
-template <typename, size_t M, size_t N> struct input_limit {
-  static constexpr int value = M * N;
-};
-
-template <> struct input_limit<int8_t, 16, 16> {
-  static constexpr auto value = 128;
-};
-
-template <> struct input_limit<int8_t, 32, 32> {
-  static constexpr auto value = 128;
-};
-
-} // namespace details
-
 template <typename InType, typename OutType, size_t M, size_t N, size_t K,
           layout OutLayout>
 void hip_matrix_copy() {
@@ -34,7 +18,7 @@ void hip_matrix_copy() {
   OutType E[M * N];
 
   std::mt19937 gen(0);
-  std::uniform_real_distribution<float> dist(-100, 100);
+  std::uniform_real_distribution<float> dist(-10, 10);
 
   for (auto i = 0; i < M * K; ++i) {
     A[i] = static_cast<InType>(dist(gen));
@@ -109,9 +93,9 @@ void hip_matrix_copy() {
     std::cout << "Exception caught: " << e.what() << std::endl;
   }
 
-  for (int m = 0; m < M; m++) {
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
+  for (auto m = 0; m < M; m++) {
+    for (auto n = 0; n < N; n++) {
+      for (auto k = 0; k < K; k++) {
         if (OutLayout == layout::row_major)
           E[m * N + n] += A[m * K + k] * B[k * N + n];
         else
@@ -120,7 +104,7 @@ void hip_matrix_copy() {
     }
   }
 
-  for (int i = 0; i < M * N; ++i) {
+  for (auto i = 0; i < M * N; ++i) {
     assert(abs(D[i] - E[i]) < 100 && "Unexpected difference");
   }
 };

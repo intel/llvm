@@ -73,15 +73,15 @@ void hip_matrix_fill() {
     std::cout << "Exception caught: " << e.what() << std::endl;
   }
 
-  for (int m = 0; m < M; m++) {
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
+  for (auto m = 0; m < M; m++) {
+    for (auto n = 0; n < N; n++) {
+      for (auto k = 0; k < K; k++) {
         E[m * N + n] += A[m * K + k] * B[k * N + n];
       }
     }
   }
 
-  for (int i = 0; i < M * N; ++i) {
+  for (auto i = 0; i < M * N; ++i) {
     assert(D[i] == E[i] && "Unexpected difference");
   }
 };

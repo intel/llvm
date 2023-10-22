@@ -214,7 +214,7 @@ void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
                   sycl::ext::oneapi::experimental::matrix::layout::row_major) {
       res.data[0] = src[idx];
     } else {
-      res.data[0] = src[(idx % M) * 4 + idx / M];
+      res.data[0] = src[(idx % M) * stride + idx / M];
     }
   } else {
     constexpr int Dim = (M == 16) ? 16 : 32;

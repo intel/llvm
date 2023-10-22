@@ -9,35 +9,23 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using sycl::ext::oneapi::bfloat16;
 
-template <typename, size_t M, size_t N> struct input_limit {
-  static constexpr int value = M * N;
-};
-
-template <> struct input_limit<int8_t, 16, 16> {
-  static constexpr auto value = 128;
-};
-
-template <> struct input_limit<int8_t, 32, 32> {
-  static constexpr auto value = 128;
-};
-
 template <typename InType, typename OutType, size_t M, size_t N, size_t K,
-          layout OutLayout>
+          size_t KX, layout OutLayout>
 void hip_matrix_mfma() {
-  InType A[M * K];
-  InType B[K * N];
+  InType A[M * K * KX];
+  InType B[K * N * KX];
   OutType C[M * N];
   OutType D[M * N];
   OutType E[M * N];
 
   std::mt19937 gen(0);
-  std::uniform_real_distribution<float> dist(-100, 100);
+  std::uniform_real_distribution<float> dist(-10, 10);
 
-  for (auto i = 0; i < M * K; ++i) {
+  for (auto i = 0; i < M * K * KX; ++i) {
     A[i] = static_cast<InType>(dist(gen));
   }
 
-  for (auto i = 0; i < K * N; ++i) {
+  for (auto i = 0; i < K * N * KX; ++i) {
     B[i] = static_cast<InType>(dist(gen));
   }
 
@@ -53,8 +41,8 @@ void hip_matrix_mfma() {
   try {
     auto defaultQueue = sycl::queue{};
 
-    auto bufA = sycl::buffer{A, sycl::range{M * K}};
-    auto bufB = sycl::buffer{B, sycl::range{K * N}};
+    auto bufA = sycl::buffer{A, sycl::range{M * K * KX}};
+    auto bufB = sycl::buffer{B, sycl::range{K * N * KX}};
     auto bufC = sycl::buffer{C, sycl::range{M * N}};
     auto bufD = sycl::buffer{D, sycl::range{M * N}};
 
@@ -75,17 +63,23 @@ void hip_matrix_mfma() {
                     sub_a;
 
                 joint_matrix_load(
-                    sg, sub_a,
-                    accA.template get_multi_ptr<access::decorated::yes>(), K);
-                joint_matrix_load(
-                    sg, sub_b,
-                    accB.template get_multi_ptr<access::decorated::yes>(), N);
-                joint_matrix_load(
                     sg, sub_c,
                     accC.template get_multi_ptr<access::decorated::yes>(), N,
                     layout::row_major);
 
-                joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+                for (auto kx = 0; kx < KX; ++kx) {
+                  joint_matrix_load(
+                      sg, sub_a,
+                      accA.template get_multi_ptr<access::decorated::yes>() +
+                          kx * K,
+                      K * KX);
+                  joint_matrix_load(
+                      sg, sub_b,
+                      accB.template get_multi_ptr<access::decorated::yes>() +
+                          kx * K * N,
+                      N);
+                  joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+                }
 
                 joint_matrix_store(
                     sg, sub_c,
@@ -100,18 +94,20 @@ void hip_matrix_mfma() {
     std::cout << "Exception caught: " << e.what() << std::endl;
   }
 
-  for (int m = 0; m < M; m++) {
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        if (OutLayout == layout::row_major)
-          E[m * N + n] += A[m * K + k] * B[k * N + n];
-        else
-          E[n * M + m] += A[m * K + k] * B[k * N + n];
+  for (auto kx = 0; kx < KX; kx++) {
+    for (auto m = 0; m < M; m++) {
+      for (auto n = 0; n < N; n++) {
+        for (auto k = 0; k < K; k++) {
+          if (OutLayout == layout::row_major)
+            E[m * N + n] += A[m * K + k + kx * K] * B[k * N + n + kx * K * N];
+          else
+            E[n * M + m] += A[m * K + k + kx * K] * B[k * N + n + kx * K * N];
+        }
       }
     }
   }
 
-  for (int i = 0; i < M * N; ++i) {
+  for (auto i = 0; i < M * N; ++i) {
     assert(abs(D[i] - E[i]) < 100 && "Unexpected difference");
   }
 };

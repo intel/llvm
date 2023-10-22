@@ -8,17 +8,24 @@
 #include "joint_matrix_hip_fill.hpp"
 #include "joint_matrix_hip_mfma.hpp"
 
+template <size_t KX> void matrix_mfma() {
+  hip_matrix_mfma<int8_t, int32_t, 32, 32, 8, KX, layout::row_major>();
+  hip_matrix_mfma<int8_t, int32_t, 16, 16, 16, KX, layout::row_major>();
+  hip_matrix_mfma<bfloat16, float, 32, 32, 8, KX, layout::row_major>();
+  hip_matrix_mfma<bfloat16, float, 16, 16, 16, KX, layout::row_major>();
+  hip_matrix_mfma<double, double, 16, 16, 4, KX, layout::row_major>();
+  hip_matrix_mfma<int8_t, int32_t, 32, 32, 8, KX, layout::col_major>();
+  hip_matrix_mfma<int8_t, int32_t, 16, 16, 16, KX, layout::col_major>();
+  hip_matrix_mfma<bfloat16, float, 32, 32, 8, KX, layout::col_major>();
+  hip_matrix_mfma<bfloat16, float, 16, 16, 16, KX, layout::col_major>();
+  hip_matrix_mfma<double, double, 16, 16, 4, KX, layout::col_major>();
+}
+
 int main() {
-  hip_matrix_mfma<int8_t, int32_t, 32, 32, 8, layout::row_major>();
-  hip_matrix_mfma<int8_t, int32_t, 16, 16, 16, layout::row_major>();
-  hip_matrix_mfma<bfloat16, float, 32, 32, 8, layout::row_major>();
-  hip_matrix_mfma<bfloat16, float, 16, 16, 16, layout::row_major>();
-  hip_matrix_mfma<double, double, 16, 16, 4, layout::row_major>();
-  hip_matrix_mfma<int8_t, int32_t, 32, 32, 8, layout::col_major>();
-  hip_matrix_mfma<int8_t, int32_t, 16, 16, 16, layout::col_major>();
-  hip_matrix_mfma<bfloat16, float, 32, 32, 8, layout::col_major>();
-  hip_matrix_mfma<bfloat16, float, 16, 16, 16, layout::col_major>();
-  hip_matrix_mfma<double, double, 16, 16, 4, layout::col_major>();
+  matrix_mfma<1>();
+  matrix_mfma<2>();
+  matrix_mfma<3>();
+  matrix_mfma<4>();
 
   hip_matrix_copy<int8_t, int32_t, 32, 32, 8, layout::row_major>();
   hip_matrix_copy<int8_t, int32_t, 16, 16, 16, layout::row_major>();
