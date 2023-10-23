@@ -538,25 +538,29 @@ Instruction *emitSpecConstantComposite(Type *Ty, ArrayRef<Value *> Elements,
 // as the element we are trying to initialize. If no such element
 // exists, we used undef as the initializer.
 Constant *getElemDefaultValue(Type *Ty, Type *ElTy, Constant *DefaultValue,
-                              unsigned LocalIndex, const DataLayout &DL) {
+                              size_t ElemIndex, const DataLayout &DL) {
   if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     auto *DefaultValueType = cast<StructType>(DefaultValue->getType());
     const auto &DefaultValueTypeSL = DL.getStructLayout(DefaultValueType);
-    const auto &ReturnTypeSL = DL.getStructLayout(StructTy);
-    ArrayRef<TypeSize> DefaultValueOffsets =
-        DefaultValueTypeSL->getMemberOffsets();
-    TypeSize CurrentIterationOffset =
-        ReturnTypeSL->getElementOffset(LocalIndex);
-    const auto It =
-        std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
-                  CurrentIterationOffset);
+    // The struct has padding, so we have to adjust ElemIndex
+    if (DefaultValueTypeSL->hasPadding()) {
+      const auto &ReturnTypeSL = DL.getStructLayout(StructTy);
+      ArrayRef<TypeSize> DefaultValueOffsets =
+          DefaultValueTypeSL->getMemberOffsets();
+      TypeSize CurrentIterationOffset =
+          ReturnTypeSL->getElementOffset(ElemIndex);
+      const auto It =
+          std::find(DefaultValueOffsets.begin(), DefaultValueOffsets.end(),
+                    CurrentIterationOffset);
 
-    if (It == DefaultValueOffsets.end())
-      return UndefValue::get(ElTy);
-    const auto CorrespondingIndex = It - DefaultValueOffsets.begin();
-    return DefaultValue->getAggregateElement(CorrespondingIndex);
+      // The element we are looking at is a padding field
+      if (It == DefaultValueOffsets.end())
+        return UndefValue::get(ElTy);
+      // Select the index with the same offset
+      ElemIndex = It - DefaultValueOffsets.begin();
+    }
   }
-  return DefaultValue->getAggregateElement(LocalIndex);
+  return DefaultValue->getAggregateElement(ElemIndex);
 }
 
 /// For specified specialization constant type emits LLVM IR which is required
