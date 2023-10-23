@@ -193,7 +193,7 @@ joint_matrix_fill(Group,
   res.cuda_impl.wi_marray = v;
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_apply(res.hip_impl,
-                                                [=](T) { return v; });
+                                                [=](T &value) { value = v; });
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
@@ -455,7 +455,7 @@ void joint_matrix_copy(
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_copy(src.hip_impl, src.hip_impl);
+  sycl::ext::oneapi::detail::joint_matrix_copy(src.hip_impl, dst.hip_impl);
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
