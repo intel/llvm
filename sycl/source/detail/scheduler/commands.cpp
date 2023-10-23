@@ -1935,8 +1935,7 @@ void instrumentationAddExtraKernelMetadata(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName,
-            nullptr);
+            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -2388,13 +2387,36 @@ pi_int32 enqueueImpCommandBufferKernel(
   pi_program PiProgram = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
+  auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
   const KernelArgMask *EliminatedArgMask = nullptr;
-  if (Kernel != nullptr) {
+
+  // Use kernel_bundle if available unless it is interop.
+  // Interop bundles can't be used in the first branch, because the kernels
+  // in interop kernel bundles (if any) do not have kernel_id
+  // and can therefore not be looked up, but since they are self-contained
+  // they can simply be launched directly.
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
+    std::shared_ptr<device_image_impl> DeviceImageImpl;
+    auto KernelName = CommandGroup.MKernelName;
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel SyclKernel =
+        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+    PiKernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    PiProgram = DeviceImageImpl->get_program_ref();
+    std::tie(PiKernel, KernelMutex, EliminatedArgMask) =
+        detail::ProgramManager::getInstance().getOrCreateKernel(
+            KernelBundleImplPtr->get_context(), KernelName,
+            /*PropList=*/{}, PiProgram);
+  } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
   } else {
     std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName, nullptr);
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
   auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
@@ -2499,26 +2521,18 @@ pi_int32 enqueueImpKernel(
     Kernel = MSyclKernel->getHandleRef();
     auto SyclProg = MSyclKernel->getProgramImpl();
     Program = SyclProg->getHandleRef();
-    if (SyclProg->is_cacheable()) {
-      sycl::detail::pi::PiKernel FoundKernel = nullptr;
-      std::tie(FoundKernel, KernelMutex, EliminatedArgMask, std::ignore) =
-          detail::ProgramManager::getInstance().getOrCreateKernel(
-              ContextImpl, DeviceImpl, KernelName, SyclProg.get());
-      assert(FoundKernel == Kernel);
-    } else {
-      // Non-cacheable kernels use mutexes from kernel_impls.
-      // TODO this can still result in a race condition if multiple SYCL
-      // kernels are created with the same native handle. To address this,
-      // we need to either store and use a pi_native_handle -> mutex map or
-      // reuse and return existing SYCL kernels from make_native to avoid
-      // their duplication in such cases.
-      KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
-      EliminatedArgMask = MSyclKernel->getKernelArgMask();
-    }
+    // Non-cacheable kernels use mutexes from kernel_impls.
+    // TODO this can still result in a race condition if multiple SYCL
+    // kernels are created with the same native handle. To address this,
+    // we need to either store and use a pi_native_handle -> mutex map or
+    // reuse and return existing SYCL kernels from make_native to avoid
+    // their duplication in such cases.
+    KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
+    EliminatedArgMask = MSyclKernel->getKernelArgMask();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, nullptr);
+            ContextImpl, DeviceImpl, KernelName);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2626,6 +2640,11 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
+
+  // Any non-allocation dependencies need to be waited on here since subsequent
+  // submissions of the command buffer itself will not receive dependencies on
+  // them, e.g. initial copies from host to device
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
   sycl::detail::pi::PiEvent *Event =
       (MQueue->has_discard_events_support() &&
