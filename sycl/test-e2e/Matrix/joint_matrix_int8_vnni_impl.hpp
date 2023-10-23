@@ -105,9 +105,9 @@ int main() {
   matrix_multiply(MC, MA, MB);
   int8_row_vnni_reformat((int8_t *)B, (int8_t *)Bvnni, MATRIX_K, MATRIX_N,
                          MATRIX_N);
-  matrix_multiply_ref<int8_t, int32_t, 4>((int8_t *)A, (int8_t *)Bvnni,
-                                          (int32_t *)D, MATRIX_M, MATRIX_N,
-                                          MATRIX_K / 4);
+  matrix_multiply_ref<int8_t, int8_t, int32_t, 4>((int8_t *)A, (int8_t *)Bvnni,
+                                                  (int32_t *)D, MATRIX_M,
+                                                  MATRIX_N, MATRIX_K / 4);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (int32_t *)C, (int32_t *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;

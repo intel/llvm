@@ -88,9 +88,9 @@ int main() {
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref<bfloat16, float, 2>((bfloat16 *)A, (bfloat16 *)B,
-                                          (float *)D, MATRIX_M, MATRIX_N,
-                                          MATRIX_K / 2);
+  matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
+      (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
+      MATRIX_K / 2);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;

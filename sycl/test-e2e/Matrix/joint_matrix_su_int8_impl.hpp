@@ -94,8 +94,9 @@ int main() {
   big_matrix<int8_t, MATRIX_M, MATRIX_K> MA((int8_t *)&A);
   big_matrix<uint8_t, MATRIX_K / 4, MATRIX_N * 4> MB((uint8_t *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref<int8_t, int32_t, 4>(
-      (int8_t *)A, (int8_t *)B, (int32_t *)D, MATRIX_M, MATRIX_N, MATRIX_K / 4);
+  matrix_multiply_ref<int8_t, uint8_t, int32_t, 4>((int8_t *)A, (uint8_t *)B,
+                                                   (int32_t *)D, MATRIX_M,
+                                                   MATRIX_N, MATRIX_K / 4);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (int32_t *)C, (int32_t *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;

@@ -31,8 +31,8 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-template <typename Ta, typename Tc, uint VF = 1>
-void matrix_multiply_ref(Ta *A, Ta *B, Tc *C, int M, int N, int K,
+template <typename Ta, typename Tb, typename Tc, uint VF = 1>
+void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
                          bool transpose_c = false, bool colmajor_a = false,
                          bool colmajor_b = false) {
   for (unsigned int m = 0; m < M; m++) {
@@ -44,7 +44,7 @@ void matrix_multiply_ref(Ta *A, Ta *B, Tc *C, int M, int N, int K,
         int c_ind = transpose_c ? (n * M + m) : m * N + n;
 
         Ta *va = (Ta *)(A + a_ind * VF);
-        Ta *vb = (Ta *)(B + b_ind * VF);
+        Tb *vb = (Tb *)(B + b_ind * VF);
         Tc acc = *(C + c_ind);
 
         for (uint i = 0; i < VF; i++) {
@@ -55,6 +55,9 @@ void matrix_multiply_ref(Ta *A, Ta *B, Tc *C, int M, int N, int K,
                                  std::is_same_v<Tc, float> ||
                              std::is_integral_v<Ta> && std::is_integral_v<Tc>)
             acc += va[i] * vb[i];
+          else if constexpr (std::is_same_v<Ta, sycl::half> &&
+                             std::is_same_v<Tc, float>)
+            acc += (float)va[i] * (float)vb[i];
           else
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }

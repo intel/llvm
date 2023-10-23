@@ -72,23 +72,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
    }).wait();
 }
 
-void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
-                         int K) {
-  // tiling
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        half *va = (half *)(A_mem + m * K + k);
-        half *vb = (half *)(B_mem + k * N + n);
-        float acc = *(C_mem + m * N + n);
-        for (int i = 0; i < 2; i++) {
-          acc += ((float)va[i] * (float)vb[i]);
-        }
-        *((float *)(C_mem + m * N + n)) = acc;
-      }
-    }
-}
-
 int main() {
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
@@ -110,8 +93,8 @@ int main() {
   big_matrix<half, MATRIX_M, MATRIX_K> MA((half *)&A);
   big_matrix<half, MATRIX_K / 2, MATRIX_N * 2> MB((half *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref<half, float, 2>((half *)A, (half *)B, (float *)D,
-                                      MATRIX_M, MATRIX_N, MATRIX_K / 2);
+  matrix_multiply_ref<half, half, float, 2>((half *)A, (half *)B, (float *)D,
+                                            MATRIX_M, MATRIX_N, MATRIX_K / 2);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
