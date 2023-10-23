@@ -9,7 +9,7 @@
 /// \file sycl_trace_collector.cpp
 /// Routines to collect and print SYCL API calls.
 
-#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <sycl/detail/spinlock.hpp>
 
@@ -50,17 +50,102 @@ void TraceDiagnosticsMessage(xpti::trace_event_data_t * /*Parent*/,
   }
 }
 
+void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
+                               xpti::trace_event_data_t *CurrentObject,
+                               const void *UserData) {
+  // if (!Message)
+  //   return;
+
+  // std::cout << "[SYCL] Runtime reports: " << std::endl;
+  // std::cout << "what:  " << Message << std::endl;
+  // if (!CurrentObject)
+  //   return;
+  // std::cout << "where: ";
+  // if (auto Payload = CurrentObject->reserved.payload) {
+  //   bool HasData = false;
+  //   if (Payload->flags & (uint64_t)xpti::payload_flag_t::SourceFileAvailable)
+  //   {
+  //     HasData = true;
+  //     std::cout << Payload->source_file << ":" << Payload->line_no << "\t";
+  //   }
+  //   if (Payload->flags & (uint64_t)xpti::payload_flag_t::NameAvailable) {
+  //     HasData = true;
+  //     std::cout << Payload->name;
+  //   }
+  //   if (!HasData)
+  //     std::cout << "No code location data is available.";
+  //   std::cout << std::endl;
+  // }
+}
+
+template <typename Type>
+void PrintMetadataField(
+    const char *Title,
+    const std::pair<xpti::string_id_t, xpti::object_id_t> &Item) {
+  std::cout << "\t" << Title << ": " << xpti::getMetadata<Type>(Item).second
+            << std::endl;
+}
+
+void TraceQueueLifetimeSignals(xpti::trace_event_data_t * /*Parent*/,
+                               xpti::trace_event_data_t *Event,
+                               const void *UserData, bool IsCreation) {
+  if (!Event)
+    return;
+
+  std::cout << "[SYCL] Queue " << (IsCreation ? "create" : "destroy") << ": "
+            << std::endl;
+  xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+  for (const auto &Item : *Metadata) {
+    std::string_view Key{xptiLookupString(Item.first)};
+    if (Key == "queue_id") {
+      PrintMetadataField<unsigned long long>("queue_id", Item);
+      continue;
+    } else if (Key == "queue_handle") {
+      PrintMetadataField<void *>("queue_handle", Item);
+      continue;
+    }
+    if (!PrintSyclVerbose || !IsCreation)
+      continue;
+    if (Key == "sycl_device") {
+      PrintMetadataField<void *>("sycl_device", Item);
+    } else if (Key == "sycl_context") {
+      PrintMetadataField<void *>("sycl_context", Item);
+    } else if (Key == "sycl_device_name") {
+      PrintMetadataField<std::string>("sycl_device_name", Item);
+    } else if (Key == "is_inorder") {
+      PrintMetadataField<bool>("is_inorder", Item);
+    }
+  }
+}
+
 XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *Parent,
                                     xpti::trace_event_data_t *Event,
                                     uint64_t /*Instance*/,
                                     const void *UserData) {
   std::lock_guard<sycl::detail::SpinLock> Lock{GlobalLock};
-  if (TraceType == xpti::trace_diagnostics) {
+  switch (TraceType) {
+  case xpti::trace_diagnostics:
     TraceDiagnosticsMessage(Parent, Event, static_cast<const char *>(UserData));
-  } else if (PrintSyclVerbose)
-    std::cout << "Trace type is unexpected. Please update trace collector."
-              << std::endl;
+    break;
+  case xpti::trace_queue_create:
+    TraceQueueLifetimeSignals(Parent, Event, UserData, true);
+    break;
+  case xpti::trace_queue_destroy:
+    TraceQueueLifetimeSignals(Parent, Event, UserData, false);
+    break;
+  case xpti::trace_task_begin:
+    TraceTaskExecutionSignals(Parent, Event, UserData);
+    break;
+  case xpti::trace_task_end:
+    TraceTaskExecutionSignals(Parent, Event, UserData);
+    break;
+  default: {
+    if (PrintSyclVerbose)
+      std::cout << "Trace type is unexpected. Please update trace collector."
+                << std::endl;
+  } break;
+  }
 }
 
 void syclPrintersInit() {
