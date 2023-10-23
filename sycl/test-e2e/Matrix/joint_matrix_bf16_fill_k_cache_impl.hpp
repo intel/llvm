@@ -52,8 +52,6 @@ constexpr unsigned int recordThresh = 10;
 #define KCACHE2 32
 #endif
 
-#define BF16_EPSILON 0.00781250
-
 #ifdef MANUAL_UNROLL
 template <class T, T... inds, class F>
 static constexpr void loop(std::integer_sequence<T, inds...>, F &&f) {
