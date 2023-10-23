@@ -240,6 +240,9 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_loader_config_info_t value);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_code_location_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_adapter_backend_t value);
@@ -1201,6 +1204,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
+        break;
+
+    case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK:
+        os << "UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK";
         break;
     default:
         os << "unknown enumerator";
@@ -2170,6 +2177,32 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     }
 }
 } // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_code_location_t params) {
+    os << "(struct ur_code_location_t){";
+
+    os << ".functionName = ";
+
+    ur_params::serializePtr(os, (params.functionName));
+
+    os << ", ";
+    os << ".sourceFile = ";
+
+    ur_params::serializePtr(os, (params.sourceFile));
+
+    os << ", ";
+    os << ".lineNumber = ";
+
+    os << (params.lineNumber);
+
+    os << ", ";
+    os << ".columnNumber = ";
+
+    os << (params.columnNumber);
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_adapter_info_t value) {
     switch (value) {
@@ -13874,6 +13907,27 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_loader_config_set_code_location_callback_params_t *params) {
+
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    os << ", ";
+    os << ".pfnCodeloc = ";
+
+    os << reinterpret_cast<void *>(*(params->ppfnCodeloc));
+
+    os << ", ";
+    os << ".pUserData = ";
+
+    ur_params::serializePtr(os, *(params->ppUserData));
+
+    return os;
+}
+
+inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_mem_image_create_params_t *params) {
 
@@ -16145,6 +16199,10 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     } break;
     case UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER: {
         os << (const struct ur_loader_config_enable_layer_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK: {
+        os << (const struct ur_loader_config_set_code_location_callback_params_t
+                   *)params;
     } break;
     case UR_FUNCTION_MEM_IMAGE_CREATE: {
         os << (const struct ur_mem_image_create_params_t *)params;

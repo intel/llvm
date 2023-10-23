@@ -34,7 +34,8 @@ class __urdlllocal context_t : public proxy_layer_context_t {
         return {nameFullValidation, nameParameterValidation, nameLeakChecking};
     }
     ur_result_t init(ur_dditable_t *dditable,
-                     const std::set<std::string> &enabledLayerNames) override;
+                     const std::set<std::string> &enabledLayerNames,
+                     codeloc_data codelocData) override;
     ur_result_t tearDown() override;
 
   private:
