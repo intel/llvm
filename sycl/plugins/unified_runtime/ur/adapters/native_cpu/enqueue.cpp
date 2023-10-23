@@ -63,7 +63,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                            pLocalWorkSize);
   hKernel->handleLocalArgs();
 
-  __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
+  native_cpu::state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
                           ndr.LocalSize[2], ndr.GlobalOffset[0],
                           ndr.GlobalOffset[1], ndr.GlobalOffset[2]);

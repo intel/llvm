@@ -9,7 +9,7 @@
 #pragma once
 
 #include "common.hpp"
-#include <sycl/detail/native_cpu.hpp>
+#include "nativecpu_state.hpp"
 #include <ur_api.h>
 
 namespace native_cpu {
@@ -23,7 +23,7 @@ struct NativeCPUArgDesc {
 } // namespace native_cpu
 
 using nativecpu_kernel_t = void(const native_cpu::NativeCPUArgDesc *,
-                                __nativecpu_state *);
+                                native_cpu::state *);
 using nativecpu_ptr_t = nativecpu_kernel_t *;
 using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 

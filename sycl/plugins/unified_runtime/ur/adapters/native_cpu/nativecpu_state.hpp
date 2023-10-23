@@ -1,14 +1,15 @@
-//==------- native_cpu.hpp - Native CPU helper header ----------------------==//
+//===-------------- nativecpu_state.hpp - SYCL Native CPU state -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===-----------------------------------------------------------------===//
 #pragma once
-#include <functional>
+#include <cstdlib>
+namespace native_cpu {
 
-struct __nativecpu_state {
+struct state {
    size_t MGlobal_id[3];
    size_t MGlobal_range[3];
    size_t MWorkGroup_size[3];
@@ -16,7 +17,7 @@ struct __nativecpu_state {
    size_t MLocal_id[3];
    size_t MNumGroups[3];
    size_t MGlobalOffset[3];
-  __nativecpu_state(size_t globalR0, size_t globalR1, size_t globalR2,
+   state(size_t globalR0, size_t globalR1, size_t globalR2,
                     size_t localR0, size_t localR1, size_t localR2,
                     size_t globalO0, size_t globalO1, size_t globalO2)
       : MGlobal_range{globalR0, globalR1, globalR2},
@@ -51,3 +52,4 @@ struct __nativecpu_state {
   }
 };
 
+} // namespace native_cpu
