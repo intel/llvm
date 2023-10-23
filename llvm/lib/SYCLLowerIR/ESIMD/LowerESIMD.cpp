@@ -358,12 +358,6 @@ public:
         {"svm_scatter4_scaled",
          {"svm.scatter4.scaled", {ai1(2), t(2), c16(0), c64(0), a(0), a(1)}}},
 
-        // intrinsics to query thread's coordinates:
-        {"group_id_x", {"group.id.x", {}}},
-        {"group_id_y", {"group.id.y", {}}},
-        {"group_id_z", {"group.id.z", {}}},
-        {"local_id", {"local.id", {}}},
-        {"local_size", {"local.size", {}}},
         {"svm_atomic0", {"svm.atomic", {ai1(1), a(0), u(-1)}, bo(0)}},
         {"svm_atomic1", {"svm.atomic", {ai1(2), a(0), a(1), u(-1)}, bo(0)}},
         {"svm_atomic2",
@@ -404,25 +398,6 @@ public:
         // arg1: i32 offset (in owords)
         // arg2: data to write (overloaded)
         {"oword_st", {"oword.st", {aSI(0), a(1), a(2)}}},
-
-        // surface index-based gather/scatter:
-        // arg0: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
-        // arg1: i16 scale, CONSTANT
-        // arg2: i32 surface index
-        // arg3: i32 global offset in bytes
-        // arg4: vXi32 element offset in bytes (overloaded)
-        {"gather_scaled2",
-         {"gather.scaled2", {t(3), t(4), aSI(0), a(1), a(2)}}},
-
-        // arg0: vXi1 predicate (overloaded)
-        // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
-        // arg2: i16 scale, CONSTANT
-        // arg3: i32 surface index
-        // arg4: i32 global offset in bytes
-        // arg5: vXi32 element offset in bytes (overloaded)
-        // arg6: old value of the data read
-        {"gather_scaled",
-         {"gather.scaled", {ai1(0), t(3), t(4), aSI(1), a(2), a(3), u(-1)}}},
 
         // arg0: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
         // arg1: i16 scale, CONSTANT
@@ -534,7 +509,7 @@ public:
         {"lsc_load_merge_bti",
          {"lsc.load.merge.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
-           t8(6), t8(7), c8(0), a(1), aSI(2), a(2)}}},
+           t8(6), t8(7), c8(0), a(1), aSI(2), a(3)}}},
         {"lsc_load_stateless",
          {"lsc.load.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),

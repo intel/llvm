@@ -63,3 +63,12 @@ kernel5(accessor<int, 1, access::mode::read, access::target::device> &buf)
   // function for call to 'copy_to'
   v.copy_to(buf, 0);
 }
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel6(local_accessor<const int, 1> &buf) SYCL_ESIMD_FUNCTION {
+  simd<int, 32> v(0, 1);
+  // CHECK: simd_copy_to_copy_from.cpp:73{{.*}}error: no matching member
+  // function for call to 'copy_to'
+  v.copy_to(buf, 0);
+}
