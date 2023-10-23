@@ -497,7 +497,8 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_NE(sycl::detail::getSyclObjImpl(Node1), nullptr);
   ASSERT_FALSE(sycl::detail::getSyclObjImpl(Node1)->isEmpty());
   ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-  ASSERT_EQ(*GraphImpl->MRoots.begin(), sycl::detail::getSyclObjImpl(Node1));
+  ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(),
+            sycl::detail::getSyclObjImpl(Node1));
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.empty());
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MPredecessors.empty());
 
@@ -1269,7 +1270,8 @@ TEST_F(CommandGraphTest, EnqueueBarrier) {
   //     / \
   //   (4) (5)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto BarrierNode = Node->MSuccessors.front().lock();
     ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
@@ -1309,7 +1311,8 @@ TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
   //     / \
   //   (4) (5)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto BarrierNode = Node->MSuccessors.front().lock();
     ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
@@ -1352,7 +1355,8 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
   //     / \ /
   //   (4) (5)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto SuccNode = Node->MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
@@ -1408,7 +1412,8 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
   //     \|/
   //     (B2)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto SuccNode = Node->MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
@@ -1470,7 +1475,8 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //    / | \
   // (6) (7) (8) (those nodes also have B1 as a predecessor)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
     auto SuccNode = Node->MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
@@ -1824,7 +1830,7 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
     auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
 
     ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-    ASSERT_EQ(*(GraphImpl->MRoots.begin()), NodeAImpl);
+    ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(), NodeAImpl);
 
     ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
     ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
@@ -2070,7 +2076,7 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
   ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
 
   // Check structure graph
-  auto CurrentNode = *GraphImpl->MRoots.begin();
+  auto CurrentNode = (*GraphImpl->MRoots.begin()).lock();
   for (size_t i = 1; i <= GraphImpl->getNumberOfNodes(); i++) {
     EXPECT_LE(CurrentNode->MSuccessors.size(), 1lu);
 

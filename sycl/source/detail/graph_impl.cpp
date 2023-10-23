@@ -82,8 +82,10 @@ void sortTopological(std::shared_ptr<node_impl> NodeImpl,
   for (auto &Succ : NodeImpl->MSuccessors) {
     // Check if we've already scheduled this node
     auto NextNode = Succ.lock();
-    if (std::find(Schedule.begin(), Schedule.end(), NextNode) == Schedule.end())
+    if (std::find(Schedule.begin(), Schedule.end(), NextNode) ==
+        Schedule.end()) {
       sortTopological(NextNode, Schedule);
+    }
   }
 
   Schedule.push_front(NodeImpl);
@@ -93,7 +95,7 @@ void sortTopological(std::shared_ptr<node_impl> NodeImpl,
 void exec_graph_impl::schedule() {
   if (MSchedule.empty()) {
     for (auto &Node : MGraphImpl->MRoots) {
-      sortTopological(Node, MSchedule);
+      sortTopological(Node.lock(), MSchedule);
     }
   }
 }
@@ -264,11 +266,14 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
         // If any of this node's successors have this requirement then we skip
         // adding the current node as a dependency.
         for (auto &Succ : Node->MSuccessors) {
-          if (Succ.lock()->hasRequirement(Req))
+          if (Succ.lock()->hasRequirement(Req)) {
             ShouldAddDep = false;
+            break;
+          }
         }
-        if (ShouldAddDep)
+        if (ShouldAddDep) {
           UniqueDeps.insert(Node);
+        }
       }
     }
   }
@@ -328,7 +333,7 @@ void graph_impl::searchDepthFirst(
 
   for (auto &Root : MRoots) {
     std::deque<std::shared_ptr<node_impl>> NodeStack;
-    if (visitNodeDepthFirst(Root, VisitedNodes, NodeStack, NodeFunc)) {
+    if (visitNodeDepthFirst(Root.lock(), VisitedNodes, NodeStack, NodeFunc)) {
       break;
     }
   }
@@ -374,8 +379,9 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
     SrcFound |= Node == Src;
     DestFound |= Node == Dest;
 
-    if (SrcFound && DestFound)
+    if (SrcFound && DestFound) {
       break;
+    }
   }
 
   if (!SrcFound) {

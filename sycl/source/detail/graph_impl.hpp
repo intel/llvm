@@ -183,8 +183,8 @@ public:
   /// @param CompareContentOnly Skip comparisons related to graph structure,
   /// compare only the type and command groups of the nodes
   /// @return True if the two nodes are similar
-  bool isSimilar(std::shared_ptr<node_impl> Node,
-                 bool CompareContentOnly = false) {
+  bool isSimilar(const std::shared_ptr<node_impl> &Node,
+                 bool CompareContentOnly = false) const {
     if (!CompareContentOnly) {
       if (MSuccessors.size() != Node->MSuccessors.size())
         return false;
@@ -379,7 +379,8 @@ public:
   sycl::device getDevice() const { return MDevice; }
 
   /// List of root nodes.
-  std::set<std::shared_ptr<node_impl>> MRoots;
+  std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
+      MRoots;
 
   /// Storage for all nodes contained within a graph. Nodes are connected to
   /// each other via weak_ptrs and so do not extend each other's lifetimes.
@@ -433,8 +434,8 @@ public:
   /// @param NodeA pointer to the first node for comparison
   /// @param NodeB pointer to the second node for comparison
   /// @return true is same structure found, false otherwise
-  static bool checkNodeRecursive(std::shared_ptr<node_impl> NodeA,
-                                 std::shared_ptr<node_impl> NodeB) {
+  static bool checkNodeRecursive(const std::shared_ptr<node_impl> &NodeA,
+                                 const std::shared_ptr<node_impl> &NodeB) {
     size_t FoundCnt = 0;
     for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
       for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
@@ -509,10 +510,13 @@ public:
     }
 
     size_t RootsFound = 0;
-    for (std::shared_ptr<node_impl> NodeA : MRoots) {
-      for (std::shared_ptr<node_impl> NodeB : Graph->MRoots) {
-        if (NodeA->isSimilar(NodeB)) {
-          if (checkNodeRecursive(NodeA, NodeB)) {
+    for (std::weak_ptr<node_impl> NodeA : MRoots) {
+      for (std::weak_ptr<node_impl> NodeB : Graph->MRoots) {
+        auto NodeALocked = NodeA.lock();
+        auto NodeBLocked = NodeB.lock();
+
+        if (NodeALocked->isSimilar(NodeBLocked)) {
+          if (checkNodeRecursive(NodeALocked, NodeBLocked)) {
             RootsFound++;
             break;
           }
