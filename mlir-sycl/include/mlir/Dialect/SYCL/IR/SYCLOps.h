@@ -35,4 +35,25 @@ inline bool isSYCLOperation(Operation *op) {
 #define GET_OP_CLASSES
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h.inc"
 
+namespace mlir {
+namespace sycl {
+/// Defines `constructor_op<SYCLTy>::type`, the type of the constructor
+/// operation for SYCLTy
+template <typename SYCLTy> struct constructor_op {};
+
+template <typename SYCLTy>
+using constructor_op_t = typename constructor_op<SYCLTy>::type;
+
+template <> struct constructor_op<IDType> { using type = SYCLIDConstructorOp; };
+
+template <> struct constructor_op<RangeType> {
+  using type = SYCLRangeConstructorOp;
+};
+
+template <> struct constructor_op<NdRangeType> {
+  using type = SYCLNDRangeConstructorOp;
+};
+} // namespace sycl
+} // namespace mlir
+
 #endif // MLIR_DIALECT_SYCL_IR_SYCLOPS_H

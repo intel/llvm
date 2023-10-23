@@ -87,10 +87,12 @@
 // CHECK-LLVM-SAME:                          ptr noundef byval([[RANGE_TYPE:%"class.sycl::_V1::range.1"]]) align 8 [[ARG1:%.*]]) #[[FUNCATTRS:[0-9]+]]
 // CHECK-LLVM-DAG: [[RANGE:%.*]] = alloca [[RANGE_TYPE]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
-// CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi1EEC1ERKS2_(ptr addrspace(4) [[ID1_AS]], 
-// CHECK-LLVM: [[RANGE1_AS:%.*]] = addrspacecast ptr [[RANGE]] to ptr addrspace(4)
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V15rangeILi1EEC1ERKS2_(ptr addrspace(4) [[RANGE1_AS]],
+// CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
+// CHECK-LLVM: [[ARG0_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
+// CHECK-LLVM: [[TMP:%.*]] = alloca [[ID_TYPE]]
+// CHECK-LLVM: [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
+// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ARG0_AS]], i64 8, i1 false)
+// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[ID_AS]], ptr addrspace(4) [[TMP_AS]], i64 8, i1 false) 
 
 extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
   auto id = sycl::id<1>{i};
@@ -158,17 +160,24 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 
 // CHECK-LABEL: func.func @cons_4(%arg0: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXTERNAL]], {{.*}}}
+// CHECK-NEXT: %[[SIZE:.*]] = arith.constant 16 : i64
 // CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %cast = memref.cast %alloca : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %memspacecast = memref.memory_space_cast %cast : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
 // CHECK-NEXT: %memspacecast_0 = memref.memory_space_cast %arg0 : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: sycl.constructor @id(%memspacecast, %memspacecast_0) {MangledFunctionName = @_ZN4sycl3_V12idILi2EEC1ERKS2_} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>)
+// CHECK-NEXT: %[[VAL_212:.*]] = sycl.id.constructor(%memspacecast_0) : (memref<?x!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %[[VAL_213:.*]] = "polygeist.memref2pointer"(%memspacecast) : (memref<?x!sycl_id_2_, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT: %[[VAL_214:.*]] = "polygeist.memref2pointer"(%[[VAL_212]]) : (memref<?x!sycl_id_2_, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT: "llvm.intr.memcpy"(%[[VAL_213]], %[[VAL_214]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
 
 // CHECK-LLVM: define spir_func void @cons_4(ptr noundef byval([[ID_TYPE:%"class.sycl::_V1::id.2"]]) align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
 // CHECK-LLVM: [[ID2_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
-// CHECK-LLVM: call spir_func void @_ZN4sycl3_V12idILi2EEC1ERKS2_(ptr addrspace(4) [[ID1_AS]], ptr addrspace(4) [[ID2_AS]])
+// CHECK-LLVM: [[TMP:%.*]] = alloca [[ID_TYPE]]
+// CHECK-LLVM: [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
+// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ID2_AS]], i64 16, i1 false)
+// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[ID1_AS]], ptr addrspace(4) [[TMP_AS]], i64 16, i1 false) 
 
 extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
   auto id = sycl::id<2>{val};

@@ -610,12 +610,18 @@ public:
                ConversionPatternRewriter &rewriter) const final {
     const LLVMTypeConverter *typeConverter =
         ConvertOpToLLVMPattern<Op>::getTypeConverter();
+    auto PT =
+        cast<LLVM::LLVMPointerType>(typeConverter->convertType(op.getType()));
     Type ET = typeConverter->convertType(op.getType().getElementType());
+    auto allocaType = typeConverter->getPointerType(ET);
     // The constructor value corresponds with the value defined by the alloca
     // operation.
-    Value alloca = rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
-        op, typeConverter->getPointerType(ET), ET,
+    Value alloca = rewriter.create<LLVM::AllocaOp>(
+        op->getLoc(), allocaType, ET,
         rewriter.create<arith::ConstantIntOp>(op.getLoc(), 1, 32));
+    if (PT.getAddressSpace() != allocaType.getAddressSpace())
+      alloca =
+          rewriter.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(op, PT, alloca);
     initialize(alloca, op, adaptor, rewriter);
   }
 };
