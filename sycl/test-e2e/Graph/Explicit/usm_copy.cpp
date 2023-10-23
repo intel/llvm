@@ -6,6 +6,9 @@
 //
 // CHECK-NOT: LEAK
 
+// https://github.com/intel/llvm/issues/11434
+// UNSUPPORTED: gpu-intel-dg2
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/usm_copy.cpp"
