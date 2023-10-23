@@ -148,16 +148,12 @@ sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
 
 # sycl e2e tests
 sycl/test-e2e/ @intel/llvm-reviewers-runtime
-sycl/test-e2e/GroupAlgorithm/ @Pennycook @intel/llvm-reviewers-runtime
-sycl/test-e2e/GroupLocalMemory/ @Pennycook @intel/llvm-reviewers-runtime
-sycl/test-e2e/SubGroup/ @Pennycook @intel/llvm-reviewers-runtime
-sycl/test-e2e/SubGroupMask/ @Pennycook @intel/llvm-reviewers-runtime
 sycl/test-e2e/Plugin/*level-zero* @intel/dpcpp-l0-pi-reviewers
 sycl/test-e2e/ESIMD/ @intel/dpcpp-esimd-reviewers
-sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
-sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers
-sycl/test-e2e/AOT/ @intel/dpcpp-tools-reviewers
-sycl/test-e2e/DeviceCodeSplit/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers 
+sycl/test-e2e/BFloat16/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
+sycl/test-e2e/AOT/ @intel/dpcpp-tools-reviewers 
+sycl/test-e2e/DeviceCodeSplit/ @intel/dpcpp-tools-reviewers 
 sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
-sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
 sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers
