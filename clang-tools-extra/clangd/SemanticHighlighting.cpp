@@ -715,13 +715,6 @@ public:
     return true;
   }
 
-  bool VisitClassScopeFunctionSpecializationDecl(
-      ClassScopeFunctionSpecializationDecl *D) {
-    if (auto *Args = D->getTemplateArgsAsWritten())
-      H.addAngleBracketTokens(Args->getLAngleLoc(), Args->getRAngleLoc());
-    return true;
-  }
-
   bool VisitDeclRefExpr(DeclRefExpr *E) {
     H.addAngleBracketTokens(E->getLAngleLoc(), E->getRAngleLoc());
     return true;
@@ -733,14 +726,6 @@ public:
 
   bool VisitTemplateSpecializationTypeLoc(TemplateSpecializationTypeLoc L) {
     H.addAngleBracketTokens(L.getLAngleLoc(), L.getRAngleLoc());
-    return true;
-  }
-
-  bool VisitAutoTypeLoc(AutoTypeLoc L) {
-    if (L.isConstrained()) {
-      H.addAngleBracketTokens(L.getLAngleLoc(), L.getRAngleLoc());
-      H.addToken(L.getConceptNameInfo().getLoc(), HighlightingKind::Concept);
-    }
     return true;
   }
 
@@ -760,8 +745,6 @@ public:
     }
     if (auto *Args = D->getTemplateSpecializationArgsAsWritten())
       H.addAngleBracketTokens(Args->getLAngleLoc(), Args->getRAngleLoc());
-    if (auto *I = D->getDependentSpecializationInfo())
-      H.addAngleBracketTokens(I->getLAngleLoc(), I->getRAngleLoc());
     return true;
   }
 

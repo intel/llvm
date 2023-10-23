@@ -50,8 +50,10 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDOptimizeVecArgCallConv.cpp
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
+  ESIMD/ESIMDRemoveHostCode.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
+  CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
@@ -63,6 +65,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
+  SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
 
   LocalAccessorToSharedMemory.cpp

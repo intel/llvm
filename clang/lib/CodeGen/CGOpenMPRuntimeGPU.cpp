@@ -551,10 +551,9 @@ CGOpenMPRuntimeGPU::getExecutionMode() const {
   return CurrentExecutionMode;
 }
 
-static CGOpenMPRuntimeGPU::DataSharingMode
-getDataSharingMode(CodeGenModule &CGM) {
-  return CGM.getLangOpts().OpenMPCUDAMode ? CGOpenMPRuntimeGPU::CUDA
-                                          : CGOpenMPRuntimeGPU::Generic;
+CGOpenMPRuntimeGPU::DataSharingMode
+CGOpenMPRuntimeGPU::getDataSharingMode() const {
+  return CurrentDataSharingMode;
 }
 
 /// Check for inner (nested) SPMD construct, if any
@@ -752,6 +751,9 @@ void CGOpenMPRuntimeGPU::emitNonSPMDKernel(const OMPExecutableDirective &D,
   EntryFunctionState EST;
   WrapperFunctionsMap.clear();
 
+  [[maybe_unused]] bool IsBareKernel = D.getSingleClause<OMPXBareClause>();
+  assert(!IsBareKernel && "bare kernel should not be at generic mode");
+
   // Emit target region as a standalone region.
   class NVPTXPrePostActionTy : public PrePostActionTy {
     CGOpenMPRuntimeGPU::EntryFunctionState &EST;
@@ -760,15 +762,13 @@ void CGOpenMPRuntimeGPU::emitNonSPMDKernel(const OMPExecutableDirective &D,
     NVPTXPrePostActionTy(CGOpenMPRuntimeGPU::EntryFunctionState &EST)
         : EST(EST) {}
     void Enter(CodeGenFunction &CGF) override {
-      auto &RT =
-          static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
+      auto &RT = static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
       RT.emitKernelInit(CGF, EST, /* IsSPMD */ false);
       // Skip target region initialization.
       RT.setLocThreadIdInsertPt(CGF, /*AtCurrentPoint=*/true);
     }
     void Exit(CodeGenFunction &CGF) override {
-      auto &RT =
-          static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
+      auto &RT = static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
       RT.clearLocThreadIdInsertPt(CGF);
       RT.emitKernelDeinit(CGF, EST, /* IsSPMD */ false);
     }
@@ -807,25 +807,39 @@ void CGOpenMPRuntimeGPU::emitSPMDKernel(const OMPExecutableDirective &D,
   ExecutionRuntimeModesRAII ModeRAII(CurrentExecutionMode, EM_SPMD);
   EntryFunctionState EST;
 
+  bool IsBareKernel = D.getSingleClause<OMPXBareClause>();
+
   // Emit target region as a standalone region.
   class NVPTXPrePostActionTy : public PrePostActionTy {
     CGOpenMPRuntimeGPU &RT;
     CGOpenMPRuntimeGPU::EntryFunctionState &EST;
+    bool IsBareKernel;
+    DataSharingMode Mode;
 
   public:
     NVPTXPrePostActionTy(CGOpenMPRuntimeGPU &RT,
-                         CGOpenMPRuntimeGPU::EntryFunctionState &EST)
-        : RT(RT), EST(EST) {}
+                         CGOpenMPRuntimeGPU::EntryFunctionState &EST,
+                         bool IsBareKernel)
+        : RT(RT), EST(EST), IsBareKernel(IsBareKernel),
+          Mode(RT.CurrentDataSharingMode) {}
     void Enter(CodeGenFunction &CGF) override {
+      if (IsBareKernel) {
+        RT.CurrentDataSharingMode = DataSharingMode::DS_CUDA;
+        return;
+      }
       RT.emitKernelInit(CGF, EST, /* IsSPMD */ true);
       // Skip target region initialization.
       RT.setLocThreadIdInsertPt(CGF, /*AtCurrentPoint=*/true);
     }
     void Exit(CodeGenFunction &CGF) override {
+      if (IsBareKernel) {
+        RT.CurrentDataSharingMode = Mode;
+        return;
+      }
       RT.clearLocThreadIdInsertPt(CGF);
       RT.emitKernelDeinit(CGF, EST, /* IsSPMD */ true);
     }
-  } Action(*this, EST);
+  } Action(*this, EST, IsBareKernel);
   CodeGen.setAction(Action);
   IsInTTDRegion = true;
   emitTargetOutlinedFunctionHelper(D, ParentName, OutlinedFn, OutlinedFnID,
@@ -843,7 +857,8 @@ void CGOpenMPRuntimeGPU::emitTargetOutlinedFunction(
   assert(!ParentName.empty() && "Invalid target region parent name!");
 
   bool Mode = supportsSPMDExecutionMode(CGM.getContext(), D);
-  if (Mode)
+  bool IsBareKernel = D.getSingleClause<OMPXBareClause>();
+  if (Mode || IsBareKernel)
     emitSPMDKernel(D, ParentName, OutlinedFn, OutlinedFnID, IsOffloadEntry,
                    CodeGen);
   else
@@ -853,13 +868,18 @@ void CGOpenMPRuntimeGPU::emitTargetOutlinedFunction(
 
 CGOpenMPRuntimeGPU::CGOpenMPRuntimeGPU(CodeGenModule &CGM)
     : CGOpenMPRuntime(CGM) {
-  llvm::OpenMPIRBuilderConfig Config(CGM.getLangOpts().OpenMPIsTargetDevice,
-                                     isGPU(), hasRequiresUnifiedSharedMemory(),
-                                     CGM.getLangOpts().OpenMPOffloadMandatory);
+  llvm::OpenMPIRBuilderConfig Config(
+      CGM.getLangOpts().OpenMPIsTargetDevice, isGPU(),
+      CGM.getLangOpts().OpenMPOffloadMandatory,
+      /*HasRequiresReverseOffload*/ false, /*HasRequiresUnifiedAddress*/ false,
+      hasRequiresUnifiedSharedMemory(), /*HasRequiresDynamicAllocators*/ false);
   OMPBuilder.setConfig(Config);
 
   if (!CGM.getLangOpts().OpenMPIsTargetDevice)
     llvm_unreachable("OpenMP can only handle device code.");
+
+  if (CGM.getLangOpts().OpenMPCUDAMode)
+    CurrentDataSharingMode = CGOpenMPRuntimeGPU::DS_CUDA;
 
   llvm::OpenMPIRBuilder &OMPBuilder = getOMPBuilder();
   if (CGM.getLangOpts().NoGPULib || CGM.getLangOpts().OMPHostIRFile.empty())
@@ -1028,7 +1048,7 @@ llvm::Function *CGOpenMPRuntimeGPU::emitTeamsOutlinedFunction(
 void CGOpenMPRuntimeGPU::emitGenericVarsProlog(CodeGenFunction &CGF,
                                                  SourceLocation Loc,
                                                  bool WithSPMDCheck) {
-  if (getDataSharingMode(CGM) != CGOpenMPRuntimeGPU::Generic &&
+  if (getDataSharingMode() != CGOpenMPRuntimeGPU::DS_Generic &&
       getExecutionMode() != CGOpenMPRuntimeGPU::EM_SPMD)
     return;
 
@@ -1140,7 +1160,7 @@ void CGOpenMPRuntimeGPU::getKmpcFreeShared(
 
 void CGOpenMPRuntimeGPU::emitGenericVarsEpilog(CodeGenFunction &CGF,
                                                  bool WithSPMDCheck) {
-  if (getDataSharingMode(CGM) != CGOpenMPRuntimeGPU::Generic &&
+  if (getDataSharingMode() != CGOpenMPRuntimeGPU::DS_Generic &&
       getExecutionMode() != CGOpenMPRuntimeGPU::EM_SPMD)
     return;
 
@@ -1176,11 +1196,18 @@ void CGOpenMPRuntimeGPU::emitTeamsCall(CodeGenFunction &CGF,
   if (!CGF.HaveInsertPoint())
     return;
 
+  bool IsBareKernel = D.getSingleClause<OMPXBareClause>();
+
   Address ZeroAddr = CGF.CreateDefaultAlignTempAlloca(CGF.Int32Ty,
                                                       /*Name=*/".zero.addr");
   CGF.Builder.CreateStore(CGF.Builder.getInt32(/*C*/ 0), ZeroAddr);
   llvm::SmallVector<llvm::Value *, 16> OutlinedFnArgs;
-  OutlinedFnArgs.push_back(emitThreadIDAddress(CGF, Loc).getPointer());
+  // We don't emit any thread id function call in bare kernel, but because the
+  // outlined function has a pointer argument, we emit a nullptr here.
+  if (IsBareKernel)
+    OutlinedFnArgs.push_back(llvm::ConstantPointerNull::get(CGM.VoidPtrTy));
+  else
+    OutlinedFnArgs.push_back(emitThreadIDAddress(CGF, Loc).getPointer());
   OutlinedFnArgs.push_back(ZeroAddr.getPointer());
   OutlinedFnArgs.append(CapturedVars.begin(), CapturedVars.end());
   emitOutlinedFunctionCall(CGF, Loc, OutlinedFn, OutlinedFnArgs);
@@ -1576,16 +1603,9 @@ static void emitReductionListCopy(
     case RemoteLaneToThread: {
       // Step 1.1: Get the address for the src element in the Reduce list.
       Address SrcElementPtrAddr = Bld.CreateConstArrayGEP(SrcBase, Idx);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       SrcElementAddr = CGF.EmitLoadOfPointer(
           SrcElementPtrAddr.withElementType(PrivateLlvmPtrType),
           PrivatePtrType->castAs<PointerType>());
-#else
-      SrcElementAddr =
-          CGF.EmitLoadOfPointer(CGF.Builder.CreateElementBitCast(
-                                    SrcElementPtrAddr, PrivateLlvmPtrType),
-                                PrivatePtrType->castAs<PointerType>());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
       // Step 1.2: Create a temporary to store the element in the destination
       // Reduce list.
@@ -1599,45 +1619,24 @@ static void emitReductionListCopy(
     case ThreadCopy: {
       // Step 1.1: Get the address for the src element in the Reduce list.
       Address SrcElementPtrAddr = Bld.CreateConstArrayGEP(SrcBase, Idx);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       SrcElementAddr = CGF.EmitLoadOfPointer(
           SrcElementPtrAddr.withElementType(PrivateLlvmPtrType),
           PrivatePtrType->castAs<PointerType>());
-#else
-      SrcElementAddr =
-          CGF.EmitLoadOfPointer(CGF.Builder.CreateElementBitCast(
-                                    SrcElementPtrAddr, PrivateLlvmPtrType),
-                                PrivatePtrType->castAs<PointerType>());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
       // Step 1.2: Get the address for dest element.  The destination
       // element has already been created on the thread's stack.
       DestElementPtrAddr = Bld.CreateConstArrayGEP(DestBase, Idx);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       DestElementAddr = CGF.EmitLoadOfPointer(
           DestElementPtrAddr.withElementType(PrivateLlvmPtrType),
           PrivatePtrType->castAs<PointerType>());
-#else
-      DestElementAddr =
-          CGF.EmitLoadOfPointer(CGF.Builder.CreateElementBitCast(
-                                    DestElementPtrAddr, PrivateLlvmPtrType),
-                                PrivatePtrType->castAs<PointerType>());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       break;
     }
     case ThreadToScratchpad: {
       // Step 1.1: Get the address for the src element in the Reduce list.
       Address SrcElementPtrAddr = Bld.CreateConstArrayGEP(SrcBase, Idx);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       SrcElementAddr = CGF.EmitLoadOfPointer(
           SrcElementPtrAddr.withElementType(PrivateLlvmPtrType),
           PrivatePtrType->castAs<PointerType>());
-#else
-      SrcElementAddr =
-          CGF.EmitLoadOfPointer(CGF.Builder.CreateElementBitCast(
-                                    SrcElementPtrAddr, PrivateLlvmPtrType),
-                                PrivatePtrType->castAs<PointerType>());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
       // Step 1.2: Get the address for dest element:
       // address = base + index * ElementSizeInChars.
@@ -1679,17 +1678,10 @@ static void emitReductionListCopy(
 
     // Regardless of src and dest of copy, we emit the load of src
     // element as this is required in all directions
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     SrcElementAddr = SrcElementAddr.withElementType(
         CGF.ConvertTypeForMem(Private->getType()));
     DestElementAddr =
         DestElementAddr.withElementType(SrcElementAddr.getElementType());
-#else
-    SrcElementAddr = Bld.CreateElementBitCast(
-        SrcElementAddr, CGF.ConvertTypeForMem(Private->getType()));
-    DestElementAddr = Bld.CreateElementBitCast(DestElementAddr,
-                                               SrcElementAddr.getElementType());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Now that all active lanes have read the element in the
     // Reduce list, shuffle over the value from the remote lane.
@@ -1918,12 +1910,7 @@ static llvm::Value *emitInterWarpCopyFunction(CodeGenModule &CGM,
       llvm::Value *ElemPtrPtr = CGF.EmitLoadOfScalar(
           ElemPtrPtrAddr, /*Volatile=*/false, C.VoidPtrTy, SourceLocation());
       // elemptr = ((CopyType*)(elemptrptr)) + I
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Address ElemPtr(ElemPtrPtr, CopyType, Align);
-#else
-      Address ElemPtr(ElemPtrPtr, CGF.Int8Ty, Align);
-      ElemPtr = Bld.CreateElementBitCast(ElemPtr, CopyType);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       if (NumIters > 1)
         ElemPtr = Bld.CreateGEP(ElemPtr, Cnt);
 
@@ -1997,12 +1984,7 @@ static llvm::Value *emitInterWarpCopyFunction(CodeGenModule &CGM,
       Address TargetElemPtrPtr = Bld.CreateConstArrayGEP(LocalReduceList, Idx);
       llvm::Value *TargetElemPtrVal = CGF.EmitLoadOfScalar(
           TargetElemPtrPtr, /*Volatile=*/false, C.VoidPtrTy, Loc);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Address TargetElemPtr(TargetElemPtrVal, CopyType, Align);
-#else
-      Address TargetElemPtr(TargetElemPtrVal, CGF.Int8Ty, Align);
-      TargetElemPtr = Bld.CreateElementBitCast(TargetElemPtr, CopyType);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       if (NumIters > 1)
         TargetElemPtr = Bld.CreateGEP(TargetElemPtr, Cnt);
 
@@ -2431,14 +2413,9 @@ static llvm::Value *emitListToGlobalReduceFunction(
     LValue GlobLVal = CGF.EmitLValueForField(
         CGF.MakeNaturalAlignAddrLValue(BufferArrPtr, StaticTy), FD);
     Address GlobAddr = GlobLVal.getAddress(CGF);
-    llvm::Value *BufferPtr = Bld.CreateInBoundsGEP(
-        GlobAddr.getElementType(), GlobAddr.getPointer(), Idxs);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *BufferPtr = Bld.CreateInBoundsGEP(GlobAddr.getElementType(),
+                                                   GlobAddr.getPointer(), Idxs);
     CGF.EmitStoreOfScalar(BufferPtr, Elem, /*Volatile=*/false, C.VoidPtrTy);
-#else
-    llvm::Value *Ptr = CGF.EmitCastToVoidPtr(BufferPtr);
-    CGF.EmitStoreOfScalar(Ptr, Elem, /*Volatile=*/false, C.VoidPtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     if ((*IPriv)->getType()->isVariablyModifiedType()) {
       // Store array size.
       ++Idx;
@@ -2454,12 +2431,7 @@ static llvm::Value *emitListToGlobalReduceFunction(
   }
 
   // Call reduce_function(GlobalReduceList, ReduceList)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *GlobalReduceList = ReductionList.getPointer();
-#else
-  llvm::Value *GlobalReduceList =
-      CGF.EmitCastToVoidPtr(ReductionList.getPointer());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Address AddrReduceListArg = CGF.GetAddrOfLocalVar(&ReduceListArg);
   llvm::Value *ReducedPtr = CGF.EmitLoadOfScalar(
       AddrReduceListArg, /*Volatile=*/false, C.VoidPtrTy, Loc);
@@ -2649,14 +2621,9 @@ static llvm::Value *emitGlobalToListReduceFunction(
     LValue GlobLVal = CGF.EmitLValueForField(
         CGF.MakeNaturalAlignAddrLValue(BufferArrPtr, StaticTy), FD);
     Address GlobAddr = GlobLVal.getAddress(CGF);
-    llvm::Value *BufferPtr = Bld.CreateInBoundsGEP(
-        GlobAddr.getElementType(), GlobAddr.getPointer(), Idxs);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *BufferPtr = Bld.CreateInBoundsGEP(GlobAddr.getElementType(),
+                                                   GlobAddr.getPointer(), Idxs);
     CGF.EmitStoreOfScalar(BufferPtr, Elem, /*Volatile=*/false, C.VoidPtrTy);
-#else
-    llvm::Value *Ptr = CGF.EmitCastToVoidPtr(BufferPtr);
-    CGF.EmitStoreOfScalar(Ptr, Elem, /*Volatile=*/false, C.VoidPtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     if ((*IPriv)->getType()->isVariablyModifiedType()) {
       // Store array size.
       ++Idx;
@@ -2672,12 +2639,7 @@ static llvm::Value *emitGlobalToListReduceFunction(
   }
 
   // Call reduce_function(ReduceList, GlobalReduceList)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *GlobalReduceList = ReductionList.getPointer();
-#else
-  llvm::Value *GlobalReduceList =
-      CGF.EmitCastToVoidPtr(ReductionList.getPointer());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Address AddrReduceListArg = CGF.GetAddrOfLocalVar(&ReduceListArg);
   llvm::Value *ReducedPtr = CGF.EmitLoadOfScalar(
       AddrReduceListArg, /*Volatile=*/false, C.VoidPtrTy, Loc);
@@ -3165,23 +3127,12 @@ CGOpenMPRuntimeGPU::getParameterAddress(CodeGenFunction &CGF,
       LocalAddr, /*Volatile=*/false, TargetTy, SourceLocation());
   // First cast to generic.
   TargetAddr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       TargetAddr,
       llvm::PointerType::get(CGF.getLLVMContext(), /*AddrSpace=*/0));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      TargetAddr, llvm::PointerType::getWithSamePointeeType(
-          cast<llvm::PointerType>(TargetAddr->getType()), /*AddrSpace=*/0));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // Cast from generic to native address space.
   TargetAddr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       TargetAddr,
       llvm::PointerType::get(CGF.getLLVMContext(), NativePointeeAddrSpace));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      TargetAddr, llvm::PointerType::getWithSamePointeeType(
-          cast<llvm::PointerType>(TargetAddr->getType()),
-                                  NativePointeeAddrSpace));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Address NativeParamAddr = CGF.CreateMemTemp(NativeParamType);
   CGF.EmitStoreOfScalar(TargetAddr, NativeParamAddr, /*Volatile=*/false,
                         NativeParamType);
@@ -3206,13 +3157,8 @@ void CGOpenMPRuntimeGPU::emitOutlinedFunctionCall(
       continue;
     }
     llvm::Value *TargetArg = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         NativeArg,
         llvm::PointerType::get(CGF.getLLVMContext(), /*AddrSpace*/ 0));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-        NativeArg, llvm::PointerType::getWithSamePointeeType(
-            cast<llvm::PointerType>(NativeArg->getType()), /*AddrSpace*/ 0));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     TargetArgs.emplace_back(
         CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(TargetArg, TargetType));
   }
@@ -3352,7 +3298,7 @@ llvm::Function *CGOpenMPRuntimeGPU::createParallelDataSharingWrapper(
 
 void CGOpenMPRuntimeGPU::emitFunctionProlog(CodeGenFunction &CGF,
                                               const Decl *D) {
-  if (getDataSharingMode(CGM) != CGOpenMPRuntimeGPU::Generic)
+  if (getDataSharingMode() != CGOpenMPRuntimeGPU::DS_Generic)
     return;
 
   assert(D && "Expected function or captured|block decl.");
@@ -3461,7 +3407,7 @@ Address CGOpenMPRuntimeGPU::getAddressOfLocalVariable(CodeGenFunction &CGF,
         VarTy, Align);
   }
 
-  if (getDataSharingMode(CGM) != CGOpenMPRuntimeGPU::Generic)
+  if (getDataSharingMode() != CGOpenMPRuntimeGPU::DS_Generic)
     return Address::invalid();
 
   VD = VD->getCanonicalDecl();

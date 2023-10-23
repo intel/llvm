@@ -42,48 +42,47 @@ target triple = "spir"
 define dso_local spir_func i32 @foo(i64 %a, i64 %b) local_unnamed_addr #0 {
 entry:
   %qqq = alloca [42 x i32], align 16
-  %0 = bitcast [42 x i32]* %qqq to i8*
-  call void @llvm.lifetime.start.p0i8(i64 168, i8* nonnull %0) #2
+  call void @llvm.lifetime.start.p0(i64 168, ptr nonnull %qqq) #2
 
-; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave()
-  %1 = call i8* @llvm.stacksave()
+; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave.p0()
+  %0 = call ptr @llvm.stacksave.p0()
 
 ; CHECK-LLVM: alloca i32, i64 %a, align 16
   %vla = alloca i32, i64 %a, align 16
 
-  %arrayidx = getelementptr inbounds i32, i32* %vla, i64 %b
-  %2 = load i32, i32* %arrayidx, align 4
+  %arrayidx = getelementptr inbounds i32, ptr %vla, i64 %b
+  %1 = load i32, ptr %arrayidx, align 4
 
-; CHECK-LLVM: call void @llvm.stackrestore(ptr %[[#SavedMem]])
-  call void @llvm.stackrestore(i8* %1)
+; CHECK-LLVM: call void @llvm.stackrestore.p0(ptr %[[#SavedMem]])
+  call void @llvm.stackrestore.p0(ptr %0)
 
-; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave()
-  %3 = call i8* @llvm.stacksave()
+; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave.p0()
+  %2 = call ptr @llvm.stacksave.p0()
 
 ; CHECK-LLVM: alloca i32, i64 %a, align 16
   %vla2 = alloca i32, i64 %a, align 16
 
-  %arrayidx3 = getelementptr inbounds [42 x i32], [42 x i32]* %qqq, i64 0, i64 %b
-  %4 = load i32, i32* %arrayidx3, align 4
-  %add = add nsw i32 %4, %2
-  %arrayidx4 = getelementptr inbounds i32, i32* %vla2, i64 %b
-  %5 = load i32, i32* %arrayidx4, align 4
-  %add5 = add nsw i32 %add, %5
+  %arrayidx3 = getelementptr inbounds [42 x i32], ptr %qqq, i64 0, i64 %b
+  %3 = load i32, ptr %arrayidx3, align 4
+  %add = add nsw i32 %3, %1
+  %arrayidx4 = getelementptr inbounds i32, ptr %vla2, i64 %b
+  %4 = load i32, ptr %arrayidx4, align 4
+  %add5 = add nsw i32 %add, %4
 
-; CHECK-LLVM: call void @llvm.stackrestore(ptr %[[#SavedMem]])
-  call void @llvm.stackrestore(i8* %3)
+; CHECK-LLVM: call void @llvm.stackrestore.p0(ptr %[[#SavedMem]])
+  call void @llvm.stackrestore.p0(ptr %2)
 
-  call void @llvm.lifetime.end.p0i8(i64 168, i8* nonnull %0) #2
+  call void @llvm.lifetime.end.p0(i64 168, ptr nonnull %qqq) #2
   ret i32 %add5
 }
 
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
-declare i8* @llvm.stacksave() #2
+declare ptr @llvm.stacksave.p0() #2
 
-declare void @llvm.stackrestore(i8*) #2
+declare void @llvm.stackrestore.p0(ptr) #2
 
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

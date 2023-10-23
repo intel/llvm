@@ -438,9 +438,8 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   //      value is, are implementation-defined.
   // (Removed in C++20.)
   if (!LangOpts.CPlusPlus) {
-    // FIXME: Use correct value for C23.
-    if (LangOpts.C2x)
-      Builder.defineMacro("__STDC_VERSION__", "202000L");
+    if (LangOpts.C23)
+      Builder.defineMacro("__STDC_VERSION__", "202311L");
     else if (LangOpts.C17)
       Builder.defineMacro("__STDC_VERSION__", "201710L");
     else if (LangOpts.C11)
@@ -598,6 +597,11 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
     Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
+    if (LangOpts.HIPStdPar) {
+      Builder.defineMacro("__HIPSTDPAR__");
+      if (LangOpts.HIPStdParInterposeAlloc)
+        Builder.defineMacro("__HIPSTDPAR_INTERPOSE_ALLOC__");
+    }
     if (LangOpts.CUDAIsDevice) {
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
       if (!TI.hasHIPImageSupport()) {
@@ -1340,11 +1344,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+  } else if (LangOpts.SYCLIsHost && LangOpts.SYCLESIMDBuildHostCode) {
+    Builder.defineMacro("__ESIMD_BUILD_HOST_CODE");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
 
-  if (LangOpts.SYCLESIMDForceStatelessMem)
+  // Stateless memory may be enforced only for SYCL device or host.
+  if ((LangOpts.SYCLIsDevice || LangOpts.SYCLIsHost) &&
+      LangOpts.SYCLESIMDForceStatelessMem)
     Builder.defineMacro("__ESIMD_FORCE_STATELESS_MEM");
 
   // OpenCL definitions.

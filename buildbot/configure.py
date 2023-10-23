@@ -62,10 +62,7 @@ def do_configure(args):
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
         llvm_enable_projects += ';lld'
 
-    if args.enable_esimd_emulator:
-        sycl_enabled_plugins.append("esimd_emulator")
-
-    if args.cuda or args.hip:
+    if args.cuda or args.hip or args.native_cpu:
         llvm_enable_projects += ';libclc'
 
     if args.cuda:
@@ -86,6 +83,12 @@ def do_configure(args):
 
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
+
+    if args.native_cpu:
+        #Todo: we should set whatever targets we support for native cpu
+        libclc_targets_to_build += ';x86_64-unknown-linux-gnu'
+        sycl_enabled_plugins.append("native_cpu")
+
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
@@ -234,11 +237,11 @@ def main():
     parser.add_argument("-t", "--build-type",
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
+    parser.add_argument("--native_cpu", action='store_true', help="Enable SYCL Native CPU")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
-    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support (deprecated)")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")

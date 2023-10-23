@@ -87,7 +87,7 @@ void PrettyDeclStackTraceEntry::print(raw_ostream &OS) const {
   }
   OS << Message;
 
-  if (auto *ND = dyn_cast_or_null<NamedDecl>(TheDecl)) {
+  if (auto *ND = dyn_cast_if_present<NamedDecl>(TheDecl)) {
     OS << " '";
     ND->getNameForDiagnostic(OS, Context.getPrintingPolicy(), true);
     OS << "'";
@@ -1952,7 +1952,7 @@ bool NamedDecl::isCXXInstanceMember() const {
 
   if (isa<FieldDecl>(D) || isa<IndirectFieldDecl>(D) || isa<MSPropertyDecl>(D))
     return true;
-  if (const auto *MD = dyn_cast_or_null<CXXMethodDecl>(D->getAsFunction()))
+  if (const auto *MD = dyn_cast_if_present<CXXMethodDecl>(D->getAsFunction()))
     return MD->isInstance();
   return false;
 }
@@ -2559,10 +2559,10 @@ APValue *VarDecl::evaluateValueImpl(SmallVectorImpl<PartialDiagnosticAt> &Notes,
   bool Result = Init->EvaluateAsInitializer(Eval->Evaluated, Ctx, this, Notes,
                                             IsConstantInitialization);
 
-  // In C++11, this isn't a constant initializer if we produced notes. In that
+  // In C++, this isn't a constant initializer if we produced notes. In that
   // case, we can't keep the result, because it may only be correct under the
   // assumption that the initializer is a constant context.
-  if (IsConstantInitialization && Ctx.getLangOpts().CPlusPlus11 &&
+  if (IsConstantInitialization && Ctx.getLangOpts().CPlusPlus &&
       !Notes.empty())
     Result = false;
 
@@ -2948,7 +2948,7 @@ Expr *ParmVarDecl::getDefaultArg() {
          "Default argument is not yet instantiated!");
 
   Expr *Arg = getInit();
-  if (auto *E = dyn_cast_or_null<FullExpr>(Arg))
+  if (auto *E = dyn_cast_if_present<FullExpr>(Arg))
     return E->getSubExpr();
 
   return Arg;
@@ -2987,7 +2987,7 @@ void ParmVarDecl::setUninstantiatedDefaultArg(Expr *arg) {
 Expr *ParmVarDecl::getUninstantiatedDefaultArg() {
   assert(hasUninstantiatedDefaultArg() &&
          "Wrong kind of initialization expression!");
-  return cast_or_null<Expr>(Init.get<Stmt *>());
+  return cast_if_present<Expr>(Init.get<Stmt *>());
 }
 
 bool ParmVarDecl::hasDefaultArg() const {
@@ -3656,6 +3656,20 @@ unsigned FunctionDecl::getMinRequiredArguments() const {
   return NumRequiredArgs;
 }
 
+bool FunctionDecl::hasCXXExplicitFunctionObjectParameter() const {
+  return getNumParams() != 0 && getParamDecl(0)->isExplicitObjectParameter();
+}
+
+unsigned FunctionDecl::getNumNonObjectParams() const {
+  return getNumParams() -
+         static_cast<unsigned>(hasCXXExplicitFunctionObjectParameter());
+}
+
+unsigned FunctionDecl::getMinRequiredExplicitArguments() const {
+  return getMinRequiredArguments() -
+         static_cast<unsigned>(hasCXXExplicitFunctionObjectParameter());
+}
+
 bool FunctionDecl::hasOneParamOrDefaultArgs() const {
   return getNumParams() == 1 ||
          (getNumParams() > 1 &&
@@ -3954,7 +3968,7 @@ FunctionDecl::setInstantiationOfMemberFunction(ASTContext &C,
 }
 
 FunctionTemplateDecl *FunctionDecl::getDescribedFunctionTemplate() const {
-  return dyn_cast_or_null<FunctionTemplateDecl>(
+  return dyn_cast_if_present<FunctionTemplateDecl>(
       TemplateOrSpecialization.dyn_cast<NamedDecl *>());
 }
 
@@ -3965,6 +3979,12 @@ void FunctionDecl::setDescribedFunctionTemplate(
   TemplateOrSpecialization = Template;
 }
 
+bool FunctionDecl::isFunctionTemplateSpecialization() const {
+  return TemplateOrSpecialization.is<FunctionTemplateSpecializationInfo *>() ||
+         TemplateOrSpecialization
+             .is<DependentFunctionTemplateSpecializationInfo *>();
+}
+
 void FunctionDecl::setInstantiatedFromDecl(FunctionDecl *FD) {
   assert(TemplateOrSpecialization.isNull() &&
          "Function is already a specialization");
@@ -3972,7 +3992,7 @@ void FunctionDecl::setInstantiatedFromDecl(FunctionDecl *FD) {
 }
 
 FunctionDecl *FunctionDecl::getInstantiatedFromDecl() const {
-  return dyn_cast_or_null<FunctionDecl>(
+  return dyn_cast_if_present<FunctionDecl>(
       TemplateOrSpecialization.dyn_cast<NamedDecl *>());
 }
 
@@ -4099,6 +4119,11 @@ FunctionDecl::getTemplateSpecializationArgsAsWritten() const {
             .dyn_cast<FunctionTemplateSpecializationInfo*>()) {
     return Info->TemplateArgumentsAsWritten;
   }
+  if (DependentFunctionTemplateSpecializationInfo *Info =
+          TemplateOrSpecialization
+              .dyn_cast<DependentFunctionTemplateSpecializationInfo *>()) {
+    return Info->TemplateArgumentsAsWritten;
+  }
   return nullptr;
 }
 
@@ -4127,10 +4152,9 @@ FunctionDecl::setFunctionTemplateSpecialization(ASTContext &C,
   Template->addSpecialization(Info, InsertPos);
 }
 
-void
-FunctionDecl::setDependentTemplateSpecialization(ASTContext &Context,
-                                    const UnresolvedSetImpl &Templates,
-                             const TemplateArgumentListInfo &TemplateArgs) {
+void FunctionDecl::setDependentTemplateSpecialization(
+    ASTContext &Context, const UnresolvedSetImpl &Templates,
+    const TemplateArgumentListInfo *TemplateArgs) {
   assert(TemplateOrSpecialization.isNull());
   DependentFunctionTemplateSpecializationInfo *Info =
       DependentFunctionTemplateSpecializationInfo::Create(Context, Templates,
@@ -4146,28 +4170,26 @@ FunctionDecl::getDependentSpecializationInfo() const {
 
 DependentFunctionTemplateSpecializationInfo *
 DependentFunctionTemplateSpecializationInfo::Create(
-    ASTContext &Context, const UnresolvedSetImpl &Ts,
-    const TemplateArgumentListInfo &TArgs) {
-  void *Buffer = Context.Allocate(
-      totalSizeToAlloc<TemplateArgumentLoc, FunctionTemplateDecl *>(
-          TArgs.size(), Ts.size()));
-  return new (Buffer) DependentFunctionTemplateSpecializationInfo(Ts, TArgs);
+    ASTContext &Context, const UnresolvedSetImpl &Candidates,
+    const TemplateArgumentListInfo *TArgs) {
+  const auto *TArgsWritten =
+      TArgs ? ASTTemplateArgumentListInfo::Create(Context, *TArgs) : nullptr;
+  return new (Context.Allocate(
+      totalSizeToAlloc<FunctionTemplateDecl *>(Candidates.size())))
+      DependentFunctionTemplateSpecializationInfo(Candidates, TArgsWritten);
 }
 
 DependentFunctionTemplateSpecializationInfo::
-DependentFunctionTemplateSpecializationInfo(const UnresolvedSetImpl &Ts,
-                                      const TemplateArgumentListInfo &TArgs)
-  : AngleLocs(TArgs.getLAngleLoc(), TArgs.getRAngleLoc()) {
-  NumTemplates = Ts.size();
-  NumArgs = TArgs.size();
-
-  FunctionTemplateDecl **TsArray = getTrailingObjects<FunctionTemplateDecl *>();
-  for (unsigned I = 0, E = Ts.size(); I != E; ++I)
-    TsArray[I] = cast<FunctionTemplateDecl>(Ts[I]->getUnderlyingDecl());
-
-  TemplateArgumentLoc *ArgsArray = getTrailingObjects<TemplateArgumentLoc>();
-  for (unsigned I = 0, E = TArgs.size(); I != E; ++I)
-    new (&ArgsArray[I]) TemplateArgumentLoc(TArgs[I]);
+    DependentFunctionTemplateSpecializationInfo(
+        const UnresolvedSetImpl &Candidates,
+        const ASTTemplateArgumentListInfo *TemplateArgsWritten)
+    : NumCandidates(Candidates.size()),
+      TemplateArgumentsAsWritten(TemplateArgsWritten) {
+  std::transform(Candidates.begin(), Candidates.end(),
+                 getTrailingObjects<FunctionTemplateDecl *>(),
+                 [](NamedDecl *ND) {
+                   return cast<FunctionTemplateDecl>(ND->getUnderlyingDecl());
+                 });
 }
 
 TemplateSpecializationKind FunctionDecl::getTemplateSpecializationKind() const {
@@ -4182,6 +4204,13 @@ TemplateSpecializationKind FunctionDecl::getTemplateSpecializationKind() const {
           TemplateOrSpecialization.dyn_cast<MemberSpecializationInfo *>())
     return MSInfo->getTemplateSpecializationKind();
 
+  // A dependent function template specialization is an explicit specialization,
+  // except when it's a friend declaration.
+  if (TemplateOrSpecialization
+          .is<DependentFunctionTemplateSpecializationInfo *>() &&
+      getFriendObjectKind() == FOK_None)
+    return TSK_ExplicitSpecialization;
+
   return TSK_Undeclared;
 }
 
@@ -4195,6 +4224,11 @@ FunctionDecl::getTemplateSpecializationKindForInstantiation() const {
   //   template<typename U> void f() {}
   //   template<> void f<int>() {}
   // };
+  //
+  // Within the templated CXXRecordDecl, A<T>::f<int> is a dependent function
+  // template specialization; both getTemplateSpecializationKind() and
+  // getTemplateSpecializationKindForInstantiation() will return
+  // TSK_ExplicitSpecialization.
   //
   // For A<int>::f<int>():
   // * getTemplateSpecializationKind() will return TSK_ExplicitSpecialization
@@ -4215,6 +4249,11 @@ FunctionDecl::getTemplateSpecializationKindForInstantiation() const {
   if (MemberSpecializationInfo *MSInfo =
           TemplateOrSpecialization.dyn_cast<MemberSpecializationInfo *>())
     return MSInfo->getTemplateSpecializationKind();
+
+  if (TemplateOrSpecialization
+          .is<DependentFunctionTemplateSpecializationInfo *>() &&
+      getFriendObjectKind() == FOK_None)
+    return TSK_ExplicitSpecialization;
 
   return TSK_Undeclared;
 }
@@ -4360,6 +4399,10 @@ unsigned FunctionDecl::getMemoryFunctionKind() const {
   case Builtin::BIbzero:
     return Builtin::BIbzero;
 
+  case Builtin::BI__builtin_bcopy:
+  case Builtin::BIbcopy:
+    return Builtin::BIbcopy;
+
   case Builtin::BIfree:
     return Builtin::BIfree;
 
@@ -4391,6 +4434,8 @@ unsigned FunctionDecl::getMemoryFunctionKind() const {
         return Builtin::BIstrlen;
       if (FnInfo->isStr("bzero"))
         return Builtin::BIbzero;
+      if (FnInfo->isStr("bcopy"))
+        return Builtin::BIbcopy;
     } else if (isInStdNamespace()) {
       if (FnInfo->isStr("free"))
         return Builtin::BIfree;
@@ -4456,7 +4501,7 @@ Expr *FieldDecl::getInClassInitializer() const {
     return nullptr;
 
   LazyDeclStmtPtr InitPtr = BitField ? InitAndBitWidth->Init : Init;
-  return cast_or_null<Expr>(
+  return cast_if_present<Expr>(
       InitPtr.isOffset() ? InitPtr.get(getASTContext().getExternalSource())
                          : InitPtr.get(nullptr));
 }
@@ -4511,9 +4556,14 @@ bool FieldDecl::isZeroSize(const ASTContext &Ctx) const {
 
   // Otherwise, [...] the circumstances under which the object has zero size
   // are implementation-defined.
-  // FIXME: This might be Itanium ABI specific; we don't yet know what the MS
-  // ABI will do.
-  return true;
+  if (!Ctx.getTargetInfo().getCXXABI().isMicrosoft())
+    return true;
+
+  // MS ABI: has nonzero size if it is a class type with class type fields,
+  // whether or not they have nonzero size
+  return !llvm::any_of(CXXRD->fields(), [](const FieldDecl *Field) {
+    return Field->getType()->getAs<RecordType>();
+  });
 }
 
 bool FieldDecl::isPotentiallyOverlapping() const {
@@ -4559,6 +4609,16 @@ void FieldDecl::setCapturedVLAType(const VariableArrayType *VLAType) {
          "VLA type");
   StorageKind = ISK_CapturedVLAType;
   CapturedVLAType = VLAType;
+}
+
+void FieldDecl::printName(raw_ostream &OS, const PrintingPolicy &Policy) const {
+  // Print unnamed members using name of their type.
+  if (isAnonymousStructOrUnion()) {
+    this->getType().print(OS, Policy);
+    return;
+  }
+  // Otherwise, do the normal printing.
+  DeclaratorDecl::printName(OS, Policy);
 }
 
 //===----------------------------------------------------------------------===//

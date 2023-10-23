@@ -11,9 +11,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// UNSUPPORTED: esimd_emulator
 
 #define USE_SCALAR_OFFSET
 #define CMPXCHG_TEST

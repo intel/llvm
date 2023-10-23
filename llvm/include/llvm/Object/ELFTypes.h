@@ -24,8 +24,6 @@
 namespace llvm {
 namespace object {
 
-using support::endianness;
-
 template <class ELFT> struct Elf_Ehdr_Impl;
 template <class ELFT> struct Elf_Shdr_Impl;
 template <class ELFT> struct Elf_Sym_Impl;
@@ -742,7 +740,7 @@ template <class ELFT> struct Elf_CGProfile_Impl {
 template <class ELFT>
 struct Elf_Mips_RegInfo;
 
-template <support::endianness TargetEndianness>
+template <llvm::endianness TargetEndianness>
 struct Elf_Mips_RegInfo<ELFType<TargetEndianness, false>> {
   LLVM_ELF_IMPORT_TYPES(TargetEndianness, false)
   Elf_Word ri_gprmask;     // bit-mask of used general registers
@@ -750,7 +748,7 @@ struct Elf_Mips_RegInfo<ELFType<TargetEndianness, false>> {
   Elf_Addr ri_gp_value;    // gp register value
 };
 
-template <support::endianness TargetEndianness>
+template <llvm::endianness TargetEndianness>
 struct Elf_Mips_RegInfo<ELFType<TargetEndianness, true>> {
   LLVM_ELF_IMPORT_TYPES(TargetEndianness, true)
   Elf_Word ri_gprmask;     // bit-mask of used general registers
@@ -856,6 +854,7 @@ struct BBAddrMap {
     bool hasTailCall() const { return MD.HasTailCall; }
     bool isEHPad() const { return MD.IsEHPad; }
     bool canFallThrough() const { return MD.CanFallThrough; }
+    bool hasIndirectBranch() const { return MD.HasIndirectBranch; }
   };
   std::vector<BBEntry> BBEntries; // Basic block entries for this function.
 

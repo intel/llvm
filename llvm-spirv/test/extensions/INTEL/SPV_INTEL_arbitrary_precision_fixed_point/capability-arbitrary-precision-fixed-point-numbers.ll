@@ -227,23 +227,21 @@ $_Z3expILi68ELi68ELb0ELi20ELi20EEvv = comdat any
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %"class._ZTSZ4mainE3$_0.anon", align 1
-  %1 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  %2 = addrspacecast %"class._ZTSZ4mainE3$_0.anon"* %0 to %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %2)
-  %3 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #5
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %1)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #5
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this) #2 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #2 align 2 {
 entry:
-  %this.addr = alloca %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, align 8
-  store %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %this.addr, align 8, !tbaa !5
+  %this.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !5
   call spir_func void @_Z4sqrtILi13ELi5ELb0ELi2ELi2EEvv()
   call spir_func void @_Z5recipILi3ELi8ELb1ELi4ELi4EEvv()
   call spir_func void @_Z5rsqrtILi11ELi10ELb0ELi8ELi6EEvv()
@@ -261,7 +259,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse nounwind
 define linkonce_odr dso_local spir_func void @_Z4sqrtILi13ELi5ELb0ELi2ELi2EEvv() #3 comdat {
@@ -272,39 +270,27 @@ entry:
   %ap_fixed_Sqrt_b = alloca i13, align 2
   %c = alloca i5, align 1
   %ap_fixed_Sqrt_c = alloca i13, align 2
-  %0 = bitcast i13* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %0) #5
-  %1 = bitcast i5* %ap_fixed_Sqrt to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  %2 = load i13, i13* %a, align 2, !tbaa !9
-  %call = call spir_func signext i5 @_Z22__spirv_FixedSqrtINTELILi13ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i13 signext %2, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
-  store i5 %call, i5* %ap_fixed_Sqrt, align 1, !tbaa !11
-  %3 = bitcast i5* %b to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %3) #5
-  %4 = bitcast i13* %ap_fixed_Sqrt_b to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %4) #5
-  %5 = load i5, i5* %b, align 1, !tbaa !11
-  %call1 = call spir_func signext i13 @_Z22__spirv_FixedSqrtINTELILi5ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i5 signext %5, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
-  store i13 %call1, i13* %ap_fixed_Sqrt_b, align 2, !tbaa !9
-  %6 = bitcast i5* %c to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %6) #5
-  %7 = bitcast i13* %ap_fixed_Sqrt_c to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %7) #5
-  %8 = load i5, i5* %c, align 1, !tbaa !11
-  %call2 = call spir_func signext i13 @_Z22__spirv_FixedSqrtINTELILi5ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i5 signext %8, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
-  store i13 %call2, i13* %ap_fixed_Sqrt_c, align 2, !tbaa !9
-  %9 = bitcast i13* %ap_fixed_Sqrt_c to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %9) #5
-  %10 = bitcast i5* %c to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %10) #5
-  %11 = bitcast i13* %ap_fixed_Sqrt_b to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %11) #5
-  %12 = bitcast i5* %b to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %12) #5
-  %13 = bitcast i5* %ap_fixed_Sqrt to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %13) #5
-  %14 = bitcast i13* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %14) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %ap_fixed_Sqrt) #5
+  %0 = load i13, ptr %a, align 2, !tbaa !9
+  %call = call spir_func signext i5 @_Z22__spirv_FixedSqrtINTELILi13ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i13 signext %0, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
+  store i5 %call, ptr %ap_fixed_Sqrt, align 1, !tbaa !11
+  call void @llvm.lifetime.start.p0(i64 1, ptr %b) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %ap_fixed_Sqrt_b) #5
+  %1 = load i5, ptr %b, align 1, !tbaa !11
+  %call1 = call spir_func signext i13 @_Z22__spirv_FixedSqrtINTELILi5ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i5 signext %1, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
+  store i13 %call1, ptr %ap_fixed_Sqrt_b, align 2, !tbaa !9
+  call void @llvm.lifetime.start.p0(i64 1, ptr %c) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %ap_fixed_Sqrt_c) #5
+  %2 = load i5, ptr %c, align 1, !tbaa !11
+  %call2 = call spir_func signext i13 @_Z22__spirv_FixedSqrtINTELILi5ELi13EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i5 signext %2, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
+  store i13 %call2, ptr %ap_fixed_Sqrt_c, align 2, !tbaa !9
+  call void @llvm.lifetime.end.p0(i64 2, ptr %ap_fixed_Sqrt_c) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %c) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %ap_fixed_Sqrt_b) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %b) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %ap_fixed_Sqrt) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %a) #5
   ret void
 }
 
@@ -313,15 +299,13 @@ define linkonce_odr dso_local spir_func void @_Z5recipILi3ELi8ELb1ELi4ELi4EEvv()
 entry:
   %a = alloca i3, align 1
   %ap_fixed_Recip = alloca i8, align 1
-  %0 = bitcast i3* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %0) #5
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %ap_fixed_Recip) #5
-  %1 = load i3, i3* %a, align 1, !tbaa !13
-  %call = call spir_func signext i8 @_Z23__spirv_FixedRecipINTELILi3ELi8EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i3 signext %1, i1 zeroext true, i32 4, i32 4, i32 0, i32 0) #5
-  store i8 %call, i8* %ap_fixed_Recip, align 1, !tbaa !15
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %ap_fixed_Recip) #5
-  %2 = bitcast i3* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %ap_fixed_Recip) #5
+  %0 = load i3, ptr %a, align 1, !tbaa !13
+  %call = call spir_func signext i8 @_Z23__spirv_FixedRecipINTELILi3ELi8EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i3 signext %0, i1 zeroext true, i32 4, i32 4, i32 0, i32 0) #5
+  store i8 %call, ptr %ap_fixed_Recip, align 1, !tbaa !15
+  call void @llvm.lifetime.end.p0(i64 1, ptr %ap_fixed_Recip) #5
+  call void @llvm.lifetime.end.p0(i64 1, ptr %a) #5
   ret void
 }
 
@@ -330,17 +314,13 @@ define linkonce_odr dso_local spir_func void @_Z5rsqrtILi11ELi10ELb0ELi8ELi6EEvv
 entry:
   %a = alloca i11, align 2
   %ap_fixed_Rsqrt = alloca i10, align 2
-  %0 = bitcast i11* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %0) #5
-  %1 = bitcast i10* %ap_fixed_Rsqrt to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %1) #5
-  %2 = load i11, i11* %a, align 2, !tbaa !17
-  %call = call spir_func signext i10 @_Z23__spirv_FixedRsqrtINTELILi11ELi10EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i11 signext %2, i1 zeroext false, i32 8, i32 6, i32 0, i32 0) #5
-  store i10 %call, i10* %ap_fixed_Rsqrt, align 2, !tbaa !19
-  %3 = bitcast i10* %ap_fixed_Rsqrt to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i11* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %ap_fixed_Rsqrt) #5
+  %0 = load i11, ptr %a, align 2, !tbaa !17
+  %call = call spir_func signext i10 @_Z23__spirv_FixedRsqrtINTELILi11ELi10EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i11 signext %0, i1 zeroext false, i32 8, i32 6, i32 0, i32 0) #5
+  store i10 %call, ptr %ap_fixed_Rsqrt, align 2, !tbaa !19
+  call void @llvm.lifetime.end.p0(i64 2, ptr %ap_fixed_Rsqrt) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %a) #5
   ret void
 }
 
@@ -349,17 +329,13 @@ define linkonce_odr dso_local spir_func void @_Z3sinILi17ELi11ELb1ELi7ELi5EEvv()
 entry:
   %a = alloca i17, align 4
   %ap_fixed_Sin = alloca i11, align 2
-  %0 = bitcast i17* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %1 = bitcast i11* %ap_fixed_Sin to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %1) #5
-  %2 = load i17, i17* %a, align 4, !tbaa !21
-  %call = call spir_func signext i11 @_Z21__spirv_FixedSinINTELILi17ELi11EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i17 signext %2, i1 zeroext true, i32 7, i32 5, i32 0, i32 0) #5
-  store i11 %call, i11* %ap_fixed_Sin, align 2, !tbaa !17
-  %3 = bitcast i11* %ap_fixed_Sin to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i17* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %ap_fixed_Sin) #5
+  %0 = load i17, ptr %a, align 4, !tbaa !21
+  %call = call spir_func signext i11 @_Z21__spirv_FixedSinINTELILi17ELi11EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i17 signext %0, i1 zeroext true, i32 7, i32 5, i32 0, i32 0) #5
+  store i11 %call, ptr %ap_fixed_Sin, align 2, !tbaa !17
+  call void @llvm.lifetime.end.p0(i64 2, ptr %ap_fixed_Sin) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %a) #5
   ret void
 }
 
@@ -368,17 +344,13 @@ define linkonce_odr dso_local spir_func void @_Z3cosILi35ELi28ELb0ELi9ELi3EEvv()
 entry:
   %a = alloca i35, align 8
   %ap_fixed_Cos = alloca i28, align 4
-  %0 = bitcast i35* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #5
-  %1 = bitcast i28* %ap_fixed_Cos to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %2 = load i35, i35* %a, align 8, !tbaa !23
-  %call = call spir_func signext i28 @_Z21__spirv_FixedCosINTELILi35ELi28EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i35 %2, i1 zeroext false, i32 9, i32 3, i32 0, i32 0) #5
-  store i28 %call, i28* %ap_fixed_Cos, align 4, !tbaa !25
-  %3 = bitcast i28* %ap_fixed_Cos to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
-  %4 = bitcast i35* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %ap_fixed_Cos) #5
+  %0 = load i35, ptr %a, align 8, !tbaa !23
+  %call = call spir_func signext i28 @_Z21__spirv_FixedCosINTELILi35ELi28EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i35 %0, i1 zeroext false, i32 9, i32 3, i32 0, i32 0) #5
+  store i28 %call, ptr %ap_fixed_Cos, align 4, !tbaa !25
+  call void @llvm.lifetime.end.p0(i64 4, ptr %ap_fixed_Cos) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %a) #5
   ret void
 }
 
@@ -387,17 +359,13 @@ define linkonce_odr dso_local spir_func void @_Z7sin_cosILi31ELi20ELb1ELi10ELi12
 entry:
   %a = alloca i31, align 4
   %ap_fixed_SinCos = alloca i40, align 8
-  %0 = bitcast i31* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %1 = bitcast i40* %ap_fixed_SinCos to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %1) #5
-  %2 = load i31, i31* %a, align 4, !tbaa !27
-  %call = call spir_func i40 @_Z24__spirv_FixedSinCosINTELILi31ELi20EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i31 signext %2, i1 zeroext true, i32 10, i32 12, i32 0, i32 0) #5
-  store i40 %call, i40* %ap_fixed_SinCos, align 8, !tbaa !29
-  %3 = bitcast i40* %ap_fixed_SinCos to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i31* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %ap_fixed_SinCos) #5
+  %0 = load i31, ptr %a, align 4, !tbaa !27
+  %call = call spir_func i40 @_Z24__spirv_FixedSinCosINTELILi31ELi20EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i31 signext %0, i1 zeroext true, i32 10, i32 12, i32 0, i32 0) #5
+  store i40 %call, ptr %ap_fixed_SinCos, align 8, !tbaa !29
+  call void @llvm.lifetime.end.p0(i64 8, ptr %ap_fixed_SinCos) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %a) #5
   ret void
 }
 
@@ -406,17 +374,13 @@ define linkonce_odr dso_local spir_func void @_Z6sin_piILi60ELi5ELb0ELi2ELi2EEvv
 entry:
   %a = alloca i60, align 8
   %ap_fixed_SinPi = alloca i5, align 1
-  %0 = bitcast i60* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #5
-  %1 = bitcast i5* %ap_fixed_SinPi to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  %2 = load i60, i60* %a, align 8, !tbaa !31
-  %call = call spir_func signext i5 @_Z23__spirv_FixedSinPiINTELILi60ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i60 %2, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
-  store i5 %call, i5* %ap_fixed_SinPi, align 1, !tbaa !11
-  %3 = bitcast i5* %ap_fixed_SinPi to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #5
-  %4 = bitcast i60* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %ap_fixed_SinPi) #5
+  %0 = load i60, ptr %a, align 8, !tbaa !31
+  %call = call spir_func signext i5 @_Z23__spirv_FixedSinPiINTELILi60ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i60 %0, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
+  store i5 %call, ptr %ap_fixed_SinPi, align 1, !tbaa !11
+  call void @llvm.lifetime.end.p0(i64 1, ptr %ap_fixed_SinPi) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %a) #5
   ret void
 }
 
@@ -425,17 +389,13 @@ define linkonce_odr dso_local spir_func void @_Z6cos_piILi28ELi16ELb0ELi8ELi5EEv
 entry:
   %a = alloca i28, align 4
   %ap_fixed_CosPi = alloca i16, align 2
-  %0 = bitcast i28* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %1 = bitcast i16* %ap_fixed_CosPi to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %1) #5
-  %2 = load i28, i28* %a, align 4, !tbaa !25
-  %call = call spir_func signext i16 @_Z23__spirv_FixedCosPiINTELILi28ELi16EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i28 signext %2, i1 zeroext false, i32 8, i32 5, i32 0, i32 0) #5
-  store i16 %call, i16* %ap_fixed_CosPi, align 2, !tbaa !33
-  %3 = bitcast i16* %ap_fixed_CosPi to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i28* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 4, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %ap_fixed_CosPi) #5
+  %0 = load i28, ptr %a, align 4, !tbaa !25
+  %call = call spir_func signext i16 @_Z23__spirv_FixedCosPiINTELILi28ELi16EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i28 signext %0, i1 zeroext false, i32 8, i32 5, i32 0, i32 0) #5
+  store i16 %call, ptr %ap_fixed_CosPi, align 2, !tbaa !33
+  call void @llvm.lifetime.end.p0(i64 2, ptr %ap_fixed_CosPi) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %a) #5
   ret void
 }
 
@@ -444,17 +404,13 @@ define linkonce_odr dso_local spir_func void @_Z10sin_cos_piILi13ELi5ELb0ELi2ELi
 entry:
   %a = alloca i13, align 2
   %ap_fixed_SinCosPi = alloca i10, align 2
-  %0 = bitcast i13* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %0) #5
-  %1 = bitcast i10* %ap_fixed_SinCosPi to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2, i8* %1) #5
-  %2 = load i13, i13* %a, align 2, !tbaa !9
-  %call = call spir_func signext i10 @_Z26__spirv_FixedSinCosPiINTELILi13ELi5EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i13 signext %2, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
-  store i10 %call, i10* %ap_fixed_SinCosPi, align 2, !tbaa !19
-  %3 = bitcast i10* %ap_fixed_SinCosPi to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %3) #5
-  %4 = bitcast i13* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 2, ptr %ap_fixed_SinCosPi) #5
+  %0 = load i13, ptr %a, align 2, !tbaa !9
+  %call = call spir_func signext i10 @_Z26__spirv_FixedSinCosPiINTELILi13ELi5EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i13 signext %0, i1 zeroext false, i32 2, i32 2, i32 0, i32 0) #5
+  store i10 %call, ptr %ap_fixed_SinCosPi, align 2, !tbaa !19
+  call void @llvm.lifetime.end.p0(i64 2, ptr %ap_fixed_SinCosPi) #5
+  call void @llvm.lifetime.end.p0(i64 2, ptr %a) #5
   ret void
 }
 
@@ -463,17 +419,13 @@ define linkonce_odr dso_local spir_func void @_Z3logILi64ELi44ELb1ELi24ELi22EEvv
 entry:
   %a = alloca i64, align 8
   %ap_fixed_Log = alloca i44, align 8
-  %0 = bitcast i64* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #5
-  %1 = bitcast i44* %ap_fixed_Log to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %1) #5
-  %2 = load i64, i64* %a, align 8, !tbaa !35
-  %call = call spir_func i44 @_Z21__spirv_FixedLogINTELILi64ELi44EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i64 %2, i1 zeroext true, i32 24, i32 22, i32 0, i32 0) #5
-  store i44 %call, i44* %ap_fixed_Log, align 8, !tbaa !37
-  %3 = bitcast i44* %ap_fixed_Log to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i64* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %ap_fixed_Log) #5
+  %0 = load i64, ptr %a, align 8, !tbaa !35
+  %call = call spir_func i44 @_Z21__spirv_FixedLogINTELILi64ELi44EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i64 %0, i1 zeroext true, i32 24, i32 22, i32 0, i32 0) #5
+  store i44 %call, ptr %ap_fixed_Log, align 8, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 8, ptr %ap_fixed_Log) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %a) #5
   ret void
 }
 
@@ -482,17 +434,13 @@ define linkonce_odr dso_local spir_func void @_Z3expILi44ELi34ELb0ELi20ELi20EEvv
 entry:
   %a = alloca i44, align 8
   %ap_fixed_Exp = alloca i34, align 8
-  %0 = bitcast i44* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #5
-  %1 = bitcast i34* %ap_fixed_Exp to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %1) #5
-  %2 = load i44, i44* %a, align 8, !tbaa !37
-  %call = call spir_func i34 @_Z21__spirv_FixedExpINTELILi44ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i44 %2, i1 zeroext false, i32 20, i32 20, i32 0, i32 0) #5
-  store i34 %call, i34* %ap_fixed_Exp, align 8, !tbaa !39
-  %3 = bitcast i34* %ap_fixed_Exp to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %3) #5
-  %4 = bitcast i44* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %4) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %a) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr %ap_fixed_Exp) #5
+  %0 = load i44, ptr %a, align 8, !tbaa !37
+  %call = call spir_func i34 @_Z21__spirv_FixedExpINTELILi44ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i44 %0, i1 zeroext false, i32 20, i32 20, i32 0, i32 0) #5
+  store i34 %call, ptr %ap_fixed_Exp, align 8, !tbaa !39
+  call void @llvm.lifetime.end.p0(i64 8, ptr %ap_fixed_Exp) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr %a) #5
   ret void
 }
 
@@ -500,21 +448,17 @@ entry:
 define linkonce_odr dso_local spir_func void @_Z7sin_cosILi31ELi20ELb1ELi10ELi12EEvv_() #3 comdat {
 entry:
   %0 = alloca i34, align 8
-  %1 = addrspacecast i34* %0 to i34 addrspace(4)*
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
   %2 = alloca i66, align 8
-  %3 = addrspacecast i66* %2 to i66 addrspace(4)*
-  %4 = bitcast i34* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %4)
-  %5 = bitcast i66* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %5)
-  %6 = load i34, i34 addrspace(4)* %1, align 8
-  call spir_func void @_Z24__spirv_FixedSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i66 addrspace(4)* sret(i66) align 8 %3, i34 %6, i1 zeroext true, i32 3, i32 2, i32 0, i32 0) #5
-  %7 = load i66, i66 addrspace(4)* %3, align 8
-  store i66 %7, i66 addrspace(4)* %3, align 8
-  %8 = bitcast i66* %2 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %8)
-  %9 = bitcast i34* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %9)
+  %3 = addrspacecast ptr %2 to ptr addrspace(4)
+  call void @llvm.lifetime.start.p0(i64 8, ptr %0)
+  call void @llvm.lifetime.start.p0(i64 16, ptr %2)
+  %4 = load i34, ptr addrspace(4) %1, align 8
+  call spir_func void @_Z24__spirv_FixedSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(ptr addrspace(4) sret(i66) align 8 %3, i34 %4, i1 zeroext true, i32 3, i32 2, i32 0, i32 0) #5
+  %5 = load i66, ptr addrspace(4) %3, align 8
+  store i66 %5, ptr addrspace(4) %3, align 8
+  call void @llvm.lifetime.end.p0(i64 16, ptr %2)
+  call void @llvm.lifetime.end.p0(i64 8, ptr %0)
   ret void
 }
 
@@ -522,25 +466,21 @@ entry:
 define linkonce_odr dso_local spir_func void @_Z3expILi68ELi68ELb0ELi20ELi20EEvv() #3 comdat {
 entry:
   %a = alloca i68, align 8
-  %a.ascast = addrspacecast i68* %a to i68 addrspace(4)*
+  %a.ascast = addrspacecast ptr %a to ptr addrspace(4)
   %ap_fixed_Exp = alloca i68, align 8
-  %ap_fixed_Exp.ascast = addrspacecast i68* %ap_fixed_Exp to i68 addrspace(4)*
+  %ap_fixed_Exp.ascast = addrspacecast ptr %ap_fixed_Exp to ptr addrspace(4)
   %tmp = alloca i68, align 8
-  %tmp.ascast = addrspacecast i68* %tmp to i68 addrspace(4)*
+  %tmp.ascast = addrspacecast ptr %tmp to ptr addrspace(4)
   %indirect-arg-temp = alloca i68, align 8
-  %0 = bitcast i68* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %0)
-  %1 = bitcast i68* %ap_fixed_Exp to i8*
-  call void @llvm.lifetime.start.p0i8(i64 16, i8* %1)
-  %2 = load i68, i68 addrspace(4)* %a.ascast, align 8
-  store i68 %2, i68* %indirect-arg-temp, align 8
-  call spir_func void @_Z21__spirv_FixedExpINTELILi68ELi68EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i68 addrspace(4)* sret(i68) align 8 %tmp.ascast, i68* byval(i68) align 8 %indirect-arg-temp, i1 zeroext false, i32 20, i32 20, i32 0, i32 0) #4
-  %3 = load i68, i68 addrspace(4)* %tmp.ascast, align 8
-  store i68 %3, i68 addrspace(4)* %ap_fixed_Exp.ascast, align 8
-  %4 = bitcast i68* %ap_fixed_Exp to i8*
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %4)
-  %5 = bitcast i68* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 16, i8* %5)
+  call void @llvm.lifetime.start.p0(i64 16, ptr %a)
+  call void @llvm.lifetime.start.p0(i64 16, ptr %ap_fixed_Exp)
+  %0 = load i68, ptr addrspace(4) %a.ascast, align 8
+  store i68 %0, ptr %indirect-arg-temp, align 8
+  call spir_func void @_Z21__spirv_FixedExpINTELILi68ELi68EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(ptr addrspace(4) sret(i68) align 8 %tmp.ascast, ptr byval(i68) align 8 %indirect-arg-temp, i1 zeroext false, i32 20, i32 20, i32 0, i32 0) #4
+  %1 = load i68, ptr addrspace(4) %tmp.ascast, align 8
+  store i68 %1, ptr addrspace(4) %ap_fixed_Exp.ascast, align 8
+  call void @llvm.lifetime.end.p0(i64 16, ptr %ap_fixed_Exp)
+  call void @llvm.lifetime.end.p0(i64 16, ptr %a)
   ret void
 }
 
@@ -582,10 +522,10 @@ declare dso_local spir_func i44 @_Z21__spirv_FixedLogINTELILi64ELi44EEU7_ExtIntI
 declare dso_local spir_func i34 @_Z21__spirv_FixedExpINTELILi44ELi34EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i44, i1 zeroext, i32, i32, i32, i32) #4
 
 ; Function Attrs: nounwind
-declare dso_local spir_func void @_Z24__spirv_FixedSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i66 addrspace(4)* sret(i66) align 8, i34, i1 zeroext, i32, i32, i32, i32) #4
+declare dso_local spir_func void @_Z24__spirv_FixedSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(ptr addrspace(4) sret(i66) align 8, i34, i1 zeroext, i32, i32, i32, i32) #4
 
 ; Function Attrs: convergent nounwind
-declare dso_local spir_func void @_Z21__spirv_FixedExpINTELILi68ELi68EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i68 addrspace(4)* sret(i68) align 8, i68* byval(i68) align 8, i1 zeroext, i32, i32, i32, i32) #4
+declare dso_local spir_func void @_Z21__spirv_FixedExpINTELILi68ELi68EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(ptr addrspace(4) sret(i68) align 8, ptr byval(i68) align 8, i1 zeroext, i32, i32, i32, i32) #4
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="ap_fixed.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

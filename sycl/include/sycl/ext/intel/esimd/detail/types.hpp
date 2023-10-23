@@ -19,7 +19,7 @@
 #include <sycl/half_type.hpp>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
-#define __esimd_dbg_print(a) std::cout << ">>> " << #a << "\n"
+#define __esimd_dbg_print(a) std::puts(">>> " #a);
 #else
 #define __esimd_dbg_print(a)
 #endif // defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)

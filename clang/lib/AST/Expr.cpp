@@ -491,6 +491,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx, ValueDecl *D,
   DeclRefExprBits.HadMultipleCandidates = false;
   DeclRefExprBits.RefersToEnclosingVariableOrCapture =
       RefersToEnclosingVariableOrCapture;
+  DeclRefExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter = false;
   DeclRefExprBits.NonOdrUseReason = NOUR;
   DeclRefExprBits.IsImmediateEscalating = false;
   DeclRefExprBits.Loc = L;
@@ -518,6 +519,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx,
     = (TemplateArgs || TemplateKWLoc.isValid()) ? 1 : 0;
   DeclRefExprBits.RefersToEnclosingVariableOrCapture =
       RefersToEnclosingVariableOrCapture;
+  DeclRefExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter = false;
   DeclRefExprBits.NonOdrUseReason = NOUR;
   if (TemplateArgs) {
     auto Deps = TemplateArgumentDependence::None;
@@ -660,7 +662,7 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
   std::string Buffer;
   Buffer.reserve(128);
   llvm::raw_string_ostream Out(Buffer);
-  Ctx->mangleTypeName(Ty, Out);
+  Ctx->mangleCanonicalTypeName(Ty, Out);
 
   return Out.str();
 }
@@ -1674,6 +1676,10 @@ QualType CallExpr::getCallReturnType(const ASTContext &Ctx) const {
     // This should never be overloaded and so should never return null.
     CalleeType = Expr::findBoundMemberType(Callee);
     assert(!CalleeType.isNull());
+  } else if (CalleeType->isRecordType()) {
+    // If the Callee is a record type, then it is a not-yet-resolved
+    // dependent call to the call operator of that type.
+    return Ctx.DependentTy;
   } else if (CalleeType->isDependentType() ||
              CalleeType->isSpecificPlaceholderType(BuiltinType::Overload)) {
     return Ctx.DependentTy;
@@ -4042,7 +4048,7 @@ Expr::isNullPointerConstant(ASTContext &Ctx,
   if (getType().isNull())
     return NPCK_NotNull;
 
-  // C++11/C2x nullptr_t is always a null pointer constant.
+  // C++11/C23 nullptr_t is always a null pointer constant.
   if (getType()->isNullPtrType())
     return NPCK_CXX11_nullptr;
 

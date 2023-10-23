@@ -135,8 +135,8 @@ TEST(Decl, MangleDependentSizedArray) {
   std::unique_ptr<ItaniumMangleContext> MC(
       ItaniumMangleContext::create(Ctx, Diags));
 
-  MC->mangleTypeName(DeclA->getType(), OS_A);
-  MC->mangleTypeName(DeclB->getType(), OS_B);
+  MC->mangleCanonicalTypeName(DeclA->getType(), OS_A);
+  MC->mangleCanonicalTypeName(DeclB->getType(), OS_B);
 
   ASSERT_TRUE(0 == MangleA.compare("_ZTSA_i"));
   ASSERT_TRUE(0 == MangleB.compare("_ZTSAT0__T_"));
@@ -351,6 +351,32 @@ TEST(Decl, FriendFunctionWithinClassInHeaderUnit) {
       match(functionDecl(hasName("getFooValue")).bind("getFooValue"), Ctx));
 
   EXPECT_TRUE(getFooValue->isInlined());
+}
+
+TEST(Decl, FunctionDeclBitsShouldNotOverlapWithCXXConstructorDeclBits) {
+  llvm::Annotations Code(R"(
+    struct A {
+      A() : m() {}
+      int m;
+    };
+
+    A f() { return A(); }
+    )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(Code.code(), {"-std=c++14"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  auto HasCtorInit =
+      hasAnyConstructorInitializer(cxxCtorInitializer(isMemberInitializer()));
+  auto ImpMoveCtor =
+      cxxConstructorDecl(isMoveConstructor(), isImplicit(), HasCtorInit)
+          .bind("MoveCtor");
+
+  auto *ToImpMoveCtor =
+      selectFirst<CXXConstructorDecl>("MoveCtor", match(ImpMoveCtor, Ctx));
+
+  EXPECT_TRUE(ToImpMoveCtor->getNumCtorInitializers() == 1);
+  EXPECT_FALSE(ToImpMoveCtor->FriendConstraintRefersToEnclosingTemplate());
 }
 
 TEST(Decl, NoProtoFunctionDeclAttributes) {

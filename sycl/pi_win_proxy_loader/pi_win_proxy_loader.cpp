@@ -70,8 +70,8 @@ std::wstring getCurrentDSODir() {
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileName(
       reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
-      sizeof(Path));
-  assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
+      MAX_PATH);
+  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
   assert(Ret > 0 && "GetModuleFileName failed");
   (void)Ret;
 
@@ -89,7 +89,7 @@ std::wstring getCurrentDSODir() {
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
-#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_HIP_PLUGIN_NAME "pi_hip.dll"
 #define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
 #define __SYCL_NATIVE_CPU_PLUGIN_NAME "pi_native_cpu.dll"
 #else // llvm-mingw

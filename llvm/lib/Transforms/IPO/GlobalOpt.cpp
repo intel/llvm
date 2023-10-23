@@ -390,7 +390,7 @@ static bool collectSRATypes(DenseMap<uint64_t, GlobalPart> &Parts,
       }
 
       // Scalable types not currently supported.
-      if (isa<ScalableVectorType>(Ty))
+      if (Ty->isScalableTy())
         return false;
 
       auto IsStored = [](Value *V, Constant *Initializer) {
@@ -930,25 +930,7 @@ OptimizeGlobalAddressOfAllocation(GlobalVariable *GV, CallInst *CI,
   }
 
   // Update users of the allocation to use the new global instead.
-  BitCastInst *TheBC = nullptr;
-  while (!CI->use_empty()) {
-    Instruction *User = cast<Instruction>(CI->user_back());
-    if (BitCastInst *BCI = dyn_cast<BitCastInst>(User)) {
-      if (BCI->getType() == NewGV->getType()) {
-        BCI->replaceAllUsesWith(NewGV);
-        BCI->eraseFromParent();
-      } else {
-        BCI->setOperand(0, NewGV);
-      }
-    } else {
-      if (!TheBC)
-        TheBC = new BitCastInst(NewGV, CI->getType(), "newgv", CI);
-      User->replaceUsesOfWith(CI, TheBC);
-    }
-  }
-
-  SmallSetVector<Constant *, 1> RepValues;
-  RepValues.insert(NewGV);
+  CI->replaceAllUsesWith(NewGV);
 
   // If there is a comparison against null, we will insert a global bool to
   // keep track of whether the global was initialized yet or not.
@@ -980,9 +962,7 @@ OptimizeGlobalAddressOfAllocation(GlobalVariable *GV, CallInst *CI,
       Use &LoadUse = *LI->use_begin();
       ICmpInst *ICI = dyn_cast<ICmpInst>(LoadUse.getUser());
       if (!ICI) {
-        auto *CE = ConstantExpr::getBitCast(NewGV, LI->getType());
-        RepValues.insert(CE);
-        LoadUse.set(CE);
+        LoadUse.set(NewGV);
         continue;
       }
 
@@ -1028,8 +1008,7 @@ OptimizeGlobalAddressOfAllocation(GlobalVariable *GV, CallInst *CI,
   // To further other optimizations, loop over all users of NewGV and try to
   // constant prop them.  This will promote GEP instructions with constant
   // indices into GEP constant-exprs, which will allow global-opt to hack on it.
-  for (auto *CE : RepValues)
-    ConstantPropUsersOf(CE, DL, TLI);
+  ConstantPropUsersOf(NewGV, DL, TLI);
 
   return NewGV;
 }
@@ -1146,10 +1125,6 @@ optimizeOnceStoredGlobal(GlobalVariable *GV, Value *StoredOnceVal,
           nullptr /* F */,
           GV->getInitializer()->getType()->getPointerAddressSpace())) {
     if (Constant *SOVC = dyn_cast<Constant>(StoredOnceVal)) {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      if (GV->getInitializer()->getType() != SOVC->getType())
-        SOVC = ConstantExpr::getBitCast(SOVC, GV->getInitializer()->getType());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       // Optimize away any trapping uses of the loaded value.
       if (OptimizeAwayTrappingUsesOfLoads(GV, SOVC, DL, GetTLI))
         return true;
@@ -1478,7 +1453,7 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
   if (!GS.HasMultipleAccessingFunctions &&
       GS.AccessingFunction &&
       GV->getValueType()->isSingleValueType() &&
-      GV->getType()->getAddressSpace() == 0 &&
+      GV->getType()->getAddressSpace() == DL.getAllocaAddrSpace() &&
       !GV->isExternallyInitialized() &&
       GS.AccessingFunction->doesNotRecurse() &&
       isPointerValueDeadOnEntryToFunction(GS.AccessingFunction, GV,
@@ -1588,7 +1563,7 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
             GV->getAddressSpace());
         NGV->takeName(GV);
         NGV->copyAttributesFrom(GV);
-        GV->replaceAllUsesWith(ConstantExpr::getBitCast(NGV, GV->getType()));
+        GV->replaceAllUsesWith(NGV);
         GV->eraseFromParent();
         GV = NGV;
       }
@@ -1877,12 +1852,9 @@ static void RemovePreallocated(Function *F) {
     CB->eraseFromParent();
 
     Builder.SetInsertPoint(PreallocatedSetup);
-    auto *StackSave =
-        Builder.CreateCall(Intrinsic::getDeclaration(M, Intrinsic::stacksave));
-
+    auto *StackSave = Builder.CreateStackSave();
     Builder.SetInsertPoint(NewCB->getNextNonDebugInstruction());
-    Builder.CreateCall(Intrinsic::getDeclaration(M, Intrinsic::stackrestore),
-                       StackSave);
+    Builder.CreateStackRestore(StackSave);
 
     // Replace @llvm.call.preallocated.arg() with alloca.
     // Cannot modify users() while iterating over it, so make a copy.
@@ -2120,11 +2092,7 @@ static void setUsedInitializer(GlobalVariable &V,
 
   // Type of pointer to the array of pointers.
   PointerType *PtrTy =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PointerType::get(V.getContext(), VEPT->getAddressSpace());
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Type::getInt8PtrTy(V.getContext(), VEPT->getAddressSpace());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   SmallVector<Constant *, 8> UsedArray;
   for (GlobalValue *GV : Init) {
@@ -2304,7 +2272,7 @@ OptimizeGlobalAliases(Module &M,
     if (!hasUsesToReplace(J, Used, RenameTarget))
       continue;
 
-    J.replaceAllUsesWith(ConstantExpr::getBitCast(Aliasee, J.getType()));
+    J.replaceAllUsesWith(Aliasee);
     ++NumAliasesResolved;
     Changed = true;
 

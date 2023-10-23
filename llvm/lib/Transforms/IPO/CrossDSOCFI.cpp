@@ -85,11 +85,7 @@ void CrossDSOCFI::buildCFICheck(Module &M) {
   LLVMContext &Ctx = M.getContext();
   FunctionCallee C = M.getOrInsertFunction(
       "__cfi_check", Type::getVoidTy(Ctx), Type::getInt64Ty(Ctx),
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      Type::getInt8PtrTy(Ctx), Type::getInt8PtrTy(Ctx));
-#else
       PointerType::getUnqual(Ctx), PointerType::getUnqual(Ctx));
-#endif
   Function *F = cast<Function>(C.getCallee());
   // Take over the existing function. The frontend emits a weak stub so that the
   // linker knows about the symbol; this pass replaces the function body.
@@ -114,15 +110,9 @@ void CrossDSOCFI::buildCFICheck(Module &M) {
 
   BasicBlock *TrapBB = BasicBlock::Create(Ctx, "fail", F);
   IRBuilder<> IRBFail(TrapBB);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  FunctionCallee CFICheckFailFn =
-      M.getOrInsertFunction("__cfi_check_fail", Type::getVoidTy(Ctx),
-                            Type::getInt8PtrTy(Ctx), Type::getInt8PtrTy(Ctx));
-#else
   FunctionCallee CFICheckFailFn = M.getOrInsertFunction(
       "__cfi_check_fail", Type::getVoidTy(Ctx), PointerType::getUnqual(Ctx),
       PointerType::getUnqual(Ctx));
-#endif
   IRBFail.CreateCall(CFICheckFailFn, {&CFICheckFailData, &Addr});
   IRBFail.CreateBr(ExitBB);
 

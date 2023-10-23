@@ -3212,13 +3212,13 @@ let Predicates = [UseSSE2] in {
 // Prefetch intrinsic.
 let Predicates = [HasSSEPrefetch], SchedRW = [WriteLoad] in {
 def PREFETCHT0   : I<0x18, MRM1m, (outs), (ins i8mem:$src),
-    "prefetcht0\t$src", [(prefetch addr:$src, imm, (i32 3), (i32 1))]>, TB;
+    "prefetcht0\t$src", [(prefetch addr:$src, timm, (i32 3), (i32 1))]>, TB;
 def PREFETCHT1   : I<0x18, MRM2m, (outs), (ins i8mem:$src),
-    "prefetcht1\t$src", [(prefetch addr:$src, imm, (i32 2), (i32 1))]>, TB;
+    "prefetcht1\t$src", [(prefetch addr:$src, timm, (i32 2), (i32 1))]>, TB;
 def PREFETCHT2   : I<0x18, MRM3m, (outs), (ins i8mem:$src),
-    "prefetcht2\t$src", [(prefetch addr:$src, imm, (i32 1), (i32 1))]>, TB;
+    "prefetcht2\t$src", [(prefetch addr:$src, timm, (i32 1), (i32 1))]>, TB;
 def PREFETCHNTA  : I<0x18, MRM0m, (outs), (ins i8mem:$src),
-    "prefetchnta\t$src", [(prefetch addr:$src, imm, (i32 0), (i32 1))]>, TB;
+    "prefetchnta\t$src", [(prefetch addr:$src, timm, (i32 0), (i32 1))]>, TB;
 }
 
 // FIXME: How should flush instruction be modeled?
@@ -8289,6 +8289,11 @@ let Predicates = [HasAVXNECONVERT] in {
        f256mem>, T8PS;
   let checkVEXPredicate = 1 in
   defm VCVTNEPS2BF16 : VCVTNEPS2BF16_BASE, VEX, T8XS, ExplicitVEXPrefix;
+
+  def : Pat<(v8bf16 (X86vfpround (v8f32 VR256:$src))),
+            (VCVTNEPS2BF16Yrr VR256:$src)>;
+  def : Pat<(v8bf16 (X86vfpround (loadv8f32 addr:$src))),
+            (VCVTNEPS2BF16Yrm addr:$src)>;
 }
 
 def : InstAlias<"vcvtneps2bf16x\t{$src, $dst|$dst, $src}",

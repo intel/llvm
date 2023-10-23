@@ -28,7 +28,7 @@ define weak_odr dso_local spir_kernel void @_ZTSN2cl4sycl6detail19__pf_kernel_wr
 entry:
 ; CHECK-LABEL: _ZTSN2cl4sycl6detail19__pf_kernel_wrapperI12store_kernelIiEEE(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range", ptr %_arg_, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast ptr %0 to ptr addrspace(4)
   %2 = load i64, ptr addrspace(4) %1, align 8
@@ -44,16 +44,16 @@ if.end.i:                                         ; preds = %entry
   %add.ptr.i = getelementptr inbounds i32, ptr addrspace(1) %_arg_1, i64 %7
   %conv.i.i = trunc i64 %4 to i32
 ; CHECK: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast ptr addrspace(1) %[[ATOMIC_ARG_1:[0-9a-zA-Z._]+]] to ptr addrspace(4)
-; CHECK-NEXT: call void @__itt_offload_atomic_op_start(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0
+; CHECK-NEXT: call spir_func void @__itt_offload_atomic_op_start(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(ptr addrspace(1) %[[ATOMIC_ARG_1]],{{.*}}, i32 896
 ; CHECK-NEXT: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast ptr addrspace(1) %[[ATOMIC_ARG_1]] to ptr addrspace(4)
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0
+; CHECK-NEXT: call spir_func void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(1) %add.ptr.i, i32 1, i32 896, i32 %conv.i.i) #2
   tail call spir_func void @__synthetic_spir_fun_call(ptr addrspace(1) %add.ptr.i)
   br label %_ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit
 
 _ZZN2cl4sycl7handler24parallel_for_lambda_implI12store_kernelIiEZZ10store_testIiEvNS0_5queueEmENKUlRS1_E_clES7_EUlNS0_4itemILi1ELb1EEEE_Li1EEEvNS0_5rangeIXT1_EEET0_ENKUlSA_E_clESA_.exit: ; preds = %entry, %if.end.i
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
@@ -62,15 +62,15 @@ define weak_odr dso_local spir_func void @__synthetic_spir_fun_call(ptr addrspac
 entry:
 ; CHECK-LABEL: spir_func void @__synthetic_spir_fun_call(ptr addrspace(1) %ptr) {
 ; CHECK: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast ptr addrspace(1) %[[ATOMIC_ARG_S:[0-9a-zA-Z._]+]] to ptr addrspace(4)
-; CHECK-NEXT: call void @__itt_offload_atomic_op_start(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
+; CHECK-NEXT: call spir_func void @__itt_offload_atomic_op_start(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(ptr addrspace(1) %[[ATOMIC_ARG_S]],{{.*}}, i32 896
 ; CHECK-NEXT: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast ptr addrspace(1) %[[ATOMIC_ARG_S]] to ptr addrspace(4)
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
+; CHECK-NEXT: call spir_func void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
   %0 = load <3 x i64>, ptr  addrspace(4) addrspacecast (ptr  addrspace(1) @__spirv_BuiltInGlobalInvocationId to ptr  addrspace(4)), align 32, !noalias !15
   %1 = extractelement <3 x i64> %0, i64 0
   %conv = trunc i64 %1 to i32
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(1) %ptr, i32 1, i32 896, i32 %conv) #2
-; CHECK-NOT: call void @__itt_offload_wi_finish_wrapper()
+; CHECK-NOT: call spir_func void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
@@ -82,7 +82,7 @@ define weak_odr dso_local spir_kernel void @_ZTS12store_kernelIiE(ptr addrspace(
 entry:
 ; CHECK-LABEL: _ZTS12store_kernelIiE(
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
+; CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
   %0 = getelementptr inbounds %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id", ptr %_arg_3, i64 0, i32 0, i32 0, i64 0
   %1 = addrspacecast ptr %0 to ptr addrspace(4)
   %2 = load i64, ptr addrspace(4) %1, align 8
@@ -91,20 +91,20 @@ entry:
   %4 = extractelement <3 x i64> %3, i64 0
   %conv.i = trunc i64 %4 to i32
 ; CHECK: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast ptr addrspace(1) %[[ATOMIC_ARG_2:[0-9a-zA-Z._]+]] to ptr addrspace(4)
-; CHECK-NEXT: call void @__itt_offload_atomic_op_start(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
+; CHECK-NEXT: call spir_func void @__itt_offload_atomic_op_start(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
 ; CHECK-NEXT: {{.*}}__spirv_AtomicStore{{.*}}(ptr addrspace(1) %[[ATOMIC_ARG_2]],{{.*}}, i32 896
 ; CHECK-NEXT: [[ARG_ASCAST:%[0-9a-zA-Z._]+]] = addrspacecast ptr addrspace(1) %[[ATOMIC_ARG_2]] to ptr addrspace(4)
-; CHECK-NEXT: call void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
+; CHECK-NEXT: call spir_func void @__itt_offload_atomic_op_finish(ptr addrspace(4) [[ARG_ASCAST]], i32 1, i32 0)
   tail call spir_func void @_Z19__spirv_AtomicStorePU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEi(ptr addrspace(1) %add.ptr.i, i32 1, i32 896, i32 %conv.i) #2
-; CHECK: call void @__itt_offload_wi_finish_wrapper()
+; CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 ; CHECK-NEXT: ret void
   ret void
 }
 
-; CHECK: declare void @__itt_offload_wi_start_wrapper()
-; CHECK: declare void @__itt_offload_atomic_op_start(ptr addrspace(4), i32, i32)
-; CHECK: declare void @__itt_offload_atomic_op_finish(ptr addrspace(4), i32, i32)
-; CHECK: declare void @__itt_offload_wi_finish_wrapper()
+; CHECK: declare spir_func void @__itt_offload_wi_start_wrapper()
+; CHECK: declare spir_func void @__itt_offload_atomic_op_start(ptr addrspace(4), i32, i32)
+; CHECK: declare spir_func void @__itt_offload_atomic_op_finish(ptr addrspace(4), i32, i32)
+; CHECK: declare spir_func void @__itt_offload_wi_finish_wrapper()
 
 attributes #0 = { convergent norecurse "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="llvm-test-suite/SYCL/AtomicRef/store.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

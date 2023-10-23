@@ -15,15 +15,14 @@ define spir_func void @foo() {
 entry:
   %GroupID = alloca [3 x i64], align 8
   %0 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
-  %1 = getelementptr <3 x i64>, ptr addrspace(4) %0, i64 0, i64 0
 ; CHECK-LLVM: %[[GLocalSize0:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 0) #1
-  %2 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
-  %3 = getelementptr <3 x i64>, ptr addrspace(4) %2, i64 0, i64 2
-  %4 = load i64, ptr addrspace(4) %1, align 32
-  %5 = load i64, ptr addrspace(4) %3, align 8
+  %1 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
+  %2 = getelementptr <3 x i64>, ptr addrspace(4) %1, i64 0, i64 2
+  %3 = load i64, ptr addrspace(4) %0, align 32
+  %4 = load i64, ptr addrspace(4) %2, align 8
 ; CHECK-LLVM: %[[GLocalSize2:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 2) #1
 ; CHECK-LLVM:  mul i64 %[[GLocalSize0]], %[[GLocalSize2]]
-  %mul = mul i64 %4, %5
+  %mul = mul i64 %3, %4
   ret void
 }
 
@@ -32,14 +31,13 @@ define spir_func void @foo_i8gep() {
 entry:
   %GroupID = alloca [3 x i64], align 8
   %0 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
-  %1 = getelementptr i8, ptr addrspace(4) %0, i64 0
 ; CHECK-LLVM: %[[GLocalSize0:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 0) #1
-  %2 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
-  %3 = getelementptr i8, ptr addrspace(4) %2, i64 16
-  %4 = load i64, ptr addrspace(4) %1, align 32
-  %5 = load i64, ptr addrspace(4) %3, align 8
+  %1 = addrspacecast ptr addrspace(1) @__spirv_BuiltInWorkgroupSize to ptr addrspace(4)
+  %2 = getelementptr i8, ptr addrspace(4) %1, i64 16
+  %3 = load i64, ptr addrspace(4) %0, align 32
+  %4 = load i64, ptr addrspace(4) %2, align 8
 ; CHECK-LLVM: %[[GLocalSize2:[0-9]+]] = call spir_func i64 @_Z14get_local_sizej(i32 2) #1
 ; CHECK-LLVM:  mul i64 %[[GLocalSize0]], %[[GLocalSize2]]
-  %mul = mul i64 %4, %5
+  %mul = mul i64 %3, %4
   ret void
 }

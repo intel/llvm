@@ -19,12 +19,12 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 62
+#define TEST_NUM 63
 
 double ref[TEST_NUM] = {
-    1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 2, 0, 0,   1,   0,   2,   0, 0, 0,
-    0, 0, 1, 0, 1, 2, 0, 1, 2, 5, 0,   0, 0, 0, 0.5, 0.5, NAN, NAN, 2, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0,   0,   0,   0,   0, 0};
+    1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0.5, 0, 2, 0, 0,   1,   0,   2,   0, 0,
+    0, 0, 0, 1, 0, 1, 2, 0, 1, 2, 5, 0,   0, 0, 0, 0.5, 0.5, NAN, NAN, 2, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,   0, 0, 0, 0,   0,   0,   0,   0, 0};
 
 double refIptr = 1;
 
@@ -62,6 +62,7 @@ template <class T> void device_cmath_test(s::queue &deviceQueue) {
         res_access[i++] = std::cos(0.0);
         res_access[i++] = std::sin(0.0);
         res_access[i++] = std::round(1.0);
+        res_access[i++] = std::floor(1.0);
         res_access[i++] = std::log(1.0);
         res_access[i++] = std::acos(1.0);
         res_access[i++] = std::asin(0.0);

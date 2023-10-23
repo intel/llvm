@@ -1,10 +1,11 @@
-// REQUIRES: cpu
+// REQUIRES: cpu || cuda
 
 // Use of per-kernel device code split and linking the bundle with all images
 // involved leads to multiple definition of AssertHappened structure due each
 // device image is statically linked against fallback libdevice.
-// RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: %{build} %if cpu %{ -DSYCL_DISABLE_FALLBACK_ASSERT=1 %} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %if ext_oneapi_cuda %{ %{run} %t.out %}
+// RUN: %if cpu %{ env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s %}
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -288,6 +289,7 @@ int main() {
         "is empty");
 
     std::cerr << "Empty list of devices for compile" << std::endl;
+
     checkException(
         [&]() {
           sycl::kernel_bundle KernelBundleInput =

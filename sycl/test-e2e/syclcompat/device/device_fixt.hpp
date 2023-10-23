@@ -20,6 +20,8 @@
  *     Fixture helpers for to tests the extended device functionality
  **************************************************************************/
 
+#pragma once
+
 #include <sycl/sycl.hpp>
 #include <syclcompat/device.hpp>
 

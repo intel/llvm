@@ -6,7 +6,6 @@ algorithm cstddef
 algorithm cstdint
 algorithm cstdlib
 algorithm cstring
-algorithm ctime
 algorithm cwchar
 algorithm execution
 algorithm initializer_list
@@ -15,7 +14,7 @@ algorithm iterator
 algorithm limits
 algorithm memory
 algorithm new
-algorithm ratio
+algorithm optional
 algorithm stdexcept
 algorithm type_traits
 algorithm utility
@@ -119,9 +118,11 @@ chrono cstddef
 chrono cstdint
 chrono cstring
 chrono ctime
+chrono forward_list
 chrono limits
 chrono ratio
 chrono stdexcept
+chrono string
 chrono string_view
 chrono tuple
 chrono type_traits
@@ -146,6 +147,7 @@ codecvt mutex
 codecvt new
 codecvt stdexcept
 codecvt string
+codecvt tuple
 codecvt type_traits
 codecvt typeinfo
 codecvt version
@@ -173,6 +175,7 @@ condition_variable cstdlib
 condition_variable cstring
 condition_variable ctime
 condition_variable initializer_list
+condition_variable iosfwd
 condition_variable limits
 condition_variable new
 condition_variable ratio
@@ -262,11 +265,9 @@ experimental/regex experimental/string
 experimental/regex regex
 experimental/set experimental/memory_resource
 experimental/set set
-experimental/simd algorithm
-experimental/simd array
 experimental/simd cstddef
-experimental/simd functional
-experimental/simd tuple
+experimental/simd cstdint
+experimental/simd limits
 experimental/string experimental/memory_resource
 experimental/string string
 experimental/unordered_map algorithm
@@ -354,6 +355,7 @@ fstream new
 fstream ostream
 fstream stdexcept
 fstream string
+fstream tuple
 fstream type_traits
 fstream typeinfo
 fstream version
@@ -404,6 +406,7 @@ iomanip istream
 iomanip version
 ios atomic
 ios cctype
+ios cerrno
 ios clocale
 ios concepts
 ios cstddef
@@ -419,6 +422,7 @@ ios new
 ios stdexcept
 ios string
 ios system_error
+ios tuple
 ios type_traits
 ios typeinfo
 ios version
@@ -501,6 +505,7 @@ locale new
 locale stdexcept
 locale streambuf
 locale string
+locale tuple
 locale type_traits
 locale typeinfo
 locale version
@@ -584,15 +589,12 @@ numeric cmath
 numeric concepts
 numeric cstddef
 numeric cstdint
-numeric cstring
-numeric ctime
 numeric execution
 numeric functional
-numeric initializer_list
 numeric iterator
 numeric limits
 numeric new
-numeric ratio
+numeric optional
 numeric type_traits
 numeric version
 optional atomic
@@ -687,11 +689,11 @@ ranges initializer_list
 ranges iosfwd
 ranges iterator
 ranges limits
+ranges new
 ranges optional
 ranges span
 ranges tuple
 ranges type_traits
-ranges variant
 ranges version
 ratio climits
 ratio cstdint
@@ -716,6 +718,7 @@ regex mutex
 regex new
 regex stdexcept
 regex string
+regex tuple
 regex type_traits
 regex typeinfo
 regex utility
@@ -803,8 +806,12 @@ stdexcept iosfwd
 stop_token atomic
 stop_token cstddef
 stop_token cstdint
+stop_token cstring
+stop_token ctime
+stop_token iosfwd
 stop_token limits
-stop_token thread
+stop_token ratio
+stop_token type_traits
 stop_token version
 streambuf cstdint
 streambuf ios
@@ -863,6 +870,7 @@ system_error string
 system_error type_traits
 system_error version
 thread array
+thread atomic
 thread cerrno
 thread chrono
 thread compare

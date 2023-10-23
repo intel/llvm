@@ -4,14 +4,14 @@
 
 int main() {
 
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
-  float DotpData = 0.f;
+  int DotpData = 0;
 
   const size_t N = 10;
-  std::vector<float> XData(N);
-  std::vector<float> YData(N);
-  std::vector<float> ZData(N);
+  std::vector<int> XData(N);
+  std::vector<int> YData(N);
+  std::vector<int> ZData(N);
 
   buffer DotpBuf(&DotpData, range<1>(1));
   DotpBuf.set_write_back(false);
@@ -33,9 +33,9 @@ int main() {
       auto Y = YBuf.get_access(CGH);
       auto Z = ZBuf.get_access(CGH);
       CGH.parallel_for(N, [=](id<1> it) {
-        X[it] = 1.0f;
-        Y[it] = 2.0f;
-        Z[it] = 3.0f;
+        X[it] = 1;
+        Y[it] = 2;
+        Z[it] = 3;
       });
     });
 
@@ -67,8 +67,7 @@ int main() {
           auto Dotp = DotpBuf.get_access(CGH);
           auto X = XBuf.get_access(CGH);
           auto Z = ZBuf.get_access(CGH);
-          CGH.parallel_for(range<1>{N},
-                           reduction(DotpBuf, CGH, 0.0f, std::plus()),
+          CGH.parallel_for(range<1>{N}, reduction(DotpBuf, CGH, 0, std::plus()),
                            [=](id<1> it, auto &Sum) { Sum += X[it] * Z[it]; });
         },
         NodeA, NodeB);

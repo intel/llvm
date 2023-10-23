@@ -20,10 +20,10 @@ using namespace ompx;
 
 #pragma omp begin declare target device_type(nohost)
 
-// defined by CGOpenMPRuntimeGPU
-extern uint32_t __omp_rtl_debug_kind;
-extern uint32_t __omp_rtl_assume_no_thread_state;
-extern uint32_t __omp_rtl_assume_no_nested_parallelism;
+// Weak definitions will be overridden by CGOpenmpRuntimeGPU if enabled.
+[[gnu::weak]] extern const uint32_t __omp_rtl_debug_kind = 0;
+[[gnu::weak]] extern const uint32_t __omp_rtl_assume_no_thread_state = 0;
+[[gnu::weak]] extern const uint32_t __omp_rtl_assume_no_nested_parallelism = 0;
 
 // This variable should be visibile to the plugin so we override the default
 // hidden visibility.
@@ -48,6 +48,19 @@ uint64_t config::getDynamicMemorySize() {
 
 uint64_t config::getClockFrequency() {
   return __omp_rtl_device_environment.ClockFrequency;
+}
+
+void *config::getIndirectCallTablePtr() {
+  return reinterpret_cast<void *>(
+      __omp_rtl_device_environment.IndirectCallTable);
+}
+
+uint64_t config::getHardwareParallelism() {
+  return __omp_rtl_device_environment.HardwareParallelism;
+}
+
+uint64_t config::getIndirectCallTableSize() {
+  return __omp_rtl_device_environment.IndirectCallTableSize;
 }
 
 bool config::isDebugMode(config::DebugKind Kind) {

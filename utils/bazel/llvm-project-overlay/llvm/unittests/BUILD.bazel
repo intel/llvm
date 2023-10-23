@@ -26,6 +26,7 @@ cc_test(
         "//llvm:Core",
         "//llvm:Support",
         "//llvm:TestingSupport",
+        "//llvm:config",
         "//third-party/unittest:gmock",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
@@ -294,7 +295,10 @@ cc_test(
         ],
         allow_empty = False,
     ),
-    args = ["--gtest_filter=-ObjectLinkingLayerTest.TestSetProcessAllSections"],
+    args = [
+        # keep one-per-line
+        "--gtest_filter=-ObjectLinkingLayerTest.TestSetProcessAllSections",
+    ],
     deps = [
         "//llvm:AllTargetsAsmParsers",
         "//llvm:AllTargetsCodeGens",
@@ -356,6 +360,7 @@ cc_test(
         "//llvm:Passes",
         "//llvm:Scalar",
         "//llvm:Support",
+        "//llvm:TargetParser",
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",
         "//llvm:config",
@@ -627,7 +632,10 @@ cc_test(
             "Support/ParallelTest.cpp",
         ],
     ),
-    args = ["--gtest_filter=-ProgramTest.CreateProcessTrailingSlash"],
+    args = [
+        # keep one-per-line
+        "--gtest_filter=-ProgramTest.CreateProcessTrailingSlash",
+    ],
     copts = [
         "$(STACK_FRAME_UNLIMITED)",
     ],
@@ -753,6 +761,7 @@ cc_test(
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",
         "//llvm:Vectorize",
+        "//third-party/unittest:gmock",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],

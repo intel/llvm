@@ -551,8 +551,8 @@ namespace {
     /// Temporaries - Temporary lvalues materialized within this stack frame.
     MapTy Temporaries;
 
-    /// CallLoc - The location of the call expression for this call.
-    SourceLocation CallLoc;
+    /// CallRange - The source range of the call expression for this call.
+    SourceRange CallRange;
 
     /// Index - The call index of this call.
     unsigned Index;
@@ -586,7 +586,7 @@ namespace {
     llvm::DenseMap<const ValueDecl *, FieldDecl *> LambdaCaptureFields;
     FieldDecl *LambdaThisCaptureField = nullptr;
 
-    CallStackFrame(EvalInfo &Info, SourceLocation CallLoc,
+    CallStackFrame(EvalInfo &Info, SourceRange CallRange,
                    const FunctionDecl *Callee, const LValue *This,
                    const Expr *CallExpr, CallRef Arguments);
     ~CallStackFrame();
@@ -630,7 +630,7 @@ namespace {
     void describe(llvm::raw_ostream &OS) const override;
 
     Frame *getCaller() const override { return Caller; }
-    SourceLocation getCallLocation() const override { return CallLoc; }
+    SourceRange getCallRange() const override { return CallRange; }
     const FunctionDecl *getCallee() const override { return Callee; }
 
     bool isStdFunction() const {
@@ -1468,11 +1468,11 @@ void SubobjectDesignator::diagnosePointerArithmetic(EvalInfo &Info,
   setInvalid();
 }
 
-CallStackFrame::CallStackFrame(EvalInfo &Info, SourceLocation CallLoc,
+CallStackFrame::CallStackFrame(EvalInfo &Info, SourceRange CallRange,
                                const FunctionDecl *Callee, const LValue *This,
                                const Expr *CallExpr, CallRef Call)
     : Info(Info), Caller(Info.CurrentCall), Callee(Callee), This(This),
-      CallExpr(CallExpr), Arguments(Call), CallLoc(CallLoc),
+      CallExpr(CallExpr), Arguments(Call), CallRange(CallRange),
       Index(Info.NextCallIndex++) {
   Info.CurrentCall = this;
   ++Info.CallStackDepth;
@@ -1945,9 +1945,9 @@ APValue *EvalInfo::createHeapAlloc(const Expr *E, QualType T, LValue &LV) {
 /// Produce a string describing the given constexpr call.
 void CallStackFrame::describe(raw_ostream &Out) const {
   unsigned ArgIndex = 0;
-  bool IsMemberCall = isa<CXXMethodDecl>(Callee) &&
-                      !isa<CXXConstructorDecl>(Callee) &&
-                      cast<CXXMethodDecl>(Callee)->isInstance();
+  bool IsMemberCall =
+      isa<CXXMethodDecl>(Callee) && !isa<CXXConstructorDecl>(Callee) &&
+      cast<CXXMethodDecl>(Callee)->isImplicitObjectMemberFunction();
 
   if (!IsMemberCall)
     Callee->getNameForDiagnostic(Out, Info.Ctx.getPrintingPolicy(),
@@ -2798,16 +2798,16 @@ static bool CheckedIntArithmetic(EvalInfo &Info, const Expr *E,
     if (Info.checkingForUndefinedBehavior())
       Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                        diag::warn_integer_constant_overflow)
-          << toString(Result, 10) << E->getType();
+          << toString(Result, 10) << E->getType() << E->getSourceRange();
     return HandleOverflow(Info, E, Value, E->getType());
   }
   return true;
 }
 
 /// Perform the given binary integer operation.
-static bool handleIntIntBinOp(EvalInfo &Info, const Expr *E, const APSInt &LHS,
-                              BinaryOperatorKind Opcode, APSInt RHS,
-                              APSInt &Result) {
+static bool handleIntIntBinOp(EvalInfo &Info, const BinaryOperator *E,
+                              const APSInt &LHS, BinaryOperatorKind Opcode,
+                              APSInt RHS, APSInt &Result) {
   bool HandleOverflowResult = true;
   switch (Opcode) {
   default:
@@ -2828,7 +2828,8 @@ static bool handleIntIntBinOp(EvalInfo &Info, const Expr *E, const APSInt &LHS,
   case BO_Div:
   case BO_Rem:
     if (RHS == 0) {
-      Info.FFDiag(E, diag::note_expr_divide_by_zero);
+      Info.FFDiag(E, diag::note_expr_divide_by_zero)
+          << E->getRHS()->getSourceRange();
       return false;
     }
     // Check for overflow case: INT_MIN / -1 or INT_MIN % -1. APSInt supports
@@ -3356,6 +3357,9 @@ static bool evaluateVarDeclInit(EvalInfo &Info, const Expr *E,
     return false;
   }
 
+  if (E->isValueDependent())
+    return false;
+
   // Dig out the initializer, and use the declaration which it's attached to.
   // FIXME: We should eventually check whether the variable has a reachable
   // initializing declaration.
@@ -3462,8 +3466,7 @@ static APSInt extractStringLiteralCharacter(EvalInfo &Info, const Expr *Lit,
   assert(CAT && "string literal isn't an array");
   QualType CharType = CAT->getElementType();
   assert(CharType->isIntegerType() && "unexpected character type");
-
-  APSInt Value(S->getCharByteWidth() * Info.Ctx.getCharWidth(),
+  APSInt Value(Info.Ctx.getTypeSize(CharType),
                CharType->isUnsignedIntegerType());
   if (Index < S->getLength())
     Value = S->getCodeUnit(Index);
@@ -3486,7 +3489,7 @@ static void expandStringLiteral(EvalInfo &Info, const StringLiteral *S,
   unsigned Elts = CAT->getSize().getZExtValue();
   Result = APValue(APValue::UninitArray(),
                    std::min(S->getLength(), Elts), Elts);
-  APSInt Value(S->getCharByteWidth() * Info.Ctx.getCharWidth(),
+  APSInt Value(Info.Ctx.getTypeSize(CharType),
                CharType->isUnsignedIntegerType());
   if (Result.hasArrayFiller())
     Result.getArrayFiller() = APValue(Value);
@@ -3711,7 +3714,8 @@ findSubobject(EvalInfo &Info, const Expr *E, const CompleteObject &Obj,
          !isValidIndeterminateAccess(handler.AccessKind))) {
       if (!Info.checkingPotentialConstantExpression())
         Info.FFDiag(E, diag::note_constexpr_access_uninit)
-            << handler.AccessKind << O->isIndeterminate();
+            << handler.AccessKind << O->isIndeterminate()
+            << E->getSourceRange();
       return handler.failed();
     }
 
@@ -4441,6 +4445,11 @@ struct CompoundAssignSubobjectHandler {
       return foundPointer(Subobj, SubobjType);
     case APValue::Vector:
       return foundVector(Subobj, SubobjType);
+    case APValue::Indeterminate:
+      Info.FFDiag(E, diag::note_constexpr_access_uninit)
+          << /*read of=*/0 << /*uninitialized object=*/1
+          << E->getLHS()->getSourceRange();
+      return false;
     default:
       // FIXME: can this happen?
       Info.FFDiag(E);
@@ -4703,6 +4712,9 @@ static bool EvaluateObjectArgument(EvalInfo &Info, const Expr *Object,
     return EvaluateLValue(Object, This, Info);
 
   if (Object->getType()->isLiteralType(Info.Ctx))
+    return EvaluateTemporary(Object, This, Info);
+
+  if (Object->getType()->isRecordType() && Object->isPRValue())
     return EvaluateTemporary(Object, This, Info);
 
   Info.FFDiag(Object, diag::note_constexpr_nonliteral) << Object->getType();
@@ -6056,8 +6068,9 @@ const AccessKinds StartLifetimeOfUnionMemberHandler::AccessKind;
 /// operator whose left-hand side might involve a union member access. If it
 /// does, implicitly start the lifetime of any accessed union elements per
 /// C++20 [class.union]5.
-static bool HandleUnionActiveMemberChange(EvalInfo &Info, const Expr *LHSExpr,
-                                          const LValue &LHS) {
+static bool MaybeHandleUnionActiveMemberChange(EvalInfo &Info,
+                                               const Expr *LHSExpr,
+                                               const LValue &LHS) {
   if (LHS.InvalidBase || LHS.Designator.Invalid)
     return false;
 
@@ -6112,8 +6125,14 @@ static bool HandleUnionActiveMemberChange(EvalInfo &Info, const Expr *LHSExpr,
         break;
       // Walk path backwards as we walk up from the base to the derived class.
       for (const CXXBaseSpecifier *Elt : llvm::reverse(ICE->path())) {
+        if (Elt->isVirtual()) {
+          // A class with virtual base classes never has a trivial default
+          // constructor, so S(E) is empty in this case.
+          E = nullptr;
+          break;
+        }
+
         --PathLength;
-        (void)Elt;
         assert(declaresSameEntity(Elt->getType()->getAsCXXRecordDecl(),
                                   LHS.Designator.Entries[PathLength]
                                       .getAsBaseOrMember().getPointer()));
@@ -6244,7 +6263,7 @@ static bool HandleFunctionCall(SourceLocation CallLoc,
   if (!Info.CheckCallLimit(CallLoc))
     return false;
 
-  CallStackFrame Frame(Info, CallLoc, Callee, This, E, Call);
+  CallStackFrame Frame(Info, E->getSourceRange(), Callee, This, E, Call);
 
   // For a trivial copy or move assignment, perform an APValue copy. This is
   // essential for unions, where the operations performed by the assignment
@@ -6309,7 +6328,7 @@ static bool HandleConstructorCall(const Expr *E, const LValue &This,
       Info,
       ObjectUnderConstruction{This.getLValueBase(), This.Designator.Entries},
       RD->getNumBases());
-  CallStackFrame Frame(Info, CallLoc, Definition, &This, E, Call);
+  CallStackFrame Frame(Info, E->getSourceRange(), Definition, &This, E, Call);
 
   // FIXME: Creating an APValue just to hold a nonexistent return value is
   // wasteful.
@@ -6517,7 +6536,7 @@ static bool HandleConstructorCall(const Expr *E, const LValue &This,
          CallScope.destroy();
 }
 
-static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
+static bool HandleDestructionImpl(EvalInfo &Info, SourceRange CallRange,
                                   const LValue &This, APValue &Value,
                                   QualType T) {
   // Objects can only be destroyed while they're within their lifetimes.
@@ -6527,21 +6546,22 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
   if (Value.isAbsent() && !T->isNullPtrType()) {
     APValue Printable;
     This.moveInto(Printable);
-    Info.FFDiag(CallLoc, diag::note_constexpr_destroy_out_of_lifetime)
-      << Printable.getAsString(Info.Ctx, Info.Ctx.getLValueReferenceType(T));
+    Info.FFDiag(CallRange.getBegin(),
+                diag::note_constexpr_destroy_out_of_lifetime)
+        << Printable.getAsString(Info.Ctx, Info.Ctx.getLValueReferenceType(T));
     return false;
   }
 
   // Invent an expression for location purposes.
   // FIXME: We shouldn't need to do this.
-  OpaqueValueExpr LocE(CallLoc, Info.Ctx.IntTy, VK_PRValue);
+  OpaqueValueExpr LocE(CallRange.getBegin(), Info.Ctx.IntTy, VK_PRValue);
 
   // For arrays, destroy elements right-to-left.
   if (const ConstantArrayType *CAT = Info.Ctx.getAsConstantArrayType(T)) {
     uint64_t Size = CAT->getSize().getZExtValue();
     QualType ElemT = CAT->getElementType();
 
-    if (!CheckArraySize(Info, CAT, CallLoc))
+    if (!CheckArraySize(Info, CAT, CallRange.getBegin()))
       return false;
 
     LValue ElemLV = This;
@@ -6558,7 +6578,7 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
     for (; Size != 0; --Size) {
       APValue &Elem = Value.getArrayInitializedElt(Size - 1);
       if (!HandleLValueArrayAdjustment(Info, &LocE, ElemLV, ElemT, -1) ||
-          !HandleDestructionImpl(Info, CallLoc, ElemLV, Elem, ElemT))
+          !HandleDestructionImpl(Info, CallRange, ElemLV, Elem, ElemT))
         return false;
     }
 
@@ -6570,7 +6590,9 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
   const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
   if (!RD) {
     if (T.isDestructedType()) {
-      Info.FFDiag(CallLoc, diag::note_constexpr_unsupported_destruction) << T;
+      Info.FFDiag(CallRange.getBegin(),
+                  diag::note_constexpr_unsupported_destruction)
+          << T;
       return false;
     }
 
@@ -6579,13 +6601,13 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
   }
 
   if (RD->getNumVBases()) {
-    Info.FFDiag(CallLoc, diag::note_constexpr_virtual_base) << RD;
+    Info.FFDiag(CallRange.getBegin(), diag::note_constexpr_virtual_base) << RD;
     return false;
   }
 
   const CXXDestructorDecl *DD = RD->getDestructor();
   if (!DD && !RD->hasTrivialDestructor()) {
-    Info.FFDiag(CallLoc);
+    Info.FFDiag(CallRange.getBegin());
     return false;
   }
 
@@ -6604,16 +6626,16 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
     return true;
   }
 
-  if (!Info.CheckCallLimit(CallLoc))
+  if (!Info.CheckCallLimit(CallRange.getBegin()))
     return false;
 
   const FunctionDecl *Definition = nullptr;
   const Stmt *Body = DD->getBody(Definition);
 
-  if (!CheckConstexprFunction(Info, CallLoc, DD, Definition, Body))
+  if (!CheckConstexprFunction(Info, CallRange.getBegin(), DD, Definition, Body))
     return false;
 
-  CallStackFrame Frame(Info, CallLoc, Definition, &This, /*CallExpr=*/nullptr,
+  CallStackFrame Frame(Info, CallRange, Definition, &This, /*CallExpr=*/nullptr,
                        CallRef());
 
   // We're now in the period of destruction of this object.
@@ -6628,7 +6650,7 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
     // (Note that formally the lifetime ends when the period of destruction
     // begins, even though certain uses of the object remain valid until the
     // period of destruction ends.)
-    Info.FFDiag(CallLoc, diag::note_constexpr_double_destroy);
+    Info.FFDiag(CallRange.getBegin(), diag::note_constexpr_double_destroy);
     return false;
   }
 
@@ -6657,7 +6679,7 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
       return false;
 
     APValue *SubobjectValue = &Value.getStructField(FD->getFieldIndex());
-    if (!HandleDestructionImpl(Info, CallLoc, Subobject, *SubobjectValue,
+    if (!HandleDestructionImpl(Info, CallRange, Subobject, *SubobjectValue,
                                FD->getType()))
       return false;
   }
@@ -6676,7 +6698,7 @@ static bool HandleDestructionImpl(EvalInfo &Info, SourceLocation CallLoc,
       return false;
 
     APValue *SubobjectValue = &Value.getStructBase(BasesLeft);
-    if (!HandleDestructionImpl(Info, CallLoc, Subobject, *SubobjectValue,
+    if (!HandleDestructionImpl(Info, CallRange, Subobject, *SubobjectValue,
                                BaseType))
       return false;
   }
@@ -6697,7 +6719,7 @@ struct DestroyObjectHandler {
   typedef bool result_type;
   bool failed() { return false; }
   bool found(APValue &Subobj, QualType SubobjType) {
-    return HandleDestructionImpl(Info, E->getExprLoc(), This, Subobj,
+    return HandleDestructionImpl(Info, E->getSourceRange(), This, Subobj,
                                  SubobjType);
   }
   bool found(APSInt &Value, QualType SubobjType) {
@@ -7520,6 +7542,9 @@ public:
     return Error(E);
   }
 
+  bool VisitPredefinedExpr(const PredefinedExpr *E) {
+    return StmtVisitorTy::Visit(E->getFunctionName());
+  }
   bool VisitConstantExpr(const ConstantExpr *E) {
     if (E->hasAPValueResult())
       return DerivedSuccess(E->getAPValueResult(), E);
@@ -7645,7 +7670,8 @@ public:
   }
 
   bool VisitOpaqueValueExpr(const OpaqueValueExpr *E) {
-    if (APValue *Value = Info.CurrentCall->getCurrentTemporary(E))
+    if (APValue *Value = Info.CurrentCall->getCurrentTemporary(E);
+        Value && !Value->isAbsent())
       return DerivedSuccess(*Value, E);
 
     const Expr *Source = E->getSourceExpr();
@@ -7769,15 +7795,18 @@ public:
       if (OCE && OCE->isAssignmentOp()) {
         assert(Args.size() == 2 && "wrong number of arguments in assignment");
         Call = Info.CurrentCall->createCall(FD);
-        if (!EvaluateArgs(isa<CXXMethodDecl>(FD) ? Args.slice(1) : Args, Call,
-                          Info, FD, /*RightToLeft=*/true))
+        bool HasThis = false;
+        if (const auto *MD = dyn_cast<CXXMethodDecl>(FD))
+          HasThis = MD->isImplicitObjectMemberFunction();
+        if (!EvaluateArgs(HasThis ? Args.slice(1) : Args, Call, Info, FD,
+                          /*RightToLeft=*/true))
           return false;
       }
 
       // Overloaded operator calls to member functions are represented as normal
       // calls with '*this' as the first argument.
       const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD);
-      if (MD && !MD->isStatic()) {
+      if (MD && MD->isImplicitObjectMemberFunction()) {
         // FIXME: When selecting an implicit conversion for an overloaded
         // operator delete, we sometimes try to evaluate calls to conversion
         // operators without a 'this' parameter!
@@ -7793,7 +7822,7 @@ public:
         // per C++20 [class.union]5.
         if (Info.getLangOpts().CPlusPlus20 && OCE &&
             OCE->getOperator() == OO_Equal && MD->isTrivial() &&
-            !HandleUnionActiveMemberChange(Info, Args[0], ThisVal))
+            !MaybeHandleUnionActiveMemberChange(Info, Args[0], ThisVal))
           return false;
 
         Args = Args.slice(1);
@@ -7861,7 +7890,7 @@ public:
                                    CovariantAdjustmentPath);
         if (!FD)
           return false;
-      } else {
+      } else if (NamedMember && NamedMember->isImplicitObjectMemberFunction()) {
         // Check that the 'this' pointer points to an object of the right type.
         // FIXME: If this is an assignment operator call, we may need to change
         // the active union member before we check this.
@@ -8341,7 +8370,13 @@ bool LValueExprEvaluator::VisitVarDecl(const Expr *E, const VarDecl *VD) {
 
     if (auto *FD = Info.CurrentCall->LambdaCaptureFields.lookup(VD)) {
       // Start with 'Result' referring to the complete closure object...
-      Result = *Info.CurrentCall->This;
+      if (auto *MD = cast<CXXMethodDecl>(Info.CurrentCall->Callee);
+          MD->isExplicitObjectMemberFunction()) {
+        APValue *RefValue =
+            Info.getParamSlot(Info.CurrentCall->Arguments, MD->getParamDecl(0));
+        Result.setFrom(Info.Ctx, *RefValue);
+      } else
+        Result = *Info.CurrentCall->This;
       // ... then update it to refer to the field of the closure object
       // that represents the capture.
       if (!HandleLValueMember(Info, E, Result, FD))
@@ -8568,7 +8603,7 @@ bool LValueExprEvaluator::VisitMemberExpr(const MemberExpr *E) {
 bool LValueExprEvaluator::VisitArraySubscriptExpr(const ArraySubscriptExpr *E) {
   // FIXME: Deal with vectors as array subscript bases.
   if (E->getBase()->getType()->isVectorType() ||
-      E->getBase()->getType()->isVLSTBuiltinType())
+      E->getBase()->getType()->isSveVLSBuiltinType())
     return Error(E);
 
   APSInt Index;
@@ -8666,7 +8701,7 @@ bool LValueExprEvaluator::VisitBinAssign(const BinaryOperator *E) {
     return false;
 
   if (Info.getLangOpts().CPlusPlus20 &&
-      !HandleUnionActiveMemberChange(Info, E->getLHS(), Result))
+      !MaybeHandleUnionActiveMemberChange(Info, E->getLHS(), Result))
     return false;
 
   return handleAssignment(this->Info, E, Result, E->getLHS()->getType(),
@@ -9371,7 +9406,7 @@ bool PointerExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       APSInt N;
       if (!EvaluateInteger(E->getArg(2), N, Info))
         return false;
-      MaxLength = N.getExtValue();
+      MaxLength = N.getZExtValue();
     }
     // We cannot find the value if there are no candidates to match against.
     if (MaxLength == 0u)
@@ -10967,6 +11002,16 @@ bool ArrayExprEvaluator::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E) {
 
   bool Success = true;
   for (EvalInfo::ArrayInitLoopIndex Index(Info); Index != Elements; ++Index) {
+    // C++ [class.temporary]/5
+    // There are four contexts in which temporaries are destroyed at a different
+    // point than the end of the full-expression. [...] The second context is
+    // when a copy constructor is called to copy an element of an array while
+    // the entire array is copied [...]. In either case, if the constructor has
+    // one or more default arguments, the destruction of every temporary created
+    // in a default argument is sequenced before the construction of the next
+    // array element, if any.
+    FullExpressionRAII Scope(Info);
+
     if (!EvaluateInPlace(Result.getArrayInitializedElt(Index),
                          Info, Subobject, E->getSubExpr()) ||
         !HandleLValueArrayAdjustment(Info, E, Subobject,
@@ -10975,6 +11020,9 @@ bool ArrayExprEvaluator::VisitArrayInitLoopExpr(const ArrayInitLoopExpr *E) {
         return false;
       Success = false;
     }
+
+    // Make sure we run the destructors too.
+    Scope.destroy();
   }
 
   return Success;
@@ -12153,11 +12201,21 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
   case Builtin::BI__builtin_clz:
   case Builtin::BI__builtin_clzl:
   case Builtin::BI__builtin_clzll:
-  case Builtin::BI__builtin_clzs: {
+  case Builtin::BI__builtin_clzs:
+  case Builtin::BI__lzcnt16: // Microsoft variants of count leading-zeroes
+  case Builtin::BI__lzcnt:
+  case Builtin::BI__lzcnt64: {
     APSInt Val;
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
-    if (!Val)
+
+    // When the argument is 0, the result of GCC builtins is undefined, whereas
+    // for Microsoft intrinsics, the result is the bit-width of the argument.
+    bool ZeroIsUndefined = BuiltinOp != Builtin::BI__lzcnt16 &&
+                           BuiltinOp != Builtin::BI__lzcnt &&
+                           BuiltinOp != Builtin::BI__lzcnt64;
+
+    if (ZeroIsUndefined && !Val)
       return Error(E);
 
     return Success(Val.countl_zero(), E);
@@ -12186,8 +12244,9 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
           Callee->getIdentifier()->isStr("is_constant_evaluated")))) {
       // FIXME: Find a better way to avoid duplicated diagnostics.
       if (Info.EvalStatus.Diag)
-        Info.report((Info.CallStackDepth == 1) ? E->getExprLoc()
-                                               : Info.CurrentCall->CallLoc,
+        Info.report((Info.CallStackDepth == 1)
+                        ? E->getExprLoc()
+                        : Info.CurrentCall->getCallRange().getBegin(),
                     diag::warn_is_constant_evaluated_always_true_constexpr)
             << (Info.CallStackDepth == 1 ? "__builtin_is_constant_evaluated"
                                          : "std::is_constant_evaluated");
@@ -12296,7 +12355,10 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
 
   case Builtin::BI__builtin_popcount:
   case Builtin::BI__builtin_popcountl:
-  case Builtin::BI__builtin_popcountll: {
+  case Builtin::BI__builtin_popcountll:
+  case Builtin::BI__popcnt16: // Microsoft variants of popcount
+  case Builtin::BI__popcnt:
+  case Builtin::BI__popcnt64: {
     APSInt Val;
     if (!EvaluateInteger(E->getArg(0), Val, Info))
       return false;
@@ -12393,7 +12455,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       APSInt N;
       if (!EvaluateInteger(E->getArg(2), N, Info))
         return false;
-      MaxLength = N.getExtValue();
+      MaxLength = N.getZExtValue();
     }
 
     // Empty substrings compare equal by definition.
@@ -12673,9 +12735,9 @@ namespace {
 class DataRecursiveIntBinOpEvaluator {
   struct EvalResult {
     APValue Val;
-    bool Failed;
+    bool Failed = false;
 
-    EvalResult() : Failed(false) { }
+    EvalResult() = default;
 
     void swap(EvalResult &RHS) {
       Val.swap(RHS.Val);
@@ -13322,6 +13384,10 @@ EvaluateComparisonBinaryOperator(EvalInfo &Info, const BinaryOperator *E,
     // C++11 [expr.rel]p4, [expr.eq]p3: If two operands of type std::nullptr_t
     // are compared, the result is true of the operator is <=, >= or ==, and
     // false otherwise.
+    LValue Res;
+    if (!EvaluatePointer(E->getLHS(), Res, Info) ||
+        !EvaluatePointer(E->getRHS(), Res, Info))
+      return false;
     return Success(CmpResult::Equal, E);
   }
 
@@ -13655,7 +13721,7 @@ bool IntExprEvaluator::VisitUnaryOperator(const UnaryOperator *E) {
       if (Info.checkingForUndefinedBehavior())
         Info.Ctx.getDiagnostics().Report(E->getExprLoc(),
                                          diag::warn_integer_constant_overflow)
-            << toString(Value, 10) << E->getType();
+            << toString(Value, 10) << E->getType() << E->getSourceRange();
 
       if (!HandleOverflow(Info, E, -Value.extend(Value.getBitWidth() + 1),
                           E->getType()))
@@ -15291,6 +15357,17 @@ static bool FastEvaluateAsRValue(const Expr *Exp, Expr::EvalResult &Result,
     return true;
   }
 
+  if (const auto *CE = dyn_cast<ConstantExpr>(Exp)) {
+    if (CE->hasAPValueResult()) {
+      Result.Val = CE->getAPValueResult();
+      IsConst = true;
+      return true;
+    }
+
+    // The SubExpr is usually just an IntegerLiteral.
+    return FastEvaluateAsRValue(CE->getSubExpr(), Result, Ctx, IsConst);
+  }
+
   // This case should be rare, but we need to check it before we check on
   // the type below.
   if (Exp->getType().isNull()) {
@@ -16171,8 +16248,7 @@ bool Expr::isIntegerConstantExpr(const ASTContext &Ctx,
 }
 
 std::optional<llvm::APSInt>
-Expr::getIntegerConstantExpr(const ASTContext &Ctx, SourceLocation *Loc,
-                             bool isEvaluated) const {
+Expr::getIntegerConstantExpr(const ASTContext &Ctx, SourceLocation *Loc) const {
   if (isValueDependent()) {
     // Expression evaluator can't succeed on a dependent expression.
     return std::nullopt;
@@ -16269,7 +16345,8 @@ bool Expr::EvaluateWithSubstitution(APValue &Value, ASTContext &Ctx,
 #ifndef NDEBUG
     auto *MD = dyn_cast<CXXMethodDecl>(Callee);
     assert(MD && "Don't provide `this` for non-methods.");
-    assert(!MD->isStatic() && "Don't provide `this` for static methods.");
+    assert(MD->isImplicitObjectMemberFunction() &&
+           "Don't provide `this` for methods without an implicit object.");
 #endif
     if (!This->isValueDependent() &&
         EvaluateObjectArgument(Info, This, ThisVal) &&
@@ -16364,9 +16441,10 @@ bool Expr::isPotentialConstantExpr(const FunctionDecl *FD,
     HandleConstructorCall(&VIE, This, Args, CD, Info, Scratch);
   } else {
     SourceLocation Loc = FD->getLocation();
-    HandleFunctionCall(Loc, FD, (MD && MD->isInstance()) ? &This : nullptr,
-                       &VIE, Args, CallRef(), FD->getBody(), Info, Scratch,
-                       /*ResultSlot=*/nullptr);
+    HandleFunctionCall(
+        Loc, FD, (MD && MD->isImplicitObjectMemberFunction()) ? &This : nullptr,
+        &VIE, Args, CallRef(), FD->getBody(), Info, Scratch,
+        /*ResultSlot=*/nullptr);
   }
 
   return Diags.empty();

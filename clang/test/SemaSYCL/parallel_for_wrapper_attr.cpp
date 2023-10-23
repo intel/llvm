@@ -25,8 +25,8 @@ void invoke() {
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'int'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit-inline
-// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' inline
+// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit_instantiation implicit-inline
+// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' implicit_instantiation inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
@@ -42,8 +42,8 @@ void invoke() {
 
 // CHECK-LABEL: ClassTemplateSpecializationDecl {{.*}} class Fobj definition
 // CHECK:       TemplateArgument type 'short'
-// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit-inline
-// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' inline
+// CHECK:       CXXMethodDecl {{.*}} used operator() 'void () const' implicit_instantiation implicit-inline
+// CHECK:       CXXMethodDecl {{.*}} used constexpr operator() 'void () const' implicit_instantiation inline
 // CHECK-NEXT:  CompoundStmt
 // CHECK-NEXT:  IntelReqdSubGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr {{.*}} 'int'

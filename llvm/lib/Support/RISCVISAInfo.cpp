@@ -106,6 +106,7 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
 
     {"zdinx", RISCVExtensionVersion{1, 0}},
 
+    {"zfa", RISCVExtensionVersion{1, 0}},
     {"zfh", RISCVExtensionVersion{1, 0}},
     {"zfhmin", RISCVExtensionVersion{1, 0}},
     {"zfinx", RISCVExtensionVersion{1, 0}},
@@ -116,11 +117,12 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"zicbom", RISCVExtensionVersion{1, 0}},
     {"zicbop", RISCVExtensionVersion{1, 0}},
     {"zicboz", RISCVExtensionVersion{1, 0}},
-    {"zicntr", RISCVExtensionVersion{1, 0}},
+    {"zicntr", RISCVExtensionVersion{2, 0}},
     {"zicsr", RISCVExtensionVersion{2, 0}},
     {"zifencei", RISCVExtensionVersion{2, 0}},
+    {"zihintntl", RISCVExtensionVersion{1, 0}},
     {"zihintpause", RISCVExtensionVersion{2, 0}},
-    {"zihpm", RISCVExtensionVersion{1, 0}},
+    {"zihpm", RISCVExtensionVersion{2, 0}},
 
     {"zk", RISCVExtensionVersion{1, 0}},
     {"zkn", RISCVExtensionVersion{1, 0}},
@@ -142,6 +144,7 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"zve64x", RISCVExtensionVersion{1, 0}},
 
     {"zvfh", RISCVExtensionVersion{1, 0}},
+    {"zvfhmin", RISCVExtensionVersion{1, 0}},
 
     {"zvl1024b", RISCVExtensionVersion{1, 0}},
     {"zvl128b", RISCVExtensionVersion{1, 0}},
@@ -164,12 +167,10 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
 
     {"zacas", RISCVExtensionVersion{1, 0}},
 
-    {"zfa", RISCVExtensionVersion{0, 2}},
     {"zfbfmin", RISCVExtensionVersion{0, 8}},
 
+    {"zicfilp", RISCVExtensionVersion{0, 2}},
     {"zicond", RISCVExtensionVersion{1, 0}},
-
-    {"zihintntl", RISCVExtensionVersion{0, 2}},
 
     {"ztso", RISCVExtensionVersion{0, 1}},
 
@@ -180,6 +181,7 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zvfbfwma", RISCVExtensionVersion{0, 8}},
 
     // vector crypto
+    {"zvkb", RISCVExtensionVersion{1, 0}},
     {"zvkg", RISCVExtensionVersion{1, 0}},
     {"zvkn", RISCVExtensionVersion{1, 0}},
     {"zvknc", RISCVExtensionVersion{1, 0}},
@@ -206,6 +208,41 @@ static void verifyTables() {
     TableChecked.store(true, std::memory_order_relaxed);
   }
 #endif
+}
+
+static void PrintExtension(const std::string Name, const std::string Version,
+                           const std::string Description) {
+  outs() << "    "
+         << format(Description.empty() ? "%-20s%s\n" : "%-20s%-10s%s\n",
+                   Name.c_str(), Version.c_str(), Description.c_str());
+}
+
+void llvm::riscvExtensionsHelp(StringMap<StringRef> DescMap) {
+
+  outs() << "All available -march extensions for RISC-V\n\n";
+  PrintExtension("Name", "Version", (DescMap.empty() ? "" : "Description"));
+
+  RISCVISAInfo::OrderedExtensionMap ExtMap;
+  for (const auto &E : SupportedExtensions)
+    ExtMap[E.Name] = {E.Version.Major, E.Version.Minor};
+  for (const auto &E : ExtMap) {
+    std::string Version = std::to_string(E.second.MajorVersion) + "." +
+                          std::to_string(E.second.MinorVersion);
+    PrintExtension(E.first, Version, DescMap[E.first].str());
+  }
+
+  outs() << "\nExperimental extensions\n";
+  ExtMap.clear();
+  for (const auto &E : SupportedExperimentalExtensions)
+    ExtMap[E.Name] = {E.Version.Major, E.Version.Minor};
+  for (const auto &E : ExtMap) {
+    std::string Version = std::to_string(E.second.MajorVersion) + "." +
+                          std::to_string(E.second.MinorVersion);
+    PrintExtension(E.first, Version, DescMap["experimental-" + E.first].str());
+  }
+
+  outs() << "\nUse -march to specify the target's extension.\n"
+            "For example, clang -march=rv32i_v1p0\n";
 }
 
 static bool stripExperimentalPrefix(StringRef &Ext) {
@@ -501,7 +538,7 @@ static Error getExtensionVersion(StringRef Ext, StringRef In, unsigned &Major,
     return createStringError(errc::invalid_argument, Error);
   }
 
-  // If experimental extension, require use of current version number number
+  // If experimental extension, require use of current version number
   if (auto ExperimentalExtension = isExperimentalExtension(Ext)) {
     if (!EnableExperimentalExtension) {
       std::string Error = "requires '-menable-experimental-extensions' for "
@@ -975,6 +1012,7 @@ static const char *ImpliedExtsZk[] = {"zkn", "zkt", "zkr"};
 static const char *ImpliedExtsZkn[] = {"zbkb", "zbkc", "zbkx",
                                        "zkne", "zknd", "zknh"};
 static const char *ImpliedExtsZks[] = {"zbkb", "zbkc", "zbkx", "zksed", "zksh"};
+static const char *ImpliedExtsZvbb[] = {"zvkb"};
 static const char *ImpliedExtsZve32f[] = {"zve32x", "f"};
 static const char *ImpliedExtsZve32x[] = {"zvl32b", "zicsr"};
 static const char *ImpliedExtsZve64d[] = {"zve64f", "d"};
@@ -983,11 +1021,12 @@ static const char *ImpliedExtsZve64x[] = {"zve32x", "zvl64b"};
 static const char *ImpliedExtsZvfbfmin[] = {"zve32f", "zfbfmin"};
 static const char *ImpliedExtsZvfbfwma[] = {"zvfbfmin"};
 static const char *ImpliedExtsZvfh[] = {"zve32f", "zfhmin"};
-static const char *ImpliedExtsZvkn[] = {"zvbb", "zvkned", "zvknhb", "zvkt"};
+static const char *ImpliedExtsZvfhmin[] = {"zve32f"};
+static const char *ImpliedExtsZvkn[] = {"zvkb", "zvkned", "zvknhb", "zvkt"};
 static const char *ImpliedExtsZvknc[] = {"zvbc", "zvkn"};
 static const char *ImpliedExtsZvkng[] = {"zvkg", "zvkn"};
 static const char *ImpliedExtsZvknhb[] = {"zvknha"};
-static const char *ImpliedExtsZvks[] = {"zvbb", "zvksed", "zvksh", "zvkt"};
+static const char *ImpliedExtsZvks[] = {"zvkb", "zvksed", "zvksh", "zvkt"};
 static const char *ImpliedExtsZvksc[] = {"zvbc", "zvks"};
 static const char *ImpliedExtsZvksg[] = {"zvkg", "zvks"};
 static const char *ImpliedExtsZvl1024b[] = {"zvl512b"};
@@ -1040,6 +1079,7 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"zk"}, {ImpliedExtsZk}},
     {{"zkn"}, {ImpliedExtsZkn}},
     {{"zks"}, {ImpliedExtsZks}},
+    {{"zvbb"}, {ImpliedExtsZvbb}},
     {{"zve32f"}, {ImpliedExtsZve32f}},
     {{"zve32x"}, {ImpliedExtsZve32x}},
     {{"zve64d"}, {ImpliedExtsZve64d}},
@@ -1048,6 +1088,7 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"zvfbfmin"}, {ImpliedExtsZvfbfmin}},
     {{"zvfbfwma"}, {ImpliedExtsZvfbfwma}},
     {{"zvfh"}, {ImpliedExtsZvfh}},
+    {{"zvfhmin"}, {ImpliedExtsZvfhmin}},
     {{"zvkn"}, {ImpliedExtsZvkn}},
     {{"zvknc"}, {ImpliedExtsZvknc}},
     {{"zvkng"}, {ImpliedExtsZvkng}},
@@ -1249,4 +1290,41 @@ StringRef RISCVISAInfo::computeDefaultABI() const {
     return "lp64";
   }
   llvm_unreachable("Invalid XLEN");
+}
+
+bool RISCVISAInfo::isSupportedExtensionWithVersion(StringRef Ext) {
+  if (Ext.empty())
+    return false;
+
+  auto Pos = findLastNonVersionCharacter(Ext) + 1;
+  StringRef Name = Ext.substr(0, Pos);
+  StringRef Vers = Ext.substr(Pos);
+  if (Vers.empty())
+    return false;
+
+  unsigned Major, Minor, ConsumeLength;
+  if (auto E = getExtensionVersion(Name, Vers, Major, Minor, ConsumeLength,
+                                   true, true)) {
+    consumeError(std::move(E));
+    return false;
+  }
+
+  return true;
+}
+
+std::string RISCVISAInfo::getTargetFeatureForExtension(StringRef Ext) {
+  if (Ext.empty())
+    return std::string();
+
+  auto Pos = findLastNonVersionCharacter(Ext) + 1;
+  StringRef Name = Ext.substr(0, Pos);
+
+  if (Pos != Ext.size() && !isSupportedExtensionWithVersion(Ext))
+    return std::string();
+
+  if (!isSupportedExtension(Name))
+    return std::string();
+
+  return isExperimentalExtension(Name) ? "experimental-" + Name.str()
+                                       : Name.str();
 }

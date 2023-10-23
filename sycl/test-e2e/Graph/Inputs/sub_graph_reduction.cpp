@@ -4,23 +4,23 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
-  float *Dotp = malloc_device<float>(1, Queue);
+  int *Dotp = malloc_device<int>(1, Queue);
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
-  float *Y = malloc_device<float>(N, Queue);
-  float *Z = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
+  int *Y = malloc_device<int>(N, Queue);
+  int *Z = malloc_device<int>(N, Queue);
 
   auto NodeI = add_node(Graph, Queue, [&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      X[it] = 1.0f;
-      Y[it] = 2.0f;
-      Z[it] = 3.0f;
+      X[it] = 1;
+      Y[it] = 2;
+      Z[it] = 3;
     });
   });
 
@@ -48,7 +48,7 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, NodeSub);
-        CGH.parallel_for(range<1>{N}, reduction(Dotp, 0.0f, std::plus()),
+        CGH.parallel_for(range<1>{N}, reduction(Dotp, 0, std::plus()),
                          [=](id<1> it, auto &Sum) { Sum += X[it] * Z[it]; });
       },
       NodeSub);
@@ -58,8 +58,8 @@ int main() {
   // Using shortcut for executing a graph of commands
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  float Output;
-  Queue.memcpy(&Output, Dotp, sizeof(float)).wait();
+  int Output;
+  Queue.memcpy(&Output, Dotp, sizeof(int)).wait();
   assert(Output == dotp_reference_result(N));
 
   sycl::free(Dotp, Queue);

@@ -19,6 +19,13 @@
 #include <variant>
 
 namespace sycl {
+
+// device_copyable trait
+template <typename T, typename PropertyList>
+struct is_device_copyable<
+    ext::oneapi::experimental::annotated_arg<T, PropertyList>>
+    : is_device_copyable<T> {};
+
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
@@ -44,7 +51,7 @@ annotated_arg(annotated_arg<T, old>, properties<std::tuple<ArgT...>>)
     -> annotated_arg<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -154,6 +161,8 @@ public:
   operator T *() const noexcept { return obj; }
 
   T &operator[](std::ptrdiff_t idx) const noexcept { return obj[idx]; }
+
+  T *operator->() const noexcept { return obj; }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();

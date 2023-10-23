@@ -344,7 +344,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
   // tosa::MaximumOp
   if (isa<tosa::MaximumOp>(op) && isa<FloatType>(elementTy)) {
-    return rewriter.create<arith::MaxFOp>(loc, args[0], args[1]);
+    return rewriter.create<arith::MaximumFOp>(loc, args[0], args[1]);
   }
 
   if (isa<tosa::MaximumOp>(op) && elementTy.isSignlessInteger()) {
@@ -355,7 +355,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
   // tosa::MinimumOp
   if (isa<tosa::MinimumOp>(op) && isa<FloatType>(elementTy)) {
-    return rewriter.create<arith::MinFOp>(loc, args[0], args[1]);
+    return rewriter.create<arith::MinimumFOp>(loc, args[0], args[1]);
   }
 
   if (isa<tosa::MinimumOp>(op) && elementTy.isSignlessInteger()) {
@@ -481,12 +481,14 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
     if (arith::FPToSIOp::areCastCompatible(srcTy, dstTy)) {
       auto intMin = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getF32FloatAttr(
+          loc, rewriter.getFloatAttr(
+                   getElementTypeOrSelf(srcTy),
                    APInt::getSignedMinValue(dstTy.getIntOrFloatBitWidth())
                        .getSExtValue()));
 
       auto intMax = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getF32FloatAttr(
+          loc, rewriter.getFloatAttr(
+                   getElementTypeOrSelf(srcTy),
                    APInt::getSignedMaxValue(dstTy.getIntOrFloatBitWidth())
                        .getSExtValue()));
 
@@ -929,7 +931,7 @@ static Value createLinalgBodyCalculationForReduceOp(Operation *op,
   }
 
   if (isa<tosa::ReduceMinOp>(op) && isa<FloatType>(elementTy)) {
-    return rewriter.create<arith::MinFOp>(loc, args[0], args[1]);
+    return rewriter.create<arith::MinimumFOp>(loc, args[0], args[1]);
   }
 
   if (isa<tosa::ReduceMinOp>(op) && isa<IntegerType>(elementTy)) {
@@ -939,7 +941,7 @@ static Value createLinalgBodyCalculationForReduceOp(Operation *op,
   }
 
   if (isa<tosa::ReduceMaxOp>(op) && isa<FloatType>(elementTy)) {
-    return rewriter.create<arith::MaxFOp>(loc, args[0], args[1]);
+    return rewriter.create<arith::MaximumFOp>(loc, args[0], args[1]);
   }
 
   if (isa<tosa::ReduceMaxOp>(op) && isa<IntegerType>(elementTy)) {
@@ -978,8 +980,6 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
     }
   }
 
-  Type reduceTy = RankedTensorType::get(reduceShape, resultTy.getElementType());
-
   // First fill the output buffer with the init value.
   auto emptyTensor =
       rewriter
@@ -998,22 +998,9 @@ static LogicalResult reduceMatchAndRewriteHelper(Operation *op, uint64_t axis,
                                                   ValueRange{emptyTensor})
                           .result();
 
-  SmallVector<AffineExpr, 2> srcExprs;
-  SmallVector<AffineExpr, 2> dstExprs;
-  SmallVector<utils::IteratorType, 4> iteratorTypes;
-  for (unsigned int i = 0, rank = inputTy.getRank(); i != rank; ++i) {
-    srcExprs.push_back(mlir::getAffineDimExpr(i, rewriter.getContext()));
-
-    iteratorTypes.push_back(axis == i ? utils::IteratorType::reduction
-                                      : utils::IteratorType::parallel);
-    if (axis != i)
-      dstExprs.push_back(mlir::getAffineDimExpr(i, rewriter.getContext()));
-  }
-
   bool didEncounterError = false;
-  auto maps = AffineMap::inferFromExprList({srcExprs, dstExprs});
-  auto linalgOp = rewriter.create<linalg::GenericOp>(
-      loc, reduceTy, input, filledTensor, maps, iteratorTypes,
+  auto linalgOp = rewriter.create<linalg::ReduceOp>(
+      loc, input, filledTensor, axis,
       [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange blockArgs) {
         auto result = createLinalgBodyCalculationForReduceOp(
             op, blockArgs, elementTy, rewriter);

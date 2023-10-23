@@ -76,6 +76,12 @@ public:
     F.toString(Buffer);
     OS << Buffer;
   }
+  std::string toDiagnosticString(const ASTContext &Ctx) const {
+    std::string NameStr;
+    llvm::raw_string_ostream OS(NameStr);
+    print(OS);
+    return NameStr;
+  }
 
   unsigned bitWidth() const { return F.semanticsSizeInBits(F.getSemantics()); }
 
@@ -117,6 +123,36 @@ public:
     APFloat::opStatus Status = F.convertFromAPInt(Val, Val.isSigned(), RM);
     Result = Floating(F);
     return Status;
+  }
+
+  static Floating bitcastFromMemory(const std::byte *Buff,
+                                    const llvm::fltSemantics &Sem) {
+    size_t Size = APFloat::semanticsSizeInBits(Sem);
+    llvm::APInt API(Size, true);
+    llvm::LoadIntFromMemory(API, (const uint8_t *)Buff, Size / 8);
+
+    return Floating(APFloat(Sem, API));
+  }
+
+  // === Serialization support ===
+  size_t bytesToSerialize() const {
+    return sizeof(llvm::fltSemantics *) +
+           (APFloat::semanticsSizeInBits(F.getSemantics()) / 8);
+  }
+
+  void serialize(std::byte *Buff) const {
+    // Semantics followed by an APInt.
+    *reinterpret_cast<const llvm::fltSemantics **>(Buff) = &F.getSemantics();
+
+    llvm::APInt API = F.bitcastToAPInt();
+    llvm::StoreIntToMemory(API, (uint8_t *)(Buff + sizeof(void *)),
+                           bitWidth() / 8);
+  }
+
+  static Floating deserialize(const std::byte *Buff) {
+    const llvm::fltSemantics *Sem;
+    std::memcpy((void *)&Sem, Buff, sizeof(void *));
+    return bitcastFromMemory(Buff + sizeof(void *), *Sem);
   }
 
   static Floating abs(const Floating &F) {

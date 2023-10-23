@@ -41,8 +41,8 @@ target triple = "spir64-unknown-unknown"
 define spir_func void @_Z3fooi(i32 %x) #0 {
 entry:
   %x.addr = alloca i32, align 4
-  store i32 %x, i32* %x.addr, align 4, !tbaa !2
-  %0 = load i32, i32* %x.addr, align 4, !tbaa !2
+  store i32 %x, ptr %x.addr, align 4, !tbaa !2
+  %0 = load i32, ptr %x.addr, align 4, !tbaa !2
   %cmp = icmp ne i32 %0, 0
   call void @llvm.assume(i1 %cmp)
   ret void
@@ -56,40 +56,38 @@ define i32 @main() #2 {
 entry:
   %retval = alloca i32, align 4
   %agg.tmp = alloca %class.anon, align 1
-  store i32 0, i32* %retval, align 4
-  call spir_func void @"_Z18kernel_single_taskIZ4mainE11fake_kernelZ4mainE3$_0EvT0_"(%class.anon* byval(%class.anon) align 1 %agg.tmp)
+  store i32 0, ptr %retval, align 4
+  call spir_func void @"_Z18kernel_single_taskIZ4mainE11fake_kernelZ4mainE3$_0EvT0_"(ptr byval(%class.anon) align 1 %agg.tmp)
   ret i32 0
 }
 
 ; Function Attrs: nounwind
-define internal spir_func void @"_Z18kernel_single_taskIZ4mainE11fake_kernelZ4mainE3$_0EvT0_"(%class.anon* byval(%class.anon) align 1 %kernelFunc) #0 {
+define internal spir_func void @"_Z18kernel_single_taskIZ4mainE11fake_kernelZ4mainE3$_0EvT0_"(ptr byval(%class.anon) align 1 %kernelFunc) #0 {
 entry:
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon* %kernelFunc)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr %kernelFunc)
   ret void
 }
 
 ; Function Attrs: inlinehint nounwind
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon* %this) #3 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr %this) #3 align 2 {
 entry:
-  %this.addr = alloca %class.anon*, align 8
+  %this.addr = alloca ptr, align 8
   %a = alloca i32, align 4
-  store %class.anon* %this, %class.anon** %this.addr, align 8, !tbaa !6
-  %this1 = load %class.anon*, %class.anon** %this.addr, align 8
-  %0 = bitcast i32* %a to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  store i32 1, i32* %a, align 4, !tbaa !2
-  %1 = load i32, i32* %a, align 4, !tbaa !2
-  call spir_func void @_Z3fooi(i32 %1)
-  %2 = bitcast i32* %a to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
+  store ptr %this, ptr %this.addr, align 8, !tbaa !6
+  %this1 = load ptr, ptr %this.addr, align 8
+  call void @llvm.lifetime.start.p0(i64 4, ptr %a) #5
+  store i32 1, ptr %a, align 4, !tbaa !2
+  %0 = load i32, ptr %a, align 4, !tbaa !2
+  call spir_func void @_Z3fooi(i32 %0)
+  call void @llvm.lifetime.end.p0(i64 4, ptr %a) #5
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #4
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #4
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #4
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #4
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind willreturn }

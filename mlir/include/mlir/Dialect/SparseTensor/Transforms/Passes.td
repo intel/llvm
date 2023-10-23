@@ -31,7 +31,7 @@ def PreSparsificationRewrite : Pass<"pre-sparsification-rewrite", "ModuleOp"> {
 def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   let summary = "Automatically generate sparse tensor code from sparse tensor types";
   let description = [{
-    A pass that implements the core functionality of a **sparse compiler**.
+    A pass that implements the core functionality of a **sparsifier**.
     Each Linalg operation (MLIR's tensor index notation) that operates on
     sparse tensor types is converted into code in which the sparsity is
     explicit both in terms of co-iterating looping logic as well as
@@ -123,6 +123,17 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
   ];
 }
 
+def StageSparseOperations : Pass<"stage-sparse-ops", "func::FuncOp"> {
+  let summary = "Decompose a complex sparse operation into multiple stages";
+  let description = [{
+    A pass that decomposes a complex sparse operation into multiple stages.
+    E.g., CSR -> CSC is staged into CSR -> COO (unordered) -> sort -> CSC.
+  }];
+  let constructor = "mlir::createStageSparseOperationsPass()";
+  let dependentDialects = [
+    "sparse_tensor::SparseTensorDialect",
+  ];
+}
 
 def PostSparsificationRewrite : Pass<"post-sparsification-rewrite", "ModuleOp"> {
   let summary = "Applies sparse tensor rewriting rules after sparsification";
@@ -333,7 +344,7 @@ def SparseVectorization : Pass<"sparse-vectorization", "ModuleOp"> {
 def SparseGPUCodegen : Pass<"sparse-gpu-codegen", "ModuleOp"> {
   let summary = "Generates GPU code during sparsification";
   let description = [{
-    Enables sparse compiler to use GPU acceleration.
+    Enables the sparsifier to use GPU acceleration.
   }];
   let constructor = "mlir::createSparseGPUCodegenPass()";
   let dependentDialects = [
@@ -370,6 +381,25 @@ def StorageSpecifierToLLVM : Pass<"sparse-storage-specifier-to-llvm", "ModuleOp"
   let dependentDialects = [
     "arith::ArithDialect",
     "LLVM::LLVMDialect",
+    "sparse_tensor::SparseTensorDialect",
+  ];
+}
+
+def SparsificationAndBufferization : Pass<"sparsification-and-bufferization", "ModuleOp"> {
+  let summary = "Mini-pipeline that combines bufferization and sparsifiation";
+  let description = [{
+     This pass forms a mini-pipeline that combines bufferization and sparsifiation.
+  }];
+  let constructor = "mlir::createSparsificationAndBufferizationPass()";
+  let dependentDialects = [
+    "affine::AffineDialect",
+    "arith::ArithDialect",
+    "bufferization::BufferizationDialect",
+    "gpu::GPUDialect",
+    "LLVM::LLVMDialect",
+    "linalg::LinalgDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
     "sparse_tensor::SparseTensorDialect",
   ];
 }

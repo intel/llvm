@@ -33,7 +33,7 @@ constexpr StringRef TOCSymbolAliasIdent = "__TOC__";
 constexpr uint64_t ELFTOCBaseOffset = 0x8000;
 constexpr StringRef ELFTLSInfoSectionName = "$__TLSINFO";
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 class TLSInfoTableManager_ELF_ppc64
     : public TableManager<TLSInfoTableManager_ELF_ppc64<Endianness>> {
 public:
@@ -84,19 +84,19 @@ private:
 
 template <>
 const uint8_t TLSInfoTableManager_ELF_ppc64<
-    support::endianness::little>::TLSInfoEntryContent[16] = {
+    llvm::endianness::little>::TLSInfoEntryContent[16] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /*pthread key */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /*data address*/
 };
 
 template <>
 const uint8_t TLSInfoTableManager_ELF_ppc64<
-    support::endianness::big>::TLSInfoEntryContent[16] = {
+    llvm::endianness::big>::TLSInfoEntryContent[16] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /*pthread key */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /*data address*/
 };
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 Symbol &createELFGOTHeader(LinkGraph &G,
                            ppc64::TOCTableManager<Endianness> &TOC) {
   Symbol *TOCSymbol = nullptr;
@@ -122,7 +122,7 @@ Symbol &createELFGOTHeader(LinkGraph &G,
 }
 
 // Register preexisting GOT entries with TOC table manager.
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 inline void
 registerExistingGOTEntries(LinkGraph &G,
                            ppc64::TOCTableManager<Endianness> &TOC) {
@@ -140,7 +140,7 @@ registerExistingGOTEntries(LinkGraph &G,
   }
 }
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 Error buildTables_ELF_ppc64(LinkGraph &G) {
   LLVM_DEBUG(dbgs() << "Visiting edges in graph:\n");
   ppc64::TOCTableManager<Endianness> TOC;
@@ -189,7 +189,7 @@ Error buildTables_ELF_ppc64(LinkGraph &G) {
 
 namespace llvm::jitlink {
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 class ELFLinkGraphBuilder_ppc64
     : public ELFLinkGraphBuilder<object::ELFType<Endianness, true>> {
 private:
@@ -266,8 +266,56 @@ private:
     case ELF::R_PPC64_ADDR32:
       Kind = ppc64::Pointer32;
       break;
+    case ELF::R_PPC64_ADDR16:
+      Kind = ppc64::Pointer16;
+      break;
+    case ELF::R_PPC64_ADDR16_DS:
+      Kind = ppc64::Pointer16DS;
+      break;
+    case ELF::R_PPC64_ADDR16_HA:
+      Kind = ppc64::Pointer16HA;
+      break;
+    case ELF::R_PPC64_ADDR16_HI:
+      Kind = ppc64::Pointer16HI;
+      break;
+    case ELF::R_PPC64_ADDR16_HIGH:
+      Kind = ppc64::Pointer16HIGH;
+      break;
+    case ELF::R_PPC64_ADDR16_HIGHA:
+      Kind = ppc64::Pointer16HIGHA;
+      break;
+    case ELF::R_PPC64_ADDR16_HIGHER:
+      Kind = ppc64::Pointer16HIGHER;
+      break;
+    case ELF::R_PPC64_ADDR16_HIGHERA:
+      Kind = ppc64::Pointer16HIGHERA;
+      break;
+    case ELF::R_PPC64_ADDR16_HIGHEST:
+      Kind = ppc64::Pointer16HIGHEST;
+      break;
+    case ELF::R_PPC64_ADDR16_HIGHESTA:
+      Kind = ppc64::Pointer16HIGHESTA;
+      break;
+    case ELF::R_PPC64_ADDR16_LO:
+      Kind = ppc64::Pointer16LO;
+      break;
+    case ELF::R_PPC64_ADDR16_LO_DS:
+      Kind = ppc64::Pointer16LODS;
+      break;
+    case ELF::R_PPC64_ADDR14:
+      Kind = ppc64::Pointer14;
+      break;
+    case ELF::R_PPC64_TOC:
+      Kind = ppc64::TOC;
+      break;
+    case ELF::R_PPC64_TOC16:
+      Kind = ppc64::TOCDelta16;
+      break;
     case ELF::R_PPC64_TOC16_HA:
       Kind = ppc64::TOCDelta16HA;
+      break;
+    case ELF::R_PPC64_TOC16_HI:
+      Kind = ppc64::TOCDelta16HI;
       break;
     case ELF::R_PPC64_TOC16_DS:
       Kind = ppc64::TOCDelta16DS;
@@ -284,6 +332,9 @@ private:
     case ELF::R_PPC64_REL16_HA:
       Kind = ppc64::Delta16HA;
       break;
+    case ELF::R_PPC64_REL16_HI:
+      Kind = ppc64::Delta16HI;
+      break;
     case ELF::R_PPC64_REL16_LO:
       Kind = ppc64::Delta16LO;
       break;
@@ -295,9 +346,13 @@ private:
       break;
     case ELF::R_PPC64_REL24:
       Kind = ppc64::RequestCall;
-      assert(Addend == 0 && "Addend is expected to be 0 for a function call");
-      // We assume branching to local entry, will reverse the addend if not.
-      Addend = ELF::decodePPC64LocalEntryOffset((*ObjSymbol)->st_other);
+      // Determining a target is external or not is deferred in PostPrunePass.
+      // We assume branching to local entry by default, since in PostPrunePass,
+      // we don't have any context to determine LocalEntryOffset. If it finally
+      // turns out to be an external call, we'll have a stub for the external
+      // target, the target of this edge will be the stub and its addend will be
+      // set 0.
+      Addend += ELF::decodePPC64LocalEntryOffset((*ObjSymbol)->st_other);
       break;
     case ELF::R_PPC64_REL64:
       Kind = ppc64::Delta64;
@@ -326,7 +381,7 @@ public:
                                   FileName, ppc64::getEdgeKindName) {}
 };
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 class ELFJITLinker_ppc64 : public JITLinker<ELFJITLinker_ppc64<Endianness>> {
   using JITLinkerBase = JITLinker<ELFJITLinker_ppc64<Endianness>>;
   friend JITLinkerBase;
@@ -388,7 +443,7 @@ private:
   }
 };
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromELFObject_ppc64(MemoryBufferRef ObjectBuffer) {
   LLVM_DEBUG({
@@ -412,7 +467,7 @@ createLinkGraphFromELFObject_ppc64(MemoryBufferRef ObjectBuffer) {
       .buildGraph();
 }
 
-template <support::endianness Endianness>
+template <llvm::endianness Endianness>
 void link_ELF_ppc64(std::unique_ptr<LinkGraph> G,
                     std::unique_ptr<JITLinkContext> Ctx) {
   PassConfiguration Config;
@@ -420,7 +475,7 @@ void link_ELF_ppc64(std::unique_ptr<LinkGraph> G,
   if (Ctx->shouldAddDefaultTargetPasses(G->getTargetTriple())) {
     // Construct a JITLinker and run the link function.
 
-    // Add eh-frame passses.
+    // Add eh-frame passes.
     Config.PrePrunePasses.push_back(DWARFRecordSectionSplitter(".eh_frame"));
     Config.PrePrunePasses.push_back(EHFrameEdgeFixer(
         ".eh_frame", G->getPointerSize(), ppc64::Pointer32, ppc64::Pointer64,

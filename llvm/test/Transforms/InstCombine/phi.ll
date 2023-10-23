@@ -508,8 +508,8 @@ define i32 @test16(ptr addrspace(1) %pointer1, i32 %flag, ptr %pointer2)
 ; CHECK-LABEL: @test16(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[RETVAL:%.*]] = alloca i32, align 4
-; CHECK-NEXT:    [[POINTER1_ADDR:%.*]] = alloca ptr addrspace(1), align 8
-; CHECK-NEXT:    [[POINTER2_ADDR:%.*]] = alloca ptr, align 8
+; CHECK-NEXT:    [[POINTER1_ADDR:%.*]] = alloca ptr addrspace(1), align 4
+; CHECK-NEXT:    [[POINTER2_ADDR:%.*]] = alloca ptr, align 4
 ; CHECK-NEXT:    store ptr addrspace(1) [[POINTER1:%.*]], ptr [[POINTER1_ADDR]], align 8
 ; CHECK-NEXT:    store ptr [[POINTER2:%.*]], ptr [[POINTER2_ADDR]], align 8
 ; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i32 [[FLAG:%.*]], 0
@@ -824,6 +824,60 @@ one:
 
 two:
   %y = phi i64 [%x, %one], [%i, %entry]
+  %d = call i1 @test25a()
+  br i1 %d, label %one, label %end
+
+end:
+  %f = phi i64 [ %x, %one], [%y, %two]
+  ; Change the %f to %i, and the optimizer suddenly becomes a lot smarter
+  ; even though %f must equal %i at this point
+  %g = inttoptr i64 %f to ptr
+  store i32 10, ptr %g
+  %z = call i1 @test25a()
+  ret i1 %z
+}
+
+; Same as above, but the input is also a phi
+define i1 @test25b(i1 %ci, i64 %ai, i64 %bi) {
+; CHECK-LABEL: @test25b(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[CI:%.*]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    br label [[ELSE]]
+; CHECK:       else:
+; CHECK-NEXT:    [[I:%.*]] = phi i64 [ [[AI:%.*]], [[ENTRY:%.*]] ], [ [[BI:%.*]], [[THEN]] ]
+; CHECK-NEXT:    [[B:%.*]] = call i1 @test25a()
+; CHECK-NEXT:    br i1 [[B]], label [[ONE:%.*]], label [[TWO:%.*]]
+; CHECK:       one:
+; CHECK-NEXT:    [[C:%.*]] = call i1 @test25a()
+; CHECK-NEXT:    br i1 [[C]], label [[TWO]], label [[END:%.*]]
+; CHECK:       two:
+; CHECK-NEXT:    [[D:%.*]] = call i1 @test25a()
+; CHECK-NEXT:    br i1 [[D]], label [[ONE]], label [[END]]
+; CHECK:       end:
+; CHECK-NEXT:    [[G:%.*]] = inttoptr i64 [[I]] to ptr
+; CHECK-NEXT:    store i32 10, ptr [[G]], align 4
+; CHECK-NEXT:    [[Z:%.*]] = call i1 @test25a()
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+entry:
+  br i1 %ci, label %then, label %else
+
+then:
+  br label %else
+
+else:
+  %i = phi i64 [ %ai, %entry ], [ %bi, %then ]
+  %b = call i1 @test25a()
+  br i1 %b, label %one, label %two
+
+one:
+  %x = phi i64 [%y, %two], [%i, %else]
+  %c = call i1 @test25a()
+  br i1 %c, label %two, label %end
+
+two:
+  %y = phi i64 [%x, %one], [%i, %else]
   %d = call i1 @test25a()
   br i1 %d, label %one, label %end
 

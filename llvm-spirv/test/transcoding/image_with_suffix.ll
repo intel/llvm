@@ -16,15 +16,15 @@ target triple = "spir-unknown-unknown"
 %opencl.image1d_ro_t.2 = type opaque
 
 ; Function Attrs: convergent nounwind writeonly
-define spir_kernel void @foo(%opencl.image1d_ro_t.2 addrspace(1)* %im, i32 addrspace(1)* nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @foo(ptr addrspace(1) %im, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %call = tail call spir_func i32 @_Z15get_image_width14ocl_image1d_ro(%opencl.image1d_ro_t.2 addrspace(1)* %im) #2
-  store i32 %call, i32 addrspace(1)* %res, align 4, !tbaa !8
+  %call = tail call spir_func i32 @_Z15get_image_width14ocl_image1d_ro(ptr addrspace(1) %im) #2
+  store i32 %call, ptr addrspace(1) %res, align 4, !tbaa !8
   ret void
 }
 
 ; Function Attrs: convergent nounwind readnone
-declare spir_func i32 @_Z15get_image_width14ocl_image1d_ro(%opencl.image1d_ro_t.2 addrspace(1)*) local_unnamed_addr #1
+declare spir_func i32 @_Z15get_image_width14ocl_image1d_ro(ptr addrspace(1)) local_unnamed_addr #1
 
 attributes #0 = { convergent nounwind writeonly "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

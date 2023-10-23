@@ -155,7 +155,8 @@ public:
       if (MDevice->has(aspect::queue_profiling)) {
         // When piGetDeviceAndHostTimer is not supported, compute the
         // profiling time OpenCL version < 2.1 case
-        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+        if (!getDeviceImplPtr()->is_host() &&
+            !getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
           MFallbackProfiling = true;
       } else {
         throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -313,6 +314,7 @@ public:
 #endif
     throw_asynchronous();
     if (!MHostQueue) {
+      cleanup_fusion_cmd();
       getPlugin()->call<PiApiKind::piQueueRelease>(MQueues[0]);
     }
   }
@@ -694,6 +696,9 @@ public:
   }
 
 protected:
+  // Hook to the scheduler to clean up any fusion command held on destruction.
+  void cleanup_fusion_cmd();
+
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,

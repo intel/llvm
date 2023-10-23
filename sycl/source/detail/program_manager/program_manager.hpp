@@ -94,11 +94,6 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  // TODO: remove this function when m_UniversalKernelSet is removed
-  RTDeviceBinaryImage &
-  getDeviceImage(const std::vector<RTDeviceBinaryImage *> &ImagesToVerify,
-                 const context &Context, const device &Device,
-                 bool JITCompilationIsRequired = false);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
@@ -138,16 +133,11 @@ public:
   /// \param Context the context to build the program with
   /// \param Device the device for which the program is built
   /// \param KernelName the kernel's name
-  /// \param Prg provides build context information, such as
-  ///        current specialization constants settings; can be nullptr.
-  ///        Passing as a raw pointer is OK, since it is not captured anywhere
-  ///        once the function returns.
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   sycl::detail::pi::PiProgram getBuiltPIProgram(
       const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName, const program_impl *Prg = nullptr,
-      bool JITCompilationIsRequired = false);
+      const std::string &KernelName, bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
   getBuiltPIProgram(const context &Context, const device &Device,
@@ -159,7 +149,7 @@ public:
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName, const program_impl *Prg);
+                    const std::string &KernelName);
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
@@ -348,11 +338,6 @@ private:
   std::unordered_map<RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
-
-  /// Keeps images without entry info.
-  /// Such images are assumed to contain all kernel associated with the module.
-  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::vector<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to

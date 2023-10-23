@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @f() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {
 entry:
-  %0 = load i32, i32 addrspace(4)* addrspacecast (i32 addrspace(1)* @__spirv_BuiltInGlobalLinearId to i32 addrspace(4)*), align 4
+  %0 = load i32, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalLinearId to ptr addrspace(4)), align 4
   ; CHECK-OCL-IR: %0 = call spir_func i32 @_Z20get_global_linear_idv() #1
   ; CHECK-SPV-IR: %0 = call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv() #1
   ret void

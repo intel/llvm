@@ -364,6 +364,8 @@ public:
     State.Observer = &Observer;
   }
 
+  GISelChangeObserver *getObserver() { return State.Observer; }
+
   void stopObservingChanges() { State.Observer = nullptr; }
 
   bool isObservingChanges() const { return State.Observer != nullptr; }
@@ -488,7 +490,8 @@ public:
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
   MachineInstrBuilder buildPtrAdd(const DstOp &Res, const SrcOp &Op0,
-                                  const SrcOp &Op1);
+                                  const SrcOp &Op1,
+                                  std::optional<unsigned> Flags = std::nullopt);
 
   /// Materialize and insert \p Res = G_PTR_ADD \p Op0, (G_CONSTANT \p Value)
   ///
@@ -823,7 +826,7 @@ public:
   ///
   /// \pre setBasicBlock or setMI must have been called.
   /// \pre \p TablePtr must be a generic virtual register with pointer type.
-  /// \pre \p JTI must be be a jump table index.
+  /// \pre \p JTI must be a jump table index.
   /// \pre \p IndexReg must be a generic virtual register with pointer type.
   ///
   /// \return a MachineInstrBuilder for the newly created instruction.
@@ -1973,6 +1976,19 @@ public:
   MachineInstrBuilder buildVecReduceFMin(const DstOp &Dst, const SrcOp &Src) {
     return buildInstr(TargetOpcode::G_VECREDUCE_FMIN, {Dst}, {Src});
   }
+
+  /// Build and insert \p Res = G_VECREDUCE_FMAXIMUM \p Src
+  MachineInstrBuilder buildVecReduceFMaximum(const DstOp &Dst,
+                                             const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_VECREDUCE_FMAXIMUM, {Dst}, {Src});
+  }
+
+  /// Build and insert \p Res = G_VECREDUCE_FMINIMUM \p Src
+  MachineInstrBuilder buildVecReduceFMinimum(const DstOp &Dst,
+                                             const SrcOp &Src) {
+    return buildInstr(TargetOpcode::G_VECREDUCE_FMINIMUM, {Dst}, {Src});
+  }
+
   /// Build and insert \p Res = G_VECREDUCE_ADD \p Src
   MachineInstrBuilder buildVecReduceAdd(const DstOp &Dst, const SrcOp &Src) {
     return buildInstr(TargetOpcode::G_VECREDUCE_ADD, {Dst}, {Src});

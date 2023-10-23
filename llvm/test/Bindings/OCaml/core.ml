@@ -71,11 +71,11 @@ let test_target () =
   end;
 
   begin group "layout";
-    let layout = "e" in
+    let layout = "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:128-n8:16:32-S128" in
     set_data_layout layout m;
     insist (layout = data_layout m)
   end
-  (* CHECK: target datalayout = "e"
+  (* CHECK: target datalayout = "e-m:o-p:32:32-p270:32:32-p271:32:32-p272:64:64-i128:128-f64:32:64-f80:128-n8:16:32-S128"
    * CHECK: target triple = "i686-apple-darwin8"
    *)
 
@@ -263,8 +263,6 @@ let test_constants () =
    * CHECK: @const_mul = global i64 mul
    * CHECK: @const_nsw_mul = global i64 mul nsw
    * CHECK: @const_nuw_mul = global i64 mul nuw
-   * CHECK: @const_and = global i64 and
-   * CHECK: @const_or = global i64 or
    * CHECK: @const_xor = global i64 xor
    * CHECK: @const_icmp = global i1 icmp sle
    * CHECK: @const_fcmp = global i1 fcmp ole
@@ -288,8 +286,6 @@ let test_constants () =
   ignore (define_global "const_mul" (const_mul foldbomb five) m);
   ignore (define_global "const_nsw_mul" (const_nsw_mul foldbomb five) m);
   ignore (define_global "const_nuw_mul" (const_nuw_mul foldbomb five) m);
-  ignore (define_global "const_and" (const_and foldbomb five) m);
-  ignore (define_global "const_or" (const_or foldbomb five) m);
   ignore (define_global "const_xor" (const_xor foldbomb five) m);
   ignore (define_global "const_icmp" (const_icmp Icmp.Sle foldbomb five) m);
   ignore (define_global "const_fcmp" (const_fcmp Fcmp.Ole ffoldbomb ffive) m);

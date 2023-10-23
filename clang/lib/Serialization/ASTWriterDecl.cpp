@@ -81,8 +81,6 @@ namespace clang {
     void VisitVarTemplateSpecializationDecl(VarTemplateSpecializationDecl *D);
     void VisitVarTemplatePartialSpecializationDecl(
         VarTemplatePartialSpecializationDecl *D);
-    void VisitClassScopeFunctionSpecializationDecl(
-                                       ClassScopeFunctionSpecializationDecl *D);
     void VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D);
     void VisitValueDecl(ValueDecl *D);
     void VisitEnumConstantDecl(EnumConstantDecl *D);
@@ -580,7 +578,7 @@ void ASTDeclWriter::VisitDeclaratorDecl(DeclaratorDecl *D) {
 }
 
 void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
-  static_assert(DeclContext::NumFunctionDeclBits == 30,
+  static_assert(DeclContext::NumFunctionDeclBits == 31,
                 "You need to update the serializer after you change the "
                 "FunctionDeclBits");
 
@@ -617,15 +615,9 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
 
     // Template args as written.
     Record.push_back(FTSInfo->TemplateArgumentsAsWritten != nullptr);
-    if (FTSInfo->TemplateArgumentsAsWritten) {
-      Record.push_back(FTSInfo->TemplateArgumentsAsWritten->NumTemplateArgs);
-      for (int i=0, e = FTSInfo->TemplateArgumentsAsWritten->NumTemplateArgs;
-             i!=e; ++i)
-        Record.AddTemplateArgumentLoc(
-            (*FTSInfo->TemplateArgumentsAsWritten)[i]);
-      Record.AddSourceLocation(FTSInfo->TemplateArgumentsAsWritten->LAngleLoc);
-      Record.AddSourceLocation(FTSInfo->TemplateArgumentsAsWritten->RAngleLoc);
-    }
+    if (FTSInfo->TemplateArgumentsAsWritten)
+      Record.AddASTTemplateArgumentListInfo(
+          FTSInfo->TemplateArgumentsAsWritten);
 
     Record.AddSourceLocation(FTSInfo->getPointOfInstantiation());
 
@@ -650,17 +642,16 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
     DependentFunctionTemplateSpecializationInfo *
       DFTSInfo = D->getDependentSpecializationInfo();
 
-    // Templates.
-    Record.push_back(DFTSInfo->getNumTemplates());
-    for (int i=0, e = DFTSInfo->getNumTemplates(); i != e; ++i)
-      Record.AddDeclRef(DFTSInfo->getTemplate(i));
+    // Candidates.
+    Record.push_back(DFTSInfo->getCandidates().size());
+    for (FunctionTemplateDecl *FTD : DFTSInfo->getCandidates())
+      Record.AddDeclRef(FTD);
 
     // Templates args.
-    Record.push_back(DFTSInfo->getNumTemplateArgs());
-    for (int i=0, e = DFTSInfo->getNumTemplateArgs(); i != e; ++i)
-      Record.AddTemplateArgumentLoc(DFTSInfo->getTemplateArg(i));
-    Record.AddSourceLocation(DFTSInfo->getLAngleLoc());
-    Record.AddSourceLocation(DFTSInfo->getRAngleLoc());
+    Record.push_back(DFTSInfo->TemplateArgumentsAsWritten != nullptr);
+    if (DFTSInfo->TemplateArgumentsAsWritten)
+      Record.AddASTTemplateArgumentListInfo(
+          DFTSInfo->TemplateArgumentsAsWritten);
     break;
   }
   }
@@ -1162,28 +1153,21 @@ void ASTDeclWriter::VisitParmVarDecl(ParmVarDecl *D) {
   Record.push_back(D->hasUninstantiatedDefaultArg());
   if (D->hasUninstantiatedDefaultArg())
     Record.AddStmt(D->getUninstantiatedDefaultArg());
+  Record.AddSourceLocation(D->getExplicitObjectParamThisLoc());
   Code = serialization::DECL_PARM_VAR;
 
   // If the assumptions about the DECL_PARM_VAR abbrev are true, use it.  Here
   // we dynamically check for the properties that we optimize for, but don't
   // know are true of all PARM_VAR_DECLs.
-  if (D->getDeclContext() == D->getLexicalDeclContext() &&
-      !D->hasAttrs() &&
-      !D->hasExtInfo() &&
-      !D->isImplicit() &&
-      !D->isUsed(false) &&
-      !D->isInvalidDecl() &&
-      !D->isReferenced() &&
-      D->getAccess() == AS_none &&
-      !D->isModulePrivate() &&
-      D->getStorageClass() == 0 &&
+  if (D->getDeclContext() == D->getLexicalDeclContext() && !D->hasAttrs() &&
+      !D->hasExtInfo() && !D->isImplicit() && !D->isUsed(false) &&
+      !D->isInvalidDecl() && !D->isReferenced() && D->getAccess() == AS_none &&
+      !D->isModulePrivate() && D->getStorageClass() == 0 &&
       D->getInitStyle() == VarDecl::CInit && // Can params have anything else?
-      D->getFunctionScopeDepth() == 0 &&
-      D->getObjCDeclQualifier() == 0 &&
-      !D->isKNRPromoted() &&
-      !D->hasInheritedDefaultArg() &&
-      D->getInit() == nullptr &&
-      !D->hasUninstantiatedDefaultArg())  // No default expr.
+      D->getFunctionScopeDepth() == 0 && D->getObjCDeclQualifier() == 0 &&
+      !D->isKNRPromoted() && !D->isExplicitObjectParameter() &&
+      !D->hasInheritedDefaultArg() && D->getInit() == nullptr &&
+      !D->hasUninstantiatedDefaultArg()) // No default expr.
     AbbrevToUse = Writer.getDeclParmVarAbbrev();
 
   // Check things we know are true of *every* PARM_VAR_DECL, which is more than
@@ -1495,7 +1479,7 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
 }
 
 void ASTDeclWriter::VisitCXXConstructorDecl(CXXConstructorDecl *D) {
-  static_assert(DeclContext::NumCXXConstructorDeclBits == 21,
+  static_assert(DeclContext::NumCXXConstructorDeclBits == 20,
                 "You need to update the serializer after you change the "
                 "CXXConstructorDeclBits");
 
@@ -1746,17 +1730,6 @@ void ASTDeclWriter::VisitVarTemplatePartialSpecializationDecl(
   Code = serialization::DECL_VAR_TEMPLATE_PARTIAL_SPECIALIZATION;
 }
 
-void ASTDeclWriter::VisitClassScopeFunctionSpecializationDecl(
-                                    ClassScopeFunctionSpecializationDecl *D) {
-  VisitDecl(D);
-  Record.AddDeclRef(D->getSpecialization());
-  Record.push_back(D->hasExplicitTemplateArgs());
-  if (D->hasExplicitTemplateArgs())
-    Record.AddASTTemplateArgumentListInfo(D->getTemplateArgsAsWritten());
-  Code = serialization::DECL_CLASS_SCOPE_FUNCTION_SPECIALIZATION;
-}
-
-
 void ASTDeclWriter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   VisitRedeclarableTemplateDecl(D);
 
@@ -1774,12 +1747,10 @@ void ASTDeclWriter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   const TypeConstraint *TC = D->getTypeConstraint();
   Record.push_back(TC != nullptr);
   if (TC) {
-    Record.AddNestedNameSpecifierLoc(TC->getNestedNameSpecifierLoc());
-    Record.AddDeclarationNameInfo(TC->getConceptNameInfo());
-    Record.AddDeclRef(TC->getNamedConcept());
-    Record.push_back(TC->getTemplateArgsAsWritten() != nullptr);
-    if (TC->getTemplateArgsAsWritten())
-      Record.AddASTTemplateArgumentListInfo(TC->getTemplateArgsAsWritten());
+    auto *CR = TC->getConceptReference();
+    Record.push_back(CR != nullptr);
+    if (CR)
+      Record.AddConceptReference(CR);
     Record.AddStmt(TC->getImmediatelyDeclaredConstraint());
     Record.push_back(D->isExpandedParameterPack());
     if (D->isExpandedParameterPack())
