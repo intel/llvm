@@ -51,13 +51,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  #commit b38855ed815ffd076bfde5e5e06170ca4f723dc1
-  #Merge: e6343f4 6a2c548
-  #Author: Piotr Balcer <piotr.balcer@intel.com>
-  #Date:   Thu Oct 5 12:15:42 2023 +0200
-  #    Merge pull request #920 from jsji/localcopy
-  #        [UR][L0] Copy prebuilt L0 to avoid leaking shared folder path
-  set(UNIFIED_RUNTIME_TAG b38855ed815ffd076bfde5e5e06170ca4f723dc1)
+  # commit a76e3b185a5e1df9114dc483077227f88f522244
+  # Merge: 3653e582 657ffde9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Oct 20 12:12:15 2023 +0100
+  #     Merge pull request #972 from oneapi-src/revert-906-l0_usm_error_checking
+  #     Revert "[UR][L0] Propagate errors from `USMAllocationMakeResident`"
+  set(UNIFIED_RUNTIME_TAG a76e3b185a5e1df9114dc483077227f88f522244)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
