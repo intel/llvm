@@ -1044,12 +1044,11 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
       BF->addDecorate(new SPIRVDecorateMaxConcurrencyINTEL(BF, Invocations));
     }
   }
-  if (MDNode *DisableLoopPipelining =
-          F->getMetadata(kSPIR2MD::DisableLoopPipelining)) {
+  if (MDNode *PipelineKernel = F->getMetadata(kSPIR2MD::PipelineKernel)) {
     if (BM->isAllowedToUseExtension(
             ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes)) {
-      size_t Disable = getMDOperandAsInt(DisableLoopPipelining, 0);
-      BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, !Disable));
+      size_t Pipeline = getMDOperandAsInt(PipelineKernel, 0);
+      BF->addDecorate(new SPIRVDecoratePipelineEnableINTEL(BF, Pipeline));
     }
   }
 
@@ -3548,6 +3547,9 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
+  case Intrinsic::ubsantrap:
+  case Intrinsic::uadd_with_overflow:
+  case Intrinsic::usub_with_overflow:
   case Intrinsic::arithmetic_fence:
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
@@ -4000,6 +4002,18 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addBinaryInst(OpFAdd, Ty, Mul,
                              transValue(II->getArgOperand(2), BB), BB);
   }
+  case Intrinsic::fptoui_sat: {
+    auto *UI = BM->addUnaryInst(OpConvertFToU, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB), BB);
+    UI->setSaturatedConversion(true);
+    return UI;
+  }
+  case Intrinsic::fptosi_sat: {
+    auto *UI = BM->addUnaryInst(OpConvertFToS, transType(II->getType()),
+                                transValue(II->getArgOperand(0), BB), BB);
+    UI->setSaturatedConversion(true);
+    return UI;
+  }
   case Intrinsic::uadd_sat:
   case Intrinsic::usub_sat:
   case Intrinsic::sadd_sat:
@@ -4019,6 +4033,16 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                           transValue(II->getArgOperand(1), BB)};
     return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
                           std::move(Operands), BB);
+  }
+  case Intrinsic::uadd_with_overflow: {
+    return BM->addBinaryInst(OpIAddCarry, transType(II->getType()),
+                             transValue(II->getArgOperand(0), BB),
+                             transValue(II->getArgOperand(1), BB), BB);
+  }
+  case Intrinsic::usub_with_overflow: {
+    return BM->addBinaryInst(OpISubBorrow, transType(II->getType()),
+                             transValue(II->getArgOperand(0), BB),
+                             transValue(II->getArgOperand(1), BB), BB);
   }
   case Intrinsic::memset: {
     // Generally there is no direct mapping of memset to SPIR-V.  But it turns
@@ -4264,6 +4288,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // llvm.trap intrinsic is not implemented. But for now don't crash. This
   // change is pending the trap/abort intrinsic implementation.
   case Intrinsic::trap:
+  case Intrinsic::ubsantrap:
   // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
   case Intrinsic::instrprof_increment_step:
@@ -4568,9 +4593,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
 LLVMToSPIRVBase::FPBuiltinType
 LLVMToSPIRVBase::getFPBuiltinType(IntrinsicInst *II, StringRef &OpName) {
   StringRef Name = II->getCalledFunction()->getName();
-  if (!Name.startswith("llvm.fpbuiltin"))
+  if (!Name.consume_front("llvm.fpbuiltin."))
     return FPBuiltinType::UNKNOWN;
-  Name.consume_front("llvm.fpbuiltin.");
   OpName = Name.split('.').first;
   FPBuiltinType Type =
       StringSwitch<FPBuiltinType>(OpName)

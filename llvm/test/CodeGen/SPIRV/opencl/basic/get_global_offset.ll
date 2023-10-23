@@ -5,9 +5,9 @@
 ; CHECK: OpName %[[#test_func]] "test"
 ; CHECK: OpName %[[#f2_decl:]] "BuiltInGlobalOffset"
 ; CHECK: OpDecorate %[[#f2_decl]] LinkageAttributes "BuiltInGlobalOffset" Import
-; CHECK: %[[#int_ty:]] = OpTypeInt 32 0
-; CHECK: %[[#iptr_ty:]] = OpTypePointer CrossWorkgroup  %[[#int_ty]]
+; CHECK: %[[#int_ty:]] = OpTypeInt 8 0
 ; CHECK: %[[#void_ty:]] = OpTypeVoid
+; CHECK: %[[#iptr_ty:]] = OpTypePointer CrossWorkgroup  %[[#int_ty]]
 ; CHECK: %[[#func_ty:]] = OpTypeFunction %[[#void_ty]] %[[#iptr_ty]]
 ; CHECK: %[[#int64_ty:]] = OpTypeInt 64 0
 ; CHECK: %[[#vec_ty:]] = OpTypeVector %[[#int64_ty]] 3

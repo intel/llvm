@@ -134,6 +134,9 @@ int main() {
   sycl::byte B;
   (void)B;
 
+  // expected-warning@+1{{'abs<float>' is deprecated: abs for floating point types is non-standard and has been deprecated. Please use fabs instead.}}
+  sycl::abs(0.0f);
+
   // expected-warning@+1{{'image_support' is deprecated: deprecated in SYCL 2020, use device::has(aspect::ext_intel_legacy_image) to query for SYCL 1.2.1 image support}}
   using IS = sycl::info::device::image_support;
   // expected-warning@+1{{'max_constant_buffer_size' is deprecated: deprecated in SYCL 2020}}

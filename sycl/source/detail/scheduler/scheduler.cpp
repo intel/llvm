@@ -261,6 +261,10 @@ Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
 }
 
+bool Scheduler::isInstanceAlive() {
+  return GlobalHandler::instance().isSchedulerAlive();
+}
+
 void Scheduler::waitForEvent(const EventImplPtr &Event) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
@@ -396,7 +400,7 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),
                      detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{}));
+                     /*PropList=*/{sycl::property::queue::enable_profiling()}));
 }
 
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }

@@ -33,7 +33,7 @@ include(SYCLUtils)
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
 set(SYCL_MAJOR_VERSION 7)
-set(SYCL_MINOR_VERSION 0)
+set(SYCL_MINOR_VERSION 1)
 set(SYCL_PATCH_VERSION 0)
 
 set(SYCL_DEV_ABI_VERSION 8)
@@ -158,9 +158,6 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_HIP ON)
-endif()
-if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_OPENCL ON)
@@ -337,6 +334,8 @@ add_custom_target(sycl-compiler
           clang-offload-bundler
           clang-offload-deps
           clang-offload-extract
+          clang-offload-packager
+          clang-linker-wrapper
           file-table-tform
           llc
           llvm-ar
@@ -502,15 +501,6 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(sycl-toolchain pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_hip)
-endif()
-
-if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
-  if (MSVC)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
-  else()
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
-  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

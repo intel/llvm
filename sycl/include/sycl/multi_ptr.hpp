@@ -702,7 +702,7 @@ public:
   // Explicit conversion to a multi_ptr<ElementType>
   template <typename ElementType>
   explicit operator multi_ptr<ElementType, Space, DecorateAddress>() const {
-    multi_ptr<ElementType, Space, DecorateAddress>{
+    return multi_ptr<ElementType, Space, DecorateAddress>{
         detail::cast_AS<typename multi_ptr<ElementType, Space,
                                            access::decorated::yes>::pointer>(
             m_Pointer)};

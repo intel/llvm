@@ -14,13 +14,13 @@ cffi==1.15.1
     #   pynacl
 charset-normalizer==2.1.1
     # via requests
-cryptography==41.0.3
+cryptography==41.0.4
     # via pyjwt
 deprecated==1.2.13
     # via pygithub
 gitdb==4.0.9
     # via gitpython
-gitpython==3.1.35
+gitpython==3.1.37
     # via -r requirements.txt.in
 idna==3.4
     # via requests
