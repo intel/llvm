@@ -77,7 +77,7 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
             Message.append(std::string("create:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
             Message.append(";");
           }
-          else if (Key == "handle") {
+          else if (Key == "queue_handle") {
             Message.append(Key.data() + std::string(":") + std::to_string(ulong(xpti::getMetadata<void*>(Item).second)));
             Message.append(";");
           }
@@ -96,7 +96,7 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
             Message.append(std::string("destroy:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
             Message.append(";");
           }
-          else if (Key == "handle") {
+          else if (Key == "queue_handle") {
             Message.append(Key.data() + std::string(":") + std::to_string(ulong(xpti::getMetadata<void*>(Item).second)));
             Message.append(";");
           }
@@ -118,7 +118,6 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
         }
         GReceivedNotifications.push_back(
                 std::make_pair(TraceType, Message));
-                // "memory_object", "kernel_name"
       }
     }
     else if (TraceType == xpti::trace_task_end)

@@ -65,12 +65,10 @@ bool CurrentCodeLocationValid() {
          (FunctionName && FunctionName[0] != '\0');
 }
 
-void emitInstrumentation(uint32_t StreamID, QueueImplPtr Queue, uint64_t InstanceID, xpti_td* TraceEvent, uint16_t Type, const char *Txt) {
+void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent, uint16_t Type, const char *Txt) {
   if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
     return;
   // Trace event notifier that emits a Type event
-  xpti::addMetadata(TraceEvent, "queue_id",
-                    Queue->getQueueID());
   xptiNotifySubscribers(StreamID, Type, detail::GSYCLGraphEvent,
                         static_cast<xpti_td *>(TraceEvent), InstanceID,
                         static_cast<const void *>(Txt));
@@ -800,6 +798,15 @@ void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 #endif
 }
 
+void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  return emitInstrumentationGeneral(MStreamID, MInstanceID, static_cast<xpti_td*>(MTraceEvent), Type, Txt);
+#else
+  std::ignore = Type;
+  std::ignore = Txt;
+#endif
+}
+
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -830,14 +837,14 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     // reason, as determined by the scheduler
     std::string Info = "enqueue.barrier[";
     Info += std::string(getBlockReason()) + "]";
-    emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_barrier_begin, Info.c_str());
+    emitInstrumentation(xpti::trace_barrier_begin, Info.c_str());
 #endif
 
     // Wait if blocking
     while (MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked)
       ;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_barrier_end, Info.c_str());
+    emitInstrumentation(xpti::trace_barrier_end, Info.c_str());
 #endif
   }
 
@@ -848,7 +855,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     return true;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_task_begin, nullptr);
+  emitInstrumentation(xpti::trace_task_begin, nullptr);
 #endif
 
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
@@ -886,7 +893,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // Emit this correlation signal before the task end
   emitEnqueuedEventSignal(MEvent->getHandleRef());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  emitInstrumentation(MStreamID, MEvent->getSubmittedQueue(), MInstanceID, static_cast<xpti_td*>(MTraceEvent), xpti::trace_task_end, nullptr);
+  emitInstrumentation(xpti::trace_task_end, nullptr);
 #endif
   return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
 }
@@ -990,6 +997,7 @@ void AllocaCommandBase::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
   }
 #endif
 }
@@ -1108,6 +1116,7 @@ void AllocaSubBufCommand::emitInstrumentationData() {
                       this->MRequirement.MAccessRange[0]);
     xpti::addMetadata(TE, "access_range_end",
                       this->MRequirement.MAccessRange[1]);
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1185,6 +1194,8 @@ void ReleaseCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "allocation_type",
                       commandToName(MAllocaCmd->getType()));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+                          
     makeTraceEventEpilog();
   }
 #endif
@@ -1304,6 +1315,8 @@ void MapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1365,6 +1378,8 @@ void UnMapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1466,6 +1481,8 @@ void MemCpyCommand::emitInstrumentationData() {
     xpti::addMetadata(
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+    
     makeTraceEventEpilog();
   }
 #endif
@@ -1640,6 +1657,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
     xpti::addMetadata(
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+    
     makeTraceEventEpilog();
   }
 #endif
@@ -1729,6 +1748,8 @@ void EmptyCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+    
     makeTraceEventEpilog();
   }
 #endif
@@ -1799,6 +1820,8 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -2019,6 +2042,8 @@ void instrumentationFillCommonData(const std::string &KernelName,
       xpti::addMetadata(CmdTraceEvent, "sym_column_no",
                         static_cast<int>(Column));
     }
+    xpti::addMetadata(CmdTraceEvent, "queue_id",
+                    Queue->getQueueID());
   }
 }
 #endif
@@ -3217,6 +3242,8 @@ void KernelFusionCommand::emitInstrumentationData() {
                       deviceToString(MQueue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(CmdTraceEvent, "queue_id",
+                    MQueue->getQueueID());
   }
 
   if (MFirstInstance) {

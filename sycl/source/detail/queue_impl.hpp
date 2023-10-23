@@ -194,7 +194,7 @@ public:
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
-          xpti::addMetadata(PrepareNotify.traceEvent(), "handle", getHandleRef());
+          xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle", getHandleRef());
       });
       PrepareNotify.notify();
     }
@@ -254,7 +254,7 @@ private:
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
-          xpti::addMetadata(PrepareNotify.traceEvent(), "handle", getHandleRef());
+          xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle", getHandleRef());
       });
       PrepareNotify.notify();
     }
@@ -757,9 +757,6 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-                      std::cout << "PrimaryQueue = " << PrimaryQueue << std::endl;
-                      std::cout << "SecondaryQueue = " << SecondaryQueue << std::endl;
-                      std::cout << "MHostQueue = " << MHostQueue << std::endl;
     handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);

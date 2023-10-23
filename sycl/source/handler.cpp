@@ -247,7 +247,7 @@ event handler::finalize() {
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
         #ifdef XPTI_ENABLE_INSTRUMENTATION
-         emitInstrumentation(StreamID, MQueue, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
         #endif
         if (MQueue->is_host()) {
           MHostKernel->call(MNDRDesc, (NewEvent)
@@ -274,7 +274,7 @@ event handler::finalize() {
           }
         }
         #ifdef XPTI_ENABLE_INSTRUMENTATION
-         emitInstrumentation(StreamID, MQueue, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
+         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
         #endif
         return Result;
       };
