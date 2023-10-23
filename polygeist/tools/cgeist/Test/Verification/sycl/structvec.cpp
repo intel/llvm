@@ -17,28 +17,16 @@ struct structvec {
 // CHECK-LABEL:     func.func @_Z10test_store9structvecic(
 // CHECK-SAME:          %[[VAL_151:.*]]: !llvm.ptr {llvm.align = 2 : i64, llvm.byval = !llvm.struct<(vector<2xi8>)>, llvm.noundef}, 
 // CHECK-SAME:          %[[VAL_152:.*]]: i32 {llvm.noundef}, %[[VAL_153:.*]]: i8 {llvm.noundef, llvm.signext}) -> !llvm.struct<(vector<2xi8>)>
+// CHECK-NEXT:        %[[SIZE:.*]] = arith.constant 2 : i64
 // CHECK-NEXT:        %[[VAL_154:.*]] = arith.constant 1 : i64
 // CHECK-NEXT:        %[[VAL_155:.*]] = llvm.alloca %[[VAL_154]] x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr
 // CHECK-NEXT:        %[[VAL_156:.*]] = llvm.getelementptr inbounds %[[VAL_151]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:        %[[VAL_157:.*]] = llvm.load %[[VAL_156]] : !llvm.ptr -> vector<2xi8>
 // CHECK-NEXT:        %[[VAL_158:.*]] = vector.insertelement %[[VAL_153]], %[[VAL_157]]{{\[}}%[[VAL_152]] : i32] : vector<2xi8>
 // CHECK-NEXT:        llvm.store %[[VAL_158]], %[[VAL_156]] : vector<2xi8>, !llvm.ptr
-// CHECK-NEXT:        %[[VAL_159:.*]] = llvm.addrspacecast %[[VAL_155]] : !llvm.ptr to !llvm.ptr<4>
-// CHECK-NEXT:        %[[VAL_160:.*]] = llvm.addrspacecast %[[VAL_151]] : !llvm.ptr to !llvm.ptr<4>
-// CHECK-NEXT:        call @_ZN9structvecC1EOS_(%[[VAL_159]], %[[VAL_160]]) : (!llvm.ptr<4>, !llvm.ptr<4>) -> ()
+// CHECK-NEXT:        "llvm.intr.memcpy"(%[[VAL_155]], %[[VAL_151]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:        %[[VAL_161:.*]] = llvm.load %[[VAL_155]] : !llvm.ptr -> !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:        return %[[VAL_161]] : !llvm.struct<(vector<2xi8>)>
-// CHECK-NEXT:      }
-
-
-// CHECK-LABEL:     func.func @_ZN9structvecC1EOS_(
-// CHECK-SAME:          %[[VAL_162:.*]]: !llvm.ptr<4> {llvm.align = 2 : i64, llvm.dereferenceable_or_null = 2 : i64, llvm.noundef}
-// CHECK-SAME:          %[[VAL_163:.*]]: !llvm.ptr<4> {llvm.align = 2 : i64, llvm.dereferenceable = 2 : i64, llvm.noundef})
-// CHECK-NEXT:        %[[VAL_164:.*]] = llvm.getelementptr inbounds %[[VAL_163]][0, 0] : (!llvm.ptr<4>) -> !llvm.ptr<4>, !llvm.struct<(vector<2xi8>)>
-// CHECK-NEXT:        %[[VAL_165:.*]] = llvm.load %[[VAL_164]] : !llvm.ptr<4> -> vector<2xi8>
-// CHECK-NEXT:        %[[VAL_166:.*]] = llvm.getelementptr inbounds %[[VAL_162]][0, 0] : (!llvm.ptr<4>) -> !llvm.ptr<4>, !llvm.struct<(vector<2xi8>)>
-// CHECK-NEXT:        llvm.store %[[VAL_165]], %[[VAL_166]] : vector<2xi8>, !llvm.ptr<4>
-// CHECK-NEXT:        return
 // CHECK-NEXT:      }
 
 SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
@@ -76,9 +64,7 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-NEXT:        call @_ZN9structvecC1ESt16initializer_listIcE(%[[VAL_186]], %[[VAL_173]]) : (!llvm.ptr<4>, !llvm.ptr) -> ()
 // CHECK-NEXT:        %[[VAL_187:.*]] = llvm.load %[[VAL_177]] : !llvm.ptr -> !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:        llvm.store %[[VAL_187]], %[[VAL_172]] : !llvm.struct<(vector<2xi8>)>, !llvm.ptr
-// CHECK-NEXT:        %[[VAL_188:.*]] = llvm.addrspacecast %[[VAL_171]] : !llvm.ptr to !llvm.ptr<4>
-// CHECK-NEXT:        %[[VAL_189:.*]] = llvm.addrspacecast %[[VAL_172]] : !llvm.ptr to !llvm.ptr<4>
-// CHECK-NEXT:        call @_ZN9structvecC1EOS_(%[[VAL_188]], %[[VAL_189]]) : (!llvm.ptr<4>, !llvm.ptr<4>) -> ()
+// CHECK-NEXT:        "llvm.intr.memcpy"(%[[VAL_171]], %[[VAL_172]], %[[VAL_167]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK-NEXT:        %[[VAL_190:.*]] = llvm.load %[[VAL_171]] : !llvm.ptr -> !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:        return %[[VAL_190]] : !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:      }
