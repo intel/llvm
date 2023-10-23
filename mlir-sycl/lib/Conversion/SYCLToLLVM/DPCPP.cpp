@@ -620,8 +620,8 @@ public:
         op->getLoc(), allocaType, ET,
         rewriter.create<arith::ConstantIntOp>(op.getLoc(), 1, 32));
     if (PT.getAddressSpace() != allocaType.getAddressSpace())
-      alloca =
-          rewriter.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(op, PT, alloca);
+      alloca = rewriter.create<LLVM::AddrSpaceCastOp>(op.getLoc(), PT, alloca);
+    rewriter.replaceOp(op, alloca);
     initialize(alloca, op, adaptor, rewriter);
   }
 };
