@@ -44,7 +44,9 @@ template <typename SYCLTy> struct constructor_op {};
 template <typename SYCLTy>
 using constructor_op_t = typename constructor_op<SYCLTy>::type;
 
-template <> struct constructor_op<IDType> { using type = SYCLIDConstructorOp; };
+template <> struct constructor_op<IDType> {
+  using type = SYCLIDConstructorOp;
+};
 
 template <> struct constructor_op<RangeType> {
   using type = SYCLRangeConstructorOp;
