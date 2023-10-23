@@ -552,9 +552,9 @@ private:
     // kernel. Else it is necessary use set_atg(s) for resolve the order and
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
-    const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
+    const char* LambdaName = detail::KernelInfo<LambdaNameT>::getName();
     const std::string KernelName = getKernelName();
-    return LambdaName == KernelName;
+    return std::strcmp(LambdaName,KernelName.c_str()) == 0;
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
@@ -837,7 +837,7 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-  void verifyUsedKernelBundle(const std::string &KernelName);
+  void verifyUsedKernelBundle(const char* KernelName);
 
   /// Stores lambda to the template-free object
   ///
