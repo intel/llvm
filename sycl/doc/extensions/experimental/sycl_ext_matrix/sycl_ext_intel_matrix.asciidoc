@@ -328,6 +328,11 @@ These are overloads of existing `joint_matrix_load` and
 `joint_matrix_store` that take
 `sycl::ext::oneapi::experimental::annotated_ptr` as argument instead
 of `sycl::multi_ptr`.
+The property list associated with the `annotated_ptr` argument
+represent the compile-time cach control constant properties included
+in the SYCL extenion
+* link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls]
+
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -409,6 +414,11 @@ void joint_matrix_prefetch(Group g, T* ptr, size_t stride, layout Layout,
 prefetch `Rows x cols` data in a 2d manner. This function is a group
 function, as defined in Section 4.17.3 of the core SYCL
 specification.
+
+The level of cache targeted by `joint_matrix_prefetch` in the last
+argument is specified using the compile-time properties defined in the
+SYCL extenion
+* link:../../proposed/sycl_ext_oneapi_prefetch.asciidoc[sycl_ext_oneapi_prefetch.asciidoc]
 
 ==== Example
 ```c++
