@@ -648,9 +648,9 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       NewAnnotString += ":\"" + PropVal->str();
 
     if (PropName == "sycl-prefetch-hint")
-      NewAnnotString += ",1"; // WriteThroughINTEL
+      NewAnnotString += ",1"; // CachedINTEL
     if (PropName == "sycl-prefetch-hint-nt")
-      NewAnnotString += ",2"; // WriteBackINTEL
+      NewAnnotString += ",3"; // InvalidateAfterReadINTEL
 
     if (PropVal)
       NewAnnotString += "\"";
