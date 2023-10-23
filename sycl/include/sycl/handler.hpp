@@ -1244,15 +1244,15 @@ private:
                   "sycl::parallel_for with sycl::range");
 
 #ifdef SYCL2020_CONFORMANT_APIS
+    static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
+                      std::is_convertible_v<item<Dims, false>, LambdaArgType>,
+                  "sycl::parallel_for(sycl::range) kernel must have an "
+                  "argument of sycl::item type, or of a type which is "
+                  "implcitly convertible from sycl::item");
+
     static_assert(
-        (std::is_invocable_v<KernelType, item<Dims>> ||
-         std::is_invocable_v<
-             KernelType, item<Dims>,
-             kernel_handler>)&&(std::is_invocable_v<KernelType,
-                                                    item<Dims, false>> ||
-                                std::is_invocable_v<KernelType,
-                                                    item<Dims, false>,
-                                                    kernel_handler>),
+        (std::is_invocable_v<KernelType, LambdaArgType> ||
+         std::is_invocable_v<KernelType, LambdaArgType, kernel_handler>),
         "Kernel should be invocable with a sycl::item");
 #endif
 
