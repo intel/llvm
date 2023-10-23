@@ -334,8 +334,7 @@ public:
       return nullptr;
   }
 
-  void releaseEvent(xpti::trace_event_data_t* Event)
-  {
+  void releaseEvent(xpti::trace_event_data_t *Event) {
     if (!Event)
       return;
     std::lock_guard<std::mutex> Lock(MEventMutex);
@@ -836,7 +835,7 @@ public:
     return Event;
   }
 
-  void releaseEvent(xpti::trace_event_data_t* event) {
+  void releaseEvent(xpti::trace_event_data_t *event) {
     MTracepoints.releaseEvent(event);
   }
 

@@ -483,8 +483,7 @@ xptiQueryMetadata(xpti::trace_event_data_t *lookup_object) {
 
 XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
   if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(
-        XPTI_RELEASE_EVENT);
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_RELEASE_EVENT);
     if (f) {
       (*(xpti_release_event_t)f)(lookup_object);
     }

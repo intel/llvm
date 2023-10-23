@@ -528,5 +528,5 @@ typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
 typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
-typedef void (*xpti_release_event_t)(xpti::trace_event_data_t*);
+typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
 }
