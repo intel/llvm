@@ -1048,7 +1048,7 @@ public:
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
 
-        /* Handle bundled BC Files */
+        // Handle bundled BC Files
         FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
         auto MR = C.getMemoryBufferRef();
         assert(MR);
@@ -1144,12 +1144,12 @@ public:
 
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
-        /* Not a recognized binary file.  Specifically not an object file */
+        // Not a recognized binary file.  Specifically not an object file
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
 
         if (BundlerConfig.FilesType == "aoo") {
-          /* Handle bundled BC Files */
+          // Handle bundled BC Files
           Ext = "bc";
           FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
           auto MR = C.getMemoryBufferRef();
