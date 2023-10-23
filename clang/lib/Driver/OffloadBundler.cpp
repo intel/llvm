@@ -1071,10 +1071,10 @@ public:
         auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
         Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
 
-        // Collect the list of bundles from the object.
         FH = std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
+      // Collect the list of bundles from the object or bundled BC file.
       if (Error Err = FH->ReadHeader(*Buf))
         return Err;
       Expected<std::optional<StringRef>> NameOrErr = FH->ReadBundleStart(*Buf);
