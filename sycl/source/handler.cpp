@@ -809,7 +809,7 @@ std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
-void handler::verifyUsedKernelBundle(const char* KernelName) {
+void handler::verifyUsedKernelBundle(const char *KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
