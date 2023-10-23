@@ -66,75 +66,79 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
     } else if (UData.find("memory_transfer_node") != std::string::npos) {
       GReceivedNotifications.push_back(std::make_pair(TraceType, UData));
     }
-    } else if (TraceType == xpti::trace_queue_create)
-    {
-      if (Event) {
-        std::string Message;
-        xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-        for (const auto &Item : *Metadata) {
-          std::string_view Key{xptiLookupString(Item.first)};
-          if (Key == "queue_id") {
-            Message.append(std::string("create:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
-            Message.append(";");
-          }
-          else if (Key == "queue_handle") {
-            Message.append(Key.data() + std::string(":") + std::to_string(ulong(xpti::getMetadata<void*>(Item).second)));
-            Message.append(";");
-          }
+  } else if (TraceType == xpti::trace_queue_create) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("create:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+          Message.append(";");
+        } else if (Key == "queue_handle") {
+          Message.append(
+              Key.data() + std::string(":") +
+              std::to_string(ulong(xpti::getMetadata<void *>(Item).second)));
+          Message.append(";");
         }
-        GReceivedNotifications.push_back(
-                std::make_pair(TraceType, Message));
       }
-    } else if (TraceType == xpti::trace_queue_destroy)
-    {
-      if (Event) {
-        std::string Message;
-        xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-        for (const auto &Item : *Metadata) {
-          std::string_view Key{xptiLookupString(Item.first)};
-          if (Key == "queue_id") {
-            Message.append(std::string("destroy:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
-            Message.append(";");
-          }
-          else if (Key == "queue_handle") {
-            Message.append(Key.data() + std::string(":") + std::to_string(ulong(xpti::getMetadata<void*>(Item).second)));
-            Message.append(";");
-          }
-        }
-        GReceivedNotifications.push_back(
-                std::make_pair(TraceType, Message));
-      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
     }
-    else if (TraceType == xpti::trace_task_begin)
-    {
-      if (Event) {
-        std::string Message;
-        xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-        for (const auto &Item : *Metadata) {
-          std::string_view Key{xptiLookupString(Item.first)};
-          if (Key == "queue_id") {
-            Message.append(std::string("task_begin:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
-          }
+  } else if (TraceType == xpti::trace_queue_destroy) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("destroy:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+          Message.append(";");
+        } else if (Key == "queue_handle") {
+          Message.append(
+              Key.data() + std::string(":") +
+              std::to_string(ulong(xpti::getMetadata<void *>(Item).second)));
+          Message.append(";");
         }
-        GReceivedNotifications.push_back(
-                std::make_pair(TraceType, Message));
       }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
     }
-    else if (TraceType == xpti::trace_task_end)
-    {
-      if (Event) {
-        std::string Message;
-        xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-        for (const auto &Item : *Metadata) {
-          std::string_view Key{xptiLookupString(Item.first)};
-          if (Key == "queue_id") {
-            Message.append(std::string("task_end:") + Key.data() + std::string(":") + std::to_string(xpti::getMetadata<unsigned long long>(Item).second));
-          }
+  } else if (TraceType == xpti::trace_task_begin) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("task_begin:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
         }
-        GReceivedNotifications.push_back(
-                std::make_pair(TraceType, Message));
       }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
     }
+  } else if (TraceType == xpti::trace_task_end) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("task_end:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  }
 }
 
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,

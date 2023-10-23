@@ -10,8 +10,8 @@
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
 
-#include <detail/xpti_registry.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -49,12 +49,11 @@ public:
   sycl::unittest::PiMock MockPlugin;
 
   static constexpr size_t KernelSize = 1;
-  
+
   static constexpr char FileName[] = "QueueIDCheck.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
 
-  void checkTaskBeginEnd(const std::string& QueueIDStr)
-  {
+  void checkTaskBeginEnd(const std::string &QueueIDStr) {
     uint16_t TraceType = 0;
     std::string Message;
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -68,10 +67,9 @@ public:
 
 pi_queue QueueHandle = nullptr;
 inline pi_result redefinedQueueCreate(pi_context, pi_device,
-                                    pi_queue_properties*,
-                                    pi_queue *queue) {
+                                      pi_queue_properties *, pi_queue *queue) {
   std::cout << "called" << std::endl;
-  QueueHandle = nullptr;                     
+  QueueHandle = nullptr;
   if (queue)
     QueueHandle = *queue;
   return PI_SUCCESS;
@@ -89,23 +87,25 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
   std::string Queue0IDSTr;
   std::string Queue1IDSTr;
   {
-    sycl::queue Q0{Context, sycl::default_selector{}}; 
+    sycl::queue Q0{Context, sycl::default_selector{}};
     auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-    Queue0IDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
+    Queue0IDSTr = std::to_string(Queue0ImplPtr->getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue0IDSTr));
     ASSERT_NE(QueueHandle, nullptr);
-    EXPECT_THAT(Message, HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
+    EXPECT_THAT(Message,
+                HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
 
     sycl::queue Q1{Context, sycl::default_selector{}};
     auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
-    Queue1IDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
+    Queue1IDSTr = std::to_string(Queue1ImplPtr->getQueueID());
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue1IDSTr));
     ASSERT_NE(QueueHandle, nullptr);
-    EXPECT_THAT(Message, HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
+    EXPECT_THAT(Message,
+                HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
   }
 
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
@@ -126,9 +126,11 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
         [&](handler &Cgh) {
           sycl::accessor acc(buf, Cgh, sycl::read_write);
           Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
-        }, { FileName, FunctionName, 1, 0}).wait();
+        },
+        {FileName, FunctionName, 1, 0})
+      .wait();
   EXPECT_NE(Queue1ImplPtr->getQueueID(), Queue0ImplPtr->getQueueID());
-  auto QueueIDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
+  auto QueueIDSTr = std::to_string(Queue1ImplPtr->getQueueID());
   // alloca
   checkTaskBeginEnd(QueueIDSTr);
   // kernel
@@ -138,7 +140,7 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
 TEST_F(QueueID, QueueCreationUSMOperations) {
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-  auto QueueIDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
+  auto QueueIDSTr = std::to_string(Queue0ImplPtr->getQueueID());
 
   unsigned char *AllocSrc = (unsigned char *)sycl::malloc_shared(1, Q0);
   unsigned char *AllocDst = (unsigned char *)sycl::malloc_shared(1, Q0);
@@ -148,14 +150,10 @@ TEST_F(QueueID, QueueCreationUSMOperations) {
   Q0.memcpy(AllocDst, AllocSrc, 1).wait();
   checkTaskBeginEnd(QueueIDSTr);
 
-  Q0.submit(
-        [&](handler &Cgh) {
-          Cgh.memset(AllocSrc, 42, 1);}).wait();
+  Q0.submit([&](handler &Cgh) { Cgh.memset(AllocSrc, 42, 1); }).wait();
   checkTaskBeginEnd(QueueIDSTr);
 
-  Q0.submit(
-        [&](handler &Cgh) {
-          Cgh.memcpy(AllocDst, AllocSrc, 1);}).wait();
+  Q0.submit([&](handler &Cgh) { Cgh.memcpy(AllocDst, AllocSrc, 1); }).wait();
   checkTaskBeginEnd(QueueIDSTr);
 
   sycl::free(AllocSrc, Q0);
@@ -163,26 +161,30 @@ TEST_F(QueueID, QueueCreationUSMOperations) {
 }
 
 TEST_F(QueueID, QueueCreationAndKernelNoDeps) {
-  sycl::queue Q0; 
+  sycl::queue Q0;
   sycl::queue Q1;
-  
+
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
-  auto Queue0IDSTr =  std::to_string(Queue0ImplPtr->getQueueID());
-  
+  auto Queue0IDSTr = std::to_string(Queue0ImplPtr->getQueueID());
+
   auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
-  auto Queue1IDSTr =  std::to_string(Queue1ImplPtr->getQueueID());
+  auto Queue1IDSTr = std::to_string(Queue1ImplPtr->getQueueID());
 
   Q0.submit(
         [&](handler &Cgh) {
           Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
-        }, { FileName, FunctionName, 1, 0});
-    checkTaskBeginEnd(Queue0IDSTr);
+        },
+        {FileName, FunctionName, 2, 0})
+      .wait();
+  checkTaskBeginEnd(Queue0IDSTr);
 
   Q1.submit(
         [&](handler &Cgh) {
           Cgh.parallel_for<TestKernel<1>>(1, [=](sycl::id<1> idx) {});
-        }, { FileName, FunctionName, 2, 0}).wait();
+        },
+        {FileName, FunctionName, 3, 0})
+      .wait();
   checkTaskBeginEnd(Queue1IDSTr);
 }
 
-//host + kernel tasks
+// host + kernel tasks

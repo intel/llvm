@@ -29,7 +29,9 @@ namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 bool CurrentCodeLocationValid();
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent, uint16_t Type, const char *Txt);
+void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+                                xpti_td *TraceEvent, uint16_t Type,
+                                const char *Txt);
 #endif
 
 class queue_impl;
@@ -682,8 +684,8 @@ private:
 // Method used to emit data in cases when we do not create node in graph.
 // Very close to ExecCGCommand::emitInstrumentationData content.
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::pair<xpti_td*, uint64_t> emitKernelInstrumentationData(int32_t StreamID,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
+    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, const std::string &SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,

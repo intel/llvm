@@ -194,7 +194,8 @@ public:
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
-          xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle", getHandleRef());
+          xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle",
+                            getHandleRef());
       });
       PrepareNotify.notify();
     }
@@ -254,7 +255,8 @@ private:
         xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
-          xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle", getHandleRef());
+          xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle",
+                            getHandleRef());
       });
       PrepareNotify.notify();
     }

@@ -65,7 +65,9 @@ bool CurrentCodeLocationValid() {
          (FunctionName && FunctionName[0] != '\0');
 }
 
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent, uint16_t Type, const char *Txt) {
+void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+                                xpti_td *TraceEvent, uint16_t Type,
+                                const char *Txt) {
   if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
     return;
   // Trace event notifier that emits a Type event
@@ -800,7 +802,8 @@ void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  return emitInstrumentationGeneral(MStreamID, MInstanceID, static_cast<xpti_td*>(MTraceEvent), Type, Txt);
+  return emitInstrumentationGeneral(
+      MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent), Type, Txt);
 #else
   std::ignore = Type;
   std::ignore = Txt;
@@ -1195,7 +1198,7 @@ void ReleaseCommand::emitInstrumentationData() {
     xpti::addMetadata(TE, "allocation_type",
                       commandToName(MAllocaCmd->getType()));
     xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
-                          
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1482,7 +1485,7 @@ void MemCpyCommand::emitInstrumentationData() {
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-    
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1658,7 +1661,7 @@ void MemCpyCommandHost::emitInstrumentationData() {
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-    
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1749,7 +1752,7 @@ void EmptyCommand::emitInstrumentationData() {
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
     xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-    
+
     makeTraceEventEpilog();
   }
 #endif
@@ -2007,7 +2010,6 @@ void instrumentationFillCommonData(const std::string &KernelName,
     // create the hash
     Payload = xpti::payload_t(KernelName.c_str());
   }
-
   uint64_t CGKernelInstanceNo;
   // Create event using the payload
   xpti_td *CmdTraceEvent =
@@ -2042,21 +2044,20 @@ void instrumentationFillCommonData(const std::string &KernelName,
       xpti::addMetadata(CmdTraceEvent, "sym_column_no",
                         static_cast<int>(Column));
     }
-    xpti::addMetadata(CmdTraceEvent, "queue_id",
-                    Queue->getQueueID());
+    xpti::addMetadata(CmdTraceEvent, "queue_id", Queue->getQueueID());
   }
 }
 #endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::pair<xpti_td*, uint64_t> emitKernelInstrumentationData(int32_t StreamID,
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
+    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, const std::string &SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
-  auto XptiObjects = std::make_pair<xpti_td*, uint64_t>(nullptr, -1);
+  auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
 
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
@@ -2068,7 +2069,7 @@ std::pair<xpti_td*, uint64_t> emitKernelInstrumentationData(int32_t StreamID,
       SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
       FromSource);
 
-  auto& [CmdTraceEvent, InstanceID] = XptiObjects;
+  auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
   std::string FileName =
       CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
@@ -3242,8 +3243,7 @@ void KernelFusionCommand::emitInstrumentationData() {
                       deviceToString(MQueue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "queue_id",
-                    MQueue->getQueueID());
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
   }
 
   if (MFirstInstance) {
