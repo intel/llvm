@@ -22,6 +22,7 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/DarwinSDKInfo.h"
@@ -200,12 +201,17 @@ static unsigned getNumAttributeArgs(const ParsedAttr &AL) {
   return AL.getNumArgs() + AL.hasParsedType();
 }
 
-/// A helper function to provide Attribute Location for the Attr types
-/// AND the ParsedAttr.
-template <typename AttrInfo>
-static std::enable_if_t<std::is_base_of_v<Attr, AttrInfo>, SourceLocation>
-getAttrLoc(const AttrInfo &AL) {
+/// Helper functions to provide Attribute Location for the Attr types,
+/// AttributeCommonInfo AND the ParsedAttr.
+template <typename T>
+static std::enable_if_t<std::is_base_of_v<Attr, T>, SourceLocation>
+getAttrLoc(const T &AL) {
   return AL.getLocation();
+}
+template <typename T,
+          std::enable_if_t<std::is_same_v<AttributeCommonInfo, T>, bool> = true>
+static SourceLocation getAttrLoc(const T &AL) {
+  return AL.getScopeLoc();
 }
 static SourceLocation getAttrLoc(const ParsedAttr &AL) { return AL.getLoc(); }
 
@@ -4447,26 +4453,6 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
   D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
 }
 
-// Check that the attribute is an integer constant that can fit in 32-bits.
-// Issue correct error message and return false on failure.
-bool static check32BitInt(const Expr *E, const AttributeCommonInfo &CI,
-                          Sema &S) {
-  std::optional<llvm::APSInt> I = llvm::APSInt(64);
-  if (!(I = E->getIntegerConstantExpr(S.Context))) {
-    S.Diag(E->getExprLoc(), diag::err_attribute_argument_n_type)
-        << CI << 0 << AANT_ArgumentIntegerConstant << E->getSourceRange();
-    return false;
-  }
-  // Make sure we can fit it in 32 bits.
-  if (!I->isIntN(32)) {
-    S.Diag(E->getExprLoc(), diag::err_ice_too_large)
-        << toString(*I, 10, false) << 32 << /* Unsigned */ 1;
-    return false;
-  }
-
-  return true;
-}
-
 void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Decl *D, const AttributeCommonInfo &CI, Expr *E) {
   if (Context.getLangOpts().SYCLIsDevice &&
@@ -4476,8 +4462,11 @@ void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     return;
   }
   if (!E->isValueDependent()) {
-    if (!check32BitInt(E, CI, *this))
+    uint32_t Val;
+    if (!checkUInt32Argument(*this, CI, E, Val, UINT_MAX /* Idx */,
+                             true /* StrictlyUnsigned */))
       return;
+
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
     // don't have to evaluate it again later.
@@ -4485,14 +4474,9 @@ void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
     if (Res.isInvalid())
       return;
+    if (Val != ArgVal)
+      llvm_unreachable("Values must not differ.");
     E = Res.get();
-
-    // This attribute must be greater than 0.
-    if (ArgVal <= 0) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_zero)
-          << CI << E->getSourceRange();
-      return;
-    }
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
@@ -4543,8 +4527,11 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     }
   }
   if (!E->isValueDependent()) {
-    if (!check32BitInt(E, CI, *this))
+    uint32_t Val;
+    if (!checkUInt32Argument(*this, CI, E, Val, UINT_MAX /* Idx */,
+                             true /* StrictlyUnsigned */))
       return;
+
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
     // don't have to evaluate it again later.
@@ -4553,13 +4540,8 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     if (Res.isInvalid())
       return;
     E = Res.get();
-
-    // This attribute must be greater than 0.
-    if (ArgVal <= 0) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_zero)
-          << CI << E->getSourceRange();
-      return;
-    }
+    if (Val != ArgVal)
+      llvm_unreachable("Values must not differ.");
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.

@@ -1,8 +1,11 @@
-// REQUIRES: cuda
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple nvptx-unknown-unknown -target-cpu sm_70 -fsycl-is-device -S -emit-llvm %s -o -ferror-limit=100 -fsyntax-only -verify %s
 
-// RUN: %clangxx -ferror-limit=100 -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_70 -fsycl-device-only -fsyntax-only -Xclang -verify %s
+// Maximum work groups per multi-processor, mapped to maxclusterrank PTX
+// directive, is an SM_90 feature, make sure that correct warning is issued on
+// architectures lower than that. Furthermore, warn/error incorrect values
+// specified for max_work_groups_per_mp and min_work_groups_per_cu.
 
-#include <sycl/sycl.hpp>
+#include "sycl.hpp"
 
 template <int N1, int N2, int N3> class Functor {
 public:
@@ -24,7 +27,7 @@ int main() {
                intel::max_work_groups_per_mp(4)]] { volatile int A = 42; });
 
      constexpr float A = 2.0;
-     // expected-error@+5 {{'min_work_groups_per_cu' attribute requires parameter 0 to be an integer constant}}
+     // expected-error@+5 {{'min_work_groups_per_cu' attribute requires an integer constant}}
      // expected-warning@+5 {{'maxclusterrank' requires sm_90 or higher, CUDA arch provided: sm_70, ignoring 'max_work_groups_per_mp' attribute}}
      cgh.single_task<class T2>(
          [=]()
@@ -32,7 +35,7 @@ int main() {
                intel::min_work_groups_per_cu(A),
                intel::max_work_groups_per_mp(4)]] { volatile int A = 42; });
 
-     // expected-error@+3 {{'min_work_groups_per_cu' attribute requires parameter 0 to be an integer constant}}
+     // expected-error@+3 {{'min_work_groups_per_cu' attribute requires an integer constant}}
      cgh.single_task<class T3>(
          [=]() [[intel::max_work_group_size(1, 1, 256),
                  intel::min_work_groups_per_cu(2147483647 + 1)]]
@@ -46,13 +49,15 @@ int main() {
        volatile int A = 42;
      });
 
-     // expected-error@+1 {{'min_work_groups_per_cu' attribute must be greater than 0}}
+     // expected-error@+1 {{'min_work_groups_per_cu' attribute requires a non-negative integral compile time constant expression}}
      cgh.single_task<class T5>([=]() [[intel::min_work_groups_per_cu(-8)]] {
        volatile int A = 42;
      });
-   }).wait_and_throw();
+   });
 
-  Q.single_task<class F>(Functor<512, 8, 16>{}).wait();
+  Q.submit([&](sycl::handler &cgh) {
+    cgh.single_task<class F>(Functor<512, 8, 16>{});
+  });
 
   return 0;
 }

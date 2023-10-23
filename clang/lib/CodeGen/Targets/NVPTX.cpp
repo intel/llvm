@@ -251,23 +251,24 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
                         (*MWGS->getXDimVal()).getExtValue();
       if (MaxThreads > 0)
         addNVVMMetadata(F, "maxntidx", MaxThreads);
-    }
-    if (const auto *MWGPCU =
-            FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      auto *MinWorkGroups = MWGPCU->getValue();
-      if (const auto *CE = dyn_cast<ConstantExpr>(MinWorkGroups)) {
-        auto MinVal = CE->getResultAsAPSInt();
+
+      auto attrValue = [&](Expr *E) {
+        const auto *CE = cast<ConstantExpr>(E);
+        std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
+        assert(Val.has_value() && "Failed to get attribute value.");
+        return Val->getZExtValue();
+      };
+
+      if (const auto *MWGPCU =
+              FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
         // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minnctapersm", MinVal.getExtValue());
-      }
-    }
-    if (const auto *MWGPMP =
-            FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      auto *MaxWorkGroups = MWGPMP->getValue();
-      if (const auto *CE = dyn_cast<ConstantExpr>(MaxWorkGroups)) {
-        auto MaxVal = CE->getResultAsAPSInt();
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "maxclusterrank", MaxVal.getExtValue());
+        addNVVMMetadata(F, "minnctapersm", attrValue(MWGPCU->getValue()));
+
+        if (const auto *MWGPMP =
+                FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+          // The value is guaranteed to be > 0, pass it to the metadata.
+          addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
+        }
       }
     }
   }
