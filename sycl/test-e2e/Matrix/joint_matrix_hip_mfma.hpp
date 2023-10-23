@@ -94,16 +94,18 @@ void hip_matrix_mfma() {
     std::cout << "Exception caught: " << e.what() << std::endl;
   }
 
-  for (auto kx = 0; kx < KX; kx++) {
-    for (auto m = 0; m < M; m++) {
-      for (auto n = 0; n < N; n++) {
-        for (auto k = 0; k < K; k++) {
-          if (OutLayout == layout::row_major)
-            E[m * N + n] += A[m * K + k + kx * K] * B[k * N + n + kx * K * N];
-          else
-            E[n * M + m] += A[m * K + k + kx * K] * B[k * N + n + kx * K * N];
-        }
+  constexpr int LDA = K * KX;
+
+  for (auto m = 0; m < M; m++) {
+    for (auto n = 0; n < N; n++) {
+      OutType e = 0;
+      for (auto k = 0; k < LDA; k++) {
+        e += A[m * LDA + k] * B[k * N + n];
       }
+      if (OutLayout == layout::row_major)
+        E[m * N + n] += e;
+      else
+        E[n * M + m] += e;
     }
   }
 
