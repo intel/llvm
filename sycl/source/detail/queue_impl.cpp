@@ -453,7 +453,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       DevStr = "ACCELERATOR";
     else
       DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
+    xpti::addMetadata(WaitEvent, "sycl_device_type", DevStr);
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());

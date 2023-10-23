@@ -651,7 +651,7 @@ void Command::emitEdgeEventForEventDependence(
 uint64_t Command::makeTraceEventProlog(void *MAddress) {
   uint64_t CommandInstanceNo = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiCheckTraceEnabled(MStreamID, xpti::trace_node_create))
+  if (!xptiCheckTraceEnabled(MStreamID))
     return CommandInstanceNo;
 
   MTraceEventPrologComplete = true;
