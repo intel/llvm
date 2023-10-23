@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Defines the pass pipeline used when lowering device code for SYCL Native 
-// CPU. 
+// Defines the pass pipeline used when lowering device code for SYCL Native
+// CPU.
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/Target/TargetMachine.h"
