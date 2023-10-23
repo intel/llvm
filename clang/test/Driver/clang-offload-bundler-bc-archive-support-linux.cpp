@@ -39,8 +39,10 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // TEST1
 // Check that -list with various archive types can find all targets
-// RUN: clang-offload-bundler -list -type=ao  -input=%t_bundled.a | FileCheck --check-prefixes=CHECK-LIST %s
-// RUN: clang-offload-bundler -list -type=aoo -input=%t_bundled.a | FileCheck --check-prefixes=CHECK-LIST %s
+// RUN: clang-offload-bundler -list -type=ao  -input=%t_bundled.a > %t_list_ao.txt
+// RUN: clang-offload-bundler -list -type=aoo -input=%t_bundled.a > %t_list_aoo.txt
+// RUN: FileCheck --check-prefixes=CHECK-LIST < %t_list_ao.txt %s
+// RUN: FileCheck --check-prefixes=CHECK-LIST < %t_list_aoo.txt %s
 
 // CHECK-LIST-DAG: sycl-spir64-unknown-unknown
 // CHECK-LIST-DAG: host-x86_64-unknown-linux-gnu
@@ -48,8 +50,8 @@
 // CHECK-LIST-DAG: host-spir64_gen
 // CHECK-LIST-DAG: host-spir64_x86_64
 
-// RUN: clang-offload-bundler -list -type=ao  -input=%t_bundled.a | wc -l | FileCheck --check-prefixes=CHECK-LIST-LENGTH %s
-// RUN: clang-offload-bundler -list -type=aoo -input=%t_bundled.a | wc -l | FileCheck --check-prefixes=CHECK-LIST-LENGTH %s
+// RUN: wc -l %t_list_ao.txt  | FileCheck --check-prefixes=CHECK-LIST-LENGTH %s
+// RUN: wc -l %t_list_aoo.txt | FileCheck --check-prefixes=CHECK-LIST-LENGTH %s
 
 // CHECK-LIST-LENGTH: 5
 
