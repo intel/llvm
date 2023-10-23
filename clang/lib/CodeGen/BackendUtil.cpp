@@ -50,7 +50,7 @@
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
-#include "llvm/SYCLLowerIR/SYCLNativeCPUPipeline.h"
+#include "llvm/SYCLLowerIR/PipelineSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
