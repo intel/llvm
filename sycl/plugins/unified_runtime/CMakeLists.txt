@@ -51,13 +51,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-  #commit 652393202469f404bb2a1eb08c1e86c43161a71a
+  #commit 9a13afd59a830a19a0d337bd3197c32ea3880aa8
   #Merge: TODO
   #Author: Ewan Crawford <ewan@codeplay.com>
   #Date:   Mon Oct 16 16:26:44 2023 +0100
   #        TODO
   #        [Command-buffer][L0] Reset sync-point events
-  set(UNIFIED_RUNTIME_TAG 652393202469f404bb2a1eb08c1e86c43161a71a)
+  set(UNIFIED_RUNTIME_TAG 9a13afd59a830a19a0d337bd3197c32ea3880aa8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
