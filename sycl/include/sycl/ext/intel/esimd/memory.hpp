@@ -409,13 +409,13 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 template <typename T, int NElts, cache_hint L1H = cache_hint::none,
           cache_hint L2H = cache_hint::none, typename AccessorT,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorT> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
-        is_simd_flag_type_v<FlagsT>,
-    simd<T, NElts>>
-block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset, simd_mask<1> pred,
-                FlagsT flags) {
+__ESIMD_API
+    std::enable_if_t<detail::is_device_accessor_with_v<
+                         AccessorT, detail::accessor_mode_cap::can_read> &&
+                         is_simd_flag_type_v<FlagsT>,
+                     simd<T, NElts>>
+    block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset,
+                    simd_mask<1> pred, FlagsT flags) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return block_load_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset),
                                              pred, flags);
@@ -509,13 +509,13 @@ block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset, simd_mask<1> pred,
 template <typename T, int NElts, cache_hint L1H = cache_hint::none,
           cache_hint L2H = cache_hint::none, typename AccessorT,
           typename FlagsT = dqword_element_aligned_tag>
-__ESIMD_API std::enable_if_t<
-    !std::is_pointer_v<AccessorT> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT> &&
-        is_simd_flag_type_v<FlagsT>,
-    simd<T, NElts>>
-block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset, simd_mask<1> pred,
-                simd<T, NElts> pass_thru, FlagsT flags) {
+__ESIMD_API
+    std::enable_if_t<detail::is_device_accessor_with_v<
+                         AccessorT, detail::accessor_mode_cap::can_read> &&
+                         is_simd_flag_type_v<FlagsT>,
+                     simd<T, NElts>>
+    block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset,
+                    simd_mask<1> pred, simd<T, NElts> pass_thru, FlagsT flags) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return block_load_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset),
                                              pred, pass_thru, flags);
@@ -985,8 +985,8 @@ template <typename Tx, int N, typename AccessorTy,
           typename Flags = vector_aligned_tag,
           typename = std::enable_if_t<
               is_simd_flag_type_v<Flags> &&
-              sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-              !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>,
+              detail::is_device_accessor_with_v<
+                  AccessorTy, detail::accessor_mode_cap::can_read>>,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N>
 block_load(AccessorTy acc, detail::DeviceAccessorOffsetT offset, Flags flags) {
@@ -1079,8 +1079,8 @@ template <typename T, int N, typename AccessorT,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+        detail::is_device_accessor_with_v<AccessorT,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
            PropertyListT props = {}) {
@@ -1152,7 +1152,8 @@ template <typename T, int N, typename AccessorT,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorT>,
+        detail::is_device_accessor_with_v<AccessorT,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, PropertyListT props = {}) {
   return block_load<T, N>(acc, 0, props);
@@ -1195,7 +1196,8 @@ template <typename T, int N, typename AccessorT,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorT>,
+        detail::is_device_accessor_with_v<AccessorT,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
            simd_mask<1> pred, simd<T, N> pass_thru, PropertyListT props = {}) {
@@ -1255,8 +1257,8 @@ template <typename T, int N, typename AccessorT,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+        detail::is_device_accessor_with_v<AccessorT,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
            simd_mask<1> pred, PropertyListT props = {}) {
@@ -1274,8 +1276,8 @@ template <typename T, int N, typename AccessorT,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+        detail::is_device_accessor_with_v<AccessorT,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
            PropertyListT props = {}) {
@@ -1291,8 +1293,8 @@ template <typename T, int N, typename AccessorT,
               ext::oneapi::experimental::detail::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorT> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
+        detail::is_device_accessor_with_v<AccessorT,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
   simd<T, N> PassThru; // Intentionally uninitialized.
@@ -1314,9 +1316,8 @@ block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
 ///
 template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+__ESIMD_API std::enable_if_t<detail::is_device_accessor_with_v<
+    AccessorTy, detail::accessor_mode_cap::can_write>>
 block_store(AccessorTy acc, detail::DeviceAccessorOffsetT offset,
             simd<Tx, N> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
@@ -1451,8 +1452,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
+        detail::is_device_accessor_with_v<AccessorTy,
+                                          detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 gather(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
        detail::DeviceAccessorOffsetT glob_offset = 0, simd_mask<N> mask = 1) {
@@ -1468,8 +1469,9 @@ gather(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer_v<AccessorTy> && std::is_integral_v<Toffset> &&
-        !std::is_same_v<Toffset, uint64_t>,
+        detail::is_device_accessor_with_v<
+            AccessorTy, detail::accessor_mode_cap::can_read> &&
+        std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>,
     simd<T, N>>
 gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
        simd_mask<N> mask = 1) {
@@ -1500,8 +1502,8 @@ gather(AccessorTy acc, simd<Toffset, N> offsets, uint64_t glob_offset = 0,
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write>>
 scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
         simd<T, N> vals, detail::DeviceAccessorOffsetT glob_offset = 0,
         simd_mask<N> mask = 1) {
@@ -1517,8 +1519,9 @@ scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    !std::is_pointer_v<AccessorTy> && std::is_integral_v<Toffset> &&
-    !std::is_same_v<Toffset, uint64_t>>
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
         uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
   scatter<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), vals, glob_offset,
@@ -1780,14 +1783,14 @@ __ESIMD_API std::
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
-__ESIMD_API std::enable_if_t<
-    ((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-     !std::is_pointer_v<AccessorT> &&
-     !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>),
-    simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
-            detail::DeviceAccessorOffsetT global_offset = 0,
-            simd_mask<N> mask = 1) {
+__ESIMD_API
+    std::enable_if_t<((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                      detail::is_device_accessor_with_v<
+                          AccessorT, detail::accessor_mode_cap::can_read>),
+                     simd<T, N * get_num_channels_enabled(RGBAMask)>>
+    gather_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+                detail::DeviceAccessorOffsetT global_offset = 0,
+                simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return gather_rgba<RGBAMask>(
       __ESIMD_DNS::accessorToPointer<T>(acc, global_offset), offsets, mask);
@@ -1805,11 +1808,12 @@ gather_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type, typename Toffset>
-__ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
-                              sizeof(T) == 4 && !std::is_pointer_v<AccessorT> &&
-                              std::is_integral_v<Toffset> &&
-                              !std::is_same_v<Toffset, uint64_t>),
-                             simd<T, N * get_num_channels_enabled(RGBAMask)>>
+__ESIMD_API std::enable_if_t<
+    ((N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+     detail::is_device_accessor_with_v<AccessorT,
+                                       detail::accessor_mode_cap::can_read> &&
+     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>),
+    simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
             simd_mask<N> mask = 1) {
   return gather_rgba<RGBAMask, AccessorT, N, T>(acc, convert<uint64_t>(offsets),
@@ -1834,14 +1838,14 @@ gather_rgba(AccessorT acc, simd<Toffset, N> offsets, uint64_t global_offset = 0,
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
-__ESIMD_API std::enable_if_t<
-    (N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-    !std::is_pointer_v<AccessorT> &&
-    !sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
-scatter_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
-             simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
-             detail::DeviceAccessorOffsetT global_offset = 0,
-             simd_mask<N> mask = 1) {
+__ESIMD_API
+    std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+                     detail::is_device_accessor_with_v<
+                         AccessorT, detail::accessor_mode_cap::can_write>>
+    scatter_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+                 simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
+                 detail::DeviceAccessorOffsetT global_offset = 0,
+                 simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   scatter_rgba<RGBAMask>(__ESIMD_DNS::accessorToPointer<T>(acc, global_offset),
@@ -1859,10 +1863,11 @@ scatter_rgba(AccessorT acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type, typename Toffset>
-__ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
-                             !std::is_pointer_v<AccessorT> &&
-                             std::is_integral_v<Toffset> &&
-                             !std::is_same_v<Toffset, uint64_t>>
+__ESIMD_API std::enable_if_t<
+    (N == 8 || N == 16 || N == 32) && sizeof(T) == 4 &&
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_write> &&
+    std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 scatter_rgba(AccessorT acc, simd<Toffset, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              uint64_t global_offset = 0, simd_mask<N> mask = 1) {
@@ -3433,12 +3438,78 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT, typename Flags, int ChunkSize, typename>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                              sycl::access::target::device, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
-                                           detail::DeviceAccessorOffsetT offset,
-                                           Flags) SYCL_ESIMD_FUNCTION {
+template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_to_impl(
+    AccessorT acc, TOffset offset) const SYCL_ESIMD_FUNCTION {
+  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
+  constexpr unsigned NumBlocks = Size / BlockSize;
+  constexpr unsigned RemSize = Size % BlockSize;
+
+  using OffsetTy = decltype(offset);
+
+  simd<UT, N> Tmp{data()};
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
+    if constexpr (NumBlocks > 0) {
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, &Tmp](unsigned Block) {
+        block_store<UT, BlockN, AccessorT>(
+            acc, offset + (Block * BlockSize),
+            Tmp.template select<BlockN, 1>(Block * BlockN));
+      });
+    }
+    if constexpr (RemSize > 0) {
+      constexpr unsigned RemN = RemSize / sizeof(T);
+      constexpr unsigned BlockN = BlockSize / sizeof(T);
+      block_store<UT, RemN, AccessorT>(
+          acc, offset + (NumBlocks * BlockSize),
+          Tmp.template select<RemN, 1>(NumBlocks * BlockN));
+    }
+  } else if constexpr (sizeof(T) == 8) {
+    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
+    BC.copy_to(acc, offset, Flags{});
+  } else {
+    constexpr unsigned NumChunks = N / ChunkSize;
+    if constexpr (NumChunks > 0) {
+      simd<OffsetTy, ChunkSize> Offsets(0u, sizeof(T));
+      ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
+                                    &Tmp](unsigned Block) {
+        scatter<UT, ChunkSize, AccessorT>(
+            acc, Offsets, Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
+            offset + (Block * ChunkSize * sizeof(T)));
+      });
+    }
+    constexpr unsigned RemN = N % ChunkSize;
+    if constexpr (RemN > 0) {
+      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+        simd<OffsetTy, RemN> Offsets(0u, sizeof(T));
+        scatter<UT, RemN, AccessorT>(
+            acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
+            offset + (NumChunks * ChunkSize * sizeof(T)));
+      } else {
+        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
+        simd_mask_type<N1> Pred(0);
+        Pred.template select<RemN, 1>() = 1;
+        simd<UT, N1> Vals;
+        Vals.template select<RemN, 1>() =
+            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
+        simd<OffsetTy, N1> Offsets(0u, sizeof(T));
+        scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
+                                   offset + (NumChunks * ChunkSize * sizeof(T)),
+                                   Pred);
+      }
+    }
+  }
+}
+
+template <typename T, int N, class T1, class SFINAE>
+template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+ESIMD_INLINE void simd_obj_impl<T, N, T1, SFINAE>::copy_from_impl(
+    AccessorT acc, TOffset offset) SYCL_ESIMD_FUNCTION {
   using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
   static_assert(sizeof(UT) == sizeof(T));
   constexpr unsigned Size = sizeof(T) * N;
@@ -3499,6 +3570,27 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
       }
     }
   }
+}
+
+template <typename T, int N, class T1, class SFINAE>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read, void>
+simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc,
+                                           detail::DeviceAccessorOffsetT offset,
+                                           Flags) SYCL_ESIMD_FUNCTION {
+
+  copy_from_impl<ChunkSize, Flags>(acc, offset);
+}
+
+template <typename T, int N, class T1, class SFINAE>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
+ESIMD_INLINE std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_read>,
+    void>
+simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
+                                           Flags) SYCL_ESIMD_FUNCTION {
+
+  copy_from_impl<ChunkSize, Flags>(acc, offset);
 }
 
 template <typename T, int N, class T1, class SFINAE>
@@ -3592,74 +3684,21 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT, typename Flags, int ChunkSize, typename>
-ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                              sycl::access::target::device, void>
+ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc,
                                          detail::DeviceAccessorOffsetT offset,
                                          Flags) const SYCL_ESIMD_FUNCTION {
-  using UT = simd_obj_impl<T, N, T1, SFINAE>::element_type;
-  constexpr unsigned Size = sizeof(T) * N;
-  constexpr unsigned Align = Flags::template alignment<T1>;
+  copy_to_impl<ChunkSize, Flags>(acc, offset);
+}
 
-  constexpr unsigned BlockSize = OperandSize::OWORD * 8;
-  constexpr unsigned NumBlocks = Size / BlockSize;
-  constexpr unsigned RemSize = Size % BlockSize;
-
-  using OffsetTy = decltype(offset);
-
-  simd<UT, N> Tmp{data()};
-  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
-                detail::isPowerOf2(RemSize / OperandSize::OWORD)) {
-    if constexpr (NumBlocks > 0) {
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      ForHelper<NumBlocks>::unroll([BlockN, acc, offset, &Tmp](unsigned Block) {
-        block_store<UT, BlockN, AccessorT>(
-            acc, offset + (Block * BlockSize),
-            Tmp.template select<BlockN, 1>(Block * BlockN));
-      });
-    }
-    if constexpr (RemSize > 0) {
-      constexpr unsigned RemN = RemSize / sizeof(T);
-      constexpr unsigned BlockN = BlockSize / sizeof(T);
-      block_store<UT, RemN, AccessorT>(
-          acc, offset + (NumBlocks * BlockSize),
-          Tmp.template select<RemN, 1>(NumBlocks * BlockN));
-    }
-  } else if constexpr (sizeof(T) == 8) {
-    simd<int32_t, N * 2> BC = Tmp.template bit_cast_view<int32_t>();
-    BC.copy_to(acc, offset, Flags{});
-  } else {
-    constexpr unsigned NumChunks = N / ChunkSize;
-    if constexpr (NumChunks > 0) {
-      simd<OffsetTy, ChunkSize> Offsets(0u, sizeof(T));
-      ForHelper<NumChunks>::unroll([acc, offset, &Offsets,
-                                    &Tmp](unsigned Block) {
-        scatter<UT, ChunkSize, AccessorT>(
-            acc, Offsets, Tmp.template select<ChunkSize, 1>(Block * ChunkSize),
-            offset + (Block * ChunkSize * sizeof(T)));
-      });
-    }
-    constexpr unsigned RemN = N % ChunkSize;
-    if constexpr (RemN > 0) {
-      if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<OffsetTy, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN, AccessorT>(
-            acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
-            offset + (NumChunks * ChunkSize * sizeof(T)));
-      } else {
-        constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
-        simd_mask_type<N1> Pred(0);
-        Pred.template select<RemN, 1>() = 1;
-        simd<UT, N1> Vals;
-        Vals.template select<RemN, 1>() =
-            Tmp.template select<RemN, 1>(NumChunks * ChunkSize);
-        simd<OffsetTy, N1> Offsets(0u, sizeof(T));
-        scatter<UT, N1, AccessorT>(acc, Offsets, Vals,
-                                   offset + (NumChunks * ChunkSize * sizeof(T)),
-                                   Pred);
-      }
-    }
-  }
+template <typename T, int N, class T1, class SFINAE>
+template <typename AccessorT, typename Flags, int ChunkSize, typename>
+ESIMD_INLINE std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT, accessor_mode_cap::can_write>,
+    void>
+simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
+                                         Flags) const SYCL_ESIMD_FUNCTION {
+  copy_to_impl<ChunkSize, Flags>(acc, offset);
 }
 
 } // namespace detail
