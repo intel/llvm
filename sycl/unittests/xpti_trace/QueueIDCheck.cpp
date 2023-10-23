@@ -68,7 +68,6 @@ public:
 pi_queue QueueHandle = nullptr;
 inline pi_result redefinedQueueCreate(pi_context, pi_device,
                                       pi_queue_properties *, pi_queue *queue) {
-  std::cout << "called" << std::endl;
   QueueHandle = nullptr;
   if (queue)
     QueueHandle = *queue;

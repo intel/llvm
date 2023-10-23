@@ -361,7 +361,6 @@ public:
     {
       std::lock_guard<std::mutex> HashLock(MMetadataMutex);
       if (Event->reserved.metadata.count(KeyID)) {
-        std::cout << "duplicate" << std::endl;
         return xpti::result_t::XPTI_RESULT_DUPLICATE;
       }
       Event->reserved.metadata[KeyID] = ValueID;
