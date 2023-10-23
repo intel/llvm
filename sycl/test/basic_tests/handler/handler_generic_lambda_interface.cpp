@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include -DSYCL2020_CONFORMANT_APIS
 // expected-no-diagnostics
 //==--------------- handler_generic_lambda_interface.cpp -------------------==//
 //

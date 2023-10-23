@@ -1,5 +1,7 @@
 // This is a basic acceptance test which is intended to check that all valid
 // combinations of arguments to parallel_for are accepted by the implementation
+// Note: cases with 'auto' as an argument type are covered by
+//   handler_generic_lambda_interface.cpp
 //
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify %s
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify %s -DSYCL2020_CONFORMANT_APIS
@@ -34,17 +36,6 @@ int main() {
   q.parallel_for(r2, [=](sycl::item<2> it) {});
   q.parallel_for(r3, [=](sycl::item<3> it) {});
 
-  // auto -> sycl::item
-  q.parallel_for(r1, [=](auto it) {
-    static_assert(std::is_same_v<decltype(it), sycl::item<1>>);
-  });
-  q.parallel_for(r2, [=](auto it) {
-    static_assert(std::is_same_v<decltype(it), sycl::item<2>>);
-  });
-  q.parallel_for(r3, [=](auto it) {
-    static_assert(std::is_same_v<decltype(it), sycl::item<3>>);
-  });
-
   // sycl::item -> sycl::id
   q.parallel_for(r1, [=](sycl::id<1> it) {});
   q.parallel_for(r2, [=](sycl::id<2> it) {});
@@ -59,10 +50,6 @@ int main() {
   q.parallel_for(r1, [=](sycl::item<1> it, sycl::kernel_handler kh) {});
   q.parallel_for(r2, [=](sycl::item<2> it, sycl::kernel_handler kh) {});
   q.parallel_for(r3, [=](sycl::item<3> it, sycl::kernel_handler kh) {});
-
-  q.parallel_for(r1, [=](auto it, sycl::kernel_handler kh) {});
-  q.parallel_for(r2, [=](auto it, sycl::kernel_handler kh) {});
-  q.parallel_for(r3, [=](auto it, sycl::kernel_handler kh) {});
 
   q.parallel_for(r1, [=](sycl::id<1> it, sycl::kernel_handler kh) {});
   q.parallel_for(r2, [=](sycl::id<2> it, sycl::kernel_handler kh) {});
@@ -85,17 +72,6 @@ int main() {
   q.parallel_for(ndr2, [=](sycl::nd_item<2> it) {});
   q.parallel_for(ndr3, [=](sycl::nd_item<3> it) {});
 
-  // auto -> sycl::nd_item
-  q.parallel_for(ndr1, [=](auto it) {
-    static_assert(std::is_same_v<decltype(it), sycl::nd_item<1>>);
-  });
-  q.parallel_for(ndr2, [=](auto it) {
-    static_assert(std::is_same_v<decltype(it), sycl::nd_item<2>>);
-  });
-  q.parallel_for(ndr3, [=](auto it) {
-    static_assert(std::is_same_v<decltype(it), sycl::nd_item<3>>);
-  });
-
   // sycl::nd_item -> user defined type convertible from nd_item
   q.parallel_for(ndr1, [=](ConvertibleFromNDItem<1> it) {});
   q.parallel_for(ndr2, [=](ConvertibleFromNDItem<2> it) {});
@@ -105,16 +81,6 @@ int main() {
   q.parallel_for(ndr1, [=](sycl::nd_item<1> it, sycl::kernel_handler kh) {});
   q.parallel_for(ndr2, [=](sycl::nd_item<2> it, sycl::kernel_handler kh) {});
   q.parallel_for(ndr3, [=](sycl::nd_item<3> it, sycl::kernel_handler kh) {});
-
-  q.parallel_for(ndr1, [=](auto it, sycl::kernel_handler kh) {
-    static_assert(std::is_same_v<decltype(it), sycl::nd_item<1>>);
-  });
-  q.parallel_for(ndr2, [=](auto it, sycl::kernel_handler kh) {
-    static_assert(std::is_same_v<decltype(it), sycl::nd_item<2>>);
-  });
-  q.parallel_for(ndr3, [=](auto it, sycl::kernel_handler kh) {
-    static_assert(std::is_same_v<decltype(it), sycl::nd_item<3>>);
-  });
 
   q.parallel_for(ndr1,
                  [=](ConvertibleFromNDItem<1> it, sycl::kernel_handler kh) {});
