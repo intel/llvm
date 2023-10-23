@@ -2644,7 +2644,10 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   // Any non-allocation dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  if (!RawEvents.empty()) {
+    const PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+  }
 
   sycl::detail::pi::PiEvent *Event =
       (MQueue->has_discard_events_support() &&
