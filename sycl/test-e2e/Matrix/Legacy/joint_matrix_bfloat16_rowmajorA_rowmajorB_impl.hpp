@@ -1,17 +1,6 @@
 #define TM 8
 #define TN SG_SZ
 #define TK 16
-#define BF16_EPSILON 0.00781250
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-private:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
@@ -81,13 +70,6 @@ bfloat16 B[MATRIX_K][MATRIX_N];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
 void matrix_multiply_ref(int M, int N, int K) {
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
@@ -122,13 +104,7 @@ int main() {
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref(MATRIX_M, MATRIX_N, MATRIX_K);
 
-  bool res = true;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      if (fabs(C[i][j] - D[i][j]) > BF16_EPSILON)
-        res = false;
-    }
-  }
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }

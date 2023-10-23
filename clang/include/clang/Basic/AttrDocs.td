@@ -3361,11 +3361,10 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
 This attribute applies to a loop or a function. Takes no arguments and
-disables pipelining of the loop or function data path, causing the loop
-or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
-``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
-``enable_loop_pipelining`` attribute.
+indicates whether the kernel should be pipelined or not. Cannot be used on the
+same loop or function, or in conjunction with ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, ``ivdep``,
+``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -4376,6 +4375,18 @@ allows the caller to align the parameter memory.
 See the documentation for `__vectorcall`_ on MSDN for more details.
 
 .. _`__vectorcall`: http://msdn.microsoft.com/en-us/library/dn375768.aspx
+  }];
+}
+
+def M68kRTDDocs : Documentation {
+  let Category = DocCatCallingConvs;
+  let Content = [{
+On M68k targets, this attribute changes the calling convention of a function
+to clear parameters off the stack on return. In other words, callee is
+responsible for cleaning out the stack space allocated for incoming paramters.
+This convention does not support variadic calls or unprototyped functions in C.
+When targeting M68010 or newer CPUs, this calling convention is implemented
+using the `rtd` instruction.
   }];
 }
 

@@ -19,7 +19,8 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
 #include <sycl/exception.hpp>                 // for runtime_error
-#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32, convertMatrixUseToString
+#include <sycl/ext/oneapi/matrix/query-types.hpp> // for convertTypeToMatrixTypeString
 #include <sycl/marray.hpp>                                 // for marray
 #include <sycl/multi_ptr.hpp>                              // for multi_ptr
 
@@ -41,8 +42,7 @@ struct joint_matrix {
 
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  mutable sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols,
-                                                       Layout>
+  sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
       matrix_impl;
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
@@ -57,6 +57,13 @@ struct joint_matrix {
 #endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
 
+#if defined(__SYCL_DEVICE_ONLY__)
+  [[__sycl_detail__::add_ir_attributes_function(
+      "sycl-joint-matrix-type", "sycl-joint-matrix-use",
+      "sycl-joint-matrix-rows", "sycl-joint-matrix-cols",
+      sycl::detail::convertTypeToMatrixTypeString<T>(),
+      sycl::detail::convertMatrixUseToString(Use), Rows, Cols)]]
+#endif // defined(__SYCL_DEVICE_ONLY__)
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
     throw runtime_error("joint matrix is not supported on host device.",
@@ -70,82 +77,6 @@ struct joint_matrix {
 #endif // defined(__SPIR__)
 #endif
 };
-
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
-class wi_data {
-
-  joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm;
-
-  wi_data(joint_matrix<Group, T, Use, Rows, Cols, Layout> &_jm) : jm(_jm){};
-
-  template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
-  friend decltype(auto)
-  get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
-
-public:
-  size_t length() {
-#if defined(__NVPTX__)
-    return jm.matrix_impl.wi_marray.size();
-#endif
-  };
-
-  decltype(auto) operator[](size_t i) {
-#if defined(__NVPTX__)
-    return (jm.matrix_impl.wi_marray[i]);
-#else
-    std::ignore = i;
-#endif
-  };
-};
-#else
-template <typename type, size_t size> class wi_data {
-  marray<type, size> &data;
-  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
-  template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
-  friend decltype(auto)
-  get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
-
-public:
-  size_t length() { return data.size(); };
-
-  type &operator[](size_t i) { return data[i]; };
-};
-#endif
-
-template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-__SYCL2020_DEPRECATED("get_wi_data() is deprecated for CUDA backend. Please "
-                      "use joint_matrix_apply() instead.")
-#else
-__attribute__((unavailable("get_wi_data() has been removed from the API and "
-                           "replaced with joint_matrix_apply!")))
-#endif
-#endif
-inline __SYCL_ALWAYS_INLINE decltype(auto)
-    get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
-#if defined(__SYCL_DEVICE_ONLY__)
-  std::ignore = sg;
-  return wi_data(jm);
-#else
-  std::ignore = sg;
-  std::ignore = jm;
-  if constexpr (std::is_same_v<T, precision::tf32>) {
-    marray<float, 1> unused{};
-    return wi_data<float, 1>(unused);
-  } else {
-    marray<T, 1> unused{};
-    return wi_data<T, 1>(unused);
-  }
-#endif // defined(__SYCL_DEVICE_ONLY__)
-}
 
 template <typename Group, typename T, use Use, size_t M, size_t N,
           layout Layout, typename F>
@@ -390,7 +321,19 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 template <typename Group, typename Ta, typename Tb, typename Tc, typename Td,
           std::size_t M, std::size_t K, std::size_t N, layout LayoutA,
           layout LayoutB>
-inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
+#if defined(__SYCL_DEVICE_ONLY__)
+[[__sycl_detail__::add_ir_attributes_function(
+    "sycl-joint-matrix-mad-type-A", "sycl-joint-matrix-mad-type-B",
+    "sycl-joint-matrix-mad-type-C", "sycl-joint-matrix-mad-type-D",
+    "sycl-joint-matrix-mad-size-M", "sycl-joint-matrix-mad-size-K",
+    "sycl-joint-matrix-mad-size-N",
+    sycl::detail::convertTypeToMatrixTypeString<Ta>(),
+    sycl::detail::convertTypeToMatrixTypeString<Tb>(),
+    sycl::detail::convertTypeToMatrixTypeString<Tc>(),
+    sycl::detail::convertTypeToMatrixTypeString<Td>(), M, K, N)]]
+#endif // defined(__SYCL_DEVICE_ONLY__)
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_mad(
     Group,
     joint_matrix<Group, Td, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic> &D,
@@ -402,9 +345,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   if constexpr (std::is_same<Ta, Tb>::value) {
-    sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
-                                                     LayoutB>(
-        D.matrix_impl, A.matrix_impl, B.matrix_impl, C.matrix_impl);
+    sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, Td, M, K, N,
+                                                     LayoutA, LayoutB>(
+        D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
   } else {
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
