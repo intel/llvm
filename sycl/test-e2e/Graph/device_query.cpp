@@ -1,4 +1,4 @@
-// REQUIRES: cuda || level_zero, gpu
+// REQUIRES: opencl || cuda || level_zero
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -21,7 +21,7 @@ int main() {
   auto Backend = Device.get_backend();
 
   if ((Backend == backend::ext_oneapi_level_zero) ||
-      (Backend == backend::ext_oneapi_cuda)) {
+      (Backend == backend::ext_oneapi_cuda) || (Backend == backend::opencl)) {
     assert(SupportsGraphs == exp_ext::graph_support_level::native);
   } else {
     assert(SupportsGraphs == exp_ext::graph_support_level::unsupported);

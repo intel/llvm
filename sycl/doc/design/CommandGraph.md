@@ -149,7 +149,7 @@ yet been implemented.
 Implementation of UR command-buffers
 for each of the supported SYCL 2020 backends.
 
-Currently Level Zero and CUDA backends are implemented.
+Backends which are implemented currently are: Level Zero, CUDA and OpenCL.
 More sub-sections will be added here as other backends are supported.
 
 ### Level Zero
@@ -246,3 +246,62 @@ the executable CUDA Graph that represent this series of operations.
 An executable CUDA Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
 graph resubmission.
+
+### OpenCL
+
+Command Buffers are defined in the OpenCL spec in the [cl_khr_command_buffer](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer) extension.
+
+There are some gaps in both the OpenCL and UR specifications for Command 
+Buffers shown in the list below. There are implementations in the UR OpenCL
+adapter where there is matching support for each function in the list.
+
+| UR | OpenCL | Supported |
+| --- | --- | --- |
+| urCommandBufferCreateExp | clCreateCommandBufferKHR | Yes |
+| urCommandBufferRetainExp | clRetainCommandBufferKHR | Yes |
+| urCommandBufferReleaseExp | clReleaseCommandBufferKHR | Yes |
+| urCommandBufferFinalizeExp | clFinalizeCommandBufferKHR | Yes |
+| urCommandBufferAppendKernelLaunchExp | clCommandNDRangeKernelKHR | Yes |
+| urCommandBufferAppendUSMMemcpyExp |  | No |
+| urCommandBufferAppendUSMFillExp |  | No |
+| urCommandBufferAppendMembufferCopyExp | clCommandCopyBufferKHR | Yes |
+| urCommandBufferAppendMemBufferWriteExp |  | No |
+| urCommandBufferAppendMemBufferReadExp |  | No |
+| urCommandBufferAppendMembufferCopyRectExp | clCommandCopyBufferRectKHR | Yes |
+| urCommandBufferAppendMemBufferWriteRectExp |  | No |
+| urCommandBufferAppendMemBufferReadRectExp |  | No |
+| urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
+| urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
+|  | clCommandBarrierWithWaitListKHR | No |
+|  | clCommandCopyImageKHR | No |
+|  | clCommandCopyImageToBufferKHR | No |
+|  | clCommandFillImageKHR | No |
+|  | clGetCommandBufferInfoKHR | No |
+|  | clCommandSVMMemcpyKHR | No |
+|  | clCommandSVMMemFillKHR | No |
+
+Many of the OpenCL functions take a `cl_command_queue` parameter which is not
+present in most of the UR functions. Instead, when a new command buffer is
+created in `urCommandBufferCreateExp` we also create and maintain a new 
+internal `ur_queue_handle_t` with a reference stored inside of the 
+`ur_exp_command_buffer_handle_t_` struct. This internal queue is then used with
+the various append functions. The internal queue is retained and released 
+whenever the owning command buffer is retained or released.
+
+With command buffers being an OpenCL extension, each function is accessed by
+loading a function pointer to its implementation. These are defined in a common
+header file in the UR OpenCL adapter. The symbols for the functions are however
+defined in [OpenCL-Headers](https://github.com/KhronosGroup/OpenCL-Headers/blob/main/CL/cl_ext.h) but it is not known at this time what version of the headers will be used in the UR GitHub CI configuration, so loading the function
+pointers will be used until this can be verified. A future piece of work would 
+be replacing the custom defined symbols with the ones from OpenCL-Headers.
+
+The `UR_DEVICE_INFO_EXTENSIONS` enum can be used with `urDeviceGetInfo` to
+query if a specified device supports OpenCL command buffers. This will append 
+`ur_exp_command_buffer` to a string pointer passed to the function if the 
+extension is supported.
+
+Known implementations of cl_khr_command_buffer:
+- [OneAPI-Construction-Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
+- [PoCL](http://portablecl.org/)
+- [Command-Buffer Emulation Layer](https://github.com/bashbaug/SimpleOpenCLSamples/tree/main/layers/10_cmdbufemu)
+
