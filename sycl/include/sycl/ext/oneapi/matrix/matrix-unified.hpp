@@ -347,7 +347,7 @@ joint_matrix_mad(
   if constexpr (std::is_same<Ta, Tb>::value) {
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, Td, M, K, N,
                                                      LayoutA, LayoutB>(
-        D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
+        D.matrix_impl, A.matrix_impl, B.matrix_impl, C.matrix_impl);
   } else {
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
