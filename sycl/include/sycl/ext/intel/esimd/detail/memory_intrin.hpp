@@ -197,7 +197,7 @@ __esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @tparam SurfIndAliasT is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param surf_ind is the surface index.
@@ -268,43 +268,6 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// Low-level surface-based gather. Collects elements located at given offsets in
-// a surface and returns them as a single \ref simd object. Element can be
-// 1, 2 or 4-byte value, but is always returned as a 4-byte value within the
-// resulting simd object, with upper 2 or 3 bytes undefined.
-// Template (compile-time constant) parameters:
-// @tparam Ty - element type; can only be a 4-byte integer or \c float,
-// @tparam N  - the number of elements
-// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
-//   accessor used to denote the surface
-// @tparam TySizeLog2 - Log2 of the number of bytes read per element:
-//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
-// @tparam Scale - offset scaling factor; must be zero currently
-// @tparam L1H - L1 cache hint
-// @tparam L2H - L2 cache hint
-//
-// Formal parameters:
-// @param surf_ind - the surface index, taken from the SYCL memory object
-// @param global_offset - offset added to each individual element's offset to
-//   compute actual memory access offset for that element
-// @param elem_offsets - per-element offsets
-//
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                       __ESIMD_DNS::vector_type_t<uint32_t, N> elem_offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
-  static_assert(TySizeLog2 <= 2 && Scale == 0);
-  static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
 // Low-level surface-based scatter. Writes elements of a \ref simd object into a
 // surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
 // always represented as a 4-byte value within the input simd object,
@@ -317,8 +280,6 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 // @tparam TySizeLog2 - Log2 of the number of bytes written per element:
 //   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
 // @tparam Scale - offset scale; only 0 is supported for now
-// @tparam L1H - L1 cache hint
-// @tparam L2H - L2 cache hint
 //
 // Formal parameters:
 // @param pred - per-element predicates; elements with zero corresponding
@@ -408,21 +369,6 @@ __ESIMD_INTRIN void __esimd_barrier()
 
 // slm_fence sets the SLM read/write order
 __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Scaled gather from a surface.
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind, uint32_t global_offset,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
