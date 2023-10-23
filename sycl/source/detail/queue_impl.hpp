@@ -195,7 +195,7 @@ public:
         xpti::addMetadata(TEvent, "queue_id", MQueueID);
         if (!MHostQueue)
           xpti::addMetadata(PrepareNotify.traceEvent(), "queue_handle",
-                            getHandleRef());
+                            reinterpret_cast<size_t>(getHandleRef()));
       });
       PrepareNotify.notify();
     }

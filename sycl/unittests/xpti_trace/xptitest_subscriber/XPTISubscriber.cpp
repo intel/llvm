@@ -81,7 +81,7 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
         } else if (Key == "queue_handle") {
           Message.append(
               Key.data() + std::string(":") +
-              std::to_string(ulong(xpti::getMetadata<void *>(Item).second)));
+              std::to_string(xpti::getMetadata<size_t>(Item).second));
           Message.append(";");
         }
       }
@@ -102,7 +102,7 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
         } else if (Key == "queue_handle") {
           Message.append(
               Key.data() + std::string(":") +
-              std::to_string(ulong(xpti::getMetadata<void *>(Item).second)));
+              std::to_string(xpti::getMetadata<size_t>(Item).second));
           Message.append(";");
         }
       }

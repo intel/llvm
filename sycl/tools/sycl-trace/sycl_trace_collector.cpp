@@ -50,14 +50,6 @@ void TraceDiagnosticsMessage(xpti::trace_event_data_t * /*Parent*/,
   }
 }
 
-template <typename Type>
-void PrintMetadataField(
-    const char *Title,
-    const std::pair<xpti::string_id_t, xpti::object_id_t> &Item) {
-  std::cout << "\t" << Title << ": " << xpti::getMetadata<Type>(Item).second
-            << std::endl;
-}
-
 void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
                                xpti::trace_event_data_t *Event,
                                const void *UserData, uint64_t InstanceID,
@@ -76,51 +68,9 @@ void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
     return;
 
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-  for (const auto &Item : *Metadata) {
-    std::string_view Key{xptiLookupString(Item.first)};
-    if (Key == "queue_id") {
-      PrintMetadataField<unsigned long long>("queue_id", Item);
-    } else if (Key == "kernel_name") {
-      PrintMetadataField<std::string>("kernel_name", Item);
-    } else if (Key == "memory_object") {
-      PrintMetadataField<void *>("memory_object", Item);
-    } else if (Key == "sycl_device") {
-      PrintMetadataField<void *>("sycl_device", Item);
-    } else if (Key == "copy_from") {
-      PrintMetadataField<void *>("copy_from", Item);
-    } else if (Key == "copy_to") {
-      PrintMetadataField<void *>("copy_to", Item);
-    } else if (Key == "memory_size") {
-      PrintMetadataField<size_t>("memory_size", Item);
-    } else if (Key == "value_set") {
-      PrintMetadataField<int>("value_set", Item);
-    } else if (Key == "memory_ptr") {
-      PrintMetadataField<void *>("memory_ptr", Item);
-    } else if (Key == "src_memory_ptr") {
-      PrintMetadataField<void *>("src_memory_ptr", Item);
-    } else if (Key == "dest_memory_ptr") {
-      PrintMetadataField<void *>("dest_memory_ptr", Item);
-    } else if (Key == "sycl_device_name") {
-      PrintMetadataField<std::string>("sycl_device_name", Item);
-    } else if (Key == "sycl_device_type") {
-      PrintMetadataField<std::string>("sycl_device_type", Item);
-    } else if (Key == "offset") {
-      PrintMetadataField<size_t>("offset", Item);
-    } else if (Key == "access_range_start") {
-      PrintMetadataField<size_t>("access_range_start", Item);
-    } else if (Key == "access_range_end") {
-      PrintMetadataField<size_t>("access_range_end", Item);
-    } else if (Key == "allocation_type") {
-      PrintMetadataField<std::string>("allocation_type", Item);
-    } else if (Key == "sym_function_name") {
-      PrintMetadataField<std::string>("sym_function_name", Item);
-    } else if (Key == "sym_source_file_name") {
-      PrintMetadataField<std::string>("sym_source_file_name", Item);
-    } else if (Key == "sym_line_no") {
-      PrintMetadataField<int>("sym_line_no", Item);
-    } else if (Key == "sym_column_no") {
-      PrintMetadataField<int>("sym_column_no", Item);
-    }
+  for (auto &Item : *Metadata) {
+    std::cout << "\t  " << xptiLookupString(Item.first) << " : "
+              << xpti::readMetadata(Item) << std::endl;
   }
 }
 
@@ -133,23 +83,15 @@ void TraceQueueLifetimeSignals(xpti::trace_event_data_t * /*Parent*/,
   std::cout << "[SYCL] Queue " << (IsCreation ? "create" : "destroy") << ": "
             << std::endl;
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
-  for (const auto &Item : *Metadata) {
+  for (auto &Item : *Metadata) {
     std::string_view Key{xptiLookupString(Item.first)};
-    if (Key == "queue_id") {
-      PrintMetadataField<unsigned long long>("queue_id", Item);
-    } else if (Key == "queue_handle") {
-      PrintMetadataField<void *>("queue_handle", Item);
-    } else if (!PrintSyclVerbose || !IsCreation) {
-      continue;
-    } else if (Key == "sycl_device") {
-      PrintMetadataField<void *>("sycl_device", Item);
-    } else if (Key == "sycl_context") {
-      PrintMetadataField<void *>("sycl_context", Item);
-    } else if (Key == "sycl_device_name") {
-      PrintMetadataField<std::string>("sycl_device_name", Item);
-    } else if (Key == "is_inorder") {
-      PrintMetadataField<bool>("is_inorder", Item);
-    }
+    if (IsCreation)
+      std::cout << "\t  " << Key << " : " << xpti::readMetadata(Item)
+                << std::endl;
+    else if (Key == "queue_id")
+      std::cout << "\t" << Key << " : "
+                << xpti::getMetadata<unsigned long long>(Item).second
+                << std::endl;
   }
 }
 

@@ -93,8 +93,8 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue0IDSTr));
     ASSERT_NE(QueueHandle, nullptr);
-    EXPECT_THAT(Message,
-                HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
+    EXPECT_THAT(Message, HasSubstr("queue_handle:" +
+                                   std::to_string(size_t(QueueHandle))));
 
     sycl::queue Q1{Context, sycl::default_selector{}};
     auto Queue1ImplPtr = sycl::detail::getSyclObjImpl(Q1);
@@ -103,8 +103,8 @@ TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
     EXPECT_EQ(TraceType, xpti::trace_queue_create);
     EXPECT_THAT(Message, HasSubstr("create:queue_id:" + Queue1IDSTr));
     ASSERT_NE(QueueHandle, nullptr);
-    EXPECT_THAT(Message,
-                HasSubstr("handle:" + std::to_string(ulong(QueueHandle))));
+    EXPECT_THAT(Message, HasSubstr("queue_handle:" +
+                                   std::to_string(size_t(QueueHandle))));
   }
 
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
