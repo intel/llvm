@@ -27,7 +27,7 @@ constexpr device_global<char[3], decltype(properties(device_image_scope))>
 // Multidimensional array of integers
 constexpr device_global<int[3][2], decltype(properties(device_image_scope))>
     dg_multi_dim_arr{3, 4, 5, 6, 7, 8};
-// CHECK: @{{[A-Za-z0-9_]*}}dg_multi_dim_arr = internal addrspace(1) constant { [3 x [2 x i32]] } { [3 x [2 x i32]] [[2 x i32] [i32 3, i32 4], [2 x i32] [i32 5, i32 6], [2 x i32] [i32 7, i32 8]] }, align 4, !spirv.Decorations
+// CHECK: @{{[A-Za-z0-9_]*}}dg_multi_dim_arr = internal addrspace(1) constant { [3 x [2 x i32]] } { [3 x [2 x i32]] {{[A-Za-z0-9_]*}} [i32 3, i32 4], [2 x i32] [i32 5, i32 6], [2 x i32] [i32 7, i32 8]] }, align 4, !spirv.Decorations
 
 // Constant float and array of float device_globals
 constexpr device_global<float, decltype(properties(device_image_scope))>
