@@ -1246,14 +1246,15 @@ private:
 #ifdef SYCL2020_CONFORMANT_APIS
     static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
-                  "sycl::parallel_for(sycl::range) kernel must have an "
-                  "argument of sycl::item type, or of a type which is "
+                  "sycl::parallel_for(sycl::range) kernel must have the "
+                  "first argument of sycl::item type, or of a type which is "
                   "implcitly convertible from sycl::item");
 
     static_assert(
         (std::is_invocable_v<KernelType, LambdaArgType> ||
          std::is_invocable_v<KernelType, LambdaArgType, kernel_handler>),
-        "Kernel should be invocable with a sycl::item");
+        "SYCL kernel lambda/functor has an unexpeted signature, it should be "
+        "invocable with sycl::item and optionally sycl::kernel_handler");
 #endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
