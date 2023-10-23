@@ -43,10 +43,10 @@ struct joint_matrix {
 #if defined(__NVPTX__)
   mutable sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols,
                                                        Layout>
-      cuda_impl;
+      matrix_impl;
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
-      hip_impl;
+      matrix_impl;
 #elif defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
@@ -89,13 +89,13 @@ class wi_data {
 public:
   size_t length() {
 #if defined(__NVPTX__)
-    return jm.cuda_impl.wi_marray.size();
+    return jm.matrix_impl.wi_marray.size();
 #endif
   };
 
   decltype(auto) operator[](size_t i) {
 #if defined(__NVPTX__)
-    return (jm.cuda_impl.wi_marray[i]);
+    return (jm.matrix_impl.wi_marray[i]);
 #else
     std::ignore = i;
 #endif
@@ -155,12 +155,12 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
-  for (int i = 0; i < jm.cuda_impl.wi_marray.size(); i++) {
-    lambda(jm.cuda_impl.wi_marray[i]);
+  for (int i = 0; i < jm.matrix_impl.wi_marray.size(); i++) {
+    lambda(jm.matrix_impl.wi_marray[i]);
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_apply(jm.hip_impl, lambda);
+  sycl::ext::oneapi::detail::joint_matrix_apply(jm.matrix_impl, lambda);
 #else // NVPTX
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
@@ -190,9 +190,9 @@ joint_matrix_fill(Group,
                   const T2 &v) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  res.cuda_impl.wi_marray = v;
+  res.matrix_impl.wi_marray = v;
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  sycl::ext::oneapi::detail::joint_matrix_apply(res.hip_impl,
+  sycl::ext::oneapi::detail::joint_matrix_apply(res.matrix_impl,
                                                 [=](T &value) { value = v; });
 #else
   using storage_element_type =
@@ -228,10 +228,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
                 "Joint Matrix doesn't support load from private memory!");
 #if defined(__NVPTX__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
+  sycl::ext::oneapi::detail::load_accumulator_cuda(res.matrix_impl, src, stride,
                                                    Layout);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  sycl::ext::oneapi::detail::load_accumulator_hip(res.hip_impl, src, stride,
+  sycl::ext::oneapi::detail::load_accumulator_hip(res.matrix_impl, src, stride,
                                                   Layout, sg);
 #else
   std::ignore = sg;
@@ -296,11 +296,11 @@ joint_matrix_load(Group &sg,
   std::ignore = sg;
   sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
                                                     Layout, Space>(
-      res.cuda_impl, src, stride);
+      res.matrix_impl, src, stride);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::load_multiplicand_hip<Group, S, T, NumRows,
                                                    NumCols, Use, Layout, Space>(
-      res.hip_impl, src, stride, sg);
+      res.matrix_impl, src, stride, sg);
 #else
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
@@ -337,11 +337,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #if defined(__NVPTX__)
   std::ignore = sg;
   sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
-                                                     Space>(src.cuda_impl, dst,
-                                                            stride, Layout);
+                                                     Space>(
+      src.matrix_impl, dst, stride, Layout);
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols,
-                                                    Space>(src.hip_impl, dst,
+                                                    Space>(src.matrix_impl, dst,
                                                            stride, Layout, sg);
 #else
   std::ignore = sg;
@@ -404,7 +404,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
   if constexpr (std::is_same<Ta, Tb>::value) {
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
                                                      LayoutB>(
-        D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
+        D.matrix_impl, A.matrix_impl, B.matrix_impl, C.matrix_impl);
   } else {
     assert(false && "Ta != Tb : In the CUDA backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
@@ -413,7 +413,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_mad(
   if constexpr (std::is_same<Ta, Tb>::value) {
     sycl::ext::oneapi::detail::joint_matrix_mad_hip<Ta, Tc, M, K, N, LayoutA,
                                                     LayoutB>(
-        D.hip_impl, A.hip_impl, B.hip_impl, C.hip_impl);
+        D.matrix_impl, A.matrix_impl, B.matrix_impl, C.matrix_impl);
   } else {
     assert(false && "Ta != Tb : In the HIP backend joint_matrix_mad "
                     "requires that joint_matrix data types Ta and Tb match");
@@ -450,12 +450,13 @@ void joint_matrix_copy(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
-  for (int i = 0; i < src.cuda_impl.wi_marray.size(); i++) {
-    dst.cuda_impl.wi_marray[i] = src.cuda_impl.wi_marray[i];
+  for (int i = 0; i < src.matrix_impl.wi_marray.size(); i++) {
+    dst.matrix_impl.wi_marray[i] = src.matrix_impl.wi_marray[i];
   }
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_copy(src.hip_impl, dst.hip_impl);
+  sycl::ext::oneapi::detail::joint_matrix_copy(src.matrix_impl,
+                                               dst.matrix_impl);
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
