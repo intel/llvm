@@ -24,7 +24,7 @@ _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(int Data, unsigned int InvocationId) {
 // _Z28__spirv_SubgroupShuffleINTELIhET_S0_j - unsigned char
 // _Z28__spirv_SubgroupShuffleINTELIsET_S0_j - long
 // _Z28__spirv_SubgroupShuffleINTELItET_S0_j - unsigned long
-// _Z28__spirv_SubgroupShuffleINTELIvET_S0_j - half
+// _Z28__spirv_SubgroupShuffleINTELIDF16_ET_S0_j - half
 #define __AMDGCN_CLC_SUBGROUP_SUB_I32(TYPE, MANGLED_TYPE_NAME)                 \
   _CLC_DEF TYPE _Z28__spirv_SubgroupShuffleINTELI##MANGLED_TYPE_NAME##ET_S0_j( \
       TYPE Data, unsigned int InvocationId) {                                  \
@@ -159,7 +159,7 @@ _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(int Data,
 // _Z31__spirv_SubgroupShuffleXorINTELIhET_S0_j - unsigned char
 // _Z31__spirv_SubgroupShuffleXorINTELIsET_S0_j - short
 // _Z31__spirv_SubgroupShuffleXorINTELItET_S0_j - unsigned short
-// _Z31__spirv_SubgroupShuffleXorINTELIvET_S0_j - half
+// _Z31__spirv_SubgroupShuffleXorINTELIDF16_ET_S0_j - half
 #define __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(TYPE, MANGLED_TYPE_NAME)             \
   _CLC_DEF TYPE                                                                \
       _Z31__spirv_SubgroupShuffleXorINTELI##MANGLED_TYPE_NAME##ET_S0_j(        \
@@ -170,7 +170,10 @@ __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(char, a);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned char, h);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short, t);
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(half, DF16_);
+#endif // cl_khr_fp16
 #undef __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32
 
 // 32-bit types.
@@ -307,7 +310,7 @@ _Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(int previous, int current,
 // _Z30__spirv_SubgroupShuffleUpINTELIhET_S0_S0_j - unsigned char
 // _Z30__spirv_SubgroupShuffleUpINTELIsET_S0_S0_j - short
 // _Z30__spirv_SubgroupShuffleUpINTELItET_S0_S0_j - unsigned short
-// _Z30__spirv_SubgroupShuffleUpINTELIvET_S0_S0_j - half
+// _Z30__spirv_SubgroupShuffleUpINTELIDF16_ET_S0_S0_j - half
 #define __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(TYPE, MANGLED_TYPE_NAME)              \
   _CLC_DEF TYPE                                                                \
       _Z30__spirv_SubgroupShuffleUpINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(      \
@@ -462,7 +465,7 @@ _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(int current, int next,
 // _Z32__spirv_SubgroupShuffleDownINTELIhET_S0_S0_j - unsigned char
 // _Z32__spirv_SubgroupShuffleDownINTELIsET_S0_S0_j - short
 // _Z32__spirv_SubgroupShuffleDownINTELItET_S0_S0_j - unsigned short
-// _Z32__spirv_SubgroupShuffleDownINTELIvET_S0_S0_j - half
+// _Z32__spirv_SubgroupShuffleDownINTELIDF16_ET_S0_S0_j - half
 #define __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(TYPE, MANGLED_TYPE_NAME)             \
   _CLC_DEF TYPE                                                                \
       _Z32__spirv_SubgroupShuffleDownINTELI##MANGLED_TYPE_NAME##ET_S0_S0_j(    \
