@@ -329,9 +329,9 @@ These are overloads of existing `joint_matrix_load` and
 `sycl::ext::oneapi::experimental::annotated_ptr` as argument instead
 of `sycl::multi_ptr`.
 The property list associated with the `annotated_ptr` argument
-represent the compile-time cach control constant properties included
+represents the compile-time constant properties for cache control included
 in the SYCL extenion
-* link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls]
+link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls]
 
 
 ```c++
@@ -417,8 +417,8 @@ specification.
 
 The level of cache targeted by `joint_matrix_prefetch` in the last
 argument is specified using the compile-time properties defined in the
-SYCL extenion
-* link:../../proposed/sycl_ext_oneapi_prefetch.asciidoc[sycl_ext_oneapi_prefetch.asciidoc]
+SYCL extension
+link:../../proposed/sycl_ext_oneapi_prefetch.asciidoc[sycl_ext_oneapi_prefetch.asciidoc#specifying-cache-levels]
 
 ==== Example
 ```c++
