@@ -6,3 +6,11 @@ source/adapters/level_zero      @oneapi-src/unified-runtime-level-zero-write
 # CUDA and HIP adapters
 source/adapters/cuda            @oneapi-src/unified-runtime-cuda-write
 source/adapters/hip             @oneapi-src/unified-runtime-hip-write
+
+# OpenCL adapter
+source/adapters/opencl          @oneapi-src/unified-runtime-opencl-write
+
+# Command-buffer experimental feature
+source/adapters/**/command_buffer.*  @oneapi-src/unified-runtime-command-buffer-write
+scripts/core/EXP-COMMAND-BUFFER.rst  @oneapi-src/unified-runtime-command-buffer-write
+scripts/core/exp-command-buffer.yml  @oneapi-src/unified-runtime-command-buffer-write

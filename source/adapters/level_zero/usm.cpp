@@ -192,8 +192,9 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  return USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context,
-                                   Device, *ResultPtr, Size);
+  USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context, Device,
+                            *ResultPtr, Size);
+  return UR_RESULT_SUCCESS;
 }
 
 static ur_result_t USMSharedAllocImpl(void **ResultPtr,
@@ -224,9 +225,11 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  USMAllocationMakeResident(USMSharedAllocationForceResidency, Context, Device,
+                            *ResultPtr, Size);
+
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
-  return USMAllocationMakeResident(USMSharedAllocationForceResidency, Context,
-                                   Device, *ResultPtr, Size);
+  return UR_RESULT_SUCCESS;
 }
 
 static ur_result_t USMHostAllocImpl(void **ResultPtr,
@@ -244,8 +247,9 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  return USMAllocationMakeResident(USMHostAllocationForceResidency, Context,
-                                   nullptr, *ResultPtr, Size);
+  USMAllocationMakeResident(USMHostAllocationForceResidency, Context, nullptr,
+                            *ResultPtr, Size);
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
