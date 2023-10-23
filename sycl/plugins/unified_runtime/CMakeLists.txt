@@ -28,7 +28,10 @@ endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
 endif()
-# TODO: Set UR_BUILD_ADAPTER_OPENCL once adapter moved
+if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_OPENCL ON)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+endif()
 # TODO: Set UR_BUILD_ADAPTER_NATIVE_CPU once adapter moved
 
 # Disable errors from warnings while building the UR.
@@ -156,53 +159,6 @@ endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 
-if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
-  # Build OpenCL adapter
-  add_sycl_library("ur_adapter_opencl" SHARED
-    SOURCES
-      "ur/ur.hpp"
-      "ur/ur.cpp"
-      "ur/adapters/opencl/adapter.cpp"
-      "ur/adapters/opencl/adapter.hpp"
-      "ur/adapters/opencl/command_buffer.hpp"
-      "ur/adapters/opencl/command_buffer.cpp"
-      "ur/adapters/opencl/common.cpp"
-      "ur/adapters/opencl/common.hpp"
-      "ur/adapters/opencl/context.cpp"
-      "ur/adapters/opencl/context.hpp"
-      "ur/adapters/opencl/device.cpp"
-      "ur/adapters/opencl/device.hpp"
-      "ur/adapters/opencl/enqueue.cpp"
-      "ur/adapters/opencl/event.cpp"
-      "ur/adapters/opencl/image.cpp"
-      "ur/adapters/opencl/kernel.cpp"
-      "ur/adapters/opencl/memory.cpp"
-      "ur/adapters/opencl/platform.cpp"
-      "ur/adapters/opencl/platform.hpp"
-      "ur/adapters/opencl/program.cpp"
-      "ur/adapters/opencl/queue.cpp"
-      "ur/adapters/opencl/sampler.cpp"
-      "ur/adapters/opencl/ur_interface_loader.cpp"
-      "ur/adapters/opencl/usm.cpp"
-      "ur/adapters/opencl/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      OpenCL-ICD
-    )
-
-  # Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION.
-  # Define all symbols up to OpenCL 3.0.
-  target_compile_definitions(ur_adapter_opencl PRIVATE CL_TARGET_OPENCL_VERSION=300)
-
-  set_target_properties("ur_adapter_opencl" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   add_sycl_library("ur_adapter_native_cpu" SHARED
     SOURCES
@@ -280,4 +236,8 @@ endif()
 
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl-runtime-libraries ur_adapter_hip)
+endif()
+
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
 endif()
