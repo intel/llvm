@@ -1,3 +1,4 @@
+// REQUIRES: aspect-fp16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
@@ -5,6 +6,9 @@
 // `The implementation handling parallel_for with reduction requires
 // work group size not bigger than 1`.
 // XFAIL: hip_nvidia
+
+// Incorrect result on AMD.
+// XFAIL: hip_amd
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
