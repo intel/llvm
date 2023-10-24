@@ -299,8 +299,6 @@ CommonSetup(std::function<void(sycl::unittest::PiMock &)> RedefinitionFunc) {
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -332,8 +330,6 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
 TEST(DeviceGlobalTest, DeviceGlobalInitialMemContents) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
   });
@@ -359,8 +355,6 @@ TEST(DeviceGlobalTest, DeviceGlobalInitialMemContents) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -390,8 +384,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -421,8 +413,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -451,8 +441,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -481,8 +469,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -511,8 +497,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -541,8 +525,6 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -564,8 +546,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -587,8 +567,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -615,8 +593,6 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    // The first call to Memcpy initializes the memory
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
