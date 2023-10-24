@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl -fsycl-targets=amd_gpu_gfx90a -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
+// RUN: %{build} -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
 // REQUIRES: gpu-amd-gfx90a
