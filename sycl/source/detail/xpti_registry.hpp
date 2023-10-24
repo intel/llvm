@@ -194,9 +194,9 @@ public:
     }
   }
 
-  XPTIScope(const XPTIScope &rhs) = default;
+  XPTIScope(const XPTIScope &rhs) = delete;
 
-  XPTIScope &operator=(const XPTIScope &rhs) = default;
+  XPTIScope &operator=(const XPTIScope &rhs) = delete;
 
   xpti::trace_event_data_t *traceEvent() { return MTraceEvent; }
 
