@@ -104,10 +104,6 @@ elif platform.system() == "Linux":
     config.substitutions.append( ('%obj_ext', '.o') )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 
-# If breaking change preview library is enabled we can enable the feature.
-if config.sycl_preview_lib_enabled == "ON":
-    config.available_features.add('preview-breaking-changes-supported')
-
 # Intel GPU FAMILY availability
 if lit_config.params.get('gpu-intel-gen9', False):
     config.available_features.add('gpu-intel-gen9')
@@ -168,6 +164,19 @@ if sp[0] == 0:
     config.substitutions.append( ('%level_zero_options', level_zero_options) )
 else:
     config.substitutions.append( ('%level_zero_options', '') )
+
+# Check for sycl-preview library
+check_preview_breaking_changes_file='preview_breaking_changes_link.cpp'
+with open(check_preview_breaking_changes_file, 'w') as fp:
+    fp.write('#include <sycl/sycl.hpp>')
+    fp.write('namespace sycl { inline namespace _V1 { namespace detail {')
+    fp.write('extern void PreviewMajorReleaseMarker();')
+    fp.write('}}}')
+    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }')
+
+sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -fpreview-breaking-changes ' + check_preview_breaking_changes_file)
+if sp[0] == 0:
+    config.available_features.add('preview-breaking-changes-supported')
 
 # Check for CUDA SDK
 check_cuda_file='cuda_include.cpp'

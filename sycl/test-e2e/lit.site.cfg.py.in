@@ -17,7 +17,6 @@ config.sycl_tools_dir = config.llvm_tools_dir
 config.sycl_include = os.path.join(config.dpcpp_root_dir, 'include')
 config.sycl_obj_root = "@CMAKE_CURRENT_BINARY_DIR@"
 config.sycl_libs_dir =  os.path.join(config.dpcpp_root_dir, ('bin' if platform.system() == "Windows" else 'lib'))
-config.sycl_preview_lib_enabled = '@SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB@'
 
 config.opencl_libs_dir = (os.path.dirname("@OpenCL_LIBRARY@") if "@OpenCL_LIBRARY@" else "")
 config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
