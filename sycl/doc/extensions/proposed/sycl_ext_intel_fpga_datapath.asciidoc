@@ -264,7 +264,7 @@ Returns a reference to the underlying `T`.
 
 Below are some non-obvious interactions between `fpga_datapath` and other SYCL extensions. 
 
-* Since fpga_mem/fpga_datapath applies to the entire object that it wraps, conflicting hints may be applied the same object, such as in the example below.
+* Since fpga_mem and fpga_datapath apply to the entire object that they wrap, conflicting hints may be applied to the same object, such as in the example below.
 
 [source,c++]
 ----
