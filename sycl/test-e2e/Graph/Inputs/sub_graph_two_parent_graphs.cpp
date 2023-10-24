@@ -91,9 +91,10 @@ int main() {
     return result;
   };
 
+  const int NegThree = -3;
   for (size_t i = 0; i < N; i++) {
-    assert(OutputA[i] == -3);
-    assert(OutputB[i] == refB(i));
+    assert(check_value(i, OutputA[i], NegThree, "NegThree"));
+    assert(check_value(i, OutputB[i], refB(i), "refB"));
   }
 
   sycl::free(X, Queue);

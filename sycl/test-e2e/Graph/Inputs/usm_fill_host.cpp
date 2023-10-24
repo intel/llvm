@@ -22,8 +22,8 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  for (int i = 0; i < N; i++)
-    assert(Arr[i] == Pattern);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Arr[i], Pattern, "Pattern"));
 
   sycl::free(Arr, Queue);
 
