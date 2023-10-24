@@ -12,7 +12,7 @@
 template <size_t KX> void half_matrix_mfma() {
   hip_matrix_mfma<sycl::half, float, 32, 32, 8, KX, layout::row_major>();
   hip_matrix_mfma<sycl::half, float, 16, 16, 16, KX, layout::row_major>();
-  hip_matrix_mfma<sycl::half, float, 32, 32, 8, KX layout::col_major>();
+  hip_matrix_mfma<sycl::half, float, 32, 32, 8, KX, layout::col_major>();
   hip_matrix_mfma<sycl::half, float, 16, 16, 16, KX, layout::col_major>();
 }
 
