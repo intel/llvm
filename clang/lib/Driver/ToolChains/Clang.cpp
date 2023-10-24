@@ -1101,7 +1101,6 @@ static void handleAMDGPUCodeObjectVersionOptions(const Driver &D,
   }
 }
 
-<<<<<<< HEAD
 /// Check whether the given input tree contains any append footer actions
 static bool ContainsAppendFooterAction(const Action *A) {
   if (isa<AppendFooterJobAction>(A))
@@ -1110,7 +1109,9 @@ static bool ContainsAppendFooterAction(const Action *A) {
     if (ContainsAppendFooterAction(AI))
       return true;
 
-=======
+  return false;
+}
+
 static bool hasClangPchSignature(const Driver &D, StringRef Path) {
   if (llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> MemBuf =
           D.getVFS().getBufferForFile(Path))
@@ -1137,7 +1138,6 @@ static bool gchProbe(const Driver &D, StringRef Path) {
   if (hasClangPchSignature(D, Path))
     return true;
   D.Diag(diag::warn_drv_pch_ignoring_gch_file) << Path;
->>>>>>> 82f75ed5997c317350b539dc185f5dbe2ec197a3
   return false;
 }
 
