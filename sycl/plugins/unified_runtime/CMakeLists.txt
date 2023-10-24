@@ -53,8 +53,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/npmiller/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG b4425bc19fb9eaa445247c2179563a1f7e9356cc)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b
+  # Merge: 614e6d0 b4425bc
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Oct 23 14:49:01 2023 +0100
+  #     Merge pull request #945 from npmiller/fix-priority
+  #     [CUDA] Fix queue creation with native handle
+  set(UNIFIED_RUNTIME_TAG 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
