@@ -56,6 +56,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
+#include <SymPropReader.h>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -64,7 +65,6 @@
 #include <memory>
 #include <string>
 #include <tuple>
-#include <SymPropReader.h>
 
 #define OPENMP_OFFLOAD_IMAGE_VERSION "1.0"
 
@@ -768,11 +768,11 @@ private:
     // compatibility and new SYCL features
     if (symPropReader) {
       for (uint64_t i = 0; i < symPropReader->getNumEntries(); i++)
-        EntriesInits.push_back(
-            ConstantStruct::get(getEntryTy(), NullPtr,
-                                addStringToModule(symPropReader->getEntryName(i),
-                                                  "__sycl_offload_entry_name"),
-                                Zero, i32Zero, i32Zero));
+        EntriesInits.push_back(ConstantStruct::get(
+            getEntryTy(), NullPtr,
+            addStringToModule(symPropReader->getEntryName(i),
+                              "__sycl_offload_entry_name"),
+            Zero, i32Zero, i32Zero));
     } else {
       Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
       if (!MBOrErr)
@@ -1232,7 +1232,7 @@ public:
       : M("offload.wrapper.object", C), ToolName(ToolName) {
 
     if (!SymPropBCFiles.empty())
-      symPropReader = std::make_unique<SymPropReader>(SymPropBCFiles,ToolName);
+      symPropReader = std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
 
     M.setTargetTriple(Target);
     // Look for llvm-objcopy in the same directory, from which
