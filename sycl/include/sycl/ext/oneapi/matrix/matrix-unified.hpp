@@ -15,8 +15,8 @@
 #include "matrix-tensorcores.hpp"
 #elif defined(__gfx90a__)
 #include "matrix-hip.hpp"
-#endif
-#endif
+#endif // defined(__NVPTX__)
+#endif // defined(__SYCL_DEVICE_ONLY__)
 
 #include <sycl/access/access.hpp>             // for address_space
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
