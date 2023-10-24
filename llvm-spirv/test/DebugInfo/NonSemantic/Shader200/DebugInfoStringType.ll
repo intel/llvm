@@ -75,11 +75,11 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-%"QNCA_a0$i8*$rank0$" = type { ptr, i64, i64, i64, i64, i64 }
+%"QNCA_a0$ptr$rank0$" = type { ptr, i64, i64, i64, i64, i64 }
 
 @strlit = internal unnamed_addr constant [5 x i8] c"HELLO"
 @strlit.1 = internal unnamed_addr constant [3 x i8] c"TOM"
-@"hello_world_$GREETING" = internal global %"QNCA_a0$i8*$rank0$" zeroinitializer, !dbg !2
+@"hello_world_$GREETING" = internal global %"QNCA_a0$ptr$rank0$" zeroinitializer, !dbg !2
 @"hello_world_$NAME" = internal global [10 x i8] zeroinitializer, align 1, !dbg !10
 @0 = internal unnamed_addr constant i32 65536, align 4
 @1 = internal unnamed_addr constant i32 2, align 4
@@ -88,7 +88,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind uwtable
 define void @MAIN__() local_unnamed_addr #0 !dbg !4{
   %"hello_world_$GREETING_fetch.16" = load ptr, ptr @"hello_world_$GREETING", align 16, !dbg !20
-  %fetch.15 = load i64, ptr getelementptr inbounds (%"QNCA_a0$i8*$rank0$", ptr @"hello_world_$GREETING", i64 0, i32 1), align 8, !dbg !20
+  %fetch.15 = load i64, ptr getelementptr inbounds (%"QNCA_a0$ptr$rank0$", ptr @"hello_world_$GREETING", i64 0, i32 1), align 8, !dbg !20
   call void @llvm.dbg.value(metadata i64 %fetch.15, metadata !24, metadata !DIExpression()), !dbg !21
   call void @llvm.dbg.value(metadata i64 %fetch.15, metadata !31, metadata !DIExpression()), !dbg !21
   call void @llvm.dbg.value(metadata i64 10, metadata !28, metadata !DIExpression()), !dbg !21

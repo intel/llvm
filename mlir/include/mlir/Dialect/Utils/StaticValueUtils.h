@@ -15,9 +15,11 @@
 #ifndef MLIR_DIALECT_UTILS_STATICVALUEUTILS_H
 #define MLIR_DIALECT_UTILS_STATICVALUEUTILS_H
 
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 
 namespace mlir {
 
@@ -57,8 +59,14 @@ void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
                                 SmallVectorImpl<Value> &dynamicVec,
                                 SmallVectorImpl<int64_t> &staticVec);
 
-/// Extract int64_t values from the assumed ArrayAttr of IntegerAttr.
-SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr);
+/// Extract integer values from the assumed ArrayAttr of IntegerAttr.
+template <typename IntTy>
+SmallVector<IntTy> extractFromIntegerArrayAttr(Attribute attr) {
+  return llvm::to_vector(
+      llvm::map_range(cast<ArrayAttr>(attr), [](Attribute a) -> IntTy {
+        return cast<IntegerAttr>(a).getInt();
+      }));
+}
 
 /// Given a value, try to extract a constant Attribute. If this fails, return
 /// the original value.
@@ -77,6 +85,9 @@ SmallVector<OpFoldResult> getAsIndexOpFoldResult(MLIRContext *ctx,
 
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
 std::optional<int64_t> getConstantIntValue(OpFoldResult ofr);
+/// If all ofrs are constant integers or IntegerAttrs, return the integers.
+std::optional<SmallVector<int64_t>>
+getConstantIntValues(ArrayRef<OpFoldResult> ofrs);
 
 /// Return true if `ofr` is constant integer equal to `value`.
 bool isConstantIntValue(OpFoldResult ofr, int64_t value);
@@ -127,6 +138,11 @@ getValuesSortedByKey(ArrayRef<Attribute> keys, ArrayRef<OpFoldResult> values,
 SmallVector<int64_t>
 getValuesSortedByKey(ArrayRef<Attribute> keys, ArrayRef<int64_t> values,
                      llvm::function_ref<bool(Attribute, Attribute)> compare);
+
+/// Returns "success" when any of the elements in `ofrs` is a constant value. In
+/// that case the value is replaced by an attribute. Returns "failure" when no
+/// folding happened.
+LogicalResult foldDynamicIndexList(SmallVectorImpl<OpFoldResult> &ofrs);
 
 /// Return the number of iterations for a loop with a lower bound `lb`, upper
 /// bound `ub` and step `step`.

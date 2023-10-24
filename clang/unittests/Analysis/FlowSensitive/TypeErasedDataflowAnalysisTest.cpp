@@ -77,11 +77,38 @@ runAnalysis(llvm::StringRef Code, AnalysisT (*MakeAnalysis)(ASTContext &)) {
 TEST(DataflowAnalysisTest, NoopAnalysis) {
   auto BlockStates = llvm::cantFail(
       runAnalysis<NoopAnalysis>("void target() {}", [](ASTContext &C) {
-        return NoopAnalysis(C, false);
+        return NoopAnalysis(C,
+                            // Don't use builtin transfer function.
+                            DataflowAnalysisOptions{std::nullopt});
       }));
   EXPECT_EQ(BlockStates.size(), 2u);
   EXPECT_TRUE(BlockStates[0].has_value());
   EXPECT_TRUE(BlockStates[1].has_value());
+}
+
+// Basic test that `diagnoseFunction` calls the Diagnoser function for the
+// number of elements expected.
+TEST(DataflowAnalysisTest, DiagnoseFunctionDiagnoserCalledOnEachElement) {
+  std::string Code = R"(void target() { int x = 0; ++x; })";
+  std::unique_ptr<ASTUnit> AST =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=c++11"});
+
+  auto *Func =
+      cast<FunctionDecl>(findValueDecl(AST->getASTContext(), "target"));
+  auto Diagnoser = [](const CFGElement &Elt, ASTContext &,
+                      const TransferStateForDiagnostics<NoopLattice> &) {
+    llvm::SmallVector<std::string> Diagnostics(1);
+    llvm::raw_string_ostream OS(Diagnostics.front());
+    Elt.dumpToStream(OS);
+    return Diagnostics;
+  };
+  auto Result = diagnoseFunction<NoopAnalysis, std::string>(
+      *Func, AST->getASTContext(), Diagnoser);
+  // `diagnoseFunction` provides no guarantees about the order in which elements
+  // are visited, so we use `UnorderedElementsAre`.
+  EXPECT_THAT_EXPECTED(Result, llvm::HasValue(UnorderedElementsAre(
+                                   "0\n", "int x = 0;\n", "x\n", "++x\n",
+                                   " (Lifetime ends)\n")));
 }
 
 struct NonConvergingLattice {
@@ -105,7 +132,8 @@ public:
   explicit NonConvergingAnalysis(ASTContext &Context)
       : DataflowAnalysis<NonConvergingAnalysis, NonConvergingLattice>(
             Context,
-            /*ApplyBuiltinTransfer=*/false) {}
+            // Don't apply builtin transfer function.
+            DataflowAnalysisOptions{std::nullopt}) {}
 
   static NonConvergingLattice initialElement() { return {0}; }
 
@@ -128,9 +156,9 @@ TEST(DataflowAnalysisTest, NonConvergingAnalysis) {
 
 // Regression test for joins of bool-typed lvalue expressions. The first loop
 // results in two passes through the code that follows. Each pass results in a
-// different `ReferenceValue` for the pointee of `v`. Then, the second loop
+// different `StorageLocation` for the pointee of `v`. Then, the second loop
 // causes a join at the loop head where the two environments map expresssion
-// `*v` to different `ReferenceValue`s.
+// `*v` to different `StorageLocation`s.
 //
 // An earlier version crashed for this condition (for boolean-typed lvalues), so
 // this test only verifies that the analysis runs successfully, without
@@ -390,23 +418,18 @@ public:
     if (const auto *E = selectFirst<CXXConstructExpr>(
             "call", match(cxxConstructExpr(HasSpecialBoolType).bind("call"), *S,
                           getASTContext()))) {
-      auto &ConstructorVal = *Env.createValue(E->getType());
-      ConstructorVal.setProperty("is_set", Env.getBoolLiteralValue(false));
-      Env.setValue(*Env.getStorageLocation(*E, SkipPast::None), ConstructorVal);
+      cast<RecordValue>(Env.getValue(*E))
+          ->setProperty("is_set", Env.getBoolLiteralValue(false));
     } else if (const auto *E = selectFirst<CXXMemberCallExpr>(
                    "call", match(cxxMemberCallExpr(callee(cxxMethodDecl(ofClass(
                                                        SpecialBoolRecordDecl))))
                                      .bind("call"),
                                  *S, getASTContext()))) {
-      auto *Object = E->getImplicitObjectArgument();
-      assert(Object != nullptr);
+      auto &ObjectLoc =
+          *cast<RecordStorageLocation>(getImplicitObjectLocation(*E, Env));
 
-      auto *ObjectLoc = getImplicitObjectLocation(*E, Env);
-      assert(ObjectLoc != nullptr);
-
-      auto &ConstructorVal = *Env.createValue(Object->getType());
-      ConstructorVal.setProperty("is_set", Env.getBoolLiteralValue(true));
-      Env.setValue(*ObjectLoc, ConstructorVal);
+      refreshRecordValue(ObjectLoc, Env)
+          .setProperty("is_set", Env.getBoolLiteralValue(true));
     }
   }
 
@@ -427,8 +450,8 @@ public:
     if (IsSet2 == nullptr)
       return ComparisonResult::Different;
 
-    return Env1.flowConditionImplies(*IsSet1) ==
-                   Env2.flowConditionImplies(*IsSet2)
+    return Env1.flowConditionImplies(IsSet1->formula()) ==
+                   Env2.flowConditionImplies(IsSet2->formula())
                ? ComparisonResult::Same
                : ComparisonResult::Different;
   }
@@ -452,9 +475,9 @@ public:
 
     auto &IsSet = MergedEnv.makeAtomicBoolValue();
     MergedVal.setProperty("is_set", IsSet);
-    if (Env1.flowConditionImplies(*IsSet1) &&
-        Env2.flowConditionImplies(*IsSet2))
-      MergedEnv.addToFlowCondition(IsSet);
+    if (Env1.flowConditionImplies(IsSet1->formula()) &&
+        Env2.flowConditionImplies(IsSet2->formula()))
+      MergedEnv.addToFlowCondition(IsSet.formula());
 
     return true;
   }
@@ -516,14 +539,15 @@ TEST_F(JoinFlowConditionsTest, JoinDistinctButProvablyEquivalentValues) {
         const ValueDecl *FooDecl = findValueDecl(ASTCtx, "Foo");
         ASSERT_THAT(FooDecl, NotNull());
 
-        auto GetFooValue = [FooDecl](const Environment &Env) {
-          return cast<BoolValue>(Env.getValue(*FooDecl)->getProperty("is_set"));
+        auto GetFoo = [FooDecl](const Environment &Env) -> const Formula & {
+          return cast<BoolValue>(Env.getValue(*FooDecl)->getProperty("is_set"))
+              ->formula();
         };
 
-        EXPECT_FALSE(Env1.flowConditionImplies(*GetFooValue(Env1)));
-        EXPECT_TRUE(Env2.flowConditionImplies(*GetFooValue(Env2)));
-        EXPECT_TRUE(Env3.flowConditionImplies(*GetFooValue(Env3)));
-        EXPECT_TRUE(Env4.flowConditionImplies(*GetFooValue(Env4)));
+        EXPECT_FALSE(Env1.flowConditionImplies(GetFoo(Env1)));
+        EXPECT_TRUE(Env2.flowConditionImplies(GetFoo(Env2)));
+        EXPECT_TRUE(Env3.flowConditionImplies(GetFoo(Env3)));
+        EXPECT_TRUE(Env4.flowConditionImplies(GetFoo(Env4)));
       });
 }
 
@@ -551,21 +575,16 @@ public:
         *S, getASTContext());
     if (const auto *E = selectFirst<CXXConstructExpr>(
             "construct", Matches)) {
-      auto &ConstructorVal = *Env.createValue(E->getType());
-      ConstructorVal.setProperty("has_value", Env.getBoolLiteralValue(false));
-      Env.setValue(*Env.getStorageLocation(*E, SkipPast::None), ConstructorVal);
+      cast<RecordValue>(Env.getValue(*E))
+          ->setProperty("has_value", Env.getBoolLiteralValue(false));
     } else if (const auto *E =
                    selectFirst<CXXOperatorCallExpr>("operator", Matches)) {
       assert(E->getNumArgs() > 0);
       auto *Object = E->getArg(0);
       assert(Object != nullptr);
 
-      auto *ObjectLoc = Env.getStorageLocation(*Object, SkipPast::Reference);
-      assert(ObjectLoc != nullptr);
-
-      auto &ConstructorVal = *Env.createValue(Object->getType());
-      ConstructorVal.setProperty("has_value", Env.getBoolLiteralValue(true));
-      Env.setValue(*ObjectLoc, ConstructorVal);
+      refreshRecordValue(*Object, Env)
+          .setProperty("has_value", Env.getBoolLiteralValue(true));
     }
   }
 
@@ -795,7 +814,7 @@ protected:
             AnalysisInputs<NoopAnalysis>(
                 Code, ast_matchers::hasName("target"),
                 [](ASTContext &Context, Environment &Env) {
-                  return NoopAnalysis(Context, true);
+                  return NoopAnalysis(Context);
                 })
                 .withASTBuildArgs({"-fsyntax-only", "-std=c++17"}),
             /*VerifyResults=*/[&Match](const llvm::StringMap<
@@ -829,12 +848,12 @@ TEST_F(FlowConditionTest, IfStmtSingleVar) {
         ASSERT_THAT(Results.keys(), UnorderedElementsAre("p1", "p2"));
 
         const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-        auto *FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl));
-        EXPECT_TRUE(Env1.flowConditionImplies(*FooVal1));
+        auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
+        EXPECT_TRUE(Env1.flowConditionImplies(FooVal1));
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-        auto *FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl));
-        EXPECT_FALSE(Env2.flowConditionImplies(*FooVal2));
+        auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
+        EXPECT_FALSE(Env2.flowConditionImplies(FooVal2));
       });
 }
 
@@ -860,12 +879,12 @@ TEST_F(FlowConditionTest, IfStmtSingleNegatedVar) {
         ASSERT_THAT(Results.keys(), UnorderedElementsAre("p1", "p2"));
 
         const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-        auto *FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl));
-        EXPECT_FALSE(Env1.flowConditionImplies(*FooVal1));
+        auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
+        EXPECT_FALSE(Env1.flowConditionImplies(FooVal1));
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-        auto *FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl));
-        EXPECT_TRUE(Env2.flowConditionImplies(*FooVal2));
+        auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
+        EXPECT_TRUE(Env2.flowConditionImplies(FooVal2));
       });
 }
 
@@ -888,8 +907,31 @@ TEST_F(FlowConditionTest, WhileStmt) {
         ASSERT_THAT(Results.keys(), UnorderedElementsAre("p"));
         const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
 
-        auto *FooVal = cast<BoolValue>(Env.getValue(*FooDecl));
-        EXPECT_TRUE(Env.flowConditionImplies(*FooVal));
+        auto &FooVal = cast<BoolValue>(Env.getValue(*FooDecl))->formula();
+        EXPECT_TRUE(Env.flowConditionImplies(FooVal));
+      });
+}
+
+TEST_F(FlowConditionTest, WhileStmtWithAssignmentInCondition) {
+  std::string Code = R"(
+    void target(bool Foo) {
+      // This test checks whether the analysis preserves the connection between
+      // the value of `Foo` and the assignment expression, despite widening.
+      // The equality operator generates a fresh boolean variable on each
+      // interpretation, which forces use of widening.
+      while ((Foo = (3 == 4))) {
+        (void)0;
+        /*[[p]]*/
+      }
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+        auto &FooVal = getValueForDecl<BoolValue>(ASTCtx, Env, "Foo").formula();
+        EXPECT_TRUE(Env.flowConditionImplies(FooVal));
       });
 }
 
@@ -917,16 +959,16 @@ TEST_F(FlowConditionTest, Conjunction) {
     ASSERT_THAT(Results.keys(), UnorderedElementsAre("p1", "p2"));
 
     const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-    auto *FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl));
-    auto *BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl));
-    EXPECT_TRUE(Env1.flowConditionImplies(*FooVal1));
-    EXPECT_TRUE(Env1.flowConditionImplies(*BarVal1));
+    auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
+    auto &BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl))->formula();
+    EXPECT_TRUE(Env1.flowConditionImplies(FooVal1));
+    EXPECT_TRUE(Env1.flowConditionImplies(BarVal1));
 
     const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-    auto *FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl));
-    auto *BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl));
-    EXPECT_FALSE(Env2.flowConditionImplies(*FooVal2));
-    EXPECT_FALSE(Env2.flowConditionImplies(*BarVal2));
+    auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
+    auto &BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl))->formula();
+    EXPECT_FALSE(Env2.flowConditionImplies(FooVal2));
+    EXPECT_FALSE(Env2.flowConditionImplies(BarVal2));
   });
 }
 
@@ -954,16 +996,16 @@ TEST_F(FlowConditionTest, Disjunction) {
     ASSERT_THAT(Results.keys(), UnorderedElementsAre("p1", "p2"));
 
     const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-    auto *FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl));
-    auto *BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl));
-    EXPECT_FALSE(Env1.flowConditionImplies(*FooVal1));
-    EXPECT_FALSE(Env1.flowConditionImplies(*BarVal1));
+    auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
+    auto &BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl))->formula();
+    EXPECT_FALSE(Env1.flowConditionImplies(FooVal1));
+    EXPECT_FALSE(Env1.flowConditionImplies(BarVal1));
 
     const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-    auto *FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl));
-    auto *BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl));
-    EXPECT_FALSE(Env2.flowConditionImplies(*FooVal2));
-    EXPECT_FALSE(Env2.flowConditionImplies(*BarVal2));
+    auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
+    auto &BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl))->formula();
+    EXPECT_FALSE(Env2.flowConditionImplies(FooVal2));
+    EXPECT_FALSE(Env2.flowConditionImplies(BarVal2));
   });
 }
 
@@ -991,16 +1033,16 @@ TEST_F(FlowConditionTest, NegatedConjunction) {
     ASSERT_THAT(Results.keys(), UnorderedElementsAre("p1", "p2"));
 
     const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-    auto *FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl));
-    auto *BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl));
-    EXPECT_FALSE(Env1.flowConditionImplies(*FooVal1));
-    EXPECT_FALSE(Env1.flowConditionImplies(*BarVal1));
+    auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
+    auto &BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl))->formula();
+    EXPECT_FALSE(Env1.flowConditionImplies(FooVal1));
+    EXPECT_FALSE(Env1.flowConditionImplies(BarVal1));
 
     const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-    auto *FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl));
-    auto *BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl));
-    EXPECT_TRUE(Env2.flowConditionImplies(*FooVal2));
-    EXPECT_TRUE(Env2.flowConditionImplies(*BarVal2));
+    auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
+    auto &BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl))->formula();
+    EXPECT_TRUE(Env2.flowConditionImplies(FooVal2));
+    EXPECT_TRUE(Env2.flowConditionImplies(BarVal2));
   });
 }
 
@@ -1028,16 +1070,16 @@ TEST_F(FlowConditionTest, DeMorgan) {
     ASSERT_THAT(Results.keys(), UnorderedElementsAre("p1", "p2"));
 
     const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-    auto *FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl));
-    auto *BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl));
-    EXPECT_TRUE(Env1.flowConditionImplies(*FooVal1));
-    EXPECT_TRUE(Env1.flowConditionImplies(*BarVal1));
+    auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
+    auto &BarVal1 = cast<BoolValue>(Env1.getValue(*BarDecl))->formula();
+    EXPECT_TRUE(Env1.flowConditionImplies(FooVal1));
+    EXPECT_TRUE(Env1.flowConditionImplies(BarVal1));
 
     const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-    auto *FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl));
-    auto *BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl));
-    EXPECT_FALSE(Env2.flowConditionImplies(*FooVal2));
-    EXPECT_FALSE(Env2.flowConditionImplies(*BarVal2));
+    auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
+    auto &BarVal2 = cast<BoolValue>(Env2.getValue(*BarDecl))->formula();
+    EXPECT_FALSE(Env2.flowConditionImplies(FooVal2));
+    EXPECT_FALSE(Env2.flowConditionImplies(BarVal2));
   });
 }
 
@@ -1065,8 +1107,8 @@ TEST_F(FlowConditionTest, Join) {
         ASSERT_THAT(FooDecl, NotNull());
 
         const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
-        auto *FooVal = cast<BoolValue>(Env.getValue(*FooDecl));
-        EXPECT_TRUE(Env.flowConditionImplies(*FooVal));
+        auto &FooVal = cast<BoolValue>(Env.getValue(*FooDecl))->formula();
+        EXPECT_TRUE(Env.flowConditionImplies(FooVal));
       });
 }
 
@@ -1098,7 +1140,7 @@ TEST_F(FlowConditionTest, OpaqueFlowConditionMergesToOpaqueBool) {
         const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
         ASSERT_THAT(BarDecl, NotNull());
 
-        auto &BarVal = *cast<BoolValue>(Env.getValue(*BarDecl));
+        auto &BarVal = cast<BoolValue>(Env.getValue(*BarDecl))->formula();
 
         EXPECT_FALSE(Env.flowConditionImplies(BarVal));
       });
@@ -1139,7 +1181,7 @@ TEST_F(FlowConditionTest, OpaqueFieldFlowConditionMergesToOpaqueBool) {
         const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
         ASSERT_THAT(BarDecl, NotNull());
 
-        auto &BarVal = *cast<BoolValue>(Env.getValue(*BarDecl));
+        auto &BarVal = cast<BoolValue>(Env.getValue(*BarDecl))->formula();
 
         EXPECT_FALSE(Env.flowConditionImplies(BarVal));
       });
@@ -1173,7 +1215,7 @@ TEST_F(FlowConditionTest, OpaqueFlowConditionInsideBranchMergesToOpaqueBool) {
         const ValueDecl *BarDecl = findValueDecl(ASTCtx, "Bar");
         ASSERT_THAT(BarDecl, NotNull());
 
-        auto &BarVal = *cast<BoolValue>(Env.getValue(*BarDecl));
+        auto &BarVal = cast<BoolValue>(Env.getValue(*BarDecl))->formula();
 
         EXPECT_FALSE(Env.flowConditionImplies(BarVal));
       });
@@ -1202,11 +1244,11 @@ TEST_F(FlowConditionTest, PointerToBoolImplicitCast) {
         ASSERT_THAT(FooDecl, NotNull());
 
         const Environment &Env1 = getEnvironmentAtAnnotation(Results, "p1");
-        auto &FooVal1 = *cast<BoolValue>(Env1.getValue(*FooDecl));
+        auto &FooVal1 = cast<BoolValue>(Env1.getValue(*FooDecl))->formula();
         EXPECT_TRUE(Env1.flowConditionImplies(FooVal1));
 
         const Environment &Env2 = getEnvironmentAtAnnotation(Results, "p2");
-        auto &FooVal2 = *cast<BoolValue>(Env2.getValue(*FooDecl));
+        auto &FooVal2 = cast<BoolValue>(Env2.getValue(*FooDecl))->formula();
         EXPECT_FALSE(Env2.flowConditionImplies(FooVal2));
       });
 }
@@ -1227,9 +1269,7 @@ public:
         match(callExpr(callee(functionDecl(hasName("makeTop")))).bind("top"),
               *S, getASTContext());
     if (const auto *E = selectFirst<CallExpr>("top", Matches)) {
-      auto &Loc = Env.createStorageLocation(*E);
-      Env.setValue(Loc, Env.makeTopBoolValue());
-      Env.setStorageLocation(*E, Loc);
+      Env.setValue(*E, Env.makeTopBoolValue());
     }
   }
 
@@ -1545,7 +1585,8 @@ TEST_F(TopTest, TopUsedInBothBranchesWithoutPrecisionLoss) {
         auto *BarVal = dyn_cast_or_null<BoolValue>(Env.getValue(*BarDecl));
         ASSERT_THAT(BarVal, NotNull());
 
-        EXPECT_TRUE(Env.flowConditionImplies(Env.makeIff(*FooVal, *BarVal)));
+        EXPECT_TRUE(Env.flowConditionImplies(
+            Env.arena().makeEquals(FooVal->formula(), BarVal->formula())));
       });
 }
 
@@ -1596,5 +1637,22 @@ TEST_F(TopTest, TopUnusedBeforeLoopHeadJoinsToTop) {
             << debugString(FooVal2->getKind());
 
       });
+}
+
+TEST_F(TopTest, ForRangeStmtConverges) {
+  std::string Code = R"(
+    void target(bool Foo) {
+      int Ints[10];
+      bool B = false;
+      for (int I : Ints)
+        B = true;
+    }
+  )";
+  runDataflow(Code,
+              [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &,
+                 const AnalysisOutputs &) {
+                // No additional expectations. We're only checking that the
+                // analysis converged.
+              });
 }
 } // namespace

@@ -2,9 +2,6 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
-// FIXME: enable opaque pointers support
-// REQUIRES: TEMPORARY_DISABLED
-
 // Test internalization of a nested array type.
 
 #include <array>
@@ -87,7 +84,7 @@ int main() {
         const auto &accIn1Wrapp = accIn1[id];
         const auto &accIn2Wrapp = accIn2[id];
         auto &accTmpWrapp = accTmp[id];
-        for (size_t i = 0; i < dataSize; ++i) {
+        for (size_t i = 0; i < rows; ++i) {
           const auto &in1 = accIn1Wrapp[i];
           const auto &in2 = accIn2Wrapp[i];
           auto &tmp = accTmpWrapp[i];
@@ -107,7 +104,7 @@ int main() {
         const auto &tmpWrapp = accTmp[id];
         const auto &accIn3Wrapp = accIn3[id];
         auto &accOutWrapp = accOut[id];
-        for (size_t i = 0; i < dataSize; ++i) {
+        for (size_t i = 0; i < rows; ++i) {
           const auto &tmp = tmpWrapp[i];
           const auto &in3 = accIn3Wrapp[i];
           auto &out = accOutWrapp[i];

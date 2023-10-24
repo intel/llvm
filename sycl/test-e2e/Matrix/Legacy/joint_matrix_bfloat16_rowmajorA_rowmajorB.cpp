@@ -11,16 +11,12 @@
 // RUN: %{run} %t.out
 
 // This tests support of row major layout for matrix B which does automatic VNNI
-// transform. This is currently only available on AMX
+// transform. This is currently only available on AMX and XMX of PVC
 
-// XFAIL: gpu
-
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
 

@@ -217,11 +217,13 @@ static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
   llvm::SmallVector<llvm::StringRef, 8> operands(intr.getNumOperands(),
                                                  "LLVM_Type");
   if (requiresAccessGroup)
-    operands.push_back("OptionalAttr<SymbolRefArrayAttr>:$access_groups");
+    operands.push_back(
+        "OptionalAttr<LLVM_AccessGroupArrayAttr>:$access_groups");
   if (requiresAliasAnalysis) {
-    operands.push_back("OptionalAttr<SymbolRefArrayAttr>:$alias_scopes");
-    operands.push_back("OptionalAttr<SymbolRefArrayAttr>:$noalias_scopes");
-    operands.push_back("OptionalAttr<SymbolRefArrayAttr>:$tbaa");
+    operands.push_back("OptionalAttr<LLVM_AliasScopeArrayAttr>:$alias_scopes");
+    operands.push_back(
+        "OptionalAttr<LLVM_AliasScopeArrayAttr>:$noalias_scopes");
+    operands.push_back("OptionalAttr<LLVM_TBAATagArrayAttr>:$tbaa");
   }
 
   // Emit the definition.
@@ -247,7 +249,7 @@ static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
 /// the name matching the filter.
 static bool emitIntrinsics(const llvm::RecordKeeper &records,
                            llvm::raw_ostream &os) {
-  llvm::emitSourceFileHeader("Operations for LLVM intrinsics", os);
+  llvm::emitSourceFileHeader("Operations for LLVM intrinsics", os, records);
   os << "include \"mlir/Dialect/LLVMIR/LLVMOpBase.td\"\n";
   os << "include \"mlir/Interfaces/SideEffectInterfaces.td\"\n\n";
 

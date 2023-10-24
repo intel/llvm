@@ -948,6 +948,15 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
 
   FunctionType::ExtInfo Info = T->getExtInfo();
 
+  if ((T->getAArch64SMEAttributes() & FunctionType::SME_PStateSMCompatibleMask))
+    OS << " __arm_streaming_compatible";
+  if ((T->getAArch64SMEAttributes() & FunctionType::SME_PStateSMEnabledMask))
+    OS << " __arm_streaming";
+  if ((T->getAArch64SMEAttributes() & FunctionType::SME_PStateZASharedMask))
+    OS << " __arm_shared_za";
+  if ((T->getAArch64SMEAttributes() & FunctionType::SME_PStateZAPreservedMask))
+    OS << " __arm_preserves_za";
+
   printFunctionAfter(Info, OS);
 
   if (!T->getMethodQuals().empty())
@@ -1044,6 +1053,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       break;
     case CC_PreserveAll:
       OS << " __attribute__((preserve_all))";
+      break;
+    case CC_M68kRTD:
+      OS << " __attribute__((m68k_rtd))";
       break;
     }
   }
@@ -1787,6 +1799,18 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     OS << "__arm_streaming";
     return;
   }
+  if (T->getAttrKind() == attr::ArmStreamingCompatible) {
+    OS << "__arm_streaming_compatible";
+    return;
+  }
+  if (T->getAttrKind() == attr::ArmSharedZA) {
+    OS << "__arm_shared_za";
+    return;
+  }
+  if (T->getAttrKind() == attr::ArmPreservesZA) {
+    OS << "__arm_preserves_za";
+    return;
+  }
 
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
@@ -1833,6 +1857,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::AnnotateType:
   case attr::WebAssemblyFuncref:
   case attr::ArmStreaming:
+  case attr::ArmStreamingCompatible:
+  case attr::ArmSharedZA:
+  case attr::ArmPreservesZA:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:
@@ -1873,6 +1900,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
 
   case attr::PreserveAll:
     OS << "preserve_all";
+    break;
+  case attr::M68kRTD:
+    OS << "m68k_rtd";
     break;
   case attr::NoDeref:
     OS << "noderef";

@@ -29,9 +29,13 @@ namespace llvm {
 /// are used to extract Bytes.
 template <typename ISelOp> class ByteProvider {
 private:
-  ByteProvider<ISelOp>(std::optional<ISelOp> Src, int64_t DestOffset,
-                       int64_t SrcOffset)
+  ByteProvider(std::optional<ISelOp> Src, int64_t DestOffset, int64_t SrcOffset)
       : Src(Src), DestOffset(DestOffset), SrcOffset(SrcOffset) {}
+
+  ByteProvider(std::optional<ISelOp> Src, int64_t DestOffset, int64_t SrcOffset,
+               std::optional<bool> IsSigned)
+      : Src(Src), DestOffset(DestOffset), SrcOffset(SrcOffset),
+        IsSigned(IsSigned) {}
 
   // TODO -- use constraint in c++20
   // Does this type correspond with an operation in selection DAG
@@ -62,6 +66,9 @@ public:
   // DestOffset
   int64_t SrcOffset = 0;
 
+  // Whether or not the path to this Src involved signed extensions
+  std::optional<bool> IsSigned;
+
   ByteProvider() = default;
 
   static ByteProvider getSrc(std::optional<ISelOp> Val, int64_t ByteOffset,
@@ -69,6 +76,14 @@ public:
     static_assert(is_op<ISelOp>().value,
                   "ByteProviders must contain an operation in selection DAG.");
     return ByteProvider(Val, ByteOffset, VectorOffset);
+  }
+
+  static ByteProvider getSrc(std::optional<ISelOp> Val, int64_t ByteOffset,
+                             int64_t VectorOffset,
+                             std::optional<bool> IsSigned) {
+    static_assert(is_op<ISelOp>().value,
+                  "ByteProviders must contain an operation in selection DAG.");
+    return ByteProvider(Val, ByteOffset, VectorOffset, IsSigned);
   }
 
   static ByteProvider getConstantZero() {

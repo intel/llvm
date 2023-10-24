@@ -366,7 +366,7 @@ public:
   void setLinkageType(SPIRVLinkageTypeKind);
   void setModule(SPIRVModule *TheModule);
   void setName(const std::string &TheName);
-  virtual void setScope(SPIRVEntry *Scope){};
+  virtual void setScope(SPIRVEntry *Scope) {}
   void takeAnnotations(SPIRVForward *);
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
@@ -1009,8 +1009,6 @@ _SPIRV_OP(ImageDrefGather)
 _SPIRV_OP(QuantizeToF16)
 _SPIRV_OP(ArrayLength)
 _SPIRV_OP(OuterProduct)
-_SPIRV_OP(IAddCarry)
-_SPIRV_OP(ISubBorrow)
 _SPIRV_OP(SMulExtended)
 _SPIRV_OP(UMulExtended)
 _SPIRV_OP(DPdx)

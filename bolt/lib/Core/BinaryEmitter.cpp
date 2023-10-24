@@ -214,6 +214,10 @@ void BinaryEmitter::emitAll(StringRef OrgSecPrefix) {
   }
 
   emitDataSections(OrgSecPrefix);
+
+  // TODO Enable for Mach-O once BinaryContext::getDataSection supports it.
+  if (BC.isELF())
+    AddressMap::emit(Streamer, BC);
 }
 
 void BinaryEmitter::emitFunctions() {
@@ -305,7 +309,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function,
     // tentative layout.
     Section->ensureMinAlignment(Align(opts::AlignFunctions));
 
-    Streamer.emitCodeAlignment(Align(BinaryFunction::MinAlign), &*BC.STI);
+    Streamer.emitCodeAlignment(Function.getMinAlign(), &*BC.STI);
     uint16_t MaxAlignBytes = FF.isSplitFragment()
                                  ? Function.getMaxColdAlignmentBytes()
                                  : Function.getMaxAlignmentBytes();
@@ -376,7 +380,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function,
   }
 
   if (opts::MarkFuncs)
-    Streamer.emitIntValue(BC.MIB->getTrapFillValue(), 1);
+    Streamer.emitBytes(BC.MIB->getTrapFillValue());
 
   // Emit CFI end
   if (Function.hasCFI())
@@ -420,7 +424,7 @@ void BinaryEmitter::emitFunctionBody(BinaryFunction &BF, FunctionFragment &FF,
     // case, the call site entries in that LSDA have 0 as offset to the landing
     // pad, which the runtime interprets as "no handler". To prevent this,
     // insert some padding.
-    Streamer.emitIntValue(BC.MIB->getTrapFillValue(), 1);
+    Streamer.emitBytes(BC.MIB->getTrapFillValue());
   }
 
   // Track the first emitted instruction with debug info.
@@ -493,6 +497,9 @@ void BinaryEmitter::emitFunctionBody(BinaryFunction &BF, FunctionFragment &FF,
         Streamer.emitLabel(LocSym);
         BB->getLocSyms().emplace_back(Offset, LocSym);
       }
+
+      if (auto Label = BC.MIB->getLabel(Instr))
+        Streamer.emitLabel(*Label);
 
       Streamer.emitInstruction(Instr, *BC.STI);
       LastIsPrefix = BC.MIB->isPrefix(Instr);

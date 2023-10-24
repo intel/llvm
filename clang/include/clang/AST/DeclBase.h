@@ -18,6 +18,7 @@
 #include "clang/AST/DeclarationName.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -476,6 +477,15 @@ public:
 
   // Return true if this is a FileContext Decl.
   bool isFileContextDecl() const;
+
+  /// Whether it resembles a flexible array member. This is a static member
+  /// because we want to be able to call it with a nullptr. That allows us to
+  /// perform non-Decl specific checks based on the object's type and strict
+  /// flex array level.
+  static bool isFlexibleArrayMemberLike(
+      ASTContext &Context, const Decl *D, QualType Ty,
+      LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel,
+      bool IgnoreTemplateOrMacroSubstitution);
 
   ASTContext &getASTContext() const LLVM_READONLY;
 
@@ -1382,6 +1392,13 @@ public:
   }
 };
 
+/// Only used by CXXDeductionGuideDecl.
+enum class DeductionCandidate : unsigned char {
+  Normal,
+  Copy,
+  Aggregate,
+};
+
 /// DeclContext - This is used only as base class of specific decl types that
 /// can act as declaration contexts. These decls are (only the top classes
 /// that directly derive from DeclContext are mentioned, not their subclasses):
@@ -1620,10 +1637,10 @@ class DeclContext {
   /// Stores the bits used by FunctionDecl.
   /// If modified NumFunctionDeclBits and the accessor
   /// methods in FunctionDecl and CXXDeductionGuideDecl
-  /// (for IsCopyDeductionCandidate) should be updated appropriately.
+  /// (for DeductionCandidateKind) should be updated appropriately.
   class FunctionDeclBitfields {
     friend class FunctionDecl;
-    /// For IsCopyDeductionCandidate
+    /// For DeductionCandidateKind
     friend class CXXDeductionGuideDecl;
     /// For the bits in DeclContextBitfields.
     uint64_t : NumDeclContextBits;
@@ -1678,10 +1695,10 @@ class DeclContext {
     /// function using attribute 'target'.
     uint64_t IsMultiVersion : 1;
 
-    /// [C++17] Only used by CXXDeductionGuideDecl. Indicates that
-    /// the Deduction Guide is the implicitly generated 'copy
-    /// deduction candidate' (is used during overload resolution).
-    uint64_t IsCopyDeductionCandidate : 1;
+    /// Only used by CXXDeductionGuideDecl. Indicates the kind
+    /// of the Deduction Guide that is implicitly generated
+    /// (used during overload resolution).
+    uint64_t DeductionCandidateKind : 2;
 
     /// Store the ODRHash after first calculation.
     uint64_t HasODRHash : 1;
@@ -1695,7 +1712,7 @@ class DeclContext {
   };
 
   /// Number of non-inherited bits in FunctionDeclBitfields.
-  enum { NumFunctionDeclBits = 30 };
+  enum { NumFunctionDeclBits = 31 };
 
   /// Stores the bits used by CXXConstructorDecl. If modified
   /// NumCXXConstructorDeclBits and the accessor
@@ -1707,12 +1724,12 @@ class DeclContext {
     /// For the bits in FunctionDeclBitfields.
     uint64_t : NumFunctionDeclBits;
 
-    /// 21 bits to fit in the remaining available space.
+    /// 20 bits to fit in the remaining available space.
     /// Note that this makes CXXConstructorDeclBitfields take
     /// exactly 64 bits and thus the width of NumCtorInitializers
     /// will need to be shrunk if some bit is added to NumDeclContextBitfields,
     /// NumFunctionDeclBitfields or CXXConstructorDeclBitfields.
-    uint64_t NumCtorInitializers : 18;
+    uint64_t NumCtorInitializers : 17;
     uint64_t IsInheritingConstructor : 1;
 
     /// Whether this constructor has a trail-allocated explicit specifier.

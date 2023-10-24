@@ -21,8 +21,8 @@
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/EndianStream.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 
 using namespace llvm;
 
@@ -142,11 +142,11 @@ void R600MCCodeEmitter::encodeInstruction(const MCInst &MI,
 }
 
 void R600MCCodeEmitter::emit(uint32_t Value, SmallVectorImpl<char> &CB) const {
-  support::endian::write(CB, Value, support::little);
+  support::endian::write(CB, Value, llvm::endianness::little);
 }
 
 void R600MCCodeEmitter::emit(uint64_t Value, SmallVectorImpl<char> &CB) const {
-  support::endian::write(CB, Value, support::little);
+  support::endian::write(CB, Value, llvm::endianness::little);
 }
 
 unsigned R600MCCodeEmitter::getHWReg(unsigned RegNo) const {

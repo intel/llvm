@@ -104,12 +104,15 @@ static cl::opt<std::string> MemProfImportSummary(
     cl::desc("Import summary to use for testing the ThinLTO backend via opt"),
     cl::Hidden);
 
+namespace llvm {
 // Indicate we are linking with an allocator that supports hot/cold operator
 // new interfaces.
 cl::opt<bool> SupportsHotColdNew(
     "supports-hot-cold-new", cl::init(false), cl::Hidden,
     cl::desc("Linking with hot/cold operator new interfaces"));
+} // namespace llvm
 
+namespace {
 /// CRTP base for graphs built from either IR or ThinLTO summary index.
 ///
 /// The graph represents the call contexts in all memprof metadata on allocation
@@ -628,6 +631,7 @@ private:
 
   const ModuleSummaryIndex &Index;
 };
+} // namespace
 
 namespace llvm {
 template <>

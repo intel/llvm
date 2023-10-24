@@ -1,14 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple < %t.ll -filetype=obj | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; from (at -Os):
@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind optsize readnone uwtable
 define void @foo() #0 !dbg !7 {
 entry:
-  tail call void @llvm.dbg.declare(metadata float* undef, metadata !13, metadata !19), !dbg !20
+  tail call void @llvm.dbg.declare(metadata ptr undef, metadata !13, metadata !19), !dbg !20
   tail call void @llvm.dbg.value(metadata i32 1078523331, metadata !13, metadata !19), !dbg !20
   tail call void @llvm.dbg.value(metadata i32 0, metadata !13, metadata !19), !dbg !20
 ; CHECK:  DW_AT_const_value [DW_FORM_sdata]    (0)

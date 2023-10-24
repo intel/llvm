@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
+; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=CHECK-SPIRV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=CHECK-LLVM
@@ -34,8 +34,8 @@ entry:
 ; CHECK-LLVM:  %[[UToPtr:[0-9]+]] = inttoptr i64 -1 to ptr addrspace(4)
 ; CHECK-LLVM:  %[[Sel:[0-9]+]] = select i1 %[[IEq]], ptr addrspace(4) %[[UToPtr]], ptr addrspace(4) %[[Cast]]
 ; CHECK-LLVM:  call spir_func void @bar(ptr addrspace(4) %[[Cast]], ptr addrspace(4) %[[Sel]]) #0
-  %0 = select i1 icmp eq (ptr addrspace(4) getelementptr inbounds ([1 x i8], ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), i64 0, i64 0), ptr addrspace(4) null), ptr addrspace(4) inttoptr (i64 -1 to ptr addrspace(4)), ptr addrspace(4) getelementptr inbounds ([1 x i8], ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), i64 0, i64 0)
-  call spir_func void @bar(ptr addrspace(4) getelementptr inbounds ([1 x i8], ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), i64 0, i64 0), ptr addrspace(4) %0)
+  %0 = select i1 icmp eq (ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), ptr addrspace(4) null), ptr addrspace(4) inttoptr (i64 -1 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4))
+  call spir_func void @bar(ptr addrspace(4) addrspacecast (ptr addrspace(1) @.str.1 to ptr addrspace(4)), ptr addrspace(4) %0)
   ret void
 }
 

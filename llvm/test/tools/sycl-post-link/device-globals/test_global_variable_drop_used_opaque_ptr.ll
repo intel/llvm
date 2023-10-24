@@ -16,11 +16,11 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-IR-NOT: @llvm.compiler.used =
 @llvm.compiler.used = appending global [4 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL7dg_int1 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL7dg_int2 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL8dg_bool4 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL7no_dg_int1 to ptr addrspace(4))]
 
-@_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !0 #0
-@_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !4 #1
-@_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations !8 #2
-@_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations !10 #3
-@_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !19 #4
+@_ZL7dg_int1 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !0 #0
+@_ZL7dg_int2 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !4 #1
+@_ZL8dg_bool3 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations !8 #2
+@_ZL8dg_bool4 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1, !spirv.Decorations !10 #3
+@_ZL7no_dg_int1 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !19 #4
 
 ; CHECK-IR: @_ZL7dg_int1 =
 ; CHECK-IR: @_ZL7dg_int2 =
@@ -29,7 +29,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-IR-NOT: @_ZL7no_dg_int1 =
 
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
-define internal spir_func void @_ZZ4mainENKUlvE_clEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) %this) #5 align 2 {
+define weak_odr spir_func void @_ZZ4mainENKUlvE_clEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) %this) #5 align 2 {
 entry:
   %this.addr = alloca ptr addrspace(4), align 8
   %this.addr.ascast = addrspacecast ptr %this.addr to ptr addrspace(4)

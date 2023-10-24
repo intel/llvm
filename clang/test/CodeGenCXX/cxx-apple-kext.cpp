@@ -1,6 +1,6 @@
-// INTEL RUN: %clangxx -Xclang -opaque-pointers -target x86_64-apple-darwin10 %s -flto -S -o - |\
+// INTEL RUN: %clangxx -target x86_64-apple-darwin10 %s -flto -S -o - |\
 // INTEL RUN:   FileCheck --check-prefix=CHECK-NO-KEXT %s
-// INTEL RUN: %clangxx -Xclang -opaque-pointers -target x86_64-apple-darwin10 %s -fapple-kext -flto -S -o - |\
+// INTEL RUN: %clangxx -target x86_64-apple-darwin10 %s -fapple-kext -flto -S -o - |\
 // INTEL RUN:   FileCheck --check-prefix=CHECK-KEXT %s
 
 // CHECK-NO-KEXT-NOT: _GLOBAL__D_a

@@ -226,18 +226,15 @@ CGNVCUDARuntime::CGNVCUDARuntime(CodeGenModule &CGM)
       TheModule(CGM.getModule()),
       RelocatableDeviceCode(CGM.getLangOpts().GPURelocatableDeviceCode),
       DeviceMC(InitDeviceMC(CGM)) {
-  CodeGen::CodeGenTypes &Types = CGM.getTypes();
-  ASTContext &Ctx = CGM.getContext();
-
   IntTy = CGM.IntTy;
   SizeTy = CGM.SizeTy;
   VoidTy = CGM.VoidTy;
   Zeros[0] = llvm::ConstantInt::get(SizeTy, 0);
   Zeros[1] = Zeros[0];
 
-  CharPtrTy = llvm::PointerType::getUnqual(Types.ConvertType(Ctx.CharTy));
-  VoidPtrTy = cast<llvm::PointerType>(Types.ConvertType(Ctx.VoidPtrTy));
-  VoidPtrPtrTy = VoidPtrTy->getPointerTo();
+  CharPtrTy = CGM.UnqualPtrTy;
+  VoidPtrTy = CGM.UnqualPtrTy;
+  VoidPtrPtrTy = CGM.UnqualPtrTy;
 }
 
 llvm::FunctionCallee CGNVCUDARuntime::getSetupArgumentFn() const {
@@ -360,9 +357,13 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
   TranslationUnitDecl *TUDecl = CGM.getContext().getTranslationUnitDecl();
   DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
   std::string KernelLaunchAPI = "LaunchKernel";
-  if (CGF.getLangOpts().HIP && CGF.getLangOpts().GPUDefaultStream ==
-                                   LangOptions::GPUDefaultStreamKind::PerThread)
-    KernelLaunchAPI = KernelLaunchAPI + "_spt";
+  if (CGF.getLangOpts().GPUDefaultStream ==
+      LangOptions::GPUDefaultStreamKind::PerThread) {
+    if (CGF.getLangOpts().HIP)
+      KernelLaunchAPI = KernelLaunchAPI + "_spt";
+    else if (CGF.getLangOpts().CUDA)
+      KernelLaunchAPI = KernelLaunchAPI + "_ptsz";
+  }
   auto LaunchKernelName = addPrefixToName(KernelLaunchAPI);
   IdentifierInfo &cudaLaunchKernelII =
       CGM.getContext().Idents.get(LaunchKernelName);
@@ -1229,7 +1230,10 @@ llvm::GlobalValue *CGNVCUDARuntime::getKernelHandle(llvm::Function *F,
   Var->setAlignment(CGM.getPointerAlign().getAsAlign());
   Var->setDSOLocal(F->isDSOLocal());
   Var->setVisibility(F->getVisibility());
-  CGM.maybeSetTrivialComdat(*GD.getDecl(), *Var);
+  auto *FD = cast<FunctionDecl>(GD.getDecl());
+  auto *FT = FD->getPrimaryTemplate();
+  if (!FT || FT->isThisDeclarationADefinition())
+    CGM.maybeSetTrivialComdat(*FD, *Var);
   KernelHandles[F->getName()] = Var;
   KernelStubs[Var] = F;
   return Var;

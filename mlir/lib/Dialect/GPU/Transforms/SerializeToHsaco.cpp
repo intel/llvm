@@ -42,11 +42,13 @@
 #include "llvm/MC/TargetRegistry.h"
 
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/WithColor.h"
 
 #include "llvm/Target/TargetMachine.h"
@@ -54,7 +56,6 @@
 
 #include "llvm/Transforms/IPO/Internalize.h"
 
-#include <mutex>
 #include <optional>
 
 using namespace mlir;
@@ -62,6 +63,8 @@ using namespace mlir;
 namespace {
 class SerializeToHsacoPass
     : public PassWrapper<SerializeToHsacoPass, gpu::SerializeToBlobPass> {
+  static llvm::once_flag initializeBackendOnce;
+
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SerializeToHsacoPass)
 
@@ -82,8 +85,6 @@ protected:
   translateToLLVMIR(llvm::LLVMContext &llvmContext) override;
 
 private:
-  void getDependentDialects(DialectRegistry &registry) const override;
-
   // Loads LLVM bitcode libraries
   std::optional<SmallVector<std::unique_ptr<llvm::Module>, 3>>
   loadLibraries(SmallVectorImpl<char> &path,
@@ -122,19 +123,25 @@ static void maybeSetOption(Pass::Option<std::string> &option,
     option = getValue();
 }
 
+llvm::once_flag SerializeToHsacoPass::initializeBackendOnce;
+
 SerializeToHsacoPass::SerializeToHsacoPass(StringRef triple, StringRef arch,
                                            StringRef features, int optLevel) {
+  // No matter how this pass is constructed, ensure that the AMDGPU backend
+  // is initialized exactly once.
+  llvm::call_once(initializeBackendOnce, []() {
+    // Initialize LLVM AMDGPU backend.
+    LLVMInitializeAMDGPUAsmParser();
+    LLVMInitializeAMDGPUAsmPrinter();
+    LLVMInitializeAMDGPUTarget();
+    LLVMInitializeAMDGPUTargetInfo();
+    LLVMInitializeAMDGPUTargetMC();
+  });
   maybeSetOption(this->triple, [&triple] { return triple.str(); });
   maybeSetOption(this->chip, [&arch] { return arch.str(); });
   maybeSetOption(this->features, [&features] { return features.str(); });
   if (this->optLevel.getNumOccurrences() == 0)
     this->optLevel.setValue(optLevel);
-}
-
-void SerializeToHsacoPass::getDependentDialects(
-    DialectRegistry &registry) const {
-  registerROCDLDialectTranslation(registry);
-  gpu::SerializeToBlobPass::getDependentDialects(registry);
 }
 
 std::optional<SmallVector<std::unique_ptr<llvm::Module>, 3>>
@@ -395,9 +402,8 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
   tempIsaBinaryOs.close();
 
   // Create a temp file for HSA code object.
-  int tempHsacoFD = -1;
   SmallString<128> tempHsacoFilename;
-  if (llvm::sys::fs::createTemporaryFile("kernel", "hsaco", tempHsacoFD,
+  if (llvm::sys::fs::createTemporaryFile("kernel", "hsaco",
                                          tempHsacoFilename)) {
     emitError(loc, "temporary file for HSA code object creation error");
     return {};
@@ -416,13 +422,14 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
   }
 
   // Load the HSA code object.
-  auto hsacoFile = openInputFile(tempHsacoFilename);
+  auto hsacoFile =
+      llvm::MemoryBuffer::getFile(tempHsacoFilename, /*IsText=*/false);
   if (!hsacoFile) {
     emitError(loc, "read HSA code object from temp file error");
     return {};
   }
 
-  StringRef buffer = hsacoFile->getBuffer();
+  StringRef buffer = (*hsacoFile)->getBuffer();
   return std::make_unique<std::vector<char>>(buffer.begin(), buffer.end());
 }
 
@@ -437,13 +444,6 @@ SerializeToHsacoPass::serializeISA(const std::string &isa) {
 // Register pass to serialize GPU kernel functions to a HSACO binary annotation.
 void mlir::registerGpuSerializeToHsacoPass() {
   PassRegistration<SerializeToHsacoPass> registerSerializeToHSACO([] {
-    // Initialize LLVM AMDGPU backend.
-    LLVMInitializeAMDGPUAsmParser();
-    LLVMInitializeAMDGPUAsmPrinter();
-    LLVMInitializeAMDGPUTarget();
-    LLVMInitializeAMDGPUTargetInfo();
-    LLVMInitializeAMDGPUTargetMC();
-
     return std::make_unique<SerializeToHsacoPass>("amdgcn-amd-amdhsa", "", "",
                                                   2);
   });

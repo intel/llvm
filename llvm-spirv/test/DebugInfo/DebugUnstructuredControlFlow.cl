@@ -2,7 +2,7 @@
 // RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls -o %t.spv
 // RUN: llvm-spirv %t.spv --to-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
+// RUN: llvm-spirv -r %t.spv -o %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 // Test that no debug info instruction is inserted between LoopControlINTEL and

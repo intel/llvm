@@ -1,4 +1,4 @@
-; RUN: llvm-as -o - %s | llvm-dis -opaque-pointers -o - 2>&1 | FileCheck %s
+; RUN: llvm-as -o - %s | llvm-dis -o - 2>&1 | FileCheck %s
 
 ; Make sure we can assemble and disassemble IR containing intrinsics with
 ; unnamed types.

@@ -2,6 +2,9 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 
+// spir-v gen for legacy images at O0 not working
+// UNSUPPORTED: O0
+
 // we use the interop to get the native image handle and then use that to make a
 // new image and enumerate the pixels.
 

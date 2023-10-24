@@ -479,10 +479,6 @@ public:
   // this will always create the children if necessary
   lldb::ValueObjectSP GetChildAtNamePath(llvm::ArrayRef<llvm::StringRef> names);
 
-  lldb::ValueObjectSP
-  GetChildAtNamePath(llvm::ArrayRef<std::pair<ConstString, bool>> names,
-                     ConstString *name_of_error = nullptr);
-
   virtual lldb::ValueObjectSP GetChildMemberWithName(llvm::StringRef name,
                                                      bool can_create = true);
 
@@ -614,7 +610,9 @@ public:
   virtual void SetLiveAddress(lldb::addr_t addr = LLDB_INVALID_ADDRESS,
                               AddressType address_type = eAddressTypeLoad) {}
 
-  virtual lldb::ValueObjectSP Cast(const CompilerType &compiler_type);
+  lldb::ValueObjectSP Cast(const CompilerType &compiler_type);
+
+  virtual lldb::ValueObjectSP DoCast(const CompilerType &compiler_type);
 
   virtual lldb::ValueObjectSP CastPointerType(const char *name,
                                               CompilerType &ast_type);

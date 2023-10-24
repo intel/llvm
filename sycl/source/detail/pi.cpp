@@ -31,6 +31,7 @@
 #include <sstream>
 #include <stddef.h>
 #include <string>
+#include <tuple>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -435,29 +436,35 @@ std::vector<PluginPtr> &initialize() {
   return GlobalHandler::instance().getPlugins();
 }
 
+// Implementation of this function is OS specific. Please see windows_pi.cpp and
+// posix_pi.cpp.
+// TODO: refactor code when support matrix for DPCPP changes and <filesystem> is
+// available on all supported systems.
+std::vector<std::tuple<std::string, backend, void *>>
+loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames);
+
 static void initializePlugins(std::vector<PluginPtr> &Plugins) {
-  std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
+  const std::vector<std::pair<std::string, backend>> PluginNames =
+      findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  const std::string LibSYCLDir =
-      sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
+  // Get library handles for the list of plugins.
+  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins =
+      loadPlugins(std::move(PluginNames));
 
-  for (unsigned int I = 0; I < PluginNames.size(); I++) {
+  for (auto &[Name, Backend, Library] : LoadedPlugins) {
     std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
         PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
                  /*Targets=*/nullptr, /*FunctionPointers=*/{}});
-
-    void *Library = loadPlugin(LibSYCLDir + PluginNames[I].first);
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
                   << "Check if plugin is present. "
-                  << "Failed to load plugin: " << PluginNames[I].first
-                  << std::endl;
+                  << "Failed to load plugin: " << Name << std::endl;
       }
       continue;
     }
@@ -465,17 +472,17 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
     if (!bindPlugin(Library, PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Failed to bind PI APIs to the plugin: "
-                  << PluginNames[I].first << std::endl;
+                  << "Failed to bind PI APIs to the plugin: " << Name
+                  << std::endl;
       }
       continue;
     }
-    PluginPtr &NewPlugin = Plugins.emplace_back(std::make_shared<plugin>(
-        PluginInformation, PluginNames[I].second, Library));
+    PluginPtr &NewPlugin = Plugins.emplace_back(
+        std::make_shared<plugin>(PluginInformation, Backend, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
-                << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << " [ PluginVersion: "
+                << "Plugin found and successfully loaded: " << Name
+                << " [ PluginVersion: "
                 << NewPlugin->getPiPlugin().PluginVersion << " ]" << std::endl;
   }
 

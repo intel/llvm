@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -opaque-pointers -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK
-// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -opaque-pointers -emit-llvm -fsycl-unique-prefix=THE_PREFIX %s -o - | FileCheck %s --check-prefixes=PREFIX,CHECK
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK
+// RUN: %clang_cc1 -triple x86_64-linux-pc -fsycl-is-host -disable-llvm-passes -std=c++17 -emit-llvm -fsycl-unique-prefix=THE_PREFIX %s -o - | FileCheck %s --check-prefixes=PREFIX,CHECK
 
 // A set of tests to validate the naming behavior of
 // __builtin_sycl_unique_stable_id, both as it is altered by a kernel being

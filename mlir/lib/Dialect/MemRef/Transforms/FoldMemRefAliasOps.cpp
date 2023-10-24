@@ -63,6 +63,12 @@ resolveSourceIndicesExpandShape(Location loc, PatternRewriter &rewriter,
                                 memref::ExpandShapeOp expandShapeOp,
                                 ValueRange indices,
                                 SmallVectorImpl<Value> &sourceIndices) {
+  // The below implementation uses computeSuffixProduct method, which only
+  // allows int64_t values (i.e., static shape). Bail out if it has dynamic
+  // shapes.
+  if (!expandShapeOp.getResultType().hasStaticShape())
+    return failure();
+
   MLIRContext *ctx = rewriter.getContext();
   for (ArrayRef<int64_t> groups : expandShapeOp.getReassociationIndices()) {
     assert(!groups.empty() && "association indices groups cannot be empty");
@@ -122,10 +128,16 @@ resolveSourceIndicesCollapseShape(Location loc, PatternRewriter &rewriter,
     dynamicIndices.push_back(indices[cnt++]);
     int64_t groupSize = groups.size();
 
-    // Calculate suffix product for all collapse op source dimension sizes.
-    SmallVector<int64_t> sizes(groupSize);
-    for (int64_t i = 0; i < groupSize; ++i)
+    // Calculate suffix product for all collapse op source dimension sizes
+    // except the most major one of each group.
+    // We allow the most major source dimension to be dynamic but enforce all
+    // others to be known statically.
+    SmallVector<int64_t> sizes(groupSize, 1);
+    for (int64_t i = 1; i < groupSize; ++i) {
       sizes[i] = collapseShapeOp.getSrcType().getDimSize(groups[i]);
+      if (sizes[i] == ShapedType::kDynamic)
+        return failure();
+    }
     SmallVector<int64_t> suffixProduct = computeSuffixProduct(sizes);
 
     // Derive the index values along all dimensions of the source corresponding

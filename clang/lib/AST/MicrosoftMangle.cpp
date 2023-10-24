@@ -196,8 +196,8 @@ public:
   mangleCXXRTTICompleteObjectLocator(const CXXRecordDecl *Derived,
                                      ArrayRef<const CXXRecordDecl *> BasePath,
                                      raw_ostream &Out) override;
-  void mangleTypeName(QualType T, raw_ostream &,
-                      bool NormalizeIntegers) override;
+  void mangleCanonicalTypeName(QualType T, raw_ostream &,
+                               bool NormalizeIntegers) override;
   void mangleReferenceTemporary(const VarDecl *, unsigned ManglingNumber,
                                 raw_ostream &) override;
   void mangleStaticGuardVariable(const VarDecl *D, raw_ostream &Out) override;
@@ -483,9 +483,9 @@ MicrosoftMangleContextImpl::MicrosoftMangleContextImpl(ASTContext &Context,
   // The generated names are intended to look similar to what MSVC generates,
   // which are something like "?A0x01234567@".
   SourceManager &SM = Context.getSourceManager();
-  if (const FileEntry *FE = SM.getFileEntryForID(SM.getMainFileID())) {
+  if (OptionalFileEntryRef FE = SM.getFileEntryRefForID(SM.getMainFileID())) {
     // Truncate the hash so we get 8 characters of hexadecimal.
-    uint32_t TruncatedHash = uint32_t(xxHash64(FE->getName()));
+    uint32_t TruncatedHash = uint32_t(xxh3_64bits(FE->getName()));
     AnonymousNamespaceHash = llvm::utohexstr(TruncatedHash);
   } else {
     // If we don't have a path to the main file, we'll just use 0.
@@ -898,6 +898,7 @@ void MicrosoftCXXNameMangler::mangleFloat(llvm::APFloat Number) {
   case APFloat::S_Float8E5M2FNUZ:
   case APFloat::S_Float8E4M3FNUZ:
   case APFloat::S_Float8E4M3B11FNUZ:
+  case APFloat::S_FloatTF32:
     llvm_unreachable("Tried to mangle unexpected APFloat semantics");
   }
 
@@ -2657,7 +2658,7 @@ void MicrosoftCXXNameMangler::mangleFunctionType(const FunctionType *T,
   if (const CXXMethodDecl *MD = dyn_cast_or_null<CXXMethodDecl>(D)) {
     if (MD->getParent()->isLambda())
       IsInLambda = true;
-    if (MD->isInstance())
+    if (MD->isImplicitObjectMemberFunction())
       HasThisQuals = true;
     if (isa<CXXDestructorDecl>(MD)) {
       IsStructor = true;
@@ -2711,7 +2712,7 @@ void MicrosoftCXXNameMangler::mangleFunctionType(const FunctionType *T,
         // Copy constructor closure always takes an unqualified reference.
         mangleFunctionArgumentType(getASTContext().getLValueReferenceType(
                                        Proto->getParamType(0)
-                                           ->getAs<LValueReferenceType>()
+                                           ->castAs<LValueReferenceType>()
                                            ->getPointeeType(),
                                        /*SpelledAsLValue=*/true),
                                    Range);
@@ -2766,6 +2767,10 @@ void MicrosoftCXXNameMangler::mangleFunctionType(const FunctionType *T,
   } else {
     // Happens for function pointer type arguments for example.
     for (unsigned I = 0, E = Proto->getNumParams(); I != E; ++I) {
+      // Explicit object parameters are prefixed by "_V".
+      if (I == 0 && D && D->getParamDecl(I)->isExplicitObjectParameter())
+        Out << "_V";
+
       mangleFunctionArgumentType(Proto->getParamType(I), Range);
       // Mangle each pass_object_size parameter as if it's a parameter of enum
       // type passed directly after the parameter with the pass_object_size
@@ -2831,7 +2836,7 @@ void MicrosoftCXXNameMangler::mangleFunctionClass(const FunctionDecl *FD) {
       case AS_none:
         llvm_unreachable("Unsupported access specifier");
       case AS_private:
-        if (MD->isStatic())
+        if (!MD->isImplicitObjectMemberFunction())
           Out << 'C';
         else if (IsVirtual)
           Out << 'E';
@@ -2839,7 +2844,7 @@ void MicrosoftCXXNameMangler::mangleFunctionClass(const FunctionDecl *FD) {
           Out << 'A';
         break;
       case AS_protected:
-        if (MD->isStatic())
+        if (!MD->isImplicitObjectMemberFunction())
           Out << 'K';
         else if (IsVirtual)
           Out << 'M';
@@ -2847,7 +2852,7 @@ void MicrosoftCXXNameMangler::mangleFunctionClass(const FunctionDecl *FD) {
           Out << 'I';
         break;
       case AS_public:
-        if (MD->isStatic())
+        if (!MD->isImplicitObjectMemberFunction())
           Out << 'S';
         else if (IsVirtual)
           Out << 'U';
@@ -2874,6 +2879,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
   //                      ::= T # __attribute__((__swiftasynccall__))
   //                            // Clang-only
   //                      ::= w # __regcall
+  //                      ::= x # __regcall4
   // The 'export' calling conventions are from a bygone era
   // (*cough*Win16*cough*) when functions were declared for export with
   // that keyword. (It didn't actually export them, it just made them so
@@ -2894,7 +2900,23 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
     case CC_Swift: Out << 'S'; break;
     case CC_SwiftAsync: Out << 'W'; break;
     case CC_PreserveMost: Out << 'U'; break;
-    case CC_X86RegCall: Out << 'w'; break;
+    case CC_X86RegCall:
+      if (getASTContext().getLangOpts().RegCall4)
+        Out << "x";
+      else
+        Out << "w";
+      break;
+    case CC_OpenCLKernel:
+      // This can occur on the SYCl NativeCPU device
+      // where device code is compiled with the same
+      // target triple (eg for Windows) as host code.
+      // FIXME: 1.) provide mangling if needed
+      //        2.) check if other conventions need to be handled.
+      if (!getASTContext().getLangOpts().SYCLIsNativeCPU)
+        // Currently we only allow this convention in
+        // SYCLNativeCPU and raise the usual error otherwise.
+        llvm_unreachable("Unsupported CC for mangling");
+      break;
   }
 }
 void MicrosoftCXXNameMangler::mangleCallingConvention(const FunctionType *T) {
@@ -3853,13 +3875,13 @@ void MicrosoftMangleContextImpl::mangleSEHFinallyBlock(
   Mangler.mangleName(EnclosingDecl);
 }
 
-void MicrosoftMangleContextImpl::mangleTypeName(
+void MicrosoftMangleContextImpl::mangleCanonicalTypeName(
     QualType T, raw_ostream &Out, bool NormalizeIntegers = false) {
   // This is just a made up unique string for the purposes of tbaa.  undname
   // does *not* know how to demangle it.
   MicrosoftCXXNameMangler Mangler(*this, Out);
   Mangler.getStream() << '?';
-  Mangler.mangleType(T, SourceRange());
+  Mangler.mangleType(T.getCanonicalType(), SourceRange());
 }
 
 void MicrosoftMangleContextImpl::mangleReferenceTemporary(

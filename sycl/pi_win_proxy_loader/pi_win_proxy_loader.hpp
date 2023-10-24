@@ -9,7 +9,11 @@
 #pragma once
 
 #ifdef _WIN32
+#include <filesystem>
 #include <string>
 
+__declspec(dllexport) void *getPreloadedPlugin(
+    const std::filesystem::path &PluginPath);
+// TODO: Remove this version during ABI breakage window
 __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath);
 #endif

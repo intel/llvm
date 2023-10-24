@@ -1,3 +1,6 @@
+// https://github.com/intel/llvm/issues/11434
+// UNSUPPORTED: gpu-intel-dg2
+
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

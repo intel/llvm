@@ -147,12 +147,14 @@ TokenSequence Definition::Apply(
     CharBlock token{replacement_.TokenAt(j)};
     std::size_t bytes{token.size()};
     if (skipping) {
-      if (bytes == 1) {
-        if (token[0] == '(') {
-          ++parenthesesNesting;
-        } else if (token[0] == ')') {
-          skipping = --parenthesesNesting > 0;
+      char ch{token.OnlyNonBlank()};
+      if (ch == '(') {
+        ++parenthesesNesting;
+      } else if (ch == ')') {
+        if (parenthesesNesting > 0) {
+          --parenthesesNesting;
         }
+        skipping = parenthesesNesting > 0;
       }
       continue;
     }
@@ -207,18 +209,21 @@ TokenSequence Definition::Apply(
         result.Put(args[k]);
       }
     } else if (bytes == 10 && isVariadic_ && token.ToString() == "__VA_OPT__" &&
-        j + 2 < tokens && replacement_.TokenAt(j + 1).ToString() == "(" &&
+        j + 2 < tokens && replacement_.TokenAt(j + 1).OnlyNonBlank() == '(' &&
         parenthesesNesting == 0) {
       parenthesesNesting = 1;
       skipping = args.size() == argumentCount_;
       ++j;
     } else {
-      if (bytes == 1 && parenthesesNesting > 0 && token[0] == '(') {
-        ++parenthesesNesting;
-      } else if (bytes == 1 && parenthesesNesting > 0 && token[0] == ')') {
-        if (--parenthesesNesting == 0) {
-          skipping = false;
-          continue;
+      if (parenthesesNesting > 0) {
+        char ch{token.OnlyNonBlank()};
+        if (ch == '(') {
+          ++parenthesesNesting;
+        } else if (ch == ')') {
+          if (--parenthesesNesting == 0) {
+            skipping = false;
+            continue;
+          }
         }
       }
       result.Put(replacement_, j);
@@ -291,16 +296,18 @@ std::optional<TokenSequence> Preprocessor::MacroReplacement(
     if (!def->isFunctionLike()) {
       bool isRenaming{false};
       if (def->isPredefined()) {
-        std::string name{def->replacement().TokenAt(0).ToString()};
         std::string repl;
-        if (name == "__FILE__") {
-          repl = "\""s +
-              allSources_.GetPath(prescanner.GetCurrentProvenance()) + '"';
-        } else if (name == "__LINE__") {
-          std::string buf;
-          llvm::raw_string_ostream ss{buf};
-          ss << allSources_.GetLineNumber(prescanner.GetCurrentProvenance());
-          repl = ss.str();
+        if (!def->replacement().empty()) {
+          std::string name{def->replacement().TokenAt(0).ToString()};
+          if (name == "__FILE__") {
+            repl = "\""s +
+                allSources_.GetPath(prescanner.GetCurrentProvenance()) + '"';
+          } else if (name == "__LINE__") {
+            std::string buf;
+            llvm::raw_string_ostream ss{buf};
+            ss << allSources_.GetLineNumber(prescanner.GetCurrentProvenance());
+            repl = ss.str();
+          }
         }
         if (!repl.empty()) {
           ProvenanceRange insert{allSources_.AddCompilerInsertion(repl)};
@@ -361,18 +368,16 @@ std::optional<TokenSequence> Preprocessor::MacroReplacement(
     std::vector<std::size_t> argStart{++k};
     for (int nesting{0}; k < tokens; ++k) {
       CharBlock token{input.TokenAt(k)};
-      if (token.size() == 1) {
-        char ch{token[0]};
-        if (ch == '(') {
-          ++nesting;
-        } else if (ch == ')') {
-          if (nesting == 0) {
-            break;
-          }
-          --nesting;
-        } else if (ch == ',' && nesting == 0) {
-          argStart.push_back(k + 1);
+      char ch{token.OnlyNonBlank()};
+      if (ch == '(') {
+        ++nesting;
+      } else if (ch == ')') {
+        if (nesting == 0) {
+          break;
         }
+        --nesting;
+      } else if (ch == ',' && nesting == 0) {
+        argStart.push_back(k + 1);
       }
     }
     if (argStart.size() == 1 && k == argStart[0] && def->argumentCount() == 0) {
@@ -434,7 +439,8 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
     return;
   }
   if (IsDecimalDigit(dir.TokenAt(j)[0]) || dir.TokenAt(j)[0] == '"') {
-    return; // treat like #line, ignore it
+    LineDirective(dir, j, prescanner);
+    return;
   }
   std::size_t dirOffset{j};
   std::string dirName{ToLowerCaseLetters(dir.TokenAt(dirOffset).ToString())};
@@ -444,7 +450,7 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
     nameToken = dir.TokenAt(j);
   }
   if (dirName == "line") {
-    // #line is ignored
+    LineDirective(dir, j, prescanner);
   } else if (dirName == "define") {
     if (nameToken.empty()) {
       prescanner.Say(dir.GetTokenProvenanceRange(j < tokens ? j : tokens - 1),
@@ -453,12 +459,11 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
     }
     nameToken = SaveTokenAsName(nameToken);
     definitions_.erase(nameToken);
-    if (++j < tokens && dir.TokenAt(j).size() == 1 &&
-        dir.TokenAt(j)[0] == '(') {
+    if (++j < tokens && dir.TokenAt(j).OnlyNonBlank() == '(') {
       j = dir.SkipBlanks(j + 1);
       std::vector<std::string> argName;
       bool isVariadic{false};
-      if (dir.TokenAt(j).ToString() != ")") {
+      if (dir.TokenAt(j).OnlyNonBlank() != ')') {
         while (true) {
           std::string an{dir.TokenAt(j).ToString()};
           if (an == "...") {
@@ -477,11 +482,11 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
                 "#define: malformed argument list"_err_en_US);
             return;
           }
-          std::string punc{dir.TokenAt(j).ToString()};
-          if (punc == ")") {
+          char punc{dir.TokenAt(j).OnlyNonBlank()};
+          if (punc == ')') {
             break;
           }
-          if (isVariadic || punc != ",") {
+          if (isVariadic || punc != ',') {
             prescanner.Say(dir.GetTokenProvenanceRange(j),
                 "#define: malformed argument list"_err_en_US);
             return;
@@ -674,6 +679,11 @@ CharBlock Preprocessor::SaveTokenAsName(const CharBlock &t) {
 
 bool Preprocessor::IsNameDefined(const CharBlock &token) {
   return definitions_.find(token) != definitions_.end();
+}
+
+bool Preprocessor::IsFunctionLikeDefinition(const CharBlock &token) {
+  auto it{definitions_.find(token)};
+  return it != definitions_.end() && it->second.isFunctionLike();
 }
 
 static std::string GetDirectiveName(
@@ -882,7 +892,7 @@ static std::int64_t ExpressionValue(const TokenSequence &token,
     }
     switch (op) {
     case PARENS:
-      if (*atToken < tokens && token.TokenAt(*atToken).ToString() == ")") {
+      if (*atToken < tokens && token.TokenAt(*atToken).OnlyNonBlank() == ')') {
         ++*atToken;
         break;
       }
@@ -1084,8 +1094,8 @@ bool Preprocessor::IsIfPredicateTrue(const TokenSequence &expr,
     if (ToLowerCaseLetters(expr1.TokenAt(j).ToString()) == "defined") {
       CharBlock name;
       if (j + 3 < expr1.SizeInTokens() &&
-          expr1.TokenAt(j + 1).ToString() == "(" &&
-          expr1.TokenAt(j + 3).ToString() == ")") {
+          expr1.TokenAt(j + 1).OnlyNonBlank() == '(' &&
+          expr1.TokenAt(j + 3).OnlyNonBlank() == ')') {
         name = expr1.TokenAt(j + 2);
         j += 3;
       } else if (j + 1 < expr1.SizeInTokens() &&
@@ -1122,4 +1132,58 @@ bool Preprocessor::IsIfPredicateTrue(const TokenSequence &expr,
   }
   return result;
 }
+
+void Preprocessor::LineDirective(
+    const TokenSequence &dir, std::size_t j, Prescanner &prescanner) {
+  std::size_t tokens{dir.SizeInTokens()};
+  const std::string *linePath{nullptr};
+  std::optional<int> lineNumber;
+  SourceFile *sourceFile{nullptr};
+  std::optional<SourcePosition> pos;
+  for (; j < tokens; j = dir.SkipBlanks(j + 1)) {
+    std::string tstr{dir.TokenAt(j).ToString()};
+    Provenance provenance{dir.GetTokenProvenance(j)};
+    if (!pos) {
+      pos = allSources_.GetSourcePosition(provenance);
+    }
+    if (!sourceFile && pos) {
+      sourceFile = const_cast<SourceFile *>(&*pos->sourceFile);
+    }
+    if (tstr.front() == '"' && tstr.back() == '"') {
+      tstr = tstr.substr(1, tstr.size() - 2);
+      if (!tstr.empty() && sourceFile) {
+        linePath = &sourceFile->SavePath(std::move(tstr));
+      }
+    } else if (IsDecimalDigit(tstr[0])) {
+      if (!lineNumber) { // ignore later column number
+        int ln{0};
+        for (char c : tstr) {
+          if (IsDecimalDigit(c)) {
+            int nln{10 * ln + c - '0'};
+            if (nln / 10 == ln && nln % 10 == c - '0') {
+              ln = nln;
+              continue;
+            }
+          }
+          prescanner.Say(provenance,
+              "bad line number '%s' in #line directive"_err_en_US, tstr);
+          return;
+        }
+        lineNumber = ln;
+      }
+    } else {
+      prescanner.Say(
+          provenance, "bad token '%s' in #line directive"_err_en_US, tstr);
+      return;
+    }
+  }
+  if (lineNumber && sourceFile) {
+    CHECK(pos);
+    if (!linePath) {
+      linePath = &*pos->path;
+    }
+    sourceFile->LineDirective(pos->trueLineNumber + 1, *linePath, *lineNumber);
+  }
+}
+
 } // namespace Fortran::parser

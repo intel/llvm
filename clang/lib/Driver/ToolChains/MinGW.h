@@ -20,7 +20,7 @@ namespace clang {
 namespace driver {
 namespace tools {
 
-/// MinGW -- Directly call GNU Binutils assembler and linker
+/// Directly call GNU Binutils assembler and linker
 namespace MinGW {
 class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
 public:
@@ -65,7 +65,6 @@ public:
 
   bool HasNativeLLVMSupport() const override;
 
-  bool IsIntegratedAssemblerDefault() const override;
   UnwindTableLevel
   getDefaultUnwindTableLevel(const llvm::opt::ArgList &Args) const override;
   bool isPICDefault() const override;

@@ -81,6 +81,12 @@ struct ASTFileSignature : std::array<uint8_t, 20> {
     return Sentinel;
   }
 
+  static ASTFileSignature createDummy() {
+    ASTFileSignature Dummy;
+    Dummy.fill(0x00);
+    return Dummy;
+  }
+
   template <typename InputIt>
   static ASTFileSignature create(InputIt First, InputIt Last) {
     assert(std::distance(First, Last) == size &&
@@ -156,9 +162,7 @@ public:
   std::string PresumedModuleMapFile;
 
   /// The umbrella header or directory.
-  llvm::PointerUnion<const FileEntryRef::MapEntry *,
-                     const DirectoryEntryRef::MapEntry *>
-      Umbrella;
+  llvm::PointerUnion<FileEntryRef, DirectoryEntryRef> Umbrella;
 
   /// The module signature.
   ASTFileSignature Signature;
@@ -353,6 +357,10 @@ public:
   /// Whether this module came from a "private" module map, found next
   /// to a regular (public) module map.
   unsigned ModuleMapIsPrivate : 1;
+
+  /// Whether this C++20 named modules doesn't need an initializer.
+  /// This is only meaningful for C++20 modules.
+  unsigned NamedModuleHasInit : 1;
 
   /// Describes the visibility of the various names within a
   /// particular module.
@@ -583,9 +591,16 @@ public:
     return Kind == ModuleInterfaceUnit || isModulePartition();
   }
 
+  /// Is this a C++20 named module unit.
+  bool isNamedModuleUnit() const {
+    return isInterfaceOrPartition() || isModuleImplementation();
+  }
+
   bool isModuleInterfaceUnit() const {
     return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface;
   }
+
+  bool isNamedModuleInterfaceHasInit() const { return NamedModuleHasInit; }
 
   /// Get the primary module interface name from a partition.
   StringRef getPrimaryModuleInterfaceName() const {
@@ -650,19 +665,18 @@ public:
 
   /// Retrieve the umbrella directory as written.
   std::optional<DirectoryName> getUmbrellaDirAsWritten() const {
-    if (const auto *ME =
-            Umbrella.dyn_cast<const DirectoryEntryRef::MapEntry *>())
+    if (Umbrella && Umbrella.is<DirectoryEntryRef>())
       return DirectoryName{UmbrellaAsWritten,
                            UmbrellaRelativeToRootModuleDirectory,
-                           DirectoryEntryRef(*ME)};
+                           Umbrella.get<DirectoryEntryRef>()};
     return std::nullopt;
   }
 
   /// Retrieve the umbrella header as written.
   std::optional<Header> getUmbrellaHeaderAsWritten() const {
-    if (const auto *ME = Umbrella.dyn_cast<const FileEntryRef::MapEntry *>())
+    if (Umbrella && Umbrella.is<FileEntryRef>())
       return Header{UmbrellaAsWritten, UmbrellaRelativeToRootModuleDirectory,
-                    FileEntryRef(*ME)};
+                    Umbrella.get<FileEntryRef>()};
     return std::nullopt;
   }
 
@@ -717,13 +731,13 @@ public:
   /// one.
   ///
   /// \returns The GMF sub-module if found, or NULL otherwise.
-  Module *getGlobalModuleFragment() { return findSubmodule("<global>"); }
+  Module *getGlobalModuleFragment() const;
 
   /// Get the Private Module Fragment (sub-module) for this module, it there is
   /// one.
   ///
   /// \returns The PMF sub-module if found, or NULL otherwise.
-  Module *getPrivateModuleFragment() { return findSubmodule("<private>"); }
+  Module *getPrivateModuleFragment() const;
 
   /// Determine whether the specified module would be visible to
   /// a lookup at the end of this module.
@@ -821,6 +835,11 @@ public:
                   VisibleCallback Vis = [](Module *) {},
                   ConflictCallback Cb = [](ArrayRef<Module *>, Module *,
                                            StringRef) {});
+
+  /// Make transitive imports visible for [module.import]/7.
+  void makeTransitiveImportsVisible(
+      Module *M, SourceLocation Loc, VisibleCallback Vis = [](Module *) {},
+      ConflictCallback Cb = [](ArrayRef<Module *>, Module *, StringRef) {});
 
 private:
   /// Import locations for each visible module. Indexed by the module's

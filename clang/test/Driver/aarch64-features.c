@@ -7,15 +7,17 @@
 // CHECK: fno-signed-char
 
 // Check Function Multi Versioning option and rtlib dependency.
-// RUN: %clang --target=aarch64-linux-android -rtlib=compiler-rt \
+// RUN: %clang --target=aarch64-linux-android23 -rtlib=compiler-rt \
 // RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-FMV %s
-
+// RUN: %clang --target=aarch64-linux-android -rtlib=compiler-rt \
+// RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-FMV-OFF %s
 // RUN: %clang --target=aarch64-linux-android -rtlib=compiler-rt -mno-fmv \
+// RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-FMV-OFF %s
+// RUN: %clang --target=aarch64-linux-android22 -rtlib=compiler-rt \
 // RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-FMV-OFF %s
 
 // RUN: %clang --target=aarch64-linux-gnu -rtlib=libgcc \
 // RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-FMV-OFF %s
-
 // RUN: %clang --target=arm64-unknown-linux -rtlib=libgcc \
 // RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-FMV-OFF %s
 
@@ -32,7 +34,7 @@
 // RUN: %clang --target=arm64-unknown-linux -rtlib=compiler-rt \
 // RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-OUTLINE-ATOMICS-ON %s
 
-// RUN: %clang --target=aarch64--none-eabi -rtlib=compiler-rt \
+// RUN: %clang --target=aarch64 -rtlib=compiler-rt \
 // RUN: -### -c %s 2>&1 | FileCheck -check-prefix=CHECK-OUTLINE-ATOMICS-OFF %s
 
 // RUN: %clang --target=aarch64-apple-darwin -rtlib=compiler-rt \

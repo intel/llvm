@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -disable-llvm-passes -triple spir64-unknown-unknown \
-// RUN:   -fsycl-is-device -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:   -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // This test checks that FE generates appropriate attributes for ESIMD private globals with register_num attribute.
 

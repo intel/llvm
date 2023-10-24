@@ -24,7 +24,7 @@ env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 17
+  LLVM_VERSION: 18
 
 jobs:
   clang-format-and-tidy:
@@ -82,7 +82,8 @@ jobs:
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
       id: run-clang-format
       run: |
-        cat diff-to-inspect.txt | /usr/share/clang/clang-format-${{ env.LLVM_VERSION }}/clang-format-diff.py -p1 > clang-format.patch
+        cat diff-to-inspect.txt | /usr/share/clang/clang-format-${{ env.LLVM_VERSION }}/clang-format-diff.py \
+            -p1 -binary clang-format-${{ env.LLVM_VERSION }} > clang-format.patch
         if [ -s clang-format.patch ]; then
           echo "clang-format found incorrectly formatted code:"
           cat clang-format.patch;

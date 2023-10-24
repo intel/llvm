@@ -54,6 +54,9 @@ protected:
   // Entry points called by other functions instead of directly by the hardware.
   bool IsModuleEntryFunction = false;
 
+  // Functions with the amdgpu_cs_chain or amdgpu_cs_chain_preserve CC.
+  bool IsChainFunction = false;
+
   bool NoSignedZerosFPMath = false;
 
   // Function may be memory bound.
@@ -85,6 +88,8 @@ public:
 
   bool isModuleEntryFunction() const { return IsModuleEntryFunction; }
 
+  bool isChainFunction() const { return IsChainFunction; }
+
   bool hasNoSignedZerosFPMath() const {
     return NoSignedZerosFPMath;
   }
@@ -103,8 +108,6 @@ public:
 
   unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV,
                              Align Trailing);
-
-  void allocateKnownAddressLDSGlobal(const Function &F);
 
   static std::optional<uint32_t> getLDSKernelIdMetadata(const Function &F);
   static std::optional<uint32_t> getLDSAbsoluteAddress(const GlobalValue &GV);

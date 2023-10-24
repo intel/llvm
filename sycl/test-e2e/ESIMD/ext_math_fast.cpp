@@ -19,6 +19,7 @@
 // The option -fno-slp-vectorize prevents vectorization of code in kernel
 // operator() to avoid the extra difficulties in results verification.
 
+#define SKIP_NEW_GPU_DRIVER_VERSION_CHECK 1
 #define TEST_FAST_MATH 1
 
 #include "ext_math.cpp"

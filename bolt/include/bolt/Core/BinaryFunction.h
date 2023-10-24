@@ -192,9 +192,6 @@ public:
   static constexpr uint64_t COUNT_NO_PROFILE =
       BinaryBasicBlock::COUNT_NO_PROFILE;
 
-  /// We have to use at least 2-byte alignment for functions because of C++ ABI.
-  static constexpr unsigned MinAlign = 2;
-
   static const char TimerGroupName[];
   static const char TimerGroupDesc[];
 
@@ -339,6 +336,9 @@ private:
   bool HasPseudoProbe{BC.getUniqueSectionByName(".pseudo_probe_desc") &&
                       BC.getUniqueSectionByName(".pseudo_probe")};
 
+  /// True if the function uses ORC format for stack unwinding.
+  bool HasORC{false};
+
   /// True if the original entry point was patched.
   bool IsPatched{false};
 
@@ -363,14 +363,15 @@ private:
   std::string ColdCodeSectionName;
 
   /// Parent function fragment for split function fragments.
-  SmallPtrSet<BinaryFunction *, 1> ParentFragments;
+  using FragmentsSetTy = SmallPtrSet<BinaryFunction *, 1>;
+  FragmentsSetTy ParentFragments;
 
   /// Indicate if the function body was folded into another function.
   /// Used by ICF optimization.
   BinaryFunction *FoldedIntoFunction{nullptr};
 
   /// All fragments for a parent function.
-  SmallPtrSet<BinaryFunction *, 1> Fragments;
+  FragmentsSetTy Fragments;
 
   /// The profile data for the number of times the function was executed.
   uint64_t ExecutionCount{COUNT_NO_PROFILE};
@@ -378,7 +379,7 @@ private:
   /// Profile match ratio.
   float ProfileMatchRatio{0.0f};
 
-  /// Raw branch count for this function in the profile
+  /// Raw branch count for this function in the profile.
   uint64_t RawBranchCount{0};
 
   /// Indicates the type of profile the function is using.
@@ -421,21 +422,6 @@ private:
   unsigned getIndex(const BinaryBasicBlock *BB) const {
     assert(BB->getIndex() < BasicBlocks.size());
     return BB->getIndex();
-  }
-
-  /// Return basic block that originally contained offset \p Offset
-  /// from the function start.
-  BinaryBasicBlock *getBasicBlockContainingOffset(uint64_t Offset);
-
-  const BinaryBasicBlock *getBasicBlockContainingOffset(uint64_t Offset) const {
-    return const_cast<BinaryFunction *>(this)->getBasicBlockContainingOffset(
-        Offset);
-  }
-
-  /// Return basic block that started at offset \p Offset.
-  BinaryBasicBlock *getBasicBlockAtOffset(uint64_t Offset) {
-    BinaryBasicBlock *BB = getBasicBlockContainingOffset(Offset);
-    return BB && BB->getOffset() == Offset ? BB : nullptr;
   }
 
   /// Release memory taken by the list.
@@ -588,9 +574,6 @@ private:
   /// Count the number of functions created.
   static uint64_t Count;
 
-  /// Map offsets of special instructions to addresses in the output.
-  InputOffsetToAddressMapTy InputOffsetToAddressMap;
-
   /// Register alternative function name.
   void addAlternativeName(std::string NewName) {
     Aliases.push_back(std::move(NewName));
@@ -618,10 +601,6 @@ private:
       Islands = std::make_unique<IslandInfo>();
     Islands->CodeOffsets.emplace(Offset);
   }
-
-  /// Register secondary entry point at a given \p Offset into the function.
-  /// Return global symbol for use by extern function references.
-  MCSymbol *addEntryPointAtOffset(uint64_t Offset);
 
   /// Register an internal offset in a function referenced from outside.
   void registerReferencedOffset(uint64_t Offset) {
@@ -898,6 +877,21 @@ public:
 
   const BinaryBasicBlock *getBasicBlockForLabel(const MCSymbol *Label) const {
     return LabelToBB.lookup(Label);
+  }
+
+  /// Return basic block that originally contained offset \p Offset
+  /// from the function start.
+  BinaryBasicBlock *getBasicBlockContainingOffset(uint64_t Offset);
+
+  const BinaryBasicBlock *getBasicBlockContainingOffset(uint64_t Offset) const {
+    return const_cast<BinaryFunction *>(this)->getBasicBlockContainingOffset(
+        Offset);
+  }
+
+  /// Return basic block that started at offset \p Offset.
+  BinaryBasicBlock *getBasicBlockAtOffset(uint64_t Offset) {
+    BinaryBasicBlock *BB = getBasicBlockContainingOffset(Offset);
+    return BB && BB->getOffset() == Offset ? BB : nullptr;
   }
 
   /// Retrieve the landing pad BB associated with invoke instruction \p Invoke
@@ -1194,7 +1188,7 @@ public:
 
     if (!Islands->FunctionConstantIslandLabel) {
       Islands->FunctionConstantIslandLabel =
-          BC.Ctx->createNamedTempSymbol("func_const_island");
+          BC.Ctx->getOrCreateSymbol("func_const_island@" + getOneName());
     }
     return Islands->FunctionConstantIslandLabel;
   }
@@ -1204,7 +1198,7 @@ public:
 
     if (!Islands->FunctionColdConstantIslandLabel) {
       Islands->FunctionColdConstantIslandLabel =
-          BC.Ctx->createNamedTempSymbol("func_cold_const_island");
+          BC.Ctx->getOrCreateSymbol("func_cold_const_island@" + getOneName());
     }
     return Islands->FunctionColdConstantIslandLabel;
   }
@@ -1224,14 +1218,7 @@ public:
   }
 
   /// Update output values of the function based on the final \p Layout.
-  void updateOutputValues(const MCAsmLayout &Layout);
-
-  /// Return mapping of input to output addresses. Most users should call
-  /// translateInputToOutputAddress() for address translation.
-  InputOffsetToAddressMapTy &getInputOffsetToAddressMap() {
-    assert(isEmitted() && "cannot use address mapping before code emission");
-    return InputOffsetToAddressMap;
-  }
+  void updateOutputValues(const BOLTLinker &Linker);
 
   /// Register relocation type \p RelType at a given \p Address in the function
   /// against \p Symbol.
@@ -1344,6 +1331,9 @@ public:
   /// Return true if the function has Pseudo Probe
   bool hasPseudoProbe() const { return HasPseudoProbe; }
 
+  /// Return true if the function uses ORC format for stack unwinding.
+  bool hasORC() const { return HasORC; }
+
   /// Return true if the original entry point was patched.
   bool isPatched() const { return IsPatched; }
 
@@ -1444,6 +1434,10 @@ public:
   /// Add basic block \BB as an entry point to the function. Return global
   /// symbol associated with the entry.
   MCSymbol *addEntryPoint(const BinaryBasicBlock &BB);
+
+  /// Register secondary entry point at a given \p Offset into the function.
+  /// Return global symbol for use by extern function references.
+  MCSymbol *addEntryPointAtOffset(uint64_t Offset);
 
   /// Mark all blocks that are unreachable from a root (entry point
   /// or landing pad) as invalid.
@@ -1702,6 +1696,11 @@ public:
   /// Indicate that another function body was merged with this function.
   void setHasFunctionsFoldedInto() { HasFunctionsFoldedInto = true; }
 
+  void setHasSDTMarker(bool V) { HasSDTMarker = V; }
+
+  /// Mark the function as using ORC format for stack unwinding.
+  void setHasORC(bool V) { HasORC = V; }
+
   BinaryFunction &setPersonalityFunction(uint64_t Addr) {
     assert(!PersonalityFunction && "can't set personality function twice");
     PersonalityFunction = BC.getOrCreateGlobalSymbol(Addr, "FUNCat");
@@ -1718,8 +1717,24 @@ public:
     return *this;
   }
 
-  Align getAlign() const { return Align(Alignment); }
+  uint16_t getMinAlignment() const {
+    // Align data in code BFs minimum to CI alignment
+    if (!size() && hasIslandsInfo())
+      return getConstantIslandAlignment();
+
+    // Minimal code alignment on AArch64 and RISCV is 4
+    if (BC.isAArch64() || BC.isRISCV())
+      return 4;
+
+    // We have to use at least 2-byte alignment for functions because
+    // of C++ ABI.
+    return 2;
+  }
+
+  Align getMinAlign() const { return Align(getMinAlignment()); }
+
   uint16_t getAlignment() const { return Alignment; }
+  Align getAlign() const { return Align(getAlignment()); }
 
   BinaryFunction &setMaxAlignmentBytes(uint16_t MaxAlignBytes) {
     MaxAlignmentBytes = MaxAlignBytes;
@@ -1765,8 +1780,17 @@ public:
 
   /// Returns if this function is a parent of \p Other function.
   bool isParentOf(const BinaryFunction &Other) const {
-    return llvm::is_contained(Fragments, &Other);
+    return Fragments.contains(&Other);
   }
+
+  /// Return the child fragment form parent function
+  iterator_range<FragmentsSetTy::const_iterator> getFragments() const {
+    return iterator_range<FragmentsSetTy::const_iterator>(Fragments.begin(),
+                                                          Fragments.end());
+  }
+
+  /// Return the parent function for split function fragments.
+  FragmentsSetTy *getParentFragments() { return &ParentFragments; }
 
   /// Returns if this function is a parent or child of \p Other function.
   bool isParentOrChildOf(const BinaryFunction &Other) const {
@@ -2158,6 +2182,11 @@ public:
   /// Return true if this function needs an address-transaltion table after
   /// its code emission.
   bool requiresAddressTranslation() const;
+
+  /// Return true if the linker needs to generate an address map for this
+  /// function. Used for keeping track of the mapping from input to out
+  /// addresses of basic blocks.
+  bool requiresAddressMap() const;
 
   /// Adjust branch instructions to match the CFG.
   ///

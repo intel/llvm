@@ -61,7 +61,8 @@
 // -------------------
 // prototype: return (arg, arg, ...)
 //
-// 2,3,4: array of default vectors
+// 2,3,4: array of vectors
+// .: indicator for multi-vector modifier that will follow (e.g. 2.x)
 // v: void
 // x: vector of signed integers
 // u: vector of unsigned integers
@@ -220,6 +221,8 @@ def IsStreaming               : FlagType<0x2000000000>;
 def IsStreamingCompatible     : FlagType<0x4000000000>;
 def IsSharedZA                : FlagType<0x8000000000>;
 def IsPreservesZA             : FlagType<0x10000000000>;
+def IsReadZA                  : FlagType<0x20000000000>;
+def IsWriteZA                 : FlagType<0x40000000000>;
 
 // These must be kept in sync with the flags in include/clang/Basic/TargetBuiltins.h
 class ImmCheckType<int val> {
@@ -243,6 +246,8 @@ def ImmCheck0_2                 : ImmCheckType<14>; // 0..2
 def ImmCheck0_3                 : ImmCheckType<15>; // 0..3
 def ImmCheck0_0                 : ImmCheckType<16>; // 0..0
 def ImmCheck0_15                : ImmCheckType<17>; // 0..15
+def ImmCheck0_255               : ImmCheckType<18>; // 0..255
+def ImmCheck2_4_Mul2            : ImmCheckType<19>; // 2, 4
 
 class ImmCheck<int arg, ImmCheckType kind, int eltSizeArg = -1> {
   int Arg = arg;

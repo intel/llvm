@@ -32,6 +32,18 @@ public:
     /// Unknown execution mode (orphaned directive).
     EM_Unknown,
   };
+
+  /// Target codegen is specialized based on two data-sharing modes: CUDA, in
+  /// which the local variables are actually global threadlocal, and Generic, in
+  /// which the local variables are placed in global memory if they may escape
+  /// their declaration context.
+  enum DataSharingMode {
+    /// CUDA data sharing mode.
+    DS_CUDA,
+    /// Generic data-sharing mode.
+    DS_Generic,
+  };
+
 private:
   /// Parallel outlined function work for workers to execute.
   llvm::SmallVector<llvm::Function *, 16> Work;
@@ -41,6 +53,8 @@ private:
   };
 
   ExecutionMode getExecutionMode() const;
+
+  DataSharingMode getDataSharingMode() const;
 
   /// Get barrier to synchronize all threads in a block.
   void syncCTAThreads(CodeGenFunction &CGF);
@@ -119,11 +133,24 @@ public:
   explicit CGOpenMPRuntimeGPU(CodeGenModule &CGM);
   void clear() override;
 
-  bool isTargetCodegen() const override { return true; };
+  bool isGPU() const override { return true; };
 
   /// Declare generalized virtual functions which need to be defined
   /// by all specializations of OpenMPGPURuntime Targets like AMDGCN
   /// and NVPTX.
+
+  /// Check if the variable length declaration is delayed:
+  bool isDelayedVariableLengthDecl(CodeGenFunction &CGF,
+                                   const VarDecl *VD) const override;
+
+  /// Get call to __kmpc_alloc_shared
+  std::pair<llvm::Value *, llvm::Value *>
+  getKmpcAllocShared(CodeGenFunction &CGF, const VarDecl *VD) override;
+
+  /// Get call to __kmpc_free_shared
+  void getKmpcFreeShared(
+      CodeGenFunction &CGF,
+      const std::pair<llvm::Value *, llvm::Value *> &AddrSizePair) override;
 
   /// Get the GPU warp size.
   llvm::Value *getGPUWarpSize(CodeGenFunction &CGF);
@@ -284,17 +311,6 @@ public:
   Address getAddressOfLocalVariable(CodeGenFunction &CGF,
                                     const VarDecl *VD) override;
 
-  /// Target codegen is specialized based on two data-sharing modes: CUDA, in
-  /// which the local variables are actually global threadlocal, and Generic, in
-  /// which the local variables are placed in global memory if they may escape
-  /// their declaration context.
-  enum DataSharingMode {
-    /// CUDA data sharing mode.
-    CUDA,
-    /// Generic data-sharing mode.
-    Generic,
-  };
-
   /// Cleans up references to the objects in finished function.
   ///
   void functionFinished(CodeGenFunction &CGF) override;
@@ -330,6 +346,10 @@ private:
   /// to emit optimized code.
   ExecutionMode CurrentExecutionMode = EM_Unknown;
 
+  /// Track the data sharing mode when codegening directives within a target
+  /// region.
+  DataSharingMode CurrentDataSharingMode = DataSharingMode::DS_Generic;
+
   /// true if currently emitting code for target/teams/distribute region, false
   /// - otherwise.
   bool IsInTTDRegion = false;
@@ -359,6 +379,7 @@ private:
     DeclToAddrMapTy LocalVarData;
     EscapedParamsTy EscapedParameters;
     llvm::SmallVector<const ValueDecl*, 4> EscapedVariableLengthDecls;
+    llvm::SmallVector<const ValueDecl *, 4> DelayedVariableLengthDecls;
     llvm::SmallVector<std::pair<llvm::Value *, llvm::Value *>, 4>
         EscapedVariableLengthDeclsAddrs;
     std::unique_ptr<CodeGenFunction::OMPMapVars> MappedParams;

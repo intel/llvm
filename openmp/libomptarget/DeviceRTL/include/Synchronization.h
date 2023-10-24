@@ -26,8 +26,15 @@ enum OrderingTy {
   seq_cst = __ATOMIC_SEQ_CST,
 };
 
+enum MemScopeTy {
+  all,    // All threads on all devices
+  device, // All threads on the device
+  cgroup  // All threads in the contention group, e.g. the team
+};
+
 /// Atomically increment \p *Addr and wrap at \p V with \p Ordering semantics.
-uint32_t inc(uint32_t *Addr, uint32_t V, OrderingTy Ordering);
+uint32_t inc(uint32_t *Addr, uint32_t V, OrderingTy Ordering,
+             MemScopeTy MemScope = MemScopeTy::all);
 
 /// Atomically perform <op> on \p V and \p *Addr with \p Ordering semantics. The
 /// result is stored in \p *Addr;
@@ -108,7 +115,7 @@ void threads(atomic::OrderingTy Ordering);
 /// (hence all threads in the block are "aligned"). Also perform a fence before
 /// and after the barrier according to \p Ordering. Note that the
 /// fence might be part of the barrier if the target offers this.
-__attribute__((noinline)) void threadsAligned(atomic::OrderingTy Ordering);
+[[gnu::noinline]] void threadsAligned(atomic::OrderingTy Ordering);
 
 #pragma omp end assumes
 ///}

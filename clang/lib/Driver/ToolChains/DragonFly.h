@@ -16,7 +16,8 @@
 namespace clang {
 namespace driver {
 namespace tools {
-/// dragonfly -- Directly call GNU Binutils assembler and linker
+
+/// Directly call GNU Binutils assembler and linker
 namespace dragonfly {
 class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
 public:
@@ -54,6 +55,13 @@ public:
             const llvm::opt::ArgList &Args);
 
   bool IsMathErrnoDefault() const override { return false; }
+
+  void
+  AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                            llvm::opt::ArgStringList &CC1Args) const override;
+  void addLibStdCxxIncludePaths(
+      const llvm::opt::ArgList &DriverArgs,
+      llvm::opt::ArgStringList &CC1Args) const override;
 
 protected:
   Tool *buildAssembler() const override;

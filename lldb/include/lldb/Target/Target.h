@@ -167,6 +167,8 @@ public:
 
   bool GetEnableSyntheticValue() const;
 
+  bool ShowHexVariableValuesWithLeadingZeroes() const;
+
   uint32_t GetMaxZeroPaddingInFloatFormat() const;
 
   uint32_t GetMaximumNumberOfChildrenToDisplay() const;
@@ -652,6 +654,8 @@ public:
 
   lldb::BreakpointSP GetBreakpointByID(lldb::break_id_t break_id);
 
+  lldb::BreakpointSP CreateBreakpointAtUserEntry(Status &error);
+
   // Use this to create a file and line breakpoint to a given module or all
   // module it is nullptr
   lldb::BreakpointSP CreateBreakpoint(const FileSpecList *containingModules,
@@ -939,7 +943,7 @@ public:
       LoadDependentFiles load_dependent_files = eLoadDependentsDefault);
 
   bool LoadScriptingResources(std::list<Status> &errors,
-                              Stream *feedback_stream = nullptr,
+                              Stream &feedback_stream,
                               bool continue_on_error = true) {
     return m_images.LoadScriptingResourcesInTarget(
         this, errors, feedback_stream, continue_on_error);
@@ -1310,8 +1314,8 @@ public:
 
     bool GetAutoContinue() const { return m_auto_continue; }
 
-    void GetDescription(Stream *s, lldb::DescriptionLevel level) const;
-    virtual void GetSubclassDescription(Stream *s,
+    void GetDescription(Stream &s, lldb::DescriptionLevel level) const;
+    virtual void GetSubclassDescription(Stream &s,
                                         lldb::DescriptionLevel level) const = 0;
 
   protected:
@@ -1334,7 +1338,7 @@ public:
 
     StopHookResult HandleStop(ExecutionContext &exc_ctx,
                               lldb::StreamSP output_sp) override;
-    void GetSubclassDescription(Stream *s,
+    void GetSubclassDescription(Stream &s,
                                 lldb::DescriptionLevel level) const override;
 
   private:
@@ -1356,7 +1360,7 @@ public:
     Status SetScriptCallback(std::string class_name,
                              StructuredData::ObjectSP extra_args_sp);
 
-    void GetSubclassDescription(Stream *s,
+    void GetSubclassDescription(Stream &s,
                                 lldb::DescriptionLevel level) const override;
 
   private:

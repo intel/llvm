@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -triple x86_64-apple-darwin10 -fblocks -fobjc-arc -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -fblocks -fobjc-arc -emit-llvm -o - %s | FileCheck %s
 
 // CHECK: %[[STRUCT_A:.*]] = type { ptr }
 

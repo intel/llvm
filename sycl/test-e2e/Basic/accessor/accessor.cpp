@@ -1491,5 +1491,72 @@ int main() {
     assert(!result);
   }
 
+  // default constructed accessor can be passed to a kernel.
+  {
+    AccT acc;
+    sycl::queue q;
+    bool result = false;
+    {
+      sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
+      // We are passing a default constructed accessor and a non default
+      // constructed accessor with storage. Default constructed accessors can be
+      // passed to commands, but trying to access the (non-existing) underlying
+      // storage is UB. This test should work, since the access to the default
+      // constructed accessor must never be reached.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          sycl::accessor res_acc{Buf, cgh};
+          cgh.single_task<class def_ctor_kernel>([=] {
+            if (false)
+              res_acc[0] = acc[0];
+          });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
+    }
+    assert(!result);
+  }
+
+  // default constructed accessor can be passed to a kernel (2).
+  {
+    using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+    AccT acc;
+    assert(acc.empty());
+    sycl::queue q;
+    bool result = false;
+    {
+      // We are passing only a default constructed accessor. Default constructed
+      // accessors can be passed to commands, but trying to access the
+      // (non-existing) underlying storage is UB. This test should work, since
+      // the access to the default constructed accessor must never be reached.
+      // The difference with the previous test case is that in this case the
+      // task will not have any requirements, while the previous one does have
+      // one requirement for the non default constructed accessor, testing
+      // different code paths.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          cgh.single_task<class def_ctor_kernel2>([=] {
+            if (!acc.empty())
+              acc[0] = 1;
+          });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
+    }
+    assert(!result);
+  }
+
   std::cout << "Test passed" << std::endl;
 }

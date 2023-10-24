@@ -496,6 +496,12 @@ void OutputSection::writeTo(uint8_t *buf, parallel::TaskGroup &tg) {
       else
         isec->writeTo<ELFT>(buf + isec->outSecOff);
 
+      // When in Arm BE8 mode, the linker has to convert the big-endian
+      // instructions to little-endian, leaving the data big-endian.
+      if (config->emachine == EM_ARM && !config->isLE && config->armBe8 &&
+          (flags & SHF_EXECINSTR))
+        convertArmInstructionstoBE8(isec, buf + isec->outSecOff);
+
       // Fill gaps between sections.
       if (nonZeroFiller) {
         uint8_t *start = buf + isec->outSecOff + isec->getSize();
@@ -738,6 +744,12 @@ void OutputSection::checkDynRelAddends(const uint8_t *bufStart) {
       int64_t addend = rel.addend;
       const OutputSection *relOsec = rel.inputSec->getOutputSection();
       assert(relOsec != nullptr && "missing output section for relocation");
+      // Some targets have NOBITS synthetic sections with dynamic relocations
+      // with non-zero addends. Skip such sections.
+      if (is_contained({EM_PPC, EM_PPC64}, config->emachine) &&
+          (rel.inputSec == in.ppc64LongBranchTarget.get() ||
+           rel.inputSec == in.igotPlt.get()))
+        continue;
       const uint8_t *relocTarget =
           bufStart + relOsec->offset + rel.inputSec->getOffset(rel.offsetInSec);
       // For SHT_NOBITS the written addend is always zero.

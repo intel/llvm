@@ -311,6 +311,7 @@ const static char PipeStorage[] = "PipeStorage";
 const static char ConstantPipeStorage[] = "ConstantPipeStorage";
 const static char VmeImageINTEL[] = "VmeImageINTEL";
 const static char JointMatrixINTEL[] = "JointMatrixINTEL";
+const static char CooperativeMatrixKHR[] = "CooperativeMatrixKHR";
 const static char BufferSurfaceINTEL[] = "BufferSurfaceINTEL";
 } // namespace kSPIRVTypeName
 
@@ -410,7 +411,7 @@ const static char PreferDSP[] = "prefer_dsp";
 const static char PropDSPPref[] = "propagate_dsp_preference";
 const static char InitiationInterval[] = "initiation_interval";
 const static char MaxConcurrency[] = "max_concurrency";
-const static char DisableLoopPipelining[] = "disable_loop_pipelining";
+const static char PipelineKernel[] = "pipeline_kernel";
 const static char IntelFPGAIPInterface[] = "ip_interface";
 } // namespace kSPIR2MD
 
@@ -956,6 +957,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   _SPIRV_OP(AvcSicResultINTEL)
   _SPIRV_OP(VmeImageINTEL)
   _SPIRV_OP(BufferSurfaceINTEL)
+  _SPIRV_OP(CooperativeMatrixKHR)
 #undef _SPIRV_OP
   add("JointMatrixINTEL", internal::OpTypeJointMatrixINTEL);
 }

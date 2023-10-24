@@ -28,7 +28,7 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda --enable-esimd-emulator"
+        default: "--hip --cuda"
       build_artifact_suffix:
         type: string
         required: true
@@ -52,6 +52,8 @@ on:
         default: 3
 
     outputs:
+      build_conclusion:
+        value: ${{ jobs.build.outputs.build_conclusion }}
       artifact_archive_name:
         value: ${{ jobs.build.outputs.artifact_archive_name }}
       artifact_decompress_command:
@@ -80,7 +82,7 @@ on:
       build_configure_extra_args:
         type: choice
         options:
-          - "--hip --cuda --enable-esimd-emulator"
+          - "--hip --cuda"
       # Cache properties need to match CC/CXX/CMake opts. Any additional choices
       # would need extra care.
       build_cache_root:

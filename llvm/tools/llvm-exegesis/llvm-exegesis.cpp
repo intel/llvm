@@ -15,6 +15,7 @@
 #include "lib/BenchmarkResult.h"
 #include "lib/BenchmarkRunner.h"
 #include "lib/Clustering.h"
+#include "lib/CodeTemplate.h"
 #include "lib/Error.h"
 #include "lib/LlvmState.h"
 #include "lib/PerfHelper.h"
@@ -290,6 +291,9 @@ static std::vector<unsigned> getOpcodesOrDie(const LLVMState &State) {
   const size_t NumSetFlags = (OpcodeNames.empty() ? 0 : 1) +
                              (OpcodeIndex == 0 ? 0 : 1) +
                              (SnippetsFile.empty() ? 0 : 1);
+  const auto &ET = State.getExegesisTarget();
+  const auto AvailableFeatures = State.getSubtargetInfo().getFeatureBits();
+
   if (NumSetFlags != 1) {
     ExitOnErr.setBanner("llvm-exegesis: ");
     ExitWithError("please provide one and only one of 'opcode-index', "
@@ -303,8 +307,11 @@ static std::vector<unsigned> getOpcodesOrDie(const LLVMState &State) {
     std::vector<unsigned> Result;
     unsigned NumOpcodes = State.getInstrInfo().getNumOpcodes();
     Result.reserve(NumOpcodes);
-    for (unsigned I = 0, E = NumOpcodes; I < E; ++I)
+    for (unsigned I = 0, E = NumOpcodes; I < E; ++I) {
+      if (!ET.isOpcodeAvailable(I, AvailableFeatures))
+        continue;
       Result.push_back(I);
+    }
     return Result;
   }
   // Resolve opcode name -> opcode.
@@ -470,6 +477,11 @@ void benchmarkMain() {
   if (BenchmarkPhaseSelector == BenchmarkPhaseSelectorE::Measure)
     ExitOnErr(State.getExegesisTarget().checkFeatureSupport());
 
+  if (ExecutionMode == BenchmarkRunner::ExecutionModeE::SubProcess &&
+      UseDummyPerfCounters)
+    ExitWithError("Dummy perf counters are not supported in the subprocess "
+                  "execution mode.");
+
   const std::unique_ptr<BenchmarkRunner> Runner =
       ExitOnErr(State.getExegesisTarget().createBenchmarkRunner(
           BenchmarkMode, State, BenchmarkPhaseSelector, ExecutionMode,
@@ -491,11 +503,8 @@ void benchmarkMain() {
   }
 
   BitVector AllReservedRegs;
-  llvm::for_each(Repetitors,
-                 [&AllReservedRegs](
-                     const std::unique_ptr<const SnippetRepetitor> &Repetitor) {
-                   AllReservedRegs |= Repetitor->getReservedRegs();
-                 });
+  for (const std::unique_ptr<const SnippetRepetitor> &Repetitor : Repetitors)
+    AllReservedRegs |= Repetitor->getReservedRegs();
 
   std::vector<BenchmarkCode> Configurations;
   if (!Opcodes.empty()) {
@@ -521,6 +530,13 @@ void benchmarkMain() {
     }
   } else {
     Configurations = ExitOnErr(readSnippets(State, SnippetsFile));
+    for (const auto &Configuration : Configurations) {
+      if (ExecutionMode != BenchmarkRunner::ExecutionModeE::SubProcess &&
+          (Configuration.Key.MemoryMappings.size() != 0 ||
+           Configuration.Key.MemoryValues.size() != 0))
+        ExitWithError("Memory annotations are only supported in subprocess "
+                      "execution mode");
+    }
   }
 
   if (NumRepetitions == 0) {

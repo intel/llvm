@@ -117,9 +117,8 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                        is_sgeninteger<T>::value) &&
-                       IsValidAtomicType<T>::value &&
+    std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
+                        is_sgeninteger_v<T>)&&IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value ||
@@ -144,7 +143,7 @@ using IsReduOptForAtomic64Op =
     std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value) &&
-                       is_sgenfloat<T>::value && sizeof(T) == 8>;
+                       is_sgenfloat_v<T> && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -157,12 +156,11 @@ using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     std::bool_constant<false>;
 #else
-    std::bool_constant<((is_sgeninteger<T>::value &&
-                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                        is_sgenfloat<T>::value) &&
-                       (IsPlus<T, BinaryOperation>::value ||
-                        IsMinimum<T, BinaryOperation>::value ||
-                        IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<(
+        (is_sgeninteger_v<T> && (sizeof(T) == 4 || sizeof(T) == 8)) ||
+        is_sgenfloat_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
+                             IsMinimum<T, BinaryOperation>::value ||
+                             IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -257,7 +255,7 @@ template <class Reducer> class combiner {
 public:
   template <typename _T = Ty, int _Dims = Dims>
   std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                       is_geninteger<_T>::value,
+                       is_geninteger_v<_T>,
                    Reducer &>
   operator++() {
     return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
@@ -265,7 +263,7 @@ public:
 
   template <typename _T = Ty, int _Dims = Dims>
   std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                       is_geninteger<_T>::value,
+                       is_geninteger_v<_T>,
                    Reducer &>
   operator++(int) {
     return static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
@@ -530,7 +528,20 @@ public:
 private:
   value_type MValue;
 };
+} // namespace detail
 
+// We explicitly claim std::optional as device-copyable in sycl/types.hpp.
+// However, that information isn't propagated to the struct/class types that use
+// it as a member, so we need to provide this partial specialization as well.
+// This is needed to support GNU STL where
+// std::is_trivially_copyable_v<std::optional> is false (e.g., 7.5.* ).
+template <typename T, class BinaryOperation, bool IsOptional>
+struct is_device_copyable<
+    detail::ReducerElement<T, BinaryOperation, IsOptional>>
+    : is_device_copyable<std::conditional_t<IsOptional, std::optional<T>, T>> {
+};
+
+namespace detail {
 template <typename T, class BinaryOperation, int Dims> class reducer_common {
 public:
   using value_type = T;
@@ -990,7 +1001,7 @@ public:
     // instantiated for the code below.
     auto DoIt = [&](auto &Out) {
       auto RWReduVal = std::make_shared<std::array<T, num_elements>>();
-      for (int i = 0; i < num_elements; ++i) {
+      for (size_t i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
@@ -1021,7 +1032,7 @@ public:
           size_t NElements = num_elements;
 
           CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
-            for (int i = 0; i < NElements; ++i) {
+            for (size_t i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
               else
@@ -1205,7 +1216,7 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
   auto BOp = Redu.getBinaryOperation();
   CGH.single_task<KernelName>([=] {
-    for (int i = 0; i < NElements; ++i) {
+    for (size_t i = 0; i < NElements; ++i) {
       auto Elem = InAcc[i];
       if (IsUpdateOfUserVar)
         UserVarPtr[i] = BOp(UserVarPtr[i], *Elem);
@@ -1328,7 +1339,7 @@ struct NDRangeReduction<
         // If there are multiple values, reduce each separately
         // reduce_over_group is only defined for each T, not for span<T, ...>
         size_t LID = NDId.get_local_id(0);
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           auto &RedElem = *getReducerAccess(Reducer).getElement(E);
           RedElem = reduce_over_group(Group, RedElem, BOp);
           if (LID == 0) {
@@ -1349,20 +1360,24 @@ struct NDRangeReduction<
           // We're done.
           return;
 
-        // Signal this work-group has finished after all values are reduced
+        // Signal this work-group has finished after all values are reduced. We
+        // had an implicit work-group barrier in reduce_over_group and all the
+        // work since has been done in (LID == 0) work-item, so no extra sync is
+        // needed.
         if (LID == 0) {
           auto NFinished =
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
-          DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
+          DoReducePartialSumsInLastWG[0] =
+              ++NFinished == static_cast<int>(NWorkGroups);
         }
 
         workGroupBarrier();
         if (DoReducePartialSumsInLastWG[0]) {
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
-          for (int E = 0; E < NElements; ++E) {
+          for (size_t E = 0; E < NElements; ++E) {
             auto LocalSum = getReducerAccess(Reducer).getIdentity();
             for (size_t I = LID; I < NWorkGroups; I += WGSize)
               LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
@@ -1538,7 +1553,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // If there are multiple values, reduce each separately
       // This prevents local memory from scaling with elements
       size_t LID = NDId.get_local_linear_id();
-      for (int E = 0; E < NElements; ++E) {
+      for (size_t E = 0; E < NElements; ++E) {
 
         doTreeReduction<WorkSizeGuarantees::Equal>(
             WGSize, NDId, LocalReds, ElementCombiner,
@@ -1560,7 +1575,10 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         }
       }
 
-      // Signal this work-group has finished after all values are reduced
+      // Signal this work-group has finished after all values are reduced. We
+      // had an implicit work-group barrier in doTreeReduction and all the
+      // work since has been done in (LID == 0) work-item, so no extra sync is
+      // needed.
       if (LID == 0) {
         auto NFinished =
             sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
@@ -1574,7 +1592,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       if (DoReducePartialSumsInLastWG[0]) {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           doTreeReduction<WorkSizeGuarantees::None>(
               NWorkGroups, NDId, LocalReds, ElementCombiner,
               [&](size_t I) { return PartialSums[I * NElements + E]; });
@@ -1614,7 +1632,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
         KernelFunc(NDIt, Reducer);
 
         typename Reduction::binary_operation BOp;
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           auto &ReducerElem = getReducerAccess(Reducer).getElement(E);
           *ReducerElem = reduce_over_group(NDIt.get_group(), *ReducerElem, BOp);
         }
@@ -1663,7 +1681,7 @@ struct NDRangeReduction<
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
 
           doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, ElementCombiner,
@@ -1738,7 +1756,7 @@ struct NDRangeReduction<
       // Compute the partial sum/reduction for the work-group.
       size_t WGID = NDIt.get_group_linear_id();
       typename Reduction::binary_operation BOp;
-      for (int E = 0; E < NElements; ++E) {
+      for (size_t E = 0; E < NElements; ++E) {
         typename Reduction::result_type PSum;
         PSum = *getReducerAccess(Reducer).getElement(E);
         PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
@@ -1800,7 +1818,7 @@ struct NDRangeReduction<
           size_t WGID = NDIt.get_group_linear_id();
           size_t GID = NDIt.get_global_linear_id();
 
-          for (int E = 0; E < NElements; ++E) {
+          for (size_t E = 0; E < NElements; ++E) {
             typename Reduction::result_type PSum =
                 (HasUniformWG || (GID < NWorkItems))
                     ? *In[GID * NElements + E]
@@ -1897,7 +1915,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
 
           doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, ElementCombiner,
@@ -2004,7 +2022,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
               return LHS.combine(BOp, RHS);
             };
 
-            for (int E = 0; E < NElements; ++E) {
+            for (size_t E = 0; E < NElements; ++E) {
 
               doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
                   RemainingWorkSize, NDIt, LocalReds, ElementCombiner,

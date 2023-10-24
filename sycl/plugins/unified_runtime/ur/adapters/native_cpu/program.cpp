@@ -1,10 +1,10 @@
-//===--------- program.cpp - Native CPU Adapter ----------------------===//
+//===--------- program.cpp - Native CPU Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "ur_api.h"
 
@@ -38,6 +38,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 
   auto hProgram = new ur_program_handle_t_(
       hContext, reinterpret_cast<const unsigned char *>(pBinary));
+
+  const nativecpu_entry *nativecpu_it =
+      reinterpret_cast<const nativecpu_entry *>(pBinary);
+  while (nativecpu_it->kernel_ptr != nullptr) {
+    hProgram->_kernels.insert(
+        std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
+    nativecpu_it++;
+  }
 
   *phProgram = hProgram;
 
@@ -79,9 +87,8 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  std::ignore = hProgram;
-
-  DIE_NO_IMPLEMENTATION
+  hProgram->incrementReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

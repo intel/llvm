@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Optimizer/Dialect/FIRType.h"
-#include "flang/ISO_Fortran_binding.h"
+#include "flang/ISO_Fortran_binding_wrapper.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Tools/PointerModels.h"
@@ -311,6 +311,25 @@ bool isAssumedType(mlir::Type ty) {
   return false;
 }
 
+bool isAssumedShape(mlir::Type ty) {
+  if (auto boxTy = mlir::dyn_cast<fir::BoxType>(ty))
+    if (auto seqTy = mlir::dyn_cast<fir::SequenceType>(boxTy.getEleTy()))
+      return seqTy.hasDynamicExtents();
+  return false;
+}
+
+bool isAllocatableOrPointerArray(mlir::Type ty) {
+  if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
+    ty = refTy;
+  if (auto boxTy = mlir::dyn_cast<fir::BoxType>(ty)) {
+    if (auto heapTy = mlir::dyn_cast<fir::HeapType>(boxTy.getEleTy()))
+      return mlir::isa<fir::SequenceType>(heapTy.getEleTy());
+    if (auto ptrTy = mlir::dyn_cast<fir::PointerType>(boxTy.getEleTy()))
+      return mlir::isa<fir::SequenceType>(ptrTy.getEleTy());
+  }
+  return false;
+}
+
 bool isPolymorphicType(mlir::Type ty) {
   if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
     ty = refTy;
@@ -355,6 +374,18 @@ bool isRecordWithAllocatableMember(mlir::Type ty) {
       // A record type cannot recursively include itself as a direct member.
       // There must be an intervening `ptr` type, so recursion is safe here.
       if (memTy.isa<fir::RecordType>() && isRecordWithAllocatableMember(memTy))
+        return true;
+    }
+  return false;
+}
+
+bool isRecordWithDescriptorMember(mlir::Type ty) {
+  ty = unwrapSequenceType(ty);
+  if (auto recTy = ty.dyn_cast<fir::RecordType>())
+    for (auto [field, memTy] : recTy.getTypeList()) {
+      if (mlir::isa<fir::BaseBoxType>(memTy))
+        return true;
+      if (memTy.isa<fir::RecordType>() && isRecordWithDescriptorMember(memTy))
         return true;
     }
   return false;
@@ -482,7 +513,8 @@ int getTypeCode(mlir::Type ty, const fir::KindMapping &kindMap) {
 
 std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
                             llvm::StringRef prefix) {
-  std::stringstream name;
+  std::string buf;
+  llvm::raw_string_ostream name{buf};
   name << prefix.str();
   if (!prefix.empty())
     name << "_";
@@ -508,20 +540,44 @@ std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
         llvm::report_fatal_error("unsupported type");
       }
       break;
+    } else if (mlir::isa<mlir::NoneType>(ty)) {
+      name << "none";
+      break;
     } else if (auto charTy = mlir::dyn_cast_or_null<fir::CharacterType>(ty)) {
       name << 'c' << kindMap.getCharacterBitsize(charTy.getFKind());
       if (charTy.getLen() != fir::CharacterType::singleton())
         name << "x" << charTy.getLen();
       break;
     } else if (auto seqTy = mlir::dyn_cast_or_null<fir::SequenceType>(ty)) {
-      for (auto extent : seqTy.getShape())
-        name << extent << 'x';
+      for (auto extent : seqTy.getShape()) {
+        if (extent == fir::SequenceType::getUnknownExtent())
+          name << "Ux";
+        else
+          name << extent << 'x';
+      }
       ty = seqTy.getEleTy();
     } else if (auto refTy = mlir::dyn_cast_or_null<fir::ReferenceType>(ty)) {
       name << "ref_";
       ty = refTy.getEleTy();
+    } else if (auto ptrTy = mlir::dyn_cast_or_null<fir::PointerType>(ty)) {
+      name << "ptr_";
+      ty = ptrTy.getEleTy();
+    } else if (auto ptrTy = mlir::dyn_cast_or_null<fir::LLVMPointerType>(ty)) {
+      name << "llvmptr_";
+      ty = ptrTy.getEleTy();
+    } else if (auto heapTy = mlir::dyn_cast_or_null<fir::HeapType>(ty)) {
+      name << "heap_";
+      ty = heapTy.getEleTy();
+    } else if (auto classTy = mlir::dyn_cast_or_null<fir::ClassType>(ty)) {
+      name << "class_";
+      ty = classTy.getEleTy();
+    } else if (auto boxTy = mlir::dyn_cast_or_null<fir::BoxType>(ty)) {
+      name << "box_";
+      ty = boxTy.getEleTy();
+    } else if (auto recTy = mlir::dyn_cast_or_null<fir::RecordType>(ty)) {
+      name << "rec_" << recTy.getName();
+      break;
     } else {
-      // TODO: add support for RecordType/BaseBoxType
       llvm::report_fatal_error("unsupported type");
     }
   }

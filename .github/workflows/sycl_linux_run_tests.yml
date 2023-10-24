@@ -32,6 +32,12 @@ on:
         type: string
         default: "e2e"
 
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        type: string
+        default: ''
+
       ref:
         type: string
         required: True
@@ -74,6 +80,7 @@ on:
         options:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
+          - '["Linux", "arc"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -96,7 +103,6 @@ on:
           - 'opencl:acc'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
-          - 'ext_intel_esimd_emulator:gpu'
       tests_selector:
         type: choice
         options:
@@ -113,6 +119,11 @@ on:
 
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
         default: '{}'
+
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        default: ''
 
       install_drivers:
         type: choice
@@ -164,17 +175,10 @@ jobs:
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
       if: inputs.install_drivers == 'true'
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo cp devops/scripts/get_release.py /opt/
-        sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
-    - name: Install drivers (deprecated CI interface)
-      if: env.compute_runtime_tag != '' && inputs.install_drivers != 'true'
-      run: |
-        if [ -e /opt/install_drivers.sh ]; then
-          # TODO pack this script into container
-          sudo cp devops/scripts/get_release.py /opt/
-          sudo -E /opt/install_drivers.sh --all
-        fi
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -265,7 +269,7 @@ jobs:
     - name: SYCL End-to-end tests
       if: inputs.tests_selector == 'e2e'
       env:
-        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
       run: |
         ninja -C build-e2e check-sycl-e2e
 

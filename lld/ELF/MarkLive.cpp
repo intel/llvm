@@ -212,7 +212,7 @@ template <class ELFT> void MarkLive<ELFT>::run() {
   // Add GC root symbols.
 
   // Preserve externally-visible symbols if the symbols defined by this
-  // file can interrupt other ELF file's symbols at runtime.
+  // file can interpose other ELF file's symbols at runtime.
   for (Symbol *sym : symtab.getSymbols())
     if (sym->includeInDynsym() && sym->partition == partition)
       markSymbol(sym);
@@ -230,6 +230,10 @@ template <class ELFT> void MarkLive<ELFT>::run() {
     markSymbol(symtab.find(s));
   for (StringRef s : script->referencedSymbols)
     markSymbol(symtab.find(s));
+  for (auto [symName, _] : symtab.cmseSymMap) {
+    markSymbol(symtab.cmseSymMap[symName].sym);
+    markSymbol(symtab.cmseSymMap[symName].acleSeSym);
+  }
 
   // Mark .eh_frame sections as live because there are usually no relocations
   // that point to .eh_frames. Otherwise, the garbage collector would drop

@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -std=c++23 -fsyntax-only -verify=expected,cxx20_23,cxx23    -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fcxx-exceptions -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
-// RUN: %clang_cc1 -std=c++20 -fsyntax-only -verify=expected,cxx11_20,cxx20_23 -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fcxx-exceptions -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
-// RUN: %clang_cc1 -std=c++11 -fsyntax-only -verify=expected,cxx11_20,cxx11    -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fcxx-exceptions -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
+// RUN: %clang_cc1 -std=c++23 -isystem %S/Inputs -fsyntax-only -verify=expected,cxx20_23,cxx23    -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fcxx-exceptions -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
+// RUN: %clang_cc1 -std=c++20 -isystem %S/Inputs -fsyntax-only -verify=expected,cxx11_20,cxx20_23 -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fcxx-exceptions -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
+// RUN: %clang_cc1 -std=c++11 -isystem %S/Inputs -fsyntax-only -verify=expected,cxx11_20,cxx11    -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fcxx-exceptions -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
 
 namespace StaticAssertFoldTest {
 
@@ -975,7 +975,7 @@ struct T : S {
   int n;
 };
 constexpr int S::f() const {
-  return static_cast<const T*>(this)->n; // expected-note {{cannot cast}}
+  return static_cast<const T*>(this)->n; // expected-note 5{{cannot cast}}
 }
 constexpr int S::g() const {
   // FIXME: Better diagnostic for this.
@@ -984,8 +984,20 @@ constexpr int S::g() const {
 // The T temporary is implicitly cast to an S subobject, but we can recover the
 // T full-object via a base-to-derived cast, or a derived-to-base-casted member
 // pointer.
-static_assert(S().f(), ""); // expected-error {{constant expression}} expected-note {{in call to '&S()->f()'}}
-static_assert(S().g(), ""); // expected-error {{constant expression}} expected-note {{in call to '&S()->g()'}}
+static_assert(S().f(), ""); // expected-error {{constant expression}} expected-note {{in call to 'S().f()'}}
+static_assert(S().g(), ""); // expected-error {{constant expression}} expected-note {{in call to 'S().g()'}}
+constexpr S sobj;
+constexpr const S& slref = sobj;
+constexpr const S&& srref = S();
+constexpr const S *sptr = &sobj;
+static_assert(sobj.f(), ""); // expected-error {{constant expression}} \
+                                expected-note {{in call to 'sobj.f()'}}
+static_assert(sptr->f(), ""); // expected-error {{constant expression}} \
+                                 expected-note {{in call to 'sptr->f()'}}
+static_assert(slref.f(), ""); // expected-error {{constant expression}} \
+                                 expected-note {{in call to 'slref.f()'}}
+static_assert(srref.f(), ""); // expected-error {{constant expression}} \
+                                 expected-note {{in call to 'srref.f()'}}
 static_assert(T(3).f() == 3, "");
 static_assert(T(4).g() == 4, "");
 
@@ -1769,7 +1781,7 @@ namespace Void {
   static_assert(get(arr, 1) == 1, "");
   static_assert(get(arr, 4) == 4, "");
   static_assert(get(arr, 0) == 4, ""); // expected-error{{not an integral constant expression}} \
-  // expected-note{{in call to 'get(arr, 0)'}}
+  // expected-note{{in call to 'get<const int, 5UL>(arr, 0)'}}
 }
 
 namespace std { struct type_info; }
@@ -2437,6 +2449,8 @@ E2 testDefaultArgForParam(E2 e2Param = (E2)-1) { // ok, not a constant expressio
   return e2LocalInit;
 }
 
+#include <enum-constexpr-conversion-system-header.h>
+
 void testValueInRangeOfEnumerationValues() {
   constexpr E1 x1 = static_cast<E1>(-8);
   constexpr E1 x2 = static_cast<E1>(8);
@@ -2474,6 +2488,9 @@ void testValueInRangeOfEnumerationValues() {
   // expected-error@-1 {{integer value 2147483648 is outside the valid range of values [-2147483648, 2147483647] for the enumeration type 'EMaxInt'}}
 
   const NumberType neg_one = (NumberType) ((NumberType) 0 - (NumberType) 1); // ok, not a constant expression context
+
+  CONSTEXPR_CAST_TO_SYSTEM_ENUM_OUTSIDE_OF_RANGE;
+  // expected-error@-1 {{integer value 123 is outside the valid range of values [0, 1] for the enumeration type 'SystemEnum'}}
 }
 
 template<class T, unsigned size> struct Bitfield {

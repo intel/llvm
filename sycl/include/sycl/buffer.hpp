@@ -30,6 +30,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/stl.hpp>                               // for make_unique_ptr
+#include <sycl/types.hpp>                             // for is_device_copyable
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -167,10 +168,8 @@ template <typename T, int dimensions = 1,
               typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
-  // TODO check is_device_copyable<T>::value after converting sycl::vec into a
-  // trivially copyable class.
-  static_assert(!std::is_same_v<T, std::string>,
-                "'std::string' is not a device copyable type");
+  static_assert(is_device_copyable_v<T>,
+                "Underlying type of a buffer must be device copyable!");
 
 public:
   using value_type = T;
@@ -198,8 +197,7 @@ public:
   buffer(const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+      : buffer_plain(bufferRange.size() * sizeof(T), alignof(T), propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
@@ -212,8 +210,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
@@ -225,8 +222,8 @@ public:
   buffer(T *hostData, const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(hostData, bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+      : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
+                     propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
@@ -239,8 +236,7 @@ public:
          AllocatorT allocator, const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
@@ -254,8 +250,8 @@ public:
          const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(hostData, bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+      : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
+                     propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
@@ -270,8 +266,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
@@ -285,8 +280,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
@@ -302,8 +296,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
@@ -319,8 +312,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             std::is_const<T>::value),
         Range(bufferRange) {
@@ -335,8 +327,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             std::is_const<T>::value),
         Range(bufferRange) {
@@ -367,8 +358,7 @@ public:
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
-            std::distance(first, last) * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            std::distance(first, last) * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             detail::iterator_to_const_type_t<InputIterator>::value),
@@ -400,8 +390,7 @@ public:
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
-            std::distance(first, last) * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            std::distance(first, last) * sizeof(T), alignof(T), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
@@ -419,8 +408,8 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
-            container.data(), container.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            container.data(), container.size() * sizeof(T), alignof(T),
+            propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(range<1>(container.size())) {

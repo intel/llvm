@@ -1,5 +1,5 @@
 ; RUN: split-file %s %t
-; RUN: llvm-link -opaque-pointers %t/a.ll %t/b.ll -S -o - | FileCheck %s
+; RUN: llvm-link %t/a.ll %t/b.ll -S -o - | FileCheck %s
 
 ;; Check that ifuncs are linked in properly.
 

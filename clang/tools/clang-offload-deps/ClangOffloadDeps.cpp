@@ -74,24 +74,6 @@ static void reportError(Error E) {
   logAllUnhandledErrors(std::move(E), WithColor::error(errs(), ToolPath));
 }
 
-// clang-offload-bundler is currently generating a 'standardized' target header.
-// This is of the following form - Kind-Triple-TargetID where triple's format is
-// Architecture-Vendor-OS-Environment
-// This routine transforms the target header specified by user as input to
-// clang-offload-deps to this 'standardized' format.
-static std::string standardizedTarget(std::string OrigTarget) {
-  if (OrigTarget.back() == '-') // Already standardized
-    return OrigTarget;
-  StringRef Target(OrigTarget);
-  auto KindTriple = Target.split('-');
-  llvm::Triple t = llvm::Triple(KindTriple.second);
-  return std::string(KindTriple.first) + "-" +
-         std::string(llvm::Triple(t.getArchName(), t.getVendorName(),
-                                  t.getOSName(), t.getEnvironmentName())
-                         .str()) +
-         "-";
-}
-
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   ToolPath = argv[0];
@@ -186,10 +168,11 @@ int main(int argc, const char **argv) {
     // offload targets and insert them into the map.
     for (StringRef Symbol = DataOrErr.get(); !Symbol.empty();) {
       unsigned Len = strlen(Symbol.data());
+
       // TODO: Consider storing Targets and Kinds in a single map-like struct,
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
       for (const std::string &Target : Targets) {
-        std::string Prefix = standardizedTarget(Target) + ".";
+        std::string Prefix = Target + ".";
         if (Symbol.startswith(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
@@ -203,7 +186,6 @@ int main(int argc, const char **argv) {
   }
 
   LLVMContext Context;
-  Context.setOpaquePointers(SPIRV_ENABLE_OPAQUE_POINTERS);
   Type *Int8PtrTy = Type::getInt8PtrTy(Context);
 
   // Create bitcode file with the symbol names for each target and write it to

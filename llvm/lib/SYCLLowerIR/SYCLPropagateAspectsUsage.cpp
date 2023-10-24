@@ -239,21 +239,24 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     ReturnType = AI->getAllocatedType();
   }
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
-  for (const auto &OperandIt : I.operands()) {
-    const AspectsSetTy &Aspects =
-        getAspectsFromType(OperandIt->getType(), Types);
+  auto AddAspectsFromType = [&](Type *Ty) {
+    const AspectsSetTy &Aspects = getAspectsFromType(Ty, Types);
     Result.insert(Aspects.begin(), Aspects.end());
+  };
+  for (const auto &OperandIt : I.operands()) {
+    if (const auto *GV =
+            dyn_cast<const GlobalValue>(OperandIt->stripPointerCasts()))
+      AddAspectsFromType(GV->getValueType());
+    else
+      AddAspectsFromType(OperandIt->getType());
   }
 
   // Opaque pointer arguments may hide types of pointer arguments until elements
   // inside the types are accessed through a GEP instruction. However, this will
   // not be caught by the operands check above, so we must extract the
   // information directly from the GEP.
-  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I)) {
-    const AspectsSetTy &Aspects =
-        getAspectsFromType(GEPI->getSourceElementType(), Types);
-    Result.insert(Aspects.begin(), Aspects.end());
-  }
+  if (auto *GEPI = dyn_cast<const GetElementPtrInst>(&I))
+    AddAspectsFromType(GEPI->getSourceElementType());
 
   if (const MDNode *InstApsects = I.getMetadata("sycl_used_aspects")) {
     for (const MDOperand &MDOp : InstApsects->operands()) {
@@ -316,11 +319,10 @@ getAspectUsageChain(const Function *F, const FunctionToAspectsMapTy &AspectsMap,
 }
 
 void createUsedAspectsMetadataForFunctions(
-    FunctionToAspectsMapTy &Map, const AspectsSetTy &ExcludeAspectVals) {
-  for (auto &[F, Aspects] : Map) {
-    if (Aspects.empty())
-      continue;
-
+    FunctionToAspectsMapTy &FunctionToUsedAspects,
+    FunctionToAspectsMapTy &FunctionToDeclaredAspects,
+    const AspectsSetTy &ExcludeAspectVals) {
+  for (auto &[F, Aspects] : FunctionToUsedAspects) {
     LLVMContext &C = F->getContext();
 
     // Create a set of unique aspects. First we add the ones from the found
@@ -329,6 +331,11 @@ void createUsedAspectsMetadataForFunctions(
     for (const int &A : Aspects)
       if (!ExcludeAspectVals.contains(A))
         UniqueAspects.insert(A);
+
+    // The aspects that were propagated via declared aspects are always
+    // added to the metadata.
+    for (const int &A : FunctionToDeclaredAspects[F])
+      UniqueAspects.insert(A);
 
     // If there are no new aspects, we can just keep the old metadata.
     if (UniqueAspects.empty())
@@ -547,7 +554,7 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 }
 
 /// Returns a map of functions with corresponding used aspects.
-FunctionToAspectsMapTy
+std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints,
@@ -575,10 +582,9 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   Visited.clear();
   for (Function *F : EntryPoints)
     propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
-  for (const auto &It : FunctionToDeclaredAspects)
-    FunctionToUsedAspects[It.first].insert(It.second.begin(), It.second.end());
 
-  return FunctionToUsedAspects;
+  return {std::move(FunctionToUsedAspects),
+          std::move(FunctionToDeclaredAspects)};
 }
 
 } // anonymous namespace
@@ -617,8 +623,9 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
-  FunctionToAspectsMapTy FunctionToUsedAspects = buildFunctionsToAspectsMap(
-      M, TypesWithAspects, AspectValues, EntryPoints, ValidateAspectUsage);
+  auto [FunctionToUsedAspects, FunctionToDeclaredAspects] =
+      buildFunctionsToAspectsMap(M, TypesWithAspects, AspectValues, EntryPoints,
+                                 ValidateAspectUsage);
 
   // Create a set of excluded aspect values.
   AspectsSetTy ExcludedAspectVals;
@@ -629,8 +636,8 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     ExcludedAspectVals.insert(AspectValIter->second);
   }
 
-  createUsedAspectsMetadataForFunctions(FunctionToUsedAspects,
-                                        ExcludedAspectVals);
+  createUsedAspectsMetadataForFunctions(
+      FunctionToUsedAspects, FunctionToDeclaredAspects, ExcludedAspectVals);
 
   setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
 

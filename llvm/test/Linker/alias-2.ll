@@ -1,5 +1,5 @@
-; RUN: llvm-link -opaque-pointers %s %S/Inputs/alias-2.ll -S -o - | FileCheck %s
-; RUN: llvm-link -opaque-pointers %S/Inputs/alias-2.ll %s -S -o - | FileCheck %s
+; RUN: llvm-link %s %S/Inputs/alias-2.ll -S -o - | FileCheck %s
+; RUN: llvm-link %S/Inputs/alias-2.ll %s -S -o - | FileCheck %s
 
 ; Test the fix for PR26152, where A from the second module is
 ; erroneously renamed to A.1 and not linked to the declaration from

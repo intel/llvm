@@ -11,21 +11,21 @@ target triple = "spir64"
 ;CHECK: TypeSampler [[sampler_t:[0-9]+]]
 ;CHECK: TypeSampledImage [[sampled_image_t:[0-9]+]]
 
-declare dso_local spir_func i8 addrspace(4)* @_Z20__spirv_SampledImageI14ocl_image1d_roPvET0_T_11ocl_sampler(%opencl.image1d_ro_t addrspace(1)*, %opencl.sampler_t addrspace(2)*) local_unnamed_addr #2
+declare dso_local spir_func ptr addrspace(4) @_Z20__spirv_SampledImageI14ocl_image1d_roPvET0_T_11ocl_sampler(ptr addrspace(1), ptr addrspace(2)) local_unnamed_addr #2
 
-declare dso_local spir_func <4 x float> @_Z30__spirv_ImageSampleExplicitLodIPvDv4_fiET0_T_T1_if(i8 addrspace(4)*, i32, i32, float) local_unnamed_addr #2
+declare dso_local spir_func <4 x float> @_Z30__spirv_ImageSampleExplicitLodIPvDv4_fiET0_T_T1_if(ptr addrspace(4), i32, i32, float) local_unnamed_addr #2
 
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(2) constant <3 x i64>, align 32
 
-define weak_odr dso_local spir_kernel void @_ZTS17image_kernel_readILi1EE(%opencl.image1d_ro_t addrspace(1)*, %opencl.sampler_t addrspace(2)*) {
+define weak_odr dso_local spir_kernel void @_ZTS17image_kernel_readILi1EE(ptr addrspace(1), ptr addrspace(2)) {
 ;CHECK: Function
 ;CHECK: FunctionParameter [[image1d_t]] [[image:[0-9]+]]
 ;CHECK: FunctionParameter [[sampler_t]] [[sampler:[0-9]+]]
-  %3 = load <3 x i64>, <3 x i64> addrspace(2)* @__spirv_BuiltInGlobalInvocationId, align 32
+  %3 = load <3 x i64>, ptr addrspace(2) @__spirv_BuiltInGlobalInvocationId, align 32
   %4 = extractelement <3 x i64> %3, i64 0
   %5 = trunc i64 %4 to i32
-  %6 = tail call spir_func i8 addrspace(4)* @_Z20__spirv_SampledImageI14ocl_image1d_roPvET0_T_11ocl_sampler(%opencl.image1d_ro_t addrspace(1)* %0, %opencl.sampler_t addrspace(2)* %1)
-  %7 = tail call spir_func <4 x float> @_Z30__spirv_ImageSampleExplicitLodIPvDv4_fiET0_T_T1_if(i8 addrspace(4)* %6, i32 %5, i32 2, float 0.000000e+00)
+  %6 = tail call spir_func ptr addrspace(4) @_Z20__spirv_SampledImageI14ocl_image1d_roPvET0_T_11ocl_sampler(ptr addrspace(1) %0, ptr addrspace(2) %1)
+  %7 = tail call spir_func <4 x float> @_Z30__spirv_ImageSampleExplicitLodIPvDv4_fiET0_T_T1_if(ptr addrspace(4) %6, i32 %5, i32 2, float 0.000000e+00)
 
 ;CHECK: SampledImage [[sampled_image_t]] [[sampled_image:[0-9]+]] [[image]] [[sampler]]
 ;CHECK: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} [[sampled_image]] {{[0-9]+}} {{[0-9]+}} {{[0-9]+}}

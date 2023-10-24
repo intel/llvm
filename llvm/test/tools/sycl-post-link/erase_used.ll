@@ -6,7 +6,7 @@
 ; RUN: FileCheck %s -input-file=%t.files_0.ll
 ; RUN: FileCheck %s -input-file=%t.files_1.ll
 ;
-; RUN: sycl-post-link -S -split=auto -symbols -split-esimd -lower-esimd -O2 -spec-const=default < %s -o %t.out.table
+; RUN: sycl-post-link -S -split=auto -symbols -split-esimd -lower-esimd -O2 -spec-const=emulation < %s -o %t.out.table
 ; RUN: FileCheck %s --input-file=%t.out_0.ll
 ;
 ; RUN: sycl-post-link -S -split=auto -ir-output-only < %s -o %t.out_ir_only.ll

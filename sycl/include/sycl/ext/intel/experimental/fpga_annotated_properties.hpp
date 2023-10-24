@@ -318,31 +318,31 @@ struct PropertyMetaInfo<read_write_mode_key::value_t<Mode>> {
 // 'buffer_location' and mmhost properties are pointers-only
 template <typename T, int N>
 struct is_valid_property<T, buffer_location_key::value_t<N>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 template <typename T, int W>
 struct is_valid_property<T, awidth_key::value_t<W>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 template <typename T, int W>
 struct is_valid_property<T, dwidth_key::value_t<W>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 template <typename T, int N>
 struct is_valid_property<T, latency_key::value_t<N>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 template <typename T, read_write_mode_enum Mode>
 struct is_valid_property<T, read_write_mode_key::value_t<Mode>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 template <typename T, int N>
 struct is_valid_property<T, maxburst_key::value_t<N>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 template <typename T, int Enable>
 struct is_valid_property<T, wait_request_key::value_t<Enable>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
+    : std::bool_constant<std::is_pointer_v<T>> {};
 
 // 'register_map',  'conduit',  'stable' are common properties for pointers
 // and non pointers;
@@ -364,13 +364,12 @@ template <typename... Args> struct checkValidFPGAPropertySet {
       ContainsProperty<buffer_location_key, list>::value;
 
   static constexpr bool has_InterfaceConfig =
-      ContainsProperty<awidth_key, list>::value &&
-      ContainsProperty<dwidth_key, list>::value &&
-      ContainsProperty<latency_key, list>::value &&
-      ContainsProperty<read_write_mode_key, list>::value &&
-      ContainsProperty<maxburst_key, list>::value &&
-      ContainsProperty<wait_request_key, list>::value &&
-      ContainsProperty<alignment_key, list>::value;
+      ContainsProperty<awidth_key, list>::value ||
+      ContainsProperty<dwidth_key, list>::value ||
+      ContainsProperty<latency_key, list>::value ||
+      ContainsProperty<read_write_mode_key, list>::value ||
+      ContainsProperty<maxburst_key, list>::value ||
+      ContainsProperty<wait_request_key, list>::value;
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };

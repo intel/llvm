@@ -56,8 +56,8 @@
 #include "lldb/Core/DumpDataExtractor.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/UniqueCStringMap.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Target/ExecutionContext.h"
@@ -86,6 +86,7 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::dwarf;
+using namespace lldb_private::plugin::dwarf;
 using namespace clang;
 using llvm::StringSwitch;
 
@@ -485,9 +486,6 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
     case clang::Language::OpenCLCXX:
       LangStd = LangStandard::lang_openclcpp10;
       break;
-    case clang::Language::CUDA:
-      LangStd = LangStandard::lang_cuda;
-      break;
     case clang::Language::Asm:
     case clang::Language::C:
     case clang::Language::ObjC:
@@ -497,8 +495,9 @@ static void ParseLangArgs(LangOptions &Opts, InputKind IK, const char *triple) {
     case clang::Language::ObjCXX:
       LangStd = LangStandard::lang_gnucxx98;
       break;
+    case clang::Language::CUDA:
     case clang::Language::HIP:
-      LangStd = LangStandard::lang_hip;
+      LangStd = LangStandard::lang_gnucxx17;
       break;
     case clang::Language::HLSL:
       LangStd = LangStandard::lang_hlsl;
@@ -2308,12 +2307,12 @@ CompilerType TypeSystemClang::CreateArrayType(const CompilerType &element_type,
 }
 
 CompilerType TypeSystemClang::CreateStructForIdentifier(
-    ConstString type_name,
+    llvm::StringRef type_name,
     const std::initializer_list<std::pair<const char *, CompilerType>>
         &type_fields,
     bool packed) {
   CompilerType type;
-  if (!type_name.IsEmpty() &&
+  if (!type_name.empty() &&
       (type = GetTypeForIdentifier<clang::CXXRecordDecl>(type_name))
           .IsValid()) {
     lldbassert(0 && "Trying to create a type for an existing name");
@@ -2321,8 +2320,7 @@ CompilerType TypeSystemClang::CreateStructForIdentifier(
   }
 
   type = CreateRecordType(nullptr, OptionalClangModuleID(), lldb::eAccessPublic,
-                          type_name.GetCString(), clang::TTK_Struct,
-                          lldb::eLanguageTypeC);
+                          type_name, clang::TTK_Struct, lldb::eLanguageTypeC);
   StartTagDeclarationDefinition(type);
   for (const auto &field : type_fields)
     AddFieldToRecordType(type, field.first, field.second, lldb::eAccessPublic,
@@ -2334,7 +2332,7 @@ CompilerType TypeSystemClang::CreateStructForIdentifier(
 }
 
 CompilerType TypeSystemClang::GetOrCreateStructForIdentifier(
-    ConstString type_name,
+    llvm::StringRef type_name,
     const std::initializer_list<std::pair<const char *, CompilerType>>
         &type_fields,
     bool packed) {
@@ -2637,6 +2635,13 @@ TypeSystemClang::GetCXXRecordDeclAccess(const clang::CXXRecordDecl *object) {
 clang::DeclContext *
 TypeSystemClang::GetDeclContextForType(const CompilerType &type) {
   return GetDeclContextForType(ClangUtil::GetQualType(type));
+}
+
+CompilerDeclContext
+TypeSystemClang::GetCompilerDeclContextForType(const CompilerType &type) {
+  if (auto *decl_context = GetDeclContextForType(type))
+    return CreateDeclContext(decl_context);
+  return CompilerDeclContext();
 }
 
 /// Aggressively desugar the provided type, skipping past various kinds of
@@ -4751,7 +4756,7 @@ TypeSystemClang::GetBitSize(lldb::opaque_compiler_type_t type,
         static bool g_printed = false;
         if (!g_printed) {
           StreamString s;
-          DumpTypeDescription(type, &s);
+          DumpTypeDescription(type, s);
 
           llvm::outs() << "warning: trying to determine the size of type ";
           llvm::outs() << s.GetString() << "\n";
@@ -5379,11 +5384,8 @@ uint32_t TypeSystemClang::GetNumChildren(lldb::opaque_compiler_type_t type,
           num_children += cxx_record_decl->getNumBases();
         }
       }
-      clang::RecordDecl::field_iterator field, field_end;
-      for (field = record_decl->field_begin(),
-          field_end = record_decl->field_end();
-           field != field_end; ++field)
-        ++num_children;
+      num_children += std::distance(record_decl->field_begin(),
+                               record_decl->field_end());
     }
     break;
 
@@ -5594,13 +5596,8 @@ uint32_t TypeSystemClang::GetNumFields(lldb::opaque_compiler_type_t type) {
       if (record_type) {
         clang::RecordDecl *record_decl = record_type->getDecl();
         if (record_decl) {
-          uint32_t field_idx = 0;
-          clang::RecordDecl::field_iterator field, field_end;
-          for (field = record_decl->field_begin(),
-              field_end = record_decl->field_end();
-               field != field_end; ++field)
-            ++field_idx;
-          count = field_idx;
+          count = std::distance(record_decl->field_begin(),
+                                record_decl->field_end());
         }
       }
     }
@@ -8538,381 +8535,7 @@ void TypeSystemClang::DumpFromSymbolFile(Stream &s,
   }
 }
 
-void TypeSystemClang::DumpValue(
-    lldb::opaque_compiler_type_t type, ExecutionContext *exe_ctx, Stream *s,
-    lldb::Format format, const lldb_private::DataExtractor &data,
-    lldb::offset_t data_byte_offset, size_t data_byte_size,
-    uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset, bool show_types,
-    bool show_summary, bool verbose, uint32_t depth) {
-  if (!type)
-    return;
-
-  clang::QualType qual_type(GetQualType(type));
-  switch (qual_type->getTypeClass()) {
-  case clang::Type::Record:
-    if (GetCompleteType(type)) {
-      const clang::RecordType *record_type =
-          llvm::cast<clang::RecordType>(qual_type.getTypePtr());
-      const clang::RecordDecl *record_decl = record_type->getDecl();
-      assert(record_decl);
-      uint32_t field_bit_offset = 0;
-      uint32_t field_byte_offset = 0;
-      const clang::ASTRecordLayout &record_layout =
-          getASTContext().getASTRecordLayout(record_decl);
-      uint32_t child_idx = 0;
-
-      const clang::CXXRecordDecl *cxx_record_decl =
-          llvm::dyn_cast<clang::CXXRecordDecl>(record_decl);
-      if (cxx_record_decl) {
-        // We might have base classes to print out first
-        clang::CXXRecordDecl::base_class_const_iterator base_class,
-            base_class_end;
-        for (base_class = cxx_record_decl->bases_begin(),
-            base_class_end = cxx_record_decl->bases_end();
-             base_class != base_class_end; ++base_class) {
-          const clang::CXXRecordDecl *base_class_decl =
-              llvm::cast<clang::CXXRecordDecl>(
-                  base_class->getType()->getAs<clang::RecordType>()->getDecl());
-
-          // Skip empty base classes
-          if (!verbose && !TypeSystemClang::RecordHasFields(base_class_decl))
-            continue;
-
-          if (base_class->isVirtual())
-            field_bit_offset =
-                record_layout.getVBaseClassOffset(base_class_decl)
-                    .getQuantity() *
-                8;
-          else
-            field_bit_offset = record_layout.getBaseClassOffset(base_class_decl)
-                                   .getQuantity() *
-                               8;
-          field_byte_offset = field_bit_offset / 8;
-          assert(field_bit_offset % 8 == 0);
-          if (child_idx == 0)
-            s->PutChar('{');
-          else
-            s->PutChar(',');
-
-          clang::QualType base_class_qual_type = base_class->getType();
-          std::string base_class_type_name(base_class_qual_type.getAsString());
-
-          // Indent and print the base class type name
-          s->Format("\n{0}{1}", llvm::fmt_repeat(" ", depth + DEPTH_INCREMENT),
-                    base_class_type_name);
-
-          clang::TypeInfo base_class_type_info =
-              getASTContext().getTypeInfo(base_class_qual_type);
-
-          // Dump the value of the member
-          CompilerType base_clang_type = GetType(base_class_qual_type);
-          base_clang_type.DumpValue(
-              exe_ctx,
-              s, // Stream to dump to
-              base_clang_type
-                  .GetFormat(), // The format with which to display the member
-              data, // Data buffer containing all bytes for this type
-              data_byte_offset + field_byte_offset, // Offset into "data" where
-                                                    // to grab value from
-              base_class_type_info.Width / 8, // Size of this type in bytes
-              0,                              // Bitfield bit size
-              0,                              // Bitfield bit offset
-              show_types,   // Boolean indicating if we should show the variable
-                            // types
-              show_summary, // Boolean indicating if we should show a summary
-                            // for the current type
-              verbose,      // Verbose output?
-              depth + DEPTH_INCREMENT); // Scope depth for any types that have
-                                        // children
-
-          ++child_idx;
-        }
-      }
-      uint32_t field_idx = 0;
-      clang::RecordDecl::field_iterator field, field_end;
-      for (field = record_decl->field_begin(),
-          field_end = record_decl->field_end();
-           field != field_end; ++field, ++field_idx, ++child_idx) {
-        // Print the starting squiggly bracket (if this is the first member) or
-        // comma (for member 2 and beyond) for the struct/union/class member.
-        if (child_idx == 0)
-          s->PutChar('{');
-        else
-          s->PutChar(',');
-
-        // Indent
-        s->Printf("\n%*s", depth + DEPTH_INCREMENT, "");
-
-        clang::QualType field_type = field->getType();
-        // Print the member type if requested
-        // Figure out the type byte size (field_type_info.first) and alignment
-        // (field_type_info.second) from the AST context.
-        clang::TypeInfo field_type_info =
-            getASTContext().getTypeInfo(field_type);
-        assert(field_idx < record_layout.getFieldCount());
-        // Figure out the field offset within the current struct/union/class
-        // type
-        field_bit_offset = record_layout.getFieldOffset(field_idx);
-        field_byte_offset = field_bit_offset / 8;
-        uint32_t field_bitfield_bit_size = 0;
-        uint32_t field_bitfield_bit_offset = 0;
-        if (FieldIsBitfield(*field, field_bitfield_bit_size))
-          field_bitfield_bit_offset = field_bit_offset % 8;
-
-        if (show_types) {
-          std::string field_type_name(field_type.getAsString());
-          if (field_bitfield_bit_size > 0)
-            s->Printf("(%s:%u) ", field_type_name.c_str(),
-                      field_bitfield_bit_size);
-          else
-            s->Printf("(%s) ", field_type_name.c_str());
-        }
-        // Print the member name and equal sign
-        s->Printf("%s = ", field->getNameAsString().c_str());
-
-        // Dump the value of the member
-        CompilerType field_clang_type = GetType(field_type);
-        field_clang_type.DumpValue(
-            exe_ctx,
-            s, // Stream to dump to
-            field_clang_type
-                .GetFormat(), // The format with which to display the member
-            data,             // Data buffer containing all bytes for this type
-            data_byte_offset + field_byte_offset, // Offset into "data" where to
-                                                  // grab value from
-            field_type_info.Width / 8,            // Size of this type in bytes
-            field_bitfield_bit_size,              // Bitfield bit size
-            field_bitfield_bit_offset,            // Bitfield bit offset
-            show_types,   // Boolean indicating if we should show the variable
-                          // types
-            show_summary, // Boolean indicating if we should show a summary for
-                          // the current type
-            verbose,      // Verbose output?
-            depth + DEPTH_INCREMENT); // Scope depth for any types that have
-                                      // children
-      }
-
-      // Indent the trailing squiggly bracket
-      if (child_idx > 0)
-        s->Printf("\n%*s}", depth, "");
-    }
-    return;
-
-  case clang::Type::Enum:
-    if (GetCompleteType(type)) {
-      const clang::EnumType *enutype =
-          llvm::cast<clang::EnumType>(qual_type.getTypePtr());
-      const clang::EnumDecl *enum_decl = enutype->getDecl();
-      assert(enum_decl);
-      clang::EnumDecl::enumerator_iterator enum_pos, enum_end_pos;
-      lldb::offset_t offset = data_byte_offset;
-      const int64_t enum_value = data.GetMaxU64Bitfield(
-          &offset, data_byte_size, bitfield_bit_size, bitfield_bit_offset);
-      for (enum_pos = enum_decl->enumerator_begin(),
-          enum_end_pos = enum_decl->enumerator_end();
-           enum_pos != enum_end_pos; ++enum_pos) {
-        if (enum_pos->getInitVal() == enum_value) {
-          s->Printf("%s", enum_pos->getNameAsString().c_str());
-          return;
-        }
-      }
-      // If we have gotten here we didn't get find the enumerator in the enum
-      // decl, so just print the integer.
-      s->Printf("%" PRIi64, enum_value);
-    }
-    return;
-
-  case clang::Type::ConstantArray: {
-    const clang::ConstantArrayType *array =
-        llvm::cast<clang::ConstantArrayType>(qual_type.getTypePtr());
-    bool is_array_of_characters = false;
-    clang::QualType element_qual_type = array->getElementType();
-
-    const clang::Type *canonical_type =
-        element_qual_type->getCanonicalTypeInternal().getTypePtr();
-    if (canonical_type)
-      is_array_of_characters = canonical_type->isCharType();
-
-    const uint64_t element_count = array->getSize().getLimitedValue();
-
-    clang::TypeInfo field_type_info =
-        getASTContext().getTypeInfo(element_qual_type);
-
-    uint32_t element_idx = 0;
-    uint32_t element_offset = 0;
-    uint64_t element_byte_size = field_type_info.Width / 8;
-    uint32_t element_stride = element_byte_size;
-
-    if (is_array_of_characters) {
-      s->PutChar('"');
-      DumpDataExtractor(data, s, data_byte_offset, lldb::eFormatChar,
-                        element_byte_size, element_count, UINT32_MAX,
-                        LLDB_INVALID_ADDRESS, 0, 0);
-      s->PutChar('"');
-      return;
-    } else {
-      CompilerType element_clang_type = GetType(element_qual_type);
-      lldb::Format element_format = element_clang_type.GetFormat();
-
-      for (element_idx = 0; element_idx < element_count; ++element_idx) {
-        // Print the starting squiggly bracket (if this is the first member) or
-        // comman (for member 2 and beyong) for the struct/union/class member.
-        if (element_idx == 0)
-          s->PutChar('{');
-        else
-          s->PutChar(',');
-
-        // Indent and print the index
-        s->Printf("\n%*s[%u] ", depth + DEPTH_INCREMENT, "", element_idx);
-
-        // Figure out the field offset within the current struct/union/class
-        // type
-        element_offset = element_idx * element_stride;
-
-        // Dump the value of the member
-        element_clang_type.DumpValue(
-            exe_ctx,
-            s,              // Stream to dump to
-            element_format, // The format with which to display the element
-            data,           // Data buffer containing all bytes for this type
-            data_byte_offset +
-                element_offset, // Offset into "data" where to grab value from
-            element_byte_size,  // Size of this type in bytes
-            0,                  // Bitfield bit size
-            0,                  // Bitfield bit offset
-            show_types,   // Boolean indicating if we should show the variable
-                          // types
-            show_summary, // Boolean indicating if we should show a summary for
-                          // the current type
-            verbose,      // Verbose output?
-            depth + DEPTH_INCREMENT); // Scope depth for any types that have
-                                      // children
-      }
-
-      // Indent the trailing squiggly bracket
-      if (element_idx > 0)
-        s->Printf("\n%*s}", depth, "");
-    }
-  }
-    return;
-
-  case clang::Type::Typedef: {
-    clang::QualType typedef_qual_type =
-        llvm::cast<clang::TypedefType>(qual_type)
-            ->getDecl()
-            ->getUnderlyingType();
-
-    CompilerType typedef_clang_type = GetType(typedef_qual_type);
-    lldb::Format typedef_format = typedef_clang_type.GetFormat();
-    clang::TypeInfo typedef_type_info =
-        getASTContext().getTypeInfo(typedef_qual_type);
-    uint64_t typedef_byte_size = typedef_type_info.Width / 8;
-
-    return typedef_clang_type.DumpValue(
-        exe_ctx,
-        s,                   // Stream to dump to
-        typedef_format,      // The format with which to display the element
-        data,                // Data buffer containing all bytes for this type
-        data_byte_offset,    // Offset into "data" where to grab value from
-        typedef_byte_size,   // Size of this type in bytes
-        bitfield_bit_size,   // Bitfield bit size
-        bitfield_bit_offset, // Bitfield bit offset
-        show_types,   // Boolean indicating if we should show the variable types
-        show_summary, // Boolean indicating if we should show a summary for the
-                      // current type
-        verbose,      // Verbose output?
-        depth);       // Scope depth for any types that have children
-  } break;
-
-  case clang::Type::Auto: {
-    clang::QualType elaborated_qual_type =
-        llvm::cast<clang::AutoType>(qual_type)->getDeducedType();
-    CompilerType elaborated_clang_type = GetType(elaborated_qual_type);
-    lldb::Format elaborated_format = elaborated_clang_type.GetFormat();
-    clang::TypeInfo elaborated_type_info =
-        getASTContext().getTypeInfo(elaborated_qual_type);
-    uint64_t elaborated_byte_size = elaborated_type_info.Width / 8;
-
-    return elaborated_clang_type.DumpValue(
-        exe_ctx,
-        s,                    // Stream to dump to
-        elaborated_format,    // The format with which to display the element
-        data,                 // Data buffer containing all bytes for this type
-        data_byte_offset,     // Offset into "data" where to grab value from
-        elaborated_byte_size, // Size of this type in bytes
-        bitfield_bit_size,    // Bitfield bit size
-        bitfield_bit_offset,  // Bitfield bit offset
-        show_types,   // Boolean indicating if we should show the variable types
-        show_summary, // Boolean indicating if we should show a summary for the
-                      // current type
-        verbose,      // Verbose output?
-        depth);       // Scope depth for any types that have children
-  } break;
-
-  case clang::Type::Elaborated: {
-    clang::QualType elaborated_qual_type =
-        llvm::cast<clang::ElaboratedType>(qual_type)->getNamedType();
-    CompilerType elaborated_clang_type = GetType(elaborated_qual_type);
-    lldb::Format elaborated_format = elaborated_clang_type.GetFormat();
-    clang::TypeInfo elaborated_type_info =
-        getASTContext().getTypeInfo(elaborated_qual_type);
-    uint64_t elaborated_byte_size = elaborated_type_info.Width / 8;
-
-    return elaborated_clang_type.DumpValue(
-        exe_ctx,
-        s,                    // Stream to dump to
-        elaborated_format,    // The format with which to display the element
-        data,                 // Data buffer containing all bytes for this type
-        data_byte_offset,     // Offset into "data" where to grab value from
-        elaborated_byte_size, // Size of this type in bytes
-        bitfield_bit_size,    // Bitfield bit size
-        bitfield_bit_offset,  // Bitfield bit offset
-        show_types,   // Boolean indicating if we should show the variable types
-        show_summary, // Boolean indicating if we should show a summary for the
-                      // current type
-        verbose,      // Verbose output?
-        depth);       // Scope depth for any types that have children
-  } break;
-
-  case clang::Type::Paren: {
-    clang::QualType desugar_qual_type =
-        llvm::cast<clang::ParenType>(qual_type)->desugar();
-    CompilerType desugar_clang_type = GetType(desugar_qual_type);
-
-    lldb::Format desugar_format = desugar_clang_type.GetFormat();
-    clang::TypeInfo desugar_type_info =
-        getASTContext().getTypeInfo(desugar_qual_type);
-    uint64_t desugar_byte_size = desugar_type_info.Width / 8;
-
-    return desugar_clang_type.DumpValue(
-        exe_ctx,
-        s,                   // Stream to dump to
-        desugar_format,      // The format with which to display the element
-        data,                // Data buffer containing all bytes for this type
-        data_byte_offset,    // Offset into "data" where to grab value from
-        desugar_byte_size,   // Size of this type in bytes
-        bitfield_bit_size,   // Bitfield bit size
-        bitfield_bit_offset, // Bitfield bit offset
-        show_types,   // Boolean indicating if we should show the variable types
-        show_summary, // Boolean indicating if we should show a summary for the
-                      // current type
-        verbose,      // Verbose output?
-        depth);       // Scope depth for any types that have children
-  } break;
-
-  default:
-    // We are down to a scalar type that we just need to display.
-    DumpDataExtractor(data, s, data_byte_offset, format, data_byte_size, 1,
-                      UINT32_MAX, LLDB_INVALID_ADDRESS, bitfield_bit_size,
-                      bitfield_bit_offset);
-
-    if (show_summary)
-      DumpSummary(type, exe_ctx, s, data, data_byte_offset, data_byte_size);
-    break;
-  }
-}
-
-static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
+static bool DumpEnumValue(const clang::QualType &qual_type, Stream &s,
                           const DataExtractor &data, lldb::offset_t byte_offset,
                           size_t byte_size, uint32_t bitfield_bit_offset,
                           uint32_t bitfield_bit_size) {
@@ -8942,7 +8565,7 @@ static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
     ++num_enumerators;
     if (val == enum_svalue) {
       // Found an exact match, that's all we need to do.
-      s->PutCString(enumerator->getNameAsString());
+      s.PutCString(enumerator->getNameAsString());
       return true;
     }
   }
@@ -8956,9 +8579,9 @@ static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
   // decimal.
   if (!can_be_bitfield) {
     if (qual_type->isSignedIntegerOrEnumerationType())
-      s->Printf("%" PRIi64, enum_svalue);
+      s.Printf("%" PRIi64, enum_svalue);
     else
-      s->Printf("%" PRIu64, enum_uvalue);
+      s.Printf("%" PRIu64, enum_uvalue);
     return true;
   }
 
@@ -8981,20 +8604,20 @@ static bool DumpEnumValue(const clang::QualType &qual_type, Stream *s,
     if ((remaining_value & val.first) != val.first)
       continue;
     remaining_value &= ~val.first;
-    s->PutCString(val.second);
+    s.PutCString(val.second);
     if (remaining_value)
-      s->PutCString(" | ");
+      s.PutCString(" | ");
   }
 
   // If there is a remainder that is not covered by the value, print it as hex.
   if (remaining_value)
-    s->Printf("0x%" PRIx64, remaining_value);
+    s.Printf("0x%" PRIx64, remaining_value);
 
   return true;
 }
 
 bool TypeSystemClang::DumpTypeValue(
-    lldb::opaque_compiler_type_t type, Stream *s, lldb::Format format,
+    lldb::opaque_compiler_type_t type, Stream &s, lldb::Format format,
     const lldb_private::DataExtractor &data, lldb::offset_t byte_offset,
     size_t byte_size, uint32_t bitfield_bit_size, uint32_t bitfield_bit_offset,
     ExecutionContextScope *exe_scope) {
@@ -9027,7 +8650,7 @@ bool TypeSystemClang::DumpTypeValue(
       uint64_t typedef_byte_size = typedef_type_info.Width / 8;
 
       return typedef_clang_type.DumpTypeValue(
-          s,
+          &s,
           format,            // The format with which to display the element
           data,              // Data buffer containing all bytes for this type
           byte_offset,       // Offset into "data" where to grab value from
@@ -9106,7 +8729,7 @@ bool TypeSystemClang::DumpTypeValue(
           byte_size = 4;
           break;
         }
-        return DumpDataExtractor(data, s, byte_offset, format, byte_size,
+        return DumpDataExtractor(data, &s, byte_offset, format, byte_size,
                                  item_count, UINT32_MAX, LLDB_INVALID_ADDRESS,
                                  bitfield_bit_size, bitfield_bit_offset,
                                  exe_scope);
@@ -9117,55 +8740,10 @@ bool TypeSystemClang::DumpTypeValue(
   return false;
 }
 
-void TypeSystemClang::DumpSummary(lldb::opaque_compiler_type_t type,
-                                  ExecutionContext *exe_ctx, Stream *s,
-                                  const lldb_private::DataExtractor &data,
-                                  lldb::offset_t data_byte_offset,
-                                  size_t data_byte_size) {
-  uint32_t length = 0;
-  if (IsCStringType(type, length)) {
-    if (exe_ctx) {
-      Process *process = exe_ctx->GetProcessPtr();
-      if (process) {
-        lldb::offset_t offset = data_byte_offset;
-        lldb::addr_t pointer_address = data.GetMaxU64(&offset, data_byte_size);
-        std::vector<uint8_t> buf;
-        if (length > 0)
-          buf.resize(length);
-        else
-          buf.resize(256);
-
-        DataExtractor cstr_data(&buf.front(), buf.size(),
-                                process->GetByteOrder(), 4);
-        buf.back() = '\0';
-        size_t bytes_read;
-        size_t total_cstr_len = 0;
-        Status error;
-        while ((bytes_read = process->ReadMemory(pointer_address, &buf.front(),
-                                                 buf.size(), error)) > 0) {
-          const size_t len = strlen((const char *)&buf.front());
-          if (len == 0)
-            break;
-          if (total_cstr_len == 0)
-            s->PutCString(" \"");
-          DumpDataExtractor(cstr_data, s, 0, lldb::eFormatChar, 1, len,
-                            UINT32_MAX, LLDB_INVALID_ADDRESS, 0, 0);
-          total_cstr_len += len;
-          if (len < buf.size())
-            break;
-          pointer_address += total_cstr_len;
-        }
-        if (total_cstr_len > 0)
-          s->PutChar('"');
-      }
-    }
-  }
-}
-
 void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
                                           lldb::DescriptionLevel level) {
   StreamFile s(stdout, false);
-  DumpTypeDescription(type, &s, level);
+  DumpTypeDescription(type, s, level);
 
   CompilerType ct(weak_from_this(), type);
   const clang::Type *clang_type = ClangUtil::GetQualType(ct).getTypePtr();
@@ -9176,7 +8754,7 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
 }
 
 void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
-                                          Stream *s,
+                                          Stream &s,
                                           lldb::DescriptionLevel level) {
   if (type) {
     clang::QualType qual_type =
@@ -9205,7 +8783,7 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
       else
         class_interface_decl->print(llvm_ostrm,
                                     getASTContext().getPrintingPolicy(),
-                                    s->GetIndentLevel());
+                                    s.GetIndentLevel());
     } break;
 
     case clang::Type::Typedef: {
@@ -9218,8 +8796,8 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
       else {
         std::string clang_typedef_name(GetTypeNameForDecl(typedef_decl));
         if (!clang_typedef_name.empty()) {
-          s->PutCString("typedef ");
-          s->PutCString(clang_typedef_name);
+          s.PutCString("typedef ");
+          s.PutCString(clang_typedef_name);
         }
       }
     } break;
@@ -9233,7 +8811,7 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
         record_decl->dump(llvm_ostrm);
       else {
         record_decl->print(llvm_ostrm, getASTContext().getPrintingPolicy(),
-                           s->GetIndentLevel());
+                           s.GetIndentLevel());
       }
     } break;
 
@@ -9252,14 +8830,14 @@ void TypeSystemClang::DumpTypeDescription(lldb::opaque_compiler_type_t type,
         else {
           std::string clang_type_name(qual_type.getAsString());
           if (!clang_type_name.empty())
-            s->PutCString(clang_type_name);
+            s.PutCString(clang_type_name);
         }
       }
     }
     }
 
     if (buf.size() > 0) {
-      s->Write(buf.data(), buf.size());
+      s.Write(buf.data(), buf.size());
     }
 }
 }

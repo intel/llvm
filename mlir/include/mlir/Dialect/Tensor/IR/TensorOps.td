@@ -750,9 +750,7 @@ def Tensor_InsertOp : Tensor_Op<"insert", [
   }];
 
   let extraClassDeclaration = [{
-    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
-      return {1, 2};  // `dest` operand
-    }
+    MutableOperandRange getDpsInitsMutable() { return getDestMutable(); }
   }];
 
   let hasFolder = 1;
@@ -892,9 +890,7 @@ def Tensor_InsertSliceOp : Tensor_OpWithOffsetSizesAndStrides<"insert_slice", [
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 2; }
 
-    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
-      return {1, 2};  // `dest` operand
-    }
+    MutableOperandRange getDpsInitsMutable() { return getDestMutable(); }
   }];
 
   let hasCanonicalizer = 1;
@@ -1714,10 +1710,7 @@ class Tensor_RelayoutOp<string mnemonic, list<Trait> traits = []> :
     RankedTensorType getDestType() {
       return ::llvm::cast<RankedTensorType>(getDest().getType()); };
 
-    /// Return position for init operand. Init operand is `dest`.
-    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
-      return {1, 2}; // `dest` operand
-    }
+    MutableOperandRange getDpsInitsMutable() { return getDestMutable(); }
 
     /// Interface method for ConditionallySpeculatable.
     Speculation::Speculatability getSpeculatability();
@@ -1823,7 +1816,9 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
 
     // Returns true if we have enough static information to catch undefined
     // behavior when the tile size does not divide perfectly the dimension of
-    // the input tensor.
+    // the input tensor. If a given dimension or a tile associated with it is
+    // dynamic, the dimension is not considered as we don't have enough static
+    // information to understand if the tile perfectly divides that dimension.
     static bool requirePaddingValue(ArrayRef<int64_t> inputShape,
                                     ArrayRef<int64_t> innerDimsPos,
                                     ArrayRef<OpFoldResult> innerTiles);

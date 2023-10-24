@@ -431,6 +431,21 @@ FLAGS_ENUM(WatchpointEventType){
     eWatchpointEventTypeThreadChanged = (1u << 11),
     eWatchpointEventTypeTypeChanged = (1u << 12)};
 
+enum WatchpointWriteType {
+  /// Don't stop when the watched memory region is written to.
+  eWatchpointWriteTypeDisabled,
+  /// Stop on any write access to the memory region, even if
+  /// the value doesn't change.  On some architectures, a write
+  /// near the memory region may be falsely reported as a match,
+  /// and notify this spurious stop as a watchpoint trap.
+  eWatchpointWriteTypeAlways,
+  /// Stop on a write to the memory region that changes its value.
+  /// This is most likely the behavior a user expects, and is the
+  /// behavior in gdb.  lldb can silently ignore writes near the
+  /// watched memory region that are reported as accesses to lldb.
+  eWatchpointWriteTypeOnModify
+};
+
 /// Programming language type.
 ///
 /// These enumerations use the same language enumerations as the DWARF
@@ -490,16 +505,19 @@ enum LanguageType {
   eLanguageTypeFortran18 = 0x002d,
   eLanguageTypeAda2005 = 0x002e,
   eLanguageTypeAda2012 = 0x002f,
+  eLanguageTypeHIP = 0x0030,
+  eLanguageTypeAssembly = 0x0031,
+  eLanguageTypeC_sharp = 0x0032,
+  eLanguageTypeMojo = 0x0033,
 
   // Vendor Extensions
   // Note: Language::GetNameForLanguageType
   // assumes these can be used as indexes into array language_names, and
   // Language::SetLanguageFromCString and Language::AsCString assume these can
   // be used as indexes into array g_languages.
-  eLanguageTypeMipsAssembler,           ///< Mips_Assembler.
+  eLanguageTypeMipsAssembler, ///< Mips_Assembler.
   // Mojo will move to the common list of languages once the DWARF committee
   // creates a language code for it.
-  eLanguageTypeMojo,
   eNumLanguageTypes
 };
 
@@ -735,6 +753,8 @@ enum SectionType {
   eSectionTypeDWARFDebugLocDwo,
   eSectionTypeDWARFDebugLocListsDwo,
   eSectionTypeDWARFDebugTuIndex,
+  eSectionTypeCTF,
+  eSectionTypeSwiftModules,
 };
 
 FLAGS_ENUM(EmulateInstructionOptions){

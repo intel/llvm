@@ -1,16 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin10.0.0 -filetype=obj %t.ll -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 ; RUN: llc -mtriple=x86_64-apple-darwin10.0.0 -filetype=obj %t.ll -regalloc=basic -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin10.0.0 -filetype=obj %t.ll -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 ; RUN: llc -mtriple=x86_64-apple-darwin10.0.0 -filetype=obj %t.ll -regalloc=basic -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin10.0.0 -filetype=obj %t.ll -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 ; RUN: llc -mtriple=x86_64-apple-darwin10.0.0 -filetype=obj %t.ll -regalloc=basic -o - | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
@@ -30,10 +30,10 @@ target triple = "spir64-unknown-unknown"
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata) nounwind readnone
 
-define i32 @foo(i32 %dev, i64 %cmd, i8* %data, i32 %data2) nounwind optsize ssp !dbg !0 {
+define i32 @foo(i32 %dev, i64 %cmd, ptr %data, i32 %data2) nounwind optsize ssp !dbg !0 {
 entry:
   call void @llvm.dbg.value(metadata i32 %dev, metadata !12, metadata !DIExpression()), !dbg !13
-  %tmp.i = load i32, i32* @dfm, align 4, !dbg !14
+  %tmp.i = load i32, ptr @dfm, align 4, !dbg !14
   %cmp.i = icmp eq i32 %tmp.i, 0, !dbg !14
   br i1 %cmp.i, label %if.else, label %if.end.i, !dbg !14
 
@@ -56,7 +56,7 @@ if.else:                                          ; preds = %entry
   ret i32 0
 }
 
-declare hidden fastcc i32 @bar(i32, i32* nocapture) nounwind optsize ssp
+declare hidden fastcc i32 @bar(i32, ptr nocapture) nounwind optsize ssp
 declare hidden fastcc i32 @bar2(i32) nounwind optsize ssp
 declare hidden fastcc i32 @bar3(i32) nounwind optsize ssp
 declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone

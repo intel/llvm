@@ -28,47 +28,9 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-//===----------------------------------------------------------------------===//
-//        Specific properties of annotated_ptr
-//===----------------------------------------------------------------------===//
-struct alignment_key {
-  template <int K>
-  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
-};
-
-template <int K> inline constexpr alignment_key::value_t<K> alignment;
-
-template <> struct is_property_key<alignment_key> : std::true_type {};
-
-template <typename T, int W>
-struct is_valid_property<T, alignment_key::value_t<W>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
-
-template <typename T, typename PropertyListT>
-struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
-
-namespace detail {
-
-template <> struct PropertyToKind<alignment_key> {
-  static constexpr PropKind Kind = PropKind::Alignment;
-};
-
-template <> struct IsCompileTimeProperty<alignment_key> : std::true_type {};
-
-template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
-  static constexpr const char *name = "sycl-alignment";
-  static constexpr int value = N;
-};
-
-} // namespace detail
-
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  annotated_ref operator op(const T &rhs) {                                    \
-    (*m_Ptr) op rhs;                                                           \
-    return *this;                                                              \
-  }
+  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -96,8 +58,8 @@ struct PropertiesFilter {
       PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
       std::tuple<>>::type...>;
 };
-
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+} // namespace
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -110,10 +72,10 @@ class annotated_ref<T, detail::properties_t<Props...>> {
 
 private:
   T *m_Ptr;
+  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
-  annotated_ref(const annotated_ref &) = default;
+  annotated_ref(const annotated_ref &) = delete;
 
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -125,7 +87,7 @@ public:
 #endif
   }
 
-  annotated_ref &operator=(const T &Obj) {
+  T operator=(const T &Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -133,23 +95,42 @@ public:
 #else
     *m_Ptr = Obj;
 #endif
-    return *this;
+    return Obj;
   }
 
-  annotated_ref &operator=(const annotated_ref &) = default;
+  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
 
-  PROPAGATE_OP(+=)
-  PROPAGATE_OP(-=)
-  PROPAGATE_OP(*=)
-  PROPAGATE_OP(/=)
-  PROPAGATE_OP(%=)
-  PROPAGATE_OP(^=)
-  PROPAGATE_OP(&=)
-  PROPAGATE_OP(|=)
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(*)
+  PROPAGATE_OP(/)
+  PROPAGATE_OP(%)
+  PROPAGATE_OP(^)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(|)
+  PROPAGATE_OP(<<)
+  PROPAGATE_OP(>>)
+
+  T operator++() { return *this += 1; }
+
+  T operator++(int) {
+    const T t = *this;
+    *this = (t + 1);
+    return t;
+  }
+
+  T operator--() { return *this -= 1; }
+
+  T operator--(int) {
+    const T t = *this;
+    *this = (t - 1);
+    return t;
+  }
+
+  template <class T2, class P2> friend class annotated_ptr;
 };
 
 #undef PROPAGATE_OP
-} // namespace
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
@@ -162,7 +143,7 @@ annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides
 
-template <typename T, typename PropertyListT = detail::empty_properties_t>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   // This should always fail when instantiating the unspecialized version.
   static_assert(is_property_list<PropertyListT>::value,
@@ -222,9 +203,10 @@ public:
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
-  annotated_ptr &operator=(annotated_ptr &) = default;
+  annotated_ptr &operator=(const annotated_ptr &) = default;
 
-  annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
+  explicit annotated_ptr(T *Ptr,
+                         const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
@@ -232,7 +214,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
+  explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {
     static_assert(
         std::is_same<
@@ -301,14 +283,9 @@ public:
 
   explicit operator bool() const noexcept { return m_Ptr != nullptr; }
 
-  operator T *() noexcept = delete;
-  operator T *() const = delete;
+  operator T *() const noexcept = delete;
 
   T *get() const noexcept { return m_Ptr; }
-
-  annotated_ptr &operator=(T *) noexcept {
-    return annotated_ptr<T, property_list_t>(m_Ptr);
-  }
 
   annotated_ptr &operator++() noexcept {
     m_Ptr += 1;

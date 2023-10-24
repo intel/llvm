@@ -31,8 +31,8 @@ namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
-    : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPropList(PropList),
+    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(1, Device),
+      MContext(nullptr), MPlatform(), MPropList(PropList),
       MHostContext(detail::getSyclObjImpl(Device)->is_host()),
       MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
@@ -41,8 +41,8 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
 context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
-    : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPropList(PropList), MHostContext(false),
+    : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
+      MContext(nullptr), MPlatform(), MPropList(PropList), MHostContext(false),
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
@@ -70,9 +70,11 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
 }
 
 context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
-                           async_handler AsyncHandler, const PluginPtr &Plugin)
-    : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
+                           async_handler AsyncHandler, const PluginPtr &Plugin,
+                           bool OwnedByRuntime)
+    : MOwnedByRuntime(OwnedByRuntime), MAsyncHandler(AsyncHandler), MDevices(),
+      MContext(PiContext), MPlatform(), MHostContext(false),
+      MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -373,7 +375,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
         if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
-
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       sycl::detail::pi::PiEvent InitEvent;
@@ -385,7 +386,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
 
       InitEventsRef.push_back(InitEvent);
     }
-
     return InitEventsRef;
   }
 }

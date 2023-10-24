@@ -244,6 +244,8 @@ public:
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
   SPIRVTypeJointMatrixINTEL *
   addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
+  SPIRVTypeCooperativeMatrixKHR *
+  addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -543,7 +545,7 @@ private:
 };
 
 SPIRVModuleImpl::~SPIRVModuleImpl() {
-  for (auto I : EntryNoId)
+  for (auto *I : EntryNoId)
     delete I;
 
   for (auto I : IdEntryMap)
@@ -687,8 +689,8 @@ SPIRVConstant *SPIRVModuleImpl::getLiteralAsConstant(unsigned Literal) {
   auto Loc = LiteralMap.find(Literal);
   if (Loc != LiteralMap.end())
     return Loc->second;
-  auto Ty = addIntegerType(32);
-  auto V = new SPIRVConstant(this, Ty, getId(), static_cast<uint64_t>(Literal));
+  auto *Ty = addIntegerType(32);
+  auto *V = new SPIRVConstant(this, Ty, getId(), static_cast<uint64_t>(Literal));
   LiteralMap[Literal] = V;
   addConstant(V);
   return V;
@@ -705,7 +707,7 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
     addTo(MemberNameVec, E);
     break;
   case OpVariable: {
-    auto BV = static_cast<SPIRVVariable *>(E);
+    auto *BV = static_cast<SPIRVVariable *>(E);
     if (!BV->getParent())
       addTo(VariableVec, E);
   } break;
@@ -898,7 +900,7 @@ void SPIRVModuleImpl::resolveUnknownStructFields() {
       unsigned I = Indices.first;
       SPIRVId ID = Indices.second;
 
-      auto Ty = static_cast<SPIRVType *>(getEntry(ID));
+      auto *Ty = static_cast<SPIRVType *>(getEntry(ID));
       Struct->setMemberType(I, Ty);
     }
   }
@@ -929,7 +931,7 @@ SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
   auto Loc = IntTypeMap.find(BitWidth);
   if (Loc != IntTypeMap.end())
     return Loc->second;
-  auto Ty = new SPIRVTypeInt(this, getId(), BitWidth, false);
+  auto *Ty = new SPIRVTypeInt(this, getId(), BitWidth, false);
   IntTypeMap[BitWidth] = Ty;
   return addType(Ty);
 }
@@ -958,7 +960,7 @@ SPIRVTypeOpaque *SPIRVModuleImpl::addOpaqueType(const std::string &Name) {
 
 SPIRVTypeStruct *SPIRVModuleImpl::openStructType(unsigned NumMembers,
                                                  const std::string &Name) {
-  auto T = new SPIRVTypeStruct(this, getId(), NumMembers, Name);
+  auto *T = new SPIRVTypeStruct(this, getId(), NumMembers, Name);
   return T;
 }
 
@@ -980,6 +982,13 @@ SPIRVTypeJointMatrixINTEL *
 SPIRVModuleImpl::addJointMatrixINTELType(SPIRVType *CompType,
                                          std::vector<SPIRVValue *> Args) {
   return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Args));
+}
+
+SPIRVTypeCooperativeMatrixKHR *
+SPIRVModuleImpl::addCooperativeMatrixKHRType(SPIRVType *CompType,
+                                             std::vector<SPIRVValue *> Args) {
+  return addType(
+      new SPIRVTypeCooperativeMatrixKHR(this, getId(), CompType, Args));
 }
 
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
@@ -1182,7 +1191,7 @@ SPIRVValue *SPIRVModuleImpl::addCompositeConstant(
     End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
                                                     : Elements.end();
     Slice.assign(Start, End);
-    auto Continued = static_cast<SPIRVConstantComposite::ContinuedInstType>(
+    auto *Continued = static_cast<SPIRVConstantComposite::ContinuedInstType>(
         addCompositeConstantContinuedINTEL(Slice));
     Res->addContinuedInstruction(Continued);
   }
@@ -1218,7 +1227,7 @@ SPIRVValue *SPIRVModuleImpl::addSpecConstantComposite(
     End = ((Elements.end() - End) > MaxNumElements) ? End + MaxNumElements
                                                     : Elements.end();
     Slice.assign(Start, End);
-    auto Continued = static_cast<SPIRVSpecConstantComposite::ContinuedInstType>(
+    auto *Continued = static_cast<SPIRVSpecConstantComposite::ContinuedInstType>(
         addSpecConstantCompositeContinuedINTEL(Slice));
     Res->addContinuedInstruction(Continued);
   }
@@ -1430,7 +1439,7 @@ SPIRVValue *SPIRVModuleImpl::addAsmINTEL(SPIRVTypeFunction *TheType,
                                          SPIRVAsmTargetINTEL *TheTarget,
                                          const std::string &TheInstructions,
                                          const std::string &TheConstraints) {
-  auto Asm = new SPIRVAsmINTEL(this, TheType, getId(), TheTarget,
+  auto *Asm = new SPIRVAsmINTEL(this, TheType, getId(), TheTarget,
                                TheInstructions, TheConstraints);
   return add(Asm);
 }
@@ -2017,14 +2026,14 @@ SPIRVModuleImpl::addGroupDecorateGeneric(SPIRVGroupDecorateGeneric *GDec) {
 SPIRVGroupDecorate *
 SPIRVModuleImpl::addGroupDecorate(SPIRVDecorationGroup *Group,
                                   const std::vector<SPIRVEntry *> &Targets) {
-  auto GD = new SPIRVGroupDecorate(Group, getIds(Targets));
+  auto *GD = new SPIRVGroupDecorate(Group, getIds(Targets));
   addGroupDecorateGeneric(GD);
   return GD;
 }
 
 SPIRVGroupMemberDecorate *SPIRVModuleImpl::addGroupMemberDecorate(
     SPIRVDecorationGroup *Group, const std::vector<SPIRVEntry *> &Targets) {
-  auto GMD = new SPIRVGroupMemberDecorate(Group, getIds(Targets));
+  auto *GMD = new SPIRVGroupMemberDecorate(Group, getIds(Targets));
   addGroupDecorateGeneric(GMD);
   return GMD;
 }
@@ -2033,7 +2042,7 @@ SPIRVString *SPIRVModuleImpl::getString(const std::string &Str) {
   auto Loc = StrMap.find(Str);
   if (Loc != StrMap.end())
     return Loc->second;
-  auto S = add(new SPIRVString(this, getId(), Str));
+  auto *S = add(new SPIRVString(this, getId(), Str));
   StrMap[Str] = S;
   return S;
 }
@@ -2178,7 +2187,7 @@ SPIRVModuleImpl::getValueTypes(const std::vector<SPIRVId> &IdVec) const {
 std::vector<SPIRVId>
 SPIRVModuleImpl::getIds(const std::vector<SPIRVEntry *> &ValueVec) const {
   std::vector<SPIRVId> IdVec;
-  for (auto I : ValueVec)
+  for (auto *I : ValueVec)
     IdVec.push_back(I->getId());
   return IdVec;
 }
@@ -2186,7 +2195,7 @@ SPIRVModuleImpl::getIds(const std::vector<SPIRVEntry *> &ValueVec) const {
 std::vector<SPIRVId>
 SPIRVModuleImpl::getIds(const std::vector<SPIRVValue *> &ValueVec) const {
   std::vector<SPIRVId> IdVec;
-  for (auto I : ValueVec)
+  for (auto *I : ValueVec)
     IdVec.push_back(I->getId());
   return IdVec;
 }
@@ -2195,7 +2204,7 @@ SPIRVInstTemplateBase *
 SPIRVModuleImpl::addInstTemplate(Op OC, SPIRVBasicBlock *BB, SPIRVType *Ty) {
   assert(!Ty || !Ty->isTypeVoid());
   SPIRVId Id = Ty ? getId() : SPIRVID_INVALID;
-  auto Ins = SPIRVInstTemplateBase::create(OC, Ty, Id, BB, this);
+  auto *Ins = SPIRVInstTemplateBase::create(OC, Ty, Id, BB, this);
   BB->addInstruction(Ins);
   return Ins;
 }
@@ -2205,7 +2214,7 @@ SPIRVModuleImpl::addInstTemplate(Op OC, const std::vector<SPIRVWord> &Ops,
                                  SPIRVBasicBlock *BB, SPIRVType *Ty) {
   assert(!Ty || !Ty->isTypeVoid());
   SPIRVId Id = Ty ? getId() : SPIRVID_INVALID;
-  auto Ins = SPIRVInstTemplateBase::create(OC, Ty, Id, Ops, BB, this);
+  auto *Ins = SPIRVInstTemplateBase::create(OC, Ty, Id, Ops, BB, this);
   BB->addInstruction(Ins);
   return Ins;
 }
@@ -2230,7 +2239,7 @@ SPIRVId SPIRVModuleImpl::getExtInstSetId(SPIRVExtInstSetKind Kind) const {
 bool isSpirvBinary(const std::string &Img) {
   if (Img.size() < sizeof(unsigned))
     return false;
-  auto Magic = reinterpret_cast<const unsigned *>(Img.data());
+  const auto *Magic = reinterpret_cast<const unsigned *>(Img.data());
   return *Magic == MagicNumber;
 }
 

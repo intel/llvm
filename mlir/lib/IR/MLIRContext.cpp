@@ -24,6 +24,7 @@
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -219,6 +220,7 @@ public:
   Float8E4M3B11FNUZType f8E4M3B11FNUZTy;
   BFloat16Type bf16Ty;
   Float16Type f16Ty;
+  FloatTF32Type tf32Ty;
   Float32Type f32Ty;
   Float64Type f64Ty;
   Float80Type f80Ty;
@@ -246,6 +248,12 @@ public:
   llvm::sys::SmartMutex<true> dialectRefStrAttrMutex;
   DenseMap<StringRef, SmallVector<StringAttrStorage *>>
       dialectReferencingStrAttrs;
+
+  /// A distinct attribute allocator that allocates every time since the
+  /// address of the distinct attribute storage serves as unique identifier. The
+  /// allocator is thread safe and frees the allocated storage after its
+  /// destruction.
+  DistinctAttributeAllocator distinctAttributeAllocator;
 
 public:
   MLIRContextImpl(bool threadingIsEnabled)
@@ -294,6 +302,7 @@ MLIRContext::MLIRContext(const DialectRegistry &registry, Threading setting)
   impl->f8E4M3B11FNUZTy = TypeUniquer::get<Float8E4M3B11FNUZType>(this);
   impl->bf16Ty = TypeUniquer::get<BFloat16Type>(this);
   impl->f16Ty = TypeUniquer::get<Float16Type>(this);
+  impl->tf32Ty = TypeUniquer::get<FloatTF32Type>(this);
   impl->f32Ty = TypeUniquer::get<Float32Type>(this);
   impl->f64Ty = TypeUniquer::get<Float64Type>(this);
   impl->f80Ty = TypeUniquer::get<Float80Type>(this);
@@ -825,7 +834,7 @@ void OperationName::UnregisteredOpModel::populateInherentAttrs(
     Operation *op, NamedAttrList &attrs) {}
 LogicalResult OperationName::UnregisteredOpModel::verifyInherentAttrs(
     OperationName opName, NamedAttrList &attributes,
-    function_ref<InFlightDiagnostic()> getDiag) {
+    function_ref<InFlightDiagnostic()> emitError) {
   return success();
 }
 int OperationName::UnregisteredOpModel::getOpPropertyByteSize() {
@@ -842,8 +851,9 @@ void OperationName::UnregisteredOpModel::deleteProperties(
 void OperationName::UnregisteredOpModel::populateDefaultProperties(
     OperationName opName, OpaqueProperties properties) {}
 LogicalResult OperationName::UnregisteredOpModel::setPropertiesFromAttr(
-    Operation *op, Attribute attr, InFlightDiagnostic *diag) {
-  *op->getPropertiesStorage().as<Attribute *>() = attr;
+    OperationName opName, OpaqueProperties properties, Attribute attr,
+    function_ref<InFlightDiagnostic()> emitError) {
+  *properties.as<Attribute *>() = attr;
   return success();
 }
 Attribute
@@ -853,6 +863,10 @@ OperationName::UnregisteredOpModel::getPropertiesAsAttr(Operation *op) {
 void OperationName::UnregisteredOpModel::copyProperties(OpaqueProperties lhs,
                                                         OpaqueProperties rhs) {
   *lhs.as<Attribute *>() = *rhs.as<Attribute *>();
+}
+bool OperationName::UnregisteredOpModel::compareProperties(OpaqueProperties lhs,
+                                                        OpaqueProperties rhs) {
+  return *lhs.as<Attribute *>() == *rhs.as<Attribute *>();
 }
 llvm::hash_code
 OperationName::UnregisteredOpModel::hashProperties(OpaqueProperties prop) {
@@ -960,6 +974,9 @@ BFloat16Type BFloat16Type::get(MLIRContext *context) {
 Float16Type Float16Type::get(MLIRContext *context) {
   return context->getImpl().f16Ty;
 }
+FloatTF32Type FloatTF32Type::get(MLIRContext *context) {
+  return context->getImpl().tf32Ty;
+}
 Float32Type Float32Type::get(MLIRContext *context) {
   return context->getImpl().f32Ty;
 }
@@ -1057,6 +1074,12 @@ UnitAttr UnitAttr::get(MLIRContext *context) {
 
 UnknownLoc UnknownLoc::get(MLIRContext *context) {
   return context->getImpl().unknownLocAttr;
+}
+
+DistinctAttrStorage *
+detail::DistinctAttributeUniquer::allocateStorage(MLIRContext *context,
+                                                  Attribute referencedAttr) {
+  return context->getImpl().distinctAttributeAllocator.allocate(referencedAttr);
 }
 
 /// Return empty dictionary.

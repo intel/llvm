@@ -516,6 +516,40 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
 
   if (Opts.FakeAddressSpaceMap)
     AddrSpaceMap = &FakeAddrSpaceMap;
+
+  if ((Opts.SYCLIsDevice || Opts.OpenCL) && Opts.SYCLIsNativeCPU) {
+    // For SYCL Native CPU we use the NVPTXAddrSpaceMap because
+    // we need builtins to be mangled with AS information.
+    // This is also enabled in OpenCL mode so that mangling
+    // matches when building libclc.
+
+    static const unsigned SYCLNativeCPUASMap[] = {
+        0,  // Default
+        1,  // opencl_global
+        3,  // opencl_local
+        4,  // opencl_constant
+        0,  // opencl_private
+        0,  // opencl_generic
+        1,  // opencl_global_device
+        1,  // opencl_global_host
+        1,  // cuda_device
+        4,  // cuda_constant
+        3,  // cuda_shared
+        1,  // sycl_global
+        1,  // sycl_global_device
+        1,  // sycl_global_host
+        3,  // sycl_local
+        0,  // sycl_private
+        0,  // ptr32_sptr
+        0,  // ptr32_uptr
+        0,  // ptr64
+        0,  // hlsl_groupshared
+        20, // wasm_funcref
+    };
+
+    AddrSpaceMap = &SYCLNativeCPUASMap;
+    UseAddrSpaceMapMangling = true;
+  }
 }
 
 bool TargetInfo::initFeatureMap(

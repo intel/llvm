@@ -31,9 +31,8 @@ AST_MATCHER_P2(Stmt, argumentOf, bool, AllowPartialMove, StatementMatcher,
                Ref) {
   if (AllowPartialMove) {
     return stmt(anyOf(Ref, hasDescendant(Ref))).matches(Node, Finder, Builder);
-  } else {
-    return Ref.matches(Node, Finder, Builder);
   }
+  return Ref.matches(Node, Finder, Builder);
 }
 } // namespace
 
@@ -83,6 +82,9 @@ void RvalueReferenceParamNotMovedCheck::check(
     return;
 
   if (IgnoreUnnamedParams && Param->getName().empty())
+    return;
+
+  if (!Param->isUsed() && Param->hasAttr<UnusedAttr>())
     return;
 
   const auto *Function = dyn_cast<FunctionDecl>(Param->getDeclContext());

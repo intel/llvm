@@ -54,6 +54,13 @@ namespace llvm {
   /// the entry block.
   FunctionPass *createUnreachableBlockEliminationPass();
 
+  /// createGCEmptyBasicblocksPass - Empty basic blocks (basic blocks without
+  /// real code) appear as the result of optimization passes removing
+  /// instructions. These blocks confuscate profile analysis (e.g., basic block
+  /// sections) since they will share the address of their fallthrough blocks.
+  /// This pass garbage-collects such basic blocks.
+  MachineFunctionPass *createGCEmptyBasicBlocksPass();
+
   /// createBasicBlockSections Pass - This pass assigns sections to machine
   /// basic blocks and is enabled with -fbasic-block-sections.
   MachineFunctionPass *createBasicBlockSectionsPass();
@@ -386,7 +393,7 @@ namespace llvm {
 
   /// createDwarfEHPass - This pass mulches exception handling code into a form
   /// adapted to code generation.  Required if using dwarf exception handling.
-  FunctionPass *createDwarfEHPass(CodeGenOpt::Level OptLevel);
+  FunctionPass *createDwarfEHPass(CodeGenOptLevel OptLevel);
 
   /// createWinEHPass - Prepares personality functions used by MSVC on Windows,
   /// in addition to the Itanium LSDA based personalities.
@@ -438,9 +445,6 @@ namespace llvm {
 
   /// LiveDebugValues pass
   extern char &LiveDebugValuesID;
-
-  /// createJumpInstrTables - This pass creates jump-instruction tables.
-  ModulePass *createJumpInstrTablesPass();
 
   /// InterleavedAccess Pass - This pass identifies and matches interleaved
   /// memory accesses to target specific intrinsics.

@@ -59,48 +59,48 @@ void SPIRVLowerBoolBase::replace(Instruction *I, Instruction *NewI) {
 bool SPIRVLowerBoolBase::isBoolType(Type *Ty) {
   if (Ty->isIntegerTy(1))
     return true;
-  if (auto VT = dyn_cast<VectorType>(Ty))
+  if (auto *VT = dyn_cast<VectorType>(Ty))
     return isBoolType(VT->getElementType());
   return false;
 }
 
 void SPIRVLowerBoolBase::visitTruncInst(TruncInst &I) {
   if (isBoolType(I.getType())) {
-    auto Op = I.getOperand(0);
-    auto And = BinaryOperator::CreateAnd(
+    auto *Op = I.getOperand(0);
+    auto *And = BinaryOperator::CreateAnd(
         Op, getScalarOrVectorConstantInt(Op->getType(), 1, false), "", &I);
     And->setDebugLoc(I.getDebugLoc());
-    auto Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
-    auto Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
+    auto *Zero = getScalarOrVectorConstantInt(Op->getType(), 0, false);
+    auto *Cmp = new ICmpInst(&I, CmpInst::ICMP_NE, And, Zero);
     replace(&I, Cmp);
   }
 }
 
 void SPIRVLowerBoolBase::handleExtInstructions(Instruction &I) {
-  auto Op = I.getOperand(0);
+  auto *Op = I.getOperand(0);
   if (isBoolType(Op->getType())) {
     auto Opcode = I.getOpcode();
-    auto Ty = I.getType();
-    auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-    auto One = getScalarOrVectorConstantInt(
+    auto *Ty = I.getType();
+    auto *Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+    auto *One = getScalarOrVectorConstantInt(
         Ty, (Opcode == Instruction::SExt) ? ~0 : 1, false);
     assert(Zero && One && "Couldn't create constant int");
-    auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+    auto *Sel = SelectInst::Create(Op, One, Zero, "", &I);
     replace(&I, Sel);
   }
 }
 
 void SPIRVLowerBoolBase::handleCastInstructions(Instruction &I) {
-  auto Op = I.getOperand(0);
+  auto *Op = I.getOperand(0);
   auto *OpTy = Op->getType();
   if (isBoolType(OpTy)) {
     Type *Ty = Type::getInt32Ty(*Context);
-    if (auto VT = dyn_cast<FixedVectorType>(OpTy))
+    if (auto *VT = dyn_cast<FixedVectorType>(OpTy))
       Ty = llvm::FixedVectorType::get(Ty, VT->getNumElements());
-    auto Zero = getScalarOrVectorConstantInt(Ty, 0, false);
-    auto One = getScalarOrVectorConstantInt(Ty, 1, false);
+    auto *Zero = getScalarOrVectorConstantInt(Ty, 0, false);
+    auto *One = getScalarOrVectorConstantInt(Ty, 1, false);
     assert(Zero && One && "Couldn't create constant int");
-    auto Sel = SelectInst::Create(Op, One, Zero, "", &I);
+    auto *Sel = SelectInst::Create(Op, One, Zero, "", &I);
     Sel->setDebugLoc(I.getDebugLoc());
     I.setOperand(0, Sel);
   }

@@ -40,11 +40,12 @@ def main(builtin_params={}):
         order=opts.order,
         params=params,
         config_prefix=opts.configPrefix,
-        echo_all_commands=opts.echoAllCommands,
+        per_test_coverage=opts.per_test_coverage,
+        disableGTestSharding=opts.disableGTestSharding,
     )
 
     discovered_tests = lit.discovery.find_tests_for_inputs(
-        lit_config, opts.test_paths, opts.indirectlyRunCheck
+        lit_config, opts.test_paths
     )
     if not discovered_tests:
         sys.stderr.write("error: did not discover any tests for provided path(s)\n")
@@ -73,7 +74,7 @@ def main(builtin_params={}):
                     "The test suite configuration requested an individual"
                     " test timeout of {0} seconds but a timeout of {1} seconds was"
                     " requested on the command line. Forcing timeout to be {1}"
-                    " seconds"
+                    " seconds."
                 ).format(lit_config.maxIndividualTestTime, opts.maxIndividualTestTime)
             )
             lit_config.maxIndividualTestTime = opts.maxIndividualTestTime

@@ -1,19 +1,18 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-LLVM: opencl.image2d_array_wo_t = type opaque
-; CHECK-LLVM: define spir_kernel void @sample_kernel(%opencl.image2d_array_wo_t addrspace(1)
+; CHECK-LLVM: define spir_kernel void @sample_kernel(ptr addrspace(1)
 ; CHECK-LLVM-SAME: !kernel_arg_access_qual [[AQ:![0-9]+]]
 ; CHECK-LLVM-SAME: !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-SAME: !kernel_arg_base_type [[TYPE]]
 
-; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)
-; CHECK-LLVM: call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)
-; CHECK-LLVM: declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)
-; CHECK-LLVM: declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)
+; CHECK-LLVM: call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(ptr addrspace(1)
+; CHECK-LLVM: call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(ptr addrspace(1)
+; CHECK-LLVM: declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(ptr addrspace(1)
+; CHECK-LLVM: declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(ptr addrspace(1)
 ; CHECK-LLVM-DAG: [[AQ]] = !{!"write_only"}
 ; CHECK-LLVM-DAG: [[TYPE]] = !{!"image2d_array_t"}
 
@@ -24,11 +23,11 @@ target triple = "spir64-unknown-unknown"
 %opencl.image2d_array_wo_t = type opaque
 
 ; Function Attrs: nounwind
-define spir_kernel void @sample_kernel(%opencl.image2d_array_wo_t addrspace(1)* %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @sample_kernel(ptr addrspace(1) %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
 entry:
-  %call.tmp1 = call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)* %input)
+  %call.tmp1 = call spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(ptr addrspace(1) %input)
   %call.tmp2 = shufflevector <2 x i32> %call.tmp1, <2 x i32> undef, <3 x i32> <i32 0, i32 1, i32 2>
-  %call.tmp3 = call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)* %input)
+  %call.tmp3 = call spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(ptr addrspace(1) %input)
   %call.tmp4 = trunc i64 %call.tmp3 to i32
   %call.tmp5 = insertelement <3 x i32> %call.tmp2, i32 %call.tmp4, i32 2
   %call.old = extractelement <3 x i32> %call.tmp5, i32 0
@@ -36,10 +35,10 @@ entry:
 }
 
 ; Function Attrs: nounwind
-declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)*) #0
+declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_wo(ptr addrspace(1)) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(%opencl.image2d_array_wo_t addrspace(1)*) #0
+declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_wo(ptr addrspace(1)) #0
 
 attributes #0 = { nounwind }
 

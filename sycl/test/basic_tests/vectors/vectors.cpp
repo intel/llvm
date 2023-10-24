@@ -30,12 +30,19 @@ template <typename From, typename To> void check_convert() {
   assert((int)result.w() == (int)vec.w());
 }
 
+template <class T>
+constexpr auto has_unsigned_v =
+    std::is_integral_v<T> && !std::is_same_v<T, bool>;
+
 template <typename From, typename To> void check_signed_unsigned_convert_to() {
   check_convert<From, To>();
-  check_convert<From, sycl::detail::make_unsigned_t<To>>();
-  check_convert<sycl::detail::make_unsigned_t<From>, To>();
-  check_convert<sycl::detail::make_unsigned_t<From>,
-                sycl::detail::make_unsigned_t<To>>();
+  if constexpr (has_unsigned_v<To>)
+    check_convert<From, sycl::detail::make_unsigned_t<To>>();
+  if constexpr (has_unsigned_v<From>)
+    check_convert<sycl::detail::make_unsigned_t<From>, To>();
+  if constexpr (has_unsigned_v<To> && has_unsigned_v<From>)
+    check_convert<sycl::detail::make_unsigned_t<From>,
+                  sycl::detail::make_unsigned_t<To>>();
 }
 
 template <typename From> void check_convert_from() {

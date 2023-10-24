@@ -54,9 +54,11 @@ public:
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
+  GlobalHandler &operator=(const GlobalHandler &) = delete;
 
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
+  bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<PlatformImplPtr> &getPlatformCache();

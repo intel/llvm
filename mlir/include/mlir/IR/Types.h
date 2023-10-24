@@ -127,6 +127,7 @@ public:
   bool isFloat8E4M3B11FNUZ() const;
   bool isBF16() const;
   bool isF16() const;
+  bool isTF32() const;
   bool isF32() const;
   bool isF64() const;
   bool isF80() const;
@@ -177,6 +178,15 @@ public:
   }
   static Type getFromOpaquePointer(const void *pointer) {
     return Type(reinterpret_cast<ImplType *>(const_cast<void *>(pointer)));
+  }
+
+  /// Returns true if `InterfaceT` has been promised by the dialect or
+  /// implemented.
+  template <typename InterfaceT>
+  bool hasPromiseOrImplementsInterface() {
+    return dialect_extension_detail::hasPromisedInterface(
+               getDialect(), getTypeID(), InterfaceT::getInterfaceID()) ||
+           mlir::isa<InterfaceT>(*this);
   }
 
   /// Returns true if the type was registered with a particular trait.
@@ -266,14 +276,14 @@ public:
       detail::Interface<ConcreteType, Type, Traits, Type, TypeTrait::TraitBase>;
   using InterfaceBase::InterfaceBase;
 
-private:
+protected:
   /// Returns the impl interface instance for the given type.
   static typename InterfaceBase::Concept *getInterfaceFor(Type type) {
 #ifndef NDEBUG
     // Check that the current interface isn't an unresolved promise for the
     // given type.
     dialect_extension_detail::handleUseOfUndefinedPromisedInterface(
-        type.getDialect(), ConcreteType::getInterfaceID(),
+        type.getDialect(), type.getTypeID(), ConcreteType::getInterfaceID(),
         llvm::getTypeName<ConcreteType>());
 #endif
 

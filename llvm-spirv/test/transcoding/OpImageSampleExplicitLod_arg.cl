@@ -3,8 +3,8 @@
 // RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r -emit-opaque-pointers=0 -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
-// RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 void __kernel sample_kernel_read( __global float4 *results,
     read_only image2d_t image,
@@ -32,6 +32,6 @@ void __kernel sample_kernel_read( __global float4 *results,
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 2 [[lod]]
 // CHECK-SPIRV: ImageSampleExplicitLod {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} 4 [[dx]] [[dy]]
 
-// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(%opencl.image2d_ro_t addrspace(1)* %image, %opencl.sampler_t addrspace(2)* %imageSampler, <2 x float> %coord)
-// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(%opencl.image2d_ro_t addrspace(1)* %image, %opencl.sampler_t addrspace(2)* %imageSampler, <2 x float> %coord, float 0x40091EB860000000)
-// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_fS1_S1_(%opencl.image2d_ro_t addrspace(1)* %image, %opencl.sampler_t addrspace(2)* %imageSampler, <2 x float> %coord, <2 x float> %dx, <2 x float> %dy)
+// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_f(ptr addrspace(1) %image, ptr addrspace(2) %imageSampler, <2 x float> %coord)
+// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_ff(ptr addrspace(1) %image, ptr addrspace(2) %imageSampler, <2 x float> %coord, float 0x40091EB860000000)
+// CHECK-LLVM: call spir_func <4 x float> @_Z11read_imagef14ocl_image2d_ro11ocl_samplerDv2_fS1_S1_(ptr addrspace(1) %image, ptr addrspace(2) %imageSampler, <2 x float> %coord, <2 x float> %dx, <2 x float> %dy)

@@ -11,6 +11,7 @@
 #include "src/__support/CPP/string.h"
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/__support/FPUtil/FloatProperties.h"
 #include "src/__support/FPUtil/PlatformDefs.h"
 #include "src/__support/FPUtil/fpbits_str.h"
 #include "test/UnitTest/FPMatcher.h"
@@ -22,35 +23,11 @@
 
 #include "mpfr_inc.h"
 
-template <typename T> using FPBits = __llvm_libc::fputil::FPBits<T>;
+template <typename T> using FPBits = LIBC_NAMESPACE::fputil::FPBits<T>;
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace testing {
 namespace mpfr {
-
-template <typename T> struct Precision;
-
-template <> struct Precision<float> {
-  static constexpr unsigned int VALUE = 24;
-};
-
-template <> struct Precision<double> {
-  static constexpr unsigned int VALUE = 53;
-};
-
-#if defined(LONG_DOUBLE_IS_DOUBLE)
-template <> struct Precision<long double> {
-  static constexpr unsigned int VALUE = 53;
-};
-#elif defined(SPECIAL_X86_LONG_DOUBLE)
-template <> struct Precision<long double> {
-  static constexpr unsigned int VALUE = 64;
-};
-#else
-template <> struct Precision<long double> {
-  static constexpr unsigned int VALUE = 113;
-};
-#endif
 
 // A precision value which allows sufficiently large additional
 // precision compared to the floating point precision.
@@ -74,7 +51,7 @@ template <> struct ExtraPrecision<long double> {
 template <typename T>
 static inline unsigned int get_precision(double ulp_tolerance) {
   if (ulp_tolerance <= 0.5) {
-    return Precision<T>::VALUE;
+    return LIBC_NAMESPACE::fputil::FloatProperties<T>::MANTISSA_PRECISION;
   } else {
     return ExtraPrecision<T>::VALUE;
   }
@@ -95,6 +72,7 @@ static inline mpfr_rnd_t get_mpfr_rounding_mode(RoundingMode mode) {
     return MPFR_RNDN;
     break;
   }
+  __builtin_unreachable();
 }
 
 class MPFRNumber {
@@ -226,6 +204,12 @@ public:
   MPFRNumber cosh() const {
     MPFRNumber result(*this);
     mpfr_cosh(result.value, value, mpfr_rounding);
+    return result;
+  }
+
+  MPFRNumber erf() const {
+    MPFRNumber result(*this);
+    mpfr_erf(result.value, value, mpfr_rounding);
     return result;
   }
 
@@ -573,6 +557,8 @@ unary_operation(Operation op, InputType input, unsigned int precision,
     return mpfrInput.cos();
   case Operation::Cosh:
     return mpfrInput.cosh();
+  case Operation::Erf:
+    return mpfrInput.erf();
   case Operation::Exp:
     return mpfrInput.exp();
   case Operation::Exp2:
@@ -1026,4 +1012,4 @@ template long double round<long double>(long double, RoundingMode);
 
 } // namespace mpfr
 } // namespace testing
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

@@ -20,9 +20,6 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 const ur_context_properties_t *pProperties,
                 ur_context_handle_t *phContext) {
   std::ignore = pProperties;
-  UR_ASSERT(phDevices, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   assert(DeviceCount == 1);
 
   // TODO: Proper error checking.
@@ -46,9 +43,6 @@ urContextRelease(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {

@@ -142,7 +142,8 @@ void TransferOptimization::deadStoreOp(vector::TransferWriteOp write) {
       // Don't need to consider disjoint accesses.
       if (vector::isDisjointTransferSet(
               cast<VectorTransferOpInterface>(write.getOperation()),
-              cast<VectorTransferOpInterface>(transferOp.getOperation())))
+              cast<VectorTransferOpInterface>(transferOp.getOperation()),
+              /*testDynamicValueUsingBounds=*/true))
         continue;
     }
     blockingAccesses.push_back(user);
@@ -206,6 +207,10 @@ void TransferOptimization::storeToLoadForwarding(vector::TransferReadOp read) {
       users.append(subView->getUsers().begin(), subView->getUsers().end());
       continue;
     }
+    if (auto collapsed = dyn_cast<memref::CollapseShapeOp>(user)) {
+      users.append(collapsed->getUsers().begin(), collapsed->getUsers().end());
+      continue;
+    }
     if (isMemoryEffectFree(user) || isa<vector::TransferReadOp>(user))
       continue;
     if (auto write = dyn_cast<vector::TransferWriteOp>(user)) {
@@ -213,7 +218,8 @@ void TransferOptimization::storeToLoadForwarding(vector::TransferReadOp read) {
       // the write.
       if (vector::isDisjointTransferSet(
               cast<VectorTransferOpInterface>(write.getOperation()),
-              cast<VectorTransferOpInterface>(read.getOperation())))
+              cast<VectorTransferOpInterface>(read.getOperation()),
+              /*testDynamicValueUsingBounds=*/true))
         continue;
       if (write.getSource() == read.getSource() &&
           dominators.dominates(write, read) && checkSameValueRAW(write, read)) {
@@ -297,12 +303,6 @@ static SmallVector<int64_t> getReducedShape(ArrayRef<int64_t> shape) {
   return reducedShape;
 }
 
-/// Returns true if all values are `arith.constant 0 : index`
-static bool isZero(Value v) {
-  auto cst = v.getDefiningOp<arith::ConstantIndexOp>();
-  return cst && cst.value() == 0;
-}
-
 namespace {
 
 /// Rewrites `vector.transfer_read` ops where the source has unit dims, by
@@ -338,8 +338,9 @@ class TransferReadDropUnitDimsPattern
     int vectorReducedRank = getReducedRank(vectorType.getShape());
     if (reducedRank != vectorReducedRank)
       return failure();
-    if (llvm::any_of(transferReadOp.getIndices(),
-                     [](Value v) { return !isZero(v); }))
+    if (llvm::any_of(transferReadOp.getIndices(), [](Value v) {
+          return getConstantIntValue(v) != static_cast<int64_t>(0);
+        }))
       return failure();
     Value reducedShapeSource =
         rankReducingSubviewDroppingUnitDims(rewriter, loc, source);
@@ -392,8 +393,9 @@ class TransferWriteDropUnitDimsPattern
     int vectorReducedRank = getReducedRank(vectorType.getShape());
     if (reducedRank != vectorReducedRank)
       return failure();
-    if (llvm::any_of(transferWriteOp.getIndices(),
-                     [](Value v) { return !isZero(v); }))
+    if (llvm::any_of(transferWriteOp.getIndices(), [](Value v) {
+          return getConstantIntValue(v) != static_cast<int64_t>(0);
+        }))
       return failure();
     Value reducedShapeSource =
         rankReducingSubviewDroppingUnitDims(rewriter, loc, source);
@@ -463,8 +465,7 @@ checkAndCollapseInnerZeroIndices(ValueRange indices, int64_t firstDimToCollapse,
   if (firstDimToCollapse >= rank)
     return failure();
   for (int64_t i = firstDimToCollapse; i < rank; ++i) {
-    arith::ConstantIndexOp cst =
-        indices[i].getDefiningOp<arith::ConstantIndexOp>();
+    std::optional<int64_t> cst = getConstantIntValue(indices[i]);
     if (!cst || cst.value() != 0)
       return failure();
   }
@@ -708,10 +709,10 @@ class RewriteScalarExtractOfTransferRead
     auto xferOp = extractOp.getVector().getDefiningOp<vector::TransferReadOp>();
     SmallVector<Value> newIndices(xferOp.getIndices().begin(),
                                   xferOp.getIndices().end());
-    for (const auto &it : llvm::enumerate(extractOp.getPosition())) {
-      int64_t offset = cast<IntegerAttr>(it.value()).getInt();
-      int64_t idx =
-          newIndices.size() - extractOp.getPosition().size() + it.index();
+    for (auto [i, pos] : llvm::enumerate(extractOp.getMixedPosition())) {
+      assert(pos.is<Attribute>() && "Unexpected non-constant index");
+      int64_t offset = cast<IntegerAttr>(pos.get<Attribute>()).getInt();
+      int64_t idx = newIndices.size() - extractOp.getNumIndices() + i;
       OpFoldResult ofr = affine::makeComposedFoldedAffineApply(
           rewriter, extractOp.getLoc(),
           rewriter.getAffineSymbolExpr(0) + offset, {newIndices[idx]});

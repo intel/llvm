@@ -36,13 +36,13 @@
 ;   return 0;
 ; }
 
-; RUN: llvm-as -opaque-pointers=0 < %s > %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
+; RUN: llvm-as < %s > %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 %t.rev.bc -o %t.rev.ll
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 
 ; CHECK-LLVM is the base prefix, which includes simple checks for
 ; "llvm.loop.parallel_access_indices" MD nodes with only 1 index group operand
@@ -56,6 +56,7 @@
 ; CHECK-SPIRV: 9 Extension "SPV_INTEL_fpga_loop_controls"
 ; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_64:[0-9]+]] 64 0
 ; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_32:[0-9]+]] 32 0
+; CHECK-SPIRV-DAG: TypeInt [[TYPE_INT_8:[0-9]+]] 8 0
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_64]] [[SIZE:[0-9]+]] 10 0
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_32]] [[OFFSET_CONST_0:[0-9]+]] 0
 ; CHECK-SPIRV-DAG: Constant [[TYPE_INT_32]] [[OFFSET_CONST_1:[0-9]+]] 1
@@ -69,14 +70,15 @@
 ; CHECK-SPIRV: TypePointer [[TYPE_EMB_CLOSURE_PARAM_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_EMB_CLOSURE_PTR]]
 ; CHECK-SPIRV: TypePointer [[TYPE_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_ARRAY]]
 ; CHECK-SPIRV: TypePointer [[TYPE_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_INT_32]]
-; CHECK-SPIRV: TypeStruct [[TYPE_SFLN_CLOSURE_STRUCT:[0-9]+]] [[TYPE_INT_PTR]] [[TYPE_INT_PTR]]
+; CHECK-SPIRV: TypePointer [[TYPE_I8_PTR:[0-9]+]] 8 [[TYPE_INT_8]]
+; CHECK-SPIRV: TypeStruct [[TYPE_SFLN_CLOSURE_STRUCT:[0-9]+]] [[TYPE_I8_PTR]] [[TYPE_I8_PTR]]
 ; The next type is only used when initializing the memory fields
 ; CHECK-SPIRV: TypePointer [[TYPE_CLOSURE_INIT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_STRUCT]]
 ; This is the type used in the kernel function
 ; CHECK-SPIRV: TypePointer [[TYPE_SFLN_CLOSURE_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_STRUCT]]
 ; CHECK-SPIRV: TypeFunction [[TYPE_SFLN_FUNC:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_PTR]]
 ; CHECK-SPIRV: TypePointer [[TYPE_SFLN_CLOSURE_PARAM_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_SFLN_CLOSURE_PTR]]
-; CHECK-SPIRV: TypePointer [[TYPE_SFLN_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_INT_PTR]]
+; CHECK-SPIRV: TypePointer [[TYPE_SFLN_INT_PTR:[0-9]+]] {{[0-9]+}} [[TYPE_I8_PTR]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -84,7 +86,7 @@ target triple = "spir64-unknown-unknown"
 %struct._ZTS15__wrapper_class.__wrapper_class = type { [10 x i32] }
 %struct._ZTS15__wrapper_class.__wrapper_class.0 = type { [10 x i32] }
 ; CHECK-LLVM: %[[CLOSURE_NAME_EMB:"class.*"]] = type { [10 x i32], [10 x i32] }
-; CHECK-LLVM: %[[CLOSURE_NAME_SFLN:"class.*"]] = type { i32 addrspace(4)*, i32 addrspace(4)* }
+; CHECK-LLVM: %[[CLOSURE_NAME_SFLN:"class.*"]] = type { ptr addrspace(4), ptr addrspace(4) }
 %"class._ZTSZ4mainE3$_0.anon" = type { [10 x i32], [10 x i32] }
 %"class._ZTSZ4mainE3$_0.anon.0" = type { i32 addrspace(4)*, i32 addrspace(4)* }
 
@@ -137,18 +139,18 @@ arrayinit.end8:                                   ; preds = %arrayinit.body3
 declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
 
 ; CHECK-SPIRV: Function {{.*}} [[TYPE_EMB_FUNC]]
-; CHECK-LLVM: define internal spir_func void {{.*}}(%[[CLOSURE_NAME_EMB]] addrspace(4)* %this)
+; CHECK-LLVM: define internal spir_func void {{.*}}(ptr addrspace(4) %this)
 ; Function Attrs: convergent inlinehint norecurse nounwind uwtable
 define internal spir_func void @"_ZZ4mainEN3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this) #2 align 2 {
 entry:
   ; CHECK-SPIRV: Variable [[TYPE_EMB_CLOSURE_PARAM_PTR]] [[THIS_EMB_ID:[0-9]+]]
-  ; CHECK-LLVM: %this.addr = alloca %[[CLOSURE_NAME_EMB]]
+  ; CHECK-LLVM: %this.addr = alloca ptr addrspace(4)
   %this.addr = alloca %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, align 8
   %i = alloca i32, align 4
   %cleanup.dest.slot = alloca i32, align 4
   %j = alloca i32, align 4
   ; CHECK-SPIRV: Load [[TYPE_EMB_CLOSURE_PTR]] [[THIS_EMB_LOAD:[0-9]+]] [[THIS_EMB_ID]]
-  ; CHECK-LLVM: %this1 = load %[[CLOSURE_NAME_EMB]] addrspace(4)*, %[[CLOSURE_NAME_EMB]] addrspace(4)** %this.addr
+  ; CHECK-LLVM: %this1 = load ptr addrspace(4), ptr %this.addr
   store %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %this.addr, align 8, !tbaa !9
   %this1 = load %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %this.addr, align 8
   %0 = bitcast i32* %i to i8*
@@ -172,21 +174,21 @@ for.cond.cleanup:                                 ; preds = %for.cond
   br label %for.end20
 
 for.body:                                         ; preds = %for.cond
-  ; CHECK-LLVM: %[[BUF2_EMB_OUTER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], %[[CLOSURE_NAME_EMB]] addrspace(4)* %this1, i32 0, i32 1
+  ; CHECK-LLVM: %[[BUF2_EMB_OUTER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], ptr addrspace(4) %this1, i32 0, i32 1
   %3 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon", %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this1, i32 0, i32 1
   %4 = load i32, i32* %i, align 4, !tbaa !5
   %add = add nsw i32 %4, 4
   %idxprom = sext i32 %add to i64
-  ; CHECK-LLVM-NOT: getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[BUF2_EMB_OUTER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group
+  ; CHECK-LLVM-NOT: getelementptr inbounds [10 x i32], ptr addrspace(4) %[[BUF2_EMB_OUTER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group
   %arrayidx = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %3, i64 0, i64 %idxprom
   %5 = load i32, i32 addrspace(4)* %arrayidx, align 4, !tbaa !5
   %add2 = add nsw i32 %5, 42
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_PTR]] [[BUF1_EMB_OUTER_ID]] [[THIS_EMB_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_0]]
-  ; CHECK-LLVM: %[[BUF1_EMB_OUTER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], %[[CLOSURE_NAME_EMB]] addrspace(4)* %this1, i32 0, i32 0
+  ; CHECK-LLVM: %[[BUF1_EMB_OUTER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], ptr addrspace(4) %this1, i32 0, i32 0
   %6 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon", %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this1, i32 0, i32 0
   %7 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom3 = sext i32 %7 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[BUF1_EMB_OUTER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF1_EMB_OUTER_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr addrspace(4) %[[BUF1_EMB_OUTER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF1_EMB_OUTER_IDX_GR:[0-9]+]]
   %arrayidx4 = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %6, i64 0, i64 %idxprom3, !llvm.index.group !11
   %8 = load i32, i32 addrspace(4)* %arrayidx4, align 4, !tbaa !5
   %mul = mul nsw i32 %8, %add2
@@ -213,29 +215,29 @@ for.cond.cleanup7:                                ; preds = %for.cond5
 
 for.body8:                                        ; preds = %for.cond5
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_PTR]] [[BUF1_EMB_INNER_ID]] [[THIS_EMB_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_0]]
-  ; CHECK-LLVM: %[[BUF1_EMB_INNER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], %[[CLOSURE_NAME_EMB]] addrspace(4)* %this1, i32 0, i32 0
+  ; CHECK-LLVM: %[[BUF1_EMB_INNER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], ptr addrspace(4) %this1, i32 0, i32 0
   %12 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon", %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this1, i32 0, i32 0
   %13 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom9 = sext i32 %13 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[BUF1_EMB_INNER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF1_EMB_INNER_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr addrspace(4) %[[BUF1_EMB_INNER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF1_EMB_INNER_IDX_GR:[0-9]+]]
   %arrayidx10 = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %12, i64 0, i64 %idxprom9, !llvm.index.group !12
   %14 = load i32, i32 addrspace(4)* %arrayidx10, align 4, !tbaa !5
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_PTR]] [[BUF2_EMB_INNER_PRE_ADD_ID]] [[THIS_EMB_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_1]]
-  ; CHECK-LLVM: %[[BUF2_EMB_INNER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], %[[CLOSURE_NAME_EMB]] addrspace(4)* %this1, i32 0, i32 1
+  ; CHECK-LLVM: %[[BUF2_EMB_INNER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], ptr addrspace(4) %this1, i32 0, i32 1
   %15 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon", %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this1, i32 0, i32 1
   %16 = load i32, i32* %i, align 4, !tbaa !5
   %add11 = add nsw i32 %16, 3
   %idxprom12 = sext i32 %add11 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[BUF2_EMB_INNER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF2_EMB_INNER_IDX_GR:[0-9]+]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr addrspace(4) %[[BUF2_EMB_INNER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF2_EMB_INNER_IDX_GR:[0-9]+]]
   %arrayidx13 = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %15, i64 0, i64 %idxprom12, !llvm.index.group !14
   %17 = load i32, i32 addrspace(4)* %arrayidx13, align 4, !tbaa !5
   %add14 = add nsw i32 %14, %17
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_PTR]] [[BUF2_EMB_INNER_PRE_MUL_ID]] [[THIS_EMB_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_1]]
-  ; CHECK-LLVM: %[[BUF2_EMB_INNER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], %[[CLOSURE_NAME_EMB]] addrspace(4)* %this1, i32 0, i32 1
+  ; CHECK-LLVM: %[[BUF2_EMB_INNER_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_EMB]], ptr addrspace(4) %this1, i32 0, i32 1
   %18 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon", %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this1, i32 0, i32 1
   %19 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom15 = sext i32 %19 to i64
-  ; CHECK-LLVM: getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[BUF2_EMB_INNER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF2_EMB_INNER_IDX_GR]]
+  ; CHECK-LLVM: getelementptr inbounds [10 x i32], ptr addrspace(4) %[[BUF2_EMB_INNER_CLOSURE_ACCESS]]{{.*}}, !llvm.index.group ![[BUF2_EMB_INNER_IDX_GR]]
   %arrayidx16 = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %18, i64 0, i64 %idxprom15, !llvm.index.group !14
   %20 = load i32, i32 addrspace(4)* %arrayidx16, align 4, !tbaa !5
   %mul17 = mul nsw i32 %20, %add14
@@ -292,17 +294,17 @@ entry:
 }
 
 ; CHECK-SPIRV: Function {{.*}} [[TYPE_SFLN_FUNC]]
-; CHECK-LLVM: define internal spir_func void {{.*}}(%[[CLOSURE_NAME_SFLN]] addrspace(4)* %this)
+; CHECK-LLVM: define internal spir_func void {{.*}}(ptr addrspace(4) %this)
 ; Function Attrs: convergent inlinehint norecurse nounwind
 define internal spir_func void @"_ZZ4mainEN3$_1clEv"(%"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this) #2 align 2 {
 entry:
   ; CHECK-SPIRV: Variable [[TYPE_SFLN_CLOSURE_PARAM_PTR]] [[THIS_SFLN_ID:[0-9]+]]
-  ; CHECK-LLVM: %this.addr = alloca %[[CLOSURE_NAME_SFLN]]
+  ; CHECK-LLVM: %this.addr = alloca ptr addrspace(4)
   %this.addr = alloca %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)*, align 8
   %i = alloca i32, align 4
   store %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this, %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)** %this.addr, align 8, !tbaa !9
   ; CHECK-SPIRV: Load [[TYPE_SFLN_CLOSURE_PTR]] [[THIS_SFLN_LOAD:[0-9]+]] [[THIS_SFLN_ID]]
-  ; CHECK-LLVM: %this1 = load %[[CLOSURE_NAME_SFLN]] addrspace(4)*, %[[CLOSURE_NAME_SFLN]] addrspace(4)** %this.addr
+  ; CHECK-LLVM: %this1 = load ptr addrspace(4), ptr %this.addr
   %this1 = load %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)*, %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)** %this.addr, align 8
   %0 = bitcast i32* %i to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #3
@@ -325,59 +327,64 @@ for.cond.cleanup:                                 ; preds = %for.cond
 
 for.body:                                         ; preds = %for.cond
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_SFLN_INT_PTR]] [[BUF2_SFLN_PRE_ADD_1_ID]] [[THIS_SFLN_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_1]]
-  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], %[[CLOSURE_NAME_SFLN]] addrspace(4)* %this1, i32 0, i32 1
-  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %[[BUF2_SFLN_CLOSURE_ACCESS]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], ptr addrspace(4) %this1, i32 0, i32 1
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load ptr addrspace(4), ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS]]
   %3 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon.0", %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this1, i32 0, i32 1
   %4 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %3, align 8, !tbaa !22
   %5 = load i32, i32* %i, align 4, !tbaa !5
   %add = add nsw i32 %5, 4
   %idxprom = sext i32 %add to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, i32 addrspace(4)* %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP:[0-9]+]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP:[0-9]+]]
   %ptridx = getelementptr inbounds i32, i32 addrspace(4)* %4, i64 %idxprom, !llvm.index.group !23
   %6 = load i32, i32 addrspace(4)* %ptridx, align 4, !tbaa !5
   %add2 = add nsw i32 %6, 42
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_SFLN_INT_PTR]] [[BUF1_SFLN_PRE_MUL_ID]] [[THIS_SFLN_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_0]]
-  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], %[[CLOSURE_NAME_SFLN]] addrspace(4)* %this1, i32 0, i32 0
-  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %[[BUF1_SFLN_CLOSURE_ACCESS]]
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], ptr addrspace(4) %this1, i32 0, i32 0
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load ptr addrspace(4), ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS]]
   %7 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon.0", %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this1, i32 0, i32 0
   %8 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %7, align 8, !tbaa !20
   %9 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom3 = sext i32 %9 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, i32 addrspace(4)* %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP:[0-9]+]]
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP:[0-9]+]]
   %ptridx4 = getelementptr inbounds i32, i32 addrspace(4)* %8, i64 %idxprom3, !llvm.index.group !24
   %10 = load i32, i32 addrspace(4)* %ptridx4, align 4, !tbaa !5
   %mul = mul nsw i32 %10, %add2
   store i32 %mul, i32 addrspace(4)* %ptridx4, align 4, !tbaa !5
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_SFLN_INT_PTR]] [[BUF1_SFLN_PRE_STORE_ID]] [[THIS_SFLN_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_0]]
-  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], %[[CLOSURE_NAME_SFLN]] addrspace(4)* %this1, i32 0, i32 0
-  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %[[BUF1_SFLN_CLOSURE_ACCESS]]
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], ptr addrspace(4) %this1, i32 0, i32 0
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load ptr addrspace(4), ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS]]
   %11 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon.0", %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this1, i32 0, i32 0
   %12 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %11, align 8, !tbaa !20
   %13 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom5 = sext i32 %13 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, i32 addrspace(4)* %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP]]
+  ; CHECK-LLVM: %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF1_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF1_SFLN_INDEX_GROUP]]
   %ptridx6 = getelementptr inbounds i32, i32 addrspace(4)* %12, i64 %idxprom5, !llvm.index.group !24
   %14 = load i32, i32 addrspace(4)* %ptridx6, align 4, !tbaa !5
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_SFLN_INT_PTR]] [[BUF2_SFLN_PRE_ADD_2_ID]] [[THIS_SFLN_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_1]]
-  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], %[[CLOSURE_NAME_SFLN]] addrspace(4)* %this1, i32 0, i32 1
-  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %[[BUF2_SFLN_CLOSURE_ACCESS]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], ptr addrspace(4) %this1, i32 0, i32 1
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load ptr addrspace(4), ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS]]
   %15 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon.0", %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this1, i32 0, i32 1
   %16 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %15, align 8, !tbaa !22
   %17 = load i32, i32* %i, align 4, !tbaa !5
   %add7 = add nsw i32 %17, 3
   %idxprom8 = sext i32 %add7 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, i32 addrspace(4)* %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
   %ptridx9 = getelementptr inbounds i32, i32 addrspace(4)* %16, i64 %idxprom8, !llvm.index.group !23
   %18 = load i32, i32 addrspace(4)* %ptridx9, align 4, !tbaa !5
   %add10 = add nsw i32 %14, %18
   ; CHECK-SPIRV: InBoundsPtrAccessChain [[TYPE_SFLN_INT_PTR]] [[BUF2_SFLN_PRE_STORE_ID]] [[THIS_SFLN_LOAD]] [[OFFSET_CONST_0]] [[OFFSET_CONST_1]]
-  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], %[[CLOSURE_NAME_SFLN]] addrspace(4)* %this1, i32 0, i32 1
-  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %[[BUF2_SFLN_CLOSURE_ACCESS]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS:[0-9]+]] = getelementptr inbounds %[[CLOSURE_NAME_SFLN]], ptr addrspace(4) %this1, i32 0, i32 1
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD:[0-9]+]] = load ptr addrspace(4), ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS]]
   %19 = getelementptr inbounds %"class._ZTSZ4mainE3$_0.anon.0", %"class._ZTSZ4mainE3$_0.anon.0" addrspace(4)* %this1, i32 0, i32 1
   %20 = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %19, align 8, !tbaa !22
   %21 = load i32, i32* %i, align 4, !tbaa !5
   %idxprom11 = sext i32 %21 to i64
-  ; CHECK-LLVM: getelementptr inbounds i32, i32 addrspace(4)* %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
+  ; CHECK-LLVM: %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC:[0-9]+]] = bitcast ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD]] to ptr addrspace(4)
+  ; CHECK-LLVM: getelementptr inbounds i32, ptr addrspace(4) %[[BUF2_SFLN_CLOSURE_ACCESS_LOAD_BC]]{{.*}}, !llvm.index.group ![[BUF2_SFLN_INDEX_GROUP]]
   %ptridx12 = getelementptr inbounds i32, i32 addrspace(4)* %20, i64 %idxprom11, !llvm.index.group !23
   %22 = load i32, i32 addrspace(4)* %ptridx12, align 4, !tbaa !5
   %mul13 = mul nsw i32 %22, %add10

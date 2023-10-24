@@ -28,7 +28,7 @@ tablegen("AMDGPUGenPreLegalizeGICombiner") {
   visibility = [ ":LLVMAMDGPUCodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AMDGPUPreLegalizerCombinerHelper",
+    "-combiners=AMDGPUPreLegalizerCombiner",
   ]
   td_file = "AMDGPUGISel.td"
 }
@@ -37,7 +37,7 @@ tablegen("AMDGPUGenPostLegalizeGICombiner") {
   visibility = [ ":LLVMAMDGPUCodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AMDGPUPostLegalizerCombinerHelper",
+    "-combiners=AMDGPUPostLegalizerCombiner",
   ]
   td_file = "AMDGPUGISel.td"
 }
@@ -46,7 +46,7 @@ tablegen("AMDGPUGenRegBankGICombiner") {
   visibility = [ ":LLVMAMDGPUCodeGen" ]
   args = [
     "-gen-global-isel-combiner",
-    "-combiners=AMDGPURegBankCombinerHelper",
+    "-combiners=AMDGPURegBankCombiner",
   ]
   td_file = "AMDGPUGISel.td"
 }
@@ -120,6 +120,7 @@ static_library("LLVMAMDGPUCodeGen") {
     "//llvm/lib/Support",
     "//llvm/lib/Target",
     "//llvm/lib/TargetParser",
+    "//llvm/lib/Transforms/HipStdPar",
     "//llvm/lib/Transforms/IPO",
     "//llvm/lib/Transforms/Scalar",
     "//llvm/lib/Transforms/Utils",
@@ -145,6 +146,7 @@ static_library("LLVMAMDGPUCodeGen") {
     "AMDGPUIGroupLP.cpp",
     "AMDGPUISelDAGToDAG.cpp",
     "AMDGPUISelLowering.cpp",
+    "AMDGPUImageIntrinsicOptimizer.cpp",
     "AMDGPUInsertDelayAlu.cpp",
     "AMDGPUInstCombineIntrinsic.cpp",
     "AMDGPUInstrInfo.cpp",
@@ -190,6 +192,7 @@ static_library("LLVMAMDGPUCodeGen") {
     "GCNIterativeScheduler.cpp",
     "GCNMinRegStrategy.cpp",
     "GCNNSAReassign.cpp",
+    "GCNPreRALongBranchReg.cpp",
     "GCNPreRAOptimizations.cpp",
     "GCNRegPressure.cpp",
     "GCNRewritePartialRegUses.cpp",
@@ -230,6 +233,7 @@ static_library("LLVMAMDGPUCodeGen") {
     "SILowerControlFlow.cpp",
     "SILowerI1Copies.cpp",
     "SILowerSGPRSpills.cpp",
+    "SILowerWWMCopies.cpp",
     "SIMachineFunctionInfo.cpp",
     "SIMachineScheduler.cpp",
     "SIMemoryLegalizer.cpp",

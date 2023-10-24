@@ -67,9 +67,11 @@ public:
   /// \param PiContext is an instance of a valid plug-in context handle.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param Plugin is the reference to the underlying Plugin that this
-  /// context is associated with.
+  /// \param OwnedByRuntime is the flag if ownership is kept by user or
+  /// transferred to runtime
   context_impl(sycl::detail::pi::PiContext PiContext,
-               async_handler AsyncHandler, const PluginPtr &Plugin);
+               async_handler AsyncHandler, const PluginPtr &Plugin,
+               bool OwnedByRuntime = true);
 
   ~context_impl();
 
@@ -241,9 +243,12 @@ public:
                        const std::set<std::uintptr_t> &ImgIdentifiers,
                        const std::string &ObjectTypeName);
 
+  bool isOwnedByRuntime() { return MOwnedByRuntime; };
+
   enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:
+  bool MOwnedByRuntime;
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
   sycl::detail::pi::PiContext MContext;

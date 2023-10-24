@@ -99,7 +99,7 @@ __m256 test_mm256_broadcast_ps(__m128* A) {
 
 __m256d test_mm256_broadcast_sd(double* A) {
   // CHECK-LABEL: test_mm256_broadcast_sd
-  // CHECK: load double, ptr %{{.*}}
+  // CHECK: load double, ptr %{{.*}}, align 1{{$}}
   // CHECK: insertelement <4 x double> undef, double %{{.*}}, i32 0
   // CHECK: insertelement <4 x double> %{{.*}}, double %{{.*}}, i32 1
   // CHECK: insertelement <4 x double> %{{.*}}, double %{{.*}}, i32 2
@@ -109,7 +109,7 @@ __m256d test_mm256_broadcast_sd(double* A) {
 
 __m128 test_mm_broadcast_ss(float* A) {
   // CHECK-LABEL: test_mm_broadcast_ss
-  // CHECK: load float, ptr %{{.*}}
+  // CHECK: load float, ptr %{{.*}}, align 1{{$}}
   // CHECK: insertelement <4 x float> undef, float %{{.*}}, i32 0
   // CHECK: insertelement <4 x float> %{{.*}}, float %{{.*}}, i32 1
   // CHECK: insertelement <4 x float> %{{.*}}, float %{{.*}}, i32 2
@@ -119,7 +119,7 @@ __m128 test_mm_broadcast_ss(float* A) {
 
 __m256 test_mm256_broadcast_ss(float* A) {
   // CHECK-LABEL: test_mm256_broadcast_ss
-  // CHECK: load float, ptr %{{.*}}
+  // CHECK: load float, ptr %{{.*}}, align 1{{$}}
   // CHECK: insertelement <8 x float> undef, float %{{.*}}, i32 0
   // CHECK: insertelement <8 x float> %{{.*}}, float %{{.*}}, i32 1
   // CHECK: insertelement <8 x float> %{{.*}}, float %{{.*}}, i32 2
@@ -1940,14 +1940,32 @@ void test_mm256_stream_pd(double* A, __m256d B) {
   _mm256_stream_pd(A, B);
 }
 
+void test_mm256_stream_pd_void(void *A, __m256d B) {
+  // CHECK-LABEL: test_mm256_stream_pd_void
+  // CHECK: store <4 x double> %{{.*}}, ptr %{{.*}}, align 32, !nontemporal
+  _mm256_stream_pd(A, B);
+}
+
 void test_mm256_stream_ps(float* A, __m256 B) {
   // CHECK-LABEL: test_mm256_stream_ps
   // CHECK: store <8 x float> %{{.*}}, ptr %{{.*}}, align 32, !nontemporal
   _mm256_stream_ps(A, B);
 }
 
+void test_mm256_stream_ps_void(void *A, __m256 B) {
+  // CHECK-LABEL: test_mm256_stream_ps_void
+  // CHECK: store <8 x float> %{{.*}}, ptr %{{.*}}, align 32, !nontemporal
+  _mm256_stream_ps(A, B);
+}
+
 void test_mm256_stream_si256(__m256i* A, __m256i B) {
   // CHECK-LABEL: test_mm256_stream_si256
+  // CHECK: store <4 x i64> %{{.*}}, ptr %{{.*}}, align 32, !nontemporal
+  _mm256_stream_si256(A, B);
+}
+
+void test_mm256_stream_si256_void(void *A, __m256i B) {
+  // CHECK-LABEL: test_mm256_stream_si256_void
   // CHECK: store <4 x i64> %{{.*}}, ptr %{{.*}}, align 32, !nontemporal
   _mm256_stream_si256(A, B);
 }

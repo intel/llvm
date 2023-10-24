@@ -27,11 +27,15 @@ namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
-    if (!Cmd->getEvent()->isCompleted())
+    if (!(Cmd->getType() == detail::Command::ALLOCA ||
+          Cmd->getType() == detail::Command::ALLOCA_SUB_BUF) &&
+        !Cmd->getEvent()->isCompleted())
       return false;
   }
   for (Command *Cmd : Record->MWriteLeaves) {
-    if (!Cmd->getEvent()->isCompleted())
+    if (!(Cmd->getType() == detail::Command::ALLOCA ||
+          Cmd->getType() == detail::Command::ALLOCA_SUB_BUF) &&
+        !Cmd->getEvent()->isCompleted())
       return false;
   }
   return true;
@@ -147,7 +151,7 @@ EventImplPtr Scheduler::addCG(
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
 
-    for (auto StreamImplPtr : Streams) {
+    for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
 
@@ -255,6 +259,10 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 
 Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
+}
+
+bool Scheduler::isInstanceAlive() {
+  return GlobalHandler::instance().isSchedulerAlive();
 }
 
 void Scheduler::waitForEvent(const EventImplPtr &Event) {
@@ -392,7 +400,7 @@ Scheduler::Scheduler() {
   DefaultHostQueue = QueueImplPtr(
       new queue_impl(detail::getSyclObjImpl(HostDevice),
                      detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
-                     /*PropList=*/{}));
+                     /*PropList=*/{sycl::property::queue::enable_profiling()}));
 }
 
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
@@ -565,13 +573,22 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
   WriteLockT Lock = acquireWriteLock();
+  WriteLockT FusionMapLock = acquireFusionWriteLock();
   MGraphBuilder.startFusion(Queue);
+}
+
+void Scheduler::cleanUpCmdFusion(sycl::detail::queue_impl *Queue) {
+  // No graph lock, we might be called because the graph builder is releasing
+  // resources.
+  WriteLockT FusionMapLock = acquireFusionWriteLock();
+  MGraphBuilder.cleanUpCmdFusion(Queue);
 }
 
 void Scheduler::cancelFusion(QueueImplPtr Queue) {
   std::vector<Command *> ToEnqueue;
   {
     WriteLockT Lock = acquireWriteLock();
+    WriteLockT FusionMapLock = acquireFusionWriteLock();
     MGraphBuilder.cancelFusion(Queue, ToEnqueue);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
@@ -583,6 +600,7 @@ EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
   EventImplPtr FusedEvent;
   {
     WriteLockT Lock = acquireWriteLock();
+    WriteLockT FusionMapLock = acquireFusionWriteLock();
     FusedEvent = MGraphBuilder.completeFusion(Queue, ToEnqueue, PropList);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
@@ -591,7 +609,7 @@ EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
 }
 
 bool Scheduler::isInFusionMode(QueueIdT queue) {
-  ReadLockT Lock = acquireReadLock();
+  ReadLockT Lock = acquireFusionReadLock();
   return MGraphBuilder.isInFusionMode(queue);
 }
 

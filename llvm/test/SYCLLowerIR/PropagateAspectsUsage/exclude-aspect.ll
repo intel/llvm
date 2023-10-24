@@ -47,34 +47,38 @@ define spir_kernel void @kernel1() {
   ret void
 }
 
-; funcE should get none of its explicitly declared aspects in its
+; funcE should get its explicitly declared aspects even if excluded
 ; sycl_used_aspects
-; CHECK: define spir_func void @funcE() !sycl_declared_aspects ![[#DA1:]] {
+; CHECK:      define spir_func void @funcE() !sycl_declared_aspects ![[#DA1:]]
+; CHECK-SAME: !sycl_used_aspects ![[#DA1]] {
 define spir_func void @funcE() !sycl_declared_aspects !10 {
   ret void
 }
 
 ; funcF should have the same aspects as funcE
-; CHECK-NOT: define spir_func void @funcF() {{.*}} !sycl_used_aspects
+; CHECK: define spir_func void @funcF() !sycl_used_aspects ![[#DA1]] {
 define spir_func void @funcF() {
   call spir_func void @funcE()
   ret void
 }
 
-; funcG only keeps one aspect, the rest are excluded
-; CHECK: define spir_func void @funcG() !sycl_declared_aspects ![[#DA2:]] !sycl_used_aspects ![[#ID3:]]
+; aspect1 is used but excluded, aspect2 and aspect4 are declared, so
+; attached metadata is aspect2 and aspect4
+; CHECK:      define spir_func void @funcG() !sycl_declared_aspects ![[#DA2:]]
+; CHECK-SAME: !sycl_used_aspects ![[#DA2]] {
 define spir_func void @funcG() !sycl_declared_aspects !11 {
+  %tmp = alloca %B
   ret void
 }
 
 ; funcH should have the same aspects as funcG
-; CHECK: define spir_func void @funcH() !sycl_used_aspects ![[#ID3]]
+; CHECK: define spir_func void @funcH() !sycl_used_aspects ![[#DA2]]
 define spir_func void @funcH() {
   call spir_func void @funcG()
   ret void
 }
 
-; CHECK: define spir_kernel void @kernel2() !sycl_used_aspects ![[#ID3]]
+; CHECK: define spir_kernel void @kernel2() !sycl_used_aspects ![[#ID5:]]
 define spir_kernel void @kernel2() {
   call spir_func void @funcF()
   call spir_func void @funcH()
@@ -100,7 +104,7 @@ define spir_func void @funcK() !sycl_used_aspects !11 {
   ret void
 }
 
-; CHECK: define spir_func void @funcL() !sycl_used_aspects ![[#ID3]]
+; CHECK: define spir_func void @funcL() !sycl_used_aspects ![[#ID3:]]
 define spir_func void @funcL() {
   call spir_func void @funcK()
   ret void
@@ -128,12 +132,12 @@ define spir_kernel void @kernel3() {
 !9 = !{!"fp64", i32 5}
 
 !10 = !{i32 1}
-!11 = !{i32 4, i32 2, i32 1}
+!11 = !{i32 4, i32 2}
 ; CHECK-DAG: ![[#DA1]] = !{i32 1}
-; CHECK-DAG: ![[#DA2]] = !{i32 4, i32 2, i32 1}
+; CHECK-DAG: ![[#DA2]] = !{i32 4, i32 2}
 
 ; CHECK-DAG: ![[#ID0]] = !{i32 0}
 ; CHECK-DAG: ![[#ID1]] = !{i32 2, i32 0}
 ; CHECK-DAG: ![[#ID2]] = !{i32 0, i32 2, i32 3}
 ; CHECK-DAG: ![[#ID3]] = !{i32 2}
-; CHECK-DAG: ![[#ID4]] = !{i32 2, i32 4, i32 1}
+; CHECK-DAG: ![[#ID4]] = !{i32 2, i32 4}

@@ -392,11 +392,11 @@ void CrossTranslationUnitContext::emitCrossTUDiagnostics(const IndexError &IE) {
 
 CrossTranslationUnitContext::ASTUnitStorage::ASTUnitStorage(
     CompilerInstance &CI)
-    : Loader(CI, CI.getAnalyzerOpts()->CTUDir,
-             CI.getAnalyzerOpts()->CTUInvocationList),
+    : Loader(CI, CI.getAnalyzerOpts().CTUDir,
+             CI.getAnalyzerOpts().CTUInvocationList),
       LoadGuard(CI.getASTContext().getLangOpts().CPlusPlus
-                    ? CI.getAnalyzerOpts()->CTUImportCppThreshold
-                    : CI.getAnalyzerOpts()->CTUImportThreshold) {}
+                    ? CI.getAnalyzerOpts().CTUImportCppThreshold
+                    : CI.getAnalyzerOpts().CTUImportThreshold) {}
 
 llvm::Expected<ASTUnit *>
 CrossTranslationUnitContext::ASTUnitStorage::getASTUnitForFile(
@@ -609,10 +609,10 @@ CrossTranslationUnitContext::ASTLoader::loadFromSource(
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags(
       new DiagnosticsEngine{DiagID, &*DiagOpts, DiagClient});
 
-  return std::unique_ptr<ASTUnit>(ASTUnit::LoadFromCommandLine(
-      CommandLineArgs.begin(), (CommandLineArgs.end()),
-      CI.getPCHContainerOperations(), Diags,
-      CI.getHeaderSearchOpts().ResourceDir));
+  return ASTUnit::LoadFromCommandLine(CommandLineArgs.begin(),
+                                      (CommandLineArgs.end()),
+                                      CI.getPCHContainerOperations(), Diags,
+                                      CI.getHeaderSearchOpts().ResourceDir);
 }
 
 llvm::Expected<InvocationListTy>

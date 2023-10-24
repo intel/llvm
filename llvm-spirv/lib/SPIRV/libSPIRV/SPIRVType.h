@@ -96,6 +96,7 @@ public:
   bool isTypeStruct() const;
   bool isTypeVector() const;
   bool isTypeJointMatrixINTEL() const;
+  bool isTypeCooperativeMatrixKHR() const;
   bool isTypeVectorInt() const;
   bool isTypeVectorFloat() const;
   bool isTypeVectorBool() const;
@@ -1112,6 +1113,42 @@ public:
     if (this->getOpCode() == internal::OpTypeJointMatrixINTEL)
       return Args.size() > 5 ? Args[5] : nullptr;
     return Args.size() > 4 ? Args[4] : nullptr;
+  }
+
+  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    return std::vector<SPIRVEntry *>(1, CompType);
+  }
+};
+
+class SPIRVTypeCooperativeMatrixKHR : public SPIRVType {
+  SPIRVType *CompType;
+  std::vector<SPIRVValue *> Args;
+
+public:
+  const static Op OC = OpTypeCooperativeMatrixKHR;
+  const static SPIRVWord FixedWC = 7;
+  // Incomplete constructor
+  SPIRVTypeCooperativeMatrixKHR(SPIRVModule *M, SPIRVId TheId,
+                                SPIRVType *CompType,
+                                std::vector<SPIRVValue *> Args);
+  // Incomplete constructor
+  SPIRVTypeCooperativeMatrixKHR();
+  _SPIRV_DCL_ENCDEC
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_cooperative_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityCooperativeMatrixKHR);
+  }
+
+  SPIRVType *getCompType() const { return CompType; }
+  SPIRVValue *getScope() const { return Args[0]; }
+  SPIRVValue *getRows() const { return Args[1]; }
+  SPIRVValue *getColumns() const { return Args[2]; }
+  SPIRVValue *getUse() const { return Args[3]; }
+
+  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    return std::vector<SPIRVEntry *>(1, CompType);
   }
 };
 

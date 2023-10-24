@@ -52,6 +52,7 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/State.h"
+#include "lldb/Utility/StructuredData.h"
 #include "lldb/Utility/Timer.h"
 #include "lldb/lldb-enumerations.h"
 #include "lldb/lldb-private-enumerations.h"
@@ -61,6 +62,7 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 
@@ -1318,7 +1320,7 @@ static void DumpModuleArchitecture(Stream &strm, Module *module,
 
 static void DumpModuleUUID(Stream &strm, Module *module) {
   if (module && module->GetUUID().IsValid())
-    module->GetUUID().Dump(&strm);
+    module->GetUUID().Dump(strm);
   else
     strm.PutCString("                                    ");
 }
@@ -1462,6 +1464,87 @@ static bool DumpModuleSymbolFile(Stream &strm, Module *module) {
   return false;
 }
 
+static bool GetSeparateDebugInfoList(StructuredData::Array &list,
+                                     Module *module) {
+  if (module) {
+    if (SymbolFile *symbol_file = module->GetSymbolFile(/*can_create=*/true)) {
+      StructuredData::Dictionary d;
+      if (symbol_file->GetSeparateDebugInfo(d)) {
+        list.AddItem(
+            std::make_shared<StructuredData::Dictionary>(std::move(d)));
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static void DumpDwoFilesTable(Stream &strm,
+                              StructuredData::Array &dwo_listings) {
+  strm.PutCString("Dwo ID             Err Dwo Path");
+  strm.EOL();
+  strm.PutCString(
+      "------------------ --- -----------------------------------------");
+  strm.EOL();
+  dwo_listings.ForEach([&strm](StructuredData::Object *dwo) {
+    StructuredData::Dictionary *dict = dwo->GetAsDictionary();
+    if (!dict)
+      return false;
+
+    uint64_t dwo_id;
+    if (dict->GetValueForKeyAsInteger("dwo_id", dwo_id))
+      strm.Printf("0x%16.16" PRIx64 " ", dwo_id);
+    else
+      strm.Printf("0x???????????????? ");
+
+    llvm::StringRef error;
+    if (dict->GetValueForKeyAsString("error", error))
+      strm << "E   " << error;
+    else {
+      llvm::StringRef resolved_dwo_path;
+      if (dict->GetValueForKeyAsString("resolved_dwo_path",
+                                       resolved_dwo_path)) {
+        strm << "    " << resolved_dwo_path;
+        if (resolved_dwo_path.ends_with(".dwp")) {
+          llvm::StringRef dwo_name;
+          if (dict->GetValueForKeyAsString("dwo_name", dwo_name))
+            strm << "(" << dwo_name << ")";
+        }
+      }
+    }
+    strm.EOL();
+    return true;
+  });
+}
+
+static void DumpOsoFilesTable(Stream &strm,
+                              StructuredData::Array &oso_listings) {
+  strm.PutCString("Mod Time           Err Oso Path");
+  strm.EOL();
+  strm.PutCString("------------------ --- ---------------------");
+  strm.EOL();
+  oso_listings.ForEach([&strm](StructuredData::Object *oso) {
+    StructuredData::Dictionary *dict = oso->GetAsDictionary();
+    if (!dict)
+      return false;
+
+    uint32_t oso_mod_time;
+    if (dict->GetValueForKeyAsInteger("oso_mod_time", oso_mod_time))
+      strm.Printf("0x%16.16" PRIx32 " ", oso_mod_time);
+
+    llvm::StringRef error;
+    if (dict->GetValueForKeyAsString("error", error))
+      strm << "E   " << error;
+    else {
+      llvm::StringRef oso_path;
+      if (dict->GetValueForKeyAsString("oso_path", oso_path))
+        strm << "    " << oso_path;
+    }
+    strm.EOL();
+    return true;
+  });
+}
+
 static void DumpAddress(ExecutionContextScope *exe_scope,
                         const Address &so_addr, bool verbose, bool all_ranges,
                         Stream &strm) {
@@ -1507,28 +1590,6 @@ static bool LookupAddressInModule(CommandInterpreter &interpreter, Stream &strm,
     ExecutionContextScope *exe_scope =
         interpreter.GetExecutionContext().GetBestExecutionContextScope();
     DumpAddress(exe_scope, so_addr, verbose, all_ranges, strm);
-    //        strm.IndentMore();
-    //        strm.Indent ("    Address: ");
-    //        so_addr.Dump (&strm, exe_scope,
-    //        Address::DumpStyleModuleWithFileAddress);
-    //        strm.PutCString (" (");
-    //        so_addr.Dump (&strm, exe_scope,
-    //        Address::DumpStyleSectionNameOffset);
-    //        strm.PutCString (")\n");
-    //        strm.Indent ("    Summary: ");
-    //        const uint32_t save_indent = strm.GetIndentLevel ();
-    //        strm.SetIndentLevel (save_indent + 13);
-    //        so_addr.Dump (&strm, exe_scope,
-    //        Address::DumpStyleResolvedDescription);
-    //        strm.SetIndentLevel (save_indent);
-    //        // Print out detailed address information when verbose is enabled
-    //        if (verbose)
-    //        {
-    //            strm.EOL();
-    //            so_addr.Dump (&strm, exe_scope,
-    //            Address::DumpStyleDetailedSymbolContext);
-    //        }
-    //        strm.IndentLess();
     return true;
   }
 
@@ -2027,8 +2088,11 @@ protected:
             result.GetOutputStream().EOL();
             result.GetOutputStream().EOL();
           }
-          if (GetDebugger().InterruptRequested())
+          if (INTERRUPT_REQUESTED(GetDebugger(), 
+                                  "Interrupted in dump all symtabs with {0} "
+                                  "of {1} dumped.", num_dumped, num_modules))
             break;
+
           num_dumped++;
           DumpModuleSymtab(m_interpreter, result.GetOutputStream(),
                            module_sp.get(), m_options.m_sort_order,
@@ -2054,8 +2118,11 @@ protected:
                 result.GetOutputStream().EOL();
                 result.GetOutputStream().EOL();
               }
-              if (GetDebugger().InterruptRequested())
+              if (INTERRUPT_REQUESTED(GetDebugger(), 
+                    "Interrupted in dump symtab list with {0} of {1} dumped.", 
+                    num_dumped, num_matches))
                 break;
+
               num_dumped++;
               DumpModuleSymtab(m_interpreter, result.GetOutputStream(),
                                module_sp.get(), m_options.m_sort_order,
@@ -2115,8 +2182,11 @@ protected:
       result.GetOutputStream().Format("Dumping sections for {0} modules.\n",
                                       num_modules);
       for (size_t image_idx = 0; image_idx < num_modules; ++image_idx) {
-        if (GetDebugger().InterruptRequested())
+        if (INTERRUPT_REQUESTED(GetDebugger(), 
+              "Interrupted in dump all sections with {0} of {1} dumped",
+              image_idx, num_modules))
           break;
+
         num_dumped++;
         DumpModuleSections(
             m_interpreter, result.GetOutputStream(),
@@ -2133,8 +2203,11 @@ protected:
             FindModulesByName(target, arg_cstr, module_list, true);
         if (num_matches > 0) {
           for (size_t i = 0; i < num_matches; ++i) {
-            if (GetDebugger().InterruptRequested())
+            if (INTERRUPT_REQUESTED(GetDebugger(), 
+                  "Interrupted in dump section list with {0} of {1} dumped.",
+                  i, num_matches))
               break;
+
             Module *module = module_list.GetModulePointerAtIndex(i);
             if (module) {
               num_dumped++;
@@ -2250,7 +2323,7 @@ protected:
       result.GetOutputStream().Format("Dumping clang ast for {0} modules.\n",
                                       num_modules);
       for (ModuleSP module_sp : module_list.ModulesNoLocking()) {
-        if (GetDebugger().InterruptRequested())
+        if (INTERRUPT_REQUESTED(GetDebugger(), "Interrupted dumping clang ast"))
           break;
         if (SymbolFile *sf = module_sp->GetSymbolFile())
           sf->DumpClangAST(result.GetOutputStream());
@@ -2275,8 +2348,11 @@ protected:
       }
 
       for (size_t i = 0; i < num_matches; ++i) {
-        if (GetDebugger().InterruptRequested())
+        if (INTERRUPT_REQUESTED(GetDebugger(), 
+              "Interrupted in dump clang ast list with {0} of {1} dumped.",
+              i, num_matches))
           break;
+
         Module *m = module_list.GetModulePointerAtIndex(i);
         if (SymbolFile *sf = m->GetSymbolFile())
           sf->DumpClangAST(result.GetOutputStream());
@@ -2324,8 +2400,11 @@ protected:
       result.GetOutputStream().Format(
           "Dumping debug symbols for {0} modules.\n", num_modules);
       for (ModuleSP module_sp : target_modules.ModulesNoLocking()) {
-        if (GetDebugger().InterruptRequested())
+        if (INTERRUPT_REQUESTED(GetDebugger(), "Interrupted in dumping all "
+                                "debug symbols with {0} of {1} modules dumped",
+                                 num_dumped, num_modules))
           break;
+
         if (DumpModuleSymbolFile(result.GetOutputStream(), module_sp.get()))
           num_dumped++;
       }
@@ -2340,7 +2419,9 @@ protected:
             FindModulesByName(target, arg_cstr, module_list, true);
         if (num_matches > 0) {
           for (size_t i = 0; i < num_matches; ++i) {
-            if (GetDebugger().InterruptRequested())
+            if (INTERRUPT_REQUESTED(GetDebugger(), "Interrupted dumping {0} "
+                                                   "of {1} requested modules",
+                                                   i, num_matches))
               break;
             Module *module = module_list.GetModulePointerAtIndex(i);
             if (module) {
@@ -2404,11 +2485,16 @@ protected:
 
         const ModuleList &target_modules = target->GetImages();
         std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
-        if (target_modules.GetSize() > 0) {
+        size_t num_modules = target_modules.GetSize();
+        if (num_modules > 0) {
           uint32_t num_dumped = 0;
           for (ModuleSP module_sp : target_modules.ModulesNoLocking()) {
-            if (GetDebugger().InterruptRequested())
+            if (INTERRUPT_REQUESTED(GetDebugger(), 
+                                    "Interrupted in dump all line tables with "
+                                    "{0} of {1} dumped", num_dumped, 
+                                    num_modules))
               break;
+
             if (DumpCompileUnitLineTable(
                     m_interpreter, result.GetOutputStream(), module_sp.get(),
                     file_spec,
@@ -2459,6 +2545,178 @@ protected:
   CommandOptions m_options;
 };
 
+#pragma mark CommandObjectTargetModulesDumpSeparateDebugInfoFiles
+#define LLDB_OPTIONS_target_modules_dump_separate_debug_info
+#include "CommandOptions.inc"
+
+// Image debug separate debug info dumping command
+
+class CommandObjectTargetModulesDumpSeparateDebugInfoFiles
+    : public CommandObjectTargetModulesModuleAutoComplete {
+public:
+  CommandObjectTargetModulesDumpSeparateDebugInfoFiles(
+      CommandInterpreter &interpreter)
+      : CommandObjectTargetModulesModuleAutoComplete(
+            interpreter, "target modules dump separate-debug-info",
+            "List the separate debug info symbol files for one or more target "
+            "modules.",
+            nullptr, eCommandRequiresTarget) {}
+
+  ~CommandObjectTargetModulesDumpSeparateDebugInfoFiles() override = default;
+
+  Options *GetOptions() override { return &m_options; }
+
+  class CommandOptions : public Options {
+  public:
+    CommandOptions() = default;
+
+    ~CommandOptions() override = default;
+
+    Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
+                          ExecutionContext *execution_context) override {
+      Status error;
+      const int short_option = m_getopt_table[option_idx].val;
+
+      switch (short_option) {
+      case 'j':
+        m_json.SetCurrentValue(true);
+        m_json.SetOptionWasSet();
+        break;
+
+      default:
+        llvm_unreachable("Unimplemented option");
+      }
+      return error;
+    }
+
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_json.Clear();
+    }
+
+    llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
+      return llvm::ArrayRef(g_target_modules_dump_separate_debug_info_options);
+    }
+
+    OptionValueBoolean m_json = false;
+  };
+
+protected:
+  bool DoExecute(Args &command, CommandReturnObject &result) override {
+    Target &target = GetSelectedTarget();
+    uint32_t num_dumped = 0;
+
+    uint32_t addr_byte_size = target.GetArchitecture().GetAddressByteSize();
+    result.GetOutputStream().SetAddressByteSize(addr_byte_size);
+    result.GetErrorStream().SetAddressByteSize(addr_byte_size);
+
+    StructuredData::Array separate_debug_info_lists_by_module;
+    if (command.GetArgumentCount() == 0) {
+      // Dump all sections for all modules images
+      const ModuleList &target_modules = target.GetImages();
+      std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
+      const size_t num_modules = target_modules.GetSize();
+      if (num_modules == 0) {
+        result.AppendError("the target has no associated executable images");
+        return false;
+      }
+      for (ModuleSP module_sp : target_modules.ModulesNoLocking()) {
+        if (INTERRUPT_REQUESTED(
+                GetDebugger(),
+                "Interrupted in dumping all "
+                "separate debug info with {0} of {1} modules dumped",
+                num_dumped, num_modules))
+          break;
+
+        if (GetSeparateDebugInfoList(separate_debug_info_lists_by_module,
+                                     module_sp.get()))
+          num_dumped++;
+      }
+    } else {
+      // Dump specified images (by basename or fullpath)
+      const char *arg_cstr;
+      for (int arg_idx = 0;
+           (arg_cstr = command.GetArgumentAtIndex(arg_idx)) != nullptr;
+           ++arg_idx) {
+        ModuleList module_list;
+        const size_t num_matches =
+            FindModulesByName(&target, arg_cstr, module_list, true);
+        if (num_matches > 0) {
+          for (size_t i = 0; i < num_matches; ++i) {
+            if (INTERRUPT_REQUESTED(GetDebugger(),
+                                    "Interrupted dumping {0} "
+                                    "of {1} requested modules",
+                                    i, num_matches))
+              break;
+            Module *module = module_list.GetModulePointerAtIndex(i);
+            if (GetSeparateDebugInfoList(separate_debug_info_lists_by_module,
+                                         module))
+              num_dumped++;
+          }
+        } else
+          result.AppendWarningWithFormat(
+              "Unable to find an image that matches '%s'.\n", arg_cstr);
+      }
+    }
+
+    if (num_dumped > 0) {
+      Stream &strm = result.GetOutputStream();
+      if (m_options.m_json) {
+        separate_debug_info_lists_by_module.Dump(strm,
+                                                 /*pretty_print=*/true);
+      } else {
+        // List the debug info files in human readable form.
+        separate_debug_info_lists_by_module.ForEach(
+            [&result, &strm](StructuredData::Object *obj) {
+              if (!obj) {
+                return false;
+              }
+
+              // Each item in `separate_debug_info_lists_by_module` should be a
+              // valid structured data dictionary.
+              StructuredData::Dictionary *separate_debug_info_list =
+                  obj->GetAsDictionary();
+              if (!separate_debug_info_list) {
+                return false;
+              }
+
+              llvm::StringRef type;
+              llvm::StringRef symfile;
+              StructuredData::Array *files;
+              if (!(separate_debug_info_list->GetValueForKeyAsString("type",
+                                                                     type) &&
+                    separate_debug_info_list->GetValueForKeyAsString("symfile",
+                                                                     symfile) &&
+                    separate_debug_info_list->GetValueForKeyAsArray(
+                        "separate-debug-info-files", files))) {
+                assert(false);
+              }
+
+              strm << "Symbol file: " << symfile;
+              strm.EOL();
+              strm << "Type: \"" << type << "\"";
+              strm.EOL();
+              if (type == "dwo") {
+                DumpDwoFilesTable(strm, *files);
+              } else if (type == "oso") {
+                DumpOsoFilesTable(strm, *files);
+              } else {
+                result.AppendWarningWithFormat(
+                    "Found unsupported debug info type '%s'.\n",
+                    type.str().c_str());
+              }
+              return true;
+            });
+      }
+      result.SetStatus(eReturnStatusSuccessFinishResult);
+    } else {
+      result.AppendError("no matching executable images found");
+    }
+    return result.Succeeded();
+  }
+
+  CommandOptions m_options;
+};
+
 #pragma mark CommandObjectTargetModulesDump
 
 // Dump multi-word command for target modules
@@ -2472,7 +2730,8 @@ public:
             "Commands for dumping information about one or more target "
             "modules.",
             "target modules dump "
-            "[objfile|symtab|sections|ast|symfile|line-table|pcm-info] "
+            "[objfile|symtab|sections|ast|symfile|line-table|pcm-info|separate-"
+            "debug-info] "
             "[<file1> <file2> ...]") {
     LoadSubCommand("objfile",
                    CommandObjectSP(
@@ -2496,6 +2755,10 @@ public:
         "pcm-info",
         CommandObjectSP(
             new CommandObjectTargetModulesDumpClangPCMInfo(interpreter)));
+    LoadSubCommand("separate-debug-info",
+                   CommandObjectSP(
+                       new CommandObjectTargetModulesDumpSeparateDebugInfoFiles(
+                           interpreter)));
   }
 
   ~CommandObjectTargetModulesDump() override = default;
@@ -2560,7 +2823,7 @@ protected:
             return true;
           } else {
             StreamString strm;
-            module_spec.GetUUID().Dump(&strm);
+            module_spec.GetUUID().Dump(strm);
             if (module_spec.GetFileSpec()) {
               if (module_spec.GetSymbolFileSpec()) {
                 result.AppendErrorWithFormat(
@@ -2584,7 +2847,7 @@ protected:
           }
         } else {
           StreamString strm;
-          module_spec.GetUUID().Dump(&strm);
+          module_spec.GetUUID().Dump(strm);
           result.AppendErrorWithFormat(
               "Unable to locate the executable or symbol file with UUID %s",
               strm.GetData());
@@ -4216,7 +4479,7 @@ protected:
           Status error;
           StreamString feedback_stream;
           module_sp->LoadScriptingResourceInTarget(target, error,
-                                                   &feedback_stream);
+                                                   feedback_stream);
           if (error.Fail() && error.AsCString())
             result.AppendWarningWithFormat(
                 "unable to load scripting data for module %s - error "
@@ -4240,7 +4503,7 @@ protected:
     StreamString ss_symfile_uuid;
     if (module_spec.GetUUID().IsValid()) {
       ss_symfile_uuid << " (";
-      module_spec.GetUUID().Dump(&ss_symfile_uuid);
+      module_spec.GetUUID().Dump(ss_symfile_uuid);
       ss_symfile_uuid << ')';
     }
     result.AppendErrorWithFormat(
@@ -4275,7 +4538,7 @@ protected:
     if (!DownloadObjectAndSymbolFile(module_spec, result, flush)) {
       StreamString error_strm;
       error_strm.PutCString("unable to find debug symbols for UUID ");
-      module_spec.GetUUID().Dump(&error_strm);
+      module_spec.GetUUID().Dump(error_strm);
       result.AppendError(error_strm.GetString());
       return false;
     }
@@ -4939,6 +5202,8 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
+    if (request.GetCursorIndex())
+      return;
     lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
         GetCommandInterpreter(), lldb::eStopHookIDCompletion, request, nullptr);
   }
@@ -5057,7 +5322,7 @@ protected:
         Target::StopHookSP this_hook = target.GetStopHookAtIndex(i);
         if (i > 0)
           result.GetOutputStream().PutCString("\n");
-        this_hook->GetDescription(&(result.GetOutputStream()),
+        this_hook->GetDescription(result.GetOutputStream(),
                                   eDescriptionLevelFull);
       }
     }
@@ -5105,8 +5370,8 @@ public:
   CommandObjectTargetDumpTypesystem(CommandInterpreter &interpreter)
       : CommandObjectParsed(
             interpreter, "target dump typesystem",
-            "Dump the state of the target's internal type system.\n"
-            "Intended to be used for debugging LLDB itself.",
+            "Dump the state of the target's internal type system. Intended to "
+            "be used for debugging LLDB itself.",
             nullptr, eCommandRequiresTarget) {}
 
   ~CommandObjectTargetDumpTypesystem() override = default;
@@ -5123,6 +5388,29 @@ protected:
   }
 };
 
+#pragma mark CommandObjectTargetDumpSectionLoadList
+
+/// Dumps the SectionLoadList of the selected Target.
+class CommandObjectTargetDumpSectionLoadList : public CommandObjectParsed {
+public:
+  CommandObjectTargetDumpSectionLoadList(CommandInterpreter &interpreter)
+      : CommandObjectParsed(
+            interpreter, "target dump section-load-list",
+            "Dump the state of the target's internal section load list. "
+            "Intended to be used for debugging LLDB itself.",
+            nullptr, eCommandRequiresTarget) {}
+
+  ~CommandObjectTargetDumpSectionLoadList() override = default;
+
+protected:
+  bool DoExecute(Args &command, CommandReturnObject &result) override {
+    Target &target = GetSelectedTarget();
+    target.GetSectionLoadList().Dump(result.GetOutputStream(), &target);
+    result.SetStatus(eReturnStatusSuccessFinishResult);
+    return result.Succeeded();
+  }
+};
+
 #pragma mark CommandObjectTargetDump
 
 /// Multi-word command for 'target dump'.
@@ -5133,10 +5421,13 @@ public:
       : CommandObjectMultiword(
             interpreter, "target dump",
             "Commands for dumping information about the target.",
-            "target dump [typesystem]") {
+            "target dump [typesystem|section-load-list]") {
     LoadSubCommand(
         "typesystem",
         CommandObjectSP(new CommandObjectTargetDumpTypesystem(interpreter)));
+    LoadSubCommand("section-load-list",
+                   CommandObjectSP(new CommandObjectTargetDumpSectionLoadList(
+                       interpreter)));
   }
 
   ~CommandObjectTargetDump() override = default;

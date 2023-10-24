@@ -14,6 +14,9 @@ pythonize_bool(COMPILER_RT_TEST_STANDALONE_BUILD_LIBS)
 pythonize_bool(LLVM_ENABLE_EXPENSIVE_CHECKS)
 
 pythonize_bool(ZLIB_FOUND)
+pythonize_bool(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
+
+pythonize_bool(COMPILER_RT_ENABLE_INTERNAL_SYMBOLIZER)
 
 configure_compiler_rt_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.common.configured.in
@@ -102,9 +105,6 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   endif()
   if(COMPILER_RT_BUILD_ORC)
     compiler_rt_Test_runtime(orc)
-  endif()
-  if(COMPILER_RT_BUILD_CRT)
-    add_subdirectory(crt)
   endif()
   # ShadowCallStack does not yet provide a runtime with compiler-rt, the tests
   # include their own minimal runtime

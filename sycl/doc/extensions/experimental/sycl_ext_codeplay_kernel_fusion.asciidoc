@@ -49,6 +49,18 @@ incompatible ways before it is finalized.  *Shipping software products should
 not rely on APIs defined in this specification.*
 
 [NOTE]
+====
+There is a link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[follow-up
+proposal] for fusion based on the 
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc[SYCL graph API].
+That proposal continues some of the ideas presented in this proposal, but uses
+the more versatile SYCL graphs API to define the sequence of kernels to
+execute.
+
+Once accepted and implemented, the new proposal will supersede this proposal.
+====
+
+[NOTE]
 ==== 
 This is an experimental extension for the SYCL specification.
 Exceptions while in fusion mode can leave a `queue` in an unknown fusion state,

@@ -15,6 +15,7 @@
 #define LLVM_PROFILEDATA_GCOV_H
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -248,7 +249,7 @@ public:
     return make_range(blocks.begin(), blocks.end());
   }
 
-  uint64_t propagateCounts(const GCOVBlock &v, GCOVArc *pred);
+  void propagateCounts(const GCOVBlock &v, GCOVArc *pred);
   void print(raw_ostream &OS) const;
   void dump() const;
 

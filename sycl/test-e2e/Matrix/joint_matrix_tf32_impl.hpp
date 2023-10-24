@@ -1,16 +1,5 @@
-#define TM 8
-#define TN SG_SZ
-#define TK 8
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
+constexpr size_t TM = 8;
+constexpr size_t TK = 8;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -61,7 +50,6 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                accC.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
                N, layout::row_major);
-           joint_matrix_fill(sg, sub_a, 42);
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(
                  sg, sub_a,
@@ -76,17 +64,12 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
              // If no rounding to tf32 function is called, joint_matrix_mad
              // function will work on truncated floats.
              joint_matrix_apply(sg, sub_a,
-                                [=](float x) { x = round_to_tf32(x); });
-             auto wi_data_b =
-                 sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-             for (int i = 0; i < wi_data_b.length(); i++) {
-               wi_data_b[i] = round_to_tf32(wi_data_b[i]);
-             }
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+                                [=](float &x) { x = round_to_tf32(x); });
+             joint_matrix_apply(sg, sub_b,
+                                [=](float &x) { x = round_to_tf32(x); });
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           joint_matrix_apply(sg, sub_a, [=](float x) { x *= 2; });
+
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
@@ -96,43 +79,21 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
    }).wait();
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-static constexpr size_t MATRIX_K = TK * 2;
-float A[MATRIX_M][MATRIX_K];
-float B[MATRIX_K][MATRIX_N];
-float C[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
-
-void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
-                         int K) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        float va = A_mem[m * K + k];
-        float vb = B_mem[k * N + n];
-        C_mem[m * N + n] += va * vb;
-      }
-    }
-}
-
 int main() {
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = 1.0f * (i + j);
-    }
-  }
-  for (int i = 0; i < MATRIX_K; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      B[i][j] = 2.0f * i + 3.0f * j;
-    }
-  }
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 1.0;
-      D[i][j] = 1.0;
-    }
-  }
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_N = TN * 2;
+  static constexpr size_t MATRIX_K = TK * 2;
+  float A[MATRIX_M][MATRIX_K];
+  float B[MATRIX_K][MATRIX_N];
+  float C[MATRIX_M][MATRIX_N];
+  float D[MATRIX_M][MATRIX_N];
+
+  matrix_fill(MATRIX_M, MATRIX_K, (float *)A,
+              [](int i, int j) { return 1.0f * (i + j); });
+  matrix_fill(MATRIX_K, MATRIX_N, (float *)B,
+              [](int i, int j) { return 2.0f * i + 3.0f * j; });
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)C, 1.0f);
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)D, 1.0f);
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
@@ -142,13 +103,7 @@ int main() {
   matrix_multiply_ref((float *)A, (float *)B, (float *)D, MATRIX_M, MATRIX_N,
                       MATRIX_K);
 
-  bool res = true;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      if (C[i][j] != D[i][j])
-        res = false;
-    }
-  }
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }

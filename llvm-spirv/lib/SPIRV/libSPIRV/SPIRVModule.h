@@ -96,6 +96,7 @@ class SPIRVAsmCallINTEL;
 class SPIRVTypeBufferSurfaceINTEL;
 class SPIRVTypeTokenINTEL;
 class SPIRVTypeJointMatrixINTEL;
+class SPIRVTypeCooperativeMatrixKHR;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -255,6 +256,8 @@ public:
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
   virtual SPIRVTypeJointMatrixINTEL *
   addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
+  virtual SPIRVTypeCooperativeMatrixKHR *
+  addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;

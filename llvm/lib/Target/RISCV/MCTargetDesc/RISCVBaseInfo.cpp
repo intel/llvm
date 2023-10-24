@@ -27,6 +27,7 @@ extern const SubtargetFeatureKV RISCVFeatureKV[RISCV::NumSubtargetFeatures];
 
 namespace RISCVSysReg {
 #define GET_SysRegsList_IMPL
+#define GET_SiFiveRegsList_IMPL
 #include "RISCVGenSearchableTables.inc"
 } // namespace RISCVSysReg
 
@@ -272,7 +273,7 @@ int RISCVLoadFPImm::getLoadFPImm(APFloat FPImm) {
   if (Sign) {
     if (Entry == 16)
       return 0;
-    return false;
+    return -1;
   }
 
   return Entry;

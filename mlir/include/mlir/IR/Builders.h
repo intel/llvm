@@ -67,6 +67,7 @@ public:
   FloatType getFloat8E4M3B11FNUZType();
   FloatType getBF16Type();
   FloatType getF16Type();
+  FloatType getTF32Type();
   FloatType getF32Type();
   FloatType getF64Type();
   FloatType getF80Type();
@@ -138,6 +139,9 @@ public:
   DenseIntElementsAttr getI32VectorAttr(ArrayRef<int32_t> values);
   DenseIntElementsAttr getI64VectorAttr(ArrayRef<int64_t> values);
   DenseIntElementsAttr getIndexVectorAttr(ArrayRef<int64_t> values);
+
+  DenseFPElementsAttr getF32VectorAttr(ArrayRef<float> values);
+  DenseFPElementsAttr getF64VectorAttr(ArrayRef<double> values);
 
   /// Tensor-typed DenseIntElementsAttr getters. `values` can be empty.
   /// These are generally preferable for representing general lists of integers
@@ -473,8 +477,8 @@ private:
     if (LLVM_UNLIKELY(!opName)) {
       llvm::report_fatal_error(
           "Building op `" + OpT::getOperationName() +
-          "` but it isn't registered in this MLIRContext: the dialect may not "
-          "be loaded or this operation isn't registered by the dialect. See "
+          "` but it isn't known in this MLIRContext: the dialect may not "
+          "be loaded or this operation hasn't been added by the dialect. See "
           "also https://mlir.llvm.org/getting_started/Faq/"
           "#registered-loaded-dependent-whats-up-with-dialects-management");
     }

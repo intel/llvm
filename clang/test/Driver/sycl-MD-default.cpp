@@ -16,8 +16,8 @@
 // CHK-DEFAULT-CL-MDd: "-D_CONTAINER_DEBUG_LEVEL=0" "-D_ITERATOR_DEBUG_LEVEL=0"
 // CHK-DEFAULT-CL: "-fsycl-is-host"{{.*}} "-D_MT" "-D_DLL" "--dependent-lib=msvcrt{{d*}}"
 
-// RUN: %clang_cl -### -MT -fsycl -c %s 2>&1 \
+// RUN: not %clang_cl -### -MT -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-ERROR %s
-// RUN: %clang_cl -### -MTd -fsycl -c %s 2>&1 \
+// RUN: not %clang_cl -### -MTd -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-ERROR %s
 // CHK-ERROR: option 'MT{{d*}}' unsupported with DPC++

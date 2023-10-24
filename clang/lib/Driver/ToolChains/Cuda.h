@@ -111,7 +111,7 @@ public:
 // Runs nvlink, which links GPU object files ("cubin" files) into a single file.
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 public:
-  Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
+  Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "nvlink", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
 
@@ -228,9 +228,6 @@ public:
   llvm::DenormalMode getDefaultDenormalModeForType(
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const override;
-
-  // math-errno should be the default for SYCL but not other OFK using CUDA TC
-  bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;

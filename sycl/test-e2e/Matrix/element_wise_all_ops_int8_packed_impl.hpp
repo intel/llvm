@@ -1,5 +1,4 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 32
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
@@ -38,16 +37,12 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             wi_slice_b[i] = wi_slice_b[i] + 2;
-           }
+           joint_matrix_apply(sg, sub_b, [](int8_t &x) { x = x + 2; });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -75,16 +70,12 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             wi_slice_b[i] = wi_slice_b[i] - 2;
-           }
+           joint_matrix_apply(sg, sub_b, [](int8_t &x) { x = x - 2; });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -112,16 +103,12 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             wi_slice_b[i] = wi_slice_b[i] * 3;
-           }
+           joint_matrix_apply(sg, sub_b, [](int8_t &x) { x = x * 3; });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -149,16 +136,12 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 4);
 
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             wi_slice_b[i] = wi_slice_b[i] / 2;
-           }
+           joint_matrix_apply(sg, sub_b, [](int8_t &x) { x = x / 2; });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
                accA.template get_multi_ptr<access::decorated::no>() +
@@ -186,31 +169,28 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, int8_t, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
 
            joint_matrix_fill(sg, sub_b, 5);
 
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             if (wi_slice_b[i]) {
-               if (wi_slice_b[i] > 2 || wi_slice_b[i] >= 2 ||
-                   wi_slice_b[i] < 2 || wi_slice_b[i] <= 2) {
-                 T val = (wi_slice_b[i] != 2) ? wi_slice_b[i] : 2;
+           joint_matrix_apply(sg, sub_b, [](T &x) {
+             if (x) {
+               if (x > 2 || x >= 2 || x < 2 || x <= 2) {
+                 T val = (x != 2) ? x : 2;
                  val--;
                  val++;
-                 if (wi_slice_b[i] == 2) {
+                 if (x == 2) {
                    val -= 2;
                    val *= 3;
                    val /= 2;
                  } else {
                    val += 2;
                  }
-                 wi_slice_b[i] = val;
+                 x = val;
                }
              }
-           }
+           });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_b,
                accA.template get_multi_ptr<access::decorated::no>() +

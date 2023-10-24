@@ -20,10 +20,10 @@ target triple = "spir64-unknown-unknown"
 %1 = type { [1 x i64] }
 
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.lifetime.start.p0i8(i64 immarg %0, i8* nocapture %1) #0
+declare void @llvm.lifetime.start.p0i8(i64 immarg %0, ptr nocapture %1) #0
 
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(argmem: readwrite)
-declare void @llvm.lifetime.end.p0i8(i64 immarg %0, i8* nocapture %1) #0
+declare void @llvm.lifetime.end.p0i8(i64 immarg %0, ptr nocapture %1) #0
 
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite)
 declare void @llvm.assume(i1 noundef %0) #1
@@ -47,10 +47,10 @@ entry:
   br i1 true, label %return, label %if.end
 
 if.end:                                           ; preds = %entry
-  %0 = bitcast [3 x i64]* %GroupID to i8*
-  call void @llvm.lifetime.start.p0i8(i64 24, i8* %0)
-  %arrayinit.begin5 = getelementptr inbounds [3 x i64], [3 x i64]* %GroupID, i64 0, i64 0
-  %arrayinit.begin = addrspacecast i64* %arrayinit.begin5 to i64 addrspace(4)*
+  %0 = bitcast ptr %GroupID to ptr
+  call void @llvm.lifetime.start.p0i8(i64 24, ptr %0)
+  %arrayinit.begin5 = getelementptr inbounds [3 x i64], ptr %GroupID, i64 0, i64 0
+  %arrayinit.begin = addrspacecast ptr %arrayinit.begin5 to ptr addrspace(4)
   %1 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 0) #2
   %2 = insertelement <3 x i64> undef, i64 %1, i32 0
   %3 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 1) #2
@@ -58,15 +58,15 @@ if.end:                                           ; preds = %entry
   %5 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 2) #2
   %6 = insertelement <3 x i64> %4, i64 %5, i32 2
   %7 = extractelement <3 x i64> %6, i32 0
-  store i64 %7, i64 addrspace(4)* %arrayinit.begin, align 8
-  %arrayinit.element6 = getelementptr inbounds [3 x i64], [3 x i64]* %GroupID, i64 0, i64 1
-  %arrayinit.element = addrspacecast i64* %arrayinit.element6 to i64 addrspace(4)*
+  store i64 %7, ptr addrspace(4) %arrayinit.begin, align 8
+  %arrayinit.element6 = getelementptr inbounds [3 x i64], ptr %GroupID, i64 0, i64 1
+  %arrayinit.element = addrspacecast ptr %arrayinit.element6 to ptr addrspace(4)
   %8 = extractelement <3 x i64> %6, i32 1
-  store i64 %8, i64 addrspace(4)* %arrayinit.element, align 8
-  %arrayinit.element17 = getelementptr inbounds [3 x i64], [3 x i64]* %GroupID, i64 0, i64 2
-  %arrayinit.element1 = addrspacecast i64* %arrayinit.element17 to i64 addrspace(4)*
+  store i64 %8, ptr addrspace(4) %arrayinit.element, align 8
+  %arrayinit.element17 = getelementptr inbounds [3 x i64], ptr %GroupID, i64 0, i64 2
+  %arrayinit.element1 = addrspacecast ptr %arrayinit.element17 to ptr addrspace(4)
   %9 = extractelement <3 x i64> %6, i32 2
-  store i64 %9, i64 addrspace(4)* %arrayinit.element1, align 8
+  store i64 %9, ptr addrspace(4) %arrayinit.element1, align 8
   %10 = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv() #2
   %11 = call spir_func i64 @_Z28__spirv_BuiltInWorkgroupSizei(i32 0) #2
   %12 = insertelement <3 x i64> undef, i64 %11, i32 0
@@ -80,8 +80,8 @@ if.end:                                           ; preds = %entry
   %19 = extractelement <3 x i64> %16, i32 2
   %mul2 = mul i64 %mul, %19
   %conv = trunc i64 %mul2 to i32
-  call spir_func void @__itt_offload_wi_start_stub(i64 addrspace(4)* %arrayinit.begin, i64 %10, i32 %conv) #4
-  call void @llvm.lifetime.end.p0i8(i64 24, i8* %0)
+  call spir_func void @__itt_offload_wi_start_stub(ptr addrspace(4) %arrayinit.begin, i64 %10, i32 %conv) #4
+  call void @llvm.lifetime.end.p0i8(i64 24, ptr %0)
   br label %return
 
 return:                                           ; preds = %if.end, %entry
@@ -95,10 +95,10 @@ entry:
   br i1 true, label %return, label %if.end
 
 if.end:                                           ; preds = %entry
-  %0 = bitcast [3 x i64]* %GroupID to i8*
-  call void @llvm.lifetime.start.p0i8(i64 24, i8* %0)
-  %arrayinit.begin3 = getelementptr inbounds [3 x i64], [3 x i64]* %GroupID, i64 0, i64 0
-  %arrayinit.begin = addrspacecast i64* %arrayinit.begin3 to i64 addrspace(4)*
+  %0 = bitcast ptr %GroupID to ptr
+  call void @llvm.lifetime.start.p0i8(i64 24, ptr %0)
+  %arrayinit.begin3 = getelementptr inbounds [3 x i64], ptr %GroupID, i64 0, i64 0
+  %arrayinit.begin = addrspacecast ptr %arrayinit.begin3 to ptr addrspace(4)
   %1 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 0) #2
   %2 = insertelement <3 x i64> undef, i64 %1, i32 0
   %3 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 1) #2
@@ -106,18 +106,18 @@ if.end:                                           ; preds = %entry
   %5 = call spir_func i64 @_Z26__spirv_BuiltInWorkgroupIdi(i32 2) #2
   %6 = insertelement <3 x i64> %4, i64 %5, i32 2
   %7 = extractelement <3 x i64> %6, i32 0
-  store i64 %7, i64 addrspace(4)* %arrayinit.begin, align 8
-  %arrayinit.element4 = getelementptr inbounds [3 x i64], [3 x i64]* %GroupID, i64 0, i64 1
-  %arrayinit.element = addrspacecast i64* %arrayinit.element4 to i64 addrspace(4)*
+  store i64 %7, ptr addrspace(4) %arrayinit.begin, align 8
+  %arrayinit.element4 = getelementptr inbounds [3 x i64], ptr %GroupID, i64 0, i64 1
+  %arrayinit.element = addrspacecast ptr %arrayinit.element4 to ptr addrspace(4)
   %8 = extractelement <3 x i64> %6, i32 1
-  store i64 %8, i64 addrspace(4)* %arrayinit.element, align 8
-  %arrayinit.element15 = getelementptr inbounds [3 x i64], [3 x i64]* %GroupID, i64 0, i64 2
-  %arrayinit.element1 = addrspacecast i64* %arrayinit.element15 to i64 addrspace(4)*
+  store i64 %8, ptr addrspace(4) %arrayinit.element, align 8
+  %arrayinit.element15 = getelementptr inbounds [3 x i64], ptr %GroupID, i64 0, i64 2
+  %arrayinit.element1 = addrspacecast ptr %arrayinit.element15 to ptr addrspace(4)
   %9 = extractelement <3 x i64> %6, i32 2
-  store i64 %9, i64 addrspace(4)* %arrayinit.element1, align 8
+  store i64 %9, ptr addrspace(4) %arrayinit.element1, align 8
   %10 = call spir_func i64 @_Z29__spirv_BuiltInGlobalLinearIdv() #2
-  call spir_func void @__itt_offload_wi_finish_stub(i64 addrspace(4)* %arrayinit.begin, i64 %10) #4
-  call void @llvm.lifetime.end.p0i8(i64 24, i8* %0)
+  call spir_func void @__itt_offload_wi_finish_stub(ptr addrspace(4) %arrayinit.begin, i64 %10) #4
+  call void @llvm.lifetime.end.p0i8(i64 24, ptr %0)
   br label %return
 
 return:                                           ; preds = %if.end, %entry
@@ -125,27 +125,27 @@ return:                                           ; preds = %if.end, %entry
 }
 
 ; Function Attrs: noinline nounwind
-declare spir_func void @__itt_offload_wi_finish_stub(i64 addrspace(4)* %group_id, i64 %wi_id) #4
+declare spir_func void @__itt_offload_wi_finish_stub(ptr addrspace(4) %group_id, i64 %wi_id) #4
 
 ; Function Attrs: noinline nounwind
-declare spir_func void @__itt_offload_wi_start_stub(i64 addrspace(4)* %group_id, i64 %wi_id, i32 %wg_size) #4
+declare spir_func void @__itt_offload_wi_start_stub(ptr addrspace(4) %group_id, i64 %wi_id, i32 %wg_size) #4
 
 ; Function Attrs: nounwind
-define spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne(float addrspace(1)* align 4 %_arg_accTmp, %0* byval(%0) align 8 %_arg_accTmp3, float addrspace(1)* align 4 %_arg_accIn1, %0* byval(%0) align 8 %_arg_accIn16, float addrspace(1)* align 4 %_arg_accIn2, %0* byval(%0) align 8 %_arg_accIn29) #5 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !spirv.ParameterDecorations !11 {
+define spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne(ptr addrspace(1) align 4 %_arg_accTmp, ptr byval(%0) align 8 %_arg_accTmp3, ptr addrspace(1) align 4 %_arg_accIn1, ptr byval(%0) align 8 %_arg_accIn16, ptr addrspace(1) align 4 %_arg_accIn2, ptr byval(%0) align 8 %_arg_accIn29) #5 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !spirv.ParameterDecorations !11 {
 entry:
   call spir_func void @__itt_offload_wi_start_wrapper() #3
-  %0 = getelementptr inbounds %0, %0* %_arg_accTmp3, i64 0, i32 0, i32 0, i64 0
-  %1 = addrspacecast i64* %0 to i64 addrspace(4)*
-  %2 = load i64, i64 addrspace(4)* %1, align 8
-  %add.ptr.i = getelementptr inbounds float, float addrspace(1)* %_arg_accTmp, i64 %2
-  %3 = getelementptr inbounds %0, %0* %_arg_accIn16, i64 0, i32 0, i32 0, i64 0
-  %4 = addrspacecast i64* %3 to i64 addrspace(4)*
-  %5 = load i64, i64 addrspace(4)* %4, align 8
-  %add.ptr.i39 = getelementptr inbounds float, float addrspace(1)* %_arg_accIn1, i64 %5
-  %6 = getelementptr inbounds %0, %0* %_arg_accIn29, i64 0, i32 0, i32 0, i64 0
-  %7 = addrspacecast i64* %6 to i64 addrspace(4)*
-  %8 = load i64, i64 addrspace(4)* %7, align 8
-  %add.ptr.i53 = getelementptr inbounds float, float addrspace(1)* %_arg_accIn2, i64 %8
+  %0 = getelementptr inbounds %0, ptr %_arg_accTmp3, i64 0, i32 0, i32 0, i64 0
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  %2 = load i64, ptr addrspace(4) %1, align 8
+  %add.ptr.i = getelementptr inbounds float, ptr addrspace(1) %_arg_accTmp, i64 %2
+  %3 = getelementptr inbounds %0, ptr %_arg_accIn16, i64 0, i32 0, i32 0, i64 0
+  %4 = addrspacecast ptr %3 to ptr addrspace(4)
+  %5 = load i64, ptr addrspace(4) %4, align 8
+  %add.ptr.i39 = getelementptr inbounds float, ptr addrspace(1) %_arg_accIn1, i64 %5
+  %6 = getelementptr inbounds %0, ptr %_arg_accIn29, i64 0, i32 0, i32 0, i64 0
+  %7 = addrspacecast ptr %6 to ptr addrspace(4)
+  %8 = load i64, ptr addrspace(4) %7, align 8
+  %add.ptr.i53 = getelementptr inbounds float, ptr addrspace(1) %_arg_accIn2, i64 %8
   %9 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #2
   %10 = insertelement <3 x i64> undef, i64 %9, i32 0
   %11 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1) #2
@@ -155,36 +155,36 @@ entry:
   %15 = extractelement <3 x i64> %14, i32 0
   %cmp.i.i = icmp ult i64 %15, 2147483648
   call void @llvm.assume(i1 %cmp.i.i)
-  %arrayidx.i.i = getelementptr inbounds float, float addrspace(1)* %add.ptr.i39, i64 %15
-  %arrayidx.ascast.i.i = addrspacecast float addrspace(1)* %arrayidx.i.i to float addrspace(4)*
-  %16 = load float, float addrspace(4)* %arrayidx.ascast.i.i, align 4
-  %arrayidx.i9.i = getelementptr inbounds float, float addrspace(1)* %add.ptr.i53, i64 %15
-  %arrayidx.ascast.i10.i = addrspacecast float addrspace(1)* %arrayidx.i9.i to float addrspace(4)*
-  %17 = load float, float addrspace(4)* %arrayidx.ascast.i10.i, align 4
+  %arrayidx.i.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i39, i64 %15
+  %arrayidx.ascast.i.i = addrspacecast ptr addrspace(1) %arrayidx.i.i to ptr addrspace(4)
+  %16 = load float, ptr addrspace(4) %arrayidx.ascast.i.i, align 4
+  %arrayidx.i9.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i53, i64 %15
+  %arrayidx.ascast.i10.i = addrspacecast ptr addrspace(1) %arrayidx.i9.i to ptr addrspace(4)
+  %17 = load float, ptr addrspace(4) %arrayidx.ascast.i10.i, align 4
   %add.i = fadd float %16, %17
-  %arrayidx.i13.i = getelementptr inbounds float, float addrspace(1)* %add.ptr.i, i64 %15
-  %arrayidx.ascast.i14.i = addrspacecast float addrspace(1)* %arrayidx.i13.i to float addrspace(4)*
-  store float %add.i, float addrspace(4)* %arrayidx.ascast.i14.i, align 4
+  %arrayidx.i13.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i, i64 %15
+  %arrayidx.ascast.i14.i = addrspacecast ptr addrspace(1) %arrayidx.i13.i to ptr addrspace(4)
+  store float %add.i, ptr addrspace(4) %arrayidx.ascast.i14.i, align 4
   call spir_func void @__itt_offload_wi_finish_wrapper() #3
   ret void
 }
 
 ; Function Attrs: nounwind
-define spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo(float addrspace(1)* align 4 %_arg_accOut, %0* byval(%0) align 8 %_arg_accOut3, float addrspace(1)* align 4 %_arg_accTmp, %0* byval(%0) align 8 %_arg_accTmp6, float addrspace(1)* align 4 %_arg_accIn3, %0* byval(%0) align 8 %_arg_accIn39) #5 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !17 !spirv.ParameterDecorations !11 {
+define spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo(ptr addrspace(1) align 4 %_arg_accOut, ptr byval(%0) align 8 %_arg_accOut3, ptr addrspace(1) align 4 %_arg_accTmp, ptr byval(%0) align 8 %_arg_accTmp6, ptr addrspace(1) align 4 %_arg_accIn3, ptr byval(%0) align 8 %_arg_accIn39) #5 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !17 !spirv.ParameterDecorations !11 {
 entry:
   call spir_func void @__itt_offload_wi_start_wrapper() #3
-  %0 = getelementptr inbounds %0, %0* %_arg_accOut3, i64 0, i32 0, i32 0, i64 0
-  %1 = addrspacecast i64* %0 to i64 addrspace(4)*
-  %2 = load i64, i64 addrspace(4)* %1, align 8
-  %add.ptr.i = getelementptr inbounds float, float addrspace(1)* %_arg_accOut, i64 %2
-  %3 = getelementptr inbounds %0, %0* %_arg_accTmp6, i64 0, i32 0, i32 0, i64 0
-  %4 = addrspacecast i64* %3 to i64 addrspace(4)*
-  %5 = load i64, i64 addrspace(4)* %4, align 8
-  %add.ptr.i39 = getelementptr inbounds float, float addrspace(1)* %_arg_accTmp, i64 %5
-  %6 = getelementptr inbounds %0, %0* %_arg_accIn39, i64 0, i32 0, i32 0, i64 0
-  %7 = addrspacecast i64* %6 to i64 addrspace(4)*
-  %8 = load i64, i64 addrspace(4)* %7, align 8
-  %add.ptr.i53 = getelementptr inbounds float, float addrspace(1)* %_arg_accIn3, i64 %8
+  %0 = getelementptr inbounds %0, ptr %_arg_accOut3, i64 0, i32 0, i32 0, i64 0
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  %2 = load i64, ptr addrspace(4) %1, align 8
+  %add.ptr.i = getelementptr inbounds float, ptr addrspace(1) %_arg_accOut, i64 %2
+  %3 = getelementptr inbounds %0, ptr %_arg_accTmp6, i64 0, i32 0, i32 0, i64 0
+  %4 = addrspacecast ptr %3 to ptr addrspace(4)
+  %5 = load i64, ptr addrspace(4) %4, align 8
+  %add.ptr.i39 = getelementptr inbounds float, ptr addrspace(1) %_arg_accTmp, i64 %5
+  %6 = getelementptr inbounds %0, ptr %_arg_accIn39, i64 0, i32 0, i32 0, i64 0
+  %7 = addrspacecast ptr %6 to ptr addrspace(4)
+  %8 = load i64, ptr addrspace(4) %7, align 8
+  %add.ptr.i53 = getelementptr inbounds float, ptr addrspace(1) %_arg_accIn3, i64 %8
   %9 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0) #2
   %10 = insertelement <3 x i64> undef, i64 %9, i32 0
   %11 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1) #2
@@ -194,16 +194,16 @@ entry:
   %15 = extractelement <3 x i64> %14, i32 0
   %cmp.i.i = icmp ult i64 %15, 2147483648
   call void @llvm.assume(i1 %cmp.i.i)
-  %arrayidx.i.i = getelementptr inbounds float, float addrspace(1)* %add.ptr.i39, i64 %15
-  %arrayidx.ascast.i.i = addrspacecast float addrspace(1)* %arrayidx.i.i to float addrspace(4)*
-  %16 = load float, float addrspace(4)* %arrayidx.ascast.i.i, align 4
-  %arrayidx.i9.i = getelementptr inbounds float, float addrspace(1)* %add.ptr.i53, i64 %15
-  %arrayidx.ascast.i10.i = addrspacecast float addrspace(1)* %arrayidx.i9.i to float addrspace(4)*
-  %17 = load float, float addrspace(4)* %arrayidx.ascast.i10.i, align 4
+  %arrayidx.i.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i39, i64 %15
+  %arrayidx.ascast.i.i = addrspacecast ptr addrspace(1) %arrayidx.i.i to ptr addrspace(4)
+  %16 = load float, ptr addrspace(4) %arrayidx.ascast.i.i, align 4
+  %arrayidx.i9.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i53, i64 %15
+  %arrayidx.ascast.i10.i = addrspacecast ptr addrspace(1) %arrayidx.i9.i to ptr addrspace(4)
+  %17 = load float, ptr addrspace(4) %arrayidx.ascast.i10.i, align 4
   %mul.i = fmul float %16, %17
-  %arrayidx.i13.i = getelementptr inbounds float, float addrspace(1)* %add.ptr.i, i64 %15
-  %arrayidx.ascast.i14.i = addrspacecast float addrspace(1)* %arrayidx.i13.i to float addrspace(4)*
-  store float %mul.i, float addrspace(4)* %arrayidx.ascast.i14.i, align 4
+  %arrayidx.i13.i = getelementptr inbounds float, ptr addrspace(1) %add.ptr.i, i64 %15
+  %arrayidx.ascast.i14.i = addrspacecast ptr addrspace(1) %arrayidx.i13.i to ptr addrspace(4)
+  store float %mul.i, ptr addrspace(4) %arrayidx.ascast.i14.i, align 4
   call spir_func void @__itt_offload_wi_finish_wrapper() #3
   ret void
 }
@@ -219,7 +219,7 @@ attributes #5 = { nounwind }
 
 !6 = !{i32 1, i32 0, i32 1, i32 0, i32 1, i32 0}
 !7 = !{!"none", !"none", !"none", !"none", !"none", !"none"}
-!8 = !{!"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range"}
+!8 = !{!"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range"}
 !9 = !{!"", !"", !"", !"", !"", !""}
 !10 = !{!"_arg_accTmp", !"_arg_accTmp3", !"_arg_accIn1", !"_arg_accIn16", !"_arg_accIn2", !"_arg_accIn29"}
 !11 = !{!12, !14, !12, !14, !12, !14}
@@ -245,18 +245,18 @@ attributes #5 = { nounwind }
 ; via 'implicit-check-not'.
 
 ; FUSION-LABEL: define spir_kernel void @fused_0
-; FUSION-SAME: float addrspace(1)* align 4 
-; FUSION-SAME: %0* byval(%0) align 8 
-; FUSION-SAME: float addrspace(1)* align 4 
-; FUSION-SAME: %0* byval(%0) align 8 
-; FUSION-SAME: float addrspace(1)* align 4 
-; FUSION-SAME: %0* byval(%0) align 8 
-; FUSION-SAME: float addrspace(1)* align 4 
-; FUSION-SAME: %0* byval(%0) align 8 
-; FUSION-SAME: float addrspace(1)* align 4 
-; FUSION-SAME: %0* byval(%0) align 8 
-; FUSION-SAME: float addrspace(1)* align 4 
-; FUSION-SAME: %0* byval(%0) align 8
+; FUSION-SAME: ptr addrspace(1) align 4 
+; FUSION-SAME: ptr byval(%0) align 8 
+; FUSION-SAME: ptr addrspace(1) align 4 
+; FUSION-SAME: ptr byval(%0) align 8 
+; FUSION-SAME: ptr addrspace(1) align 4 
+; FUSION-SAME: ptr byval(%0) align 8 
+; FUSION-SAME: ptr addrspace(1) align 4 
+; FUSION-SAME: ptr byval(%0) align 8 
+; FUSION-SAME: ptr addrspace(1) align 4 
+; FUSION-SAME: ptr byval(%0) align 8 
+; FUSION-SAME: ptr addrspace(1) align 4 
+; FUSION-SAME: ptr byval(%0) align 8
 ; FUSION-LABEL: entry:
 ; FUSION-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
 ; FUSION:   [[IN1:%.*]] = load float
@@ -275,18 +275,18 @@ attributes #5 = { nounwind }
 ; attached to the fused kernel.
 
 ; MD-LABEL: define spir_kernel void @fused_0
-; MD-SAME: float addrspace(1)* align 4  %[[ARG1:[^,]+]]
-; MD-SAME: %0* byval(%0) align 8 %[[ARG2:[^,]+]]
-; MD-SAME: float addrspace(1)* align 4 %[[ARG3:[^,]+]]
-; MD-SAME: %0* byval(%0) align 8 %[[ARG4:[^,]+]]
-; MD-SAME: float addrspace(1)* align 4 %[[ARG5:[^,]+]]
-; MD-SAME: %0* byval(%0) align 8 %[[ARG6:[^,]+]]
-; MD-SAME: float addrspace(1)* align 4 %[[ARG7:[^,]+]]
-; MD-SAME: %0* byval(%0) align 8 %[[ARG8:[^,]+]]
-; MD-SAME: float addrspace(1)* align 4 %[[ARG9:[^,]+]]
-; MD-SAME: %0* byval(%0) align 8 %[[ARG10:[^,]+]]
-; MD-SAME: float addrspace(1)* align 4 %[[ARG11:[^,]+]]
-; MD-SAME: %0* byval(%0) align 8 %[[ARG12:[^)]+]]
+; MD-SAME: ptr addrspace(1) align 4  %[[ARG1:[^,]+]]
+; MD-SAME: ptr byval(%0) align 8 %[[ARG2:[^,]+]]
+; MD-SAME: ptr addrspace(1) align 4 %[[ARG3:[^,]+]]
+; MD-SAME: ptr byval(%0) align 8 %[[ARG4:[^,]+]]
+; MD-SAME: ptr addrspace(1) align 4 %[[ARG5:[^,]+]]
+; MD-SAME: ptr byval(%0) align 8 %[[ARG6:[^,]+]]
+; MD-SAME: ptr addrspace(1) align 4 %[[ARG7:[^,]+]]
+; MD-SAME: ptr byval(%0) align 8 %[[ARG8:[^,]+]]
+; MD-SAME: ptr addrspace(1) align 4 %[[ARG9:[^,]+]]
+; MD-SAME: ptr byval(%0) align 8 %[[ARG10:[^,]+]]
+; MD-SAME: ptr addrspace(1) align 4 %[[ARG11:[^,]+]]
+; MD-SAME: ptr byval(%0) align 8 %[[ARG12:[^)]+]]
 ; MD-SAME: !kernel_arg_addr_space ![[#ADDR_SPACE:]] 
 ; MD-SAME: !kernel_arg_access_qual ![[#ACCESS_QUAL:]]
 ; MD-SAME: !kernel_arg_type ![[#ARG_TYPE:]]
@@ -296,7 +296,7 @@ attributes #5 = { nounwind }
 ;.
 ; MD: [[#ADDR_SPACE]] = !{i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0}
 ; MD: [[#ACCESS_QUAL]] = !{!"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none"}
-; MD: [[#ARG_TYPE]] = !{!"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range"}
+; MD: [[#ARG_TYPE]] = !{!"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range"}
 ; MD: [[#TYPE_QUAL]] = !{!"", !"", !"", !"", !"", !"", !"", !"", !"", !"", !"", !""}
 ; MD: [[#ARG_NAME]] = !{!"[[ARG1]]", !"[[ARG2]]", !"[[ARG3]]", !"[[ARG4]]", !"[[ARG5]]", !"[[ARG6]]", !"[[ARG7]]", !"[[ARG8]]", !"[[ARG9]]", !"[[ARG10]]", !"[[ARG11]]", !"[[ARG12]]"}
 ;.

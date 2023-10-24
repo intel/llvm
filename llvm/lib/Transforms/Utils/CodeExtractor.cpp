@@ -245,12 +245,13 @@ CodeExtractor::CodeExtractor(ArrayRef<BasicBlock *> BBs, DominatorTree *DT,
                              bool AggregateArgs, BlockFrequencyInfo *BFI,
                              BranchProbabilityInfo *BPI, AssumptionCache *AC,
                              bool AllowVarArgs, bool AllowAlloca,
-                             BasicBlock *AllocationBlock, std::string Suffix)
+                             BasicBlock *AllocationBlock, std::string Suffix,
+                             bool ArgsInZeroAddressSpace)
     : DT(DT), AggregateArgs(AggregateArgs || AggregateArgsOpt), BFI(BFI),
       BPI(BPI), AC(AC), AllocationBlock(AllocationBlock),
       AllowVarArgs(AllowVarArgs),
       Blocks(buildExtractionBlockSet(BBs, DT, AllowVarArgs, AllowAlloca)),
-      Suffix(Suffix) {}
+      Suffix(Suffix), ArgsInZeroAddressSpace(ArgsInZeroAddressSpace) {}
 
 CodeExtractor::CodeExtractor(DominatorTree &DT, Loop &L, bool AggregateArgs,
                              BlockFrequencyInfo *BFI,
@@ -721,7 +722,8 @@ void CodeExtractor::severSplitPHINodesOfEntry(BasicBlock *&Header) {
       // Create a new PHI node in the new region, which has an incoming value
       // from OldPred of PN.
       PHINode *NewPN = PHINode::Create(PN->getType(), 1 + NumPredsFromRegion,
-                                       PN->getName() + ".ce", &NewBB->front());
+                                       PN->getName() + ".ce");
+      NewPN->insertBefore(NewBB->begin());
       PN->replaceAllUsesWith(NewPN);
       NewPN->addIncoming(PN, OldPred);
 
@@ -775,9 +777,9 @@ void CodeExtractor::severSplitPHINodesOfExits(
       }
 
       // Split this PHI.
-      PHINode *NewPN =
-          PHINode::Create(PN.getType(), IncomingVals.size(),
-                          PN.getName() + ".ce", NewBB->getFirstNonPHI());
+      PHINode *NewPN = PHINode::Create(PN.getType(), IncomingVals.size(),
+                                       PN.getName() + ".ce");
+      NewPN->insertBefore(NewBB->getFirstNonPHIIt());
       for (unsigned i : IncomingVals)
         NewPN->addIncoming(PN.getIncomingValue(i), PN.getIncomingBlock(i));
       for (unsigned i : reverse(IncomingVals))
@@ -865,7 +867,8 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
   StructType *StructTy = nullptr;
   if (AggregateArgs && !AggParamTy.empty()) {
     StructTy = StructType::get(M->getContext(), AggParamTy);
-    ParamTy.push_back(PointerType::get(StructTy, DL.getAllocaAddrSpace()));
+    ParamTy.push_back(PointerType::get(
+        StructTy, ArgsInZeroAddressSpace ? 0 : DL.getAllocaAddrSpace()));
   }
 
   LLVM_DEBUG({
@@ -940,6 +943,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::NoSanitizeBounds:
       case Attribute::NoSanitizeCoverage:
       case Attribute::NullPointerIsValid:
+      case Attribute::OptimizeForDebugging:
       case Attribute::OptForFuzzing:
       case Attribute::OptimizeNone:
       case Attribute::OptimizeForSize:
@@ -1185,8 +1189,15 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
         StructArgTy, DL.getAllocaAddrSpace(), nullptr, "structArg",
         AllocationBlock ? &*AllocationBlock->getFirstInsertionPt()
                         : &codeReplacer->getParent()->front().front());
-    params.push_back(Struct);
 
+    if (ArgsInZeroAddressSpace && DL.getAllocaAddrSpace() != 0) {
+      auto *StructSpaceCast = new AddrSpaceCastInst(
+          Struct, PointerType ::get(Context, 0), "structArg.ascast");
+      StructSpaceCast->insertAfter(Struct);
+      params.push_back(StructSpaceCast);
+    } else {
+      params.push_back(Struct);
+    }
     // Store aggregated inputs in the struct.
     for (unsigned i = 0, e = StructValues.size(); i != e; ++i) {
       if (inputs.contains(StructValues[i])) {
@@ -1578,6 +1589,12 @@ static void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
       DebugIntrinsicsToDelete.push_back(DVI);
       continue;
     }
+    // DbgAssign intrinsics have an extra Value argument:
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DVI);
+        DAI && IsInvalidLocation(DAI->getAddress())) {
+      DebugIntrinsicsToDelete.push_back(DVI);
+      continue;
+    }
     // If the variable was in the scope of the old function, i.e. it was not
     // inlined, point the intrinsic to a fresh variable within the new function.
     if (!DVI->getDebugLoc().getInlinedAt()) {
@@ -1772,11 +1789,11 @@ CodeExtractor::extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
 
   // Update the entry count of the function.
   if (BFI) {
-    auto Count = BFI->getProfileCountFromFreq(EntryFreq.getFrequency());
+    auto Count = BFI->getProfileCountFromFreq(EntryFreq);
     if (Count)
       newFunction->setEntryCount(
           ProfileCount(*Count, Function::PCT_Real)); // FIXME
-    BFI->setBlockFreq(codeReplacer, EntryFreq.getFrequency());
+    BFI->setBlockFreq(codeReplacer, EntryFreq);
   }
 
   CallInst *TheCall =

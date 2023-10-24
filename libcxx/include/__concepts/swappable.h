@@ -28,6 +28,9 @@
 #  pragma GCC system_header
 #endif
 
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER >= 20
@@ -89,7 +92,7 @@ struct __fn {
   // 2.3   Otherwise, if `E1` and `E2` are lvalues of the same type `T` that models...
   template <__exchangeable _Tp>
   _LIBCPP_HIDE_FROM_ABI constexpr void operator()(_Tp& __x, _Tp& __y) const
-      noexcept(is_nothrow_move_constructible_v<_Tp>&& is_nothrow_move_assignable_v<_Tp>) {
+      noexcept(is_nothrow_move_constructible_v<_Tp> && is_nothrow_move_assignable_v<_Tp>) {
     __y = _VSTD::exchange(__x, _VSTD::move(__y));
   }
 };
@@ -114,5 +117,7 @@ concept swappable_with = common_reference_with<_Tp, _Up> && requires(_Tp&& __t, 
 #endif // _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___CONCEPTS_SWAPPABLE_H

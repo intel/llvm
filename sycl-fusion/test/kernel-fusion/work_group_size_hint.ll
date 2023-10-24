@@ -16,21 +16,21 @@ declare spir_func void @__itt_offload_wi_finish_wrapper() #3
 
 
 ; Function Attrs: nounwind
-define spir_kernel void @KernelOne(float addrspace(1)* align 4 %_arg_x) #2 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !work_group_size_hint !11 {
+define spir_kernel void @KernelOne(ptr addrspace(1) align 4 %_arg_x) #2 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !10 !work_group_size_hint !11 {
 entry:
   call spir_func void @__itt_offload_wi_start_wrapper() #3
-  %0 = addrspacecast float addrspace(1)* %_arg_x to float addrspace(4)*
-  store float 4.200000e+01, float addrspace(4)* %0, align 4
+  %0 = addrspacecast ptr addrspace(1) %_arg_x to ptr addrspace(4)
+  store float 4.200000e+01, ptr addrspace(4) %0, align 4
   call spir_func void @__itt_offload_wi_finish_wrapper() #3
   ret void
 }
 
 ; Function Attrs: nounwind
-define spir_kernel void @KernelTwo(float addrspace(1)* align 4 %_arg_y) #2 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !12 {
+define spir_kernel void @KernelTwo(ptr addrspace(1) align 4 %_arg_y) #2 !kernel_arg_addr_space !6 !kernel_arg_access_qual !7 !kernel_arg_type !8 !kernel_arg_type_qual !9 !kernel_arg_base_type !8 !kernel_arg_name !12 {
 entry:
   call spir_func void @__itt_offload_wi_start_wrapper() #3
-  %0 = addrspacecast float addrspace(1)* %_arg_y to float addrspace(4)*
-  store float 2.500000e+01, float addrspace(4)* %0, align 4
+  %0 = addrspacecast ptr addrspace(1) %_arg_y to ptr addrspace(4)
+  store float 2.500000e+01, ptr addrspace(4) %0, align 4
   call spir_func void @__itt_offload_wi_finish_wrapper() #3
   ret void
 }
@@ -42,7 +42,7 @@ attributes #3 = { alwaysinline nounwind }
 
 !6 = !{i32 1}
 !7 = !{!"none"}
-!8 = !{!"float*"}
+!8 = !{!"ptr"}
 !9 = !{!""}
 !10 = !{!"_arg_x"}
 !11 = !{i32 64, i32 1, i32 1}

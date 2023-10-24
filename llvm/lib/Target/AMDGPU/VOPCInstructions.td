@@ -831,7 +831,7 @@ class getVOPCClassPat64 <VOPProfile P> {
   list<dag> ret =
     [(set i1:$sdst,
       (AMDGPUfp_class
-        (P.Src0VT (VOP3Mods P.Src0VT:$src0, i32:$src0_modifiers)),
+        (P.Src0VT (VOP3ModsNonCanonicalizing P.Src0VT:$src0, i32:$src0_modifiers)),
         i32:$src1))];
 }
 
@@ -992,11 +992,18 @@ multiclass ICMP_Pattern <PatFrags cond, Instruction inst, ValueType vt> {
     (i64 (COPY_TO_REGCLASS (inst $src0, $src1), SReg_64))
   >;
 
-  let WaveSizePredicate = isWave32 in
-  def : GCNPat <
-    (i32 (AMDGPUsetcc vt:$src0, vt:$src1, cond)),
-    (i32 (COPY_TO_REGCLASS (inst $src0, $src1), SReg_32))
-  >;
+  let WaveSizePredicate = isWave32 in {
+    def : GCNPat <
+      (i32 (AMDGPUsetcc vt:$src0, vt:$src1, cond)),
+      (i32 (COPY_TO_REGCLASS (inst $src0, $src1), SReg_32))
+    >;
+
+    // Support codegen of i64 setcc in wave32 mode.
+    def : GCNPat <
+      (i64 (AMDGPUsetcc vt:$src0, vt:$src1, cond)),
+      (i64 (REG_SEQUENCE SReg_64, (inst $src0, $src1), sub0, (S_MOV_B32 (i32 0)), sub1))
+    >;
+  }
 }
 
 defm : ICMP_Pattern <COND_EQ, V_CMP_EQ_U32_e64, i32>;
@@ -1056,15 +1063,26 @@ multiclass FCMP_Pattern <PatFrags cond, Instruction inst, ValueType vt> {
                            DSTCLAMP.NONE), SReg_64))
   >;
 
-  let WaveSizePredicate = isWave32 in
-  def : GCNPat <
-    (i32 (AMDGPUsetcc (vt (VOP3Mods vt:$src0, i32:$src0_modifiers)),
-                 (vt (VOP3Mods vt:$src1, i32:$src1_modifiers)), cond)),
-    (i32 (COPY_TO_REGCLASS (inst $src0_modifiers, $src0, $src1_modifiers, $src1,
-                           DSTCLAMP.NONE), SReg_32))
-  >;
+  let WaveSizePredicate = isWave32 in {
+    def : GCNPat <
+      (i32 (AMDGPUsetcc (vt (VOP3Mods vt:$src0, i32:$src0_modifiers)),
+                        (vt (VOP3Mods vt:$src1, i32:$src1_modifiers)), cond)),
+      (i32 (COPY_TO_REGCLASS (inst $src0_modifiers, $src0, $src1_modifiers, $src1,
+                              DSTCLAMP.NONE), SReg_32))
+    >;
+
+    def : GCNPat <
+      (i64 (AMDGPUsetcc (vt (VOP3Mods vt:$src0, i32:$src0_modifiers)),
+                        (vt (VOP3Mods vt:$src1, i32:$src1_modifiers)), cond)),
+      (i64 (REG_SEQUENCE SReg_64, (inst $src0_modifiers, $src0, $src1_modifiers, $src1,
+                                   DSTCLAMP.NONE), sub0,
+                                  (S_MOV_B32 (i32 0)), sub1))
+    >;
+  }
 }
 
+defm : FCMP_Pattern <COND_O, V_CMP_O_F32_e64, f32>;
+defm : FCMP_Pattern <COND_UO, V_CMP_U_F32_e64, f32>;
 defm : FCMP_Pattern <COND_OEQ, V_CMP_EQ_F32_e64, f32>;
 defm : FCMP_Pattern <COND_ONE, V_CMP_NEQ_F32_e64, f32>;
 defm : FCMP_Pattern <COND_OGT, V_CMP_GT_F32_e64, f32>;
@@ -1072,6 +1090,8 @@ defm : FCMP_Pattern <COND_OGE, V_CMP_GE_F32_e64, f32>;
 defm : FCMP_Pattern <COND_OLT, V_CMP_LT_F32_e64, f32>;
 defm : FCMP_Pattern <COND_OLE, V_CMP_LE_F32_e64, f32>;
 
+defm : FCMP_Pattern <COND_O, V_CMP_O_F64_e64, f64>;
+defm : FCMP_Pattern <COND_UO, V_CMP_U_F64_e64, f64>;
 defm : FCMP_Pattern <COND_OEQ, V_CMP_EQ_F64_e64, f64>;
 defm : FCMP_Pattern <COND_ONE, V_CMP_NEQ_F64_e64, f64>;
 defm : FCMP_Pattern <COND_OGT, V_CMP_GT_F64_e64, f64>;
@@ -1094,6 +1114,8 @@ defm : FCMP_Pattern <COND_ULT, V_CMP_NGE_F64_e64, f64>;
 defm : FCMP_Pattern <COND_ULE, V_CMP_NGT_F64_e64, f64>;
 
 let OtherPredicates = [HasTrue16BitInsts] in {
+defm : FCMP_Pattern <COND_O, V_CMP_O_F16_t16_e64, f16>;
+defm : FCMP_Pattern <COND_UO, V_CMP_U_F16_t16_e64, f16>;
 defm : FCMP_Pattern <COND_OEQ, V_CMP_EQ_F16_t16_e64, f16>;
 defm : FCMP_Pattern <COND_ONE, V_CMP_NEQ_F16_t16_e64, f16>;
 defm : FCMP_Pattern <COND_OGT, V_CMP_GT_F16_t16_e64, f16>;
@@ -1110,6 +1132,8 @@ defm : FCMP_Pattern <COND_ULE, V_CMP_NGT_F16_t16_e64, f16>;
 } // End OtherPredicates = [HasTrue16BitInsts]
 
 let OtherPredicates = [NotHasTrue16BitInsts] in {
+defm : FCMP_Pattern <COND_O, V_CMP_O_F16_e64, f16>;
+defm : FCMP_Pattern <COND_UO, V_CMP_U_F16_e64, f16>;
 defm : FCMP_Pattern <COND_OEQ, V_CMP_EQ_F16_e64, f16>;
 defm : FCMP_Pattern <COND_ONE, V_CMP_NEQ_F16_e64, f16>;
 defm : FCMP_Pattern <COND_OGT, V_CMP_GT_F16_e64, f16>;

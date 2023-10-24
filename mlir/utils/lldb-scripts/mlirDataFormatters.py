@@ -57,6 +57,7 @@ builtin_attr_type_mnemonics = {
     "mlir::Float8E4M3B11FNUZType": '"f8E4M3B11FNUZ"',
     "mlir::BFloat16Type": '"bf16"',
     "mlir::Float16Type": '"f16"',
+    "mlir::FloatTF32Type": '"tf32"',
     "mlir::Float32Type": '"f32"',
     "mlir::Float64Type": '"f64"',
     "mlir::Float80Type": '"f80"',
@@ -195,6 +196,7 @@ class AttrTypeSynthProvider:
             valobj, self.abstractVal, internal_dict
         )
         if not self.type:
+            self.impl_type = None
             return
 
         # Grab the ImplTy from the resolved type. This is the 3rd template

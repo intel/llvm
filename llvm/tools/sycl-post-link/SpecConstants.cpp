@@ -14,10 +14,13 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
+
+#include <vector>
 
 using namespace llvm;
 
@@ -719,6 +722,26 @@ void updatePaddingInLastMDNode(LLVMContext &Ctx,
   SCMetadata[Last.first] = MDNode::get(Ctx, MDOps);
 }
 
+/// Function creates 'store' instruction from the given Value @V into
+/// the given Value @Dst.
+/// Note: Types of values Dst and V might differ because of padding bytes
+/// inserted by Clang FE.
+/// For example:
+/// Type of specialization constant might be <{ i32, i8, [ 3 x i8 ] }>, where
+/// the last component are padding bytes.
+/// specialization id in this case could be { i32, i8 } { i32 1, i8 1 }.
+/// As you can see, padding bytes are absent. In order to mitigate this we
+/// perform bitcast from specialization id type to specialization constant
+/// type.
+void createStoreInstructionIntoSpecConstValue(Value *Dst, Value *V,
+                                              CallInst *InsertBefore) {
+  Type *PointerType =
+      PointerType::get(V->getType(), Dst->getType()->getPointerAddressSpace());
+  IRBuilder B(InsertBefore);
+  Value *Bitcast = B.CreateBitCast(Dst, PointerType);
+  B.CreateStore(V, Bitcast);
+}
+
 } // namespace
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,
@@ -732,10 +755,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
-  // intrinsic to find its calls and lower them depending on the SetValAtRT
-  // setting (see below).
+  // intrinsic to find its calls and lower them depending on the HandlingMode.
   bool IRModified = false;
-
   LLVMContext &Ctx = M.getContext();
   for (Function &F : M) {
     if (!F.isDeclaration())
@@ -779,7 +800,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
-      if (SetValAtRT) {
+      if (Mode == HandlingMode::native) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
         // making the integer IDs unique if this is a new literal
@@ -806,7 +827,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           SCMetadata[SymID] = generateSpecConstantMetadata(
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
-      } else {
+      } else if (Mode == HandlingMode::emulation) {
         // 2a. Spec constant will be passed as kernel argument;
 
         // Replace it with a load from the pointer to the specialization
@@ -848,6 +869,14 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
 
         Replacement = createLoadFromBuffer(CI, RTBuffer, CurrentOffset, SCTy);
+      } else if (Mode == HandlingMode::default_values) {
+        if (SCTy->isIntegerTy(1)) {
+          assert(DefaultValue->getType()->isIntegerTy(8) &&
+                 "For bool spec constant default value is expected to be i8");
+          Replacement =
+              new TruncInst(DefaultValue, Type::getInt1Ty(Ctx), "bool", CI);
+        } else
+          Replacement = DefaultValue;
       }
 
       if (IsNewSpecConstant) {
@@ -862,14 +891,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             generateSpecConstDefaultValueMetadata(DefaultValue));
       }
 
-      if (HasSretParameter) {
-        // If __sycl_getCompositeSpecConstant returns through argument, then the
-        // only thing we need to do here is to store into a memory pointed
-        // by that argument
-        new StoreInst(Replacement, CI->getArgOperand(0), CI);
-      } else {
+      if (HasSretParameter)
+        createStoreInstructionIntoSpecConstValue(CI->getArgOperand(0),
+                                                 Replacement, CI);
+      else
         CI->replaceAllUsesWith(Replacement);
-      }
 
       for (auto *I : DelInsts) {
         I->removeFromParent();
@@ -945,4 +971,14 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
   }
 
   return true;
+}
+
+bool llvm::checkModuleContainsSpecConsts(const Module &M) {
+  for (const Function &F : M.functions()) {
+    if (F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+        F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+      return true;
+  }
+
+  return false;
 }

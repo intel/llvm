@@ -36,7 +36,7 @@ enum CondCodes {
 }
 
 FunctionPass *createNVPTXISelDag(NVPTXTargetMachine &TM,
-                                 llvm::CodeGenOpt::Level OptLevel);
+                                 llvm::CodeGenOptLevel OptLevel);
 ModulePass *createNVPTXAssignValidGlobalNamesPass();
 ModulePass *createGenericToNVVMLegacyPass();
 ModulePass *createNVPTXCtorDtorLoweringLegacyPass();
@@ -47,6 +47,8 @@ MachineFunctionPass *createNVPTXReplaceImageHandlesPass();
 FunctionPass *createNVPTXImageOptimizerPass();
 FunctionPass *createNVPTXLowerArgsPass();
 FunctionPass *createNVPTXLowerAllocaPass();
+FunctionPass *createNVPTXLowerUnreachablePass(bool TrapUnreachable,
+                                              bool NoTrapAfterNoreturn);
 MachineFunctionPass *createNVPTXPeephole();
 MachineFunctionPass *createNVPTXProxyRegErasurePass();
 
@@ -177,6 +179,18 @@ enum CmpMode {
 
   BASE_MASK = 0xFF,
   FTZ_FLAG = 0x100
+};
+}
+
+namespace PTXPrmtMode {
+enum PrmtMode {
+  NONE,
+  F4E,
+  B4E,
+  RC8,
+  ECL,
+  ECR,
+  RC16,
 };
 }
 }

@@ -55,7 +55,9 @@ public:
     return DiagnosedSilenceableFailure::success();
   }
 
-  Attribute getMessage() { return getOperation()->getAttr("message"); }
+  Attribute getMessage() {
+    return getOperation()->getDiscardableAttr("message");
+  }
 
   static ParseResult parse(OpAsmParser &parser, OperationState &state) {
     StringAttr message;
@@ -134,7 +136,7 @@ DiagnosedSilenceableFailure
 mlir::test::TestProduceValueHandleToSelfOperand::apply(
     transform::TransformRewriter &rewriter,
     transform::TransformResults &results, transform::TransformState &state) {
-  results.setValues(llvm::cast<OpResult>(getOut()), getIn());
+  results.setValues(llvm::cast<OpResult>(getOut()), {getIn()});
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -263,8 +265,7 @@ void mlir::test::TestPrintRemarkAtOperandOp::getEffects(
 DiagnosedSilenceableFailure mlir::test::TestPrintRemarkAtOperandValue::apply(
     transform::TransformRewriter &rewriter,
     transform::TransformResults &results, transform::TransformState &state) {
-  ArrayRef<Value> values = state.getPayloadValues(getIn());
-  for (Value value : values) {
+  for (Value value : state.getPayloadValues(getIn())) {
     std::string note;
     llvm::raw_string_ostream os(note);
     if (auto arg = llvm::dyn_cast<BlockArgument>(value)) {
@@ -388,7 +389,7 @@ DiagnosedSilenceableFailure mlir::test::TestEmitRemarkAndEraseOperandOp::apply(
     transform::TransformResults &results, transform::TransformState &state) {
   emitRemark() << getRemark();
   for (Operation *op : state.getPayloadOps(getTarget()))
-    op->erase();
+    rewriter.eraseOp(op);
 
   if (getFailAfterErase())
     return emitSilenceableError() << "silenceable error";
@@ -633,19 +634,11 @@ mlir::test::TestProduceParamWithNumberOfTestOps::apply(
 }
 
 DiagnosedSilenceableFailure
-mlir::test::TestProduceIntegerParamWithTypeOp::apply(
-    transform::TransformRewriter &rewriter,
-    transform::TransformResults &results, transform::TransformState &state) {
-  Attribute zero = IntegerAttr::get(getType(), 0);
-  results.setParams(llvm::cast<OpResult>(getResult()), zero);
+mlir::test::TestProduceParamOp::apply(transform::TransformRewriter &rewriter,
+                                      transform::TransformResults &results,
+                                      transform::TransformState &state) {
+  results.setParams(llvm::cast<OpResult>(getResult()), getAttr());
   return DiagnosedSilenceableFailure::success();
-}
-
-LogicalResult mlir::test::TestProduceIntegerParamWithTypeOp::verify() {
-  if (!llvm::isa<IntegerType>(getType())) {
-    return emitOpError() << "expects an integer type";
-  }
-  return success();
 }
 
 void mlir::test::TestProduceTransformParamOrForwardOperandOp::getEffects(
@@ -718,7 +711,7 @@ void mlir::test::TestProduceNullValueOp::getEffects(
 DiagnosedSilenceableFailure mlir::test::TestProduceNullValueOp::apply(
     transform::TransformRewriter &rewriter,
     transform::TransformResults &results, transform::TransformState &state) {
-  results.setValues(llvm::cast<OpResult>(getOut()), Value());
+  results.setValues(llvm::cast<OpResult>(getOut()), {Value()});
   return DiagnosedSilenceableFailure::success();
 }
 
@@ -753,6 +746,12 @@ void mlir::test::TestDummyPayloadOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   for (OpResult result : getResults())
     transform::producesHandle(result, effects);
+}
+
+LogicalResult mlir::test::TestDummyPayloadOp::verify() {
+  if (getFailToVerify())
+    return emitOpError() << "fail_to_verify is set";
+  return success();
 }
 
 DiagnosedSilenceableFailure
@@ -829,6 +828,154 @@ public:
 void mlir::test::ApplyTestPatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   patterns.insert<ReplaceWithNewOp, EraseOp>(patterns.getContext());
+}
+
+void mlir::test::TestReEnterRegionOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::consumesHandle(getOperands(), effects);
+  transform::modifiesPayload(effects);
+}
+
+DiagnosedSilenceableFailure
+mlir::test::TestReEnterRegionOp::apply(transform::TransformRewriter &rewriter,
+                                       transform::TransformResults &results,
+                                       transform::TransformState &state) {
+
+  SmallVector<SmallVector<transform::MappedValue>> mappings;
+  for (BlockArgument arg : getBody().front().getArguments()) {
+    mappings.emplace_back(llvm::to_vector(llvm::map_range(
+        state.getPayloadOps(getOperand(arg.getArgNumber())),
+        [](Operation *op) -> transform::MappedValue { return op; })));
+  }
+
+  for (int i = 0; i < 4; ++i) {
+    auto scope = state.make_region_scope(getBody());
+    for (BlockArgument arg : getBody().front().getArguments()) {
+      if (failed(state.mapBlockArgument(arg, mappings[arg.getArgNumber()])))
+        return DiagnosedSilenceableFailure::definiteFailure();
+    }
+    for (Operation &op : getBody().front().without_terminator()) {
+      DiagnosedSilenceableFailure diag =
+          state.applyTransform(cast<transform::TransformOpInterface>(op));
+      if (!diag.succeeded())
+        return diag;
+    }
+  }
+  return DiagnosedSilenceableFailure::success();
+}
+
+LogicalResult mlir::test::TestReEnterRegionOp::verify() {
+  if (getNumOperands() != getBody().front().getNumArguments()) {
+    return emitOpError() << "expects as many operands as block arguments";
+  }
+  return success();
+}
+
+DiagnosedSilenceableFailure mlir::test::TestNotifyPayloadOpReplacedOp::apply(
+    transform::TransformRewriter &rewriter,
+    transform::TransformResults &results, transform::TransformState &state) {
+  auto originalOps = state.getPayloadOps(getOriginal());
+  auto replacementOps = state.getPayloadOps(getReplacement());
+  if (llvm::range_size(originalOps) != llvm::range_size(replacementOps))
+    return emitSilenceableError() << "expected same number of original and "
+                                     "replacement payload operations";
+  for (const auto &[original, replacement] :
+       llvm::zip(originalOps, replacementOps)) {
+    if (failed(
+            rewriter.notifyPayloadOperationReplaced(original, replacement))) {
+      auto diag = emitSilenceableError()
+                  << "unable to replace payload op in transform mapping";
+      diag.attachNote(original->getLoc()) << "original payload op";
+      diag.attachNote(replacement->getLoc()) << "replacement payload op";
+      return diag;
+    }
+  }
+  return DiagnosedSilenceableFailure::success();
+}
+
+void mlir::test::TestNotifyPayloadOpReplacedOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getOriginal(), effects);
+  transform::onlyReadsHandle(getReplacement(), effects);
+}
+
+DiagnosedSilenceableFailure mlir::test::TestProduceInvalidIR::applyToOne(
+    transform::TransformRewriter &rewriter, Operation *target,
+    transform::ApplyToEachResultList &results,
+    transform::TransformState &state) {
+  // Provide some IR that does not verify.
+  rewriter.setInsertionPointToStart(&target->getRegion(0).front());
+  rewriter.create<TestDummyPayloadOp>(target->getLoc(), TypeRange(),
+                                      ValueRange(), /*failToVerify=*/true);
+  return DiagnosedSilenceableFailure::success();
+}
+
+void mlir::test::TestProduceInvalidIR::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  transform::onlyReadsHandle(getTarget(), effects);
+  transform::modifiesPayload(effects);
+}
+
+namespace {
+/// Test conversion pattern that replaces ops with the "replace_with_new_op"
+/// attribute with "test.new_op".
+class ReplaceWithNewOpConversion : public ConversionPattern {
+public:
+  ReplaceWithNewOpConversion(TypeConverter &typeConverter, MLIRContext *context)
+      : ConversionPattern(typeConverter, RewritePattern::MatchAnyOpTypeTag(),
+                          /*benefit=*/1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!op->hasAttr("replace_with_new_op"))
+      return failure();
+    SmallVector<Type> newResultTypes;
+    if (failed(getTypeConverter()->convertTypes(op->getResultTypes(),
+                                                newResultTypes)))
+      return failure();
+    Operation *newOp = rewriter.create(
+        op->getLoc(),
+        OperationName("test.new_op", op->getContext()).getIdentifier(),
+        operands, newResultTypes);
+    rewriter.replaceOp(op, newOp->getResults());
+    return success();
+  }
+};
+} // namespace
+
+void mlir::test::ApplyTestConversionPatternsOp::populatePatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  patterns.insert<ReplaceWithNewOpConversion>(typeConverter,
+                                              patterns.getContext());
+}
+
+namespace {
+/// Test type converter that converts tensor types to memref types.
+class TestTypeConverter : public TypeConverter {
+public:
+  TestTypeConverter() {
+    addConversion([](Type t) { return t; });
+    addConversion([](RankedTensorType type) -> Type {
+      return MemRefType::get(type.getShape(), type.getElementType());
+    });
+    auto unrealizedCastConverter = [&](OpBuilder &builder, Type resultType,
+                                       ValueRange inputs,
+                                       Location loc) -> std::optional<Value> {
+      if (inputs.size() != 1)
+        return std::nullopt;
+      return builder.create<UnrealizedConversionCastOp>(loc, resultType, inputs)
+          .getResult(0);
+    };
+    addSourceMaterialization(unrealizedCastConverter);
+    addTargetMaterialization(unrealizedCastConverter);
+  }
+};
+} // namespace
+
+std::unique_ptr<::mlir::TypeConverter>
+mlir::test::TestTypeConverterOp::getTypeConverter() {
+  return std::make_unique<TestTypeConverter>();
 }
 
 namespace {

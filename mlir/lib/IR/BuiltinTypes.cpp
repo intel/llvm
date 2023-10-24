@@ -14,9 +14,8 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/FunctionInterfaces.h"
-#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TensorEncoding.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/Sequence.h"
@@ -93,7 +92,7 @@ unsigned FloatType::getWidth() {
     return 8;
   if (llvm::isa<Float16Type, BFloat16Type>(*this))
     return 16;
-  if (llvm::isa<Float32Type>(*this))
+  if (llvm::isa<Float32Type, FloatTF32Type>(*this))
     return 32;
   if (llvm::isa<Float64Type>(*this))
     return 64;
@@ -120,6 +119,8 @@ const llvm::fltSemantics &FloatType::getFloatSemantics() {
     return APFloat::BFloat();
   if (llvm::isa<Float16Type>(*this))
     return APFloat::IEEEhalf();
+  if (llvm::isa<FloatTF32Type>(*this))
+    return APFloat::FloatTF32();
   if (llvm::isa<Float32Type>(*this))
     return APFloat::IEEEsingle();
   if (llvm::isa<Float64Type>(*this))
@@ -177,10 +178,10 @@ FunctionType FunctionType::getWithArgsAndResults(
     ArrayRef<unsigned> argIndices, TypeRange argTypes,
     ArrayRef<unsigned> resultIndices, TypeRange resultTypes) {
   SmallVector<Type> argStorage, resultStorage;
-  TypeRange newArgTypes = function_interface_impl::insertTypesInto(
-      getInputs(), argIndices, argTypes, argStorage);
-  TypeRange newResultTypes = function_interface_impl::insertTypesInto(
-      getResults(), resultIndices, resultTypes, resultStorage);
+  TypeRange newArgTypes =
+      insertTypesInto(getInputs(), argIndices, argTypes, argStorage);
+  TypeRange newResultTypes =
+      insertTypesInto(getResults(), resultIndices, resultTypes, resultStorage);
   return clone(newArgTypes, newResultTypes);
 }
 
@@ -189,10 +190,9 @@ FunctionType
 FunctionType::getWithoutArgsAndResults(const BitVector &argIndices,
                                        const BitVector &resultIndices) {
   SmallVector<Type> argStorage, resultStorage;
-  TypeRange newArgTypes = function_interface_impl::filterTypesOut(
-      getInputs(), argIndices, argStorage);
-  TypeRange newResultTypes = function_interface_impl::filterTypesOut(
-      getResults(), resultIndices, resultStorage);
+  TypeRange newArgTypes = filterTypesOut(getInputs(), argIndices, argStorage);
+  TypeRange newResultTypes =
+      filterTypesOut(getResults(), resultIndices, resultStorage);
   return clone(newArgTypes, newResultTypes);
 }
 
@@ -227,7 +227,7 @@ LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
 
 LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  ArrayRef<int64_t> shape, Type elementType,
-                                 unsigned numScalableDims) {
+                                 ArrayRef<bool> scalableDims) {
   if (!isValidElementType(elementType))
     return emitError()
            << "vector elements must be int/index/float type but got "
@@ -238,6 +238,10 @@ LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
            << "vector types must have positive constant sizes but got "
            << shape;
 
+  if (scalableDims.size() != shape.size())
+    return emitError() << "number of dims must match, got "
+                       << scalableDims.size() << " and " << shape.size();
+
   return success();
 }
 
@@ -246,17 +250,17 @@ VectorType VectorType::scaleElementBitwidth(unsigned scale) {
     return VectorType();
   if (auto et = llvm::dyn_cast<IntegerType>(getElementType()))
     if (auto scaledEt = et.scaleElementBitwidth(scale))
-      return VectorType::get(getShape(), scaledEt, getNumScalableDims());
+      return VectorType::get(getShape(), scaledEt, getScalableDims());
   if (auto et = llvm::dyn_cast<FloatType>(getElementType()))
     if (auto scaledEt = et.scaleElementBitwidth(scale))
-      return VectorType::get(getShape(), scaledEt, getNumScalableDims());
+      return VectorType::get(getShape(), scaledEt, getScalableDims());
   return VectorType();
 }
 
 VectorType VectorType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
   return VectorType::get(shape.value_or(getShape()), elementType,
-                         getNumScalableDims());
+                         getScalableDims());
 }
 
 //===----------------------------------------------------------------------===//
@@ -277,7 +281,7 @@ ArrayRef<int64_t> TensorType::getShape() const {
 
 TensorType TensorType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
-  if (auto unrankedTy = llvm::dyn_cast<UnrankedTensorType>(*this)) {
+  if (llvm::dyn_cast<UnrankedTensorType>(*this)) {
     if (shape)
       return RankedTensorType::get(*shape, elementType);
     return UnrankedTensorType::get(elementType);
@@ -364,7 +368,7 @@ ArrayRef<int64_t> BaseMemRefType::getShape() const {
 
 BaseMemRefType BaseMemRefType::cloneWith(std::optional<ArrayRef<int64_t>> shape,
                                          Type elementType) const {
-  if (auto unrankedTy = llvm::dyn_cast<UnrankedMemRefType>(*this)) {
+  if (llvm::dyn_cast<UnrankedMemRefType>(*this)) {
     if (!shape)
       return UnrankedMemRefType::get(elementType, getMemorySpace());
     MemRefType::Builder builder(*shape, elementType);
@@ -950,10 +954,16 @@ AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
   return makeCanonicalStridedLayoutExpr(sizes, exprs, context);
 }
 
-/// Return true if the layout for `t` is compatible with strided semantics.
 bool mlir::isStrided(MemRefType t) {
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   auto res = getStridesAndOffset(t, strides, offset);
   return succeeded(res);
+}
+
+bool mlir::isLastMemrefDimUnitStride(MemRefType type) {
+  int64_t offset;
+  SmallVector<int64_t> strides;
+  auto successStrides = getStridesAndOffset(type, strides, offset);
+  return succeeded(successStrides) && (strides.empty() || strides.back() == 1);
 }

@@ -295,10 +295,10 @@ public:
   LLVMContext *Context = nullptr;
 
   SelectionDAGBuilder(SelectionDAG &dag, FunctionLoweringInfo &funcinfo,
-                      SwiftErrorValueTracking &swifterror, CodeGenOpt::Level ol)
+                      SwiftErrorValueTracking &swifterror, CodeGenOptLevel ol)
       : SDNodeOrder(LowestSDNodeOrder), TM(dag.getTarget()), DAG(dag),
-        SL(std::make_unique<SDAGSwitchLowering>(this, funcinfo)), FuncInfo(funcinfo),
-        SwiftError(swifterror) {}
+        SL(std::make_unique<SDAGSwitchLowering>(this, funcinfo)),
+        FuncInfo(funcinfo), SwiftError(swifterror) {}
 
   void init(GCFunctionInfo *gfi, AAResults *AA, AssumptionCache *AC,
             const TargetLibraryInfo *li);
@@ -426,7 +426,8 @@ public:
   void populateCallLoweringInfo(TargetLowering::CallLoweringInfo &CLI,
                                 const CallBase *Call, unsigned ArgIdx,
                                 unsigned NumArgs, SDValue Callee,
-                                Type *ReturnTy, bool IsPatchPoint);
+                                Type *ReturnTy, AttributeSet RetAttrs,
+                                bool IsPatchPoint);
 
   std::pair<SDValue, SDValue>
   lowerInvokable(TargetLowering::CallLoweringInfo &CLI,
@@ -625,6 +626,8 @@ private:
 
   void visitInlineAsm(const CallBase &Call,
                       const BasicBlock *EHPadBB = nullptr);
+
+  bool visitEntryValueDbgValue(const DbgValueInst &I);
   void visitIntrinsicCall(const CallInst &I, unsigned Intrinsic);
   void visitTargetIntrinsic(const CallInst &I, unsigned Intrinsic);
   void visitConstrainedFPIntrinsic(const ConstrainedFPIntrinsic &FPI);
@@ -785,7 +788,7 @@ struct RegsForValue {
   /// Add this value to the specified inlineasm node operand list. This adds the
   /// code marker, matching input operand index (if applicable), and includes
   /// the number of values added into it.
-  void AddInlineAsmOperands(unsigned Code, bool HasMatching,
+  void AddInlineAsmOperands(InlineAsm::Kind Code, bool HasMatching,
                             unsigned MatchingIdx, const SDLoc &dl,
                             SelectionDAG &DAG, std::vector<SDValue> &Ops) const;
 

@@ -11,7 +11,7 @@
 ;; Create the .all dir with save-temps saving everything, this will be used to compare
 ;; with the output from individualized save-temps later
 ; RUN: mkdir all all2 build subset subset2
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o all/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o all/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -save-temps
@@ -27,7 +27,7 @@
 ;; After that, we'll diff all and all2 to make sure all contents are identical
 
 ;; Check preopt
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=preopt
@@ -39,7 +39,7 @@
 
 ;; Check promote
 ; RUN: rm -f all2/*.1.promote*
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=promote
@@ -49,7 +49,7 @@
 ; RUN: ls build | count 0
 
 ;; Check internalize
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=internalize
@@ -59,7 +59,7 @@
 ; RUN: ls build | count 0
 
 ;; Check import
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=import
@@ -69,7 +69,7 @@
 ; RUN: ls build | count 0
 
 ;; Check opt
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=\opt
@@ -80,7 +80,7 @@
 ; RUN: ls build | count 0
 
 ;; Check precodegen
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=precodegen
@@ -90,7 +90,7 @@
 ; RUN: ls build | count 0
 
 ;; Check combinedindex
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=combinedindex
@@ -103,7 +103,7 @@
 ; RUN: ls build | count 0
 
 ;; Check resolution
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=resolution
@@ -118,7 +118,7 @@
 ;; Check multi-stage composability
 ;; Similar to the above, but do it with a subset instead.
 ;; .all -> .subset, .all2 -> .subset2
-; RUN: llvm-lto2 run -opaque-pointers 1.bc 2.bc -o subset/a.out \
+; RUN: llvm-lto2 run 1.bc 2.bc -o subset/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=preopt,combinedindex,\opt
@@ -127,14 +127,14 @@
 ; RUN: diff -r subset subset2
 
 ;; Check error messages
-; RUN: not llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: not llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=prelink 2>&1 \
 ; RUN: | FileCheck %s --check-prefix=ERR1
 ; ERR1: invalid -select-save-temps argument: prelink
 
-; RUN: not llvm-lto2 run -opaque-pointers 1.bc 2.bc -o build/a.out \
+; RUN: not llvm-lto2 run 1.bc 2.bc -o build/a.out \
 ; RUN:    -import-constants-with-refs -r=1.bc,main,plx -r=1.bc,_Z6getObjv,l \
 ; RUN:    -r=2.bc,_Z6getObjv,pl -r=2.bc,val,pl -r=2.bc,outer,pl \
 ; RUN:    -select-save-temps=preopt -save-temps 2>&1 \

@@ -538,11 +538,11 @@ DLLImportDefinitionGenerator::getTargetPointerSize(const Triple &TT) {
   }
 }
 
-Expected<support::endianness>
+Expected<llvm::endianness>
 DLLImportDefinitionGenerator::getTargetEndianness(const Triple &TT) {
   switch (TT.getArch()) {
   case Triple::x86_64:
-    return support::endianness::little;
+    return llvm::endianness::little;
   default:
     return make_error<StringError>(
         "architecture unsupported by DLLImportDefinitionGenerator",
@@ -553,7 +553,7 @@ DLLImportDefinitionGenerator::getTargetEndianness(const Triple &TT) {
 Expected<std::unique_ptr<jitlink::LinkGraph>>
 DLLImportDefinitionGenerator::createStubsGraph(const SymbolMap &Resolved) {
   Triple TT = ES.getTargetTriple();
-  auto PointerSize = getTargetEndianness(TT);
+  auto PointerSize = getTargetPointerSize(TT);
   if (!PointerSize)
     return PointerSize.takeError();
   auto Endianness = getTargetEndianness(TT);

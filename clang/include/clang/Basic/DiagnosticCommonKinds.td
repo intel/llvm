@@ -56,7 +56,9 @@ def err_expected_string_literal : Error<"expected string literal "
   "%select{in %1|for diagnostic message in static_assert|"
           "for optional message in 'availability' attribute|"
           "for %select{language name|source container name|USR}1 in "
-          "'external_source_symbol' attribute}0">;
+          "'external_source_symbol' attribute|"
+          "as argument of '%1' attribute}0">;
+
 def err_invalid_string_udl : Error<
   "string literal with user-defined suffix cannot be used here">;
 def err_invalid_character_udl : Error<
@@ -132,10 +134,10 @@ def warn_missing_type_specifier : Warning<
   InGroup<ImplicitInt>, DefaultIgnore;
 
 def ext_c_empty_initializer : Extension<
-  "use of an empty initializer is a C2x extension">, InGroup<C2x>;
-def warn_c2x_compat_empty_initializer : Warning<
-  "use of an empty initializer is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
+  "use of an empty initializer is a C23 extension">, InGroup<C23>;
+def warn_c23_compat_empty_initializer : Warning<
+  "use of an empty initializer is incompatible with C standards before C23">,
+  InGroup<CPre23Compat>, DefaultIgnore;
 }
 
 let CategoryName = "Nullability Issue" in {
@@ -223,12 +225,12 @@ def err_cxx23_size_t_suffix: Error<
 def err_size_t_literal_too_large: Error<
   "%select{signed |}0'size_t' literal is out of range of possible "
   "%select{signed |}0'size_t' values">;
-def ext_c2x_bitint_suffix : ExtWarn<
-  "'_BitInt' suffix for literals is a C2x extension">,
-  InGroup<C2x>;
-def warn_c2x_compat_bitint_suffix : Warning<
-  "'_BitInt' suffix for literals is incompatible with C standards before C2x">,
-  InGroup<CPre2xCompat>, DefaultIgnore;
+def ext_c23_bitint_suffix : ExtWarn<
+  "'_BitInt' suffix for literals is a C23 extension">,
+  InGroup<C23>;
+def warn_c23_compat_bitint_suffix : Warning<
+  "'_BitInt' suffix for literals is incompatible with C standards before C23">,
+  InGroup<CPre23Compat>, DefaultIgnore;
 def err_integer_literal_too_large : Error<
   "integer literal is too large to be represented in any %select{signed |}0"
   "integer type">;
@@ -308,7 +310,8 @@ def err_drv_incompatible_options : Error<
 
 // Sema && Serialization
 def warn_dup_category_def : Warning<
-  "duplicate definition of category %1 on interface %0">;
+  "duplicate definition of category %1 on interface %0">,
+  InGroup<DiagGroup<"objc-duplicate-category-definition">>;
 
 // Targets
 
@@ -338,12 +341,17 @@ def err_target_unsupported_mcmse : Error<
   "-mcmse is not supported for %0">;
 def err_opt_not_valid_with_opt : Error<
   "option '%0' cannot be specified with '%1'">;
+def err_opt_not_valid_with_opt_on_target : Error<
+  "option '%0' cannot be specified with '%1' for the %2 sub-architecture">;
 def err_opt_not_valid_without_opt : Error<
   "option '%0' cannot be specified without '%1'">;
 def err_opt_not_valid_on_target : Error<
   "option '%0' cannot be specified on this target">;
 def err_invalid_feature_combination : Error<
   "invalid feature combination: %0">;
+def warn_target_unrecognized_env : Warning<
+  "mismatch between architecture and environment in target triple '%0'; did you mean '%1'?">,
+  InGroup<InvalidCommandLineArgument>;
 
 // Source manager
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
@@ -420,4 +428,13 @@ def err_opencl_extension_and_feature_differs : Error<
   "options %0 and %1 are set to different values">;
 def err_opencl_feature_requires : Error<
   "feature %0 requires support of %1 feature">;
+
+def warn_throw_not_valid_on_target : Warning<
+  "target '%0' does not support exception handling;"
+  " 'throw' is assumed to be never reached">,
+  InGroup<OpenMPTargetException>;
+def warn_try_not_valid_on_target : Warning<
+  "target '%0' does not support exception handling;"
+  " 'catch' block is ignored">,
+  InGroup<OpenMPTargetException>;
 }

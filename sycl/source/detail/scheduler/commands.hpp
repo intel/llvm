@@ -616,7 +616,7 @@ pi_int32
 enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                         sycl::detail::pi::PiEvent *OutEvent, bool read);
+                         const detail::EventImplPtr &OutEventImpl, bool read);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
@@ -624,7 +624,7 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-    sycl::detail::pi::PiEvent *OutEvent,
+    const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
 
@@ -726,6 +726,11 @@ public:
   /// Set the status of this fusion command to \p Status. This function should
   /// only be called under the protection of the scheduler write-lock.
   void setFusionStatus(FusionStatus Status);
+
+  /// Reset the queue. This can be required as the command is held in order
+  /// to maintain events alive, however this prevent the normal destruction of
+  /// the queue.
+  void resetQueue();
 
   bool isActive() const { return MStatus == FusionStatus::ACTIVE; }
 

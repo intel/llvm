@@ -293,7 +293,7 @@ extension. [1d993446] [4f7787c8]
 - Implemented `ext::oneapi::experimental::radix_sorter` from the
 [`sycl_ext_oneapi_group_sort`](doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc)
 extension proposal. [86ba1809]
-- Implemented a new unified interface for the [`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+- Implemented a new unified interface for the [`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/7dab76e1d33341b1e6bf339ab933552281abb3e2/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
 extension for CUDA. [166bbc36]
 - Added support for sorting over sub-groups. [168767c6]
 - Added C++ API wrappers for the Intel math functions `ceil`, `floor`, `rint`,
@@ -407,7 +407,7 @@ extension proposal to allow the compiler to determine the initiation interval.
 - Updated the [`sycl_ext_intel_usm_address_spaces`](doc/extensions/supported/sycl_ext_intel_usm_address_spaces.asciidoc)
 extension to adhere to SYCL 2020 `multi_ptr`. [4a9e9a0e]
 - Added a new matrix use parameter to `joint_matrix` from the
-[`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+[`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/f2983fc0d8fcd7bd6022a7006ad489c591838041/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
 extension specification. [52f34fd5]
 - Removed `queue::size` and `queue::get_wait_list` functions from the
 `sycl_ext_oneapi_queue_status_query` extension due to performance overhead
@@ -654,7 +654,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
   to mark `has_property` API as `noexcept`. [7805aa3f]
 - Updated [`sycl_ext_intel_device_info`](doc/extensions/supported/sycl_ext_intel_device_info.md)
   to support querying free device memory. [0eeef2b3]
-- Updated [`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
+- Updated [`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/770f540d8b600c8c16df12dfccbf38fa780cf77a/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
   with description of new matrix features. [770f540d]
 - Moved [`sycl_ext_oneapi_invoke_simd`](doc/extensions/experimental/sycl_ext_oneapi_invoke_simd.asciidoc)
   extensions specification from `proposed` to `experimental` because
@@ -1300,7 +1300,7 @@ Release notes for commit range 23ca0c2..27f59d8
    Level Zero, ESIMD emulator, HIP [2b0ebab376dc]
  - Added support for `sycl::ext::intel::experimental::esimd_ballot` function
    [0bbb091c1baa]
- - Added initial support for [Tensorcore matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+ - Added initial support for [Tensor Cores matrix extension](https://github.com/intel/llvm/blob/f2983fc0d8fcd7bd6022a7006ad489c591838041/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
    [711ba58c30a8]
 
 ### Documentation
@@ -1692,7 +1692,7 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added [sRGBA support](doc/extensions/supported/sycl_ext_oneapi_srgb.asciidoc)
    [e488327][191efdd]
  - Added a preview feature implementation for the DPC++ experimental
-   [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+   [matrix extension](https://github.com/intel/llvm/blob/467ef25a309ec882027052f3d4c3df58c11ee2ac/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
    [7f218531] [a95f46d]
  - Added support for SYCL 2020 exceptions [5c0f748][eef07606][5af8c43d]
  - Added support for [sycl_ext_intel_bf16_conversion extension](doc/extensions/experimental/sycl_ext_intel_bf16_conversion.asciidoc)
@@ -1956,7 +1956,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    for querying of free device memory in LevelZero backend extension [fa428bf]
  - Added [InvokeSIMD](doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and
    [Uniform](doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extensions [72e1611]
- - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc) [ace4c733]
+ - Added [Matrix Programming Extension for DPC++ document](https://github.com/intel/llvm/blob/ce12ec028681aa90133c518126014b0881d9e6bc/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc) [ace4c733]
  - Implemented SYCL 2020 `sycl::span` [9356d53]
  - Added [device-if](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) extension
    [4fb95fc]
@@ -2102,7 +2102,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Fixed build issue when CUDA 11 is used [f7224f1]
  - Fixed caching of sub-devices in Level Zero backend[4c34f93]
  - Fixed requesting of USM memory allocation info on CUDA [691f842]
- - Fixed [`joint_matrix_mad`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+ - Fixed [`joint_matrix_mad`](https://github.com/intel/llvm/blob/ce12ec028681aa90133c518126014b0881d9e6bc/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
    behaviour to return `A*B+C` instead of assigning the result to `C` [ea59c2b]
  - Workaround an issue in Level Zero backend when event isn't waited upon its
    completion but is queried for its status in an infinite loop  [bfef316]

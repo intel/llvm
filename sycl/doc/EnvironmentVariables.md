@@ -7,9 +7,9 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi-device-selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi-device-selector) for a full description.   |
-| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl-device-filter) below for `SYCL_DEVICE_FILTER` description. |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl-device-allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl_device_filter) below for `SYCL_DEVICE_FILTER` description. |
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
@@ -23,7 +23,7 @@ compiler and runtime.
 | `SYCL_RT_WARNING_LEVEL` | Positive integer | The higher warning level is used the more warnings and performance hints the runtime library may print. Default value is '0', which means no warning/hint messages from the runtime library are allowed. The value '1' enables performance warnings from device runtime/codegen. The values greater than 1 are reserved for future use. |
 | `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 | `SYCL_EAGER_INIT` | Integer | Enable by specifying non-zero value. Tells the SYCL runtime to do as much as possible initialization at objects construction as opposed to doing lazy initialization on the fly. This may mean doing some redundant work at warmup but ensures fastest possible execution on the following hot and reportable paths. It also instructs PI plugins to do the same. Default is "0".  |
-| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl-reduction-preferred-workgroup-size) | Controls the preferred work-group size of reductions. |
+| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
 | `SYCL_ENABLE_FUSION_CACHING` | '1' or '0' | Enable ('1') or disable ('0') caching of JIT compilations for kernel fusion. Caching avoids repeatedly running the JIT compilation pipeline if the same sequence of kernels is fused multiple times. Default value is '1'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
@@ -84,9 +84,22 @@ The following examples further illustrate the usage of this environment variable
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( `:` ) and at least one device specifier of some sort, else an error is thrown.
-- For sub-devices and sub-sub-devices, the parent device must support partitioning (`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.) For Intel GPUs, the sub-device and sub-sub-device syntax can be used to expose tiles or CCSs to the SYCL application as root devices.  The exact mapping between sub-device, sub-sub-device, tiles, and CCSs is specific to the hardware.
+- The sub-device and sub-sub-device syntax attempt to partition the root device
+  according to the rules defined by
+  `info::partition_property::partition_by_affinity_domain` and
+  `info::partition_affinity_domain::next_partitionable`.
+  (See the SYCL 2020 specification for a precise definition.)
+  The root device is determined by the underlying backend.
+- When using the Level Zero backend, see also the documentation of the
+  [`ZE_FLAT_DEVICE_HIERARCHY`][ze-env] environment variable because it affects
+  how this backend exposes root devices to SYCL.
+  For Intel GPUs, the sub-device and sub-sub-device syntax can be used to
+  expose tiles or CCSs to the SYCL application as SYCL root devices, however
+  the exact mapping is determined by the `ZE_FLAT_DEVICE_HIERARCHY` environment
+  variable.
 - The semi-colon character ( `;` ) and the exclamation mark character ( `!`  ) are treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains these characters.
 
+[ze-env]: https://spec.oneapi.io/level-zero/latest/core/PROG.html#environment-variables
 
 
 ### `SYCL_DEVICE_ALLOWLIST`
@@ -152,7 +165,7 @@ Note that conflicting configuration tuples in the same list will favor the last 
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
+| `SYCL_ENABLE_PCI` (Deprecated) | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 1. This option is kept for compatibility reasons and is immediately deprecated. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
 
@@ -192,16 +205,16 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_PI_TRACE` | Described [below](#sycl-pi-trace-options)  | Enable specified level of tracing for PI. |
+| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
-| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl-print-execution-graph-options) | Print execution graph to DOT text file. |
+| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable regular cleanup of enqueued (or finished, in case of host tasks) non-leaf command nodes. If disabled, command nodes will be cleaned up only during the destruction of the last remaining memory object used by them. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` (deprecated) | Any(\*) | Use `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` instead. |
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
 | `SYCL_PROGRAM_LINK_OPTIONS` | String of valid OpenCL link options | Override link options for all programs. |
-| `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `sycl::runtime_error` exception is thrown.|
+| `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `sycl::runtime_error` exception is thrown. The image is assumed to have been created using the `-fno-sycl-dead-args-optimization` option. |
 | `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
 | `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
 | `SYCL_CACHE_TRACE` | Any(\*) | If the variable is set, messages are sent to std::cerr when caching events or non-blocking failures happen (e.g. unable to access cache item file). |
@@ -248,11 +261,11 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of compute commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_COPY_BATCH_SIZE` | Integer | Sets a preferred number of copy commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
 | `SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST` | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 0. |
-| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 1. |
+| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 0:0 when immediate command lists are being used on the device and 1 otherwise. (Also see description of SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS). |
 | `SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE` | Integer | It can be set to an integer (>=0) in which case all compute commands will be submitted to the command-queue with the given index in the compute command group. If it is instead set to a negative value then all available compute engines may be used. The default value is "0" |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
 | `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 the Level Zero plugin would create all events having device-scope and add proxy host-visible event at the end of each command-list submission. The default is 0, meaning all events have host visibility. SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS is ignored when using immediate command lists (SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS = 1) and all events use default scope of 0. |
-| `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` | Integer | When set to a positive value enables use of Level Zero immediate commandlists, which means there is no batching and all commands are immediately submitted for execution. When set to 1, unique immediate commandlists are created for each SYCL queue. When set to 2, unique immediate commandlists are created per host thread per SYCL queue. Default is 0. |
+| `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` | Integer | When set to a positive value enables use of Level Zero immediate commandlists, which means there is no batching and all commands are immediately submitted for execution. When set to 1, unique immediate commandlists are created for each SYCL queue. When set to 2, unique immediate commandlists are created per host thread per SYCL queue. Default is 1 on Intel® Data Center GPU Max Series running Linux and 0 elsewhere. |
 | `SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS` | Integer | When set to a positive value enables use of multiple Level Zero commandlists when submitting barriers. Default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL` | Integer | When set to a positive value enables use of a copy engine for memory fill operations. Default is 0. |
 | `SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION` | Integer | When set to "0" tells to use single root-device allocation for all devices in a context where all devices have same root. Otherwise performs regular buffer migration. Default is 1. |

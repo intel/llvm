@@ -8,11 +8,11 @@ source_filename = "test_global_variable.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-%"class.cl::sycl::ext::oneapi::device_global.0" = type { i32 addrspace(4)* }
+%"class.cl::sycl::ext::oneapi::device_global.0" = type { ptr addrspace(4) }
 %class.anon.0 = type { i8 }
 
-; CHECK-IR: @llvm.compiler.used = appending global [1 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (i8 addrspace(1)* @_ZL16NotADeviceGlobal to i8 addrspace(4)*)]
-@llvm.compiler.used = appending global [3 x i8 addrspace(4)*] [i8 addrspace(4)* addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(1)* @_ZL7dg_int1 to i8 addrspace(4)*), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* @_ZL16NotADeviceGlobal to i8 addrspace(4)*), i8 addrspace(4)* addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(1)* @_ZL7dg_int2 to i8 addrspace(4)*)]
+; CHECK-IR: @llvm.compiler.used = appending global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL16NotADeviceGlobal to ptr addrspace(4))]
+@llvm.compiler.used = appending global [3 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(1)* @_ZL7dg_int1 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL16NotADeviceGlobal to ptr addrspace(4)), ptr addrspace(4) addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(1)* @_ZL7dg_int2 to ptr addrspace(4))]
 
 @_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !0 #0
 @_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !4 #1

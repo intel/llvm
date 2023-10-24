@@ -14,14 +14,25 @@
 #ifndef ATTRTYPEBASE_TD
 #define ATTRTYPEBASE_TD
 
-include "mlir/IR/OpBase.td"
+include "mlir/IR/CommonAttrConstraints.td"
+include "mlir/IR/CommonTypeConstraints.td"
+include "mlir/IR/Constraints.td"
+include "mlir/IR/DialectBase.td"
+include "mlir/IR/Traits.td"
 
 //-------------------------------------------------------------------------===//
 // AttrTrait definitions
 //===----------------------------------------------------------------------===//
 
 // These classes are used to define attribute specific traits.
-class NativeAttrTrait<string name> : NativeTrait<name, "Attribute">;
+
+// Specify attribute specific declarations and definitions in `extraAttrDeclaration`
+// and `extraAttrDefinition` template arguments.
+class NativeAttrTrait<string name,
+                      code extraAttrDeclaration = [{}],
+                      code extraAttrDefinition = [{}]>
+    : NativeTrait<name, "Attribute", extraAttrDeclaration, extraAttrDefinition>;
+
 class ParamNativeAttrTrait<string prop, string params>
     : ParamNativeTrait<prop, params, "Attribute">;
 class GenInternalAttrTrait<string prop> : GenInternalTrait<prop, "Attribute">;
@@ -32,7 +43,14 @@ class PredAttrTrait<string descr, Pred pred> : PredTrait<descr, pred>;
 //===----------------------------------------------------------------------===//
 
 // These classes are used to define type specific traits.
-class NativeTypeTrait<string name> : NativeTrait<name, "Type">;
+
+// Specify type specific declarations and definitions in `extraTypeDeclaration`
+// and `extraTypeDefinition` template arguments.
+class NativeTypeTrait<string name,
+                      code extraTypeDeclaration = [{}],
+                      code extraTypeDefinition = [{}]>
+    : NativeTrait<name, "Type", extraTypeDeclaration, extraTypeDefinition>;
+
 class ParamNativeTypeTrait<string prop, string params>
     : ParamNativeTrait<prop, params, "Type">;
 class GenInternalTypeTrait<string prop> : GenInternalTrait<prop, "Type">;
@@ -297,7 +315,7 @@ class AttrOrTypeParameter<string type, string desc, string accessorType = ""> {
   string cppType = type;
   // The C++ type of the accessor for this parameter.
   string cppAccessorType = !if(!empty(accessorType), type, accessorType);
-  // The C++ storage type of of this parameter if it is a reference, e.g.
+  // The C++ storage type of this parameter if it is a reference, e.g.
   // `std::string` for `StringRef` or `SmallVector` for `ArrayRef`.
   string cppStorageType = cppType;
   // The C++ code to convert from the storage type to the parameter type.
@@ -342,11 +360,12 @@ class DefaultValuedParameter<string type, string value, string desc = ""> :
 }
 
 // For StringRefs, which require allocation.
-class StringRefParameter<string desc = ""> :
+class StringRefParameter<string desc = "", string value = ""> :
     AttrOrTypeParameter<"::llvm::StringRef", desc> {
   let allocator = [{$_dst = $_allocator.copyInto($_self);}];
-  let printer = [{$_printer << '"' << $_self << '"';}];
+  let printer = [{$_printer.printString($_self);}];
   let cppStorageType = "std::string";
+  let defaultValue = value;
 }
 
 // For APFloats, which require comparison.

@@ -223,7 +223,7 @@ event handler::finalize() {
       }
     }
 
-    if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
+    if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
         !MQueue->is_in_fusion_mode() &&
         CGData.MRequirements.size() + CGData.MEvents.size() +
                 MStreamStorage.size() ==
@@ -235,7 +235,6 @@ event handler::finalize() {
 
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
@@ -249,6 +248,9 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
+            // Capture the host timestamp for profiling (queue time)
+            if (NewEvent != nullptr)
+              NewEvent->setHostEnqueueTime();
             MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
@@ -258,7 +260,7 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, OutEvent,
+                                 MKernel, MKernelName, RawEvents, NewEvent,
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
@@ -285,8 +287,6 @@ event handler::finalize() {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
-        OutEvent = &NewEvent->getHandleRef();
-
         NewEvent->setSubmissionTime();
 
         if (PI_SUCCESS != EnqueueKernel())
@@ -368,11 +368,28 @@ event handler::finalize() {
         std::move(MArgs), std::move(CGData), MCGType, MCodeLoc));
     break;
   case detail::CG::Barrier:
-  case detail::CG::BarrierWaitlist:
-    CommandGroup.reset(new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
-                                             std::move(CGData), MCGType,
-                                             MCodeLoc));
+  case detail::CG::BarrierWaitlist: {
+    if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
+      // if no event to wait for was specified, we add all exit
+      // nodes/events of the graph
+      if (MEventsWaitWithBarrier.size() == 0) {
+        MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
+      }
+      CGData.MEvents.insert(std::end(CGData.MEvents),
+                            std::begin(MEventsWaitWithBarrier),
+                            std::end(MEventsWaitWithBarrier));
+      // Barrier node is implemented as an empty node in Graph
+      // but keep the barrier type to help managing dependencies
+      MCGType = detail::CG::Barrier;
+      CommandGroup.reset(
+          new detail::CG(detail::CG::Barrier, std::move(CGData), MCodeLoc));
+    } else {
+      CommandGroup.reset(
+          new detail::CGBarrier(std::move(MEventsWaitWithBarrier),
+                                std::move(CGData), MCGType, MCodeLoc));
+    }
     break;
+  }
   case detail::CG::CopyToDeviceGlobal: {
     CommandGroup.reset(new detail::CGCopyToDeviceGlobal(
         MSrcPtr, MDstPtr, MImpl->MIsDeviceImageScoped, MLength, MImpl->MOffset,
@@ -424,7 +441,7 @@ event handler::finalize() {
     // Empty nodes are handled by Graph like standard nodes
     // For Standard mode (non-graph),
     // empty nodes are not sent to the scheduler to save time
-    if (MGraph || MQueue->getCommandGraph()) {
+    if (MGraph || (MQueue && MQueue->getCommandGraph())) {
       CommandGroup.reset(
           new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
     } else {
@@ -455,6 +472,11 @@ event handler::finalize() {
     auto EventImpl = std::make_shared<detail::event_impl>();
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
+
+    // GraphImpl is read and written in this scope so we lock this graph
+    // with full priviledges.
+    ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
+        GraphImpl->MMutex);
 
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
@@ -497,9 +519,21 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  if (getCommandGraph() &&
+      static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
+          ->needsWriteBack()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Accessors to buffers which have write_back enabled "
+                          "are not allowed to be used in command graphs.");
+  }
   detail::Requirement *Req = AccImpl.get();
+  if (Req->MAccessMode != sycl::access_mode::read) {
+    auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    SYCLMemObj->handleWriteAccessorCreation();
+  }
   // Add accessor to the list of requirements.
-  CGData.MRequirements.push_back(Req);
+  if (Req->MAccessRange.size() != 0)
+    CGData.MRequirements.push_back(Req);
   // Store copy of the accessor.
   CGData.MAccStorage.push_back(std::move(AccImpl));
   // Add an accessor to the handler list of associated accessors.
@@ -786,7 +820,8 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
-  device Dev = detail::getDeviceFromHandler(*this);
+  device Dev =
+      (MGraph) ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
@@ -888,6 +923,9 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
 void handler::ext_oneapi_copy(
     void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -921,7 +959,9 @@ void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent) {
-
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -954,6 +994,9 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -987,6 +1030,9 @@ void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1019,6 +1065,9 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1054,6 +1103,9 @@ void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1087,6 +1139,9 @@ void handler::ext_oneapi_copy(
 
 void handler::ext_oneapi_wait_external_semaphore(
     sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreWait);
@@ -1094,6 +1149,9 @@ void handler::ext_oneapi_wait_external_semaphore(
 
 void handler::ext_oneapi_signal_external_semaphore(
     sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreSignal);
@@ -1101,10 +1159,10 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-
   std::shared_ptr<detail::queue_impl> PrimaryQueue =
       MImpl->MSubmissionPrimaryQueue;
-  if (PrimaryQueue->get_context() != ExecBundle.get_context())
+  if ((!MGraph && (PrimaryQueue->get_context() != ExecBundle.get_context())) ||
+      (MGraph && (MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the primary queue is different from the "
@@ -1302,6 +1360,10 @@ void handler::ext_oneapi_graph(
         Graph) {
   MCGType = detail::CG::ExecCommandBuffer;
   auto GraphImpl = detail::getSyclObjImpl(Graph);
+  // GraphImpl is only read in this scope so we lock this graph for read only
+  ext::oneapi::experimental::detail::graph_impl::ReadLock Lock(
+      GraphImpl->MMutex);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
   if (MQueue) {
     ParentGraph = MQueue->getCommandGraph();
@@ -1309,11 +1371,22 @@ void handler::ext_oneapi_graph(
     ParentGraph = MGraph;
   }
 
+  ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
   // If a parent graph is set that means we are adding or recording a subgraph
   if (ParentGraph) {
+    // ParentGraph is read and written in this scope so we lock this graph
+    // with full priviledges.
+    // We only lock for Record&Replay API because the graph has already been
+    // lock if this function was called from the explicit API function add
+    if (MQueue) {
+      ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
+          ParentGraph->MMutex);
+    }
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+    // The nodes of the subgraph are duplicated when added to its parents.
+    // This avoids changing properties of the graph added as a subgraph.
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl);
 
     // If we are recording an in-order queue remember the subgraph node, so it
     // can be used as a dependency for any more nodes recorded from this queue.
@@ -1336,6 +1409,20 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
+}
+
+std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
+  auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+  std::array<size_t, 3> PiResult = {};
+  auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+      Dev->getHandleRef(),
+      PiInfoCode<
+          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+      sizeof(PiResult), &PiResult, nullptr);
+  if (Ret == PI_SUCCESS) {
+    return PiResult;
+  }
+  return {};
 }
 
 } // namespace _V1

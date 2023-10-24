@@ -31,39 +31,9 @@ namespace hlfir {
 
 class AssociateOp;
 class ElementalOp;
+class ElementalOpInterface;
 class ElementalAddrOp;
 class YieldElementOp;
-
-/// Is this an SSA value type for the value of a Fortran procedure
-/// designator ?
-inline bool isFortranProcedureValue(mlir::Type type) {
-  return type.isa<fir::BoxProcType>() ||
-         (type.isa<mlir::TupleType>() &&
-          fir::isCharacterProcedureTuple(type, /*acceptRawFunc=*/false));
-}
-
-/// Is this an SSA value type for the value of a Fortran expression?
-inline bool isFortranValueType(mlir::Type type) {
-  return type.isa<hlfir::ExprType>() || fir::isa_trivial(type) ||
-         isFortranProcedureValue(type);
-}
-
-/// Is this the value of a Fortran expression in an SSA value form?
-inline bool isFortranValue(mlir::Value value) {
-  return isFortranValueType(value.getType());
-}
-
-/// Is this a Fortran variable?
-/// Note that by "variable", it must be understood that the mlir::Value is
-/// a memory value of a storage that can be reason about as a Fortran object
-/// (its bounds, shape, and type parameters, if any, are retrievable).
-/// This does not imply that the mlir::Value points to a variable from the
-/// original source or can be legally defined: temporaries created to store
-/// expression values are considered to be variables, and so are PARAMETERs
-/// global constant address.
-inline bool isFortranEntity(mlir::Value value) {
-  return isFortranValue(value) || isFortranVariableType(value.getType());
-}
 
 /// Is this a Fortran variable for which the defining op carrying the Fortran
 /// attributes is visible?
@@ -195,6 +165,11 @@ public:
   bool isParameter() const {
     auto varIface = getIfVariableInterface();
     return varIface ? varIface.isParameter() : false;
+  }
+
+  bool isAllocatable() const {
+    auto varIface = getIfVariableInterface();
+    return varIface ? varIface.isAllocatable() : false;
   }
 
   // Get the entity as an mlir SSA value containing all the shape, type
@@ -358,16 +333,25 @@ std::pair<mlir::Value, mlir::Value> genVariableFirBaseShapeAndParams(
 /// input entity type if it is scalar. Will crash if the entity is not a
 /// variable.
 mlir::Type getVariableElementType(hlfir::Entity variable);
+/// Get the entity type for an element of an array entity. Returns the
+/// input type if it is a scalar. If the entity is a variable, this
+/// is like getVariableElementType, otherwise, this will return a value
+/// type (that may be an hlfir.expr type).
+mlir::Type getEntityElementType(hlfir::Entity entity);
 
 using ElementalKernelGenerator = std::function<hlfir::Entity(
     mlir::Location, fir::FirOpBuilder &, mlir::ValueRange)>;
 /// Generate an hlfir.elementalOp given call back to generate the element
 /// value at for each iteration.
-hlfir::ElementalOp genElementalOp(mlir::Location loc,
-                                  fir::FirOpBuilder &builder,
-                                  mlir::Type elementType, mlir::Value shape,
-                                  mlir::ValueRange typeParams,
-                                  const ElementalKernelGenerator &genKernel);
+/// If exprType is specified, this will be the return type of the elemental op.
+/// If exprType is not specified, the resulting expression type is computed
+/// from the given \p elementType and \p shape, and the type is polymorphic
+/// if \p polymorphicMold is present.
+hlfir::ElementalOp genElementalOp(
+    mlir::Location loc, fir::FirOpBuilder &builder, mlir::Type elementType,
+    mlir::Value shape, mlir::ValueRange typeParams,
+    const ElementalKernelGenerator &genKernel, bool isUnordered = false,
+    mlir::Value polymorphicMold = {}, mlir::Type exprType = mlir::Type{});
 
 /// Structure to describe a loop nest.
 struct LoopNest {
@@ -377,11 +361,14 @@ struct LoopNest {
 };
 
 /// Generate a fir.do_loop nest looping from 1 to extents[i].
+/// \p isUnordered specifies whether the loops in the loop nest
+/// are unordered.
 LoopNest genLoopNest(mlir::Location loc, fir::FirOpBuilder &builder,
-                     mlir::ValueRange extents);
+                     mlir::ValueRange extents, bool isUnordered = false);
 inline LoopNest genLoopNest(mlir::Location loc, fir::FirOpBuilder &builder,
-                            mlir::Value shape) {
-  return genLoopNest(loc, builder, getIndexExtents(loc, builder, shape));
+                            mlir::Value shape, bool isUnordered = false) {
+  return genLoopNest(loc, builder, getIndexExtents(loc, builder, shape),
+                     isUnordered);
 }
 
 /// Inline the body of an hlfir.elemental at the current insertion point
@@ -394,17 +381,16 @@ hlfir::YieldElementOp inlineElementalOp(mlir::Location loc,
                                         hlfir::ElementalOp elemental,
                                         mlir::ValueRange oneBasedIndices);
 
-/// Inline the body of an hlfir.elemental without cloning the resulting
-/// hlfir.yield_element, and return the cloned operand of the
-/// hlfir.yield_element. The mapper must be provided to cover complex cases
-/// where the inlined elemental is not defined in the current context and uses
-/// values that have been cloned already.
-/// A callback is provided to indicate if an hlfir.apply inside the
-/// hlfir.elemental must be immediately replaced by the inlining of the
-/// applied hlfir.elemental.
+/// Inline the body of an hlfir.elemental or hlfir.elemental_addr without
+/// cloning the resulting hlfir.yield_element/hlfir.yield, and return the cloned
+/// operand of the hlfir.yield_element/hlfir.yield. The mapper must be provided
+/// to cover complex cases where the inlined elemental is not defined in the
+/// current context and uses values that have been cloned already. A callback is
+/// provided to indicate if an hlfir.apply inside the hlfir.elemental must be
+/// immediately replaced by the inlining of the applied hlfir.elemental.
 mlir::Value inlineElementalOp(
     mlir::Location loc, fir::FirOpBuilder &builder,
-    hlfir::ElementalOp elemental, mlir::ValueRange oneBasedIndices,
+    hlfir::ElementalOpInterface elemental, mlir::ValueRange oneBasedIndices,
     mlir::IRMapping &mapper,
     const std::function<bool(hlfir::ElementalOp)> &mustRecursivelyInline);
 
@@ -424,6 +410,17 @@ convertToBox(mlir::Location loc, fir::FirOpBuilder &builder,
 hlfir::ElementalOp cloneToElementalOp(mlir::Location loc,
                                       fir::FirOpBuilder &builder,
                                       hlfir::ElementalAddrOp elementalAddrOp);
+
+/// Return true, if \p elemental must produce a temporary array,
+/// for example, for the purpose of finalization. Note that such
+/// ElementalOp's must be optimized with caution. For example,
+/// completely inlining such ElementalOp into another one
+/// would be incorrect.
+bool elementalOpMustProduceTemp(hlfir::ElementalOp elemental);
+
+std::pair<hlfir::Entity, mlir::Value>
+createTempFromMold(mlir::Location loc, fir::FirOpBuilder &builder,
+                   hlfir::Entity mold);
 
 } // namespace hlfir
 

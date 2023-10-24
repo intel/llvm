@@ -95,22 +95,32 @@ STATISTIC(NumUDivURemsNarrowedExpanded,
           "Number of bound udiv's/urem's expanded");
 
 static bool processSelect(SelectInst *S, LazyValueInfo *LVI) {
-  if (S->getType()->isVectorTy()) return false;
-  if (isa<Constant>(S->getCondition())) return false;
+  if (S->getType()->isVectorTy() || isa<Constant>(S->getCondition()))
+    return false;
 
-  Constant *C = LVI->getConstant(S->getCondition(), S);
-  if (!C) return false;
+  bool Changed = false;
+  for (Use &U : make_early_inc_range(S->uses())) {
+    auto *I = cast<Instruction>(U.getUser());
+    Constant *C;
+    if (auto *PN = dyn_cast<PHINode>(I))
+      C = LVI->getConstantOnEdge(S->getCondition(), PN->getIncomingBlock(U),
+                                 I->getParent(), I);
+    else
+      C = LVI->getConstant(S->getCondition(), I);
 
-  ConstantInt *CI = dyn_cast<ConstantInt>(C);
-  if (!CI) return false;
+    auto *CI = dyn_cast_or_null<ConstantInt>(C);
+    if (!CI)
+      continue;
 
-  Value *ReplaceWith = CI->isOne() ? S->getTrueValue() : S->getFalseValue();
-  S->replaceAllUsesWith(ReplaceWith);
-  S->eraseFromParent();
+    U.set(CI->isOne() ? S->getTrueValue() : S->getFalseValue());
+    Changed = true;
+    ++NumSelects;
+  }
 
-  ++NumSelects;
+  if (Changed && S->use_empty())
+    S->eraseFromParent();
 
-  return true;
+  return Changed;
 }
 
 /// Try to simplify a phi with constant incoming values that match the edge
@@ -460,17 +470,17 @@ static bool processBinOp(BinaryOperator *BinOp, LazyValueInfo *LVI);
 // because it is negation-invariant.
 static bool processAbsIntrinsic(IntrinsicInst *II, LazyValueInfo *LVI) {
   Value *X = II->getArgOperand(0);
-  bool IsIntMinPoison = cast<ConstantInt>(II->getArgOperand(1))->isOne();
-
   Type *Ty = X->getType();
-  Constant *IntMin =
-      ConstantInt::get(Ty, APInt::getSignedMinValue(Ty->getScalarSizeInBits()));
-  LazyValueInfo::Tristate Result;
+  if (!Ty->isIntegerTy())
+    return false;
+
+  bool IsIntMinPoison = cast<ConstantInt>(II->getArgOperand(1))->isOne();
+  APInt IntMin = APInt::getSignedMinValue(Ty->getScalarSizeInBits());
+  ConstantRange Range = LVI->getConstantRangeAtUse(
+      II->getOperandUse(0), /*UndefAllowed*/ IsIntMinPoison);
 
   // Is X in [0, IntMin]?  NOTE: INT_MIN is fine!
-  Result = LVI->getPredicateAt(CmpInst::Predicate::ICMP_ULE, X, IntMin, II,
-                               /*UseBlockValue=*/true);
-  if (Result == LazyValueInfo::True) {
+  if (Range.icmp(CmpInst::ICMP_ULE, IntMin)) {
     ++NumAbs;
     II->replaceAllUsesWith(X);
     II->eraseFromParent();
@@ -478,40 +488,30 @@ static bool processAbsIntrinsic(IntrinsicInst *II, LazyValueInfo *LVI) {
   }
 
   // Is X in [IntMin, 0]?  NOTE: INT_MIN is fine!
-  Constant *Zero = ConstantInt::getNullValue(Ty);
-  Result = LVI->getPredicateAt(CmpInst::Predicate::ICMP_SLE, X, Zero, II,
-                               /*UseBlockValue=*/true);
-  assert(Result != LazyValueInfo::False && "Should have been handled already.");
+  if (Range.getSignedMax().isNonPositive()) {
+    IRBuilder<> B(II);
+    Value *NegX = B.CreateNeg(X, II->getName(), /*HasNUW=*/false,
+                              /*HasNSW=*/IsIntMinPoison);
+    ++NumAbs;
+    II->replaceAllUsesWith(NegX);
+    II->eraseFromParent();
 
-  if (Result == LazyValueInfo::Unknown) {
-    // Argument's range crosses zero.
-    bool Changed = false;
-    if (!IsIntMinPoison) {
-      // Can we at least tell that the argument is never INT_MIN?
-      Result = LVI->getPredicateAt(CmpInst::Predicate::ICMP_NE, X, IntMin, II,
-                                   /*UseBlockValue=*/true);
-      if (Result == LazyValueInfo::True) {
-        ++NumNSW;
-        ++NumSubNSW;
-        II->setArgOperand(1, ConstantInt::getTrue(II->getContext()));
-        Changed = true;
-      }
-    }
-    return Changed;
+    // See if we can infer some no-wrap flags.
+    if (auto *BO = dyn_cast<BinaryOperator>(NegX))
+      processBinOp(BO, LVI);
+
+    return true;
   }
 
-  IRBuilder<> B(II);
-  Value *NegX = B.CreateNeg(X, II->getName(), /*HasNUW=*/false,
-                            /*HasNSW=*/IsIntMinPoison);
-  ++NumAbs;
-  II->replaceAllUsesWith(NegX);
-  II->eraseFromParent();
-
-  // See if we can infer some no-wrap flags.
-  if (auto *BO = dyn_cast<BinaryOperator>(NegX))
-    processBinOp(BO, LVI);
-
-  return true;
+  // Argument's range crosses zero.
+  // Can we at least tell that the argument is never INT_MIN?
+  if (!IsIntMinPoison && !Range.contains(IntMin)) {
+    ++NumNSW;
+    ++NumSubNSW;
+    II->setArgOperand(1, ConstantInt::getTrue(II->getContext()));
+    return true;
+  }
+  return false;
 }
 
 // See if this min/max intrinsic always picks it's one specific operand.
@@ -975,7 +975,8 @@ static bool processAShr(BinaryOperator *SDI, LazyValueInfo *LVI) {
   if (SDI->getType()->isVectorTy())
     return false;
 
-  ConstantRange LRange = LVI->getConstantRangeAtUse(SDI->getOperandUse(0));
+  ConstantRange LRange =
+      LVI->getConstantRangeAtUse(SDI->getOperandUse(0), /*UndefAllowed*/ false);
   unsigned OrigWidth = SDI->getType()->getIntegerBitWidth();
   ConstantRange NegOneOrZero =
       ConstantRange(APInt(OrigWidth, (uint64_t)-1, true), APInt(OrigWidth, 1));
@@ -1007,7 +1008,8 @@ static bool processSExt(SExtInst *SDI, LazyValueInfo *LVI) {
     return false;
 
   const Use &Base = SDI->getOperandUse(0);
-  if (!LVI->getConstantRangeAtUse(Base).isAllNonNegative())
+  if (!LVI->getConstantRangeAtUse(Base, /*UndefAllowed*/ false)
+           .isAllNonNegative())
     return false;
 
   ++NumSExt;

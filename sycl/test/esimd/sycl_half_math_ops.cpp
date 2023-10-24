@@ -1,4 +1,4 @@
-// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl -fsycl-device-only -S %s -o %t.ll
+// RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t.ll
 // RUN: sycl-post-link -split-esimd -lower-esimd -S %t.ll -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
@@ -14,15 +14,11 @@ using namespace sycl;
 
 // clang-format off
 SYCL_EXTERNAL auto test_ext_math_op(simd<sycl::half, 8> val) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func void @_Z16test_ext_math_op{{[^\(]*}}(
-//   CHECK: <8 x half>{{[^,]*}}* %[[RET_VEC_ADDR:[a-zA-Z0-9_\.]+]],
-//   CHECK: <8 x half>* %[[VAL_PTR:[a-zA-Z0-9_\.]+]]){{.*}} {
+// CHECK: define dso_local spir_func <8 x half> @_Z16test_ext_math_op{{[^\(]*}}(
+//   CHECK: <8 x half> %[[VAL_VEC:[a-zA-Z0-9_\.]+]]){{.*}} {
   return esimd::cos(val);
-// CHECK: %[[VAL_VEC_ADDR:[a-zA-Z0-9_\.]+]] = addrspacecast {{.*}} %[[VAL_PTR]]
-// CHECK-NEXT: %[[VAL_VEC:[a-zA-Z0-9_\.]+]] = load <8 x half>{{.*}} %[[VAL_VEC_ADDR]]
-// CHECK-NEXT: %[[RES:[a-zA-Z0-9_\.]+]] = call <8 x half> @llvm.genx.cos.v8f16(<8 x half> %[[VAL_VEC]])
-// CHECK-NEXT: store <8 x half>{{.*}}%[[RES]], {{.*}}%[[RET_VEC_ADDR]]
-// CHECK-NEXT: ret void
+// CHECK: %[[RES:[a-zA-Z0-9_\.]+]] = call <8 x half> @llvm.genx.cos.v8f16(<8 x half> %[[VAL_VEC]])
+// CHECK-NEXT: ret <8 x half> %[[RES]]
 // CHECK-LABEL: }
 }
 // clang-format on

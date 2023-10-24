@@ -1,16 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-macosx %t.ll -o - -filetype=obj \
 ; RUN:   | llvm-dwarfdump -debug-info - | FileCheck %s
 
-; RUNx: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
-; RUNx: llc -mtriple=x86_64-apple-macosx %t.ll -o - -filetype=obj \
-; RUNx:   | llvm-dwarfdump -debug-info - | FileCheck %s
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-macosx %t.ll -o - -filetype=obj \
+; RUN:   | llvm-dwarfdump -debug-info - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-macosx %t.ll -o - -filetype=obj \
 ; RUN:   | llvm-dwarfdump -debug-info - | FileCheck %s
 
@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 
 %struct.s = type opaque
 
-@i = common addrspace(1) global %struct.s* null, align 8, !dbg !0
+@i = common addrspace(1) global ptr null, align 8, !dbg !0
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!11, !12}

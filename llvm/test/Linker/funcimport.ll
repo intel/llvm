@@ -1,18 +1,18 @@
-; First ensure that the ThinLTO handling in llvm-link -opaque-pointers and llvm-lto handles
+; First ensure that the ThinLTO handling in llvm-link and llvm-lto handles
 ; bitcode without summary sections gracefully.
-; RUN: opt -opaque-pointers %s -o %t.bc
-; RUN: opt -opaque-pointers %p/Inputs/funcimport.ll -o %t2.bc
-; RUN: llvm-link -opaque-pointers %t.bc -summary-index=%t.bc -S
+; RUN: opt %s -o %t.bc
+; RUN: opt %p/Inputs/funcimport.ll -o %t2.bc
+; RUN: llvm-link %t.bc -summary-index=%t.bc -S
 ; RUN: llvm-lto -thinlto -o %t3 %t.bc %t2.bc
 
 ; Do setup work for all below tests: generate bitcode and combined index
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport.ll -o %t2.bc
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/funcimport.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto -o %t3 %t.bc %t2.bc
 
 ; Ensure statics are promoted/renamed correctly from this file (all but
 ; constant variable need promotion).
-; RUN: llvm-link -opaque-pointers %t.bc -summary-index=%t3.thinlto.bc -S | FileCheck %s --check-prefix=EXPORTSTATIC
+; RUN: llvm-link %t.bc -summary-index=%t3.thinlto.bc -S | FileCheck %s --check-prefix=EXPORTSTATIC
 ; EXPORTSTATIC-DAG: @staticvar.llvm.{{.*}} = hidden global
 ; Eventually @staticconstvar can be exported as a copy and not promoted
 ; EXPORTSTATIC-DAG: @staticconstvar.llvm.0 = hidden unnamed_addr constant
@@ -25,7 +25,7 @@
 ; Also ensures that alias to a linkonce function is turned into a declaration
 ; and that the associated linkonce function is not in the output, as it is
 ; lazily linked and never referenced/materialized.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc1:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB1
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc1:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB1
 ; IMPORTGLOB1-DAG: define available_externally void @globalfunc1
 ; IMPORTGLOB1-DAG: declare void @weakalias
 ; IMPORTGLOB1-DAG: declare void @analias
@@ -36,7 +36,7 @@
 ; Ensure that weak alias to a non-imported function is correctly
 ; turned into a declaration, but that strong alias to an imported function
 ; is imported as alias.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc2:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB2
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc2:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB2
 ; IMPORTGLOB2-DAG: declare void @analias
 ; IMPORTGLOB2-DAG: define available_externally void @globalfunc2
 ; IMPORTGLOB2-DAG: declare void @weakalias
@@ -44,7 +44,7 @@
 
 ; Ensure that strong alias imported in second pass of importing ends up
 ; as an alias.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc1:%t.bc -import=globalfunc2:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB3
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc1:%t.bc -import=globalfunc2:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB3
 ; IMPORTGLOB3-DAG: declare void @analias
 ; IMPORTGLOB3-DAG: define available_externally void @globalfunc1
 ; IMPORTGLOB3-DAG: define available_externally void @globalfunc2
@@ -53,20 +53,20 @@
 ; Ensure that strong alias imported in first pass of importing ends up
 ; as an alias, and that seeing the alias definition during a second inlining
 ; pass is handled correctly.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc2:%t.bc -import=globalfunc1:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB4
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=globalfunc2:%t.bc -import=globalfunc1:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB4
 ; IMPORTGLOB4-DAG: declare void @analias
 ; IMPORTGLOB4-DAG: define available_externally void @globalfunc2
 ; IMPORTGLOB4-DAG: define available_externally void @globalfunc1
 ; IMPORTGLOB4-DAG: declare void @weakalias
 
 ; An alias is never imported.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=linkoncefunc:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB5
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=linkoncefunc:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOB5
 ; IMPORTGLOB5-NOT: @linkoncealias
 ; IMPORTGLOB5-DAG: define available_externally void @linkoncefunc()
 
 ; Ensure that imported static variable and function references are correctly
 ; promoted and renamed (including static constant variable).
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=referencestatics:%t.bc -S | FileCheck %s --check-prefix=IMPORTSTATIC
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=referencestatics:%t.bc -S | FileCheck %s --check-prefix=IMPORTSTATIC
 ; IMPORTSTATIC-DAG: @staticvar.llvm.{{.*}} = external hidden global
 ; Eventually @staticconstvar can be imported as a copy
 ; IMPORTSTATIC-DAG: @staticconstvar.llvm.{{.*}} = external hidden unnamed_addr constant
@@ -78,18 +78,18 @@
 ; Ensure that imported global (external) function and variable references
 ; are handled correctly (including referenced variable imported as
 ; available_externally definition)
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=referenceglobals:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOBALS
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=referenceglobals:%t.bc -S | FileCheck %s --check-prefix=IMPORTGLOBALS
 ; IMPORTGLOBALS-DAG: @globalvar = external global
 ; IMPORTGLOBALS-DAG: declare void @globalfunc1()
 ; IMPORTGLOBALS-DAG: define available_externally i32 @referenceglobals
 
 ; Ensure that common variable correctly imported as common defition.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=referencecommon:%t.bc -S | FileCheck %s --check-prefix=IMPORTCOMMON
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=referencecommon:%t.bc -S | FileCheck %s --check-prefix=IMPORTCOMMON
 ; IMPORTCOMMON-DAG: @commonvar = external global
 ; IMPORTCOMMON-DAG: define available_externally i32 @referencecommon
 
 ; Ensure that imported static function pointer correctly promoted and renamed.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=callfuncptr:%t.bc -S | FileCheck %s --check-prefix=IMPORTFUNCPTR
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=callfuncptr:%t.bc -S | FileCheck %s --check-prefix=IMPORTFUNCPTR
 ; IMPORTFUNCPTR-DAG: @P.llvm.{{.*}} = external hidden global ptr
 ; IMPORTFUNCPTR-DAG: define available_externally void @callfuncptr
 ; IMPORTFUNCPTR-DAG: %0 = load ptr, ptr @P.llvm.
@@ -97,7 +97,7 @@
 ; Ensure that imported weak function reference/definition handled properly.
 ; Imported weak_any definition should be skipped with warning, and imported
 ; reference should turned into an external_weak declaration.
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=callweakfunc:%t.bc -import=weakfunc:%t.bc -S 2>&1 | FileCheck %s --check-prefix=IMPORTWEAKFUNC
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=callweakfunc:%t.bc -import=weakfunc:%t.bc -S 2>&1 | FileCheck %s --check-prefix=IMPORTWEAKFUNC
 ; IMPORTWEAKFUNC-DAG: Ignoring import request for weak-any function weakfunc
 ; IMPORTWEAKFUNC-DAG: declare void @weakfunc
 ; IMPORTWEAKFUNC-DAG: define available_externally void @callweakfunc

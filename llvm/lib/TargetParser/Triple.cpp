@@ -71,6 +71,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case sparcv9:        return "sparcv9";
   case spir64:         return "spir64";
   case spir:           return "spir";
+  case spirv:          return "spirv";
   case spirv32:        return "spirv32";
   case spirv64:        return "spirv64";
   case systemz:        return "s390x";
@@ -155,6 +156,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case spir:
   case spir64:      return "spir";
 
+  case spirv:
   case spirv32:
   case spirv64:     return "spirv";
 
@@ -194,7 +196,6 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
   case Intel: return "intel";
   case Mesa: return "mesa";
   case MipsTechnologies: return "mti";
-  case Myriad: return "myriad";
   case NVIDIA: return "nvidia";
   case OpenEmbedded: return "oe";
   case PC: return "pc";
@@ -212,10 +213,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case AIX: return "aix";
   case AMDHSA: return "amdhsa";
   case AMDPAL: return "amdpal";
-  case Ananas: return "ananas";
   case CUDA: return "cuda";
-  case CloudABI: return "cloudabi";
-  case Contiki: return "contiki";
   case Darwin: return "darwin";
   case DragonFly: return "dragonfly";
   case DriverKit: return "driverkit";
@@ -232,7 +230,6 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case Lv2: return "lv2";
   case MacOSX: return "macosx";
   case Mesa3D: return "mesa3d";
-  case Minix: return "minix";
   case NVCL: return "nvcl";
   case NaCl: return "nacl";
   case NetBSD: return "netbsd";
@@ -385,6 +382,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("hsail64", hsail64)
     .StartsWith("spirv64", spirv64)
     .StartsWith("spirv32", spirv32)
+    .StartsWith("spirv", spirv)
     .StartsWith("spir64", spir64)
     .StartsWith("spir", spir)
     .Case("kalimba", kalimba)
@@ -524,6 +522,12 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("amdil64", Triple::amdil64)
     .Case("hsail", Triple::hsail)
     .Case("hsail64", Triple::hsail64)
+    .Case("spir", Triple::spir)
+    .Case("spir64", Triple::spir64)
+    .Cases("spirv", "spirv1.0", "spirv1.1", "spirv1.2",
+           "spirv1.3", "spirv1.4", "spirv1.5", Triple::spirv)
+    .Cases("spirv32", "spirv32v1.0", "spirv32v1.1", "spirv32v1.2",
+           "spirv32v1.3", "spirv32v1.4", "spirv32v1.5", Triple::spirv32)
     .Cases("spirv64", "spirv64v1.0", "spirv64v1.1", "spirv64v1.2",
            "spirv64v1.3", "spirv64v1.4", "spirv64v1.5", Triple::spirv64)
     .Cases("spirv32", "spirv32v1.0", "spirv32v1.1", "spirv32v1.2",
@@ -571,7 +575,6 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("mti", Triple::MipsTechnologies)
     .Case("nvidia", Triple::NVIDIA)
     .Case("csr", Triple::CSR)
-    .Case("myriad", Triple::Myriad)
     .Case("amd", Triple::AMD)
     .Case("mesa", Triple::Mesa)
     .Case("suse", Triple::SUSE)
@@ -582,8 +585,6 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
 
 static Triple::OSType parseOS(StringRef OSName) {
   return StringSwitch<Triple::OSType>(OSName)
-    .StartsWith("ananas", Triple::Ananas)
-    .StartsWith("cloudabi", Triple::CloudABI)
     .StartsWith("darwin", Triple::Darwin)
     .StartsWith("dragonfly", Triple::DragonFly)
     .StartsWith("freebsd", Triple::FreeBSD)
@@ -601,7 +602,6 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("windows", Triple::Win32)
     .StartsWith("zos", Triple::ZOS)
     .StartsWith("haiku", Triple::Haiku)
-    .StartsWith("minix", Triple::Minix)
     .StartsWith("rtems", Triple::RTEMS)
     .StartsWith("nacl", Triple::NaCl)
     .StartsWith("aix", Triple::AIX)
@@ -615,7 +615,6 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("watchos", Triple::WatchOS)
     .StartsWith("driverkit", Triple::DriverKit)
     .StartsWith("mesa3d", Triple::Mesa3D)
-    .StartsWith("contiki", Triple::Contiki)
     .StartsWith("amdpal", Triple::AMDPAL)
     .StartsWith("hermit", Triple::HermitCore)
     .StartsWith("hurd", Triple::Hurd)
@@ -695,10 +694,16 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     if (SA.consume_front("spir64_") || SA.consume_front("spir_")) {
       if (SA == "fpga")
         return Triple::SPIRSubArch_fpga;
+      else if (SA == "fpga_image")
+        return Triple::SPIRSubArch_fpga_image;
       else if (SA == "gen")
         return Triple::SPIRSubArch_gen;
+      else if (SA == "gen_image")
+        return Triple::SPIRSubArch_gen_image;
       else if (SA == "x86_64")
         return Triple::SPIRSubArch_x86_64;
+      else if (SA == "x86_64_image")
+        return Triple::SPIRSubArch_x86_64_image;
     }
   }
 
@@ -811,6 +816,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
 }
 
 static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
+  if (T.isOSDarwin())
+    return Triple::MachO;
   switch (T.getArch()) {
   case Triple::UnknownArch:
   case Triple::aarch64:
@@ -819,9 +826,9 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::thumb:
   case Triple::x86:
   case Triple::x86_64:
-    if (T.isOSDarwin())
-      return Triple::MachO;
-    else if (T.isOSWindows())
+    if (T.isOSWindows())
+      return Triple::COFF;
+    else if (T.isUEFI())
       return Triple::COFF;
     return Triple::ELF;
 
@@ -889,6 +896,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::wasm64:
     return Triple::Wasm;
 
+  case Triple::spirv:
   case Triple::spirv32:
   case Triple::spirv64:
     return Triple::SPIRV;
@@ -1473,6 +1481,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::renderscript64:
   case llvm::Triple::riscv64:
   case llvm::Triple::sparcv9:
+  case llvm::Triple::spirv:
   case llvm::Triple::spir64:
   case llvm::Triple::spirv64:
   case llvm::Triple::systemz:
@@ -1568,6 +1577,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::riscv64:        T.setArch(Triple::riscv32); break;
   case Triple::sparcv9:        T.setArch(Triple::sparc);   break;
   case Triple::spir64:         T.setArch(Triple::spir);    break;
+  case Triple::spirv:
   case Triple::spirv64:
     T.setArch(Triple::spirv32, getSubArch());
     break;
@@ -1647,6 +1657,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::riscv32:         T.setArch(Triple::riscv64);    break;
   case Triple::sparc:           T.setArch(Triple::sparcv9);    break;
   case Triple::spir:            T.setArch(Triple::spir64);     break;
+  case Triple::spirv:
   case Triple::spirv32:
     T.setArch(Triple::spirv64, getSubArch());
     break;
@@ -1689,6 +1700,7 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::shave:
   case Triple::spir64:
   case Triple::spir:
+  case Triple::spirv:
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::wasm32:
@@ -1798,6 +1810,7 @@ bool Triple::isLittleEndian() const {
   case Triple::sparcel:
   case Triple::spir64:
   case Triple::spir:
+  case Triple::spirv:
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::tcele:

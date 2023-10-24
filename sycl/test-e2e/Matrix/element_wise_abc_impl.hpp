@@ -13,7 +13,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define TM 8
-#define TN SG_SZ
 #define TK 32
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
@@ -56,8 +55,7 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T2, use::a, TM, TK, layout::row_major> sub_a;
            // For B, we assume B has been already VNNIed.
-           joint_matrix<sub_group, T2, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+           joint_matrix<sub_group, T2, use::b, TK, TN, layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, T1, use::accumulator, TM, TN> sub_c;
 
@@ -66,33 +64,21 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                accA.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * K,
                K);
-           auto wi_slice_a =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] += 1;
-           }
+           joint_matrix_apply(sg, sub_a, [](T2 &x) { x += 1; });
 
            joint_matrix_load(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
                    sg_starty / SG_SZ * TN * vnniFactor,
                N * vnniFactor);
-           auto wi_slice_b =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
-           for (int i = 0; i < wi_slice_b.length(); i++) {
-             wi_slice_b[i] += 1;
-           }
+           joint_matrix_apply(sg, sub_b, [](T2 &x) { x += 1; });
 
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
                N, layout::row_major);
-           auto wi_slice_c =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
-           for (int i = 0; i < wi_slice_c.length(); i++) {
-             wi_slice_c[i] += 1;
-           }
+           joint_matrix_apply(sg, sub_c, [](T1 &x) { x += 1; });
          }); // parallel for
    }).wait();
 }

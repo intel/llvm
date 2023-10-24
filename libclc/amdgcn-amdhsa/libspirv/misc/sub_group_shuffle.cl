@@ -8,16 +8,15 @@
 
 #include <spirv/spirv.h>
 
-#define SELF __builtin_amdgcn_mbcnt_hi(-1, __builtin_amdgcn_mbcnt_lo(-1, 0))
+#define SELF __spirv_SubgroupLocalInvocationId();
 #define SUBGROUP_SIZE __spirv_SubgroupMaxSize()
 
 // Shuffle
 // int __spirv_SubgroupShuffleINTEL<int>(int, unsigned int)
 _CLC_DEF int
 _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(int Data, unsigned int InvocationId) {
-  int self = SELF;
-  int index = InvocationId + (self & ~(SUBGROUP_SIZE - 1));
-  return __builtin_amdgcn_ds_bpermute(index << 2, Data);
+  int Index = InvocationId;
+  return __builtin_amdgcn_ds_bpermute(Index << 2, Data);
 }
 
 // Sub 32-bit types.

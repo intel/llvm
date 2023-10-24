@@ -170,9 +170,12 @@ enum Kind {
   kw_amdgpu_gs,
   kw_amdgpu_ps,
   kw_amdgpu_cs,
+  kw_amdgpu_cs_chain,
+  kw_amdgpu_cs_chain_preserve,
   kw_amdgpu_kernel,
   kw_amdgpu_gfx,
   kw_tailcc,
+  kw_m68k_rtdcc,
 
   // Attributes:
   kw_attributes,

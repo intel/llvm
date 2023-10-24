@@ -6,6 +6,9 @@
 //
 // CHECK-NOT: LEAK
 
+// Expected fail as reduction support is not complete.
+// XFAIL: *
+
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/sub_graph_reduction.cpp"

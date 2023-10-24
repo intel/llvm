@@ -9,68 +9,64 @@
 %struct.bar = type { i64 }
 %struct.spam = type { i64, i64, i64, i64, i32 }
 
-define linkonce_odr dso_local spir_func void @foo(%struct.ham addrspace(4)* dereferenceable_or_null(56) %arg, %struct.bar* byval(%struct.bar) align 8 %arg1) !work_group_scope !0 {
+define linkonce_odr dso_local spir_func void @foo(ptr addrspace(4) dereferenceable_or_null(56) %arg, ptr byval(%struct.bar) align 8 %arg1) !work_group_scope !0 {
 ; CHECK-LABEL: @foo(
 ; CHECK-NEXT:  bb:
-; CHECK-NEXT:    [[TMP0:%.*]] = alloca [[STRUCT_HAM:%.*]] addrspace(4)*, align 8
-; CHECK-NEXT:    [[TMP1:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    [[TMP0:%.*]] = alloca ptr addrspace(4), align 8
+; CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0:[0-9]+]]
 ; CHECK-NEXT:    [[CMPZ3:%.*]] = icmp eq i64 [[TMP1]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ3]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
-; CHECK-NEXT:    [[TMP2:%.*]] = bitcast %struct.bar* [[ARG1:%.*]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 8 bitcast ([[STRUCT_BAR:%.*]] addrspace(3)* @ArgShadow to i8 addrspace(3)*), i8* align 8 [[TMP2]], i64 8, i1 false)
+; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 8 @ArgShadow, ptr align 8 [[ARG1:%.*]], i64 8, i1 false)
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
-; CHECK-NEXT:    [[TMP3:%.*]] = bitcast %struct.bar* [[ARG1]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* align 8 [[TMP3]], i8 addrspace(3)* align 8 bitcast ([[STRUCT_BAR]] addrspace(3)* @ArgShadow to i8 addrspace(3)*), i64 8, i1 false)
-; CHECK-NEXT:    [[TMP4:%.*]] = addrspacecast [[STRUCT_HAM]] addrspace(4)** [[TMP0]] to [[STRUCT_HAM]] addrspace(4)* addrspace(4)*
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[ARG1]], ptr addrspace(3) align 8 @ArgShadow, i64 8, i1 false)
+; CHECK-NEXT:    [[TMP4:%.*]] = addrspacecast ptr [[TMP0]] to ptr addrspace(4)
 ; CHECK-NEXT:    [[TMP5:%.*]] = alloca [[STRUCT_SPAM:%.*]], align 8
-; CHECK-NEXT:    [[TMP6:%.*]] = addrspacecast %struct.spam* [[TMP5]] to [[STRUCT_SPAM]] addrspace(4)*
-; CHECK-NEXT:    [[TMP7:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    [[TMP6:%.*]] = addrspacecast ptr [[TMP5]] to ptr addrspace(4)
+; CHECK-NEXT:    [[TMP7:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP7]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
 ; CHECK:       wg_leader:
-; CHECK-NEXT:    store [[STRUCT_HAM]] addrspace(4)* [[ARG:%.*]], [[STRUCT_HAM]] addrspace(4)* addrspace(4)* [[TMP4]], align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[ARG:%.*]], ptr addrspace(4) [[TMP4]], align 8
 ; CHECK-NEXT:    br label [[WG_CF]]
 ; CHECK:       wg_cf:
-; CHECK-NEXT:    [[TMP8:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    [[TMP8:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ2:%.*]] = icmp eq i64 [[TMP8]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ2]], label [[TESTMAT:%.*]], label [[LEADERMAT:%.*]]
 ; CHECK:       TestMat:
-; CHECK-NEXT:    [[TMP9:%.*]] = bitcast %struct.spam* [[TMP5]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 16 bitcast ([[STRUCT_SPAM]] addrspace(3)* @WGCopy.1 to i8 addrspace(3)*), i8* align 8 [[TMP9]], i64 36, i1 false)
-; CHECK-NEXT:    [[MAT_LD:%.*]] = load [[STRUCT_HAM]] addrspace(4)*, [[STRUCT_HAM]] addrspace(4)** [[TMP0]], align 8
-; CHECK-NEXT:    store [[STRUCT_HAM]] addrspace(4)* [[MAT_LD]], [[STRUCT_HAM]] addrspace(4)* addrspace(3)* @WGCopy, align 8
+; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 16 @WGCopy.1, ptr align 8 [[TMP5]], i64 36, i1 false)
+; CHECK-NEXT:    [[MAT_LD:%.*]] = load ptr addrspace(4), ptr [[TMP0]], align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD]], ptr addrspace(3) @WGCopy, align 8
 ; CHECK-NEXT:    br label [[LEADERMAT]]
 ; CHECK:       LeaderMat:
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
-; CHECK-NEXT:    [[MAT_LD1:%.*]] = load [[STRUCT_HAM]] addrspace(4)*, [[STRUCT_HAM]] addrspace(4)* addrspace(3)* @WGCopy, align 8
-; CHECK-NEXT:    store [[STRUCT_HAM]] addrspace(4)* [[MAT_LD1]], [[STRUCT_HAM]] addrspace(4)** [[TMP0]], align 8
-; CHECK-NEXT:    [[TMP10:%.*]] = bitcast %struct.spam* [[TMP5]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* align 8 [[TMP10]], i8 addrspace(3)* align 16 bitcast ([[STRUCT_SPAM]] addrspace(3)* @WGCopy.1 to i8 addrspace(3)*), i64 36, i1 false)
+; CHECK-NEXT:    [[MAT_LD1:%.*]] = load ptr addrspace(4), ptr addrspace(3) @WGCopy, align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD1]], ptr [[TMP0]], align 8
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[TMP5]], ptr addrspace(3) align 16 @WGCopy.1, i64 36, i1 false)
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
-; CHECK-NEXT:    [[TMP11:%.*]] = addrspacecast %struct.bar* [[ARG1]] to [[STRUCT_BAR]] addrspace(4)*
-; CHECK-NEXT:    [[TMP12:%.*]] = addrspacecast [[STRUCT_SPAM]] addrspace(4)* [[TMP6]] to %struct.spam*
-; CHECK-NEXT:    call spir_func void @widget([[STRUCT_BAR]] addrspace(4)* dereferenceable_or_null(32) [[TMP11]], %struct.spam* byval([[STRUCT_SPAM]]) align 8 [[TMP12]])
+; CHECK-NEXT:    [[TMP11:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
+; CHECK-NEXT:    [[TMP12:%.*]] = addrspacecast ptr addrspace(4) [[TMP6]] to ptr
+; CHECK-NEXT:    call spir_func void @widget(ptr addrspace(4) dereferenceable_or_null(32) [[TMP11]], ptr byval([[STRUCT_SPAM]]) align 8 [[TMP12]])
 ; CHECK-NEXT:    ret void
 ;
 bb:
-  %0 = alloca %struct.ham addrspace(4)*, align 8
-  %1 = addrspacecast %struct.ham addrspace(4)** %0 to %struct.ham addrspace(4)* addrspace(4)*
+  %0 = alloca ptr addrspace(4), align 8
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
   %2 = alloca %struct.spam, align 8
-  %3 = addrspacecast %struct.spam* %2 to %struct.spam addrspace(4)*
-  store %struct.ham addrspace(4)* %arg, %struct.ham addrspace(4)* addrspace(4)* %1, align 8
-  %4 = addrspacecast %struct.bar* %arg1 to %struct.bar addrspace(4)*
-  %5 = addrspacecast %struct.spam addrspace(4)* %3 to %struct.spam*
-  call spir_func void @widget(%struct.bar addrspace(4)* dereferenceable_or_null(32) %4, %struct.spam* byval(%struct.spam) align 8 %5)
+  %3 = addrspacecast ptr %2 to ptr addrspace(4)
+  store ptr addrspace(4) %arg, ptr addrspace(4) %1, align 8
+  %4 = addrspacecast ptr %arg1 to ptr addrspace(4)
+  %5 = addrspacecast ptr addrspace(4) %3 to ptr
+  call spir_func void @widget(ptr addrspace(4) dereferenceable_or_null(32) %4, ptr byval(%struct.spam) align 8 %5)
   ret void
 }
 
-define linkonce_odr dso_local spir_func void @widget(%struct.bar addrspace(4)* dereferenceable_or_null(32) %arg, %struct.spam* byval(%struct.spam) align 8 %arg1) !work_item_scope !0 !parallel_for_work_item !0 {
+define linkonce_odr dso_local spir_func void @widget(ptr addrspace(4) dereferenceable_or_null(32) %arg, ptr byval(%struct.spam) align 8 %arg1) !work_item_scope !0 !parallel_for_work_item !0 {
 bb:
   ret void
 }

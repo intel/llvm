@@ -1,5 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-early-optimizations -Xclang -no-opaque-pointers -Xclang -verify %s
-// RUN: %clangxx -fsycl-device-only -fsycl-early-optimizations -Xclang -opaque-pointers -Xclang -verify %s
+// RUN: %clangxx -fsycl-device-only -fsycl-early-optimizations -Xclang -verify %s
 
 // Tests for the preservation of source location information when warning
 // diagnostics are issued due to mismatches in aspects used and those specified

@@ -89,6 +89,7 @@ class X86OpcodePrefixHelper {
   //  0b00100: Reserved for future use
   //  0b00101: VEX MAP5
   //  0b00110: VEX MAP6
+  //  0b00111: VEX MAP7
   //  0b00111-0b11111: Reserved for future use
   //  0b01000: XOP map select - 08h instructions with imm byte
   //  0b01001: XOP map select - 09h instructions with no imm byte
@@ -285,6 +286,7 @@ private:
                             SmallVectorImpl<char> &CB) const;
 
   PrefixKind emitVEXOpcodePrefix(int MemOperand, const MCInst &MI,
+                                 const MCSubtargetInfo &STI,
                                  SmallVectorImpl<char> &CB) const;
 
   void emitSegmentOverridePrefix(unsigned SegOperand, const MCInst &MI,
@@ -841,7 +843,7 @@ PrefixKind X86MCCodeEmitter::emitPrefixImpl(unsigned &CurOp, const MCInst &MI,
   // REX prefix is optional, but if used must be immediately before the opcode
   // Encoding type for this instruction.
   return (TSFlags & X86II::EncodingMask)
-             ? emitVEXOpcodePrefix(MemoryOperand, MI, CB)
+             ? emitVEXOpcodePrefix(MemoryOperand, MI, STI, CB)
              : emitOpcodePrefix(MemoryOperand, MI, STI, CB);
 }
 
@@ -860,6 +862,7 @@ PrefixKind X86MCCodeEmitter::emitPrefixImpl(unsigned &CurOp, const MCInst &MI,
 /// \returns the used prefix.
 PrefixKind
 X86MCCodeEmitter::emitVEXOpcodePrefix(int MemOperand, const MCInst &MI,
+                                      const MCSubtargetInfo &STI,
                                       SmallVectorImpl<char> &CB) const {
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());
   uint64_t TSFlags = Desc.TSFlags;
@@ -915,10 +918,16 @@ X86MCCodeEmitter::emitVEXOpcodePrefix(int MemOperand, const MCInst &MI,
   case X86II::T_MAP6:
     Prefix.set5M(0x6);
     break;
+  case X86II::T_MAP7:
+    Prefix.set5M(0x7);
+    break;
   }
 
   Prefix.setL(TSFlags & X86II::VEX_L);
   Prefix.setL2(TSFlags & X86II::EVEX_L2);
+  if ((TSFlags & X86II::EVEX_L2) && STI.hasFeature(X86::FeatureAVX512) &&
+      !STI.hasFeature(X86::FeatureEVEX512))
+    report_fatal_error("ZMM registers are not supported without EVEX512");
   switch (TSFlags & X86II::OpPrefixMask) {
   case X86II::PD:
     Prefix.setPP(0x1); // 66
@@ -942,11 +951,11 @@ X86MCCodeEmitter::emitVEXOpcodePrefix(int MemOperand, const MCInst &MI,
   default:
     llvm_unreachable("Unexpected form in emitVEXOpcodePrefix!");
   case X86II::MRMDestMem4VOp3CC: {
-    //  MemAddr, src1(ModR/M), src2(VEX_4V)
+    //  src1(ModR/M), MemAddr, src2(VEX_4V)
+    Prefix.setR(MI, CurOp++);
     Prefix.setB(MI, MemOperand + X86::AddrBaseReg);
     Prefix.setX(MI, MemOperand + X86::AddrIndexReg);
     CurOp += X86::AddrNumOperands;
-    Prefix.setR(MI, ++CurOp);
     Prefix.set4V(MI, CurOp++);
     break;
   }

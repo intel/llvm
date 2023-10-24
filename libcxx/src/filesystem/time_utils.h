@@ -21,13 +21,14 @@
 
 #include "error.h"
 #include "format_string.h"
-#include "posix_compat.h"
 
 #if defined(_LIBCPP_WIN32API)
 # define WIN32_LEAN_AND_MEAN
 # define NOMINMAX
 # include <windows.h>
 #else
+# include <fcntl.h>
+# include <sys/stat.h>
 # include <sys/time.h> // for ::utimes as used in __last_write_time
 #endif
 
@@ -36,16 +37,85 @@
 # define _LIBCPP_USE_UTIMENSAT
 #endif
 
-// TODO: Check whether these functions actually need internal linkage, or if they can be made normal header functions
-_LIBCPP_DIAGNOSTIC_PUSH
-_LIBCPP_GCC_DIAGNOSTIC_IGNORED("-Wunused-function")
-_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-function")
-_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wunused-template")
-
 _LIBCPP_BEGIN_NAMESPACE_FILESYSTEM
 
 namespace detail {
-namespace {
+
+#if defined(_LIBCPP_WIN32API)
+// Various C runtime versions (UCRT, or the legacy msvcrt.dll used by
+// some mingw toolchains) provide different stat function implementations,
+// with a number of limitations with respect to what we want from the
+// stat function. Instead provide our own which does exactly what we want,
+// along with our own stat structure and flag macros.
+
+struct TimeSpec {
+  int64_t tv_sec;
+  int64_t tv_nsec;
+};
+struct StatT {
+  unsigned st_mode;
+  TimeSpec st_atim;
+  TimeSpec st_mtim;
+  uint64_t st_dev; // FILE_ID_INFO::VolumeSerialNumber
+  struct FileIdStruct {
+    unsigned char id[16]; // FILE_ID_INFO::FileId
+    bool operator==(const FileIdStruct &other) const {
+      for (int i = 0; i < 16; i++)
+        if (id[i] != other.id[i])
+          return false;
+      return true;
+    }
+  } st_ino;
+  uint32_t st_nlink;
+  uintmax_t st_size;
+};
+
+// There were 369 years and 89 leap days from the Windows epoch
+// (1601) to the Unix epoch (1970).
+#define FILE_TIME_OFFSET_SECS (uint64_t(369 * 365 + 89) * (24 * 60 * 60))
+
+inline TimeSpec filetime_to_timespec(LARGE_INTEGER li) {
+  TimeSpec ret;
+  ret.tv_sec = li.QuadPart / 10000000 - FILE_TIME_OFFSET_SECS;
+  ret.tv_nsec = (li.QuadPart % 10000000) * 100;
+  return ret;
+}
+
+inline TimeSpec filetime_to_timespec(FILETIME ft) {
+  LARGE_INTEGER li;
+  li.LowPart = ft.dwLowDateTime;
+  li.HighPart = ft.dwHighDateTime;
+  return filetime_to_timespec(li);
+}
+
+inline FILETIME timespec_to_filetime(TimeSpec ts) {
+  LARGE_INTEGER li;
+  li.QuadPart =
+      ts.tv_nsec / 100 + (ts.tv_sec + FILE_TIME_OFFSET_SECS) * 10000000;
+  FILETIME ft;
+  ft.dwLowDateTime = li.LowPart;
+  ft.dwHighDateTime = li.HighPart;
+  return ft;
+}
+
+#else
+using TimeSpec = struct timespec;
+using TimeVal = struct timeval;
+using StatT = struct stat;
+
+inline TimeVal make_timeval(TimeSpec const& ts) {
+  using namespace chrono;
+  auto Convert = [](long nsec) {
+    using int_type = decltype(std::declval<TimeVal>().tv_usec);
+    auto dur = duration_cast<microseconds>(nanoseconds(nsec)).count();
+    return static_cast<int_type>(dur);
+  };
+  TimeVal TV = {};
+  TV.tv_sec = ts.tv_sec;
+  TV.tv_usec = Convert(ts.tv_nsec);
+  return TV;
+}
+#endif
 
 using chrono::duration;
 using chrono::duration_cast;
@@ -77,7 +147,7 @@ struct time_util_base {
           .count();
 
 private:
-  static _LIBCPP_CONSTEXPR fs_duration get_min_nsecs() {
+  static constexpr fs_duration get_min_nsecs() {
     return duration_cast<fs_duration>(
         fs_nanoseconds(min_nsec_timespec) -
         duration_cast<fs_nanoseconds>(fs_seconds(1)));
@@ -87,7 +157,7 @@ private:
                     FileTimeT::duration::min(),
                 "value doesn't roundtrip");
 
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 bool check_range() {
+  static constexpr bool check_range() {
     // This kinda sucks, but it's what happens when we don't have __int128_t.
     if (sizeof(TimeT) == sizeof(rep)) {
       typedef duration<long long, ratio<3600 * 24 * 365> > Years;
@@ -155,7 +225,7 @@ struct time_util : time_util_base<FileTimeT, TimeT> {
 
 public:
   template <class CType, class ChronoType>
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 bool checked_set(CType* out,
+  static constexpr bool checked_set(CType* out,
                                                         ChronoType time) {
     using Lim = numeric_limits<CType>;
     if (time > Lim::max() || time < Lim::min())
@@ -164,7 +234,7 @@ public:
     return true;
   }
 
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 bool is_representable(TimeSpecT tm) {
+  static constexpr bool is_representable(TimeSpecT tm) {
     if (tm.tv_sec >= 0) {
       return tm.tv_sec < max_seconds ||
              (tm.tv_sec == max_seconds && tm.tv_nsec <= max_nsec);
@@ -175,7 +245,7 @@ public:
     }
   }
 
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 bool is_representable(FileTimeT tm) {
+  static constexpr bool is_representable(FileTimeT tm) {
     auto secs = duration_cast<fs_seconds>(tm.time_since_epoch());
     auto nsecs = duration_cast<fs_nanoseconds>(tm.time_since_epoch() - secs);
     if (nsecs.count() < 0) {
@@ -188,7 +258,7 @@ public:
     return secs.count() >= TLim::min();
   }
 
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 FileTimeT
+  static constexpr FileTimeT
   convert_from_timespec(TimeSpecT tm) {
     if (tm.tv_sec >= 0 || tm.tv_nsec == 0) {
       return FileTimeT(fs_seconds(tm.tv_sec) +
@@ -202,7 +272,7 @@ public:
   }
 
   template <class SubSecT>
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 bool
+  static constexpr bool
   set_times_checked(TimeT* sec_out, SubSecT* subsec_out, FileTimeT tp) {
     auto dur = tp.time_since_epoch();
     auto sec_dur = duration_cast<fs_seconds>(dur);
@@ -219,7 +289,7 @@ public:
     return checked_set(sec_out, sec_dur.count()) &&
            checked_set(subsec_out, subsec_dur.count());
   }
-  static _LIBCPP_CONSTEXPR_SINCE_CXX14 bool convert_to_timespec(TimeSpecT& dest,
+  static constexpr bool convert_to_timespec(TimeSpecT& dest,
                                                                 FileTimeT tp) {
     if (!is_representable(tp))
       return false;
@@ -259,20 +329,9 @@ inline TimeSpec extract_mtime(StatT const& st) { return st.st_mtim; }
 inline TimeSpec extract_atime(StatT const& st) { return st.st_atim; }
 #endif
 
-#if !defined(_LIBCPP_WIN32API)
-inline TimeVal make_timeval(TimeSpec const& ts) {
-  using namespace chrono;
-  auto Convert = [](long nsec) {
-    using int_type = decltype(std::declval<TimeVal>().tv_usec);
-    auto dur = duration_cast<microseconds>(nanoseconds(nsec)).count();
-    return static_cast<int_type>(dur);
-  };
-  TimeVal TV = {};
-  TV.tv_sec = ts.tv_sec;
-  TV.tv_usec = Convert(ts.tv_nsec);
-  return TV;
-}
+#ifndef _LIBCPP_HAS_NO_FILESYSTEM
 
+#if !defined(_LIBCPP_WIN32API)
 inline bool posix_utimes(const path& p, std::array<TimeSpec, 2> const& TS,
                   error_code& ec) {
   TimeVal ConvertedTS[2] = {make_timeval(TS[0]), make_timeval(TS[1])};
@@ -284,8 +343,8 @@ inline bool posix_utimes(const path& p, std::array<TimeSpec, 2> const& TS,
 }
 
 #if defined(_LIBCPP_USE_UTIMENSAT)
-bool posix_utimensat(const path& p, std::array<TimeSpec, 2> const& TS,
-                     error_code& ec) {
+inline bool posix_utimensat(const path& p, std::array<TimeSpec, 2> const& TS,
+                            error_code& ec) {
   if (::utimensat(AT_FDCWD, p.c_str(), TS.data(), 0) == -1) {
     ec = capture_errno();
     return true;
@@ -294,8 +353,8 @@ bool posix_utimensat(const path& p, std::array<TimeSpec, 2> const& TS,
 }
 #endif
 
-bool set_file_times(const path& p, std::array<TimeSpec, 2> const& TS,
-                    error_code& ec) {
+inline bool set_file_times(const path& p, std::array<TimeSpec, 2> const& TS,
+                           error_code& ec) {
 #if !defined(_LIBCPP_USE_UTIMENSAT)
   return posix_utimes(p, TS, ec);
 #else
@@ -305,8 +364,8 @@ bool set_file_times(const path& p, std::array<TimeSpec, 2> const& TS,
 
 #endif // !_LIBCPP_WIN32API
 
-file_time_type __extract_last_write_time(const path& p, const StatT& st,
-                                         error_code* ec) {
+inline file_time_type __extract_last_write_time(const path& p, const StatT& st,
+                                                error_code* ec) {
   using detail::fs_time;
   ErrorHandler<file_time_type> err("last_write_time", ec, &p);
 
@@ -317,11 +376,10 @@ file_time_type __extract_last_write_time(const path& p, const StatT& st,
   return fs_time::convert_from_timespec(ts);
 }
 
-} // namespace
+#endif // !_LIBCPP_HAS_NO_FILESYSTEM
+
 } // end namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
-
-_LIBCPP_DIAGNOSTIC_POP
 
 #endif // FILESYSTEM_TIME_UTILS_H

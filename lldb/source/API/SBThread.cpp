@@ -22,7 +22,6 @@
 #include "lldb/API/SBValue.h"
 #include "lldb/Breakpoint/BreakpointLocation.h"
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -457,7 +456,7 @@ bool SBThread::GetInfoItemByPathAsString(const char *path, SBStream &strm) {
             info_root_sp->GetObjectForDotSeparatedPath(path);
         if (node) {
           if (node->GetType() == eStructuredDataTypeString) {
-            strm.Printf("%s", node->GetAsString()->GetValue().str().c_str());
+            strm.ref() << node->GetAsString()->GetValue();
             success = true;
           }
           if (node->GetType() == eStructuredDataTypeInteger) {

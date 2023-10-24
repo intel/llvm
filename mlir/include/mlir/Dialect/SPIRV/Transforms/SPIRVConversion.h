@@ -83,7 +83,7 @@ public:
   const SPIRVConversionOptions &getOptions() const { return options; }
 
   /// Checks if the SPIR-V capability inquired is supported.
-  bool allows(spirv::Capability capability);
+  bool allows(spirv::Capability capability) const;
 
 private:
   spirv::TargetEnv targetEnv;
@@ -140,8 +140,13 @@ class AccessChainOp;
 /// Returns the value for the given `builtin` variable. This function gets or
 /// inserts the global variable associated for the builtin within the nearest
 /// symbol table enclosing `op`. Returns null Value on error.
+///
+/// The global name being generated will be mangled using `preffix` and
+/// `suffix`.
 Value getBuiltinVariableValue(Operation *op, BuiltIn builtin, Type integerType,
-                              OpBuilder &builder);
+                              OpBuilder &builder,
+                              StringRef prefix = "__builtin__",
+                              StringRef suffix = "__");
 
 /// Gets the value at the given `offset` of the push constant storage with a
 /// total of `elementCount` `integerType` integers. A global variable will be
@@ -164,17 +169,17 @@ Value linearizeIndex(ValueRange indices, ArrayRef<int64_t> strides,
 
 // TODO: This method assumes that the `baseType` is a MemRefType with AffineMap
 // that has static strides. Extend to handle dynamic strides.
-Value getElementPtr(SPIRVTypeConverter &typeConverter, MemRefType baseType,
-                    Value basePtr, ValueRange indices, Location loc,
-                    OpBuilder &builder);
+Value getElementPtr(const SPIRVTypeConverter &typeConverter,
+                    MemRefType baseType, Value basePtr, ValueRange indices,
+                    Location loc, OpBuilder &builder);
 
 // GetElementPtr implementation for Kernel/OpenCL flavored SPIR-V.
-Value getOpenCLElementPtr(SPIRVTypeConverter &typeConverter,
+Value getOpenCLElementPtr(const SPIRVTypeConverter &typeConverter,
                           MemRefType baseType, Value basePtr,
                           ValueRange indices, Location loc, OpBuilder &builder);
 
 // GetElementPtr implementation for Vulkan/Shader flavored SPIR-V.
-Value getVulkanElementPtr(SPIRVTypeConverter &typeConverter,
+Value getVulkanElementPtr(const SPIRVTypeConverter &typeConverter,
                           MemRefType baseType, Value basePtr,
                           ValueRange indices, Location loc, OpBuilder &builder);
 

@@ -9,6 +9,7 @@
 #include "llvm/Support/PropertySetIO.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Base64.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"

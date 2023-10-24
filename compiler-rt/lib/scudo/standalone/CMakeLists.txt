@@ -25,7 +25,7 @@ append_list_if(COMPILER_RT_HAS_WNO_PEDANTIC -Wno-pedantic SCUDO_CFLAGS)
 append_list_if(COMPILER_RT_HAS_FNO_LTO_FLAG -fno-lto SCUDO_CFLAGS)
 
 if(COMPILER_RT_DEBUG)
-  list(APPEND SCUDO_CFLAGS -O0 -DSCUDO_DEBUG=1)
+  list(APPEND SCUDO_CFLAGS -O0 -DSCUDO_DEBUG=1 -DSCUDO_ENABLE_HOOKS=1)
 else()
   list(APPEND SCUDO_CFLAGS -O3)
 endif()
@@ -56,6 +56,7 @@ if(ANDROID)
 endif()
 
 set(SCUDO_HEADERS
+  allocator_common.h
   allocator_config.h
   atomic_helpers.h
   bytemap.h
@@ -73,6 +74,8 @@ set(SCUDO_HEADERS
   memtag.h
   mem_map.h
   mem_map_base.h
+  mem_map_fuchsia.h
+  mem_map_linux.h
   mutex.h
   options.h
   platform.h
@@ -81,7 +84,7 @@ set(SCUDO_HEADERS
   quarantine.h
   release.h
   report.h
-  rss_limit_checker.h
+  report_linux.h
   secondary.h
   size_class_map.h
   stack_depot.h
@@ -107,9 +110,11 @@ set(SCUDO_SOURCES
   fuchsia.cpp
   linux.cpp
   mem_map.cpp
+  mem_map_fuchsia.cpp
+  mem_map_linux.cpp
   release.cpp
   report.cpp
-  rss_limit_checker.cpp
+  report_linux.cpp
   string_utils.cpp
   timing.cpp
   )

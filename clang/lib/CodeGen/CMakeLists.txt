@@ -11,6 +11,7 @@ set(LLVM_LINK_COMPONENTS
   Extensions
   FrontendHLSL
   FrontendOpenMP
+  HIPStdPar
   IPO
   IRPrinter
   IRReader
@@ -121,6 +122,7 @@ add_clang_library(clangCodeGen
   DEPENDS
   ${codegen_deps}
   intrinsics_gen
+  ClangDriverOptions
 
   LINK_LIBS
   clangAST

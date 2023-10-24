@@ -73,10 +73,14 @@ llvm.func @func_no_debug() {
 #variable = #llvm.di_local_variable<scope = #fileScope, name = "arg", file = #file, line = 6, arg = 1, alignInBits = 32, type = #si64>
 #variableAddr = #llvm.di_local_variable<scope = #blockScope, name = "alloc">
 #noNameVariable = #llvm.di_local_variable<scope = #blockScope>
-
+#module = #llvm.di_module<
+  file = #file, scope = #file, name = "module", 
+  configMacros = "bar", includePath = "/",
+  apinotes = "/", line = 42, isDecl = true
+>
 #spType1 = #llvm.di_subroutine_type<callingConvention = DW_CC_normal>
 #sp1 = #llvm.di_subprogram<
-  compileUnit = #cu, scope = #file, name = "empty_types",
+  compileUnit = #cu, scope = #module, name = "empty_types",
   file = #file, subprogramFlags = "Definition", type = #spType1
 >
 
@@ -129,7 +133,7 @@ llvm.func @empty_types() {
 // CHECK: ![[PTR_TYPE]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: ![[BASE_TYPE:.*]], size: 64, align: 32, offset: 8)
 // CHECK: ![[BASE_TYPE]] = !DIBasicType(name: "si32", size: 32, encoding: DW_ATE_signed)
 // CHECK: ![[NAMED_TYPE]] = !DIDerivedType(tag: DW_TAG_pointer_type, name: "named", baseType: ![[BASE_TYPE:.*]])
-// CHECK: ![[COMPOSITE_TYPE]] = !DICompositeType(tag: DW_TAG_structure_type, name: "composite", file: ![[CU_FILE_LOC]], line: 42, size: 64, align: 32, elements: ![[COMPOSITE_ELEMENTS:.*]])
+// CHECK: ![[COMPOSITE_TYPE]] = distinct !DICompositeType(tag: DW_TAG_structure_type, name: "composite", file: ![[CU_FILE_LOC]], line: 42, size: 64, align: 32, elements: ![[COMPOSITE_ELEMENTS:.*]])
 // CHECK: ![[COMPOSITE_ELEMENTS]] = !{![[COMPOSITE_ELEMENT:.*]]}
 // CHECK: ![[COMPOSITE_ELEMENT]] = !DISubrange(count: 4)
 // CHECK: ![[VECTOR_TYPE]] = !DICompositeType(tag: DW_TAG_array_type, name: "array", file: ![[CU_FILE_LOC]], baseType: ![[ARG_TYPE]], flags: DIFlagVector, elements: ![[VECTOR_ELEMENTS:.*]])
@@ -153,7 +157,8 @@ llvm.func @empty_types() {
 // CHECK: ![[CALLEE_ARGS]] = !{![[ARG_TYPE:.*]], ![[ARG_TYPE:.*]]}
 // CHECK: ![[INLINE_LOC]] = !DILocation(line: 28, column: 5,
 
-// CHECK: ![[EMPTY_TYPES_LOC]] = distinct !DISubprogram(name: "empty_types", scope: ![[CU_FILE_LOC]], file: ![[CU_FILE_LOC]], type: ![[EMPTY_TYPES_TYPE:.*]], spFlags: DISPFlagDefinition
+// CHECK: ![[EMPTY_TYPES_LOC]] = distinct !DISubprogram(name: "empty_types", scope: ![[MODULE:.*]], file: ![[CU_FILE_LOC]], type: ![[EMPTY_TYPES_TYPE:.*]], spFlags: DISPFlagDefinition
+// CHECK: ![[MODULE]] = !DIModule(scope: ![[CU_FILE_LOC]], name: "module", configMacros: "bar", includePath: "/", apinotes: "/", file: ![[CU_FILE_LOC]], line: 42, isDecl: true)
 // CHECK: ![[EMPTY_TYPES_TYPE]] = !DISubroutineType(cc: DW_CC_normal, types: ![[EMPTY_TYPES_ARGS:.*]])
 // CHECK: ![[EMPTY_TYPES_ARGS]] = !{}
 
@@ -176,6 +181,7 @@ llvm.func @empty_types() {
 #di_local_variable0 = #llvm.di_local_variable<scope = #di_subprogram, name = "a", file = #di_file, type = #di_basic_type>
 #di_lexical_block_file = #llvm.di_lexical_block_file<scope = #di_subprogram1, file = #di_file, discriminator = 0>
 #di_local_variable1 = #llvm.di_local_variable<scope = #di_lexical_block_file, name = "b", file = #di_file, type = #di_basic_type>
+#di_label = #llvm.di_label<scope = #di_lexical_block_file, name = "label", file = #di_file, line = 42>
 
 #loc0 = loc("foo.mlir":0:0)
 #loc1 = loc(callsite(#loc0 at fused<#di_subprogram>["foo.mlir":4:2]))
@@ -187,6 +193,8 @@ llvm.func @func_with_inlined_dbg_value(%arg0: i32) -> (i32) {
   llvm.intr.dbg.value #di_local_variable0 = %arg0 : i32 loc(fused<#di_subprogram>[#loc0])
   // CHECK: call void @llvm.dbg.value(metadata i32 %[[ARG]], metadata ![[VAR_LOC1:[0-9]+]], metadata !DIExpression()), !dbg ![[DBG_LOC1:.*]]
   llvm.intr.dbg.value #di_local_variable1 = %arg0 : i32 loc(fused<#di_lexical_block_file>[#loc1])
+  // CHECK: call void @llvm.dbg.label(metadata ![[LABEL:[0-9]+]]), !dbg ![[DBG_LOC1:.*]]
+  llvm.intr.dbg.label #di_label loc(fused<#di_lexical_block_file>[#loc1])
   llvm.return %arg0 : i32
 } loc(fused<#di_subprogram>["caller"])
 
@@ -196,3 +204,4 @@ llvm.func @func_with_inlined_dbg_value(%arg0: i32) -> (i32) {
 // CHECK-DAG: ![[LEXICAL_BLOCK_FILE:.*]] = distinct !DILexicalBlockFile(scope: ![[INNER_FUNC]], file: ![[FILE]], discriminator: 0)
 // CHECK-DAG: ![[VAR_LOC0]] = !DILocalVariable(name: "a", scope: ![[OUTER_FUNC]], file: ![[FILE]]
 // CHECK-DAG: ![[VAR_LOC1]] = !DILocalVariable(name: "b", scope: ![[LEXICAL_BLOCK_FILE]], file: ![[FILE]]
+// CHECK-DAG  ![[LABEL]] = !DILabel(scope: ![[LEXICAL_BLOCK_FILE]], name: "label", file: ![[FILE]], line: 42)

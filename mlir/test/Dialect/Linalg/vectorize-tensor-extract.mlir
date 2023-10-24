@@ -30,18 +30,17 @@ func.func @vectorize_1d_tensor_extract(%arg0: tensor<3xf32>, %arg1: tensor<4x3xi
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-  %2 = transform.structured.vectorize %1 : (!transform.any_op) -> !transform.any_op
+  %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+  %2 = transform.structured.vectorize_children_and_apply_patterns %1 : (!transform.any_op) -> !transform.any_op
 }
 
 // -----
-
-#map1 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+#map = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 func.func @vectorize_nd_tensor_extract_constant_idx(%arg0: tensor<3x3xf32>, %arg2: tensor<1x1x3xf32>) -> tensor<1x1x3xf32> {
   %c0 = arith.constant 1 : index
   %c1 = arith.constant 2 : index
   %2 = linalg.generic {
-    indexing_maps = [#map1],
+    indexing_maps = [#map],
     iterator_types = ["parallel", "parallel", "parallel"]
   } outs(%arg2 : tensor<1x1x3xf32>) {
   ^bb0(%arg4: f32):
@@ -51,23 +50,22 @@ func.func @vectorize_nd_tensor_extract_constant_idx(%arg0: tensor<3x3xf32>, %arg
   return %2 : tensor<1x1x3xf32>
 }
 
+// CHECK: #[[$MAP:.*]] = affine_map<(d0, d1) -> (0, 0, 0)>
 // CHECK-LABEL:   func.func @vectorize_nd_tensor_extract_constant_idx(
 // CHECK-SAME:      %[[ARG_0:.*]]: tensor<3x3xf32>,
 // CHECK-SAME:      %[[ARG_1:.*]]: tensor<1x1x3xf32>) -> tensor<1x1x3xf32> {
-// CHECK:           %[[C0:.*]] = arith.constant 0 : index
-// CHECK:           %[[C1:.*]] = arith.constant 1 : index
-// CHECK:           %[[C2:.*]] = arith.constant 2 : index
-// CHECK:           %[[EXTRACT:.*]] = tensor.extract %[[ARG_0]]{{\[}}%[[C1]], %[[C2]]] : tensor<3x3xf32>
-// CHECK:           %[[BCAST:.*]] = vector.broadcast %[[EXTRACT]] : f32 to vector<1x1x3xf32>
-// CHECK:           %[[VAL_7:.*]] = vector.transfer_write %[[BCAST]], %[[ARG_1]][%[[C0]], %[[C0]], %[[C0]]] {in_bounds = [true, true, true]} : vector<1x1x3xf32>, tensor<1x1x3xf32>
-// CHECK:           return %[[VAL_7]] : tensor<1x1x3xf32>
-// CHECK:         }
+// CHECK-DAG:       %[[C1:.*]] = arith.constant 1 : index
+// CHECK-DAG:       %[[C2:.*]] = arith.constant 2 : index
+// CHECK-DAG:       arith.constant 0.000000e+00 : f32
+// CHECK-DAG:       %[[C0_f32:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[READ:.*]] = vector.transfer_read  %[[ARG_0]][%[[C1]], %[[C2]]], %[[C0_f32]] {in_bounds = [true, true, true], permutation_map = #[[$MAP]]} : tensor<3x3xf32>, vector<1x1x3xf32>
+// CHECK:           %[[C0_4:.*]] = arith.constant 0 : index
+// CHECK:           vector.transfer_write %[[READ]], %[[ARG_1]][%[[C0_4]], %[[C0_4]], %[[C0_4]]]  : vector<1x1x3xf32>, tensor<1x1x3xf32>
 
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+  transform.structured.vectorize %0 { vectorize_nd_extract }  : !transform.any_op
  }
 
 // -----
@@ -105,8 +103,8 @@ func.func @vectorize_nd_tensor_extract_transfer_read_basic(%arg0: tensor<3x3x3xf
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-  %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+  %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+  %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
 }
 
  // -----
@@ -157,8 +155,8 @@ func.func @vectorize_nd_tensor_extract_transfer_read_complex(%6: tensor<45x80x16
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -205,8 +203,8 @@ func.func @vectorize_nd_tensor_extract_index_from_tensor(%arg0: tensor<3x3xf32>,
 transform.sequence failures(propagate) {
 ^bb1(%arg1: !transform.any_op):
   %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-  %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-  %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+  %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+  %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
 }
 // -----
 
@@ -249,8 +247,8 @@ func.func @vectorize_nd_tensor_extract_contiguous_and_gather(%arg0: tensor<6xf32
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -291,8 +289,8 @@ func.func @vectorize_nd_tensor_extract_with_affine_apply_contiguous(%6: tensor<8
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -333,8 +331,8 @@ func.func @vectorize_nd_tensor_extract_with_tensor_extract(%input_1: tensor<1x20
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -377,8 +375,8 @@ func.func @vectorize_nd_tensor_extract_with_affine_apply_gather(%6: tensor<80x16
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -417,8 +415,8 @@ func.func @vectorize_nd_tensor_extract_with_maxsi_gather(%arg0: tensor<80x16xf32
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -457,8 +455,8 @@ func.func @vectorize_nd_tensor_extract_with_maxsi_contiguous(%arg0: tensor<80x16
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }
 
 // -----
@@ -496,6 +494,33 @@ func.func @vectorize_nd_tensor_extract_block_arg(%arg0: tensor<5x6xf32>, %arg1: 
 transform.sequence failures(propagate) {
  ^bb1(%arg1: !transform.any_op):
    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
-   %1 = get_closest_isolated_parent %0 : (!transform.any_op) -> !transform.any_op
-   %2 = transform.structured.vectorize %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
+ }
+
+// -----
+
+#map1 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+func.func @vectorize_0d_tensor_extract(%arg0: tensor<f32>, %arg2: tensor<1x1x3xf32>) -> tensor<1x1x3xf32> {
+  %2 = linalg.generic {
+    indexing_maps = [#map1],
+    iterator_types = ["parallel", "parallel", "parallel"]
+  } outs(%arg2 : tensor<1x1x3xf32>) {
+  ^bb0(%arg4: f32):
+    %7 = tensor.extract %arg0[] : tensor<f32>
+    linalg.yield %7 : f32
+  } -> tensor<1x1x3xf32>
+  return %2 : tensor<1x1x3xf32>
+}
+
+// CHECK-LABEL:   func.func @vectorize_0d_tensor_extract(
+// CHECK-SAME:     %[[ARG_0:.*]]: tensor<f32>
+// CHECK:           %[[EXTRACT:.*]] = tensor.extract %[[ARG_0]][] : tensor<f32>
+// CHECK:           vector.broadcast %[[EXTRACT]] : f32 to vector<1x1x3xf32>
+
+transform.sequence failures(propagate) {
+ ^bb1(%arg1: !transform.any_op):
+   %0 = transform.structured.match ops{["linalg.generic"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+   %1 = get_parent_op %0 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
+   %2 = transform.structured.vectorize_children_and_apply_patterns %1 { vectorize_nd_extract } : (!transform.any_op) -> !transform.any_op
  }

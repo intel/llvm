@@ -15,8 +15,18 @@
 
 #include "Loader.h"
 
-#include <hsa/hsa.h>
-#include <hsa/hsa_ext_amd.h>
+#if defined(__has_include)
+#if __has_include("hsa/hsa.h")
+#include "hsa/hsa.h"
+#include "hsa/hsa_ext_amd.h"
+#elif __has_include("hsa.h")
+#include "hsa.h"
+#include "hsa_ext_amd.h"
+#endif
+#else
+#include "hsa/hsa.h"
+#include "hsa/hsa_ext_amd.h"
+#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -264,6 +274,30 @@ hsa_status_t launch_kernel(hsa_agent_t dev_agent, hsa_executable_t executable,
   return HSA_STATUS_SUCCESS;
 }
 
+/// Copies data from the source agent to the destination agent. The source
+/// memory must first be pinned explicitly or allocated via HSA.
+static hsa_status_t hsa_memcpy(void *dst, hsa_agent_t dst_agent,
+                               const void *src, hsa_agent_t src_agent,
+                               uint64_t size) {
+  // Create a memory signal to copy information between the host and device.
+  hsa_signal_t memory_signal;
+  if (hsa_status_t err = hsa_signal_create(1, 0, nullptr, &memory_signal))
+    return err;
+
+  if (hsa_status_t err = hsa_amd_memory_async_copy(
+          dst, dst_agent, src, src_agent, size, 0, nullptr, memory_signal))
+    return err;
+
+  while (hsa_signal_wait_scacquire(memory_signal, HSA_SIGNAL_CONDITION_EQ, 0,
+                                   UINT64_MAX, HSA_WAIT_STATE_ACTIVE) != 0)
+    ;
+
+  if (hsa_status_t err = hsa_signal_destroy(memory_signal))
+    return err;
+
+  return HSA_STATUS_SUCCESS;
+}
+
 int load(int argc, char **argv, char **envp, void *image, size_t size,
          const LaunchParameters &params) {
   // Initialize the HSA runtime used to communicate with the device.
@@ -363,7 +397,7 @@ int load(int argc, char **argv, char **envp, void *image, size_t size,
           hsa_amd_memory_pool_allocate(coarsegrained_pool, sizeof(int),
                                        /*flags=*/0, &dev_ret))
     handle_error(err);
-  hsa_amd_memory_fill(dev_ret, 0, sizeof(int));
+  hsa_amd_memory_fill(dev_ret, 0, /*count=*/1);
 
   // Allocate finegrained memory for the RPC server and client to share.
   uint32_t wavefront_size = 0;
@@ -388,6 +422,88 @@ int load(int argc, char **argv, char **envp, void *image, size_t size,
                                          wavefront_size, rpc_alloc, &tuple))
     handle_error(err);
 
+  // Register callbacks for the RPC unit tests.
+  if (wavefront_size == 32)
+    register_rpc_callbacks<32>(device_id);
+  else if (wavefront_size == 64)
+    register_rpc_callbacks<64>(device_id);
+  else
+    handle_error("Invalid wavefront size");
+
+  // Initialize the RPC client on the device by copying the local data to the
+  // device's internal pointer.
+  hsa_executable_symbol_t rpc_client_sym;
+  if (hsa_status_t err = hsa_executable_get_symbol_by_name(
+          executable, rpc_client_symbol_name, &dev_agent, &rpc_client_sym))
+    handle_error(err);
+
+  void *rpc_client_host;
+  if (hsa_status_t err =
+          hsa_amd_memory_pool_allocate(coarsegrained_pool, sizeof(void *),
+                                       /*flags=*/0, &rpc_client_host))
+    handle_error(err);
+
+  void *rpc_client_dev;
+  if (hsa_status_t err = hsa_executable_symbol_get_info(
+          rpc_client_sym, HSA_EXECUTABLE_SYMBOL_INFO_VARIABLE_ADDRESS,
+          &rpc_client_dev))
+    handle_error(err);
+
+  // Copy the address of the client buffer from the device to the host.
+  if (hsa_status_t err = hsa_memcpy(rpc_client_host, host_agent, rpc_client_dev,
+                                    dev_agent, sizeof(void *)))
+    handle_error(err);
+
+  void *rpc_client_buffer;
+  if (hsa_status_t err = hsa_amd_memory_pool_allocate(
+          coarsegrained_pool, rpc_get_client_size(),
+          /*flags=*/0, &rpc_client_buffer))
+    handle_error(err);
+  std::memcpy(rpc_client_buffer, rpc_get_client_buffer(device_id),
+              rpc_get_client_size());
+
+  // Copy the RPC client buffer to the address pointed to by the symbol.
+  if (hsa_status_t err =
+          hsa_memcpy(*reinterpret_cast<void **>(rpc_client_host), dev_agent,
+                     rpc_client_buffer, host_agent, rpc_get_client_size()))
+    handle_error(err);
+
+  if (hsa_status_t err = hsa_amd_memory_pool_free(rpc_client_buffer))
+    handle_error(err);
+  if (hsa_status_t err = hsa_amd_memory_pool_free(rpc_client_host))
+    handle_error(err);
+
+  // Obtain the GPU's fixed-frequency clock rate and copy it to the GPU.
+  // If the clock_freq symbol is missing, no work to do.
+  hsa_executable_symbol_t freq_sym;
+  if (HSA_STATUS_SUCCESS ==
+      hsa_executable_get_symbol_by_name(executable, "LIBC_NAMESPACE_clock_freq",
+                                        &dev_agent, &freq_sym)) {
+
+    void *host_clock_freq;
+    if (hsa_status_t err =
+            hsa_amd_memory_pool_allocate(finegrained_pool, sizeof(uint64_t),
+                                         /*flags=*/0, &host_clock_freq))
+      handle_error(err);
+    hsa_amd_agents_allow_access(1, &dev_agent, nullptr, host_clock_freq);
+
+    if (hsa_status_t err =
+            hsa_agent_get_info(dev_agent,
+                               static_cast<hsa_agent_info_t>(
+                                   HSA_AMD_AGENT_INFO_TIMESTAMP_FREQUENCY),
+                               host_clock_freq))
+      handle_error(err);
+
+    void *freq_addr;
+    if (hsa_status_t err = hsa_executable_symbol_get_info(
+            freq_sym, HSA_EXECUTABLE_SYMBOL_INFO_VARIABLE_ADDRESS, &freq_addr))
+      handle_error(err);
+
+    if (hsa_status_t err = hsa_memcpy(freq_addr, dev_agent, host_clock_freq,
+                                      host_agent, sizeof(uint64_t)))
+      handle_error(err);
+  }
+
   // Obtain a queue with the minimum (power of two) size, used to send commands
   // to the HSA runtime and launch execution on the device.
   uint64_t queue_size;
@@ -401,8 +517,7 @@ int load(int argc, char **argv, char **envp, void *image, size_t size,
     handle_error(err);
 
   LaunchParameters single_threaded_params = {1, 1, 1, 1, 1, 1};
-  begin_args_t init_args = {argc, dev_argv, dev_envp,
-                            rpc_get_buffer(device_id)};
+  begin_args_t init_args = {argc, dev_argv, dev_envp};
   if (hsa_status_t err = launch_kernel(
           dev_agent, executable, kernargs_pool, coarsegrained_pool, queue,
           single_threaded_params, "_begin.kd", init_args))
@@ -414,12 +529,6 @@ int load(int argc, char **argv, char **envp, void *image, size_t size,
                         coarsegrained_pool, queue, params, "_start.kd", args))
     handle_error(err);
 
-  // Create a memory signal and copy the return value back from the device into
-  // a new buffer.
-  hsa_signal_t memory_signal;
-  if (hsa_status_t err = hsa_signal_create(1, 0, nullptr, &memory_signal))
-    handle_error(err);
-
   void *host_ret;
   if (hsa_status_t err =
           hsa_amd_memory_pool_allocate(finegrained_pool, sizeof(int),
@@ -428,13 +537,8 @@ int load(int argc, char **argv, char **envp, void *image, size_t size,
   hsa_amd_agents_allow_access(1, &dev_agent, nullptr, host_ret);
 
   if (hsa_status_t err =
-          hsa_amd_memory_async_copy(host_ret, host_agent, dev_ret, dev_agent,
-                                    sizeof(int), 0, nullptr, memory_signal))
+          hsa_memcpy(host_ret, host_agent, dev_ret, dev_agent, sizeof(int)))
     handle_error(err);
-
-  while (hsa_signal_wait_scacquire(memory_signal, HSA_SIGNAL_CONDITION_EQ, 0,
-                                   UINT64_MAX, HSA_WAIT_STATE_ACTIVE) != 0)
-    ;
 
   // Save the return value and perform basic clean-up.
   int ret = *static_cast<int *>(host_ret);
@@ -458,8 +562,6 @@ int load(int argc, char **argv, char **envp, void *image, size_t size,
   if (hsa_status_t err = hsa_amd_memory_pool_free(host_ret))
     handle_error(err);
 
-  if (hsa_status_t err = hsa_signal_destroy(memory_signal))
-    handle_error(err);
   if (hsa_status_t err = hsa_queue_destroy(queue))
     handle_error(err);
 

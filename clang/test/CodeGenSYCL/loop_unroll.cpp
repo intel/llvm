@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 void enable() {
-  // CHECK-LABEL: define dso_local spir_func void @_Z6enablev()
+  // CHECK-LABEL: define {{.*}}spir_func void @_Z6enablev()
   int i = 1000;
   // CHECK: br i1 %{{.*}}, label %do.body, label %do.end, !llvm.loop ![[ENABLE:[0-9]+]]
   [[clang::loop_unroll]]
@@ -10,7 +10,7 @@ void enable() {
 
 template <int A>
 void count() {
-  // CHECK-LABEL: define linkonce_odr spir_func void @_Z5countILi4EEvv()
+  // CHECK-LABEL: define {{.*}}spir_func void @_Z5countILi4EEvv()
   // CHECK: br label %for.cond, !llvm.loop ![[COUNT:[0-9]+]]
   [[clang::loop_unroll(8)]]
   for (int i = 0; i < 1000; ++i);
@@ -21,7 +21,7 @@ void count() {
 
 template <int A>
 void disable() {
-  // CHECK-LABEL: define linkonce_odr spir_func void @_Z7disableILi1EEvv()
+  // CHECK-LABEL: define {{.*}}spir_func void @_Z7disableILi1EEvv()
   int i = 1000, j = 100;
   // CHECK: br label %while.cond, !llvm.loop ![[DISABLE:[0-9]+]]
   [[clang::loop_unroll(1)]]

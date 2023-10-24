@@ -13,12 +13,14 @@
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Interfaces/LoopLikeInterface.h"
 
 namespace mlir {
 namespace func {
 class FuncOp;
 } // namespace func
 namespace scf {
+class ForallOp;
 class ForOp;
 class IfOp;
 } // namespace scf

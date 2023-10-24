@@ -1,33 +1,34 @@
 //
 // NOTE: this test requires gpu-sm80
 //
+// DEFINE: %{compile} = mlir-opt %s \
+// DEFINE:   --sparse-compiler="enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71 gpu-format=%gpu_compilation_format
+// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
+// DEFINE:   mlir-cpu-runner \
+// DEFINE:   --shared-libs=%mlir_cuda_runtime \
+// DEFINE:   --shared-libs=%mlir_c_runner_utils \
+// DEFINE:   --e entry --entry-point-result=void \
+// DEFINE: | FileCheck %s
+//
 // with RT lib:
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparse-compiler="enable-runtime-library=true enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71" \
-// RUN: | TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
-// RUN:   mlir-cpu-runner \
-// RUN:   --shared-libs=%mlir_cuda_runtime \
-// RUN:   --shared-libs=%mlir_c_runner_utils \
-// RUN:   --e entry --entry-point-result=void \
-// RUN: | FileCheck %s
+//  RUN:  %{compile} enable-runtime-library=true" | %{run}
+//  RUN:  %{compile} enable-runtime-library=true gpu-data-transfer-strategy=pinned-dma" | %{run}
+//  Tracker #64316
+//  RUNNOT: %{compile} enable-runtime-library=true gpu-data-transfer-strategy=zero-copy" | %{run}
 //
 // without RT lib:
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparse-compiler="enable-runtime-library=false enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71" \
-// RUN: | TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
-// RUN:   mlir-cpu-runner \
-// RUN:   --shared-libs=%mlir_cuda_runtime \
-// RUN:   --shared-libs=%mlir_c_runner_utils \
-// RUN:   --e entry --entry-point-result=void \
-// RUN: | FileCheck %s
+// RUN:  %{compile} enable-runtime-library=false" | %{run}
+// RUN:  %{compile} enable-runtime-library=false gpu-data-transfer-strategy=pinned-dma" | %{run}
+//  Tracker #64316
+// RUNNOT: %{compile} enable-runtime-library=false gpu-data-transfer-strategy=zero-copy" | %{run}
 //
 
 !Filename = !llvm.ptr<i8>
 
 #CSR = #sparse_tensor.encoding<{
-  lvlTypes = ["dense", "compressed"]
+  map = (d0, d1) -> (d0 : dense, d1 : compressed)
 }>
 
 #trait_sampled_dense_dense = {
@@ -46,6 +47,9 @@
 // runs the resulting code with the JIT compiler.
 //
 module {
+  llvm.func @mgpuCreateSparseEnv()
+  llvm.func @mgpuDestroySparseEnv()
+
   //
   // A kernel that computes a sampled dense matrix matrix multiplication
   // using a "spy" function and in-place update of the sampling sparse matrix.
@@ -81,6 +85,7 @@ module {
   // Main driver.
   //
   func.func @entry() {
+    llvm.call @mgpuCreateSparseEnv() : () -> ()
     %d0 = arith.constant 0.0 : f32
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -149,6 +154,7 @@ module {
     bufferization.dealloc_tensor %0 : tensor<?x?xf32, #CSR>
     bufferization.dealloc_tensor %1 : tensor<?x?xf32, #CSR>
 
+    llvm.call @mgpuDestroySparseEnv() : () -> ()
     return
   }
 }

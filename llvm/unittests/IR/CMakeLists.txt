@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   Passes
   SYCLLowerIR
+  TargetParser
   TransformUtils
   ScalarOpts
   )
@@ -38,6 +39,7 @@ add_llvm_unittest(IRTests
   PassManagerTest.cpp
   PatternMatch.cpp
   ShuffleVectorInstTest.cpp
+  StructuralHashTest.cpp
   TimePassesTest.cpp
   TypesTest.cpp
   UseTest.cpp
