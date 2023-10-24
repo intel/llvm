@@ -71,28 +71,44 @@
 // CHECK-DAG: func.func @_Z20__spirv_NumSubgroupsv()
 
 // Ensure the constructors are NOT filtered out, and sycl.cast is generated for cast from sycl.id or sycl.range to sycl.array.
-// CHECK-LABEL: func.func @_ZN4sycl3_V12idILi1EEC1ERKS2_
-// CHECK:          (%arg0: memref<?x!sycl_id_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef}, 
-// CHECK-SAME:      %arg1: memref<?x!sycl_id_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.noundef})
-// CHECK-SAME:      attributes {[[SPIR_FUNCCC:llvm.cconv = #llvm.cconv<spir_funccc>]], [[LINKONCE:llvm.linkage = #llvm.linkage<linkonce_odr>]] 
-// CHECK-NEXT:   %0 = sycl.cast %arg0 : memref<?x!sycl_id_1_, 4> to memref<?x!sycl_array_1_, 4>
-//
-// CHECK-LABEL: func.func @_ZN4sycl3_V15rangeILi1EEC1ERKS2_
-// CHECK:          (%arg0: memref<?x!sycl_range_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef}, 
-// CHECK-SAME:      %arg1: memref<?x!sycl_range_1_, 4> {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.noundef})
-// CHECK-SAME:     attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
-// CHECK-NEXT:   %0 = sycl.cast %arg0 : memref<?x!sycl_range_1_, 4> to memref<?x!sycl_array_1_, 4>
+// CHECK:           func.func @cons_0(%[[VAL_151:.*]]: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef}, %[[VAL_152:.*]]: memref<?x!sycl_range_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_1_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC:llvm.cconv = #llvm.cconv<spir_funccc>]], [[LINKEXTERNAL:llvm.linkage = #llvm.linkage<external>]], {{.*}}} {
+// CHECK:             %[[VAL_153:.*]] = arith.constant 8 : i64
+// CHECK:             %[[VAL_154:.*]] = memref.alloca() : memref<1x!sycl_range_1_>
+// CHECK:             %[[VAL_155:.*]] = memref.cast %[[VAL_154]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
+// CHECK:             %[[VAL_156:.*]] = memref.alloca() : memref<1x!sycl_id_1_>
+// CHECK:             %[[VAL_157:.*]] = memref.cast %[[VAL_156]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+// CHECK:             %[[VAL_158:.*]] = memref.memory_space_cast %[[VAL_157]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+// CHECK:             %[[VAL_159:.*]] = memref.memory_space_cast %[[VAL_151]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
+// CHECK:             %[[VAL_160:.*]] = sycl.id.constructor(%[[VAL_159]]) : (memref<?x!sycl_id_1_, 4>) -> memref<?x!sycl_id_1_, 4>
+// CHECK:             %[[VAL_161:.*]] = "polygeist.memref2pointer"(%[[VAL_158]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
+// CHECK:             %[[VAL_162:.*]] = "polygeist.memref2pointer"(%[[VAL_160]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
+// CHECK:             "llvm.intr.memcpy"(%[[VAL_161]], %[[VAL_162]], %[[VAL_153]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
+// CHECK:             %[[VAL_163:.*]] = memref.memory_space_cast %[[VAL_155]] : memref<?x!sycl_range_1_> to memref<?x!sycl_range_1_, 4>
+// CHECK:             %[[VAL_164:.*]] = memref.memory_space_cast %[[VAL_152]] : memref<?x!sycl_range_1_> to memref<?x!sycl_range_1_, 4>
+// CHECK:             %[[VAL_165:.*]] = sycl.range.constructor(%[[VAL_164]]) : (memref<?x!sycl_range_1_, 4>) -> memref<?x!sycl_range_1_, 4>
+// CHECK:             %[[VAL_166:.*]] = "polygeist.memref2pointer"(%[[VAL_163]]) : (memref<?x!sycl_range_1_, 4>) -> !llvm.ptr<4>
+// CHECK:             %[[VAL_167:.*]] = "polygeist.memref2pointer"(%[[VAL_165]]) : (memref<?x!sycl_range_1_, 4>) -> !llvm.ptr<4>
+// CHECK:             "llvm.intr.memcpy"(%[[VAL_166]], %[[VAL_167]], %[[VAL_153]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
+// CHECK:             return
 
 // CHECK-LLVM: define spir_func void @cons_0(ptr noundef byval([[ID_TYPE:%"class.sycl::_V1::id.1"]]) align 8 [[ARG0:%.*]], 
 // CHECK-LLVM-SAME:                          ptr noundef byval([[RANGE_TYPE:%"class.sycl::_V1::range.1"]]) align 8 [[ARG1:%.*]]) #[[FUNCATTRS:[0-9]+]]
-// CHECK-LLVM-DAG: [[RANGE:%.*]] = alloca [[RANGE_TYPE]]
-// CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
-// CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
-// CHECK-LLVM: [[ARG0_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
-// CHECK-LLVM: [[TMP:%.*]] = alloca [[ID_TYPE]]
-// CHECK-LLVM: [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
-// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ARG0_AS]], i64 8, i1 false)
-// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[ID_AS]], ptr addrspace(4) [[TMP_AS]], i64 8, i1 false) 
+// CHECK-LLVM-NEXT:   [[RANGE:%.*]] = alloca [[RANGE_TYPE]], i64 1, align 8
+// CHECK-LLVM-NEXT:   [[ID:%.*]] = alloca [[ID_TYPE]], i64 1, align 8
+// CHECK-LLVM-NEXT:   [[ID_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:   [[ARG0_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:   [[TMP:%.*]] = alloca [[ID_TYPE]], align 8
+// CHECK-LLVM-NEXT:   [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ARG0_AS]], i64 8, i1 false)
+// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[ID_AS]], ptr addrspace(4) [[TMP_AS]], i64 8, i1 false)
+// CHECK-LLVM-NEXT:   [[RANGE_AS:%.*]] = addrspacecast ptr [[RANGE]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:   [[ARG1_AS:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:   [[TMP:%.*]] = alloca [[RANGE_TYPE]], align 8
+// CHECK-LLVM-NEXT:   [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
+// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ARG1_AS]], i64 8, i1 false)
+// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[RANGE_AS]], ptr addrspace(4) [[TMP_AS]], i64 8, i1 false)
+// CHECK-LLVM-NEXT:   ret void
 
 extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
   auto id = sycl::id<1>{i};
@@ -184,7 +200,7 @@ extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
 }
 
 // CHECK-LABEL: func.func @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1025ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(
-// CHECK-SAME: {{.*}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
+// CHECK-SAME: {{.*}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE:llvm.linkage = #llvm.linkage<linkonce_odr>]], {{.*}}}
 // CHECK: [[I:%.*]] = "polygeist.subindex"(%arg0, %c0) : (memref<?x!sycl_accessor_1_i32_w_dev, 4>, index) -> memref<?x!sycl_accessor_impl_device_1_, 4>
 // CHECK: sycl.constructor @AccessorImplDevice([[I]], {{%.*}}, {{%.*}}, {{%.*}}) {MangledFunctionName = @_ZN4sycl3_V16detail18AccessorImplDeviceILi1EEC1ENS0_2idILi1EEENS0_5rangeILi1EEES7_} : (memref<?x!sycl_accessor_impl_device_1_, 4>, memref<?x!sycl_id_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>)
 
