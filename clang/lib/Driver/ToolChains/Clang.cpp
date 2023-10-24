@@ -4997,14 +4997,13 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
     // Add SYCL dependent library
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
-      if (RTOptionID == options::OPT__SLASH_MDd){
+      if (RTOptionID == options::OPT__SLASH_MDd) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
                             "-previewd");
         else
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
-      }
-      else {
+      } else {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
                             "-preview");
