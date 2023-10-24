@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s
-// RUN: %if preview-breaking-changes-lib %{%clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s -DPREVIEW_BREAKING_CHANGES%}
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s -DPREVIEW_BREAKING_CHANGES%}
 
 // Tests the requirements on the first argument in a kernel lambda.
 // TODO: Some of the behavior is currently guarded behind the

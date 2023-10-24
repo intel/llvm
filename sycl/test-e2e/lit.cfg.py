@@ -106,7 +106,7 @@ config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 
 # If breaking change preview library is enabled we can enable the feature.
 if config.sycl_preview_lib_enabled == "ON":
-    config.available_features.add('preview-breaking-changes-lib')
+    config.available_features.add('preview-breaking-changes-supported')
 
 # Intel GPU FAMILY availability
 if lit_config.params.get('gpu-intel-gen9', False):
