@@ -2723,6 +2723,8 @@ namespace detail {
 // the input type 'T' and operation 'Op'.
 template <typename T, __ESIMD_NS::atomic_op Op>
 constexpr int lsc_to_internal_atomic_op() {
+  constexpr __ESIMD_NS::native::lsc::atomic_op LSCOp =
+      __ESIMD_DNS::to_lsc_atomic_op<Op>();
   return static_cast<int>(LSCOp);
 }
 } // namespace detail
