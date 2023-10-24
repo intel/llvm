@@ -10,7 +10,7 @@
 #include <memory>
 
 #include "ur_api.h"
-#include "ur_params.hpp"
+#include "ur_print.hpp"
 
 template <typename T> class ParamsTest : public testing::Test {
   protected:
@@ -405,22 +405,22 @@ typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
     Implementations;
 
 using ::testing::MatchesRegex;
-using namespace ur_params;
+using namespace ur::print;
 
 TYPED_TEST_SUITE(ParamsTest, Implementations, );
 
-TYPED_TEST(ParamsTest, Serialize) {
+TYPED_TEST(ParamsTest, Print) {
     std::ostringstream out;
     out << this->params.get_struct();
     EXPECT_THAT(out.str(), MatchesRegex(this->params.get_expected()));
 }
 
-TEST(SerializePtr, nested_void_ptrs) {
+TEST(PrintPtr, nested_void_ptrs) {
     void *real = (void *)0xFEEDCAFEull;
     void **preal = &real;
     void ***ppreal = &preal;
     void ****pppreal = &ppreal;
     std::ostringstream out;
-    serializePtr(out, pppreal);
+    details::printPtr(out, pppreal);
     EXPECT_THAT(out.str(), MatchesRegex(".+ \\(.+ \\(.+ \\(.+\\)\\)\\)"));
 }

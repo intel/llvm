@@ -3,7 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "fixtures.hpp"
-#include <ur_params.hpp>
+#include <ur_print.hpp>
 
 using urLoaderInitTestWithParam =
     ::testing::TestWithParam<ur_device_init_flags_t>;
@@ -17,7 +17,7 @@ INSTANTIATE_TEST_SUITE_P(
                       UR_DEVICE_INIT_FLAG_FPGA | UR_DEVICE_INIT_FLAG_VPU),
     [](const ::testing::TestParamInfo<ur_device_init_flags_t> &info) {
         std::stringstream ss;
-        ur_params::serializeFlag<ur_device_init_flag_t>(ss, info.param);
+        ur::print::details::printFlag<ur_device_init_flag_t>(ss, info.param);
         return GTestSanitizeString(ss.str());
     });
 
