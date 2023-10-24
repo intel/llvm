@@ -144,7 +144,7 @@ namespace sycl::ext::intel::experimental {
 allocation _T_, and a list of properties _PropListT_. The type of the
 allocation _T_ also encodes the size of the allocation.
 
-`fpga_mem` initializes the underlying object `T` with the values passed into its constructor. If no values are passed into the constructor C++ default initialization rules will dictate the value of the underlying object `T`.
+`fpga_mem` initializes the underlying object `T` with the values passed into its constructor. If no values are passed into the constructor the underlying object `T` is default initialized.
 
 Properties may be specified for a `fpga_mem` to provide optimization hints to the compiler. See below for a list of the properties that are allowed.
 
