@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a76e3b185a5e1df9114dc483077227f88f522244
-  # Merge: 3653e582 657ffde9
+  # commit 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b
+  # Merge: 614e6d0 b4425bc
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 20 12:12:15 2023 +0100
-  #     Merge pull request #972 from oneapi-src/revert-906-l0_usm_error_checking
-  #     Revert "[UR][L0] Propagate errors from `USMAllocationMakeResident`"
-  set(UNIFIED_RUNTIME_TAG a76e3b185a5e1df9114dc483077227f88f522244)
+  # Date:   Mon Oct 23 14:49:01 2023 +0100
+  #     Merge pull request #945 from npmiller/fix-priority
+  #     [CUDA] Fix queue creation with native handle
+  set(UNIFIED_RUNTIME_TAG 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
