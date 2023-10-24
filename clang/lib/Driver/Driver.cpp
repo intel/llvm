@@ -516,8 +516,10 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   if (Args.hasFlag(options::OPT_miamcu, options::OPT_mno_iamcu, false))
     DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_static));
 
-  // Use of -fintelfpga implies -g
+  // Use of -fintelfpga implies -g and -fsycl
   if (Args.hasArg(options::OPT_fintelfpga)) {
+    if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+      DAL->AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
     // if any -gN option is provided, use that.
     if (Arg *A = Args.getLastArg(options::OPT_gN_Group))
       DAL->append(A);
@@ -3678,13 +3680,6 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
 // static offload libraries.
 bool Driver::checkForOffloadStaticLib(Compilation &C,
                                       DerivedArgList &Args) const {
-  // Make -fintelfpga flag imply -fsycl by default.
-  const llvm::opt::OptTable &Opts = getOpts();
-  Arg *SYCLFpgaArg = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
-  if (SYCLFpgaArg &&
-      !Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
-    Args.AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
-
   // Check only if enabled with -fsycl or -fopenmp-targets
   if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) &&
       !Args.hasArg(options::OPT_fopenmp_targets_EQ))
