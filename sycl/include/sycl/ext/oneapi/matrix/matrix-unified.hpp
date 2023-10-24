@@ -387,9 +387,7 @@ void joint_matrix_copy(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  for (int i = 0; i < src.matrix_impl.wi_marray.size(); i++) {
-    dst.matrix_impl.wi_marray[i] = src.matrix_impl.wi_marray[i];
-  }
+  dst.matrix_impl.wi_marray = src.matrix_impl.wi_marray;
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
