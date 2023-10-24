@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
+#include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
@@ -19,27 +20,59 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-enum class level : std::uint16_t { L1 = 0, L2, L3, L4 };
+using cache_level = sycl::ext::oneapi::experimental::cache_level;
+enum class cache_mode : std::uint16_t {
+  uncached,
+  cached,
+  streaming,
+  invalidate,
+  const_cached,
+  write_through,
+  write_back
+};
+
+namespace detail {
+
+template <int count> static constexpr void checkLevel1() {
+  static_assert(count < 2, "Duplicate cache_level L1 specification");
+}
+template <int count> static constexpr void checkLevel2() {
+  static_assert(count < 2, "Duplicate cache_level L2 specification");
+}
+template <int count> static constexpr void checkLevel3() {
+  static_assert(count < 2, "Duplicate cache_level L3 specification");
+}
+template <int count> static constexpr void checkLevel4() {
+  static_assert(count < 2, "Duplicate cache_level L4 specification");
+}
+
+} // namespace detail
+
+template <cache_mode M, cache_level... Ls> struct cache_control {
+  static constexpr const int countL1 = ((Ls == cache_level::L1 ? 1 : 0) + ...);
+  static constexpr const int countL2 = ((Ls == cache_level::L2 ? 1 : 0) + ...);
+  static constexpr const int countL3 = ((Ls == cache_level::L3 ? 1 : 0) + ...);
+  static constexpr const int countL4 = ((Ls == cache_level::L4 ? 1 : 0) + ...);
+  static constexpr const uint32_t levels = ((1 << static_cast<int>(Ls)) | ...);
+  static constexpr const uint32_t encoding =
+      (countL1, countL2, countL3, countL4, detail::checkLevel1<countL1>(),
+       detail::checkLevel2<countL2>(), detail::checkLevel3<countL3>(),
+       detail::checkLevel4<countL4>(), levels << static_cast<int>(M) * 4);
+};
 
 template <typename PropertyT, typename... Ts>
 using property_value =
     sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 
-#define __SYCL_CACHE_CONTROL_M1(P)                                             \
-  struct P {                                                                   \
-    template <level... Ls>                                                     \
-    using value_t = property_value<P, std::integral_constant<level, Ls>...>;   \
-  };
+struct read_hint_key {
+  template <typename... Cs>
+  using value_t = property_value<read_hint_key, Cs...>;
+};
 
-__SYCL_CACHE_CONTROL_M1(cache_control_read_uncached_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_read_cached_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_read_streaming_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_invalidate_after_read_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_read_const_cached_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_write_uncached_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_write_through_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_write_back_key)
-__SYCL_CACHE_CONTROL_M1(cache_control_write_streaming_key)
+struct write_hint_key {
+  template <typename... Cs>
+  using value_t = property_value<write_hint_key, Cs...>;
+};
 
 } // namespace experimental
 } // namespace intel
@@ -50,113 +83,82 @@ namespace experimental {
 template <typename T, typename PropertyListT> class annotated_arg;
 template <typename T, typename PropertyListT> class annotated_ptr;
 
-#define __SYCL_CACHE_CONTROL_M2(P)                                             \
-  using P = intel::experimental::P;                                            \
-  template <> struct is_property_key<P> : std::true_type {};                   \
-  template <typename T, typename PropertyListT>                                \
-  struct is_property_key_of<P, annotated_arg<T, PropertyListT>>                \
-      : std::true_type {};                                                     \
-  template <typename T, typename PropertyListT>                                \
-  struct is_property_key_of<P, annotated_ptr<T, PropertyListT>>                \
-      : std::true_type {};
+using read_hint_key = intel::experimental::read_hint_key;
+template <> struct is_property_key<read_hint_key> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_hint_key, annotated_arg<T, PropertyListT>>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_hint_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
 
-__SYCL_CACHE_CONTROL_M2(cache_control_read_uncached_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_read_cached_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_read_streaming_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_invalidate_after_read_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_read_const_cached_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_write_uncached_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_write_through_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_write_back_key)
-__SYCL_CACHE_CONTROL_M2(cache_control_write_streaming_key)
+using write_hint_key = intel::experimental::write_hint_key;
+template <> struct is_property_key<write_hint_key> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<write_hint_key, annotated_arg<T, PropertyListT>>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<write_hint_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
 
 using namespace intel::experimental;
 
-#define __SYCL_CACHE_CONTROL_M3(P)                                             \
-  template <level... Ls> inline constexpr P##_key::value_t<Ls...> P;
+template <typename... Cs>
+inline constexpr read_hint_key::value_t<Cs...> read_hint;
 
-__SYCL_CACHE_CONTROL_M3(cache_control_read_uncached)
-__SYCL_CACHE_CONTROL_M3(cache_control_read_cached)
-__SYCL_CACHE_CONTROL_M3(cache_control_read_streaming)
-__SYCL_CACHE_CONTROL_M3(cache_control_invalidate_after_read)
-__SYCL_CACHE_CONTROL_M3(cache_control_read_const_cached)
-__SYCL_CACHE_CONTROL_M3(cache_control_write_uncached)
-__SYCL_CACHE_CONTROL_M3(cache_control_write_through)
-__SYCL_CACHE_CONTROL_M3(cache_control_write_back)
-__SYCL_CACHE_CONTROL_M3(cache_control_write_streaming)
+template <typename... Cs>
+inline constexpr write_hint_key::value_t<Cs...> write_hint;
 
 namespace detail {
 
-template <level L_1> static constexpr void checkLevels() {}
-template <level L_1, level L_2> static constexpr void checkLevels() {
-  static_assert(L_1 != L_2, "Duplicate cache level specification.");
+static constexpr int countL(int levels, int mask) {
+  return levels & mask ? 1 : 0;
 }
-template <level L_1, level L_2, level L_3> static constexpr void checkLevels() {
-  static_assert(L_1 != L_2 && L_1 != L_3 && L_2 != L_3,
-                "Duplicate cache level specification.");
-}
-template <level L_1, level L_2, level L_3, level L_4>
-static constexpr void checkLevels() {
-  static_assert(L_1 != L_2 && L_1 != L_3 && L_1 != L_4 && L_2 != L_3 &&
-                    L_2 != L_4 && L_3 != L_4,
-                "Duplicate cache level specification.");
+template <int countL1, int countL2, int countL3, int countL4>
+static constexpr void checkUnique() {
+  static_assert(countL1 < 2, "Conflicting cache_mode at L1");
+  static_assert(countL2 < 2, "Conflicting cache_mode at L2");
+  static_assert(countL3 < 2, "Conflicting cache_mode at L3");
+  static_assert(countL4 < 2, "Conflicting cache_mode at L4");
 }
 
-#define __SYCL_CACHE_CONTROL_M4(P, K, N)                                       \
-  template <> struct PropertyToKind<P> {                                       \
-    static constexpr PropKind Kind = PropKind::K;                              \
-  };                                                                           \
-  template <> struct IsCompileTimeProperty<P> : std::true_type {};             \
-  template <level... Ls> struct PropertyMetaInfo<P::value_t<Ls...>> {          \
-    static constexpr const char *name = N;                                     \
-    static constexpr const int value =                                         \
-        (checkLevels<Ls...>(), ((1 << static_cast<int>(Ls)) | ...));           \
-  };
+template <> struct PropertyToKind<read_hint_key> {
+  static constexpr PropKind Kind = PropKind::CacheControlRead;
+};
+template <> struct IsCompileTimeProperty<read_hint_key> : std::true_type {};
+template <typename... Cs>
+struct PropertyMetaInfo<read_hint_key::value_t<Cs...>> {
+  static constexpr const char *name = "sycl-cache-read-hint";
+  static constexpr const int value =
+      (checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
+                   (countL(Cs::levels, 4) + ...),
+                   (countL(Cs::levels, 8) + ...)>(),
+       ((Cs::encoding) | ...));
+};
 
-__SYCL_CACHE_CONTROL_M4(cache_control_read_uncached_key,
-                        CacheControlReadUncached, "sycl-cache-read-uncached")
-__SYCL_CACHE_CONTROL_M4(cache_control_read_cached_key, CacheControlReadCached,
-                        "sycl-cache-read-cached")
-__SYCL_CACHE_CONTROL_M4(cache_control_read_streaming_key,
-                        CacheControlReadStreaming, "sycl-cache-read-streaming")
-__SYCL_CACHE_CONTROL_M4(cache_control_invalidate_after_read_key,
-                        CacheControlReadInvalidateAfterRead,
-                        "sycl-cache-read-invalidate-after-read")
-__SYCL_CACHE_CONTROL_M4(cache_control_read_const_cached_key,
-                        CacheControlReadConstCached,
-                        "sycl-cache-read-const-cached")
-__SYCL_CACHE_CONTROL_M4(cache_control_write_uncached_key,
-                        CacheControlWriteUncached, "sycl-cache-write-uncached")
-__SYCL_CACHE_CONTROL_M4(cache_control_write_through_key,
-                        CacheControlWriteThrough, "sycl-cache-write-through")
-__SYCL_CACHE_CONTROL_M4(cache_control_write_back_key, CacheControlWriteBack,
-                        "sycl-cache-write-back")
-__SYCL_CACHE_CONTROL_M4(cache_control_write_streaming_key,
-                        CacheControlWriteStreaming,
-                        "sycl-cache-write-streaming")
+template <> struct PropertyToKind<write_hint_key> {
+  static constexpr PropKind Kind = PropKind::CacheControlWrite;
+};
+template <> struct IsCompileTimeProperty<write_hint_key> : std::true_type {};
+template <typename... Cs>
+struct PropertyMetaInfo<write_hint_key::value_t<Cs...>> {
+  static constexpr const char *name = "sycl-cache-write-hint";
+  static constexpr const int value =
+      (checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
+                   (countL(Cs::levels, 4) + ...),
+                   (countL(Cs::levels, 8) + ...)>(),
+       ((Cs::encoding) | ...));
+};
 
 } // namespace detail
 
-#define __SYCL_CACHE_CONTROL_M5(P)                                             \
-  template <typename T, level... Ts>                                           \
-  struct is_valid_property<T, P::value_t<Ts...>>                               \
-      : std::bool_constant<std::is_pointer<T>::value> {};
+template <typename T, typename... Cs>
+struct is_valid_property<T, read_hint_key::value_t<Cs...>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
 
-__SYCL_CACHE_CONTROL_M5(cache_control_read_uncached_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_read_cached_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_read_streaming_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_invalidate_after_read_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_read_const_cached_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_write_uncached_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_write_through_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_write_back_key)
-__SYCL_CACHE_CONTROL_M5(cache_control_write_streaming_key)
-
-#undef __SYCL_CACHE_CONTROL_M1
-#undef __SYCL_CACHE_CONTROL_M2
-#undef __SYCL_CACHE_CONTROL_M3
-#undef __SYCL_CACHE_CONTROL_M4
-#undef __SYCL_CACHE_CONTROL_M5
+template <typename T, typename... Cs>
+struct is_valid_property<T, write_hint_key::value_t<Cs...>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
 
 } // namespace experimental
 } // namespace oneapi

@@ -8,16 +8,21 @@ using namespace sycl;
 using namespace ext::oneapi::experimental;
 using namespace ext::intel::experimental;
 
-using annotated_ptr_load =
-    annotated_ptr<float, decltype(properties(
-                             alignment<8>, cache_control_read_cached<level::L1>,
-                             cache_control_read_uncached<level::L2, level::L3>,
-                             cache_control_invalidate_after_read<level::L4>))>;
+using annotated_ptr_load = annotated_ptr<
+    float,
+    decltype(properties(
+        alignment<8>,
+        read_hint<cache_control<cache_mode::cached, cache_level::L1>,
+                  cache_control<cache_mode::uncached, cache_level::L2,
+                                cache_level::L3>,
+                  cache_control<cache_mode::invalidate, cache_level::L4>>))>;
 
-using annotated_ptr_store =
-    annotated_ptr<float, decltype(properties(
-                             cache_control_write_through<level::L1>,
-                             cache_control_write_back<level::L2, level::L3>))>;
+using annotated_ptr_store = annotated_ptr<
+    float,
+    decltype(properties(
+        write_hint<cache_control<cache_mode::write_through, cache_level::L1>,
+                   cache_control<cache_mode::write_back, cache_level::L2,
+                                 cache_level::L3>>))>;
 
 void cache_control_read_func() {
   queue q;
@@ -54,9 +59,9 @@ void cache_control_write_func() {
 // CHECK-IR: ret void
 
 // CHECK-IR: [[RDECOR]] = !{[[RDECOR1:.*]], [[RDECOR2:.*]], [[RDECOR3:.*]], [[RDECOR4:.*]]}
-// CHECK-IR: [[RDECOR1]] = !{i32 6442, i32 0, i32 1}
-// CHECK-IR: [[RDECOR2]] = !{i32 6442, i32 1, i32 0}
-// CHECK-IR: [[RDECOR3]] = !{i32 6442, i32 2, i32 0}
+// CHECK-IR: [[RDECOR1]] = !{i32 6442, i32 1, i32 0}
+// CHECK-IR: [[RDECOR2]] = !{i32 6442, i32 2, i32 0}
+// CHECK-IR: [[RDECOR3]] = !{i32 6442, i32 0, i32 1}
 // CHECK-IR: [[RDECOR4]] = !{i32 6442, i32 3, i32 3}
 
 // CHECK-IR: [[WDECOR]] = !{[[WDECOR1:.*]], [[WDECOR2:.*]], [[WDECOR3:.*]]}

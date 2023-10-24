@@ -104,47 +104,79 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
 /// where decoration code and value are both uint32_t integers.
 /// The value encodes a cache level and a cache control type.
 ///
-/// @param Ctx    [in] the LLVM Context.
-/// @param OpCode [in] the SPIR-V OpCode code.
-/// @param Value  [in] the SPIR-V decoration value.
+/// @param Ctx        [in] the LLVM Context.
+/// @param Name       [in] the SPIR-V property string name.
+/// @param OpCode     [in] the SPIR-V opcode.
+/// @param CacheMode  [in] whether read or write.
+/// @param CacheLevel [in] the cache level.
 ///
 /// @returns a pointer to the metadata node created for the required decoration
 /// and its values.
 MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
-                                 uint32_t OpCode, uint32_t CacheLevel) {
-  enum class cache_control_read_type {
-    uncached = 0,
-    cached = 1,
-    streaming = 2,
-    invalidate_after_read = 3,
-    const_cached = 4
+                                 uint32_t OpCode, uint32_t CacheMode,
+                                 uint32_t CacheLevel) {
+  // SPIR-V encodings of read control
+  enum cache_control_read_type {
+    read_uncached = 0,
+    read_cached = 1,
+    read_streaming = 2,
+    read_invalidate = 3,
+    read_const_cached = 4
   };
-  enum class cache_control_write_type {
-    uncached = 0,
+  // SPIR-V encodings of write control
+  enum cache_control_write_type {
+    write_uncached = 0,
     write_through = 1,
     write_back = 2,
-    streaming = 3
+    write_streaming = 3
   };
+  // SYCL encodings of read/write control
+  enum cache_mode {
+    uncached,
+    cached,
+    streaming,
+    invalidate,
+    const_cached,
+    through,
+    back
+  };
+
+  // Map SYCL encoding to SPIR-V
   uint32_t CacheProp;
-  if (Name == "sycl-cache-read-uncached")
-    CacheProp = static_cast<int>(cache_control_read_type::uncached);
-  else if (Name == "sycl-cache-read-cached")
-    CacheProp = static_cast<int>(cache_control_read_type::cached);
-  else if (Name == "sycl-cache-read-streaming")
-    CacheProp = static_cast<int>(cache_control_read_type::streaming);
-  else if (Name == "sycl-cache-read-invalidate-after-read")
-    CacheProp =
-        static_cast<int>(cache_control_read_type::invalidate_after_read);
-  else if (Name == "sycl-cache-read-const-cached")
-    CacheProp = static_cast<int>(cache_control_read_type::const_cached);
-  else if (Name == "sycl-cache-write-uncached")
-    CacheProp = static_cast<int>(cache_control_write_type::uncached);
-  else if (Name == "sycl-cache-write-through")
-    CacheProp = static_cast<int>(cache_control_write_type::write_through);
-  else if (Name == "sycl-cache-write-back")
-    CacheProp = static_cast<int>(cache_control_write_type::write_back);
-  else if (Name == "sycl-cache-write-streaming")
-    CacheProp = static_cast<int>(cache_control_write_type::streaming);
+  if (Name == "sycl-cache-read-hint") {
+    switch (CacheMode) {
+    case uncached:
+      CacheProp = read_uncached;
+      break;
+    case cached:
+      CacheProp = read_cached;
+      break;
+    case streaming:
+      CacheProp = read_streaming;
+      break;
+    case invalidate:
+      CacheProp = read_invalidate;
+      break;
+    case const_cached:
+      CacheProp = read_const_cached;
+      break;
+    }
+  } else {
+    switch (CacheMode) {
+    case uncached:
+      CacheProp = write_uncached;
+      break;
+    case through:
+      CacheProp = write_through;
+      break;
+    case back:
+      CacheProp = write_back;
+      break;
+    case streaming:
+      CacheProp = write_streaming;
+      break;
+    }
+  }
 
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 3> MD;
@@ -689,8 +721,6 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
   SmallVector<Metadata *, 8> MDOpsCacheProp;
-  uint32_t CacheLevelsSpecifiedLoad = 0;
-  uint32_t CacheLevelsSpecifiedStore = 0;
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
@@ -710,34 +740,29 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       auto DecorValue = PropVal;
       uint32_t AttrVal;
       DecorValue->getAsInteger(0, AttrVal);
-      // Check that a particular cache level is specified only once for
-      // load/store.
-      if ((*PropName).starts_with("sycl-cache-read-")) {
-        assert(
-            (AttrVal & CacheLevelsSpecifiedLoad) == 0 &&
-            "Conflicting Read cache control specified in pointer annotation");
-        CacheLevelsSpecifiedLoad |= AttrVal;
-      } else {
-        assert(
-            (AttrVal & CacheLevelsSpecifiedStore) == 0 &&
-            "Conflicting Write cache control specified in pointer annotation");
-        CacheLevelsSpecifiedStore |= AttrVal;
-      }
-
       // Format is:
-      // !Annot = !{!CC1, !CC2}
+      // !Annot = !{!CC1, !CC2, ...}
       // !CC1 = !{i32 Load/Store, i32 Level, i32 Control}
       // !CC2 = !{i32 Load/Store, i32 Level, i32 Control}
+      // ...
       LLVMContext &Ctx = M.getContext();
-      uint32_t CacheLevel = 0;
+      uint32_t CacheMode = 0;
       while (AttrVal) {
-        // The attribute value encodes cache levels as L1->bit0, L2->bit1,
+        // The attribute value encodes cache control and levels.
+        // Low-order to high-order nibbles represent the enumerated cache modes.
+        // In each nibble cache levels are encodes as L1->bit0, L2->bit1,
         // L3->bit2 and L4->bit3. The SPIR-V encoding uses numbers 0..3.
-        if (AttrVal & 1)
-          MDOpsCacheProp.push_back(
-              buildSpirvDecorCacheProp(Ctx, *PropName, DecorCode, CacheLevel));
-        ++CacheLevel;
-        AttrVal >>= 1;
+        uint32_t CacheLevel = 0;
+        uint32_t LevelMask = AttrVal & 0xf;
+        while (LevelMask) {
+          if (LevelMask & 1)
+            MDOpsCacheProp.push_back(buildSpirvDecorCacheProp(
+                Ctx, *PropName, DecorCode, CacheMode, CacheLevel));
+          ++CacheLevel;
+          LevelMask >>= 1;
+        }
+        ++CacheMode;
+        AttrVal >>= 4;
       }
     } else {
       FPGAProp = true;

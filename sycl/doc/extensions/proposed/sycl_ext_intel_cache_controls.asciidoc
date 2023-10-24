@@ -96,229 +96,71 @@ Below is a list of new compile-time constant properties supported with
 `annotated_ptr`.
 
 ```c++
-namespace sycl::ext::intel::experimental {
+namespace sycl::ext {
+namespace intel::experimental {
 
-enum class level : /*unspecified*/ {
-    L1,
-    L2,
-    L3,
-    L4,
+using cache_level = sycl::ext::oneapi::experimental::cache_level;
+
+enum class cache_mode {
+  uncached,
+  cached,
+  streaming,
+  invalidate,
+  const_cached,
+  write_through,
+  write_back
 };
 
-enum class cache_control_read_type : /* unspecified */ {
-    uncached,
-    cached,
-    streaming,
-    invalidate_after_read,
-    const_cached,
+struct read_hint_key {
+  template <typename... Cs>
+  using value_t = property_value<read_hint_key, Cs...>;
 };
 
-enum class cache_control_write_type : /* unspecified */ {
-    uncached,
-    write_through,
-    write_back,
-    streaming,
+struct write_hint_key {
+  template <typename... Cs>
+  using value_t = property_value<write_hint_key, Cs...>;
 };
 
-struct cache_control_read_uncached_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_read_uncached_key, std::integral_constant<level, Ls>...>;
-};
+} // namespace intel::experimental
 
-struct cache_control_read_cached_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_read_cached_key, std::integral_constant<level, Ls>...>;
-};
+using namespace intel::experimental;
 
-struct cache_control_read_streaming_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_read_streaming_key, std::integral_constant<level, Ls>...>;
-};
+using read_hint_key = intel::experimental::read_hint_key;
+template <> struct is_property_key<read_hint_key> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_hint_key, annotated_arg<T, PropertyListT>>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_hint_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
 
-struct cache_control_invalidate_after_read_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_invalidate_after_read_key, std::integral_constant<level, Ls>...>;
-};
+using write_hint_key = intel::experimental::write_hint_key;
+template <> struct is_property_key<write_hint_key> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<write_hint_key, annotated_arg<T, PropertyListT>>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<write_hint_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
 
-struct cache_control_read_const_cached_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_read_const_cached_key, std::integral_constant<level, Ls>...>;
-};
+template <typename... Cs>
+inline constexpr read_hint_key::value_t<Cs...> read_hint;
 
-struct cache_control_write_uncached_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_write_uncached_key, std::integral_constant<level, Ls>...>;
-};
-
-struct cache_control_write_through_key {
-  template<level... s>
-  using value_t =
-    property_value<cache_control_write_through_key, std::integral_constant<level, Ls>...>;
-};
-
-struct cache_control_write_back_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_write_back_key, std::integral_constant<level, Ls>...>;
-};
-
-struct cache_control_write_streaming_key {
-  template<level... Ls>
-  using value_t =
-    property_value<cache_control_write_streaming_key, std::integral_constant<level, Ls>...>;
-};
-
-template<level... Ls>
-inline constexpr cache_control_read_uncached_key::value_t<Ls...> cache_control_read_uncached;
-
-template<level... Ls>
-inline constexpr cache_control_read_cached_key::value_t<Ls...> cache_control_read_cached;
-
-template<level... Ls>
-inline constexpr cache_control_read_streaming_key::value_t<Ls...> cache_control_read_streaming;
-
-template<level... Ls>
-inline constexpr cache_control_invalidate_after_read_key::value_t<Ls...> cache_control_invalidate_after_read;
-
-template<level... Ls>
-inline constexpr cache_control_read_const_cached_key::value_t<Ls...> cache_control_read_const_cached;
-
-template<level... Ls>
-inline constexpr cache_control_write_uncached_key::value_t<Ls...> cache_control_write_uncached;
-
-template<level... Ls>
-inline constexpr cache_control_write_through_key::value_t<Ls...> cache_control_write_through;
-
-template<level... Ls>
-inline constexpr cache_control_write_back_key::value_t<Ls...> cache_control_write_back;
-
-template<level... Ls>
-inline constexpr cache_control_write_streaming_key::value_t<Ls...> cache_control_write_streaming;
-
-
-using cache_control_read_uncached_key = intel::experimental::cache_control_read_uncached_key;
-template<>
-struct is_property_key<cache_control_read_uncached_key> : std::true_type {};
-
-using cache_control_read_cached_key = intel::experimental::cache_control_read_cached_key;
-template<>
-struct is_property_key<cache_control_read_cached_key> : std::true_type {};
-
-using cache_control_read_streaming_key = intel::experimental::cache_control_read_streaming_key;
-template<>
-struct is_property_key<cache_control_read_streaming_key> : std::true_type {};
-
-using cache_control_invalidate_after_read_key = intel::experimental::cache_control_invalidate_after_read_key;
-template<>
-struct is_property_key<cache_control_invalidate_after_read_key> : std::true_type {};
-
-using cache_contcache_control_read_const_cached_keyrol_read_key = intel::experimental::cache_control_read_const_cached_key;
-template<>
-struct is_property_key<cache_control_read_const_cached_key> : std::true_type {};
-
-using cache_control_write_uncached_key = intel::experimental::cache_control_write_uncached_key;
-template<>
-struct is_property_key<cache_control_write_through_key> : std::true_type {};
-
-using cache_control_write_through_key = intel::experimental::cache_control_write_through_key;
-template<>
-struct is_property_key<cache_control_write_back_key> : std::true_type {};
-
-using cache_controcache_control_write_back_key = intel::experimental::cache_control_write_back_key;
-template<>
-struct is_property_key<cache_control_write_key> : std::true_type {};
-
-using cache_control_write_streaming_key = intel::experimental::cache_control_write_streaming_key;
-template<>
-struct is_property_key<cache_control_write_streaming_key> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_read_uncached_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_read_cached_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_read_streaming_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_invalidate_after_read_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_read_const_cached_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_write_uncached_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_write_through_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_write_back_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-  
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  cache_control_write_streaming_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-
-
-template<level... Ls>
-inline constexpr cache_control_read_uncached_key::value_t<Ls...> cache_control_read_uncached_key;
-
-template<level... Ls>
-inline constexpr cache_control_read_cached_key::value_t<Ls...> cache_control_read_cached_key;
-
-template<level... Ls>
-inline constexpr cache_control_read_streaming_key::value_t<Ls...> cache_control_read_streaming_key;
-
-template<level... Ls>
-inline constexpr cache_control_invalidate_after_read_key::value_t<Ls...> cache_control_invalidate_after_read_key;
-
-template<level... Ls>
-inline constexpr cache_control_read_const_cached_key::value_t<Ls...> cache_control_read_const_cached_key;
-
-template<level... Ls>
-inline constexpr cache_control_write_uncached_key::value_t<Ls...> cache_control_write_uncached_key;
-
-template<level... Ls>
-inline constexpr cache_control_write_through_key::value_t<Ls...> cache_control_write_through_key;
-
-template<level... Ls>
-inline constexpr cache_control_write_back_key::value_t<Ls...> cache_control_write_back_key;
-
-template<level... Ls>
-inline constexpr cache_control_write_streaming_key::value_t<Ls...> cache_control_write_streaming_key;
+template <typename... Cs>
+inline constexpr write_hint_key::value_t<Cs...> write_hint;
 
 } // namespace sycl::ext::intel::experimental
 ```
-Each of these properties takes a cache level parameter indicating which level
-of the cache hierarchy is affected. Cache level 0 indicates the cache closest
-to the processing unit, cache level 1 indicates the next furthest cache
-level, etc. It is legal to specify a cache level that does not exist on
+Each of these properties takes a cache control parameter indicating
+the cache control mode and a list of cache levels the control applies to.
+Cache level L1 indicates the cache closest to the processing unit,
+cache level L2 indicates the next furthest cache level, etc.
+It is legal to specify a cache level that does not exist on
 the target device, but the property will be ignored in this case.
 
-Note that a property specifies the cache behavior only for the indicated
-cache level. In order to specify the behavior for multiple cache levels, 
-multiple properties should be specified.
-
 It is legal to specify several different cache control properties in the
-same `annotated_ptr`. However, all instances of `cache_control_read_type` must
-have different cache levels and all instances of `cache_control_write_type`
-must have difference cache levels.
+same `annotated_ptr`. However, at any cache level there should be
+at most one `cache_mode` in `read_hint` and one `cache_mode` in `write_hint`.
 
 The cache control properties are divided into two categories: those that
 are hints and those that are assertions by the application.
@@ -335,7 +177,7 @@ affect the performance of device code, but they do not change the semantics.
 a|
 [source]
 ----
-cache_control_read_uncached<Ls...>
+read_hint<cache_control<cache_mode::uncached, Ls...>>
 ----
 |
 This property requests that loads from memory through the `annotated_ptr`
@@ -343,7 +185,7 @@ should not cache the data at levels `Ls` in the memory hierarchy.
 a|
 [source]
 ----
-cache_control_read_cached<Ls...>
+read_hint<cache_control<cache_mode::cached, Ls...>>
 ----
 |
 This property requests that loads from memory through the `annotated_ptr`
@@ -351,7 +193,7 @@ may cache the data at levels `Ls` in the memory hierarchy.
 a|
 [source]
 ----
-cache_control_read_streaming<Ls...>
+read_hint<cache_control<cache_mode::streaming, Ls...>>
 ----
 |
 This property requests that loads from memory through the `annotated_ptr`
@@ -361,7 +203,7 @@ property.
 a|
 [source]
 ----
-cache_control_write_uncached<Ls...>
+write_hint<cache_control<cache_mode::uncached, Ls...>>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
@@ -369,7 +211,7 @@ should not cache the data at levels `Ls` in the memory hierarchy.
 a|
 [source]
 ----
-cache_control_write_through<Ls...>
+write_hint<cache_control<cache_mode::write_through, Ls...>>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
@@ -378,7 +220,7 @@ and mark the cache line at levels `Ls` as "not dirty".
 a|
 [source]
 ----
-cache_control_write_back<Ls...>
+write_hint<cache_control<cache_mode::write_back, Ls...>>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
@@ -388,7 +230,7 @@ level higher than `Ls`.
 a|
 [source]
 ----
-cache_control_write_streaming<Ls...>
+write_hint<cache_control<cache_mode::streaming, Ls...>>
 ----
 |
 This property is the same as `write_through`, but requests use of a
@@ -410,7 +252,7 @@ they are misused.
 a|
 [source]
 ----
-cache_control_invalidate_after_read<Ls...>
+read_hint<cache_control<cache_mode::invalidate, Ls...>>
 ----
 |
 This property asserts that the cache line into which data is loaded
@@ -421,7 +263,7 @@ the cache line and discard "dirty" data. If the assertion is violated
 a|
 [source]
 ----
-cache_control_read_const_cached<Ls...>
+read_hint<cache_control<cache_mode::const_cached, Ls...>>
 ----
 |
 This property asserts that the cache line containing the data
@@ -434,8 +276,6 @@ is undefined.
 
 == Implementation notes
 
-It is intended that the SYCL cache control properties will be used by the
-compiler to generate SPIR-V cache control operations. Alternatively, the
-properties could be implemented by generating intrinsic function calls
-that match the cache control types.
+The SYCL cache control properties will be used by the
+compiler to generate SPIR-V cache control operations.
 
