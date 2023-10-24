@@ -18,8 +18,8 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Support/LLVM.h"
 
-#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/TypeSwitch.h>
+#include <llvm/ADT/identity.h>
 #include <llvm/Support/Debug.h>
 
 #include <numeric>
