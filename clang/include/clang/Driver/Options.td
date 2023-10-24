@@ -3858,7 +3858,14 @@ def ftarget_register_alloc_mode_EQ : Joined<["-"], "ftarget-register-alloc-mode=
   HelpText<"Specify a register allocation mode for specific hardware for use by supported "
   "target backends.">;
 def : Flag<["-"], "fsycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fgpu_rdc>;
-def : Flag<["-"], "fno-sycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>;
+def : Flag<["-"], "fno-sycl-rdc">,
+  Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>,
+  HelpText<"Generate relocatable device code during SYCL offload target "
+           "compilation. Use of ‘-fno-sycl-rdc’ in combination with ‘-c’ will "
+           "produce final device binaries within the generated fat object. "
+           "When using this option, each kernel must be self-contained within "
+           "its translation unit (source file).  Therefore, the use of "
+           "SYCL_EXTERNAL is disallowed when this option is enabled.">;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
