@@ -260,6 +260,11 @@ static constexpr char StateTypeName[] = "struct.__nativecpu_state";
 
 Type *getStateType(Module& M) {
   // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
+  // Check that there's no __nativecpu_state type
+  auto Types = M.getIdentifiedStructTypes();
+  bool HasStateT = llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName;});
+  if(HasStateT)
+    report_fatal_error("Native CPU state unexpectedly found in the module.");
   auto& Ctx = M.getContext();
   auto* I64Ty = Type::getInt64Ty(Ctx);
   auto* Array3dTy = ArrayType::get(I64Ty, 3);
