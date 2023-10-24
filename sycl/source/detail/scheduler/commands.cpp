@@ -2015,7 +2015,6 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti_td *CmdTraceEvent =
       xptiMakeEvent("ExecCG", &Payload, xpti::trace_graph_event,
                     xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
-
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
@@ -2058,9 +2057,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     std::vector<ArgDesc> &CGArgs) {
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
-
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
+  if (!xptiCheckTraceEnabled(StreamID))
     return XptiObjects;
 
   void *Address = nullptr;
