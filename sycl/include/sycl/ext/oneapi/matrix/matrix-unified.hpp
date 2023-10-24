@@ -84,14 +84,11 @@ inline __SYCL_ALWAYS_INLINE void
 joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
                    F &&lambda) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
   for (int i = 0; i < jm.matrix_impl.wi_marray.size(); i++) {
     lambda(jm.matrix_impl.wi_marray[i]);
   }
-#elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_apply(jm.matrix_impl, lambda);
 #else // NVPTX
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
@@ -120,11 +117,8 @@ joint_matrix_fill(Group,
                   joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
                   const T2 &v) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
   res.matrix_impl.wi_marray = v;
-#elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  sycl::ext::oneapi::detail::joint_matrix_apply(res.matrix_impl,
-                                                [=](T &value) { value = v; });
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
@@ -391,15 +385,11 @@ void joint_matrix_copy(
     Group sg, joint_matrix<Group, T1, Use1, Rows, Cols, Layout1> &src,
     joint_matrix<Group, T2, Use2, Rows, Cols, Layout2> &dst) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
+#if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
   for (int i = 0; i < src.matrix_impl.wi_marray.size(); i++) {
     dst.matrix_impl.wi_marray[i] = src.matrix_impl.wi_marray[i];
   }
-#elif defined(__HIP_PLATFORM_AMD_MFMA__)
-  std::ignore = sg;
-  sycl::ext::oneapi::detail::joint_matrix_copy(src.matrix_impl,
-                                               dst.matrix_impl);
 #else
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<

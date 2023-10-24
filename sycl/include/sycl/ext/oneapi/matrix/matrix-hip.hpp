@@ -30,6 +30,8 @@ struct joint_matrix_hip;
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD_MFMA__)
 
+constexpr int WAVEFRONT_SIZE = 64;
+
 using bfloat16x4 = __attribute__((__vector_size__(4 * sizeof(__bf16)))) __fp16;
 using float16x4 = __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16;
 using floatx4 = __attribute__((__vector_size__(4 * sizeof(float)))) float;
@@ -65,7 +67,7 @@ template <> struct to_hip_type<int8_t> {
               sycl::ext::oneapi::experimental::matrix::layout::row_major ||    \
           Layout ==                                                            \
               sycl::ext::oneapi::experimental::matrix::layout::col_major>> {   \
-    sycl::marray<TYPE, SIZE> data;                                             \
+    sycl::marray<TYPE, SIZE> wi_marray;                                        \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR(bfloat16, a, 16, 16, 4)
@@ -93,7 +95,7 @@ __SYCL_JOINT_MATRIX_OVERLOAD_ARR(int8_t, b, 16, 16, 4)
   struct joint_matrix_hip<                                                     \
       TYPE, sycl::ext::oneapi::experimental::matrix::use::accumulator, M, N,   \
       sycl::ext::oneapi::experimental::matrix::layout::dynamic> {              \
-    sycl::marray<TYPE, (M * N) / 64> data;                                     \
+    sycl::marray<TYPE, (M * N) / WAVEFRONT_SIZE> wi_marray;                    \
   };
 
 __SYCL_JOINT_MATRIX_OVERLOAD_ARR_ACC(float, 16, 16)
@@ -123,12 +125,12 @@ void load_accumulator_layoutT(
                   sycl::ext::oneapi::experimental::matrix::layout::row_major) {
       for (int i = 0; i < 4; ++i) {
         const int s_idx = thread_x + i * 4 * stride + thread_y * stride;
-        res.data[i] = src[s_idx];
+        res.wi_marray[i] = src[s_idx];
       }
     } else {
       for (int i = 0; i < 4; ++i) {
         const int s_idx = i * 4 + thread_x * stride + thread_y;
-        res.data[i] = src[s_idx];
+        res.wi_marray[i] = src[s_idx];
       }
     }
   } else if constexpr (std::is_same_v<S, float> || std::is_same_v<S, int32_t>) {
@@ -140,12 +142,12 @@ void load_accumulator_layoutT(
                                   row_major) {
         for (int i = 0; i < 4; ++i) {
           const int s_idx = thread_x + i * stride + thread_y * 4 * stride;
-          res.data[i] = src[s_idx];
+          res.wi_marray[i] = src[s_idx];
         }
       } else {
         for (int i = 0; i < 4; ++i) {
           const int s_idx = i + thread_x * stride + thread_y * 4;
-          res.data[i] = src[s_idx];
+          res.wi_marray[i] = src[s_idx];
         }
       }
     } else if constexpr (M == 32 && N == 32) {
@@ -158,14 +160,14 @@ void load_accumulator_layoutT(
           for (int i = 0; i < 4; ++i) {
             const int s_idx =
                 thread_x + i * stride + thread_y * 4 * stride + j * 8 * N;
-            res.data[i + 4 * j] = src[s_idx];
+            res.wi_marray[i + 4 * j] = src[s_idx];
           }
         }
       } else {
         for (int j = 0; j < 4; ++j) {
           for (int i = 0; i < 4; ++i) {
             const int s_idx = i + thread_x * stride + thread_y * 4 + j * 8;
-            res.data[i + 4 * j] = src[s_idx];
+            res.wi_marray[i + 4 * j] = src[s_idx];
           }
         }
       }
@@ -212,9 +214,9 @@ void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
   if constexpr (std::is_same_v<S, double>) {
     if constexpr (Layout ==
                   sycl::ext::oneapi::experimental::matrix::layout::row_major) {
-      res.data[0] = src[idx];
+      res.wi_marray[0] = src[idx];
     } else {
-      res.data[0] = src[(idx % M) * stride + idx / M];
+      res.wi_marray[0] = src[(idx % M) * stride + idx / M];
     }
   } else {
     constexpr int Dim = (M == 16) ? 16 : 32;
@@ -226,12 +228,12 @@ void load_multiplicand_hip(joint_matrix_hip<S, Use, M, N, Layout> &res,
                   sycl::ext::oneapi::experimental::matrix::layout::col_major) {
       for (int i = 0; i < 4; ++i) {
         const int c_idx = thread_x * stride + i + thread_y * 4;
-        res.data[i] = src[c_idx];
+        res.wi_marray[i] = src[c_idx];
       }
     } else {
       for (int i = 0; i < 4; ++i) {
         const int r_idx = thread_x + i * stride + thread_y * stride * 4;
-        res.data[i] = src[r_idx];
+        res.wi_marray[i] = src[r_idx];
       }
     }
   }
@@ -257,12 +259,12 @@ void store_layoutT(
                   sycl::ext::oneapi::experimental::matrix::layout::row_major) {
       for (int i = 0; i < 4; ++i) {
         const int d_idx = thread_x + i * 4 * stride + thread_y * stride;
-        dst[d_idx] = src.data[i];
+        dst[d_idx] = src.wi_marray[i];
       }
     } else {
       for (int i = 0; i < 4; ++i) {
         const int d_idx = i * 4 + thread_x * stride + thread_y;
-        dst[d_idx] = src.data[i];
+        dst[d_idx] = src.wi_marray[i];
       }
     }
   } else if constexpr (std::is_same_v<T, float> || std::is_same_v<T, int32_t>) {
@@ -274,12 +276,12 @@ void store_layoutT(
                                   row_major) {
         for (int i = 0; i < 4; ++i) {
           const int d_idx = thread_x + i * stride + thread_y * 4 * stride;
-          dst[d_idx] = src.data[i];
+          dst[d_idx] = src.wi_marray[i];
         }
       } else {
         for (int i = 0; i < 4; ++i) {
           const int d_idx = i + thread_x * stride + thread_y * 4;
-          dst[d_idx] = src.data[i];
+          dst[d_idx] = src.wi_marray[i];
         }
       }
     } else if constexpr (M == 32 && N == 32) {
@@ -292,14 +294,14 @@ void store_layoutT(
           for (int i = 0; i < 4; ++i) {
             const int d_idx =
                 thread_x + i * stride + thread_y * 4 * stride + j * 8 * stride;
-            dst[d_idx] = src.data[i + 4 * j];
+            dst[d_idx] = src.wi_marray[i + 4 * j];
           }
         }
       } else {
         for (int j = 0; j < 4; ++j) {
           for (int i = 0; i < 4; ++i) {
             const int d_idx = i + thread_x * stride + thread_y * 4 + j * 8;
-            dst[d_idx] = src.data[i + 4 * j];
+            dst[d_idx] = src.wi_marray[i + 4 * j];
           }
         }
       }
@@ -343,103 +345,59 @@ void joint_matrix_mad_hip(
   if constexpr (std::is_same_v<Tm, sycl::half>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16f16(
-          *reinterpret_cast<const float16x4 *>(&A.data),
-          *reinterpret_cast<const float16x4 *>(&B.data),
-          *reinterpret_cast<const floatx4 *>(&C.data), 0, 0, 0);
+          *reinterpret_cast<const float16x4 *>(&A.wi_marray),
+          *reinterpret_cast<const float16x4 *>(&B.wi_marray),
+          *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 4; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x8f16(
-          *reinterpret_cast<const float16x4 *>(&A.data),
-          *reinterpret_cast<const float16x4 *>(&B.data),
-          *reinterpret_cast<const floatx16 *>(&C.data), 0, 0, 0);
+          *reinterpret_cast<const float16x4 *>(&A.wi_marray),
+          *reinterpret_cast<const float16x4 *>(&B.wi_marray),
+          *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 16; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     }
   } else if constexpr (std::is_same_v<Tm, bfloat16>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
-          *reinterpret_cast<const bfloat16x4 *>(&A.data),
-          *reinterpret_cast<const bfloat16x4 *>(&B.data),
-          *reinterpret_cast<const floatx4 *>(&C.data), 0, 0, 0);
+          *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
+          *reinterpret_cast<const bfloat16x4 *>(&B.wi_marray),
+          *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 4; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
-          *reinterpret_cast<const bfloat16x4 *>(&A.data),
-          *reinterpret_cast<const bfloat16x4 *>(&B.data),
-          *reinterpret_cast<const floatx16 *>(&C.data), 0, 0, 0);
+          *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
+          *reinterpret_cast<const bfloat16x4 *>(&B.wi_marray),
+          *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 16; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     }
   } else if constexpr (std::is_same_v<Tm, double>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f64_16x16x4f64(
-          A.data[0], B.data[0], *reinterpret_cast<const doublex4 *>(&C.data), 0,
-          0, 0);
+          A.wi_marray[0], B.wi_marray[0],
+          *reinterpret_cast<const doublex4 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 4; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_i32_16x16x16i8(
-          *reinterpret_cast<const Tc *>(&A.data),
-          *reinterpret_cast<const Tc *>(&B.data),
-          *reinterpret_cast<const int32x4 *>(&C.data), 0, 0, 0);
+          *reinterpret_cast<const Tc *>(&A.wi_marray),
+          *reinterpret_cast<const Tc *>(&B.wi_marray),
+          *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 4; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_i32_32x32x8i8(
-          *reinterpret_cast<const Tc *>(&A.data),
-          *reinterpret_cast<const Tc *>(&B.data),
-          *reinterpret_cast<const int32x16 *>(&C.data), 0, 0, 0);
+          *reinterpret_cast<const Tc *>(&A.wi_marray),
+          *reinterpret_cast<const Tc *>(&B.wi_marray),
+          *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
       for (int i = 0; i < 16; ++i)
-        D.data[i] = result[i];
+        D.wi_marray[i] = result[i];
     }
-  }
-}
-
-template <typename S, size_t M, size_t N,
-          sycl::ext::oneapi::experimental::matrix::use Use,
-          sycl::ext::oneapi::experimental::matrix::layout Layout, typename F>
-void joint_matrix_apply(joint_matrix_hip<S, Use, M, N, Layout> &jm,
-                        F &&lambda) {
-  if constexpr (std::is_same_v<S, double> &&
-                Use !=
-                    sycl::ext::oneapi::experimental::matrix::use::accumulator) {
-    lambda(jm.data[0]);
-  } else if constexpr (
-      Use != sycl::ext::oneapi::experimental::matrix::use::accumulator ||
-      (Use == sycl::ext::oneapi::experimental::matrix::use::accumulator &&
-       M == 16)) {
-    for (auto i = 0; i < 4; ++i)
-      lambda(jm.data[i]);
-  } else {
-    for (auto i = 0; i < 16; ++i)
-      lambda(jm.data[i]);
-  }
-}
-
-template <typename Type1, typename Type2, size_t M, size_t N,
-          sycl::ext::oneapi::experimental::matrix::use Use1,
-          sycl::ext::oneapi::experimental::matrix::use Use2,
-          sycl::ext::oneapi::experimental::matrix::layout Layout1,
-          sycl::ext::oneapi::experimental::matrix::layout Layout2>
-void joint_matrix_copy(joint_matrix_hip<Type1, Use1, M, N, Layout1> &src,
-                       joint_matrix_hip<Type2, Use2, M, N, Layout2> &dst) {
-  if constexpr (std::is_same_v<Type1, double> &&
-                Use1 !=
-                    sycl::ext::oneapi::experimental::matrix::use::accumulator) {
-    dst.data[0] = src.data[0];
-  } else if constexpr (
-      Use1 != sycl::ext::oneapi::experimental::matrix::use::accumulator ||
-      (Use1 == sycl::ext::oneapi::experimental::matrix::use::accumulator &&
-       M == 16)) {
-    for (auto i = 0; i < 4; ++i)
-      dst.data[i] = src.data[i];
-  } else {
-    for (auto i = 0; i < 16; ++i)
-      src.data[i] = src.data[i];
   }
 }
 
