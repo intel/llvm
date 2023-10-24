@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#if defined(__HIP_PLATFORM_AMD__) || defined(CUDA_VERSION)
+#include_next <ur/ur.hpp>
+#else
+
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -283,3 +287,4 @@ protected:
   void *param_value;
   size_t *param_value_size_ret;
 };
+#endif
