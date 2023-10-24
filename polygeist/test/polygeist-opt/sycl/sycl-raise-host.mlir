@@ -832,8 +832,8 @@ llvm.func @_ZN4sycl3_V17handler6unpackEv(%arg0: !llvm.ptr)
 // CHECK:           llvm.store %[[VAL_5]], %[[VAL_25]] : vector<2xf32>, !llvm.ptr
 // CHECK:           %[[VAL_26:.*]] = llvm.getelementptr %[[VAL_18]][0, 6, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>, struct<"class.sycl::_V1::accessor", (ptr)>)>
 // CHECK:           llvm.store %[[VAL_4]], %[[VAL_26]] : f32, !llvm.ptr
-// CHECK:           %[[VAL_27:.*]] = llvm.mlir.addressof @constant_array_0 : !llvm.ptr<array<5 x f32>>
-// CHECK:           sycl.host.set_captured %[[VAL_18]][6] = %[[VAL_27]] : !llvm.ptr, !llvm.ptr<array<5 x f32>>
+// CHECK:           %[[VAL_27:.*]] = llvm.mlir.addressof @constant_array_0 : !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_18]][6] = %[[VAL_27]] : !llvm.ptr, !llvm.ptr
 // CHECK:           %[[VAL_28:.*]] = llvm.getelementptr %[[VAL_18]][0, 7] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>, struct<"class.sycl::_V1::accessor", (ptr)>)>
 // CHECK:           llvm.store %[[VAL_12]], %[[VAL_28]] : vector<2xf32>, !llvm.ptr
 // CHECK:           %[[VAL_29:.*]] = llvm.mlir.undef : vector<5xf32>
