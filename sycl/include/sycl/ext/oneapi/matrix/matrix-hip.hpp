@@ -11,9 +11,7 @@
 #include "matrix-unified-utils.hpp"
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
-#if defined(__gfx90a__)
 #define __HIP_PLATFORM_AMD_MFMA__
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -21,16 +19,14 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 
+constexpr int WAVEFRONT_SIZE = 64;
+
 template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
           size_t Rows, size_t Cols,
           sycl::ext::oneapi::experimental::matrix::layout Layout =
               sycl::ext::oneapi::experimental::matrix::layout::dynamic,
           typename Cond = void>
 struct joint_matrix_hip;
-
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__HIP_PLATFORM_AMD_MFMA__)
-
-constexpr int WAVEFRONT_SIZE = 64;
 
 using bfloat16x4 = __attribute__((__vector_size__(4 * sizeof(__bf16)))) __fp16;
 using float16x4 = __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16;
@@ -400,8 +396,6 @@ void joint_matrix_mad_hip(
     }
   }
 }
-
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 } // namespace detail
 } // namespace oneapi

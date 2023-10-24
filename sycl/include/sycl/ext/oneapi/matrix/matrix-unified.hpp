@@ -8,11 +8,14 @@
 
 #pragma once
 
-#include "matrix-hip.hpp"
 #include "matrix-intel.hpp"
 
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
 #include "matrix-tensorcores.hpp"
+#elif defined(__gfx90a__)
+#include "matrix-hip.hpp"
+#endif
 #endif
 
 #include <sycl/access/access.hpp>             // for address_space
