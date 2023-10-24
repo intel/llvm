@@ -4,6 +4,9 @@
 // CHECK-DAG: target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2)
 // CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 48, 12, 2, 3, 1)
 
+// CHECK: !{!"matrix_type::sint32,use::accumulator,12,12;matrix_type::sint8,use::a,12,48;matrix_type::sint8,use::b,48,12"}
+// CHECK: !{!"matrix_type::sint8,matrix_type::sint8,matrix_type::sint32,matrix_type::sint32,12,48,12"}
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 

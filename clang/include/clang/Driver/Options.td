@@ -202,6 +202,9 @@ def m_wasm_Features_Driver_Group : OptionGroup<"<wasm driver features group>">,
 def m_x86_Features_Group : OptionGroup<"<x86 features group>">,
                            Group<m_Group>, Visibility<[ClangOption, CLOption]>,
                            DocName<"X86">;
+def m_x86_AVX10_Features_Group : OptionGroup<"<x86 AVX10 features group>">,
+                                 Group<m_Group>, Visibility<[ClangOption, CLOption]>,
+                                 DocName<"X86 AVX10">;
 def m_riscv_Features_Group : OptionGroup<"<riscv features group>">,
                              Group<m_Group>, DocName<"RISC-V">;
 def m_ve_Features_Group : OptionGroup<"<ve features group>">,
@@ -3740,6 +3743,16 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets. (experimental)">;
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
+defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "sycl-add-default-spec-consts-image",
+  PosFlag<SetTrue, [], [ClangOption],
+           "Generates a copy of every device image that uses a specialization constant and "
+           "replaces all usages of specialization constant with default values specified by specialization_id. "
+           "If a device image doesn't use a specialization constant at all then no copy is generated. "
+           "This option is only useful if used in conjunction with Ahead of Time Compilation (-fsycl-target command line option).">,
+  NegFlag<SetFalse, [], [ClangOption],
+           "Turns off generation of device image where all specialization constant usages are replaced "
+           "with default values.">
+>;
 defm sycl_instrument_device_code
     : BoolFOption<"sycl-instrument-device-code",
           CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
@@ -4920,9 +4933,9 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
   HelpText<"Specify code object ABI version. Defaults to 4. (AMDGPU only)">,
   Visibility<[ClangOption, CC1Option]>,
-  Values<"none,4,5">,
+  Values<"none,3,4,5">,
   NormalizedValuesScope<"TargetOptions">,
-  NormalizedValues<["COV_None", "COV_4", "COV_5"]>,
+  NormalizedValues<["COV_None", "COV_3", "COV_4", "COV_5"]>,
   MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_4">;
 
 defm cumode : SimpleMFlag<"cumode",
@@ -5994,6 +6007,12 @@ def msse4a : Flag<["-"], "msse4a">, Group<m_x86_Features_Group>;
 def mno_sse4a : Flag<["-"], "mno-sse4a">, Group<m_x86_Features_Group>;
 def mavx : Flag<["-"], "mavx">, Group<m_x86_Features_Group>;
 def mno_avx : Flag<["-"], "mno-avx">, Group<m_x86_Features_Group>;
+def mavx10_1_256 : Flag<["-"], "mavx10.1-256">, Group<m_x86_AVX10_Features_Group>;
+def mno_avx10_1_256 : Flag<["-"], "mno-avx10.1-256">, Group<m_x86_AVX10_Features_Group>;
+def mavx10_1_512 : Flag<["-"], "mavx10.1-512">, Group<m_x86_AVX10_Features_Group>;
+def mno_avx10_1_512 : Flag<["-"], "mno-avx10.1-512">, Group<m_x86_AVX10_Features_Group>;
+def mavx10_1 : Flag<["-"], "mavx10.1">, Alias<mavx10_1_256>;
+def mno_avx10_1 : Flag<["-"], "mno-avx10.1">, Alias<mno_avx10_1_256>;
 def mavx2 : Flag<["-"], "mavx2">, Group<m_x86_Features_Group>;
 def mno_avx2 : Flag<["-"], "mno-avx2">, Group<m_x86_Features_Group>;
 def mavx512f : Flag<["-"], "mavx512f">, Group<m_x86_Features_Group>;

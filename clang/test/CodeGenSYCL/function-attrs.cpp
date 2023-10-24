@@ -38,7 +38,7 @@ int main() {
   return 0;
 }
 //.
-// CHECK: attributes #0 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}clang/test/CodeGenSYCL/function-attrs.cpp" "uniform-work-group-size"="true" }
+// CHECK: attributes #0 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}function-attrs.cpp" "uniform-work-group-size"="true" }
 // CHECK: attributes #1 = { alwaysinline convergent mustprogress norecurse nounwind "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // CHECK: attributes #2 = { convergent mustprogress noinline norecurse nounwind optnone "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 // CHECK: attributes #3 = { convergent nounwind }
