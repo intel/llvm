@@ -13,8 +13,10 @@
 
 #include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
+#include "ur_print.hpp"
 
 namespace logger {
+using namespace ur::print;
 
 class Sink {
   public:

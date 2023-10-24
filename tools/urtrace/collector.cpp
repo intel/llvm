@@ -28,7 +28,7 @@
 
 #include "logger/ur_logger.hpp"
 #include "ur_api.h"
-#include "ur_params.hpp"
+#include "ur_print.hpp"
 #include "ur_util.hpp"
 #include "xpti/xpti_trace_framework.h"
 
@@ -288,8 +288,6 @@ static std::unique_ptr<TraceWriter> &writer() {
     return writer;
 }
 
-using namespace ur_params;
-
 struct fn_context {
     uint64_t instance;
     std::optional<Timepoint> start;
@@ -333,8 +331,8 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
     if (cli_args.no_args) {
         args_str << "...";
     } else {
-        ur_params::serializeFunctionParams(args_str, args->function_id,
-                                           args->args_data);
+        ur::extras::printFunctionParams(
+            args_str, (enum ur_function_t)args->function_id, args->args_data);
     }
 
     if (trace_type == TRACE_FN_BEGIN) {
