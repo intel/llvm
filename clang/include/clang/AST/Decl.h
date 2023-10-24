@@ -2846,9 +2846,7 @@ public:
 
   /// Determine whether this function is a function template
   /// specialization.
-  bool isFunctionTemplateSpecialization() const {
-    return getPrimaryTemplate() != nullptr;
-  }
+  bool isFunctionTemplateSpecialization() const;
 
   /// If this function is actually a function template specialization,
   /// retrieve information about this function template specialization.
@@ -2931,9 +2929,9 @@ public:
 
   /// Specifies that this function declaration is actually a
   /// dependent function template specialization.
-  void setDependentTemplateSpecialization(ASTContext &Context,
-                             const UnresolvedSetImpl &Templates,
-                      const TemplateArgumentListInfo &TemplateArgs);
+  void setDependentTemplateSpecialization(
+      ASTContext &Context, const UnresolvedSetImpl &Templates,
+      const TemplateArgumentListInfo *TemplateArgs);
 
   DependentFunctionTemplateSpecializationInfo *
   getDependentSpecializationInfo() const;

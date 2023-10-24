@@ -2506,6 +2506,22 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpSignBitSet:
     return mapValue(BV,
                     transRelational(static_cast<SPIRVInstruction *>(BV), BB));
+  case OpIAddCarry: {
+    IRBuilder Builder(BB);
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    return mapValue(BV, Builder.CreateBinaryIntrinsic(
+                            Intrinsic::uadd_with_overflow,
+                            transValue(BC->getOperand(0), F, BB),
+                            transValue(BC->getOperand(1), F, BB)));
+  }
+  case OpISubBorrow: {
+    IRBuilder Builder(BB);
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    return mapValue(BV, Builder.CreateBinaryIntrinsic(
+                            Intrinsic::usub_with_overflow,
+                            transValue(BC->getOperand(0), F, BB),
+                            transValue(BC->getOperand(1), F, BB)));
+  }
   case OpGetKernelWorkGroupSize:
   case OpGetKernelPreferredWorkGroupSizeMultiple:
     return mapValue(
@@ -4532,8 +4548,8 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(DecorationPipelineEnableINTEL)) {
     auto Literals = BF->getDecorationLiterals(DecorationPipelineEnableINTEL);
     std::vector<Metadata *> MetadataVec;
-    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
-    F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, Literals[0])));
+    F->setMetadata(kSPIR2MD::PipelineKernel,
                    MDNode::get(*Context, MetadataVec));
   }
   return true;
