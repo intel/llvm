@@ -1306,7 +1306,7 @@ defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
 def emit_static_lib : Flag<["--"], "emit-static-lib">,
   HelpText<"Enable linker job to emit a static library.">;
 
-def fpreview_major_release : Flag<["-"], "fpreview-breaking-changes">, Flags<[NoXarchOption]>,
+def fpreview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption]>,
   HelpText<"When specified, it informs the compiler driver and compilation phases "
            "that it is allowed to break backward compatibility. When this option is "

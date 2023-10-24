@@ -4785,7 +4785,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (IsMSVCHostCompiler)
     HostCompileArgs.push_back("/Zc:__cplusplus");
 
-  if (TCArgs.hasArg(options::OPT_fpreview_major_release)) {
+  if (TCArgs.hasArg(options::OPT_fpreview_breaking_changes)) {
     HostCompileArgs.push_back(IsMSVCHostCompiler ? "/D" : "-D");
     HostCompileArgs.push_back("__INTEL_PREVIEW_BREAKING_CHANGES");
   }
@@ -5314,7 +5314,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                                  options::OPT_fno_sycl_id_queries_fit_in_int))
       A->render(Args, CmdArgs);
 
-    if (Args.hasArg(options::OPT_fpreview_major_release))
+    if (Args.hasArg(options::OPT_fpreview_breaking_changes))
       CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
 
     if (SYCLStdArg) {
@@ -6487,7 +6487,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
     if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment()) {
       if (isDependentLibAdded(Args, "msvcrtd")) {
-        if (Args.hasArg(options::OPT_fpreview_major_release))
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
                             "-previewd");
         else

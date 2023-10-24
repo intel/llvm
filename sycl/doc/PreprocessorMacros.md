@@ -52,8 +52,8 @@ This file describes macros that have effect on SYCL compiler and run-time.
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
   implementations may be widespread and not conform to it.
   Defining this macro currently has no effect on the API.
-  This preprocessor has been deprecated in favour of the
-  `-fpreview-breaking-changes` option.
+  This preprocessor macro has been deprecated in favor of the
+  `-fpreview-breaking-changes` compiler option.
 
 ## Version macros
 

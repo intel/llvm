@@ -1,4 +1,4 @@
-// RUN: not %clangxx -fsycl %s -o %t 2>&1 | FileCheck --check-prefix=%{CHECK-NO-PREVIEW} %s
+// RUN: not %clangxx -fsycl %s -o %t 2>&1 | FileCheck --check-prefix=CHECK-NO-PREVIEW %s
 // RUN: %clangxx -fsycl -fpreview-breaking-changes %s -o %t
 // REQUIRES: preview-breaking-changes-lib && windows
 
