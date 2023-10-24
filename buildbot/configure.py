@@ -1,6 +1,7 @@
 import argparse
 import os
 import platform
+import shlex
 import subprocess
 import sys
 
@@ -204,7 +205,7 @@ def do_configure(args):
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
-    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
+    print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
     try:
         subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
