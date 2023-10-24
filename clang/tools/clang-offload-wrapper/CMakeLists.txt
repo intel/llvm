@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS BitWriter BitReader Core Object Support TransformUtils 
 
 add_clang_tool(clang-offload-wrapper
   ClangOffloadWrapper.cpp
+  SymPropReader.cpp
 
   DEPENDS
   intrinsics_gen

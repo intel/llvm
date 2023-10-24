@@ -19,7 +19,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -65,6 +64,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <SymPropReader.h>
 
 #define OPENMP_OFFLOAD_IMAGE_VERSION "1.0"
 
@@ -78,9 +78,6 @@ static constexpr char COL_CODE[] = "Code";
 static constexpr char COL_SYM[] = "Symbols";
 static constexpr char COL_PROPS[] = "Properties";
 static constexpr char COL_MANIFEST[] = "Manifest";
-
-// Field in the file listing all BC files supplying Symbols and Properties
-static constexpr char COL_SYM_AND_PROPS[] = "SymAndProps";
 
 // Offload models supported by this tool. The support basically means mapping
 // a string representation given at the command line to a value from this
@@ -276,31 +273,6 @@ static cl::opt<bool> AddOpenMPOffloadNotes(
 
 namespace {
 
-// return initializer value of the variable with name Name as a StringRef
-auto getValueAsStringRef(const Module *M, Constant *Name) {
-  auto Var = M->getGlobalVariable(Name->getName(), true);
-  auto Initializer = Var->getInitializer();
-  if (Initializer->isNullValue()) {
-    // Return data even if zeroinitializer is in IR.
-    // Length of SizeTy is necessary because PropertyValue with Data
-    // puts a bitsize variable of type SizeTy at the start of Data.
-    static char zi[sizeof(llvm::util::PropertyValue::SizeTy)] = {0};
-    static StringRef ZeroInitializer{zi,
-                                     sizeof(llvm::util::PropertyValue::SizeTy)};
-
-    return ZeroInitializer;
-  }
-  auto StringRef = cast<ConstantDataArray>(Initializer)->getRawDataValues();
-  return StringRef;
-}
-
-auto getInitializerNumElements(Constant *Initializer) {
-  Type *Ty = Initializer->getType();
-  auto *ArrTy = dyn_cast<ArrayType>(Ty);
-  assert(ArrTy && "Initializer must be of ArrayType");
-  return ArrTy->getNumElements();
-}
-
 /// Implements binary image information collecting and wrapping it in a host
 /// bitcode file.
 class BinaryWrapper {
@@ -382,38 +354,7 @@ public:
   std::vector<std::string> TempFiles;
 
 private:
-  std::string SymPropBCFiles;
-  std::unique_ptr<util::SimpleTable> SymProp_Table{nullptr};
-  LLVMContext SymProps_C;
-  ExitOnError SymProps_ExitOnErr;
-  std::unique_ptr<Module> Current_SymProps_M{nullptr};
-  Constant *Current_DeviceImage_Initializer;
-
-  void Set_Current_DeviceImage_Initializer() {
-    static Constant *DeviceImages_Initializer;
-    static int BCFileIndex{0};
-    static int ImageIndex{0};
-    static int ImageCnt{0};
-
-    if (ImageIndex == ImageCnt) {
-      const auto &Row = SymProp_Table->rows()[BCFileIndex++];
-
-      // Read a BC File that will provide SYM and Props information
-      std::unique_ptr<MemoryBuffer> MB = SymProps_ExitOnErr(errorOrToExpected(
-          MemoryBuffer::getFileOrSTDIN(Row.getCell(COL_SYM_AND_PROPS))));
-      Current_SymProps_M = SymProps_ExitOnErr(
-          getOwningLazyBitcodeModule(std::move(MB), SymProps_C,
-                                     /*ShouldLazyLoadMetadata=*/true));
-      SymProps_ExitOnErr(Current_SymProps_M->materializeAll());
-      auto DeviceImages_Var = Current_SymProps_M->getGlobalVariable(
-          ".sycl_offloading.device_images", true);
-      DeviceImages_Initializer = DeviceImages_Var->getInitializer();
-      ImageIndex = 0;
-      ImageCnt = getInitializerNumElements(DeviceImages_Initializer);
-    }
-    Current_DeviceImage_Initializer =
-        DeviceImages_Initializer->getAggregateElement(ImageIndex++);
-  }
+  std::unique_ptr<SymPropReader> symPropReader{nullptr};
 
   IntegerType *getSizeTTy() {
     switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
@@ -813,7 +754,7 @@ private:
   // specified.
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
-    if (EntriesFile.empty() && !SymProp_Table) {
+    if (EntriesFile.empty() && !symPropReader) {
       auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
@@ -825,41 +766,24 @@ private:
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
     // compatibility and new SYCL features
-    if (SymProp_Table) {
-      Constant *Entries_Name =
-          Current_DeviceImage_Initializer->getAggregateElement(
-              10); // EntriesBegin field of struct __tgt_device_image
-      auto Entries_Var =
-          Current_SymProps_M->getGlobalVariable(Entries_Name->getName(), true);
-      auto Entries_Initializer = Entries_Var->getInitializer();
-
-      for (uint64_t i = 0; i < getInitializerNumElements(Entries_Initializer);
-           i++) {
-        Constant *Entry_Initializer =
-            Entries_Initializer->getAggregateElement(i);
-        Constant *Entry_Name = Entry_Initializer->getAggregateElement(
-            1); // name field of struct __tgt_offload_entry
-        auto Entry_AsStringRef =
-            getValueAsStringRef(Current_SymProps_M.get(), Entry_Name);
-
+    if (symPropReader) {
+      for (uint64_t i = 0; i < symPropReader->getNumEntries(); i++)
         EntriesInits.push_back(
             ConstantStruct::get(getEntryTy(), NullPtr,
-                                addStringToModule(Entry_AsStringRef.rtrim('\0'),
+                                addStringToModule(symPropReader->getEntryName(i),
                                                   "__sycl_offload_entry_name"),
                                 Zero, i32Zero, i32Zero));
-      }
     } else {
       Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
       if (!MBOrErr)
         return MBOrErr.takeError();
       MemoryBuffer *MB = *MBOrErr;
 
-      for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
+      for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
         EntriesInits.push_back(ConstantStruct::get(
             getEntryTy(), NullPtr,
             addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
             i32Zero));
-      }
     }
 
     auto *Arr = ConstantArray::get(
@@ -954,90 +878,8 @@ private:
 
     std::unique_ptr<llvm::util::PropertySetRegistry> PropRegistry;
 
-    if (SymProp_Table) {
-      Constant *PropertySets_Name =
-          Current_DeviceImage_Initializer->getAggregateElement(
-              12); // PropertySetBegin field of struct __tgt_device_image
-      auto PropertySets_Var = Current_SymProps_M->getGlobalVariable(
-          PropertySets_Name->getName(), true);
-      auto PropertySets_Initializer = PropertySets_Var->getInitializer();
-
-      PropRegistry = std::make_unique<llvm::util::PropertySetRegistry>();
-      for (uint64_t i = 0;
-           i < getInitializerNumElements(PropertySets_Initializer); i++) {
-        Constant *PropertySet_Initializer =
-            PropertySets_Initializer->getAggregateElement(i);
-        Constant *PropertySet_Name =
-            PropertySet_Initializer->getAggregateElement(static_cast<unsigned>(
-                0)); // Name field of struct
-                     // _pi_device_binary_property_set_struct
-        auto PropertySet_Name_AsStringRef =
-            getValueAsStringRef(Current_SymProps_M.get(), PropertySet_Name);
-        Constant *Properties_Name =
-            PropertySet_Initializer->getAggregateElement(static_cast<unsigned>(
-                1)); // PropertiesBegin field of struct
-                     // _pi_device_binary_property_set_struct
-
-        llvm::util::PropertySet PropSet;
-
-        if (!Properties_Name->isNullValue()) {
-          auto Properties_Var = Current_SymProps_M->getGlobalVariable(
-              Properties_Name->getName(), true);
-          auto Properties_Initializer = Properties_Var->getInitializer();
-
-          for (uint64_t j = 0;
-               j < getInitializerNumElements(Properties_Initializer); j++) {
-            Constant *Property_Initializer =
-                Properties_Initializer->getAggregateElement(j);
-            Constant *Property_Name = Property_Initializer->getAggregateElement(
-                static_cast<unsigned>(0)); // Name field of struct
-                                           // _pi_device_binary_property_struct
-            Constant *Property_ValAddr =
-                Property_Initializer->getAggregateElement(static_cast<unsigned>(
-                    1)); // ValAddr field of struct
-                         // _pi_device_binary_property_struct
-            Constant *Property_Type = Property_Initializer->getAggregateElement(
-                static_cast<unsigned>(2)); // Type field of struct
-                                           // _pi_device_binary_property_struct
-            Constant *Property_ValSize =
-                Property_Initializer->getAggregateElement(static_cast<unsigned>(
-                    3)); // ValSize field of struct
-                         // _pi_device_binary_property_struct
-            auto Property_Name_AsStringRef =
-                getValueAsStringRef(Current_SymProps_M.get(), Property_Name);
-            auto Property_Type_AsUInt64 =
-                static_cast<ConstantInt *>(Property_Type)->getZExtValue();
-            auto Property_ValSize_AsUInt64 =
-                static_cast<ConstantInt *>(Property_ValSize)->getZExtValue();
-
-            if (Property_Type_AsUInt64 == llvm::util::PropertyValue::UINT32) {
-              PropSet.insert(std::pair(Property_Name_AsStringRef.rtrim('\0'),
-                                       Property_ValSize_AsUInt64));
-            } else if (Property_Type_AsUInt64 ==
-                       llvm::util::PropertyValue::BYTE_ARRAY) {
-              auto Data_AsStringRef = getValueAsStringRef(
-                  Current_SymProps_M.get(), Property_ValAddr);
-
-              llvm::util::PropertyValue::SizeTy DataBitSize = 0;
-              for (size_t I = 0; I < sizeof(llvm::util::PropertyValue::SizeTy);
-                   ++I)
-                DataBitSize |=
-                    (llvm::util::PropertyValue::SizeTy)Data_AsStringRef[I]
-                    << (8 * I);
-              llvm::util::PropertyValue PV(
-                  reinterpret_cast<const unsigned char *>(
-                      Data_AsStringRef.data()) +
-                      sizeof(llvm::util::PropertyValue::SizeTy),
-                  DataBitSize);
-              PropSet.insert(
-                  std::pair(Property_Name_AsStringRef.rtrim('\0'), PV));
-            } else {
-              llvm_unreachable_internal("unsupported property");
-            }
-          }
-        }
-        PropRegistry->add(PropertySet_Name_AsStringRef.rtrim('\0'), PropSet);
-      }
+    if (symPropReader) {
+      PropRegistry = symPropReader->getPropRegistry();
     } else {
       if (PropRegistryFile.empty()) {
         auto *NullPtr =
@@ -1191,8 +1033,8 @@ private:
                                                            Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
 
-      if (SymProp_Table)
-        Set_Current_DeviceImage_Initializer();
+      if (symPropReader)
+        symPropReader->getNextDeviceImageInitializer();
 
       if (Img.Manif.empty()) {
         // no manifest - zero out the fields
@@ -1387,19 +1229,10 @@ private:
 public:
   BinaryWrapper(StringRef Target, StringRef ToolName,
                 StringRef SymPropBCFiles = "")
-      : M("offload.wrapper.object", C), ToolName(ToolName),
-        SymPropBCFiles(SymPropBCFiles) {
+      : M("offload.wrapper.object", C), ToolName(ToolName) {
 
-    if (!SymPropBCFiles.empty()) {
-      Expected<std::unique_ptr<util::SimpleTable>> TPtr =
-          util::SimpleTable::read(SymPropBCFiles);
-
-      if (!TPtr) {
-        WithColor::warning(errs(), ToolName)
-            << "cannot open " << SymPropBCFiles << "\n";
-      }
-      SymProp_Table = std::move(*TPtr);
-    }
+    if (!SymPropBCFiles.empty())
+      symPropReader = std::make_unique<SymPropReader>(SymPropBCFiles,ToolName);
 
     M.setTargetTriple(Target);
     // Look for llvm-objcopy in the same directory, from which
@@ -2032,6 +1865,7 @@ int main(int argc, const char **argv) {
   verifyModule(*ModOrErr.get(), &llvm::errs());
 #endif
 
+  // And write its bitcode to the file.
   WriteBitcodeToFile(**ModOrErr, Out.os());
   if (Out.os().has_error()) {
     reportError(createFileError(Output, Out.os().error()));
