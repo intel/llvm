@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include
-// RUN: RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include -fpreview-breaking-changes -DPREVIEW_BREAKING_CHANGES%}
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include -fpreview-breaking-changes -DPREVIEW_BREAKING_CHANGES%}
 // expected-no-diagnostics
 //==--------------- handler_generic_lambda_interface.cpp -------------------==//
 //

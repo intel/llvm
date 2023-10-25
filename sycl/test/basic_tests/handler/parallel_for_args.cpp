@@ -4,7 +4,7 @@
 //   handler_generic_lambda_interface.cpp
 //
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify %s
-// RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify %s -DSYCL2020_CONFORMANT_APIS
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include -fpreview-breaking-changes%}
 //
 // expected-no-diagnostics
 
