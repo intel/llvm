@@ -577,8 +577,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (JA.getType() == types::TY_Host_Dependencies_Image)
     CmdArgs.push_back("--unresolved-symbols=ignore-all");
 
-  Args.AddAllArgs(CmdArgs, options::OPT_L);
-  Args.AddAllArgs(CmdArgs, options::OPT_u);
+  Args.addAllArgs(CmdArgs, {options::OPT_L, options::OPT_u});
 
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
 
@@ -598,7 +597,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP)) {
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) ||
+      JA.isOffloading(Action::OFK_SYCL)) {
     InputInfoList UpdatedInputs;
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.

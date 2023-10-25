@@ -100,11 +100,10 @@ FusionResult KernelFusion::fuseKernels(
         "Fusion output target format not supported by this build");
   }
 
-  if ((TargetFormat == BinaryFormat::PTX ||
-       TargetFormat == BinaryFormat::AMDGCN) &&
-      IsHeterogeneousList) {
+  if (TargetFormat != BinaryFormat::SPIRV &&
+      TargetFormat != BinaryFormat::PTX && IsHeterogeneousList) {
     return FusionResult{
-        "Heterogeneous ND ranges not supported for CUDA and HIP"};
+        "Heterogeneous ND ranges not supported for this target"};
   }
 
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();

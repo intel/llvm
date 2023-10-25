@@ -21,6 +21,7 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/StackSafetyAnalysis.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -52,6 +53,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/MemoryTaggingSupport.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
@@ -305,22 +307,23 @@ private:
 
   int64_t getAccessInfo(bool IsWrite, unsigned AccessSizeIndex);
   ShadowTagCheckInfo insertShadowTagCheck(Value *Ptr, Instruction *InsertBefore,
-                                          DomTreeUpdater &DTU, LoopInfo &LI);
+                                          DomTreeUpdater &DTU, LoopInfo *LI);
   void instrumentMemAccessOutline(Value *Ptr, bool IsWrite,
                                   unsigned AccessSizeIndex,
                                   Instruction *InsertBefore,
-                                  DomTreeUpdater &DTU, LoopInfo &LI);
+                                  DomTreeUpdater &DTU, LoopInfo *LI);
   void instrumentMemAccessInline(Value *Ptr, bool IsWrite,
                                  unsigned AccessSizeIndex,
                                  Instruction *InsertBefore, DomTreeUpdater &DTU,
-                                 LoopInfo &LI);
+                                 LoopInfo *LI);
   bool ignoreMemIntrinsic(MemIntrinsic *MI);
   void instrumentMemIntrinsic(MemIntrinsic *MI);
   bool instrumentMemAccess(InterestingMemoryOperand &O, DomTreeUpdater &DTU,
-                           LoopInfo &LI);
+                           LoopInfo *LI);
   bool ignoreAccess(Instruction *Inst, Value *Ptr);
   void getInterestingMemoryOperands(
-      Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting);
+      Instruction *I, const TargetLibraryInfo &TLI,
+      SmallVectorImpl<InterestingMemoryOperand> &Interesting);
 
   void tagAlloca(IRBuilder<> &IRB, AllocaInst *AI, Value *Tag, size_t Size);
   Value *tagPointer(IRBuilder<> &IRB, Type *Ty, Value *PtrLong, Value *Tag);
@@ -779,7 +782,8 @@ bool HWAddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
 }
 
 void HWAddressSanitizer::getInterestingMemoryOperands(
-    Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting) {
+    Instruction *I, const TargetLibraryInfo &TLI,
+    SmallVectorImpl<InterestingMemoryOperand> &Interesting) {
   // Skip memory accesses inserted by another instrumentation.
   if (I->hasMetadata(LLVMContext::MD_nosanitize))
     return;
@@ -817,6 +821,7 @@ void HWAddressSanitizer::getInterestingMemoryOperands(
       Type *Ty = CI->getParamByValType(ArgNo);
       Interesting.emplace_back(I, ArgNo, false, Ty, Align(1));
     }
+    maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
   }
 }
 
@@ -872,7 +877,7 @@ int64_t HWAddressSanitizer::getAccessInfo(bool IsWrite,
 
 HWAddressSanitizer::ShadowTagCheckInfo
 HWAddressSanitizer::insertShadowTagCheck(Value *Ptr, Instruction *InsertBefore,
-                                         DomTreeUpdater &DTU, LoopInfo &LI) {
+                                         DomTreeUpdater &DTU, LoopInfo *LI) {
   ShadowTagCheckInfo R;
 
   IRBuilder<> IRB(InsertBefore);
@@ -893,7 +898,7 @@ HWAddressSanitizer::insertShadowTagCheck(Value *Ptr, Instruction *InsertBefore,
 
   R.TagMismatchTerm = SplitBlockAndInsertIfThen(
       TagMismatch, InsertBefore, false,
-      MDBuilder(*C).createBranchWeights(1, 100000), &DTU, &LI);
+      MDBuilder(*C).createBranchWeights(1, 100000), &DTU, LI);
 
   return R;
 }
@@ -902,7 +907,7 @@ void HWAddressSanitizer::instrumentMemAccessOutline(Value *Ptr, bool IsWrite,
                                                     unsigned AccessSizeIndex,
                                                     Instruction *InsertBefore,
                                                     DomTreeUpdater &DTU,
-                                                    LoopInfo &LI) {
+                                                    LoopInfo *LI) {
   assert(!UsePageAliases);
   const int64_t AccessInfo = getAccessInfo(IsWrite, AccessSizeIndex);
 
@@ -924,7 +929,7 @@ void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
                                                    unsigned AccessSizeIndex,
                                                    Instruction *InsertBefore,
                                                    DomTreeUpdater &DTU,
-                                                   LoopInfo &LI) {
+                                                   LoopInfo *LI) {
   assert(!UsePageAliases);
   const int64_t AccessInfo = getAccessInfo(IsWrite, AccessSizeIndex);
 
@@ -935,7 +940,7 @@ void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
       IRB.CreateICmpUGT(TCI.MemTag, ConstantInt::get(Int8Ty, 15));
   Instruction *CheckFailTerm = SplitBlockAndInsertIfThen(
       OutOfShortGranuleTagRange, TCI.TagMismatchTerm, !Recover,
-      MDBuilder(*C).createBranchWeights(1, 100000), &DTU, &LI);
+      MDBuilder(*C).createBranchWeights(1, 100000), &DTU, LI);
 
   IRB.SetInsertPoint(TCI.TagMismatchTerm);
   Value *PtrLowBits = IRB.CreateTrunc(IRB.CreateAnd(TCI.PtrLong, 15), Int8Ty);
@@ -944,7 +949,7 @@ void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
   Value *PtrLowBitsOOB = IRB.CreateICmpUGE(PtrLowBits, TCI.MemTag);
   SplitBlockAndInsertIfThen(PtrLowBitsOOB, TCI.TagMismatchTerm, false,
                             MDBuilder(*C).createBranchWeights(1, 100000), &DTU,
-                            &LI, CheckFailTerm->getParent());
+                            LI, CheckFailTerm->getParent());
 
   IRB.SetInsertPoint(TCI.TagMismatchTerm);
   Value *InlineTagAddr = IRB.CreateOr(TCI.AddrLong, 15);
@@ -953,7 +958,7 @@ void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
   Value *InlineTagMismatch = IRB.CreateICmpNE(TCI.PtrTag, InlineTag);
   SplitBlockAndInsertIfThen(InlineTagMismatch, TCI.TagMismatchTerm, false,
                             MDBuilder(*C).createBranchWeights(1, 100000), &DTU,
-                            &LI, CheckFailTerm->getParent());
+                            LI, CheckFailTerm->getParent());
 
   IRB.SetInsertPoint(CheckFailTerm);
   InlineAsm *Asm;
@@ -1030,7 +1035,7 @@ void HWAddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI) {
 
 bool HWAddressSanitizer::instrumentMemAccess(InterestingMemoryOperand &O,
                                              DomTreeUpdater &DTU,
-                                             LoopInfo &LI) {
+                                             LoopInfo *LI) {
   Value *Addr = O.getPtr();
 
   LLVM_DEBUG(dbgs() << "Instrumenting: " << O.getInsn() << "\n");
@@ -1493,6 +1498,7 @@ void HWAddressSanitizer::sanitizeFunction(Function &F,
   SmallVector<InterestingMemoryOperand, 16> OperandsToInstrument;
   SmallVector<MemIntrinsic *, 16> IntrinToInstrument;
   SmallVector<Instruction *, 8> LandingPadVec;
+  const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
 
   memtag::StackInfoBuilder SIB(SSI);
   for (auto &Inst : instructions(F)) {
@@ -1503,7 +1509,7 @@ void HWAddressSanitizer::sanitizeFunction(Function &F,
     if (InstrumentLandingPads && isa<LandingPadInst>(Inst))
       LandingPadVec.push_back(&Inst);
 
-    getInterestingMemoryOperands(&Inst, OperandsToInstrument);
+    getInterestingMemoryOperands(&Inst, TLI, OperandsToInstrument);
 
     if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(&Inst))
       if (!ignoreMemIntrinsic(MI))
@@ -1564,7 +1570,7 @@ void HWAddressSanitizer::sanitizeFunction(Function &F,
   LoopInfo *LI = FAM.getCachedResult<LoopAnalysis>(F);
   DomTreeUpdater DTU(DT, PDT, DomTreeUpdater::UpdateStrategy::Lazy);
   for (auto &Operand : OperandsToInstrument)
-    instrumentMemAccess(Operand, DTU, *LI);
+    instrumentMemAccess(Operand, DTU, LI);
   DTU.flush();
 
   if (ClInstrumentMemIntrinsics && !IntrinToInstrument.empty()) {
