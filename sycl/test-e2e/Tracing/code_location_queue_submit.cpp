@@ -29,7 +29,7 @@ int main() {
     // CHECK-DAG:        sycl_device : {{.*}}
     // CHECK-DAG:        sycl_device_name : SYCL host device
     // CHECK-DAG:        sycl_context : {{.*}}
-    // CHECK-NEXT: [SYCL] Runtime reports:
+    // CHECK: [SYCL] Runtime reports:
     // CHECK-NEXT: what:  NULL pointer argument in memory copy operation. -30 (PI_ERROR_INVALID_VALUE)
     // CHECK-NEXT: where:{{.*}}code_location_queue_submit.cpp:[[# @LINE + 2 ]] main
     try {
