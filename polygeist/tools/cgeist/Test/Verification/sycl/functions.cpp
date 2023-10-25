@@ -131,12 +131,16 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-MLIR: %{{.*}} = sycl.nd_range.get_global_range(%{{.*}}) : (memref<?x!sycl_nd_range_2_>) -> !sycl_range_2_
 
 // CHECK-MLIR:           func.func @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%[[VAL_0:.*]]: memref<?x!sycl_nd_range_2_, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 48 : i64, llvm.noundef}) -> !sycl_range_2_
+// CHECK-MLIR-NEXT:             %[[SIZE:.*]] = arith.constant 16 : i64
 // CHECK-MLIR-NEXT:             %[[VAL_1:.*]] = arith.constant 0 : index
 // CHECK-MLIR-NEXT:             %[[VAL_2:.*]] = memref.alloca() : memref<1x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             %cast = memref.cast %alloca : memref<1x!sycl_range_2_> to memref<?x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             %[[VAL_3:.*]] = "polygeist.subindex"(%[[VAL_0]], %[[VAL_1]]) : (memref<?x!sycl_nd_range_2_, 4>, index) -> memref<?x!sycl_range_2_, 4>
 // CHECK-MLIR-NEXT:             %[[VAL_4:.*]] = memref.memory_space_cast %cast : memref<?x!sycl_range_2_> to memref<?x!sycl_range_2_, 4>
-// CHECK-MLIR-NEXT:             sycl.constructor @range(%[[VAL_4]], %[[VAL_3]]) {MangledFunctionName = @{{.*}}} : (memref<?x!sycl_range_2_, 4>, memref<?x!sycl_range_2_, 4>)
+// CHECK-MLIR-NEXT:             %[[TMP:.*]] = sycl.range.constructor(%[[VAL_3]]) : (memref<?x!sycl_range_2_, 4>) -> memref<?x!sycl_range_2_, 4>
+// CHECK-MLIR-NEXT:             %[[DST_PTR:.*]] = "polygeist.memref2pointer"(%[[VAL_4]]) : (memref<?x!sycl_range_2_, 4>) -> !llvm.ptr<4> 
+// CHECK-MLIR-NEXT:             %[[SRC_PTR:.*]] = "polygeist.memref2pointer"(%[[TMP]]) : (memref<?x!sycl_range_2_, 4>) -> !llvm.ptr<4> 
+// CHECK-MLIR-NEXT:             "llvm.intr.memcpy"(%[[DST_PTR]], %[[SRC_PTR]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
 // CHECK-MLIR-NEXT:             %[[VAL_7:.*]] = affine.load %[[VAL_2]][0] : memref<1x!sycl_range_2_>
 // CHECK-MLIR-NEXT:             return %[[VAL_7]] : !sycl_range_2_
 // CHECK-MLIR-NEXT:           }

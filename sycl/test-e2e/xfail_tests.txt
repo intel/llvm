@@ -411,7 +411,6 @@ OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 OptionalKernelFeatures/large-reqd-work-group-size.cpp
 OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
 OptionalKernelFeatures/throw-exception-for-unsupported-aspect.cpp
-Plugin/interop-level-zero-buffer-multi-dim.cpp
 Plugin/interop-level-zero-image-get-native-mem.cpp
 Printf/char.cpp
 Printf/double.cpp

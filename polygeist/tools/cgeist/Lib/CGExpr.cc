@@ -1319,6 +1319,79 @@ Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
 }
 
 mlir::Operation *
+MLIRScanner::EmitSpecificSYCLConstructor(const clang::CXXConstructExpr *Expr,
+                                         ValueRange Args) {
+  assert(isMemcpyEquivalentSpecialMember(Expr->getConstructor()) &&
+         "Only memcpyable constructors are supported by now");
+  // TODO: Replace with constructor with memref semantics when available.
+  // Current approach copies originated object back to `this`. As we only
+  // support memcpyable constructors, this will be lowered to two memcpy
+  // intrinsics, which opt should be able to optimize.
+  // FIXME: Polygeist represents size_t always as i64 instead as index, so we
+  // are missing some id and range constructors.
+
+  // 1. Create new struct with `Args`
+  Value ThisArg = Args[0];
+  auto MT = dyn_cast<MemRefType>(ThisArg.getType());
+  if (!MT)
+    return nullptr;
+  auto MLIRTy = cast<sycl::SYCLType>(MT.getElementType());
+  StringRef OpName =
+      TypeSwitch<sycl::SYCLType, StringRef>(MLIRTy)
+          .Case<sycl::IDType, sycl::RangeType, sycl::NdRangeType>([](auto Ty) {
+            return sycl::constructor_op_t<decltype(Ty)>::getOperationName();
+          })
+          .Default(StringRef());
+  if (OpName.empty())
+    return nullptr;
+
+  Operation *ConstOp =
+      tryToCreateOperation(Builder, Loc, Builder.getStringAttr(OpName),
+                           Args.drop_front(), ThisArg.getType());
+  if (!ConstOp)
+    return nullptr;
+  assert(ConstOp->getNumResults() == 1);
+
+  // 2. Copy to `ThisArg`
+  EmitAggregateCopy(
+      Loc, ValueCategory(ThisArg, /*IsReference=*/true, MLIRTy),
+      Expr->getType(),
+      ValueCategory(ConstOp->getResult(0), /*IsReference=*/true, MLIRTy));
+
+  // Return constructor operation
+  return ConstOp;
+}
+
+mlir::Operation *
+MLIRScanner::EmitSYCLConstructor(const clang::CXXConstructExpr *Expr,
+                                 ValueRange Args) {
+  const CXXConstructorDecl *CtorDecl = Expr->getConstructor();
+  const FunctionDecl *Func = CtorDecl->getAsFunction();
+  const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
+  if (!(RD &&
+        mlirclang::areSYCLMemberFunctionOrConstructorArgs(
+            ValueRange{Args}.getTypes()) &&
+        !RD->getName().empty()))
+    return nullptr;
+
+  // SYCL memcpyable constructors are lowered to a specific SYCL constructor
+  // operation. We do not rely on canonicalization for this as this saves us
+  // generating code for constructor functions.
+  // FIXME: Non-memcpyable are not lowered this way due to inconsistent
+  // cgeist type system.
+  if (isMemcpyEquivalentSpecialMember(CtorDecl)) {
+    mlir::Operation *SpecificConstructor =
+        EmitSpecificSYCLConstructor(Expr, Args);
+    if (SpecificConstructor)
+      return SpecificConstructor;
+  }
+
+  std::string Name = MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
+  return Builder.create<mlir::sycl::SYCLConstructorOp>(
+      Loc, Args[0], Args.drop_front(), RD->getName(), Name);
+}
+
+mlir::Operation *
 MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
                          const llvm::SmallVectorImpl<mlir::Value> &Args) {
   const FunctionDecl *Func = nullptr;
@@ -1327,17 +1400,9 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
 
     if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) !=
         mlirclang::NamespaceKind::Other) {
-      const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
-      if (RD &&
-          mlirclang::areSYCLMemberFunctionOrConstructorArgs(
-              ValueRange{Args}.getTypes()) &&
-          !RD->getName().empty()) {
-        std::string Name =
-            MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
-        ArrayRef<Value> RemainderArgs(Args.begin() + 1, Args.end());
-        return Builder.create<mlir::sycl::SYCLConstructorOp>(
-            Loc, Args[0], RemainderArgs, RD->getName(), Name);
-      }
+      Operation *Cons = EmitSYCLConstructor(ConsExpr, Args);
+      if (Cons)
+        return Cons;
     }
   }
 

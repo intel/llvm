@@ -42,6 +42,7 @@ int main(){
 // CHECK-LABEL:     func.func private @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlNS0_2idILi1EEEE_clES5_(
 // CHECK-SAME:                                                                                               %[[VAL_358:.*]]: memref<?x!llvm.struct<(!sycl_accessor_1_f32_rw_dev, array<8 x f32>)>, 4>
 // CHECK-SAME:                                                                                               %[[VAL_359:.*]]: memref<?x!sycl_id_1_>
+// CHECK-NEXT:        %[[SIZE:.*]] = arith.constant 8 : i64
 // CHECK-NEXT:        %[[VAL_360:.*]] = arith.constant 1 : index
 // CHECK-NEXT:        %[[VAL_361:.*]] = arith.constant 0 : index
 // CHECK-NEXT:        %[[VAL_362:.*]] = memref.alloca() : memref<1x!sycl_id_1_>
@@ -57,7 +58,10 @@ int main(){
 // CHECK-NEXT:        %[[VAL_372:.*]] = "polygeist.subindex"(%[[VAL_358]], %[[VAL_361]]) : (memref<?x!llvm.struct<(!sycl_accessor_1_f32_rw_dev, array<8 x f32>)>, 4>, index) -> memref<?x!sycl_accessor_1_f32_rw_dev, 4>
 // CHECK-NEXT:        %[[VAL_373:.*]] = memref.memory_space_cast %[[VAL_365]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
 // CHECK-NEXT:        %[[VAL_374:.*]] = memref.memory_space_cast %[[VAL_359]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
-// CHECK-NEXT:        sycl.constructor @id(%[[VAL_373]], %[[VAL_374]]) {MangledFunctionName = @_ZN4sycl3_V12idILi1EEC1ERKS2_} : (memref<?x!sycl_id_1_, 4>, memref<?x!sycl_id_1_, 4>)
+// CHECK-NEXT:        %[[VAL_405:.*]] = sycl.id.constructor(%[[VAL_374]]) : (memref<?x!sycl_id_1_, 4>) -> memref<?x!sycl_id_1_, 4>
+// CHECK-NEXT:        %[[VAL_406:.*]] = "polygeist.memref2pointer"(%[[VAL_373]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:        %[[VAL_407:.*]] = "polygeist.memref2pointer"(%[[VAL_405]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:        "llvm.intr.memcpy"(%[[VAL_406]], %[[VAL_407]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
 // CHECK-NEXT:        %[[VAL_375:.*]] = affine.load %[[VAL_364]][0] : memref<1x!sycl_id_1_>
 // CHECK-NEXT:        affine.store %[[VAL_375]], %[[VAL_362]][0] : memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_376:.*]] = sycl.accessor.subscript %[[VAL_372]]{{\[}}%[[VAL_363]]] : (memref<?x!sycl_accessor_1_f32_rw_dev, 4>, memref<?x!sycl_id_1_>) -> memref<?xf32, 4>
