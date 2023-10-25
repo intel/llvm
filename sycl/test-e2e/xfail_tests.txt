@@ -328,7 +328,9 @@ GroupAlgorithm/different_types.cpp
 GroupAlgorithm/exclusive_scan_sycl2020.cpp
 GroupAlgorithm/inclusive_scan_sycl2020.cpp
 GroupAlgorithm/reduce_sycl2020.cpp
+GroupAlgorithm/SYCL2020/exclusive_scan.cpp
 GroupAlgorithm/SYCL2020/group_broadcast.cpp
+GroupAlgorithm/SYCL2020/inclusive_scan.cpp
 GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
 GroupAlgorithm/SYCL2020/sort.cpp
 GroupLocalMemory/group_local_memory.cpp
