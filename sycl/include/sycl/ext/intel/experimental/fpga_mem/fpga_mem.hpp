@@ -49,6 +49,8 @@ public:
   // constructor at compile-time
   template <typename... S> constexpr fpga_mem_base(S... args) : val{args...} {}
 
+  fpga_mem_base() = default;
+
   fpga_mem_base(const fpga_mem_base &) = default;
   fpga_mem_base(fpga_mem_base &&) = default;
   fpga_mem_base &operator=(const fpga_mem_base &) = default;
