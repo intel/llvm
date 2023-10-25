@@ -5559,8 +5559,9 @@ class OffloadingActionBuilder final {
             DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
             continue;
           }
-          if (IsNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
-            // When compiling for Nvidia/CUDA devices and the user requested the
+          if ((IsNVPTX || IsAMDGCN) &&
+              Args.hasArg(options::OPT_fsycl_embed_ir)) {
+            // When compiling for Nvidia/AMD devices and the user requested the
             // IR to be embedded in the application (via option), run the output
             // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
             // through the offload wrapper and link the resulting object to the
