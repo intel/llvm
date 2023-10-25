@@ -846,46 +846,6 @@ public:
                             {});
   }
 
-  std::optional<BuiltinKind> getBuiltinKind(Function *) const override {
-    llvm_unreachable("Not implemented yet");
-    return {};
-  }
-
-  bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
-                   const NDRange &FusedNDRange) const override {
-    llvm_unreachable("Not implemented yet");
-    return false;
-  }
-
-  bool isSafeToNotRemapBuiltin(Function *F) const override {
-    llvm_unreachable("Not implemented yet");
-    return false;
-  }
-
-  unsigned getIndexSpaceBuiltinBitwidth() const override {
-    llvm_unreachable("Not implemented yet");
-    return false;
-  }
-
-  void setMetadataForGeneratedFunction(Function *F) const override {
-    llvm_unreachable("Not implemented yet");
-  }
-
-  Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
-                                  const NDRange &FusedNDRange,
-                                  uint32_t Idx) const override {
-    llvm_unreachable("Not implemented yet");
-    return nullptr;
-  }
-
-  Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
-                                   StringRef OrigName, StringRef Name,
-                                   Module *M, const NDRange &SrcNDRange,
-                                   const NDRange &FusedNDRange) const override {
-    llvm_unreachable("Not implemented yet");
-    return nullptr;
-  }
-
   // Corresponds to the definitions in the LLVM AMDGCN backend user guide:
   // https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces
   unsigned getPrivateAddressSpace() const override { return 5; }
