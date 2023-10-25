@@ -152,6 +152,9 @@ if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
       BOOL "Kernel fusion not yet supported on Windows" FORCE)
 endif()
 
+# Option for enabling building the SYCL major release preview library.
+option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
+
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_CUDA ON)
@@ -259,12 +262,21 @@ install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} C
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}-preview)
+  endif()
   # Do we really support non-MSVC ABI on WIN?
   if (MSVC)
     list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}d)
+    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+      list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}-previewd)
+    endif()
   endif()
 else()
   set(SYCL_RT_LIBS sycl)
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    list(APPEND SYCL_RT_LIBS sycl-preview)
+  endif()
 endif()
 
 # This function allows building multiple libraries with the same options.

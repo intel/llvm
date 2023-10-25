@@ -730,7 +730,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       if (Args.hasArg(options::OPT_fsycl) &&
           !Args.hasArg(options::OPT_nolibsycl)) {
-        CmdArgs.push_back("-lsycl");
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+          CmdArgs.push_back("-lsycl-preview");
+        else
+          CmdArgs.push_back("-lsycl");
         CmdArgs.push_back("-lsycl-devicelib-host");
         // Use of -fintelfpga implies -lOpenCL.
         // FIXME: Adjust to use plugin interface when available.

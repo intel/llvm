@@ -165,6 +165,19 @@ if sp[0] == 0:
 else:
     config.substitutions.append( ('%level_zero_options', '') )
 
+# Check for sycl-preview library
+check_preview_breaking_changes_file='preview_breaking_changes_link.cpp'
+with open(check_preview_breaking_changes_file, 'w') as fp:
+    fp.write('#include <sycl/sycl.hpp>')
+    fp.write('namespace sycl { inline namespace _V1 { namespace detail {')
+    fp.write('extern void PreviewMajorReleaseMarker();')
+    fp.write('}}}')
+    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }')
+
+sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -fpreview-breaking-changes ' + check_preview_breaking_changes_file)
+if sp[0] == 0:
+    config.available_features.add('preview-breaking-changes-supported')
+
 # Check for CUDA SDK
 check_cuda_file='cuda_include.cpp'
 with open(check_cuda_file, 'w') as fp:

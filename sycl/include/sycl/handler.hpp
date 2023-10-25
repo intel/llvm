@@ -1243,7 +1243,8 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
-#ifdef SYCL2020_CONFORMANT_APIS
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         (std::is_invocable_v<KernelType, item<Dims>> ||
          std::is_invocable_v<
@@ -1337,7 +1338,8 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef SYCL2020_CONFORMANT_APIS
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
