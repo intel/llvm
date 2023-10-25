@@ -110,6 +110,13 @@ class Sink {
                               << std::endl;
                 }
             }
+
+            if (*fmt == '\0') {
+                std::cerr << error_prefix << "Too many arguments!" << std::endl;
+                // ignore all left arguments and finalize message
+                format(buffer, fmt);
+                return;
+            }
         }
 
         format(buffer, ++fmt, std::forward<Args &&>(args)...);
