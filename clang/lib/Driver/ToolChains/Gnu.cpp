@@ -597,7 +597,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP)) {
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) ||
+      JA.isOffloading(Action::OFK_SYCL)) {
     InputInfoList UpdatedInputs;
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
