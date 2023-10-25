@@ -381,7 +381,7 @@ kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 namespace detail {
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
-__SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
+__SYCL_EXPORT kernel_id get_kernel_id_impl(const char* KernelName);
 } // namespace detail
 
 /// \returns the kernel_id associated with the KernelName

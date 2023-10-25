@@ -68,7 +68,7 @@ FusionResult KernelFusion::fuseKernels(
     JITContext &JITCtx, Config &&JITConfig,
     const std::vector<SYCLKernelInfo> &KernelInformation,
     const std::vector<std::string> &KernelsToFuse,
-    const std::string &FusedKernelName, ParamIdentList &Identities,
+    const char* FusedKernelName, ParamIdentList &Identities,
     int BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {

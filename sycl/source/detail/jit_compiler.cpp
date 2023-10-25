@@ -650,7 +650,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
     auto KernelName = KernelCG->MKernelName;
-    if (KernelName.empty()) {
+    if (KernelName == NULL) {
       printPerformanceWarning(
           "Cannot fuse kernel with invalid kernel function name");
       return nullptr;
@@ -814,10 +814,11 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
   JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
-
+const std::string tmp = FusedKernelName.str();
+const char* FusedKernelNametmp = tmp.c_str();
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
-      FusedKernelName.str(), ParamIdentities, BarrierFlags, InternalizeParams,
+       FusedKernelNametmp, ParamIdentities, BarrierFlags, InternalizeParams,
       JITConstants);
 
   if (FusionResult.failed()) {
@@ -866,7 +867,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   // Create a kernel bundle for the fused kernel.
   // Kernel bundles are stored in the CG as one of the "extended" members.
   auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
-      FusedKernelInfo.Name);
+      FusedKernelInfo.Name.c_str());
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
@@ -877,7 +878,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, {}, {},
+      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name.c_str(), {}, {},
       CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }

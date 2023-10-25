@@ -542,8 +542,8 @@ private:
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
-  /// \return a string containing name of SYCL kernel.
-  std::string getKernelName();
+  /// \return a char* pointing to the  name of SYCL kernel.
+  const char* getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -3279,7 +3279,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  std::string MKernelName;
+  const char* MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
