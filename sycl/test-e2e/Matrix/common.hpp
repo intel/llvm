@@ -3,6 +3,7 @@
 #include <random>
 #include <sycl/sycl.hpp>
 
+using namespace sycl;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 // Most of the time, failures related to floating-point calculations (both float
@@ -155,4 +156,15 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
     }
   }
   return true;
+}
+
+template <typename KernelName>
+size_t get_wg_size(queue q) {
+  auto KernelID = get_kernel_id<KernelName>();
+  auto KB =
+      get_kernel_bundle<bundle_state::executable>(q.get_context(), {KernelID});
+  auto kernel = KB.get_kernel(KernelID);
+
+  return kernel.template get_info<info::kernel_device_specific::max_sub_group_size>(
+      q.get_device());
 }

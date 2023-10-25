@@ -10,14 +10,10 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 
 #include "../element_wise_all_sizes_impl.hpp"

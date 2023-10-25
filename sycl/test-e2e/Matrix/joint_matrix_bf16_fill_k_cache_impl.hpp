@@ -6,12 +6,9 @@
 //
 //===-------------------------------------------------------------------------===//
 
-#include <random>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+
+class imatrix;
 
 // number of test iterations
 constexpr unsigned int testIterations = 100;
@@ -66,11 +63,8 @@ static constexpr void manually_unroll_loop(F &&f) {
 
 template <unsigned int rowsA, unsigned int colsA, unsigned int rowsB,
           unsigned int colsB, unsigned int vnniFactor, typename TOperand,
-          typename TResult, unsigned int sgSize = SG_SZ>
+          typename TResult>
 double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
-  range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * sgSize};
-  range<2> cachelocal{MCACHE2 / MCACHE1, NCACHE2 / NCACHE1 * sgSize};
-
   // throw error if padding needed
   assert(colsA == rowsB);
   assert(rowsA % tM == 0);
@@ -88,16 +82,24 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   std::chrono::high_resolution_clock::time_point start =
       std::chrono::high_resolution_clock::now();
 
+  size_t wg_size = get_wg_size<imatrix>(q);
+  range<2> global{rowsA / MCACHE1, (colsB / NCACHE1) * wg_size};
+  range<2> cachelocal{MCACHE2 / MCACHE1, NCACHE2 / NCACHE1 * wg_size};
+
   auto mk = q.submit([&](handler &h) {
-    h.parallel_for( // cache layer#1
+    h.parallel_for<class imatrix>( // cache layer#1
         nd_range<2>{global, cachelocal},
         // loop global
         // loop localrange
-        [=](nd_item<2> it) [[intel::reqd_sub_group_size(sgSize)]] {
+        [=](nd_item<2> it)
+#ifdef SG_SZ
+            [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+        {
           auto m2 = it.get_group(0);
           auto n2 = it.get_group(1);
           auto m1 = it.get_local_id(0);
-          auto n1 = it.get_local_id(1) / sgSize;
+          auto n1 = it.get_local_id(1) / wg_size;
           auto sg = it.get_sub_group();
           joint_matrix<sub_group, TResult, use::accumulator, tM, tN>
               tC[MCACHE1 / tM][NCACHE1 / tN]

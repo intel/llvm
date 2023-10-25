@@ -11,12 +11,10 @@
 // RUN: %{run} %t.out
 
 #include "../common.hpp"
-#include <iostream>
 
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 // Sub-matrix N dimension
 static constexpr size_t SN = 16;
 

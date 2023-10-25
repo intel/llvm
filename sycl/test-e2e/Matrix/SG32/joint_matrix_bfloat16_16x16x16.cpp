@@ -14,7 +14,6 @@
 
 #include "../common.hpp"
 
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 32

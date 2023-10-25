@@ -13,7 +13,7 @@
 #include "../common.hpp"
 #include <cstddef>
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 constexpr size_t TN = 16;
 
 #include "../joint_matrix_bf16_fill_k_cache_impl.hpp"

@@ -5,15 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <iostream>
-
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 constexpr size_t TM = 8;
 // TN and TK must be the same for this test.
 constexpr size_t TN = 16;
 constexpr size_t TK = 16;
+
+class imatrix;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
@@ -23,13 +22,19 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t wg_size = get_wg_size<imatrix>(q);
+
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::write>(cgh);
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * wg_size}, {1, 1 * wg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -46,13 +51,13 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / wg_size * TN,
                N, layout::row_major);
            joint_matrix_copy(sg, sub_c, sub_a);
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / wg_size * TN,
                N);
          }); // parallel for
    }).wait();

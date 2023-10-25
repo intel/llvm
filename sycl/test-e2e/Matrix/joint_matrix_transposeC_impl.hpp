@@ -1,11 +1,9 @@
-#include <iostream>
-#include <random>
-
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 constexpr size_t TM = 8;
 constexpr size_t TK = 16;
+
+class imatrix;
 
 template <typename T1, size_t NUM_ROWS_C, size_t NUM_COLS_C>
 void matrix_load_store(T1 *C, queue q) {
@@ -18,11 +16,15 @@ void matrix_load_store(T1 *C, queue q) {
   auto pC = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(C);
 
-  q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
+  size_t wg_size = get_wg_size<imatrix>(q);
 
+  q.submit([&](handler &cgh) {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * wg_size}, {1, 1 * wg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            // The submatrix API has to be accessed by all the workitems in
            // a subgroup these functions will be called once by the
@@ -38,14 +40,14 @@ void matrix_load_store(T1 *C, queue q) {
            // which TN x TM in N x M:
            //  M x N => TM x N => TM x TN => TN x TM
            //           m=sg_startx
-           //                      sg_starty/SG_SZ
-           // linear_index = M * (sg_starty/SG_SZ *TN) + TM *sg_startx
-           joint_matrix_load(sg, sub_c,
-                             pC + M * (sg_starty / SG_SZ * TN) + TM * sg_startx,
-                             M, layout::col_major);
+           //                      sg_starty/wg_size
+           // linear_index = M * (sg_starty/wg_size *TN) + TM *sg_startx
+           joint_matrix_load(
+               sg, sub_c, pC + M * (sg_starty / wg_size * TN) + TM * sg_startx,
+               M, layout::col_major);
            joint_matrix_store(
-               sg, sub_c, pC + M * (sg_starty / SG_SZ * TN) + TM * sg_startx, M,
-               layout::col_major);
+               sg, sub_c, pC + M * (sg_starty / wg_size * TN) + TM * sg_startx,
+               M, layout::col_major);
          }); // parallel for
    }).wait();
 }

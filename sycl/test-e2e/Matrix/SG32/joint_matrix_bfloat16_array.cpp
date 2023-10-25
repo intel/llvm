@@ -13,7 +13,7 @@
 #include "../common.hpp"
 #include <cstddef>
 
-constexpr std::size_t SG_SZ = 32;
+#define SG_SZ 32
 static constexpr int TN = 16;
 
 #include "../joint_matrix_bfloat16_array_impl.hpp"
