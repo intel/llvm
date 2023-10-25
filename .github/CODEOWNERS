@@ -14,3 +14,8 @@ source/adapters/opencl          @oneapi-src/unified-runtime-opencl-write
 source/adapters/**/command_buffer.*  @oneapi-src/unified-runtime-command-buffer-write
 scripts/core/EXP-COMMAND-BUFFER.rst  @oneapi-src/unified-runtime-command-buffer-write
 scripts/core/exp-command-buffer.yml  @oneapi-src/unified-runtime-command-buffer-write
+
+# Bindless Images experimental feature
+scripts/core/EXP-BINDLESS-IMAGES.rst @oneapi-src/unified-runtime-bindless-images-write
+scripts/core/exp-bindless-images.yml @oneapi-src/unified-runtime-bindless-images-write
+source/adapters/**/image.*           @oneapi-src/unified-runtime-bindless-images-write
