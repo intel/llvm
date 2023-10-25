@@ -2094,7 +2094,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 void ExecCGCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType))
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
   std::string KernelName;
@@ -3200,7 +3200,7 @@ void KernelFusionCommand::resetQueue() {
 void KernelFusionCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+  if (!xptiCheckTraceEnabled(MStreamID)) {
     return;
   }
   // Create a payload with the command name and an event using this payload to
