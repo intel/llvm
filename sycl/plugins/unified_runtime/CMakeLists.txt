@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b
-  # Merge: 614e6d0 b4425bc
+  # commit cf26de283a1233e6c93feb085acc10c566888b59
+  # Merge: 3a3aae38 2fd9dea2
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Oct 23 14:49:01 2023 +0100
-  #     Merge pull request #945 from npmiller/fix-priority
-  #     [CUDA] Fix queue creation with native handle
-  set(UNIFIED_RUNTIME_TAG 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b)
+  # Date:   Wed Oct 25 10:36:48 2023 +0100
+  #     Merge pull request #940 from Naghasan/victor/kernel-fusion-amd
+  #     [UR][HIP] Enable kernel finalization using comgr
+  set(UNIFIED_RUNTIME_TAG cf26de283a1233e6c93feb085acc10c566888b59)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
