@@ -1,0 +1,246 @@
+﻿<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:v='http://schemas.microsoft.com/visio/2003/SVGExtensions/' xml:space='preserve' xmlns:xlink='http://www.w3.org/1999/xlink' width='669.506pt' height='432pt' viewBox='0 0 669.506 432'>
+ <v:documentProperties>
+  <v:userDefs>
+   <v:ud v:nameU='msvNoAutoConnect' v:val='0'/>
+  </v:userDefs>
+ </v:documentProperties>
+ <g id='SFixTitle'/>
+ <g id='SContent'>
+  <g>
+   <g transform='matrix(1,0,0,-1,0,432)'>
+    <g transform='matrix(1,0,0,1,18.253601,327.5656)' v:mID='3'>
+     <title>Rectangle.3</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='3'>
+      <title>Rectangle.3</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,43.689601898 L173.613601685,43.689601898 L0,43.689601898 L0,43.689601898 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,43.689601898 L173.613601685,43.689601898 L0,43.689601898 L0,43.689601898 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#4672C4'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='49.31168' y='0' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,24.844799)'>Device SYCL API</text>
+      <text x='31.953278' y='12' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,24.844799)'>(built-in functions &amp; types)</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,18.253601,18.25)' v:mID='9'>
+     <title>Rectangle.9</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='9'>
+      <title>Rectangle.9</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,271.058410645 L173.613601685,271.058410645 L0,271.058410645 L0,271.058410645 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,271.058410645 L173.613601685,271.058410645 L0,271.058410645 L0,271.058410645 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#4672C4'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='55.01725' y='-12' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,138.52919)'>Device libraries</text>
+      <text x='16.679842' y='0' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,138.52919)'>(built-in functions implementation,</text>
+      <text x='29.048004' y='11.999999' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,138.52919)'>fallback implementations for</text>
+      <text x='43.34977' y='24' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,138.52919)'>unsupported features)</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,295.0936,327.5728)' v:mID='10'>
+     <title>Rectangle.10</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='10'>
+      <title>Rectangle.10</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,43.689601898 L173.613601685,43.689601898 L0,43.689601898 L0,43.689601898 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,43.689601898 L173.613601685,43.689601898 L0,43.689601898 L0,43.689601898 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#4672C4'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='54.023594' y='6' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,24.844799)'>Host SYCL API</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,295.08643,18.239197)' v:mID='12'>
+     <title>Rectangle.12</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='12'>
+      <title>Rectangle.12</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,271.065612793 L173.613601685,271.065612793 L0,271.065612793 L0,271.065612793 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L173.613601685,0 L173.613601685,0 L173.613601685,271.065612793 L173.613601685,271.065612793 L0,271.065612793 L0,271.065612793 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#4672C4'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='42.646645' y='-117.36971' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,141.5328)'>SYCL runtime library</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,96.0604,327.5656)' v:mID='14'>
+     <title>Dynamic connector.14</title>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='14'>
+      <title>Dynamic connector.14</title>
+      <path d='M3.239999533,-41.137203217 L9,-38.257202148 L3.239999533,-35.37720108 Z' stroke='#000000' stroke-width='1' fill='#000000'  fill-rule='evenodd' opacity='0' transform='matrix(-0,-1,1,0,47.257202,-29.257202)'/>
+      <path d='M9,0 L9,-38.257202148 ' stroke='#000000' stroke-width='1' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M3.239999533,-41.137203217 L9,-38.257202148 L3.239999533,-35.37720108 Z' stroke='#4672C4' stroke-width='1' fill='#4672C4'  fill-rule='evenodd' transform='matrix(-0,-1,1,0,47.257202,-29.257202)'/>
+     <path d='M9,0 L9,-38.257202148 ' stroke='#4672C4' stroke-width='1' stroke-linecap='round' fill='none'/>
+    </g>
+    <g transform='matrix(1,0,0,1,327.8952,107.04959)' v:mID='7'>
+     <title>Rectangle.7</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='7'>
+      <title>Rectangle.7</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L108,0 L108,0 L108,72 L108,72 L0,72 L0,72 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L108,0 L108,0 L108,72 L108,72 L0,72 L0,72 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#000000'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='34.007324' y='-18' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>Scheduler</text>
+      <text x='28.458006' y='-6' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>(dependency</text>
+      <text x='17.627928' y='5.999999' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>management, data</text>
+      <text x='22.33984' y='18' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>movement, task</text>
+      <text x='29.830076' y='30.000002' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>submission)</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,327.9024,26.495998)' v:mID='8'>
+     <title>Rectangle.8</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='8'>
+      <title>Rectangle.8</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L108,0 L108,0 L108,72 L108,72 L0,72 L0,72 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L108,0 L108,0 L108,72 L108,72 L0,72 L0,72 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#000000'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='18.318846' y='-24' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>Program manager</text>
+      <text x='25.264645' y='-12' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>(device binary</text>
+      <text x='13.042968' y='-1.0728836E-06' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>management: binary</text>
+      <text x='27.063961' y='11.999999' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>selection, JIT</text>
+      <text x='8.309079' y='24' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>compilation &amp; linking,</text>
+      <text x='36.788086' y='36' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>caching)</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,327.9024,53.497253)' v:mID='19'>
+     <title>Dynamic connector.19</title>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='19'>
+      <title>Dynamic connector.19</title>
+      <path d='M-141.798797607,6.121252537 L-136.038803101,9.001253128 L-141.798797607,11.881253242 Z' stroke='#000000' stroke-width='1' fill='#000000'  fill-rule='evenodd' opacity='0' transform='matrix(-1,1.8375811E-05,-1.8375811E-05,-1,-272.07745,18.005005)'/>
+      <path d='M0,8.998746872 L-136.038803101,9.001253128 ' stroke='#000000' stroke-width='1' stroke-linecap='round' stroke-dasharray='7 5' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M-141.798797607,6.121252537 L-136.038803101,9.001253128 L-141.798797607,11.881253242 Z' stroke='#000000' stroke-width='1' fill='#000000'  fill-rule='evenodd' transform='matrix(-1,1.8375811E-05,-1.8375811E-05,-1,-272.07745,18.005005)'/>
+     <path d='M0,8.998746872 L-136.038803101,9.001253128 ' stroke='#000000' stroke-width='1' stroke-linecap='round' stroke-dasharray='7 5' fill='none'/>
+     <g transform='matrix(1,0,0,1,-103.7824,-4.601763)'>
+      <path d='M16.653623581,-4.727143288 L54.872375488,-4.727143288 L54.872375488,4.132231712 L16.653623581,4.132231712 Z' stroke='none' stroke-width='0' fill='#FFFFFF'  fill-rule='evenodd' transform='matrix(1,0,0,-1,0,18.401762)'/>
+      <text x='16.653624' y='2.4017625' class='TextStyle1' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,18.401762)'>Just-in-time</text>
+      <path d='M4.440732956,4.872857094 L67.085266113,4.872857094 L67.085266113,13.732232094 L4.440732956,13.732232094 Z' stroke='none' stroke-width='0' fill='#FFFFFF'  fill-rule='evenodd' transform='matrix(1,0,0,-1,0,18.401762)'/>
+      <text x='4.440733' y='12.001763' class='TextStyle1' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,18.401762)'>device code linking</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,543.24884,327.5728)' v:mID='21'>
+     <title>Rectangle.21</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='21'>
+      <title>Rectangle.21</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L108.007202148,0 L108.007202148,0 L108.007202148,43.689601898 L108.007202148,43.689601898 L0,43.689601898 L0,43.689601898 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L108.007202148,0 L108.007202148,0 L108.007202148,43.689601898 L108.007202148,43.689601898 L0,43.689601898 L0,43.689601898 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#D8D8D8'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='17.494808' y='-6' class='TextStyle0' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,24.844799)'>Integration header</text>
+      <text x='5.971373' y='6' class='TextStyle0' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,24.844799)'>(device kernel signature</text>
+      <text x='28.732601' y='18' class='TextStyle0' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,24.844799)'>information)</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,390.89682,327.57278)' v:mID='22'>
+     <title>Dynamic connector.22</title>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='22'>
+      <title>Dynamic connector.22</title>
+      <path d='M-14.763599396,-41.14799881 L-9.003599167,-38.267997742 L-14.763599396,-35.388000488 Z' stroke='#000000' stroke-width='1' fill='#000000'  fill-rule='evenodd' opacity='0' transform='matrix(-0,-1,1,0,29.264399,-47.2716)'/>
+      <path d='M-8.996400833,0 L-8.996400833,-13.5 L-8.996400833,-13.5 L-9.003599167,-13.5 L-9.003599167,-13.5 L-9.003599167,-38.267997742 ' stroke='#000000' stroke-width='1' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M-14.763599396,-41.14799881 L-9.003599167,-38.267997742 L-14.763599396,-35.388000488 Z' stroke='#4672C4' stroke-width='1' fill='#4672C4'  fill-rule='evenodd' transform='matrix(-0,-1,1,0,29.264399,-47.2716)'/>
+     <path d='M-8.996400833,0 L-8.996400833,-13.5 L-8.996400833,-13.5 L-9.003599167,-13.5 L-9.003599167,-13.5 L-9.003599167,-38.267997742 ' stroke='#4672C4' stroke-width='1' stroke-linecap='round' fill='none'/>
+    </g>
+    <g transform='matrix(1,0,0,1,468.70718,340.4176)' v:mID='24'>
+     <title>Dynamic connector.24</title>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='24'>
+      <title>Dynamic connector.24</title>
+      <path d='M68.781600952,6.119999409 L74.541603088,9 L68.781600952,11.880000114 Z' stroke='#000000' stroke-width='1' fill='#000000'  fill-rule='evenodd' opacity='0' transform='matrix(1,0,0,1,0,0)'/>
+      <path d='M0,9 L74.541603088,9 ' stroke='#000000' stroke-width='1' stroke-linecap='round' stroke-dasharray='7 5' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M68.781600952,6.119999409 L74.541603088,9 L68.781600952,11.880000114 Z' stroke='#D8D8D8' stroke-width='1' fill='#D8D8D8'  fill-rule='evenodd' transform='matrix(1,0,0,1,0,0)'/>
+     <path d='M0,9 L74.541603088,9 ' stroke='#D8D8D8' stroke-width='1' stroke-linecap='round' stroke-dasharray='7 5' fill='none'/>
+     <g transform='matrix(1,0,0,1,5.0272713,-4.601763)'>
+      <path d='M6.80602932,-7.12890625 L57.681030273,-7.12890625 L57.681030273,1.730468988 L6.80602932,1.730468988 Z' stroke='none' stroke-width='0' fill='#FFFFFF'  fill-rule='evenodd' transform='matrix(1,0,0,-1,0,16.001762)'/>
+      <text x='6.8060293' y='0' class='TextStyle1' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,16.001762)'>Included during</text>
+      <path d='M5.468139172,2.471094608 L59.018920898,2.471094608 L59.018920898,11.330469131 L5.468139172,11.330469131 Z' stroke='none' stroke-width='0' fill='#FFFFFF'  fill-rule='evenodd' transform='matrix(1,0,0,-1,0,16.001762)'/>
+      <text x='5.468139' y='9.6' class='TextStyle1' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,16.001762)'>host compilation</text>
+     </g>
+    </g>
+    <g transform='matrix(-0,-1,1,0,18.25,400.0624)' v:mID='27'>
+     <title>Left Brace.27</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='27'>
+      <title>Left Brace.27</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M28.800001144,0 C21.596942902,10.753272057 16.558696747,26.134881973 14.576295853,43.424537659 L14.576295853,43.424537659 C14.514497757,43.963535309 14.455724716,44.5038414 14.399999619,45.045360565 L14.400000572,45.045360565 L14.400000572,225.226806641 L14.400000572,225.226806641 L0,225.226806641 L0,225.226806641 L14.400000572,225.226806641 L14.400000572,225.226806641 L14.400000572,405.408233643 L14.399999619,405.408233643 C16.106485367,421.991149902 20.619157791,436.978088379 27.20734787,447.942382813 L27.20734787,447.942382813 C27.72677803,448.806854248 28.257852554,449.644226074 28.800006866,450.453613281 ' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M28.800001144,0 C21.596942902,10.753272057 16.558696747,26.134881973 14.576295853,43.424537659 L14.576295853,43.424537659 C14.514497757,43.963535309 14.455724716,44.5038414 14.399999619,45.045360565 L14.400000572,45.045360565 L14.400000572,225.226806641 L14.400000572,225.226806641 L0,225.226806641 L0,225.226806641 L14.400000572,225.226806641 L14.400000572,225.226806641 L14.400000572,405.408233643 L14.399999619,405.408233643 C16.106485367,421.991149902 20.619157791,436.978088379 27.20734787,447.942382813 L27.20734787,447.942382813 C27.72677803,448.806854248 28.257852554,449.644226074 28.800006866,450.453613281 ' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='none'/>
+     <g transform='matrix(0,1,-1,-0,239.6268,210.82681)'/>
+    </g>
+    <g transform='matrix(1,0,0,1,206.76039,400.4008)' v:mID='29'>
+     <title>Sheet.29</title>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='29'>
+      <title>Sheet.29</title>
+     </g>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='7.420682' y='6' class='TextStyle0' fill='#000000' opacity='1' transform='matrix(1,0,0,-1,0,17.76)'>SYCL headers</text>
+     </g>
+    </g>
+    <g transform='matrix(1,0,0,1,327.8952,187.60321)' v:mID='33'>
+     <title>Rectangle.33</title>
+     <userDefs>
+      <ud nameU='visVersion' val='15'/>
+     </userDefs>
+     <g transform='matrix(1,0,0,1,0,0)' v:mID='33'>
+      <title>Rectangle.33</title>
+      <userDefs>
+       <ud nameU='visVersion' val='15'/>
+      </userDefs>
+      <path d='M0,0 L108,0 L108,0 L108,72 L108,72 L0,72 L0,72 L0,0 Z' stroke='#000000' stroke-width='0.25' stroke-linecap='round' fill='none' stroke-opacity='0'/>
+     </g>
+     <path d='M0,0 L108,0 L108,0 L108,72 L108,72 L0,72 L0,72 L0,0 Z' stroke='#C7C8C8' stroke-width='0.25' stroke-linecap='round' fill='#000000'  fill-rule='evenodd'/>
+     <g transform='matrix(1,0,0,1,0,0)'>
+      <text x='26.084959' y='-12' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>SYCL classes</text>
+      <text x='11.233884' y='0' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>implementation (e.g.,</text>
+      <text x='19.158691' y='11.999999' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>backend resource</text>
+      <text x='26.790524' y='24' class='TextStyle0' fill='#FEFFFF' opacity='1' transform='matrix(1,0,0,-1,0,39)'>management)</text>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+ <style type='text/css'><![CDATA[ .TextStyle0 {font-family:Times New Roman;font-size:10px;}.TextStyle1 {font-family:Times New Roman;font-size:8px;} ]]></style>
+</svg>

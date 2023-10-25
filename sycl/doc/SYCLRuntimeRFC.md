@@ -20,8 +20,12 @@ of an old library at runtime. The Windows library with the correct version is
 chosen by the driver when compiling with "-fsycl".
 
 This RFC contains a brief overview of the core functionality of the SYCL runtime
-and its major components. The main RFC for SYCL implementation upstreaming can
-be found here:
+and its major components.
+
+![High level runtime overview](SYCLheadersandruntime.svg)
+*High-level overview of SYCL headers and libraries*
+
+The main RFC for SYCL implementation upstreaming can be found here:
 https://discourse.llvm.org/t/rfc-add-full-support-for-the-sycl-programming-model/74080
 
 ## SYCL API overview
@@ -160,3 +164,6 @@ available in the form of several pre-built device libraries that are linked with
 the user device code either during ahead-of-time compilation or at runtime by
 the program manager, using the information about device library dependencies
 embedded in device image wrappers by SYCL compilation tools.
+Some device libraries functionality overlaps with libc/libm implementation for
+GPU. We are looking for ways to re-use LLVM code for SYCL and welcome any
+feedback.
