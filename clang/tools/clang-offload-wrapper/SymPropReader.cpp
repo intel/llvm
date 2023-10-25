@@ -93,7 +93,7 @@ constexpr int nameIndexInTOE{1};
 // };
 
 constexpr int NameIndexInPIDBPSS{0};
-constexpr int PropertiesBeginInPIDBPSS{1};
+constexpr int PropertiesBeginIndexInPIDBPSS{1};
 
 // struct _pi_device_binary_property_struct {
 //   char *Name;
@@ -169,7 +169,7 @@ SymPropReader::getPropRegistry() {
     auto PropertySet_Name_AsStringRef =
         getValueAsStringRef(CurrentSymPropsM.get(), PropertySet_Name);
     Constant *Properties_Name =
-        PropertySet_Initializer->getAggregateElement(PropertiesBeginInPIDBPSS);
+        PropertySet_Initializer->getAggregateElement(PropertiesBeginIndexInPIDBPSS);
 
     llvm::util::PropertySet PropSet;
 
