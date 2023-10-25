@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/intel/experimental/cache_control_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -159,10 +160,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using allowed_properties = std::tuple<
       decltype(ext::intel::experimental::buffer_location<0>),
       decltype(ext::oneapi::experimental::alignment<0>),
-      decltype(ext::oneapi::experimental::read_hint<
-               cache_control<cache_mode::uncached, cache_level::L1>>),
-      decltype(ext::oneapi::experimental::write_hint<
-               cache_control<cache_mode::uncached, cache_level::L1>>)>;
+      decltype(read_hint<cache_control<cache_mode::cached, cache_level::L1>>),
+      decltype(write_hint<cache_control<cache_mode::cached, cache_level::L1>>)>;
   using filtered_properties =
       typename PropertiesFilter<allowed_properties, Props...>::tuple;
 
