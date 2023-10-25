@@ -1,4 +1,4 @@
-//==----- joint_matrix_bfloat16_32x64.cpp  - DPC++ joint_matrix-------------==//
+//==----- joint_matrix_bfloat16_32x64x16.cpp  - DPC++ joint_matrix----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,6 +17,9 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
+constexpr size_t TM = 32;
+constexpr size_t TN = 64;
+constexpr size_t TK = 16;
 
-#include "../joint_matrix_bfloat16_32x64_impl.hpp"
+#include "../joint_matrix_bfloat16_packedB_impl.hpp"

@@ -17,9 +17,9 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 16;
+#define SG_SZ 16
 constexpr size_t TM = 16;
 constexpr size_t TN = 16;
-constexpr size_t  TK = 16;
+constexpr size_t TK = 16;
 
-#include "joint_matrix_bfloat16_32x64_impl.hpp"
+#include "joint_matrix_bfloat16_packedB_impl.hpp"
