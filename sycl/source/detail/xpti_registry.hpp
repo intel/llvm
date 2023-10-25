@@ -194,7 +194,9 @@ public:
     }
   }
 
-  XPTIScope &operator=(const XPTIScope &) = delete;
+  XPTIScope(const XPTIScope &rhs) = delete;
+
+  XPTIScope &operator=(const XPTIScope &rhs) = delete;
 
   xpti::trace_event_data_t *traceEvent() { return MTraceEvent; }
 
