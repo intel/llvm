@@ -42,6 +42,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
+  sycl::unittest::PiMock MockPlugin;
 
   static constexpr char FileName[] = "NodeCreation.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
