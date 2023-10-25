@@ -702,6 +702,16 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) +
                                          ParallelismOpt + Parallelism));
 
+  // Pass down GlobalISel options.
+  if (Arg *A = Args.getLastArg(options::OPT_fglobal_isel,
+                               options::OPT_fno_global_isel)) {
+    // Parsing -fno-global-isel explicitly gives architectures that enable GISel
+    // by default a chance to disable it.
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine(PluginOptPrefix) + "-global-isel=" +
+        (A->getOption().matches(options::OPT_fglobal_isel) ? "1" : "0")));
+  }
+
   // If an explicit debugger tuning argument appeared, pass it along.
   if (Arg *A =
           Args.getLastArg(options::OPT_gTune_Group, options::OPT_ggdbN_Group)) {
@@ -2054,7 +2064,7 @@ void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
 /// convention has been to use the prefix “lib”. To avoid confusion with host
 /// archive libraries, we use prefix "libbc-" for the bitcode SDL archives.
 ///
-bool tools::SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
+static bool SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
                       llvm::opt::ArgStringList &CC1Args,
                       SmallVector<std::string, 8> LibraryPaths, std::string Lib,
                       StringRef Arch, StringRef Target, bool isBitCodeSDL) {
@@ -2132,7 +2142,7 @@ bool tools::SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
 /// unbundle this archive and create a temporary device specific archive. Name
 /// of this SDL is passed to the llvm-link (for amdgcn) or to the
 /// clang-nvlink-wrapper (for nvptx) commands by the driver.
-bool tools::GetSDLFromOffloadArchive(
+static bool GetSDLFromOffloadArchive(
     Compilation &C, const Driver &D, const Tool &T, const JobAction &JA,
     const InputInfoList &Inputs, const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args, SmallVector<std::string, 8> LibraryPaths,
@@ -2158,7 +2168,6 @@ bool tools::GetSDLFromOffloadArchive(
       Lib = Lib.drop_front(2);
     for (auto LPath : LibraryPaths) {
       ArchiveOfBundles.clear();
-      SmallVector<std::string, 2> AOBFileNames;
       auto LibFile =
           (Lib.startswith(":") ? Lib.drop_front()
                                : IsMSVC ? Lib + Ext : "lib" + Lib + Ext)

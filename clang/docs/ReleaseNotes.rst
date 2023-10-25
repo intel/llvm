@@ -379,6 +379,25 @@ Improvements to Clang's diagnostics
   can sometimes lead to worse ordering.
 
 
+- When describing a warning/error in a function-style type conversion Clang underlines only until
+  the end of the expression we convert from. Now Clang underlines until the closing parenthesis.
+
+  Before:
+
+  .. code-block:: text
+
+    warning: cast from 'long (*)(const int &)' to 'decltype(fun_ptr)' (aka 'long (*)(int &)') converts to incompatible function type [-Wcast-function-type-strict]
+    24 | return decltype(fun_ptr)( f_ptr /*comment*/);
+       |        ^~~~~~~~~~~~~~~~~~~~~~~~
+
+  After:
+
+  .. code-block:: text
+
+    warning: cast from 'long (*)(const int &)' to 'decltype(fun_ptr)' (aka 'long (*)(int &)') converts to incompatible function type [-Wcast-function-type-strict]
+    24 | return decltype(fun_ptr)( f_ptr /*comment*/);
+       |        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Bug Fixes in This Version
 -------------------------
 - Fixed an issue where a class template specialization whose declaration is
@@ -455,6 +474,10 @@ Bug Fixes in This Version
   cannot be used with ``Release`` mode builds. (`#68237 <https://github.com/llvm/llvm-project/issues/68237>`_).
 - Fix crash in evaluating ``constexpr`` value for invalid template function.
   Fixes (`#68542 <https://github.com/llvm/llvm-project/issues/68542>`_)
+- Clang will correctly evaluate ``noexcept`` expression for template functions
+  of template classes. Fixes
+  (`#68543 <https://github.com/llvm/llvm-project/issues/68543>`_,
+  `#42496 <https://github.com/llvm/llvm-project/issues/42496>`_)
 - Fixed an issue when a shift count larger than ``__INT64_MAX__``, in a right
   shift operation, could result in missing warnings about
   ``shift count >= width of type`` or internal compiler error.
@@ -465,11 +488,18 @@ Bug Fixes in This Version
 - Clang no longer permits using the `_BitInt` types as an underlying type for an
   enumeration as specified in the C23 Standard.
   Fixes (`#69619 <https://github.com/llvm/llvm-project/issues/69619>`_)
+- Fixed an issue when a shift count specified by a small constant ``_BitInt()``,
+  in a left shift operation, could result in a faulty warnings about
+  ``shift count >= width of type``.
 - Clang now accepts anonymous members initialized with designated initializers
   inside templates.
   Fixes (`#65143 <https://github.com/llvm/llvm-project/issues/65143>`_)
 - Fix crash in formatting the real/imaginary part of a complex lvalue.
   Fixes (`#69218 <https://github.com/llvm/llvm-project/issues/69218>`_)
+- No longer use C++ ``thread_local`` semantics in C23 when using
+  ``thread_local`` instead of ``_Thread_local``.
+  Fixes (`#70068 <https://github.com/llvm/llvm-project/issues/70068>`_) and
+  (`#69167 <https://github.com/llvm/llvm-project/issues/69167>`_)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -594,6 +624,11 @@ Bug Fixes to C++ Support
   declaration definition. Fixes:
   (`#61763 <https://github.com/llvm/llvm-project/issues/61763>`_)
 
+- Fix a bug where implicit deduction guides are not correctly generated for nested template
+  classes. Fixes:
+  (`#46200 <https://github.com/llvm/llvm-project/issues/46200>`_)
+  (`#57812 <https://github.com/llvm/llvm-project/issues/57812>`_)
+
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 - Fixed an import failure of recursive friend class template.
@@ -642,6 +677,11 @@ X86 Support
 
 Arm and AArch64 Support
 ^^^^^^^^^^^^^^^^^^^^^^^
+
+- C++ function name mangling has been changed to align with the specification
+  (https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst).
+  This affects C++ functions with SVE ACLE parameters. Clang will use the old
+  manglings if ``-fclang-abi-compat=17`` or lower is  specified.
 
 Android Support
 ^^^^^^^^^^^^^^^
@@ -735,6 +775,7 @@ AST Matchers
 clang-format
 ------------
 - Add ``AllowBreakBeforeNoexceptSpecifier`` option.
+- Add ``AllowShortCompoundRequirementOnASingleLine`` option.
 
 libclang
 --------
