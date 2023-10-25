@@ -3743,6 +3743,16 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets. (experimental)">;
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
+defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "sycl-add-default-spec-consts-image",
+  PosFlag<SetTrue, [], [ClangOption],
+           "Generates a copy of every device image that uses a specialization constant and "
+           "replaces all usages of specialization constant with default values specified by specialization_id. "
+           "If a device image doesn't use a specialization constant at all then no copy is generated. "
+           "This option is only useful if used in conjunction with Ahead of Time Compilation (-fsycl-target command line option).">,
+  NegFlag<SetFalse, [], [ClangOption],
+           "Turns off generation of device image where all specialization constant usages are replaced "
+           "with default values.">
+>;
 defm sycl_instrument_device_code
     : BoolFOption<"sycl-instrument-device-code",
           CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
@@ -3848,7 +3858,14 @@ def ftarget_register_alloc_mode_EQ : Joined<["-"], "ftarget-register-alloc-mode=
   HelpText<"Specify a register allocation mode for specific hardware for use by supported "
   "target backends.">;
 def : Flag<["-"], "fsycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fgpu_rdc>;
-def : Flag<["-"], "fno-sycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>;
+def : Flag<["-"], "fno-sycl-rdc">,
+  Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>,
+  HelpText<"Generate relocatable device code during SYCL offload target "
+           "compilation. Use of ‘-fno-sycl-rdc’ in combination with ‘-c’ will "
+           "produce final device binaries within the generated fat object. "
+           "When using this option, each kernel must be self-contained within "
+           "its translation unit (source file).  Therefore, the use of "
+           "SYCL_EXTERNAL is disallowed when this option is enabled.">;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
