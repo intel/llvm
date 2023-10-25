@@ -85,12 +85,12 @@ int main() {
   });
 
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implcitly convertible from sycl::item}}
+    // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implicitly convertible from sycl::item}}
     CGH.parallel_for(sycl::range{1, 1, 1}, [=](float f, sycl::item<3> it) {});
   });
 
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implcitly convertible from sycl::item}}
+    // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implicitly convertible from sycl::item}}
     CGH.parallel_for(sycl::range{1, 1},
                      [=](kernel_handler kh, sycl::item<3> it) {});
   });

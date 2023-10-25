@@ -55,7 +55,7 @@ int main() {
 
 #ifndef SYCL2020_CONFORMANT_APIS
   // For backwards compatibility, we still support some invalid variants of
-  // kernel lambdas. These tesst cases should be removed once we make conformant
+  // kernel lambdas. These test cases should be removed once we make conformant
   // mode the default.
   sycl::queue q;
   q.submit([&](sycl::handler &cgh) {

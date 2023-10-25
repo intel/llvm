@@ -1248,7 +1248,7 @@ private:
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
                   "sycl::parallel_for(sycl::range) kernel must have the "
                   "first argument of sycl::item type, or of a type which is "
-                  "implcitly convertible from sycl::item");
+                  "implicitly convertible from sycl::item");
 
     static_assert(
         (std::is_invocable_v<KernelType, LambdaArgType> ||
