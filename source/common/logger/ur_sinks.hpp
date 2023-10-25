@@ -65,16 +65,17 @@ class Sink {
                 if (*(++fmt) == '{') {
                     buffer << *fmt++;
                 } else {
-                    std::cerr
-                        << error_prefix
-                        << "No arguments provided and braces not escaped!";
+                    std::cerr << error_prefix
+                              << "No arguments provided and braces not escaped!"
+                              << std::endl;
                 }
             } else if (*fmt == '}') {
                 if (*(++fmt) == '}') {
                     buffer << *fmt++;
                 } else {
                     std::cerr << error_prefix
-                              << "Closing curly brace not escaped!";
+                              << "Closing curly brace not escaped!"
+                              << std::endl;
                 }
             }
         }
@@ -95,7 +96,7 @@ class Sink {
                     buffer << *fmt++;
                 } else if (*fmt != '}') {
                     std::cerr << error_prefix
-                              << "Only empty braces are allowed!";
+                              << "Only empty braces are allowed!" << std::endl;
                 } else {
                     buffer << arg;
                     arg_printed = true;
@@ -105,7 +106,8 @@ class Sink {
                     buffer << *fmt++;
                 } else {
                     std::cerr << error_prefix
-                              << "Closing curly brace not escaped!";
+                              << "Closing curly brace not escaped!"
+                              << std::endl;
                 }
             }
         }
