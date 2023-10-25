@@ -168,8 +168,8 @@ SymPropReader::getPropRegistry() {
         PropertySet_Initializer->getAggregateElement(NameIndexInPIDBPSS);
     auto PropertySet_Name_AsStringRef =
         getValueAsStringRef(CurrentSymPropsM.get(), PropertySet_Name);
-    Constant *Properties_Name =
-        PropertySet_Initializer->getAggregateElement(PropertiesBeginIndexInPIDBPSS);
+    Constant *Properties_Name = PropertySet_Initializer->getAggregateElement(
+        PropertiesBeginIndexInPIDBPSS);
 
     llvm::util::PropertySet PropSet;
 
