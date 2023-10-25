@@ -7095,9 +7095,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   handleArguments(C, Args, Inputs, Actions);
 
-  // If '-fintelfpga' argument is passed by users, add '-fsycl' option
-  // to the list of arguments, so that user's do not have to
-  // pass it explicitly in the commandline.
+  // If '-fintelfpga' is passed, add '-fsycl' to the list of arguments
   const llvm::opt::OptTable &Opts = getOpts();
   Arg *SYCLFpgaArg = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
   if (SYCLFpgaArg &&
