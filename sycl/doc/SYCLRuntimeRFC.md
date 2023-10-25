@@ -22,7 +22,7 @@ chosen by the driver when compiling with "-fsycl".
 This RFC contains a brief overview of the core functionality of the SYCL runtime
 and its major components.
 
-![High level runtime overview](SYCLheadersandruntime.svg)
+![High level runtime overview](SYCLHeadersAndLibraries.svg)
 *High-level overview of SYCL headers and libraries*
 
 The main RFC for SYCL implementation upstreaming can be found here:
