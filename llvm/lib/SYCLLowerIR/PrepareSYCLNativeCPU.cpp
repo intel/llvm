@@ -258,7 +258,7 @@ static inline bool IsForVisualStudio(StringRef triple_str) {
 static constexpr unsigned int NativeCPUGlobalAS = 1;
 static constexpr char StateTypeName[] = "struct.__nativecpu_state";
 
-Type *getStateType(Module& M) {
+static Type *getStateType(Module& M) {
   // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
   // Check that there's no __nativecpu_state type
   auto Types = M.getIdentifiedStructTypes();
@@ -275,7 +275,16 @@ Type *getStateType(Module& M) {
   return StateType;
 }
 
-Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
+static const StringMap<unsigned> OffsetMap{
+  {NativeCPUGlobalId, 0 },
+  {NativeCPUGlobaRange, 1 },
+  {NativeCPUWGSize, 2},
+  {NativeCPUWGId, 3},
+  {NativeCPULocalId, 4 },
+  {NativeCPUNumGroups, 5 },
+  {NativeCPUGlobalOffset, 6}};
+
+static Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
   auto& Ctx = M.getContext();
   Type *I64Ty = Type::getInt64Ty(Ctx);
   Type *I32Ty = Type::getInt32Ty(Ctx);
@@ -283,14 +292,6 @@ Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
   static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
-  static const StringMap<unsigned> OffsetMap{
-    {NativeCPUGlobalId, 0 },
-    {NativeCPUGlobaRange, 1 },
-    {NativeCPUWGSize, 2},
-    {NativeCPUWGId, 3},
-    {NativeCPULocalId, 4 },
-    {NativeCPUNumGroups, 5 },
-    {NativeCPUGlobalOffset, 6}};
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto* F = dyn_cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
