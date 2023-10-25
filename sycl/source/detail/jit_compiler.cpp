@@ -814,11 +814,11 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
   JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
-const std::string tmp = FusedKernelName.str();
-const char* FusedKernelNametmp = tmp.c_str();
+  const std::string tmp = FusedKernelName.str();
+  const char *FusedKernelNametmp = tmp.c_str();
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
-       FusedKernelNametmp, ParamIdentities, BarrierFlags, InternalizeParams,
+      FusedKernelNametmp, ParamIdentities, BarrierFlags, InternalizeParams,
       JITConstants);
 
   if (FusionResult.failed()) {
@@ -878,8 +878,8 @@ const char* FusedKernelNametmp = tmp.c_str();
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name.c_str(), {}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig));
+      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name.c_str(), {},
+      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 

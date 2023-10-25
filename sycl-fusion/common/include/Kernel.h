@@ -224,13 +224,12 @@ struct SYCLKernelInfo {
   //// Explicit constructor for compatibility with LLVM YAML I/O.
   SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
-  SYCLKernelInfo(const char* KernelName,
-                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
-                 const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+  SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
+                 const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
+        BinaryInfo{BinInfo} {}
 
-  explicit SYCLKernelInfo(const char* KernelName)
+  explicit SYCLKernelInfo(const char *KernelName)
       : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
@@ -245,11 +244,11 @@ public:
 
   KernelInfoList &kernels() { return Kernels; }
 
-  bool hasKernelFor(const char* KernelName) {
+  bool hasKernelFor(const char *KernelName) {
     return getKernelFor(KernelName) != nullptr;
   }
 
-  SYCLKernelInfo *getKernelFor(const char* KernelName) {
+  SYCLKernelInfo *getKernelFor(const char *KernelName) {
     auto It =
         std::find_if(Kernels.begin(), Kernels.end(),
                      [&](SYCLKernelInfo &K) { return K.Name == KernelName; });

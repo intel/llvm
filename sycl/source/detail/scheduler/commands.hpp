@@ -622,8 +622,7 @@ pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const char *KernelName,
-    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    const char *KernelName, std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
@@ -682,7 +681,7 @@ private:
 // Very close to ExecCGCommand::emitInstrumentationData content.
 void emitKernelInstrumentationData(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const char* SyclKernelName,
+    const detail::code_location &CodeLoc, const char *SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
