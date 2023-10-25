@@ -64,47 +64,29 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-static constexpr size_t MATRIX_K = TK * 2;
-bfloat16 A[MATRIX_M][MATRIX_K];
-bfloat16 B[MATRIX_K][MATRIX_N];
-float C[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
-
-void matrix_multiply_ref(int M, int N, int K) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        D[m][n] += make_fp32(A[m][k]) * make_fp32(B[k][n]);
-      }
-    }
-}
-
 int main() {
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = bfloat16(1.0f * (i + j));
-    }
-  }
-  for (int i = 0; i < MATRIX_K; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      B[i][j] = bfloat16(2.0f * i + 3.0f * j);
-    }
-  }
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = 1.0;
-      D[i][j] = 1.0;
-    }
-  }
+  static constexpr size_t MATRIX_M = TM * 2;
+  static constexpr size_t MATRIX_N = TN * 2;
+  static constexpr size_t MATRIX_K = TK * 2;
+  bfloat16 A[MATRIX_M][MATRIX_K];
+  bfloat16 B[MATRIX_K][MATRIX_N];
+  float C[MATRIX_M][MATRIX_N];
+  float D[MATRIX_M][MATRIX_N];
+
+  matrix_fill(MATRIX_M, MATRIX_K, (bfloat16 *)A,
+              [](int i, int j) { return 1.0f * (i + j); });
+  matrix_fill(MATRIX_K, MATRIX_N, (bfloat16 *)B,
+              [](int i, int j) { return 2.0f * i + 3.0f * j; });
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)C, 1.0f);
+  matrix_fill(MATRIX_M, MATRIX_N, (float *)D, 1.0f);
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K, MATRIX_N> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref(MATRIX_M, MATRIX_N, MATRIX_K);
+  matrix_multiply_ref((bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M,
+                      MATRIX_N, MATRIX_K);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (float *)C, (float *)D);
   std::cout << (res ? "passed" : "failed") << std::endl;

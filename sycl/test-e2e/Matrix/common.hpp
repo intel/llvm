@@ -31,22 +31,38 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-template <typename Ta, typename Tc>
-void matrix_multiply_ref(Ta *A, Ta *B, Tc *C, int M, int N, int K,
-                         bool transpose_c = false) {
+template <typename Ta, typename Tb, typename Tc, uint VF = 1>
+void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
+                         bool transpose_c = false, bool colmajor_a = false,
+                         bool colmajor_b = false) {
   for (unsigned int m = 0; m < M; m++) {
     for (unsigned int n = 0; n < N; n++) {
       for (unsigned int k = 0; k < K; k++) {
+
+        int a_ind = colmajor_a ? (k * M + m) : m * K + k;
+        int b_ind = colmajor_b ? (n * K + k) : k * N + n;
         int c_ind = transpose_c ? (n * M + m) : m * N + n;
-        if constexpr (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>)
-          C[c_ind] += make_fp32(A[m * K + k]) * make_fp32(B[k * N + n]);
-        else if constexpr (std::is_same_v<Ta, float> &&
-                               std::is_same_v<Tc, float> ||
-                           std::is_same_v<Ta, int8_t> &&
-                               std::is_same_v<Tc, int32_t>)
-          C[c_ind] += A[m * K + k] * B[k * N + n];
-        else
-          assert(false && "Unsupported type in matrix_multiply_ref.");
+
+        Ta *va = (Ta *)(A + a_ind * VF);
+        Tb *vb = (Tb *)(B + b_ind * VF);
+        Tc acc = *(C + c_ind);
+
+        for (uint i = 0; i < VF; i++) {
+          if constexpr (std::is_same_v<Ta, bfloat16> &&
+                        std::is_same_v<Tc, float>)
+            acc += make_fp32(va[i]) * make_fp32(vb[i]);
+          else if constexpr (std::is_same_v<Ta, float> &&
+                                 std::is_same_v<Tc, float> ||
+                             std::is_integral_v<Ta> && std::is_integral_v<Tc>)
+            acc += va[i] * vb[i];
+          else if constexpr (std::is_same_v<Ta, sycl::half> &&
+                             std::is_same_v<Tc, float>)
+            acc += (float)va[i] * (float)vb[i];
+          else
+            assert(false && "Unsupported type in matrix_multiply_ref.");
+        }
+
+        *(C + c_ind) = acc;
       }
     }
   }
