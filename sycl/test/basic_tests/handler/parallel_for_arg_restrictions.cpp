@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s
-// RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s -DSYCL2020_CONFORMANT_APIS
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s -DPREVIEW_BREAKING_CHANGES%}
 
 // Tests the requirements on the first argument in a kernel lambda.
-// TODO: Some of the behavior is currently guarded behind
-//       SYCL2020_CONFORMANT_APIS. Remove the definition when this behavior has
-//       been promoted.
+// TODO: Some of the behavior is currently guarded behind the
+// -fpreview-breaking-changes option. Remove the use of this option when this
+// behavior has been promoted.
 
 #include <sycl/sycl.hpp>
 
@@ -20,7 +20,7 @@ int main() {
   sycl::queue Q;
 
 // TODO: Remove this when the guarded behavior is promoted.
-#ifdef SYCL2020_CONFORMANT_APIS
+#ifdef PREVIEW_BREAKING_CHANGES
   // ND-range parallel_for with item.
   Q.submit([&](sycl::handler &CGH) {
     // expected-error@sycl/handler.hpp:* {{Kernel argument of a sycl::parallel_for with sycl::nd_range must be either sycl::nd_item or be convertible from sycl::nd_item}}
@@ -72,15 +72,15 @@ int main() {
                      [=](ConvertibleFromItem<3>) {});
   });
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpeted signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
+    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
     CGH.parallel_for(sycl::range{1}, [=](auto &) {});
   });
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpeted signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
+    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
     CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
   });
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpeted signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
+    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
     CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
   });
 
@@ -96,11 +96,11 @@ int main() {
   });
 
   Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpeted signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
+    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
     CGH.parallel_for(sycl::range{1}, [=](sycl::item<1> it, sycl::item<1> it,
                                          kernel_handler kh) {});
   });
-#endif // SYCL2020_CONFORMANT_APIS
+#endif // PREVIEW_BREAKING_CHANGES
 
   // Range parallel_for with nd_item.
   Q.submit([&](sycl::handler &CGH) {
