@@ -36,6 +36,9 @@ config.excludes = ['Inputs', 'feature-tests']
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
 
+# allow expanding substitutions that are based on other substitutions
+config.recursiveExpansionLimit = 10
+
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
@@ -55,6 +58,10 @@ if config.extra_environment:
         else:
            lit_config.note("\tUnset "+var)
            llvm_config.with_environment(var,"")
+
+# If major release preview library is enabled we can enable the feature.
+if config.sycl_preview_lib_enabled == "ON":
+    config.available_features.add('preview-breaking-changes-supported')
 
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 # Add 'libcxx' feature to filter out all SYCL abi tests when SYCL runtime

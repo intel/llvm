@@ -9,8 +9,6 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <sycl/exception.hpp>
-
 namespace __ESIMD_DNS {
 
 // This function implements atomic update of pre-existing variable in the

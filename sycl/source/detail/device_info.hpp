@@ -979,11 +979,12 @@ struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-    // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
-    // and LevelZero.
+    // Currently fusion is only supported for SPIR-V based backends,
+    // CUDA and HIP.
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
            (Dev->getBackend() == backend::opencl) ||
-           (Dev->getBackend() == backend::ext_oneapi_cuda);
+           (Dev->getBackend() == backend::ext_oneapi_cuda) ||
+           (Dev->getBackend() == backend::ext_oneapi_hip);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;

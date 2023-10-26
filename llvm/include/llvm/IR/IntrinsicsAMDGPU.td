@@ -1175,9 +1175,9 @@ class AMDGPUStructPtrBufferStore<LLVMType data_ty = llvm_any_ty> : DefaultAttrsI
 def int_amdgcn_struct_ptr_buffer_store_format : AMDGPUStructPtrBufferStore;
 def int_amdgcn_struct_ptr_buffer_store : AMDGPUStructPtrBufferStore;
 
-class AMDGPURawBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
-  !if(NoRtn, [], [data_ty]),
-  [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
+class AMDGPURawBufferAtomic<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [LLVMMatchType<0>,  // vdata(VGPR)
    llvm_v4i32_ty,     // rsrc(SGPR)
    llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
    llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
@@ -1209,10 +1209,10 @@ def int_amdgcn_raw_buffer_atomic_cmpswap : Intrinsic<
   [ImmArg<ArgIndex<5>>, IntrWillReturn, IntrNoCallback, IntrNoFree], "", [SDNPMemOperand]>,
   AMDGPURsrcIntrinsic<2, 0>;
 
-class AMDGPURawPtrBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
-  !if(NoRtn, [], [data_ty]),
-  [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
-   AMDGPUBufferRsrcTy<LLVMMatchType<0>>, // rsrc(SGPR)
+class AMDGPURawPtrBufferAtomic<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [LLVMMatchType<0>,            // vdata(VGPR)
+  AMDGPUBufferRsrcTy<LLVMMatchType<0>>,          // rsrc(SGPR)
    llvm_i32_ty,                 // offset(VGPR/imm, included in bounds checking and swizzling)
    llvm_i32_ty,                 // soffset(SGPR/imm, excluded from bounds checking and swizzling)
    llvm_i32_ty],                // cachepolicy(imm; bit 1 = slc)
@@ -1250,9 +1250,9 @@ def int_amdgcn_raw_ptr_buffer_atomic_cmpswap : Intrinsic<
 def int_amdgcn_raw_buffer_atomic_fadd : AMDGPURawBufferAtomic<llvm_anyfloat_ty>;
 def int_amdgcn_raw_ptr_buffer_atomic_fadd : AMDGPURawPtrBufferAtomic<llvm_anyfloat_ty>;
 
-class AMDGPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
-  !if(NoRtn, [], [data_ty]),
-  [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
+class AMDGPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [LLVMMatchType<0>,  // vdata(VGPR)
    llvm_v4i32_ty,     // rsrc(SGPR)
    llvm_i32_ty,       // vindex(VGPR)
    llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
@@ -1284,10 +1284,10 @@ def int_amdgcn_struct_buffer_atomic_cmpswap : Intrinsic<
   [ImmArg<ArgIndex<6>>, IntrWillReturn, IntrNoCallback, IntrNoFree], "", [SDNPMemOperand]>,
   AMDGPURsrcIntrinsic<2, 0>;
 
-class AMDGPUStructPtrBufferAtomic<LLVMType data_ty = llvm_any_ty, bit NoRtn = false> : Intrinsic <
-  !if(NoRtn, [], [data_ty]),
-  [!if(NoRtn, data_ty, LLVMMatchType<0>),  // vdata(VGPR)
-   AMDGPUBufferRsrcTy<LLVMMatchType<0>>, // rsrc(SGPR)
+class AMDGPUStructPtrBufferAtomic<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [LLVMMatchType<0>,            // vdata(VGPR)
+  AMDGPUBufferRsrcTy<LLVMMatchType<0>>, // rsrc(SGPR)
    llvm_i32_ty,                 // vindex(VGPR)
    llvm_i32_ty,                 // offset(VGPR/imm, included in bounds checking and swizzling)
    llvm_i32_ty,                 // soffset(SGPR/imm, excluded from bounds checking and swizzling)
