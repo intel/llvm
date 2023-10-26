@@ -52,7 +52,7 @@ void TraceDiagnosticsMessage(xpti::trace_event_data_t * /*Parent*/,
 
 void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
                                xpti::trace_event_data_t *Event,
-                               const void *UserData, uint64_t InstanceID,
+                               const void *, uint64_t InstanceID,
                                bool IsBegin) {
   if (!Event)
     return;
@@ -76,7 +76,7 @@ void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
 
 void TraceQueueLifetimeSignals(xpti::trace_event_data_t * /*Parent*/,
                                xpti::trace_event_data_t *Event,
-                               const void *UserData, bool IsCreation) {
+                               const void *, bool IsCreation) {
   if (!Event)
     return;
 

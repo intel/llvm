@@ -239,9 +239,11 @@ event handler::finalize() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
-      auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+      auto InstrumentationData = emitKernelInstrumentationData(
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
           KernelBundleImpPtr, MArgs);
+      auto CmdTraceEvent = InstrumentationData.first;
+      auto InstanceID = InstrumentationData.second;
 #endif
 
       auto EnqueueKernel = [&]() {
