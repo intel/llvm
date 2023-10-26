@@ -9,3 +9,10 @@ this solution will no longer be necessary.
 When you fix any test, the match file must be updated
 Empty match files indicate that there are no failing tests
 in a particular group for the corresponding adapter.
+
+## How to limit the test devices count
+
+To limit how many devices you want to run the CTS on,
+use CMake option UR_TEST_DEVICES_COUNT. If you want to run
+the tests on all available devices, set 0.
+The default value is 1.
