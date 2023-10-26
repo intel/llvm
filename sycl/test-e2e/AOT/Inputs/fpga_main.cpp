@@ -2,7 +2,7 @@
 #include "sycl/sycl.hpp"
 #include <iostream>
 
-#include "kernels.h"
+#include "fpga_kernels.h"
 
 int main() {
   sycl::queue q;
