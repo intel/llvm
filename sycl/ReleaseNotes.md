@@ -43,6 +43,8 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added support of 16 bit data for `lsc_atomic_update` and `lsc_slm_atomic_update` ESIMD API. [3028d82a75d2]
 - Added support for per-kernel auto GRF mode specification, and reimplemented the feature using kernel properties. Introduced a new property named `sycl::detail::register_alloc_mode` which takes in an enum `sycl::detail::register_alloc_mode_enum` with values: `automatic` and `large`. [f363bb272b5a]
 - Implemented [`sycl_ext_oneapi_root_group`](doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. [743c35be2da7]
+- Added support for tf32 type using the unified interface for SYCL Matrix extension. [aba6d85f9f16]
+- Implemented Host Pipes described in [`sycl_ext_intel_dataflow_pipes`](doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension. [992ef064289f][5bd42eb6a7df]
 - Added generic implementation for some bf16 math functions. [c7759bb8cd0b]
 - Added decorated async_work_group_copy overloads. [d1f67ca228f2]
 - Added initial implementation of the Unified Runtime plugin and routed to it with `SYCL_PREFER_UR`. [5a239c6a08e1]
@@ -96,6 +98,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Moved imf `abs` to a separate device library for Deep Learning. [e4f074a6aabe]
 - Fixed the bug report URL for DPC++. [98b7de88a7d9]
 - Started to link with `bfloat16` related device libraries only when they are used. [663042b04b63]
+- Started to properly pass -fsycl-esimd-force-stateless-mem to the host code compilation. [8b85b6400b82]
 
 ### SYCL Library
 - Combined ADL-S and RPL-S device architectures. [f87be6f17428]
