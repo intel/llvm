@@ -96,6 +96,8 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     for (LoadInst *L : LI)
       L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
 
+    // PtrUses is returned by `getLoads` in topological order.
+    // Walk it backwards so we don't violate users
     for (auto *I : reverse(PtrUses))
       I->eraseFromParent();
 
