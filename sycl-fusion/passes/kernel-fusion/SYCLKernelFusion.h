@@ -35,7 +35,7 @@ public:
   constexpr static llvm::StringLiteral NDRangesMDKey{"sycl.kernel.nd-ranges"};
 
   constexpr SYCLKernelFusion() = default;
-  constexpr explicit SYCLKernelFusion(int BarriersFlags)
+  constexpr explicit SYCLKernelFusion(jit_compiler::BarrierFlags BarriersFlags)
       : BarriersFlags{BarriersFlags} {}
 
   llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &AM);
@@ -45,7 +45,8 @@ public:
   ///
   /// By default, correct ordering of memory operations to global memory is
   /// ensured.
-  constexpr static int DefaultBarriersFlags{3};
+  constexpr static jit_compiler::BarrierFlags DefaultBarriersFlags{
+      jit_compiler::getLocalAndGlobalBarrierFlag()};
 
 private:
   // This needs to be in sync with the metadata kind
@@ -155,11 +156,7 @@ private:
   ///
   /// Flags to apply to the barrier to be introduced between fused kernels.
   ///
-  /// Possible values:
-  /// - -1: Do not insert barrier
-  /// - 1: ensure correct ordering of memory operations to local memory
-  /// - 2: ensure correct ordering of memory operations to global memory
-  const int BarriersFlags{DefaultBarriersFlags};
+  const jit_compiler::BarrierFlags BarriersFlags{DefaultBarriersFlags};
 
   ///
   /// Merge the content of Other into Attributes, adding, removing or updating

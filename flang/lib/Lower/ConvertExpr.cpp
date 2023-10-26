@@ -2646,26 +2646,14 @@ public:
         }
         // Passing a POINTER to a POINTER, or an ALLOCATABLE to an ALLOCATABLE.
         fir::MutableBoxValue mutableBox = genMutableBoxValue(*expr);
+        if (fir::isAllocatableType(argTy) && arg.isIntentOut() &&
+            Fortran::semantics::IsBindCProcedure(*procRef.proc().GetSymbol()))
+          Fortran::lower::genDeallocateIfAllocated(converter, mutableBox, loc);
         mlir::Value irBox =
             fir::factory::getMutableIRBox(builder, loc, mutableBox);
         caller.placeInput(arg, irBox);
         if (arg.mayBeModifiedByCall())
           mutableModifiedByCall.emplace_back(std::move(mutableBox));
-        if (fir::isAllocatableType(argTy) && arg.isIntentOut() &&
-            Fortran::semantics::IsBindCProcedure(*procRef.proc().GetSymbol())) {
-          if (mutableBox.isDerived() || mutableBox.isPolymorphic() ||
-              mutableBox.isUnlimitedPolymorphic()) {
-            mlir::Value isAlloc = fir::factory::genIsAllocatedOrAssociatedTest(
-                builder, loc, mutableBox);
-            builder.genIfThen(loc, isAlloc)
-                .genThen([&]() {
-                  Fortran::lower::genDeallocateBox(converter, mutableBox, loc);
-                })
-                .end();
-          } else {
-            Fortran::lower::genDeallocateBox(converter, mutableBox, loc);
-          }
-        }
         continue;
       }
       if (arg.passBy == PassBy::BaseAddress || arg.passBy == PassBy::BoxChar ||
@@ -3826,7 +3814,7 @@ private:
     return false;
   }
   bool genShapeFromDataRef(const Fortran::evaluate::CoarrayRef &) {
-    TODO(getLoc(), "coarray ref");
+    TODO(getLoc(), "coarray: reference to a coarray in an expression");
     return false;
   }
   bool genShapeFromDataRef(const Fortran::evaluate::Component &x) {
@@ -7103,7 +7091,7 @@ private:
   }
 
   CC genarr(const Fortran::evaluate::CoarrayRef &x, ComponentPath &components) {
-    TODO(getLoc(), "coarray reference");
+    TODO(getLoc(), "coarray: reference to a coarray in an expression");
   }
 
   CC genarr(const Fortran::evaluate::NamedEntity &x,

@@ -254,7 +254,7 @@ bool test(queue q, const Config &cfg) {
                 // do compare-and-swap in a loop until we get expected value;
                 // arg0 and arg1 must provide values which guarantee the loop
                 // is not endless:
-                for (auto old_val =
+                for (simd<T, N> old_val =
                          atomic_update<op>(arr, offsets, new_val, exp_val, m);
                      any(old_val < exp_val, !m);
                      old_val =
@@ -503,11 +503,11 @@ template <class T, int N, class C, C Op> struct ImplLoadBase {
 template <class T, int N, class C, C Op> struct ImplStoreBase {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(2 + FPDELTA);
 
   static T init(int i, const Config &cfg) { return 0; }
 
   static T gold(int i, const Config &cfg) {
+    T base = (T)(2 + FPDELTA);
 #ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
 #else
@@ -516,7 +516,10 @@ template <class T, int N, class C, C Op> struct ImplStoreBase {
     return gold;
   }
 
-  static T arg0(int i) { return base; }
+  static T arg0(int i) {
+    T base = (T)(2 + FPDELTA);
+    return base;
+  }
 };
 
 template <class T, int N, class C, C Op> struct ImplAdd {
@@ -545,9 +548,9 @@ template <class T, int N, class C, C Op> struct ImplAdd {
 template <class T, int N, class C, C Op> struct ImplSub {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(5 + FPDELTA);
 
   static T init(int i, const Config &cfg) {
+    T base = (T)(5 + FPDELTA);
 #ifndef USE_SCALAR_OFFSET
     return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups *
                    (T)(1 + FPDELTA) +
@@ -561,6 +564,7 @@ template <class T, int N, class C, C Op> struct ImplSub {
   }
 
   static T gold(int i, const Config &cfg) {
+    T base = (T)(5 + FPDELTA);
 #ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
 #else
@@ -695,11 +699,14 @@ struct ImplDec : ImplDecBase<T, N, DWORDAtomicOp, DWORDAtomicOp::dec> {};
 template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 2;
-  static constexpr T base = (T)(2 + FPDELTA);
 
-  static T init(int i, const Config &cfg) { return base - 1; }
+  static T init(int i, const Config &cfg) {
+    T base = (T)(1 + FPDELTA);
+    return base;
+  }
 
   static T gold(int i, const Config &cfg) {
+    T base = (T)(2 + FPDELTA);
 #ifndef USE_SCALAR_OFFSET
     T gold = is_updated(i, N, cfg)
 #else
@@ -711,10 +718,16 @@ template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   }
 
   // "Replacement value" argument in CAS
-  static inline T arg0(int i) { return i + base; }
+  static inline T arg0(int i) {
+    T base = (T)(i + 2 + FPDELTA);
+    return base;
+  }
 
   // "Expected value" argument in CAS
-  static inline T arg1(int i) { return i + base - 1; }
+  static inline T arg1(int i) {
+    T base = (T)(i + 1 + FPDELTA);
+    return base;
+  }
 };
 
 #ifndef USE_DWORD_ATOMICS
@@ -841,6 +854,7 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   return passed;
 }
 
+#ifndef SKIP_MAIN
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
@@ -890,19 +904,15 @@ int main(void) {
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
 #ifndef CMPXCHG_TEST
-  // TODO: Investigate test failures on emulator
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    // Check load/store operations
-    passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
-    passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
-  }
+  // Check load/store operations
+  passed &= test_int_types_and_sizes<ImplLoad>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLoad>(q, cfg);
 #ifndef USE_SCALAR_OFFSET
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
-    passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
-  }
+  passed &= test_int_types_and_sizes<ImplStore>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplStore>(q, cfg);
 #endif
 #endif
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }
+#endif // SKIP_MAIN

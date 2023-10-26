@@ -26,6 +26,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
+
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;
@@ -75,6 +78,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
@@ -152,6 +156,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
@@ -448,7 +453,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       DevStr = "ACCELERATOR";
     else
       DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
+    xpti::addMetadata(WaitEvent, "sycl_device_type", DevStr);
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());

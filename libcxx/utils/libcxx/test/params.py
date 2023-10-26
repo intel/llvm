@@ -5,10 +5,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 # ===----------------------------------------------------------------------===##
+import sys
+import re
+import shlex
+from pathlib import Path
 
 from libcxx.test.dsl import *
 from libcxx.test.features import _isMSVC
-import re
+
 
 _warningFlags = [
     "-Werror",
@@ -73,9 +77,6 @@ _allStandards = ["c++03", "c++11", "c++14", "c++17", "c++20", "c++23", "c++26"]
 
 
 def getStdFlag(cfg, std):
-    # TODO(LLVM-17) Remove this clang-tidy-16 work-around
-    if std == "c++23":
-        std = "c++2b"
     if hasCompileFlag(cfg, "-std=" + std):
         return "-std=" + std
     # TODO(LLVM-19) Remove the fallbacks needed for Clang 16.
@@ -276,6 +277,14 @@ DEFAULT_PARAMETERS = [
         actions=lambda enabled: [] if not enabled else [AddFeature("long_tests")],
     ),
     Parameter(
+        name="large_tests",
+        choices=[True, False],
+        type=bool,
+        default=True,
+        help="Whether to enable tests that use a lot of memory. This can be useful when running on a device with limited amounts of memory.",
+        actions=lambda enabled: [] if not enabled else [AddFeature("large_tests")],
+    ),
+    Parameter(
         name="hardening_mode",
         choices=["unchecked", "hardened", "safe", "debug"],
         type=str,
@@ -314,5 +323,12 @@ DEFAULT_PARAMETERS = [
             AddCompileFlag("-D_LIBCPP_REMOVE_TRANSITIVE_INCLUDES"),
         ],
     ),
+    Parameter(
+        name="executor",
+        type=str,
+        default=f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve().parent.parent.parent / 'run.py'))}",
+        help="Custom executor to use instead of the configured default.",
+        actions=lambda executor: [AddSubstitution("%{executor}", executor)],
+    )
 ]
 # fmt: on

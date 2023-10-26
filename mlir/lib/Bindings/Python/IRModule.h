@@ -759,6 +759,16 @@ class PyAsmState {
       mlirOpPrintingFlagsUseLocalScope(flags);
     state = mlirAsmStateCreateForValue(value, flags);
   }
+
+  PyAsmState(PyOperationBase &operation, bool useLocalScope) {
+    flags = mlirOpPrintingFlagsCreate();
+    // The OpPrintingFlags are not exposed Python side, create locally and
+    // associate lifetime with the state.
+    if (useLocalScope)
+      mlirOpPrintingFlagsUseLocalScope(flags);
+    state =
+        mlirAsmStateCreateForOperation(operation.getOperation().get(), flags);
+  }
   ~PyAsmState() {
     mlirOpPrintingFlagsDestroy(flags);
   }
@@ -823,6 +833,7 @@ public:
                    const pybind11::object &excTb);
 
   PyBlock &getBlock() { return block; }
+  std::optional<PyOperationRef> &getRefOperation() { return refOperation; }
 
 private:
   // Trampoline constructor that avoids null initializing members while
