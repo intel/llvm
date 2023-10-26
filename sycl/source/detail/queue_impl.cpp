@@ -26,6 +26,60 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+  
+std::vector<sycl::detail::pi::PiEvent>
+getPIEvents(const std::vector<sycl::event>& DepEvents, sycl::event const * const ExtraDepEvent) {
+  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+  auto AddEvent = [&RetPiEvents](const sycl::event& Event)
+  {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    if (EventImpl->getHandleRef() == nullptr)
+      return;
+    RetPiEvents.push_back(EventImpl->getHandleRef());
+  };
+  if (ExtraDepEvent)
+    AddEvent(*ExtraDepEvent);
+  for_each(DepEvents.begin(), DepEvents.end(), AddEvent);
+  return RetPiEvents;
+}
+
+bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event* const ExtraDepEventPtr, ContextImplPtr Context)
+{
+  auto CheckEvent = [&Context](sycl::event& Event)
+  {
+    auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
+    // throwaway events created with empty constructor will not have a context
+    // (which is set lazily) calling getContextImpl() would set that
+    // context, which we wish to avoid as it is expensive.
+    if (!SyclEventImplPtr->isContextInitialized() &&
+        !SyclEventImplPtr->is_host()) {
+      return true;
+    }
+    // The fusion command and its event are associated with a non-host context,
+    // but still does not produce a PI event.
+    to add field to event with producesPiEvent value
+    bool NoPiEvent =
+        SyclEventImplPtr->MCommand &&
+        !static_cast<Command *>(SyclEventImplPtr->MCommand)->producesPiEvent();
+    if (SyclEventImplPtr->is_host() ||
+        SyclEventImplPtr->getContextImpl() != Context || NoPiEvent) {
+      // Call wait, because the command for the event might not have been
+      // enqueued when kernel fusion is happening.
+      return false;
+    } else {
+      // In this path nullptr native event means that the command has not been
+      // enqueued. It may happen if async enqueue in a host task is involved.
+      if (SyclEventImplPtr->getHandleRef() == nullptr) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return (!ExtraDepEventPtr || CheckEvent(*ExtraDepEventPtr)) && std::all_of(DepEvents.begin(), DepEvents.end(), CheckEvent);
+}
+
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   sycl::detail::pi::PiResult result = PI_SUCCESS;
@@ -81,43 +135,40 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+  // We need to submit command and update the last event under same lock if we
+  // have in-order queue.
+  if (std::unique_lock<std::mutex>(isInOrder() ? MLastEventMtx : {}) && isEventsReady(DepEvents, isInOrder() ? &MLastEvent: nullptr, MContext))
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
+    if (MHasDiscardEventsSupport) {
+      MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                              getPIEvents(DepEvents, MLastEvent), nullptr);
+      return createDiscardedEvent();
+    }
 
+    event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext),
-                            &EventImpl->getHandleRef(), EventImpl);
-
+                          getPIEvents(DepEvents, MLastEvent),
+                          &EventImpl->getHandleRef(), EventImpl);
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
-
     if (isInOrder()) {
       MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
     }
+    // Track only if we won't be able to handle it with piQueueFinish.
+    if (MEmulateOOO)
+      addSharedEvent(ResEvent);
+    return MDiscardEvents ? createDiscardedEvent() : ResEvent;
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+  else
+  {
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.memset(Ptr, Value, Count);
+        },
+        Self, {});
+  }
 }
 
 void report(const code_location &CodeLoc) {

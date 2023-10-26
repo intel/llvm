@@ -44,6 +44,8 @@ class buffer_impl;
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
+__SYCL_EXPORT bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event* const ExtraDepEventPtr, ContextImplPtr Context);
+
 __SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
 getOrWaitEvents(std::vector<sycl::event> DepEvents,
                 std::shared_ptr<sycl::detail::context_impl> Context);

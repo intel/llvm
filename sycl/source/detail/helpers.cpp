@@ -21,6 +21,7 @@ namespace sycl {
 inline namespace _V1 {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
+
 std::vector<sycl::detail::pi::PiEvent>
 getOrWaitEvents(std::vector<sycl::event> DepEvents, ContextImplPtr Context) {
   std::vector<sycl::detail::pi::PiEvent> Events;

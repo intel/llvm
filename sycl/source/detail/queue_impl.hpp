@@ -704,29 +704,16 @@ protected:
   void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
-
-      auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
-        return Type == CG::CGTYPE::CodeplayHostTask;
-      };
-
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
-
-      if (MLastCGType == CG::CGTYPE::None)
-        MLastCGType = Type;
-      // Also handles case when sync model changes. E.g. Last is host, new is
-      // kernel.
-      bool NeedSeparateDependencyMgmt =
-          IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
-
-      if (NeedSeparateDependencyMgmt)
-        Handler.depends_on(MLastEvent);
+      // This dependency is needed for the following purposes:
+      //    - host tasks is handled by runtime and could not be implicitly synchronized by backend.
+      //    - to prevent 2nd kernel enqueue when 1st kernel is blocked by host task. This dependency allows to build enqueue order in RT but will be not passed to backend. Look at getPIEvents in Command.
+      Handler.depends_on(MLastEvent);
 
       EventRet = Handler.finalize();
-
       MLastEvent = EventRet;
-      MLastCGType = Type;
     } else
       EventRet = Handler.finalize();
   }
@@ -851,10 +838,6 @@ protected:
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
   mutable std::mutex MLastEventMtx;
-  // Used for in-order queues in pair with MLastEvent
-  // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
-  // backend. Using type to setup explicit sync between host and pi tasks.
-  CG::CGTYPE MLastCGType = CG::CGTYPE::None;
 
   const bool MIsInorder;
 
