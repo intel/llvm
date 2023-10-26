@@ -5736,7 +5736,7 @@ class OffloadingActionBuilder final {
 
           if (IsSpirvAOT) {
             // For FPGA with -fsycl-link, we need to bundle the output.
-            if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+            if (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
               Action *DeviceAction = DeviceWrappingAction;
               if (Args.hasArg(options::OPT_fsycl_link_EQ)) {
                 // We do not want to compile the wrapped binary before the link.
@@ -5757,10 +5757,10 @@ class OffloadingActionBuilder final {
               }
               addDeps(DeviceAction, TC, nullptr);
             } else {
-              bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
-                            BoundArch != nullptr);
-              addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr,
-                     Action::OFK_SYCL);
+              bool AddBA =
+                  (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+                   BoundArch != nullptr);
+              addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
             }
           } else {
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
