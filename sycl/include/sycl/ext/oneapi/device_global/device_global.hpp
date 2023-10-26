@@ -58,7 +58,7 @@ protected:
   // The pointer member is mutable to avoid the compiler optimizing it out when
   // accessing const-qualified device_global variables.
   mutable pointer_t usmptr{};
-  const T init_val{};
+  T init_val{};
 
   pointer_t get_ptr() noexcept { return usmptr; }
   pointer_t get_ptr() const noexcept { return usmptr; }
