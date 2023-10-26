@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a76e3b185a5e1df9114dc483077227f88f522244
-  # Merge: 3653e582 657ffde9
+  # commit cf26de283a1233e6c93feb085acc10c566888b59
+  # Merge: 3a3aae38 2fd9dea2
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 20 12:12:15 2023 +0100
-  #     Merge pull request #972 from oneapi-src/revert-906-l0_usm_error_checking
-  #     Revert "[UR][L0] Propagate errors from `USMAllocationMakeResident`"
-  set(UNIFIED_RUNTIME_TAG a76e3b185a5e1df9114dc483077227f88f522244)
+  # Date:   Wed Oct 25 10:36:48 2023 +0100
+  #     Merge pull request #940 from Naghasan/victor/kernel-fusion-amd
+  #     [UR][HIP] Enable kernel finalization using comgr
+  set(UNIFIED_RUNTIME_TAG cf26de283a1233e6c93feb085acc10c566888b59)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -529,7 +529,7 @@ struct Table {
 
   SmallVector<std::string, 16> getListOfIRFiles(void) {
     SmallVector<std::string, 16> Files;
-    for (auto Entry : Entries) {
+    for (auto &Entry : Entries) {
       Files.push_back(Entry.IRFile);
     }
     return Files;
@@ -546,7 +546,7 @@ struct Table {
     if (EC)
       reportError(errorCodeToError(EC));
     TableFile << "[Code|Properties|Symbols]\n";
-    for (auto Entry : Entries) {
+    for (auto &Entry : Entries) {
       TableFile << Entry.IRFile << "|";
       TableFile << Entry.PropFile << "|";
       TableFile << Entry.SymFile << "\n";
@@ -742,7 +742,7 @@ Expected<StringRef> linkDeviceInputFiles(SmallVectorImpl<StringRef> &InputFiles,
 
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*LLVMLinkPath);
-  for (auto File : InputFiles)
+  for (auto &File : InputFiles)
     CmdArgs.push_back(File);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutFileOrErr);
@@ -979,7 +979,7 @@ void diagnosticHandler(const DiagnosticInfo &DI) {
 std::vector<std::string> getTargetFeatures(ArrayRef<OffloadFile> InputFiles) {
   SmallVector<StringRef> Features;
   for (const OffloadFile &File : InputFiles) {
-    for (auto Arg : llvm::split(File.getBinary()->getString("feature"), ","))
+    for (auto &Arg : llvm::split(File.getBinary()->getString("feature"), ","))
       Features.emplace_back(Arg);
   }
 

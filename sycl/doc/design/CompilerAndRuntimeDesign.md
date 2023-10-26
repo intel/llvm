@@ -423,6 +423,30 @@ Case 1 can be identified in the device binary generation stage (step 1) by
 scanning the known kernels. Case 2 must be verified by the driver by checking
 for newly introduced kernels in the final link stage (step 3).
 
+#### Device Link during compilation
+
+The `-fno-sycl-rdc` flag can be used in combination with the `-c` option
+when generating fat objects. This option combination informs the compiler to
+perform a full device link stage against the device object, creating a fat
+object that contains the corresponding host object and a fully compiled device
+binary. It is expected that usage of `-fno-sycl-rdc` coincide with
+ahead of time compiling.
+
+When using the generated fat object in this case, the compiler will recognize
+the fat object that contains the fully linked device binary. The device binary
+will be unbundled and linked during the final host link and will not be sent
+through any additional device linking steps.
+
+1. Generation of fat object: a.cpp -> a_fat.o (contains host object and full
+device image)
+2. Linking: a_fat.o -> executable
+
+The generation of the full device image during the compilation (-c) step of
+creating the object allows for library creation that does not require full
+device linking steps which can be a burden to the user.  Providing these early
+device linking steps give the provider of the archives/objects a better user
+experience.
+
 #### Device code post-link step
 
 At link time all the device code is linked into
@@ -753,24 +777,32 @@ Note: Kernel naming is not fully stable for now.
 
 The [experimental kernel fusion
 extension](../extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
-also supports the CUDA backend. However, as neither CUBIN nor PTX are a suitable
-input format for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
+also supports the CUDA and HIP backends. However, as the CUBIN, PTX and AMD assembly
+are not suitable input formats for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
 suitable IR has to be added as an additional device binary.
 
-Therefore, in case kernel fusion should be performed for the CUDA backend, the
+Therefore, in case kernel fusion should be performed for the CUDA or HIP backends, the
 user needs to specify the additional flag `-fsycl-embed-ir` during compilation,
 to add LLVM IR as an additional device binary. When the flag `-fsycl-embed-ir`
-is specified, the LLVM IR produced by Clang for the CUDA backend device
+is specified, the LLVM IR produced by Clang for the CUDA/HIP backend device
 compilation is added to the fat binary file. To this end, the resulting
 file-table from `sycl-post-link` is additionally passed to the
-`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`.
+`clang-offload-wrapper`, creating a wrapper object with target `llvm_nvptx64`
+for the CUDA backend and `llvm_amdgcn` for the HIP backend.
 
 This device binary in LLVM IR format can be retrieved by the SYCL runtime and
-used by the kernel fusion JIT compiler. The resulting fused kernel is compiled
-to PTX assembly by the kernel fusion JIT compiler at runtime.
+used by the kernel fusion JIT compiler. For the CUDA backend, the resulting fused
+kernel is compiled to PTX assembly by the kernel fusion JIT compiler at runtime.
+For the HIP backend, the resulting fused kernel is compiled to an AMDGCN binary
+by the kernel fusion JIT compiler at runtime, however this output requires
+finalization by `lld`. Rather than adding another dependancy to the fusion jit,
+a `Requires finalization` property is added the binary. The HIP
+PI plugin/UR adapter will then use the AMD Compiler Object Manager library
+(`comgr`, part of the ROCm package) in order to finalize it into
+a loadable format.
 
 Note that the device binary in LLVM IR does not replace the device binary in
-CUBIN/PTX format, but is embed in addition to it.
+target format, but is embed in addition to it.
 
 ### Integration with SPIR-V format
 
