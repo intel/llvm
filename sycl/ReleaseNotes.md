@@ -15,18 +15,17 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added new FPGA loop attribute `enable_loop_pipelining`. [4147b8ded75f]
 
 ### SYCL Library
-- Enabled [`sycl_ext_oneapi_annotated_arg`](doc/extensions/experimental/sycl_ext_oneapi_annotated_arg.asciidoc) and [`sycl_ext_oneapi_annotated_ptr`](doc/extensions/experimental/sycl_ext_oneapi_annotated_ptr.asciidoc) experimental extensions. [05d3be63f996][80b7de1d63f4][557204abf242]
-- Implemented [`sycl_ext_intel_queue_immediate_command_list`](doc/extensions/supported/sycl_ext_intel_queue_immediate_command_list.asciidoc) extension. [2f2560fe74e6]
-- Implemented [`sycl_ext_oneapi_copy_optimize`](doc/extensions/experimental/sycl_ext_oneapi_copy_optimize.asciidoc) experimental extension. [65cc0cfe809f]
-- Added initial implementation of the experimental SYCL Graph extension [`sycl_ext_oneapi_graph`](doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc)  [35465da4824a][f9d4830babca][72341ee375d6][96a605095665]
+- Enabled [`sycl_ext_oneapi_annotated_arg`](https://github.com/intel/llvm/tree/80b7de1d63f4/sycl/doc/extensions/experimental/sycl_ext_oneapi_annotated_arg.asciidoc) and [`sycl_ext_oneapi_annotated_ptr`](https://github.com/intel/llvm/tree/80b7de1d63f4/sycl/doc/extensions/experimental/sycl_ext_oneapi_annotated_ptr.asciidoc) experimental extensions. [05d3be63f996][80b7de1d63f4][557204abf242]
+- Implemented [`sycl_ext_intel_queue_immediate_command_list`](https://github.com/intel/llvm/tree/2f2560fe74e6/sycl/doc/extensions/supported/sycl_ext_intel_queue_immediate_command_list.asciidoc) extension. [2f2560fe74e6]
+- Implemented [`sycl_ext_oneapi_copy_optimize`](https://github.com/intel/llvm/tree/65cc0cfe809f/sycl/doc/extensions/experimental/sycl_ext_oneapi_copy_optimize.asciidoc) experimental extension. [65cc0cfe809f]
+- Added initial implementation of the experimental SYCL Graph extension [`sycl_ext_oneapi_graph`](https://github.com/intel/llvm/tree/f9d4830babca/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc)  [35465da4824a][f9d4830babca][72341ee375d6][96a605095665]
 - Added `dimensions` member to item/range-like types. [9c7bd9ea046f]
 - Added support of `queue::priority_*` properties for OpenCL backend. [25fd689999f7]
-- Implemented initial version of the SYCL Native CPU Plug-in designed in [`SYCLNativeCPU`](doc/design/SYCLNativeCPU.md). [b2d0837e9644] [5b501eeca963]
+- Implemented initial version of the SYCL Native CPU Plug-in designed in [`SYCLNativeCPU`](https://github.com/intel/llvm/tree/5b501eeca963/sycl/doc/design/SYCLNativeCPU.md). [b2d0837e9644] [5b501eeca963]
 - Added `__imf_max/min/hadd/fast_*` functions to imf device libraries. [fe01366e8b08][d96e5075303a]
-- Introduced and implemented new `sycl::ext::oneapi::experimental::info::device::architecture` device descriptor and `device::ext_oneapi_architecture_is(ext::oneapi::experimental::architecture)` host API as part of [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension (for Level Zero and OpenCL). [d0b01b265d92]
-- Added experimental implementation of [`sycl_ext_intel_grf_size`](doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) [370aa2a01711]
-- Added experimental implementation of [`sycl_ext_oneapi_bindless_images`](doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) [58a8f2001d8b]
-- Experimental [`sycl_ext_oneapi_device_global`](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) extension is supported now. [d812d1e13ab5]
+- Introduced and implemented new `sycl::ext::oneapi::experimental::info::device::architecture` device descriptor and `device::ext_oneapi_architecture_is(ext::oneapi::experimental::architecture)` host API as part of [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/d0b01b265d92/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension (for Level Zero and OpenCL). [d0b01b265d92]
+- Added experimental implementation of [`sycl_ext_intel_grf_size`](https://github.com/intel/llvm/tree/370aa2a01711/sycl/doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) [370aa2a01711]
+- Experimental [`sycl_ext_oneapi_device_global`](https://github.com/intel/llvm/tree/d812d1e13ab5/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) extension is supported now. [d812d1e13ab5]
 - Enabled media API that works with image accessors for ESIMD. Those accessors do not depend on stateful/stateless mode. [b95b2d88e446]
 - Allowed implicit conversion from `std::experimental::simd_mask` to `ESIMD::simd_mask`. [de5b479a2de9]
 - Added `host_task` image accessor support. [b6faefb08e23]
@@ -37,10 +36,10 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Implemented device query for 64 bit atomic support in ESIMD emulator. [c40baa6db64b]
 - Added support of 16 bit data for `lsc_atomic_update` and `lsc_slm_atomic_update` ESIMD API. [3028d82a75d2]
 - Added support for per-kernel auto GRF mode specification, and reimplemented the feature using kernel properties. Introduced a new property named `sycl::detail::register_alloc_mode` which takes in an enum `sycl::detail::register_alloc_mode_enum` with values: `automatic` and `large`. [f363bb272b5a]
-- Implemented [`sycl_ext_oneapi_root_group`](doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. [743c35be2da7]
+- Implemented [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. [743c35be2da7]
 - Added support for tf32 type using the unified interface for SYCL Matrix extension. [aba6d85f9f16]
-- Implemented Host Pipes described in [`sycl_ext_intel_dataflow_pipes`](doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension. [992ef064289f][5bd42eb6a7df]
-- Added support for more math built-ins for `bfloat16` together with the extension specification [`sycl_ext_oneapi_bfloat16_math_functions`](doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) update [c7759bb8cd0b]
+- Implemented Host Pipes described in [`sycl_ext_intel_dataflow_pipes`](https://github.com/intel/llvm/tree/992ef064289f/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension. [992ef064289f][5bd42eb6a7df]
+- Added support for more math built-ins for `bfloat16` together with the extension specification [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/tree/c7759bb8cd0b/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) update [c7759bb8cd0b]
 - Added decorated `async_work_group_copy` overloads. [d1f67ca228f2]
 - Added initial implementation of the Unified Runtime plugin and routed to it with `SYCL_PREFER_UR`. [5a239c6a08e1]
 - Added support for accessors to `atomic_update` ESIMD API. [59a1aa0841da]
@@ -66,19 +65,19 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Allowed zero-sized 3D accessors. [5cb8279ddb8e]
 
 ### Documentation
-- Added experimental SYCL bindless images extension [`sycl_ext_oneapi_bindless_images`](doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) proposal.
-- Added [`sycl_ext_oneapi_work_group_local`](doc/extensions/proposed/sycl_ext_oneapi_work_group_local.asciidoc) extension proposal. [1d6cff1a8e5a]
-- Moved [`sycl_ext_oneapi_device_global`](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) from proposed to experimental. [d812d1e13ab5]
-- Added [`DeviceConfigFile`](doc/design/DeviceConfigFile.md) design document. [3f4b778dd163]
-- Added [`sycl_ext_oneapi_address_cast`](doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) extension. [9cab5598bc82]
-- Added [`sycl_ext_intel_grf_size`](doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) extension. [83d099758770]
-- Added proposal for [`sycl_ext_oneapi_append_and_shift`](doc/extensions/proposed/sycl_ext_oneapi_append_and_shift.asciidoc) extension. [1a283acaac3c]
-- Updated description of accessor-based memory APIs in [`sycl_ext_intel_esimd`](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md). [9e5889918277]
-- Added draft of [`sycl_ext_oneapi_prefetch`](doc/extensions/proposed/sycl_ext_oneapi_prefetch.asciidoc). [034ac0958662]
-- Added draft of [`sycl_ext_oneapi_barrier`](doc/extensions/proposed/sycl_ext_oneapi_barrier.asciidoc) [32144edcf982]
+- Added experimental SYCL bindless images extension [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/tree/99cbdd15fef2/sycl/doc/extensions/proposed/sycl_ext_oneapi_bindless_images.asciidoc) proposal. [74e83d5af06c][99cbdd15fef2]
+- Added [`sycl_ext_oneapi_work_group_local`](https://github.com/intel/llvm/tree/1d6cff1a8e5a/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_local.asciidoc) extension proposal. [1d6cff1a8e5a]
+- Moved [`sycl_ext_oneapi_device_global`](https://github.com/intel/llvm/tree/d812d1e13ab5/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) from proposed to experimental. [d812d1e13ab5]
+- Added [`DeviceConfigFile`](https://github.com/intel/llvm/tree/3f4b778dd163/sycl/doc/design/DeviceConfigFile.md) design document. [3f4b778dd163]
+- Added [`sycl_ext_oneapi_address_cast`](https://github.com/intel/llvm/tree/9cab5598bc82/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) extension. [9cab5598bc82]
+- Added [`sycl_ext_intel_grf_size`](https://github.com/intel/llvm/tree/83d099758770/sycl/doc/extensions/proposed/sycl_ext_intel_grf_size.asciidoc) extension. [83d099758770]
+- Added proposal for [`sycl_ext_oneapi_append_and_shift`](https://github.com/intel/llvm/tree/1a283acaac3c/sycl/doc/extensions/proposed/sycl_ext_oneapi_append_and_shift.asciidoc) extension. [1a283acaac3c]
+- Updated description of accessor-based memory APIs in [`sycl_ext_intel_esimd`](https://github.com/intel/llvm/tree/9e5889918277/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md). [9e5889918277]
+- Added draft of [`sycl_ext_oneapi_prefetch`](https://github.com/intel/llvm/tree/034ac0958662/sycl/doc/extensions/proposed/sycl_ext_oneapi_prefetch.asciidoc). [034ac0958662]
+- Added draft of [`sycl_ext_oneapi_barrier`](https://github.com/intel/llvm/tree/32144edcf982/sycl/doc/extensions/proposed/sycl_ext_oneapi_barrier.asciidoc) [32144edcf982]
 - Added legacy SYCL 1.2.1 image aspect. [78b709dd5bb8]
-- Added [`sycl_ext_intel_data_flow_pipes_properties`](doc/extensions/experimental/sycl_ext_intel_data_flow_pipes_properties.asciidoc) extension. [5b0a4615874b]
-- Updated [`sycl_ext_intel_dataflow_pipes`](doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension for FPGA host. [6b2d66b8d52f]
+- Added [`sycl_ext_intel_data_flow_pipes_properties`](https://github.com/intel/llvm/tree/5b0a4615874b/sycl/doc/extensions/experimental/sycl_ext_intel_data_flow_pipes_properties.asciidoc) extension. [5b0a4615874b]
+- Updated [`sycl_ext_intel_dataflow_pipes`](https://github.com/intel/llvm/tree/6b2d66b8d52f/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension for FPGA host. [6b2d66b8d52f]
 
 ## Improvements
 
@@ -96,7 +95,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 ### SYCL Library
 - Combined ADL-S and RPL-S device architectures. [f87be6f17428]
 - Implemented multi_ptr default to be legacy to avoid code break with SYCL 1.2.1. [52edb3798749]
-- Started to use aggregate initialization for `group_local_memory` arrays according to updated [`sycl_ext_oneapi_local_memory`](doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc).[b50440ec76b9]
+- Started to use aggregate initialization for `group_local_memory` arrays according to updated [`sycl_ext_oneapi_local_memory`](https://github.com/intel/llvm/tree/b50440ec76b9/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc).[b50440ec76b9]
 - Deprecated ESIMD Emulator.  [177680e3e918]
 - Deprecated `ext::oneapi::sub_group`. [0662e2a81014]
 - Improved error message related to `ext_intel_free_memory` aspect. [c1bfcaf6d6ed]
@@ -124,7 +123,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Removed unneeded backwards compatibility of 2023.2 make_queue and get_native. [c5f150a41b1d][5918e0c208a1]
 - Change the `SYCL_PI_LEVEL_ZERO_USM_RESIDENT` default to force device allocations only. [33874f76c59f]
 - Started to report false for `aspect::image` on all devices. [5cf0f7cf5c21]
-- Removed lambda parameter from "if_architecture_is" according to [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc). [71f745bcda7d]
+- Removed lambda parameter from "if_architecture_is" according to [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/71f745bcda7d/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc). [71f745bcda7d]
 - Throw for invalid reqd_work_group_size. [084c02797084]
 - Adjusted static restriction checks for block_2d APIs. [7902d6b35348]
 - Disallowed local accessor misuse according to SYCL 2020. [d7a5ec048368]
@@ -148,15 +147,15 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Started to print supported SG sizes in `sycl-ls --verbose`. [12515177ab03]
 
 ### Documentation
-- Updated restrictions in [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension. [a69a54f38f2f]
-- Added `invoke_simd` SLM example and `simd_view` example to [`README`](doc/extensions/supported/sycl_ext_intel_esimd/examples/README.md). [c99668ee5985][f1986b40e04b]
-- Clarified ways to set sub-group sizes in [`sycl_ext_oneapi_named_sub_group_sizes`](doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) [3285e0fe5590]
+- Updated restrictions in [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/a69a54f38f2f/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension. [a69a54f38f2f]
+- Added `invoke_simd` SLM example and `simd_view` example to [`README`](https://github.com/intel/llvm/tree/c99668ee5985/sycl/doc/extensions/supported/sycl_ext_intel_esimd/examples/README.md). [c99668ee5985][f1986b40e04b]
+- Clarified ways to set sub-group sizes in [`sycl_ext_oneapi_named_sub_group_sizes`](https://github.com/intel/llvm/tree/3285e0fe5590/sycl/doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) [3285e0fe5590]
 - Added invoke_simd example. [e860b140d506]
 - Added README.md for the Unified Runtime directory. [453ffdcf41dd]
-- Updated the versioning section in [`ABIPolicyGuide`](doc/developer/ABIPolicyGuide.md). [dfe6e4e542ab]
-- Added `invoke_simd` section to [`README`](doc/extensions/experimental/sycl_ext_intel_esimd/README.md) and updated [sycl_ext_intel_esimd](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md) [52567e8cd428]
-- Updated [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) and [`sycl_ext_oneapi_device_if`](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) to allow captures in `if_device_has`, `if_architecture_is`. [acfc905a994a]
-- Updated [`SPV_INTEL_joint_matrix`](doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc) extension. [adbbf0f39c25]
+- Updated the versioning section in [`ABIPolicyGuide`](https://github.com/intel/llvm/tree/dfe6e4e542ab/sycl/doc/developer/ABIPolicyGuide.md). [dfe6e4e542ab]
+- Added `invoke_simd` section to [`README`](https://github.com/intel/llvm/tree/52567e8cd428/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/README.md) and updated [sycl_ext_intel_esimd](https://github.com/intel/llvm/tree/52567e8cd428/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md) [52567e8cd428]
+- Updated [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/acfc905a994a/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) and [`sycl_ext_oneapi_device_if`](https://github.com/intel/llvm/tree/acfc905a994a/sycl/doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) to allow captures in `if_device_has`, `if_architecture_is`. [acfc905a994a]
+- Updated [`SPV_INTEL_joint_matrix`](https://github.com/intel/llvm/tree/adbbf0f39c25/sycl/doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc) extension. [adbbf0f39c25]
 
 ## Bug fixes
 
@@ -270,8 +269,8 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Fixed empty accessor default constructor to not create a placeholder to comply with SYCL 2020. [e753fae9fad7]
 
 ### Documentation
-- Fixed link anchors in [`EnvironmentVariables`](doc/EnvironmentVariables.md) documentation. [ba1fc2e68d04]
-- Fixed InlineAsm example in [`sycl_ext_intel_esimd`](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md). [5ff169559712]
+- Fixed link anchors in [`EnvironmentVariables`](https://github.com/intel/llvm/tree/ba1fc2e68d04/sycl/doc/EnvironmentVariables.md) documentation. [ba1fc2e68d04]
+- Fixed InlineAsm example in [`sycl_ext_intel_esimd`](https://github.com/intel/llvm/tree/5ff169559712/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md). [5ff169559712]
 
 ## API/ABI breakages
 - Removed deprecated `piclCreateProgramWithSource`. [42f560977a0a]
@@ -293,7 +292,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Removed `sycl_ext_oneapi_group_algorithms` extension. [8b9d2106af0d]
 - Removed unneeded backwards compatibility of 2023.2 `make_queue` and `get_native`. [c5f150a41b1d][5918e0c208a1]
 - Removed support for binaries generated for triples with `-sycldevice` environment component. [5fc53134fcfc]
-- Removed lambda parameter from `if_architecture_is` according to [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc). [71f745bcda7d]
+- Removed lambda parameter from `if_architecture_is` according to [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/71f745bcda7d/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc). [71f745bcda7d]
 - Updated `sycl::exception` to be SYCL2020 compliant. [ce26ac08a383]
 - Replaced deprecated `sycl::runtime_error` with SYCL 2020 compliant `sycl::exception` in SYCL RT. [f08dc9473d40]
 - Renamed `win_proxy_loader` to `pi_win_proxy_loader`. [2648b7c5e1a4]
