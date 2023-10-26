@@ -119,6 +119,15 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
   }
 }
 
+template <typename T>
+void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      dst[i * cols + j] = src[i * cols + j];
+    }
+  }
+}
+
 template <typename T1, typename T2>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {

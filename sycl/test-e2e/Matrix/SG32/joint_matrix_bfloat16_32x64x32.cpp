@@ -1,4 +1,4 @@
-//==----------- joint_matrix_transposeC.cpp  - DPC++ joint_matrix-----------==//
+//==----- joint_matrix_bfloat16_32x64x32.cpp  - DPC++ joint_matrix----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,16 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-// XFAIL: gpu
+// XFAIL: *
 
-#include "common.hpp"
+#include "../common.hpp"
 
-constexpr size_t SG_SZ = 16;
-constexpr size_t TN = 16;
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental::matrix;
 
-#include "joint_matrix_transposeC_impl.hpp"
+#define SG_SZ 32
+constexpr size_t TM = 32;
+constexpr size_t TN = 64;
+constexpr size_t TK = 32;
+
+#include "../joint_matrix_bfloat16_packedB_impl.hpp"

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TargetFusionInfo.h"
+#include "Kernel.h"
 
 #include "Kernel.h"
 #include "NDRangesHelper.h"
@@ -14,8 +15,11 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/TargetParser/Triple.h"
+
+using namespace jit_compiler;
 
 template <typename ForwardIt, typename KeyTy>
 static ForwardIt mapArrayLookup(ForwardIt Begin, ForwardIt End,
@@ -62,7 +66,7 @@ public:
   virtual ArrayRef<StringRef> getUniformKernelAttributes() const { return {}; }
 
   virtual void createBarrierCall(IRBuilderBase &Builder,
-                                 int BarrierFlags) const = 0;
+                                 BarrierFlags BarrierFlags) const = 0;
 
   virtual unsigned getPrivateAddressSpace() const = 0;
 
@@ -173,12 +177,10 @@ public:
   }
 
   void createBarrierCall(IRBuilderBase &Builder,
-                         int BarrierFlags) const override {
-    if (BarrierFlags == -1) {
+                         BarrierFlags BarrierFlags) const override {
+    if (isNoBarrierFlag(BarrierFlags)) {
       return;
     }
-    assert((BarrierFlags == 1 || BarrierFlags == 2 || BarrierFlags == 3) &&
-           "Invalid barrier flags");
 
     static const auto FnAttrs = AttributeSet::get(
         LLVMMod->getContext(),
@@ -208,8 +210,9 @@ public:
     SmallVector<Value *> Args{
         Builder.getInt32(/*Exec Scope : Workgroup = */ 2),
         Builder.getInt32(/*Exec Scope : Workgroup = */ 2),
-        Builder.getInt32(0x10 | (BarrierFlags % 2 == 1 ? 0x100 : 0x0) |
-                         ((BarrierFlags >> 1 == 1 ? 0x200 : 0x0)))};
+        Builder.getInt32(0x10 |
+                         (hasLocalBarrierFlag(BarrierFlags) ? 0x100 : 0x0) |
+                         ((hasGlobalBarrierFlag(BarrierFlags) ? 0x200 : 0x0)))};
 
     auto *BarrierCallInst = Builder.CreateCall(F, Args);
     BarrierCallInst->setAttributes(
@@ -412,18 +415,15 @@ public:
   }
 };
 
-//
-// NVPTXTargetFusionInfo
-//
-#ifdef FUSION_JIT_SUPPORT_PTX
-class NVPTXTargetFusionInfo : public TargetFusionInfoImpl {
+class NVPTXAMDGCNTargetFusionInfoBase : public TargetFusionInfoImpl {
 public:
   using TargetFusionInfoImpl::TargetFusionInfoImpl;
 
-  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
+  void notifyFunctionsDelete(StringRef MDName,
+                             llvm::ArrayRef<Function *> Funcs) const {
     SmallPtrSet<Constant *, 8> DeletedFuncs{Funcs.begin(), Funcs.end()};
     SmallVector<MDNode *> ValidKernels;
-    auto *OldAnnotations = LLVMMod->getNamedMetadata("nvvm.annotations");
+    auto *OldAnnotations = LLVMMod->getNamedMetadata(MDName);
     for (auto *Op : OldAnnotations->operands()) {
       if (auto *TOp = dyn_cast<MDTuple>(Op)) {
         if (auto *COp = dyn_cast_if_present<ConstantAsMetadata>(
@@ -437,23 +437,21 @@ public:
       }
     }
     LLVMMod->eraseNamedMetadata(OldAnnotations);
-    auto *NewAnnotations =
-        LLVMMod->getOrInsertNamedMetadata("nvvm.annotations");
+    auto *NewAnnotations = LLVMMod->getOrInsertNamedMetadata(MDName);
     for (auto *Kernel : ValidKernels) {
       NewAnnotations->addOperand(Kernel);
     }
   }
 
-  void addKernelFunction(Function *KernelFunc) const override {
-    auto *NVVMAnnotations =
-        LLVMMod->getOrInsertNamedMetadata("nvvm.annotations");
+  void addKernelFunction(StringRef MDName, Function *KernelFunc) const {
+    auto *Annotations = LLVMMod->getOrInsertNamedMetadata(MDName);
     auto *MDOne = ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt32Ty(LLVMMod->getContext()), 1));
     auto *MDKernelString = MDString::get(LLVMMod->getContext(), "kernel");
     auto *MDFunc = ConstantAsMetadata::get(KernelFunc);
     SmallVector<Metadata *, 3> KernelMD({MDFunc, MDKernelString, MDOne});
     auto *Tuple = MDTuple::get(LLVMMod->getContext(), KernelMD);
-    NVVMAnnotations->addOperand(Tuple);
+    Annotations->addOperand(Tuple);
   }
 
   ArrayRef<StringRef> getKernelMetadataKeys() const override {
@@ -469,10 +467,29 @@ public:
         {"target-cpu", "target-features", "uniform-work-group-size"}};
     return Keys;
   }
+};
+
+//
+// NVPTXTargetFusionInfo
+//
+#ifdef FUSION_JIT_SUPPORT_PTX
+class NVPTXTargetFusionInfo : public NVPTXAMDGCNTargetFusionInfoBase {
+public:
+  using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
+
+  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
+    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("nvvm.annotations",
+                                                           Funcs);
+  }
+
+  void addKernelFunction(Function *KernelFunc) const override {
+    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("nvvm.annotations",
+                                                       KernelFunc);
+  }
 
   void createBarrierCall(IRBuilderBase &Builder,
-                         int BarrierFlags) const override {
-    if (BarrierFlags == -1) {
+                         BarrierFlags BarrierFlags) const override {
+    if (isNoBarrierFlag(BarrierFlags)) {
       return;
     }
     // Emit a call to llvm.nvvm.barrier0. From the user manual of the NVPTX
@@ -735,6 +752,87 @@ public:
 };
 #endif // FUSION_JIT_SUPPORT_PTX
 
+//
+// AMDGCNTargetFusionInfo
+//
+#ifdef FUSION_JIT_SUPPORT_AMDGCN
+class AMDGCNTargetFusionInfo : public NVPTXAMDGCNTargetFusionInfoBase {
+public:
+  using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
+
+  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
+    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("amdgcn.annotations",
+                                                           Funcs);
+  }
+
+  void addKernelFunction(Function *KernelFunc) const override {
+    KernelFunc->setCallingConv(CallingConv::AMDGPU_KERNEL);
+    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("amdgcn.annotations",
+                                                       KernelFunc);
+  }
+
+  void createBarrierCall(IRBuilderBase &Builder,
+                         BarrierFlags BarrierFlags) const override {
+    if (isNoBarrierFlag(BarrierFlags)) {
+      return;
+    }
+    // Following implemention in
+    // libclc/amdgcn-amdhsa/libspirv/synchronization/barrier.cl
+    llvm::AtomicOrdering AO = llvm::AtomicOrdering::SequentiallyConsistent;
+    llvm::SyncScope::ID SSID =
+        LLVMMod->getContext().getOrInsertSyncScopeID("workgroup");
+    Builder.CreateFence(AO, SSID);
+    Builder.CreateIntrinsic(Intrinsic::AMDGCNIntrinsics::amdgcn_s_barrier, {},
+                            {});
+  }
+
+  std::optional<BuiltinKind> getBuiltinKind(Function *) const override {
+    llvm_unreachable("Not implemented yet");
+    return {};
+  }
+
+  bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
+                   const NDRange &FusedNDRange) const override {
+    llvm_unreachable("Not implemented yet");
+    return false;
+  }
+
+  bool isSafeToNotRemapBuiltin(Function *F) const override {
+    llvm_unreachable("Not implemented yet");
+    return false;
+  }
+
+  unsigned getIndexSpaceBuiltinBitwidth() const override {
+    llvm_unreachable("Not implemented yet");
+    return false;
+  }
+
+  void setMetadataForGeneratedFunction(Function *F) const override {
+    llvm_unreachable("Not implemented yet");
+  }
+
+  Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
+                                  const NDRange &FusedNDRange,
+                                  uint32_t Idx) const override {
+    llvm_unreachable("Not implemented yet");
+    return nullptr;
+  }
+
+  Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
+                                   StringRef OrigName, StringRef Name,
+                                   Module *M, const NDRange &SrcNDRange,
+                                   const NDRange &FusedNDRange) const override {
+    llvm_unreachable("Not implemented yet");
+    return nullptr;
+  }
+
+  // Corresponds to the definitions in the LLVM AMDGCN backend user guide:
+  // https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces
+  unsigned getPrivateAddressSpace() const override { return 5; }
+  unsigned getLocalAddressSpace() const override { return 3; }
+};
+#endif // FUSION_JIT_SUPPORT_ADMGCN
+
 } // anonymous namespace
 
 //
@@ -749,6 +847,12 @@ TargetFusionInfo::TargetFusionInfo(llvm::Module *Mod) {
     return;
   }
 #endif // FUSION_JIT_SUPPORT_PTX
+#ifdef FUSION_JIT_SUPPORT_AMDGCN
+  if (Tri.isAMDGCN()) {
+    Impl = std::make_shared<AMDGCNTargetFusionInfo>(Mod);
+    return;
+  }
+#endif // FUSION_JIT_SUPPORT_AMDGCN
   if (Tri.isSPIRV() || Tri.isSPIR()) {
     Impl = std::make_shared<SPIRVTargetFusionInfo>(Mod);
     return;
@@ -775,7 +879,7 @@ TargetFusionInfo::getKernelMetadataKeys() const {
 }
 
 void TargetFusionInfo::createBarrierCall(IRBuilderBase &Builder,
-                                         int BarrierFlags) const {
+                                         BarrierFlags BarrierFlags) const {
   Impl->createBarrierCall(Builder, BarrierFlags);
 }
 
