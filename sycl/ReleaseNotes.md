@@ -17,7 +17,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Enabled `SPV_INTEL_fpga_invocation_pipelining_attributes` spirv extension in the DPCPP compiler. [3bc05248602a]
 
 ### SYCL Library
-- Enabled [`sycl_ext_oneapi_annotated_arg`](doc/extensions/experimental/sycl_ext_oneapi_annotated_arg.asciidoc) and [`sycl_ext_oneapi_annotated_ptr``](doc/extensions/experimental/sycl_ext_oneapi_annotated_ptr.asciidoc)[80b7de1d63f4] experimental extensions. [05d3be63f996][80b7de1d63f4][557204abf242]
+- Enabled [`sycl_ext_oneapi_annotated_arg`](doc/extensions/experimental/sycl_ext_oneapi_annotated_arg.asciidoc) and [`sycl_ext_oneapi_annotated_ptr`](doc/extensions/experimental/sycl_ext_oneapi_annotated_ptr.asciidoc)[80b7de1d63f4] experimental extensions. [05d3be63f996][80b7de1d63f4][557204abf242]
 - Implemented [`sycl_ext_intel_queue_immediate_command_list`](doc/extensions/supported/sycl_ext_intel_queue_immediate_command_list.asciidoc) extension. [2f2560fe74e6]
 - Implemented [`sycl_ext_oneapi_copy_optimize`](sycl/doc/extensions/experimental/sycl_ext_oneapi_copy_optimize.asciidoc) experimental extension. [65cc0cfe809f]
 - Added initial implementation of the experimental SYCL Graph extension [`sycl_ext_oneapi_graph`](doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc)  [35465da4824a][f9d4830babca][72341ee375d6][96a605095665]
@@ -29,7 +29,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Introduced and implemented new `sycl::ext::oneapi::experimental::info::device::architecture` device descriptor and `device::ext_oneapi_architecture_is(ext::oneapi::experimental::architecture)` host API as part of [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension (for Level Zero and OpenCL). [d0b01b265d92]
 - Added experimental implementation of [`sycl_ext_intel_grf_size`](doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) [370aa2a01711]
 - Added experimental implementation of [`sycl_ext_oneapi_bindless_images`](doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) [58a8f2001d8b]
-- Experimental [sycl_ext_oneapi_device_global](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) extension is supported now. [d812d1e13ab5]
+- Experimental [`sycl_ext_oneapi_device_global`](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) extension is supported now. [d812d1e13ab5]
 - Enabled media API that works with image accessors for ESIMD. Those accessors do not depend on stateful/stateless mode. [b95b2d88e446]
 - Added complex literals support to `sycl::ext::oneapi::experimental::complex`. [83555cd511cc]
 - Allowed implicit conversion from `std::experimental::simd_mask` to `ESIMD::simd_mask`. [de5b479a2de9]
@@ -75,7 +75,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 ### Documentation
 - Added experimental SYCL bindless images extension [`sycl_ext_oneapi_bindless_images`](doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) proposal.
 - Added [`sycl_ext_oneapi_work_group_local`](doc/extensions/proposed/sycl_ext_oneapi_work_group_local.asciidoc) extension proposal. [1d6cff1a8e5a]
-- Moved [sycl_ext_oneapi_device_global](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) from proposed to experimental. [d812d1e13ab5]
+- Moved [`sycl_ext_oneapi_device_global`](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) from proposed to experimental. [d812d1e13ab5]
 - Added [`DeviceConfigFile`](doc/design/DeviceConfigFile.md) design document. [3f4b778dd163]
 - Added [`sycl_ext_oneapi_address_cast`](doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) extension. [9cab5598bc82]
 - Added [`sycl_ext_intel_grf_size`](doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) extension. [83d099758770]
@@ -103,7 +103,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 ### SYCL Library
 - Combined ADL-S and RPL-S device architectures. [f87be6f17428]
 - Implemented multi_ptr default to be legacy to avoid code break with SYCL 1.2.1. [52edb3798749]
-- Started to use aggregate initialization for `group_local_memory` arrays according to updated [sycl_ext_oneapi_local_memory](sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc).[b50440ec76b9]
+- Started to use aggregate initialization for `group_local_memory` arrays according to updated [`sycl_ext_oneapi_local_memory`](sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc).[b50440ec76b9]
 - Deprecated ESIMD Emulator.  [177680e3e918]
 - Deprecated `ext::oneapi::sub_group`. [0662e2a81014]
 - Improved error message related to `ext_intel_free_memory` aspect. [c1bfcaf6d6ed]
@@ -152,14 +152,14 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 
 ### Documentation
 - Updated restrictions in [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension. [a69a54f38f2f]
-- Added `invoke_simd` SLM example and `simd_view` example to [`README``](doc/extensions/supported/sycl_ext_intel_esimd/examples/README.md). [c99668ee5985][f1986b40e04b]
-- Clarified ways to set sub-group sizes in [`sycl_ext_oneapi_named_sub_group_sizes``](sycl/doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) [3285e0fe5590]
+- Added `invoke_simd` SLM example and `simd_view` example to [`README`](doc/extensions/supported/sycl_ext_intel_esimd/examples/README.md). [c99668ee5985][f1986b40e04b]
+- Clarified ways to set sub-group sizes in [`sycl_ext_oneapi_named_sub_group_sizes`](sycl/doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) [3285e0fe5590]
 - Added invoke_simd example. [e860b140d506]
 - Added README.md for the Unified Runtime directory. [453ffdcf41dd]
 - Updated the versioning section in [`ABIPolicyGuide`](doc/developer/ABIPolicyGuide.md). [dfe6e4e542ab]
 - Added `invoke_simd` section to [`README`](sycl/doc/extensions/experimental/sycl_ext_intel_esimd/README.md) and updated [sycl_ext_intel_esimd](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md) [52567e8cd428]
 - Updated [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) and [`sycl_ext_oneapi_device_if`](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) to allow captures in `if_device_has`, `if_architecture_is`. [acfc905a994a]
-- Updated [SPV_INTEL_joint_matrix](doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc) extension. [adbbf0f39c25]
+- Updated [`SPV_INTEL_joint_matrix`](doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc) extension. [adbbf0f39c25]
 
 ## Bug fixes
 
@@ -180,7 +180,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Fixed directory field of `DIFile`. [797187de2199]
 
 ### SYCL Library
-- Fixed the bug in the Level zero backend where `zeModuleDestroy` is called although `ext::oneapi::level_zero::ownership::keep` is passed to `make_kernel_bundle`` leading to a double free corruption. [1344fa29e6eb]
+- Fixed the bug in the Level zero backend where `zeModuleDestroy` is called although `ext::oneapi::level_zero::ownership::keep` is passed to `make_kernel_bundle` leading to a double free corruption. [1344fa29e6eb]
 - Addressed specification mismatches for `multi_ptr`. [ed5941feb363]
 - Fixed corner case when using short or char with exclusive scan. [aa31c1e2deb9]
 - Updated the legacy `multi_ptr` construction from local_accessors to conform with the construction method used by other accessors. [6314af860c8c]
