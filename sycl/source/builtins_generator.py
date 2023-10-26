@@ -498,10 +498,11 @@ class DefCommon:
     implementation used when possible.
   template_scalar_args - A bool specifying if the builtin should combine the
     scalar arguments into common template types.
+  deprecation_message - A message that will appear in a declaration warning.
   """
   def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
                custom_invoke, size_alias, marray_use_loop,
-               template_scalar_args):
+               template_scalar_args, deprecation_message=""):
     self.return_type = return_type
     self.arg_types = arg_types
     self.invoke_name = invoke_name
@@ -510,6 +511,7 @@ class DefCommon:
     self.size_alias = size_alias
     self.marray_use_loop = marray_use_loop
     self.template_scalar_args = template_scalar_args
+    self.deprecation_message = deprecation_message
 
   def require_size_alias(self, alternative_name, marray_type):
     """
@@ -641,10 +643,11 @@ class Def(DefCommon):
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
                fast_math_custom_invoke=None, convert_args=[], size_alias=None,
-               marray_use_loop=False, template_scalar_args=False):
+               marray_use_loop=False, template_scalar_args=False,
+               deprecation_message=None):
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
                      custom_invoke, size_alias, marray_use_loop,
-                     template_scalar_args)
+                     template_scalar_args, deprecation_message)
     self.fast_math_invoke_name = fast_math_invoke_name
     self.fast_math_custom_invoke = fast_math_custom_invoke
     # List of tuples with mappings for arguments to cast to argument types.
@@ -965,7 +968,9 @@ sycl_builtins = {# Math functions
                                 Def("mdoublen", ["double", "double", "mdoublen"]),
                                 Def("mhalfn", ["half", "half", "mhalfn"])],
                  "sign": [Def("genfloat", ["genfloat"], template_scalar_args=True)],
-                 "abs": [Def("genfloat", ["genfloat"], invoke_prefix="f", template_scalar_args=True), # TODO: Non-standard. Deprecate.
+                 "abs": [Def("genfloat", ["genfloat"],
+                             deprecation_message="abs for floating point types is non-standard and has been deprecated. Please use fabs instead.",
+                             invoke_prefix="f", template_scalar_args=True),
                          Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke, template_scalar_args=True),
                          Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vec_invoke),
                          Def("migeninteger", ["migeninteger"], marray_use_loop=True),
@@ -1046,10 +1051,10 @@ sycl_builtins = {# Math functions
                              RelDef("bool", ["sgenfloat"], invoke_name="SignBitSet"),
                              RelDef("boolelements0", ["mgenfloat"])],
                  "any": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_vec_invoke("Any")),
-                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));')),
+                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return bool(int(detail::msbIsSet({arg_names[0]})));')),
                          Def("bool", ["migeninteger"], custom_invoke=get_custom_any_all_marray_invoke("any"))],
                  "all": [Def("int", ["vigeninteger"], custom_invoke=get_custom_any_all_vec_invoke("All")),
-                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return detail::Boolean<1>(int(detail::msbIsSet({arg_names[0]})));')),
+                         Def("bool", ["sigeninteger"], custom_invoke=(lambda return_type, arg_types, arg_names: f'  return bool(int(detail::msbIsSet({arg_names[0]})));')),
                          Def("bool", ["migeninteger"], custom_invoke=get_custom_any_all_marray_invoke("all"))],
                  "bitselect": [Def("vgentype", ["vgentype", "vgentype", "vgentype"]),
                                Def("sgentype", ["sgentype", "sgentype", "sgentype"]),
@@ -1277,7 +1282,8 @@ def get_template_args(arg_types):
 
 def get_deprecation(builtin, return_type, arg_types):
   """Gets the deprecation statement for a given builtin."""
-  # TODO: Check builtin for deprecation message and prioritize that.
+  if builtin.deprecation_message:
+    return f'__SYCL_DEPRECATED("{builtin.deprecation_message}")\n'
   for t in [return_type] + arg_types:
     if hasattr(t, 'deprecation_message') and t.deprecation_message:
       return f'__SYCL_DEPRECATED("{t.deprecation_message}")\n'
@@ -1335,9 +1341,14 @@ def generate_builtins(builtins, namespace):
           scalar_result.append(generated_builtin)
   return (scalar_result, vector_result, marray_result)
 
-def generate_file(directory, file_name, extra_includes, generated_builtins):
+def generate_file(directory, file_name, includes, generated_builtins):
   """Generates a builtins header."""
-  instantiated_extra_includes = ('\n'.join([f'#include <{inc}>' for inc in extra_includes]))
+  instantiated_includes = ('\n'.join([f'#include <{inc}>' for inc in includes]))
+
+  if file_name == 'builtins_scalar_gen.hpp':
+      include = 'sycl/builtins_utils_scalar.hpp'
+  else:
+      include = 'sycl/builtins_utils_vec.hpp'
 
   with open(os.path.join(directory, file_name), "w+") as f:
     f.write(f"""
@@ -1353,9 +1364,7 @@ def generate_file(directory, file_name, extra_includes, generated_builtins):
 
 #pragma once
 
-#include <sycl/builtins_utils.hpp>
-
-{instantiated_extra_includes}
+{instantiated_includes}
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -1395,6 +1404,6 @@ if __name__ == "__main__":
   # Write the builtins to new header files, separated by whether or not they
   # are scalar, vector or marray builtins.
   file_path = sys.argv[1]
-  generate_file(file_path, "builtins_scalar_gen.hpp", [], scalar_builtins)
-  generate_file(file_path, "builtins_vector_gen.hpp", [], vector_builtins)
+  generate_file(file_path, "builtins_scalar_gen.hpp", ["sycl/builtins_utils_scalar.hpp"], scalar_builtins)
+  generate_file(file_path, "builtins_vector_gen.hpp", ["sycl/builtins_utils_vec.hpp"], vector_builtins)
   generate_file(file_path, "builtins_marray_gen.hpp", ["sycl/builtins_scalar_gen.hpp", "sycl/builtins_vector_gen.hpp"], marray_builtins)

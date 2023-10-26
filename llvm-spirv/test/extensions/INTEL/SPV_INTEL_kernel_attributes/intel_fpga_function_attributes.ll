@@ -10,7 +10,7 @@
 ;;     intel::loop_fuse_independent(3),
 ;;     intel::initiation_interval(10),
 ;;     intel::max_concurrency(12),
-;;     intel::disable_loop_pipelining]] void operator()() {}
+;;     intel::pipeline_kernel]] void operator()() {}
 ;; };
 ;;
 ;; template <typename name, typename Func>
@@ -62,23 +62,23 @@
 ; CHECK-LLVM-SAME: !stall_enable ![[ONEMD:[0-9]+]] !loop_fuse ![[FUSE:[0-9]+]]
 ; CHECK-LLVM-SAME: !initiation_interval ![[II:[0-9]+]]
 ; CHECK-LLVM-SAME: !max_concurrency ![[MAXCON:[0-9]+]]
-; CHECK-LLVM-SAME: !disable_loop_pipelining ![[ONEMD]]
+; CHECK-LLVM-SAME: !pipeline_kernel ![[ONEMD2:[0-9]+]]
 ; CHECK-LLVM-SAME: !max_work_group_size ![[MAXWG:[0-9]+]]
 ; CHECK-LLVM-SAME: !no_global_work_offset ![[OFFSET:[0-9]+]]
 ; CHECK-LLVM-SAME: !max_global_work_dim ![[ONEMD]] !num_simd_work_items ![[NUMSIMD:[0-9]+]]
 ; CHECK-LLVM-SAME: !scheduler_target_fmax_mhz ![[MAXMHZ:[0-9]+]]
 ; CHECK-LLVM-NOT: define spir_kernel void {{.*}}kernel_name2 {{.*}} !no_global_work_offset {{.*}}
 ; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name3()
-; CHECK-LLVM-SAME: !disable_loop_pipelining ![[ONEMD2:[0-9]+]]
+; CHECK-LLVM-SAME: !pipeline_kernel ![[ONEMD]]
 ; CHECK-LLVM: ![[OFFSET]] = !{}
 ; CHECK-LLVM: ![[ONEMD]] = !{i32 1}
 ; CHECK-LLVM: ![[FUSE]] = !{i32 3, i32 1}
 ; CHECK-LLVM: ![[II]] = !{i32 10}
 ; CHECK-LLVM: ![[MAXCON]] = !{i32 12}
+; CHECK-LLVM: ![[ONEMD2]] = !{i32 0}
 ; CHECK-LLVM: ![[MAXWG]] = !{i32 1, i32 1, i32 1}
 ; CHECK-LLVM: ![[NUMSIMD]] = !{i32 8}
 ; CHECK-LLVM: ![[MAXMHZ]] = !{i32 1000}
-; CHECK-LLVM: ![[ONEMD2]] = !{i32 0}
 
 ; ModuleID = 'kernel-attrs.cpp'
 source_filename = "kernel-attrs.cpp"
@@ -91,7 +91,7 @@ target triple = "spir64-unknown-linux"
 $_ZN3FooclEv = comdat any
 
 ; Function Attrs: nounwind
-define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 !stall_enable !7 !scheduler_target_fmax_mhz !12 !loop_fuse !13 !initiation_interval !14 !max_concurrency !15 !disable_loop_pipelining !7 {
+define spir_kernel void @_ZTSZ3barvE11kernel_name() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 !num_simd_work_items !5 !max_work_group_size !6 !max_global_work_dim !7 !no_global_work_offset !4 !stall_enable !7 !scheduler_target_fmax_mhz !12 !loop_fuse !13 !initiation_interval !14 !max_concurrency !15 !pipeline_kernel !16 {
 entry:
   %Foo = alloca %class._ZTS3Foo.Foo, align 1
   call void @llvm.lifetime.start.p0(i64 1, ptr %Foo) #4
@@ -135,7 +135,7 @@ entry:
 }
 
 ; Function Attrs: nounwind
-define spir_kernel void @_ZTSZ3barvE11kernel_name3() #0 !disable_loop_pipelining !16 {
+define spir_kernel void @_ZTSZ3barvE11kernel_name3() #0 !pipeline_kernel !7 {
 entry:
   %Foo = alloca %class._ZTS3Foo.Foo, align 1
   call void @llvm.lifetime.start.p0(i64 1, ptr %Foo) #4

@@ -211,7 +211,7 @@ allocation `T`, and a list of properties `PropertyListT`.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   ...
 ----
@@ -256,15 +256,15 @@ section following this one.
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ptr {
   public:
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
     template<typename... PropertyValueTs>
-    annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
+    explicit annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
 
     template <typename T2, typename P> explicit annotated_ptr(
       const annotated_ptr<T2, P>&) noexcept;
@@ -519,7 +519,7 @@ stores to annotated_ptrs.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
@@ -612,44 +612,6 @@ T operator--(int);
 increment and decrement operator of annotated_ref. The annotations are applied
 when the object `T` is loaded and stored to the memory.
 |===
-
-=== Properties
-
-Below is a list of compile-time constant properties supported with
-`annotated_ptr`. Other extensions can define additional compile-time constant
-properties that can be supported with `annotated_ptr`. Runtime properties
-are not supported.
-
-```c++
-namespace sycl::ext::oneapi::experimental {
-struct alignment_key {
-  template<int K>
-  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
-};
-
-template<int K>
-inline constexpr alignment_key::value_t<K> alignment;
-
-template<>
-struct is_property_key<alignment_key> : std::true_type {};
-
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-template<typename T, typename PropertyListT>
-} // namespace sycl::ext::oneapi::experimental
-```
---
-[options="header"]
-|====
-| Property | Description
-|`alignment`
-|
-This property is an assertion by the application that the `annotated_ptr` has
-the given alignment, specified in bytes. The behavior is undefined if the
-pointer value does not have the indicated alignment.
-|====
---
 
 == Issues related to `annotated_ptr`
 

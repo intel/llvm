@@ -345,8 +345,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# clang builtins need to be accessible
 				set( flags "SHELL:-mcpu=gfx940")
       elseif( ${ARCH}  STREQUAL x86_64)
-        # TODO: This is used by native cpu, we should define an option to set this flags
+        # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
         set( flags "SHELL:-Xclang -target-feature -Xclang +avx"
+            "SHELL:-Xclang -fsycl-is-native-cpu"
             "SHELL:-Xclang -target-feature -Xclang +avx512f")
 			else()
 				set ( flags )

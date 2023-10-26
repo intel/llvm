@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
@@ -51,12 +51,12 @@ int main() {
   // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel5(){{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel5>(R1, {Ev}, Props, [](id<1>) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel6{{.*}}{{.*}} #[[DHAttr3:[0-9]+]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel6{{.*}}{{.*}} #[[DHAttr2:[0-9]+]]
   Q.parallel_for<class WGSizeKernel6>(R1, Props, Redu1, [](id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel7{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel7{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel7>(R1, Ev, Props, Redu1,
                                       [](id<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel8{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel8{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel8>(R1, {Ev}, Props, Redu1,
                                       [](id<1>, auto &) {});
 
@@ -67,23 +67,23 @@ int main() {
   // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel11(){{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel11>(NDR1, {Ev}, Props, [](nd_item<1>) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel12{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel12{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel12>(NDR1, Props, Redu1,
                                        [](nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel13{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel13{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel13>(NDR1, Ev, Props, Redu1,
                                        [](nd_item<1>, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel14{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel14{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel14>(NDR1, {Ev}, Props, Redu1,
                                        [](nd_item<1>, auto &) {});
 
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel15{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel15{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel15>(NDR1, Props, Redu1, Redu2,
                                        [](nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel16{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel16{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel16>(NDR1, Ev, Props, Redu1, Redu2,
                                        [](nd_item<1>, auto &, auto &) {});
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel17{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel17{{.*}}{{.*}} #[[DHAttr2]]
   Q.parallel_for<class WGSizeKernel17>(NDR1, {Ev}, Props, Redu1, Redu2,
                                        [](nd_item<1>, auto &, auto &) {});
 
@@ -97,7 +97,7 @@ int main() {
     CGH.parallel_for<class WGSizeKernel19>(R1, Props, [](id<1>) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel20{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel20{{.*}}{{.*}} #[[DHAttr2]]
   Q.submit([&](handler &CGH) {
     CGH.parallel_for<class WGSizeKernel20>(R1, Props, Redu1,
                                            [](id<1>, auto &) {});
@@ -108,19 +108,19 @@ int main() {
     CGH.parallel_for<class WGSizeKernel21>(NDR1, Props, [](nd_item<1>) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel22{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel22{{.*}}{{.*}} #[[DHAttr2]]
   Q.submit([&](handler &CGH) {
     CGH.parallel_for<class WGSizeKernel22>(NDR1, Props, Redu1,
                                            [](nd_item<1>, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel23{{.*}}{{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}MainKrn{{.*}}WGSizeKernel23{{.*}}{{.*}} #[[DHAttr2]]
   Q.submit([&](handler &CGH) {
     CGH.parallel_for<class WGSizeKernel23>(NDR1, Props, Redu1, Redu2,
                                            [](nd_item<1>, auto &, auto &) {});
   });
 
-  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel24(){{.*}} #[[DHAttr3]]
+  // CHECK-IR: spir_kernel void @{{.*}}WGSizeKernel24(){{.*}} #[[DHAttr2]]
   Q.submit([&](handler &CGH) {
     CGH.parallel_for_work_group<class WGSizeKernel24>(
         R1, Props,
@@ -167,4 +167,3 @@ int main() {
 
 // CHECK-IR-DAG: attributes #[[DHAttr1]] = { {{.*}}"sycl-device-has"="[[ext_oneapi_cuda_async_barrier_ASPECT_MD]],[[ext_oneapi_bfloat16_math_functions_ASPECT_MD]],[[custom_ASPECT_MD]],[[fp16_ASPECT_MD]],[[fp64_ASPECT_MD]],[[image_ASPECT_MD]],[[online_compiler_ASPECT_MD]],[[online_linker_ASPECT_MD]],[[queue_profiling_ASPECT_MD]],[[usm_device_allocations_ASPECT_MD]],[[usm_system_allocations_ASPECT_MD]],[[ext_intel_pci_address_ASPECT_MD]],[[cpu_ASPECT_MD]],[[gpu_ASPECT_MD]],[[accelerator_ASPECT_MD]],[[ext_intel_gpu_eu_count_ASPECT_MD]],[[ext_intel_gpu_subslices_per_slice_ASPECT_MD]],[[ext_intel_gpu_eu_count_per_subslice_ASPECT_MD]],[[ext_intel_max_mem_bandwidth_ASPECT_MD]],[[ext_intel_mem_channel_ASPECT_MD]],[[usm_atomic_host_allocations_ASPECT_MD]],[[usm_atomic_shared_allocations_ASPECT_MD]],[[atomic64_ASPECT_MD]],[[ext_intel_device_info_uuid_ASPECT_MD]],[[ext_oneapi_srgb_ASPECT_MD]],[[ext_intel_gpu_eu_simd_width_ASPECT_MD]],[[ext_intel_gpu_slices_ASPECT_MD]],[[ext_oneapi_native_assert_ASPECT_MD]],[[host_debuggable_ASPECT_MD]],[[ext_intel_gpu_hw_threads_per_eu_ASPECT_MD]],[[usm_host_allocations_ASPECT_MD]],[[usm_shared_allocations_ASPECT_MD]],[[ext_intel_free_memory_ASPECT_MD]],[[ext_intel_device_id_ASPECT_MD]]"
 // CHECK-IR-DAG: attributes #[[DHAttr2]] = { {{.*}}"sycl-device-has"="[[ext_oneapi_cuda_async_barrier_ASPECT_MD]],[[ext_oneapi_bfloat16_math_functions_ASPECT_MD]],[[custom_ASPECT_MD]],[[fp16_ASPECT_MD]],[[fp64_ASPECT_MD]],[[image_ASPECT_MD]],[[online_compiler_ASPECT_MD]],[[online_linker_ASPECT_MD]],[[queue_profiling_ASPECT_MD]],[[usm_device_allocations_ASPECT_MD]],[[usm_system_allocations_ASPECT_MD]],[[ext_intel_pci_address_ASPECT_MD]],[[cpu_ASPECT_MD]],[[gpu_ASPECT_MD]],[[accelerator_ASPECT_MD]],[[ext_intel_gpu_eu_count_ASPECT_MD]],[[ext_intel_gpu_subslices_per_slice_ASPECT_MD]],[[ext_intel_gpu_eu_count_per_subslice_ASPECT_MD]],[[ext_intel_max_mem_bandwidth_ASPECT_MD]],[[ext_intel_mem_channel_ASPECT_MD]],[[usm_atomic_host_allocations_ASPECT_MD]],[[usm_atomic_shared_allocations_ASPECT_MD]],[[atomic64_ASPECT_MD]],[[ext_intel_device_info_uuid_ASPECT_MD]],[[ext_oneapi_srgb_ASPECT_MD]],[[ext_intel_gpu_eu_simd_width_ASPECT_MD]],[[ext_intel_gpu_slices_ASPECT_MD]],[[ext_oneapi_native_assert_ASPECT_MD]],[[host_debuggable_ASPECT_MD]],[[ext_intel_gpu_hw_threads_per_eu_ASPECT_MD]],[[usm_host_allocations_ASPECT_MD]],[[usm_shared_allocations_ASPECT_MD]],[[ext_intel_free_memory_ASPECT_MD]],[[ext_intel_device_id_ASPECT_MD]]"
-// CHECK-IR-DAG: attributes #[[DHAttr3]] = { {{.*}}"sycl-device-has"="[[ext_oneapi_cuda_async_barrier_ASPECT_MD]],[[ext_oneapi_bfloat16_math_functions_ASPECT_MD]],[[custom_ASPECT_MD]],[[fp16_ASPECT_MD]],[[fp64_ASPECT_MD]],[[image_ASPECT_MD]],[[online_compiler_ASPECT_MD]],[[online_linker_ASPECT_MD]],[[queue_profiling_ASPECT_MD]],[[usm_device_allocations_ASPECT_MD]],[[usm_system_allocations_ASPECT_MD]],[[ext_intel_pci_address_ASPECT_MD]],[[cpu_ASPECT_MD]],[[gpu_ASPECT_MD]],[[accelerator_ASPECT_MD]],[[ext_intel_gpu_eu_count_ASPECT_MD]],[[ext_intel_gpu_subslices_per_slice_ASPECT_MD]],[[ext_intel_gpu_eu_count_per_subslice_ASPECT_MD]],[[ext_intel_max_mem_bandwidth_ASPECT_MD]],[[ext_intel_mem_channel_ASPECT_MD]],[[usm_atomic_host_allocations_ASPECT_MD]],[[usm_atomic_shared_allocations_ASPECT_MD]],[[atomic64_ASPECT_MD]],[[ext_intel_device_info_uuid_ASPECT_MD]],[[ext_oneapi_srgb_ASPECT_MD]],[[ext_intel_gpu_eu_simd_width_ASPECT_MD]],[[ext_intel_gpu_slices_ASPECT_MD]],[[ext_oneapi_native_assert_ASPECT_MD]],[[host_debuggable_ASPECT_MD]],[[ext_intel_gpu_hw_threads_per_eu_ASPECT_MD]],[[usm_host_allocations_ASPECT_MD]],[[usm_shared_allocations_ASPECT_MD]],[[ext_intel_free_memory_ASPECT_MD]],[[ext_intel_device_id_ASPECT_MD]]"

@@ -1,11 +1,12 @@
-// RUN: %{build} -fno-inline-functions -o %t.out
+// TODO: Investigate fail of this test on Gen12 platform
+// REQUIRES-INTEL-DRIVER: lin: 26516, win: 101.4827
+// REQUIRES: gpu-intel-pvc
+// DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
+// RUN: %{build} %{inlineflags} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -O0 -o %t0.out
+// DEFINE: %{O0flags} = %if cl_options %{/clang:-O0%} %else %{-O0%}
+// RUN: %{build} %{O0flags} -o %t0.out
 // RUN: %{run} %t0.out
-
-// TODO: gpu driver cannot yet handle the IR generated without
-// inlining and especially without optimizations.
-// XFAIL: gpu && !esimd_emulator
 
 #include "esimd_test_utils.hpp"
 

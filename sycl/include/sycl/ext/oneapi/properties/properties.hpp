@@ -187,6 +187,8 @@ properties(PropertyValueTs... props)
     -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
 #endif
 
+using empty_properties_t = decltype(properties{});
+
 // Property list traits
 template <typename propertiesT> struct is_property_list : std::false_type {};
 template <typename... PropertyValueTs>
@@ -242,13 +244,8 @@ struct ValueOrDefault<
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
-// If property_list is not trivially copyable, allow properties to propagate
-// is_device_copyable
 template <typename PropertiesT>
-struct is_device_copyable<
-    ext::oneapi::experimental::properties<PropertiesT>,
-    std::enable_if_t<!std::is_trivially_copyable_v<
-        ext::oneapi::experimental::properties<PropertiesT>>>>
+struct is_device_copyable<ext::oneapi::experimental::properties<PropertiesT>>
     : is_device_copyable<PropertiesT> {};
 } // namespace _V1
 } // namespace sycl

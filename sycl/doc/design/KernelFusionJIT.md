@@ -130,7 +130,7 @@ Information about the fusion is registered within the module by attaching metada
 
 The pipeline currently consists of the following passes (in order):
 
-  - `SYCLKernelFusion` performs the actual fusion process by inlining kernels to fuse inside the fused kernel
+  - `SYCLKernelFusion` performs the actual fusion process by inlining kernels to fuse inside the fused kernel. In case not all kernels being fused share the same nd-range, it also handles work-items remapping ([see](#fusing-kernels-with-different-nd-ranges))
   - Generic optimization passes: `IndVarSimplifyPass`, `LoopUnrollPass`, `SROAPass`, `InferAddressSpacesPass` to remove pointers to the generic address-space
     - These optimizations are important to help the internalizer, see note below.
   - `SYCLInternalizer` promotes buffer to local or private memory
@@ -158,11 +158,119 @@ The metadata is attached to a function that will become the fused kernel:
 - `sycl.kernel.promote`: declare identical parameters to be promoted. Contains a list of index (of the fused kernel, after identical arguments elision) and `private` if the argument is to be promoted to private memory or `local` if it is to local.
 - `sycl.kernel.promote.size`: declare the address space size for the promoted memory. Contains a list of indexes (of the fused kernel, after identical arguments elision) and the number of elements.
 - `sycl.kernel.constants`: declare the value of a scalar or aggregate to be used as constant values. Contains a list of indexes (of the fused kernel, after identical arguments elision) and the value as a string. Note: the string is used to store the value, the string is read as a buffer of char and reinterpreted into the value of the argument's type.
+- `sycl.kernel.nd-range`: declare the nd-range to be used by the fused kernel in case work-item remapping was needed. It is a tuple with 4 elements:
+   - `num_dims`: scalar integer representing the number of dimensions of the nd-range;
+   - `global_size`: triple representing nd-range global size, an element for each dimension, using `0` for unused dimensions;
+   - `local_size`: triple representing nd-range local size, an element for each dimension, using `0` for unused dimensions. If the local size is not specified, all elements will be 0;
+   - `offset`: triple representing nd-range offset, an element for each dimension, using `0` for unused dimensions.
+- `sycl.kernel.nd-ranges`: declare the nd-ranges of each original kernels. This information is used by the `SYCLKernelFuson` pass to perform work-item remapping. It is a list with references to tuples as the one contained in `sycl.kernel.nd-range`. Constraints on the legal combinations of nd-ranges are described in [the corresponding section](#fusing-kernels-with-different-nd-ranges).
 
+### Fusing kernels with different nd-ranges
+
+This section explains actions performed by the kernel fusion JIT compiler when fusing kernels with different nd-ranges. Throughout this section, we refer to "work-item components". A comprehensive list of these components mentioned in this document is:
+
+- `global_size`
+- `local_size`
+- `num_work_groups`
+- `global_id`
+- `local_id`
+- `group_id`
+- `global_offset`
+
+The meaning of each of these is self-explainatory for the SYCL user.
+
+#### Restrictions
+
+Following kernel fusion principles, SYCL constraints and technical decisions, some basic constraints are set for valid combinations of nd-ranges:
+
+1. The fused kernel should perform no more visible work than the union of the unfused kernels;
+2. The fused kernel should perform no less visible work than the union of the unfused kernels;
+3. If two work items belong to the same work-group in one of the unfused grids, they must also belong to the same work-group in the fused grid;
+4. Either none or all of the work-items of a work-group must execute barriers inserted by the kernel fusion process;
+5. The fused kernel must not launch more work-items than the maximum number of work-items launched by the original kernels.
+6. All work-groups will be the same size, [as per the SYCL 2020 rev 7. 3.9.4](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_work_group_data_parallel_kernels).
+7. `global_id(i) = group_id(i) * local_size(i) + local_id(i)` [as per OpenCL 3.0 3.2.1](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_mapping_work_items_onto_an_ndrange).
+8. A work-item will have the same global linear id in the fused grid as in the unfused grid;
+9. All the fused nd-ranges must have the same offset.
+
+These restrictions can be simplified to:
+
+- No two local sizes specified by the nd-ranges will be different;
+- No global id remapping is needed ([see](#work-item-remapping)) or all input offsets are 0;
+- All the fused nd-ranges must have the same offset.
+
+As we can see, there is no restrictions in the number of dimensions or global sizes of the input nd-ranges.
+
+#### Work-item remapping
+
+Work-item remapping is performed at the input kernel level, i.e., a different remapping is performed for each input kernel, as different input nd-ranges will result in different remappings.
+
+This remapping consists on an inter-procedural pass replacing each built-in querying components of a work-item, e.g., the global id or the local size, with a JIT-generated value.
+
+First of all, work-item remapping will always be performed when the list of input nd-ranges is heterogeneous. Additional remapping conditions are present for the following work-item components. For each input kernel:
+
+- `num_work_groups` and `local_size`: Only performed if the input nd-range has an explicit local size, may result in better performance, as this replaces built-in calls with constants;
+- `global_id`, `local_id` and `group_id`: Only needed if the number of dimensions differ w.r.t. that of the fused kernel or any component of the global size in the range [2, `num_dims`] differs.
+
+Once this rules are set, also taking into account remapping constraints, the remapping is performed as follows for each input kernel:
+
+- `global_id`:
+  - `global_id(0) = GLID / (global_size(1) * global_size(2))`
+  - `global_id(1) = (GLID / global_size(2)) % global_size(1)`
+  - `global_id(2) = GLID % global_size(2)`
+- `local_id`:
+  - `local_id(x) = global_id(x) % local_size(x)`
+- `group_id`:
+  - `group_id(x) = global_id(x) / local_size(x)`
+- `num_work_groups`:
+  - `num_work_groups(x) = global_size(x) / local_size(x)`
+- `global_size`:
+  - `global_size(x) = GS(x)`
+- `local_size`:
+  - `local_size(x) = LS(x)`
+- `global_offset`:
+  - `global_offset(x) = GO(x)`
+
+On the RHS of the expressions, component names refer to the remapped values and upper case `GS`, `LS` and `GO` values refer to each of the components of the original nd-range (global size, local size and global offset), whereas `GLID` refers to the global linear id, which is an invariant during the fusion process.
+
+Special care needs to be taken when handling elements from the original nd-range, as the input index needs to be remapped to take into account different array subscript ordering of the underlying API w.r.t. SYCL. See [SYCL 2020 rev. 7 C.7.7](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:kernel-conventions-sycl) for more information on this index remapping.
+
+**Note**: As there is no `global_id` counterpart for PTX, global id is specified as `global_id(i) = group_id(i) * local_size(i) + local_id(i) + global_offset(i)`. This way, when targetting PTX, `local_size`, `local_id` and `group_id` will need special treatment **when no explicit local size is provided**. In this particular case, remapping will take place as follows (also respecting original constraints):
+
+- `num_work_groups`:
+  - `num_work_groups(x) = 1`
+- `group_id`:
+  - `group_id(x) = 0`
+- `local_size`:
+  - `local_size(x) = GS(x)`
+- `local_id`:
+  - `local_id(x) = global_id(x)`
+
+##### Remapped SPIR-V built-ins
+
+Following [OpenCL SPIR-V Environment Specification 3.0 2.9](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_built_in_variables):
+
+- `global_size`: `GlobalSize`
+- `local_size`: `WorkgroupSize` 
+- `num_work_groups`: `NumWorkgroups`
+- `global_id`: `GlobalInvocationId`
+- `local_id`: `LocalInvocationId`
+- `group_id`: `WorkgroupId`
+- `global_offset`: `GlobalOffset`
+
+##### Remapped PTX intrinsics
+
+Following [User Guide for NVPTX](https://llvm.org/docs/NVPTXUsage.html#llvm-nvvm-read-ptx-sreg) and [Compiler and runtime design #global-offset-support](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompilerAndRuntimeDesign.md#global-offset-support).
+
+- `local_id`: `llvm.nvvm.read.ptx.sreg.tid.*`
+- `group_id`: `llvm.nvvm.read.ptx.sreg.ctaid.*`
+- `local_size`: `llvm.nvvm.read.ptx.ntid.*`
+- `num_work_groups`: `llvm.nvvm.read.ptx.nctaid.*`
+- `global_offset`: `llvm.nvvm.implicit.offset`
 
 ### Support for non SPIR-V targets
 
-Fusion is currently supported for the NVPTX/CUDA backend. 
+Fusion is currently supported for the NVPTX/CUDA and HIP backend.
 
 As this backend cannot ingest a SPIR-V module, additional changes to the
 compilation flow are necessary. During static compilation the LLVM module for
@@ -170,12 +278,9 @@ this backend is stored in addition to the finalized binary.
 
 This behavior is controlled by the `-fsycl-embed-ir` flag to avoid binary
 inflation in case kernel fusion is not used. If users want to use kernel fusion
-at runtime on the NVPTX/CUDA backend, they need to pass the `-fsycl-embed-ir`
+at runtime on the NVPTX/HIP backend, they need to pass the `-fsycl-embed-ir`
 flag during static compilation. 
 
 During the fusion process at runtime, the JIT will load the LLVM IR and
 finalize the fused kernel to the final target. More information is available
-[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support). 
-
-Support for the AMD GPU/HIP/AMDGCN backend is not yet implemented, but could
-follow an approach similar to the NVPTX/CUDA backend.
+[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support).

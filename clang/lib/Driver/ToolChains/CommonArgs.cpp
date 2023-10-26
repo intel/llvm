@@ -639,6 +639,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
 
   const char *PluginOptPrefix = IsOSAIX ? "-bplugin_opt:" : "-plugin-opt=";
   const char *ExtraDash = IsOSAIX ? "-" : "";
+  const char *ParallelismOpt = IsOSAIX ? "-threads=" : "jobs=";
 
   // Note, this solution is far from perfect, better to encode it into IR
   // metadata, but this may not be worth it, since it looks like aranges is on
@@ -698,8 +699,8 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
 
   StringRef Parallelism = getLTOParallelism(Args, D);
   if (!Parallelism.empty())
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine(PluginOptPrefix) + "jobs=" + Parallelism));
+    CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) +
+                                         ParallelismOpt + Parallelism));
 
   // If an explicit debugger tuning argument appeared, pass it along.
   if (Arg *A =
@@ -877,6 +878,26 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                          /*IsLTO=*/true, PluginOptPrefix);
 }
 
+/// Adds the '-lcgpu' and '-lmgpu' libraries to the compilation to include the
+/// LLVM C library for GPUs.
+static void addOpenMPDeviceLibC(const ToolChain &TC, const ArgList &Args,
+                                ArgStringList &CmdArgs) {
+  if (Args.hasArg(options::OPT_nogpulib) || Args.hasArg(options::OPT_nolibc))
+    return;
+
+  // Check the resource directory for the LLVM libc GPU declarations. If it's
+  // found we can assume that LLVM was built with support for the GPU libc.
+  SmallString<256> LibCDecls(TC.getDriver().ResourceDir);
+  llvm::sys::path::append(LibCDecls, "include", "llvm_libc_wrappers",
+                          "llvm-libc-decls");
+  bool HasLibC = llvm::sys::fs::exists(LibCDecls) &&
+                 llvm::sys::fs::is_directory(LibCDecls);
+  if (Args.hasFlag(options::OPT_gpulibc, options::OPT_nogpulibc, HasLibC)) {
+    CmdArgs.push_back("-lcgpu");
+    CmdArgs.push_back("-lmgpu");
+  }
+}
+
 void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
                                         const ArgList &Args,
                                         ArgStringList &CmdArgs) {
@@ -890,11 +911,8 @@ void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
 
 void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
                                  ArgStringList &CmdArgs) {
-  // Enable -frtlib-add-rpath by default for the case of VE.
-  const bool IsVE = TC.getTriple().isVE();
-  bool DefaultValue = IsVE;
   if (!Args.hasFlag(options::OPT_frtlib_add_rpath,
-                    options::OPT_fno_rtlib_add_rpath, DefaultValue))
+                    options::OPT_fno_rtlib_add_rpath, false))
     return;
 
   for (const auto &CandidateRPath : TC.getArchSpecificLibPaths()) {
@@ -944,6 +962,9 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
 
   if (IsOffloadingHost && !Args.hasArg(options::OPT_nogpulib))
     CmdArgs.push_back("-lomptarget.devicertl");
+
+  if (IsOffloadingHost)
+    addOpenMPDeviceLibC(TC, Args, CmdArgs);
 
   addArchSpecificRPath(TC, Args, CmdArgs);
   addOpenMPRuntimeLibraryPath(TC, Args, CmdArgs);
@@ -2036,8 +2057,7 @@ void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
 bool tools::SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
                       llvm::opt::ArgStringList &CC1Args,
                       SmallVector<std::string, 8> LibraryPaths, std::string Lib,
-                      StringRef Arch, StringRef Target, bool isBitCodeSDL,
-                      bool postClangLink) {
+                      StringRef Arch, StringRef Target, bool isBitCodeSDL) {
   SmallVector<std::string, 12> SDLs;
 
   std::string LibDeviceLoc = "/libdevice";
@@ -2096,8 +2116,6 @@ bool tools::SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
     for (auto SDL : SDLs) {
       auto FullName = Twine(LPath + SDL).str();
       if (llvm::sys::fs::exists(FullName)) {
-        if (postClangLink)
-          CC1Args.push_back("-mlink-builtin-bitcode");
         CC1Args.push_back(DriverArgs.MakeArgString(FullName));
         FoundSDL = true;
         break;
@@ -2118,8 +2136,7 @@ bool tools::GetSDLFromOffloadArchive(
     Compilation &C, const Driver &D, const Tool &T, const JobAction &JA,
     const InputInfoList &Inputs, const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args, SmallVector<std::string, 8> LibraryPaths,
-    StringRef Lib, StringRef Arch, StringRef Target, bool isBitCodeSDL,
-    bool postClangLink) {
+    StringRef Lib, StringRef Arch, StringRef Target, bool isBitCodeSDL) {
 
   // We don't support bitcode archive bundles for nvptx
   if (isBitCodeSDL && Arch.contains("nvptx"))
@@ -2217,8 +2234,6 @@ bool tools::GetSDLFromOffloadArchive(
   C.addCommand(std::make_unique<Command>(
       JA, T, ResponseFileSupport::AtFileCurCP(), UBProgram, UBArgs, Inputs,
       InputInfo(&JA, C.getArgs().MakeArgString(OutputLib))));
-  if (postClangLink)
-    CC1Args.push_back("-mlink-builtin-bitcode");
 
   CC1Args.push_back(DriverArgs.MakeArgString(OutputLib));
 
@@ -2227,14 +2242,14 @@ bool tools::GetSDLFromOffloadArchive(
 
 // Wrapper function used by driver for adding SDLs during link phase.
 void tools::AddStaticDeviceLibsLinking(Compilation &C, const Tool &T,
-                                const JobAction &JA,
-                                const InputInfoList &Inputs,
-                                const llvm::opt::ArgList &DriverArgs,
-                                llvm::opt::ArgStringList &CC1Args,
-                                StringRef Arch, StringRef Target,
-                                bool isBitCodeSDL, bool postClangLink) {
+                                       const JobAction &JA,
+                                       const InputInfoList &Inputs,
+                                       const llvm::opt::ArgList &DriverArgs,
+                                       llvm::opt::ArgStringList &CC1Args,
+                                       StringRef Arch, StringRef Target,
+                                       bool isBitCodeSDL) {
   AddStaticDeviceLibs(&C, &T, &JA, &Inputs, C.getDriver(), DriverArgs, CC1Args,
-                      Arch, Target, isBitCodeSDL, postClangLink);
+                      Arch, Target, isBitCodeSDL);
 }
 
 // Wrapper function used for post clang linking of bitcode SDLS for nvptx by
@@ -2245,7 +2260,7 @@ void tools::AddStaticDeviceLibsPostLinking(const Driver &D,
                                 StringRef Arch, StringRef Target,
                                 bool isBitCodeSDL, bool postClangLink) {
   AddStaticDeviceLibs(nullptr, nullptr, nullptr, nullptr, D, DriverArgs,
-                      CC1Args, Arch, Target, isBitCodeSDL, postClangLink);
+                      CC1Args, Arch, Target, isBitCodeSDL);
 }
 
 // User defined Static Device Libraries(SDLs) can be passed to clang for
@@ -2279,7 +2294,7 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
                                 const llvm::opt::ArgList &DriverArgs,
                                 llvm::opt::ArgStringList &CC1Args,
                                 StringRef Arch, StringRef Target,
-                                bool isBitCodeSDL, bool postClangLink) {
+                                bool isBitCodeSDL) {
 
   SmallVector<std::string, 8> LibraryPaths;
   // Add search directories from LIBRARY_PATH env variable
@@ -2336,10 +2351,10 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
   for (auto SDLName : SDLNames) {
     // This is the only call to SDLSearch
     if (!SDLSearch(D, DriverArgs, CC1Args, LibraryPaths, SDLName, Arch, Target,
-                   isBitCodeSDL, postClangLink)) {
+                   isBitCodeSDL)) {
       GetSDLFromOffloadArchive(*C, D, *T, *JA, *Inputs, DriverArgs, CC1Args,
                                LibraryPaths, SDLName, Arch, Target,
-                               isBitCodeSDL, postClangLink);
+                               isBitCodeSDL);
     }
   }
 }
@@ -2351,7 +2366,7 @@ getAMDGPUCodeObjectArgument(const Driver &D, const llvm::opt::ArgList &Args) {
 
 void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
                                          const llvm::opt::ArgList &Args) {
-  const unsigned MinCodeObjVer = 2;
+  const unsigned MinCodeObjVer = 3;
   const unsigned MaxCodeObjVer = 5;
 
   if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args)) {

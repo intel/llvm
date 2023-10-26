@@ -624,6 +624,10 @@ protected:
       assert(getValueType(Op1)->getVectorComponentCount() ==
                  getValueType(Op2)->getVectorComponentCount() &&
              "Inconsistent Vector component width");
+    } else if (getValueType(Op1)->isTypeCooperativeMatrixKHR()) {
+      Op1Ty = getValueType(Op1)->getVectorComponentType();
+      Op2Ty = getValueType(Op2)->getVectorComponentType();
+      assert(Op1Ty == Op2Ty && "Inconsistent Cooperative matrix types");
     } else {
       Op1Ty = getValueType(Op1);
       Op2Ty = getValueType(Op2);
@@ -661,8 +665,10 @@ class SPIRVBinaryInst
 
 #define _SPIRV_OP(x) typedef SPIRVBinaryInst<Op##x> SPIRV##x;
 _SPIRV_OP(IAdd)
+_SPIRV_OP(IAddCarry)
 _SPIRV_OP(FAdd)
 _SPIRV_OP(ISub)
+_SPIRV_OP(ISubBorrow)
 _SPIRV_OP(FSub)
 _SPIRV_OP(IMul)
 _SPIRV_OP(FMul)
@@ -1502,10 +1508,13 @@ protected:
       return;
     if (isGenericNegateOpCode(OpCode)) {
       SPIRVType *ResTy =
-          Type->isTypeVector() ? Type->getVectorComponentType() : Type;
-      SPIRVType *OpTy = Type->isTypeVector()
-                            ? getValueType(Op)->getVectorComponentType()
-                            : getValueType(Op);
+          Type->isTypeVector() || Type->isTypeCooperativeMatrixKHR()
+              ? Type->getVectorComponentType()
+              : Type;
+      SPIRVType *OpTy =
+          Type->isTypeVector() || Type->isTypeCooperativeMatrixKHR()
+              ? getValueType(Op)->getVectorComponentType()
+              : getValueType(Op);
 
       (void)ResTy;
       (void)OpTy;

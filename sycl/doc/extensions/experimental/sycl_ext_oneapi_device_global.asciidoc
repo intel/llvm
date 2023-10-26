@@ -188,7 +188,7 @@ maintains its state even when it is referenced from a kernel in a different
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class device_global {
   ...
 ----
@@ -219,7 +219,7 @@ The section below and the table following describe the constructors, member func
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class device_global {
   using subscript_return_t =
     std::remove_reference_t<decltype(std::declval<T>()[std::ptrdiff_t{}])>;
@@ -610,12 +610,13 @@ device_image_scope
 ----
 a|
 This property is most useful for kernels that are submitted to an FPGA device,
-but it may be used with any kernel.  Normally, a single instance of a device
+but it may be used with any kernel. Normally, a single instance of a device
 global variable is allocated for each device, and that instance is shared by
-all kernels that belong to the same context and are submitted to the same device,
-regardless of which _device image_ contains the kernel.  When this property is
-specified, it is an assertion by the user that the device global is referenced
-only from kernels that are contained by the same _device image_.  An
+all kernels that belong to the same context and are submitted to the same 
+device, regardless of which _device image_ contains the kernel.
+When this property is specified, it is an assertion by the user that on a given
+device a given device_global decorated with this property is only ever accessed 
+in a single _device_image_. An
 implementation may be able to optimize accesses to the device global when this
 property is specified (especially on an FPGA device), but the user must be aware
 of which _device image_ contains the kernels that use the variable.
@@ -628,14 +629,14 @@ that directly access a variable do not all reside in the same _device image_,
 however no diagnostic is required for an indirect access from another _device
 image_.
 
-When a device global is decorated with this property, the implementation
-re-initializes it whenever the _device image_ is loaded onto the device.  As a
-result, the application can only be guaranteed that a device global retains its
-value between kernel invocations if it understands when the _device image_ is
-loaded onto the device.  For an FPGA, this happens whenever the device is
-reprogrammed.  Other devices typically load the _device image_ once before the
-first invocation of any kernel in that _device image_, and then it remains
-loaded onto the device until the program terminates.
+A device global variable is guaranteed to be initialized for a device prior to 
+the first time it is accessed (whether from a kernel or a copy operation). 
+Device globals may also be re-initialized at implementation-defined times if 
+multiple _device images_ are used on the same device. To avoid unexpected 
+re-initializations, applications should ensure that all kernels that are 
+enqueued to a device D come from the same _device image_. In addition, 
+applications should ensure that all device global copy operation enqueued to 
+device D correspond to that same _device image_.
 
 The application may copy to or from a device global even before any kernel in
 the _device image_ is submitted to the device.  Doing so causes the device
@@ -1039,6 +1040,12 @@ the variable _dest_, the implementation throws an `exception` with the
 If `PropertyListT` contains the `device_image_scope` property and the _dest_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
+
 a| 
 [source, c++]
 ----
@@ -1063,6 +1070,11 @@ If `PropertyListT` contains the `device_image_scope` property and the _src_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
 
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
+
 a| 
 [source, c++]
 ----
@@ -1084,6 +1096,11 @@ the variable _dest_, the implementation throws an `exception` with the
 If `PropertyListT` contains the `device_image_scope` property and the _dest_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
 
 a| 
 [source, c++]
@@ -1107,6 +1124,12 @@ the variable _src_, the implementation throws an `exception` with the
 If `PropertyListT` contains the `device_image_scope` property and the _src_
 variable exists in more than one _device image_ for this queue's device, the
 implementation throws an `exception` with the `errc::invalid` error code.
+
+If `PropertyListT` contains the `device_image_scope` property, at least one
+kernel in the _device image_ containing the _dest_ variable must access the
+_dest_ variable. If this is not the case, the implementation throws an
+`exception` with the `errc::kernel_not_supported` error code.
+
 |====
 --
 
@@ -1132,7 +1155,7 @@ A sketch of the anticipated constructor interface is:
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = empty_properties_t>
 class device_global {
 public:
   using element_type = std::remove_extent_t<T>; 

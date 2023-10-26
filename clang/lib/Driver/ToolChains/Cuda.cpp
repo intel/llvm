@@ -633,8 +633,7 @@ void NVPTX::OpenMPLinker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, CmdArgs, "nvptx",
-                             GPUArch, /*isBitCodeSDL=*/false,
-                             /*postClangLink=*/false);
+                             GPUArch, /*isBitCodeSDL=*/false);
 
   // Find nvlink and pass it as "--nvlink-path=" argument of
   // clang-nvlink-wrapper.
@@ -657,14 +656,14 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                  const char *LinkingOutput) const {
   const auto &TC =
       static_cast<const toolchains::NVPTXToolChain &>(getToolChain());
+  ArgStringList CmdArgs;
+
   assert(TC.getTriple().isNVPTX() && "Wrong platform");
 
-  ArgStringList CmdArgs;
+  assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
-  } else {
-    assert(Output.isNothing() && "Invalid output.");
   }
 
   if (mustEmitDebugInfo(Args) == EmitSameDebugInfoAsHost)

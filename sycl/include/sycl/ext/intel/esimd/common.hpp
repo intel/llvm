@@ -10,11 +10,10 @@
 
 #pragma once
 
+#include <sycl/detail/defines.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/native/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/common.hpp>
-
-#include <sycl/detail/defines.hpp>
 
 #include <cstdint> // for uint* types
 #include <type_traits>
@@ -62,6 +61,18 @@ enum class rgba_channel : uint8_t { R, G, B, A };
 /// addressable by GPU in "stateful" memory model, and each surface is
 /// identified by its "binding table index" - surface index.
 using SurfaceIndex = unsigned int;
+
+/// Specify if end of thread should be set.
+enum class raw_send_eot : uint8_t {
+  not_eot = 0,
+  eot = 1,
+};
+
+/// Specify if sendc should be used.
+enum class raw_send_sendc : uint8_t {
+  not_sendc = 0,
+  sendc = 1,
+};
 
 namespace detail {
 
@@ -137,16 +148,14 @@ constexpr int get_num_channels_enabled(rgba_channel_mask M) {
          is_channel_enabled(M, rgba_channel::A);
 }
 
-#define __ESIMD_USM_DWORD_ATOMIC_TO_LSC                                        \
-  " is supported only on ACM, PVC. USM-based atomic will be auto-converted "   \
-  "to LSC version."
-
 /// Represents an atomic operation. Operations always return the old value(s) of
 /// the target memory location(s) as it was before the operation was applied.
 /// Each operation is annotated with a pseudocode illustrating its semantics,
 /// \c addr is a memory address (one of the many, as the atomic operation is
 /// vector) the operation is applied at, \c src0 is its first argumnet,
 /// \c src1 - second.
+/// Using the floating point atomic operations adds the requirement to running
+/// the code with it on target devices with LSC features (ACM, PVC, etc).
 enum class atomic_op : uint8_t {
   /// Addition: <code>*addr = *addr + src0</code>.
   add = 0x0,
@@ -174,16 +183,18 @@ enum class atomic_op : uint8_t {
   smin = 0xb,
   /// Maximum (signed integer): <code>*addr = max(*addr, src0)</code>.
   smax = 0xc,
-  /// Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
-  fmax __SYCL_DEPRECATED("fmax" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x10,
-  /// Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
-  fmin __SYCL_DEPRECATED("fmin" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x11,
-  /// Compare and exchange (floating point).
+  /// ACM/PVC: Minimum (floating point): <code>*addr = min(*addr, src0)</code>.
+  fmax = 0x10,
+  /// ACM/PVC: Maximum (floating point): <code>*addr = max(*addr, src0)</code>.
+  fmin = 0x11,
+  /// ACM/PVC: Compare and exchange (floating point).
   /// <code>if (*addr == src0) *addr = src1;</code>
   fcmpxchg = 0x12,
-  fcmpwr __SYCL_DEPRECATED("fcmpwr" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = fcmpxchg,
-  fadd __SYCL_DEPRECATED("fadd" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x13,
-  fsub __SYCL_DEPRECATED("fsub" __ESIMD_USM_DWORD_ATOMIC_TO_LSC) = 0x14,
+  fcmpwr = fcmpxchg,
+  /// ACM/PVC: Addition (floating point): <code>*addr = *addr + src0</code>.
+  fadd = 0x13, //
+  /// ACM/PVC: Subtraction (floating point): <code>*addr = *addr - src0</code>.
+  fsub = 0x14,
   load = 0x15,
   store = 0x16,
   /// Decrement: <code>*addr = *addr - 1</code>. The only operation which
@@ -196,34 +207,6 @@ enum class atomic_op : uint8_t {
 /// @} sycl_esimd_core
 
 namespace detail {
-template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
-  if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc ||
-                Op == __ESIMD_NS::native::lsc::atomic_op::dec ||
-                Op == __ESIMD_NS::native::lsc::atomic_op::load) {
-    return 0;
-  } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::add ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::sub ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::smin ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::smax ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::umin ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::umax ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fadd ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fsub ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fmin ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fmax ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::bit_and ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::bit_or ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
-    return 1;
-  } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    return 2;
-  } else {
-    return -1; // error
-  }
-}
-
 template <__ESIMD_NS::atomic_op Op> constexpr bool has_lsc_equivalent() {
   switch (Op) {
   case __ESIMD_NS::atomic_op::xchg:
@@ -265,7 +248,7 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
     return __ESIMD_NS::native::lsc::atomic_op::fmax;
   case __ESIMD_NS::atomic_op::fmin:
     return __ESIMD_NS::native::lsc::atomic_op::fmin;
-  case __ESIMD_NS::atomic_op::fcmpwr:
+  case __ESIMD_NS::atomic_op::fcmpxchg:
     return __ESIMD_NS::native::lsc::atomic_op::fcmpxchg;
   case __ESIMD_NS::atomic_op::fadd:
     return __ESIMD_NS::native::lsc::atomic_op::fadd;
@@ -312,7 +295,7 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
   case __ESIMD_NS::native::lsc::atomic_op::fmin:
     return __ESIMD_NS::atomic_op::fmin;
   case __ESIMD_NS::native::lsc::atomic_op::fcmpxchg:
-    return __ESIMD_NS::atomic_op::fcmpwr;
+    return __ESIMD_NS::atomic_op::fcmpxchg;
   case __ESIMD_NS::native::lsc::atomic_op::fadd:
     return __ESIMD_NS::atomic_op::fadd;
   case __ESIMD_NS::native::lsc::atomic_op::fsub:
@@ -325,16 +308,271 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
 }
 
 template <__ESIMD_NS::atomic_op Op> constexpr int get_num_args() {
-  if constexpr (has_lsc_equivalent<Op>()) {
-    return get_num_args<to_lsc_atomic_op<Op>()>();
-  } else {
-    switch (Op) {
-    case __ESIMD_NS::atomic_op::xchg:
-    case __ESIMD_NS::atomic_op::predec:
-      return 1;
-    default:
-      return -1; // error
-    }
+  switch (Op) {
+  case __ESIMD_NS::atomic_op::inc:
+  case __ESIMD_NS::atomic_op::dec:
+  case __ESIMD_NS::atomic_op::load:
+    return 0;
+  case __ESIMD_NS::atomic_op::xchg:
+  case __ESIMD_NS::atomic_op::predec:
+  case __ESIMD_NS::atomic_op::store:
+  case __ESIMD_NS::atomic_op::add:
+  case __ESIMD_NS::atomic_op::sub:
+  case __ESIMD_NS::atomic_op::smin:
+  case __ESIMD_NS::atomic_op::smax:
+  case __ESIMD_NS::atomic_op::umin:
+  case __ESIMD_NS::atomic_op::umax:
+  case __ESIMD_NS::atomic_op::fadd:
+  case __ESIMD_NS::atomic_op::fsub:
+  case __ESIMD_NS::atomic_op::fmin:
+  case __ESIMD_NS::atomic_op::fmax:
+  case __ESIMD_NS::atomic_op::bit_and:
+  case __ESIMD_NS::atomic_op::bit_or:
+  case __ESIMD_NS::atomic_op::bit_xor:
+    return 1;
+  case __ESIMD_NS::atomic_op::cmpxchg:
+  case __ESIMD_NS::atomic_op::fcmpxchg:
+    return 2;
+  default:
+    return -1; // error
+  }
+}
+
+template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
+  return get_num_args<to_atomic_op<Op>()>();
+}
+
+} // namespace detail
+
+/// L1, L2 or L3 cache hints.
+enum class cache_hint : uint8_t {
+  none = 0,
+  /// load/store/atomic: do not cache data to cache;
+  uncached = 1,
+
+  // load: cache data to cache;
+  cached = 2,
+
+  /// store: write data into cache level and mark the cache line as "dirty".
+  /// Upon eviction, the "dirty" data will be written into the furthest
+  /// subsequent cache;
+  write_back = 3,
+
+  /// store: immediately write data to the subsequent furthest cache, marking
+  /// the cache line in the current cache as "not dirty";
+  write_through = 4,
+
+  /// load: cache data to cache using the evict-first policy to minimize cache
+  /// pollution caused by temporary streaming data that may only be accessed
+  /// once or twice;
+  /// store/atomic: same as write-through, but use the evict-first policy
+  /// to limit cache pollution by streaming;
+  streaming = 5,
+
+  /// load: asserts that the cache line containing the data will not be read
+  /// again until it’s overwritten, therefore the load operation can invalidate
+  /// the cache line and discard "dirty" data. If the assertion is violated
+  /// (the cache line is read again) then behavior is undefined.
+  read_invalidate = 6,
+
+  // TODO: Implement the verification of this enum in check_cache_hint().
+  /// load, L2 cache only, next gen GPU after Xe required: asserts that
+  /// the L2 cache line containing the data will not be written until all
+  /// invocations of the shader or kernel execution are finished.
+  /// If the assertion is violated (the cache line is written), the behavior
+  /// is undefined.
+  const_cached = 7
+};
+
+/// L1, L2 or L3 cache hint levels. L3 is reserved for future use.
+enum class cache_level : uint8_t { L1 = 1, L2 = 2, L3 = 3 };
+
+namespace detail {
+
+/// Data size or format to read or store
+enum class lsc_data_size : uint8_t {
+  default_size = 0,
+  u8 = 1,
+  u16 = 2,
+  u32 = 3,
+  u64 = 4,
+  u8u32 = 5,   /// load 8b, zero extend to 32b; store the opposite
+  u16u32 = 6,  /// load 16b, zero extend to 32b; store the opposite
+  u16u32h = 7, /// load 16b into high 16 of each 32b; store the high 16
+};
+
+template <typename T, lsc_data_size DS> constexpr void check_lsc_data_size() {
+  static_assert(DS != lsc_data_size::default_size || sizeof(T) == 1 ||
+                    sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+                "Unsupported data type");
+  static_assert(
+      DS == lsc_data_size::default_size ||
+          (sizeof(T) == 1 &&
+           (DS == lsc_data_size::u8 || DS == lsc_data_size::u8u32)) ||
+          (sizeof(T) == 2 &&
+           (DS == lsc_data_size::u16 || DS == lsc_data_size::u16u32 ||
+            DS == lsc_data_size::u16u32h)) ||
+          (sizeof(T) == 4 &&
+           (DS == lsc_data_size::u32 || DS == lsc_data_size::u8u32 ||
+            DS == lsc_data_size::u16u32 || DS == lsc_data_size::u16u32h)) ||
+          (sizeof(T) == 8 && DS == lsc_data_size::u64),
+      "Data type does not match data size");
+}
+
+template <typename T, lsc_data_size DS>
+constexpr lsc_data_size finalize_data_size() {
+  check_lsc_data_size<T, DS>();
+  if (DS != lsc_data_size::default_size)
+    return DS;
+  else if (sizeof(T) == 1)
+    return lsc_data_size::u8;
+  else if (sizeof(T) == 2)
+    return lsc_data_size::u16;
+  else if (sizeof(T) == 4)
+    return lsc_data_size::u32;
+  else if (sizeof(T) == 8)
+    return lsc_data_size::u64;
+  else
+    return DS;
+}
+
+enum class lsc_vector_size : uint8_t {
+  n1 = 1,
+  n2 = 2,
+  n3 = 3,
+  n4 = 4,
+  n8 = 5,
+  n16 = 6,
+  n32 = 7,
+  n64 = 8,
+};
+
+template <int VS> constexpr void check_lsc_vector_size() {
+  static_assert(VS == 1 || VS == 2 || VS == 3 || VS == 4 || VS == 8 ||
+                    VS == 16 || VS == 32 || VS == 64,
+                "Unsupported vector size");
+}
+
+template <lsc_vector_size VS> constexpr void check_lsc_vector_size() {
+  static_assert(VS == lsc_vector_size::n1 || VS == lsc_vector_size::n2 ||
+                    VS == lsc_vector_size::n3 || VS == lsc_vector_size::n4 ||
+                    VS == lsc_vector_size::n8 || VS == lsc_vector_size::n16 ||
+                    VS == lsc_vector_size::n64 || VS == lsc_vector_size::n32,
+                "Unsupported vector size");
+}
+
+template <lsc_vector_size VS> constexpr uint8_t to_int() {
+  check_lsc_vector_size<VS>();
+  switch (VS) {
+  case lsc_vector_size::n1:
+    return 1;
+  case lsc_vector_size::n2:
+    return 2;
+  case lsc_vector_size::n3:
+    return 3;
+  case lsc_vector_size::n4:
+    return 4;
+  case lsc_vector_size::n8:
+    return 8;
+  case lsc_vector_size::n16:
+    return 16;
+  case lsc_vector_size::n32:
+    return 32;
+  case lsc_vector_size::n64:
+    return 64;
+  default:
+    return 1;
+  }
+}
+
+template <int VS> constexpr lsc_vector_size to_lsc_vector_size() {
+  check_lsc_vector_size<VS>();
+  switch (VS) {
+  case 1:
+    return lsc_vector_size::n1;
+  case 2:
+    return lsc_vector_size::n2;
+  case 3:
+    return lsc_vector_size::n3;
+  case 4:
+    return lsc_vector_size::n4;
+  case 8:
+    return lsc_vector_size::n8;
+  case 16:
+    return lsc_vector_size::n16;
+  case 32:
+    return lsc_vector_size::n32;
+  case 64:
+    return lsc_vector_size::n64;
+  default:
+    return lsc_vector_size::n1;
+  }
+}
+
+enum class lsc_data_order : uint8_t {
+  nontranspose = 1,
+  transpose = 2,
+};
+
+template <cache_hint Hint> class cache_hint_wrap {
+  template <cache_hint...> struct is_one_of_t;
+  template <cache_hint Last>
+  struct is_one_of_t<Last>
+      : std::conditional_t<Last == Hint, std::true_type, std::false_type> {};
+  template <cache_hint Head, cache_hint... Tail>
+  struct is_one_of_t<Head, Tail...>
+      : std::conditional_t<Head == Hint, std::true_type, is_one_of_t<Tail...>> {
+  };
+
+public:
+  constexpr operator cache_hint() const { return Hint; }
+  template <cache_hint... Hints> constexpr bool is_one_of() const {
+    return is_one_of_t<Hints...>::value;
+  }
+};
+
+constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
+  return First == Val && Second == Val;
+}
+
+enum class cache_action { prefetch, load, store, atomic };
+
+template <cache_action Action, cache_hint L1Hint, cache_hint L2Hint>
+void check_cache_hint() {
+  constexpr auto L1H = cache_hint_wrap<L1Hint>{};
+  constexpr auto L2H = cache_hint_wrap<L2Hint>{};
+  if constexpr (Action == cache_action::prefetch) {
+    static_assert(
+        L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
+                               cache_hint::streaming>() &&
+            L2H.template is_one_of<cache_hint::cached,
+                                   cache_hint::uncached>() &&
+            !are_both(L1H, L2H, cache_hint::uncached),
+        "unsupported cache hint");
+  } else if constexpr (Action == cache_action::load) {
+    static_assert(
+        are_both(L1H, L2H, cache_hint::none) ||
+            (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
+                                    cache_hint::streaming>() &&
+             L2H.template is_one_of<cache_hint::uncached,
+                                    cache_hint::cached>()) ||
+            (L1H == cache_hint::read_invalidate && L2H == cache_hint::cached),
+        "unsupported cache hint");
+  } else if constexpr (Action == cache_action::store) {
+    static_assert(are_both(L1H, L2H, cache_hint::none) ||
+                      are_both(L1H, L2H, cache_hint::write_back) ||
+                      (L1H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_through,
+                                              cache_hint::streaming>() &&
+                       L2H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
+  } else if constexpr (Action == cache_action::atomic) {
+    static_assert(are_both(L1H, L2H, cache_hint::none) ||
+                      (L1H == cache_hint::uncached &&
+                       L2H.template is_one_of<cache_hint::uncached,
+                                              cache_hint::write_back>()),
+                  "unsupported cache hint");
   }
 }
 
