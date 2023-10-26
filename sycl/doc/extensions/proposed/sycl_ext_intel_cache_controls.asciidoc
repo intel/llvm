@@ -99,8 +99,6 @@ Below is a list of new compile-time constant properties supported with
 namespace sycl::ext {
 namespace intel::experimental {
 
-using cache_level = sycl::ext::oneapi::experimental::cache_level;
-
 enum class cache_mode {
   uncached,
   cached,
@@ -110,6 +108,8 @@ enum class cache_mode {
   write_through,
   write_back
 };
+using cache_mode = sycl::ext::oneapi::experimental::cache_mode;
+using cache_level = sycl::ext::oneapi::experimental::cache_level;
 
 struct read_hint_key {
   template <typename... Cs>
@@ -120,6 +120,12 @@ struct write_hint_key {
   template <typename... Cs>
   using value_t = property_value<write_hint_key, Cs...>;
 };
+
+template <typename... Cs>
+inline constexpr read_hint_key::value_t<Cs...> read_hint;
+
+template <typename... Cs>
+inline constexpr write_hint_key::value_t<Cs...> write_hint;
 
 } // namespace intel::experimental
 
