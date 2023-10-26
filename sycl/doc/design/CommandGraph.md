@@ -167,7 +167,7 @@ This WaitEvent is reset at the end of the suffix, along with reset commands
 to reset the L0 events used to implement the UR sync-points back to the
 non-signaled state.
 
-![L0 command-buffer diagram](images/L0_UR_command_buffer.jpg)
+![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit two
