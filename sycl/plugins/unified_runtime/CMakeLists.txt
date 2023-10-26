@@ -56,8 +56,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   # commit: 7c8617b3710736db642585fe310a64e19e059d2e
   # Merge:  20d4f49  9a13af
-  # Author: Ewan Crawford <ewan@codeplay.com>
-  # Date:   Mon Oct 16 16:26:44 2023 +0100
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Oct 26 10:20:03 2023 +0100
   #         Merge pull request #965 from Bensuo/ewan/L0_internal_event_fix
   #         [Command-buffer][L0] Reset sync-point events
   set(UNIFIED_RUNTIME_TAG 7c8617b3710736db642585fe310a64e19e059d2e)
