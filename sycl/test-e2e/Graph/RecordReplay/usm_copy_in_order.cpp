@@ -76,8 +76,9 @@ int main() {
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Z, N * sizeof(int)).wait();
 
+  const int Expected = 2;
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == 2);
+    assert(check_value(i, Expected, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

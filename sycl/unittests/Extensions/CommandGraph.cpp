@@ -41,17 +41,6 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 // used by multiple times by unitests.
 // Defining anonymous namespace prevents from function naming conflits
 namespace {
-bool depthSearchSuccessorCheck(
-    std::shared_ptr<sycl::ext::oneapi::experimental::detail::node_impl> Node) {
-  if (Node->MSuccessors.size() > 1)
-    return false;
-
-  for (const auto &Succ : Node->MSuccessors) {
-    return Succ->depthSearchCount();
-  }
-  return true;
-}
-
 /// Submits four kernels with diamond dependency to the queue Q
 /// @param Q Queue to submit nodes to.
 void runKernels(queue Q) {
@@ -508,7 +497,8 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_NE(sycl::detail::getSyclObjImpl(Node1), nullptr);
   ASSERT_FALSE(sycl::detail::getSyclObjImpl(Node1)->isEmpty());
   ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-  ASSERT_EQ(*GraphImpl->MRoots.begin(), sycl::detail::getSyclObjImpl(Node1));
+  ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(),
+            sycl::detail::getSyclObjImpl(Node1));
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.empty());
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MPredecessors.empty());
 
@@ -521,7 +511,7 @@ TEST_F(CommandGraphTest, AddNode) {
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2)->isEmpty());
   ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.front(),
+  ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.front().lock(),
             sycl::detail::getSyclObjImpl(Node2));
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MPredecessors.empty());
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2)->MPredecessors.size(), 1lu);
@@ -607,7 +597,7 @@ TEST_F(CommandGraphTest, MakeEdge) {
   Graph.make_edge(Node1, Node2);
   ASSERT_EQ(GraphImpl->MRoots.size(), 1ul);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.size(), 1lu);
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.front(),
+  ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1)->MSuccessors.front().lock(),
             sycl::detail::getSyclObjImpl(Node2));
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1)->MPredecessors.empty());
   ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node2)->MSuccessors.empty());
@@ -736,9 +726,12 @@ TEST_F(CommandGraphTest, SubGraph) {
             1lu);
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
-  ASSERT_TRUE(
-      *(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.front()) ==
-      *(sycl::detail::getSyclObjImpl(Node1Graph)));
+  const bool CompareContentOnly = true;
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1MainGraph)
+                  ->MSuccessors.front()
+                  .lock()
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
+                              CompareContentOnly));
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MPredecessors.size(),
@@ -757,9 +750,13 @@ TEST_F(CommandGraphTest, SubGraph) {
   ASSERT_EQ(Schedule.size(), 5ul);
   ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
   ScheduleIt++;
-  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node1Graph)));
+  ASSERT_TRUE((*ScheduleIt)
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
+                              CompareContentOnly));
   ScheduleIt++;
-  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node2Graph)));
+  ASSERT_TRUE((*ScheduleIt)
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node2Graph),
+                              CompareContentOnly));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty());
   ScheduleIt++;
@@ -801,9 +798,12 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
             1lu);
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
-  ASSERT_TRUE(
-      *(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.front()) ==
-      *(sycl::detail::getSyclObjImpl(Node1Graph)));
+  const bool CompareContentOnly = true;
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1MainGraph)
+                  ->MSuccessors.front()
+                  .lock()
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
+                              CompareContentOnly));
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
@@ -824,11 +824,15 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNode) {
   ASSERT_EQ(Schedule.size(), 6ul);
   ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
   ScheduleIt++;
-  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node1Graph)));
+  ASSERT_TRUE((*ScheduleIt)
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
+                              CompareContentOnly));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty()); // empty node inside the subgraph
   ScheduleIt++;
-  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node2Graph)));
+  ASSERT_TRUE((*ScheduleIt)
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node2Graph),
+                              CompareContentOnly));
   ScheduleIt++;
   ASSERT_TRUE(
       (*ScheduleIt)->isEmpty()); // empty node added by the impl to handle
@@ -872,9 +876,12 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
             1lu);
   // Subgraph nodes are duplicated when inserted to parent graph.
   // we thus check the node content only.
-  ASSERT_TRUE(
-      *(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.front()) ==
-      *(sycl::detail::getSyclObjImpl(Node1Graph)));
+  const bool CompareContentOnly = true;
+  ASSERT_TRUE(sycl::detail::getSyclObjImpl(Node1MainGraph)
+                  ->MSuccessors.front()
+                  .lock()
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
+                              CompareContentOnly));
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
@@ -895,9 +902,13 @@ TEST_F(CommandGraphTest, SubGraphWithEmptyNodeLast) {
   ASSERT_EQ(Schedule.size(), 6ul);
   ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
   ScheduleIt++;
-  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node1Graph)));
+  ASSERT_TRUE((*ScheduleIt)
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node1Graph),
+                              CompareContentOnly));
   ScheduleIt++;
-  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node2Graph)));
+  ASSERT_TRUE((*ScheduleIt)
+                  ->isSimilar(sycl::detail::getSyclObjImpl(Node2Graph),
+                              CompareContentOnly));
   ScheduleIt++;
   ASSERT_TRUE((*ScheduleIt)->isEmpty()); // empty node inside the subgraph
   ScheduleIt++;
@@ -1005,7 +1016,7 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1018,7 +1029,7 @@ TEST_F(CommandGraphTest, InOrderQueue) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1064,7 +1075,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1077,7 +1088,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmpty) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1124,7 +1135,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1137,7 +1148,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyFirst) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1185,7 +1196,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_NE(PtrNode2, nullptr);
   ASSERT_NE(PtrNode2, PtrNode1);
   ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode1->MSuccessors.front(), PtrNode2);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
   ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
 
@@ -1197,7 +1208,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_NE(PtrNode3, nullptr);
   ASSERT_NE(PtrNode3, PtrNode2);
   ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
-  ASSERT_EQ(PtrNode2->MSuccessors.front(), PtrNode3);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
 
@@ -1259,9 +1270,10 @@ TEST_F(CommandGraphTest, EnqueueBarrier) {
   //     / \
   //   (4) (5)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto BarrierNode = Node->MSuccessors.front();
+    auto BarrierNode = Node->MSuccessors.front().lock();
     ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
     ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
               sycl::detail::getSyclObjImpl(Barrier));
@@ -1299,9 +1311,10 @@ TEST_F(CommandGraphTest, EnqueueBarrierMultipleQueues) {
   //     / \
   //   (4) (5)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto BarrierNode = Node->MSuccessors.front();
+    auto BarrierNode = Node->MSuccessors.front().lock();
     ASSERT_EQ(BarrierNode->MCGType, sycl::detail::CG::Barrier);
     ASSERT_EQ(GraphImpl->getEventForNode(BarrierNode),
               sycl::detail::getSyclObjImpl(Barrier));
@@ -1342,9 +1355,10 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitList) {
   //     / \ /
   //   (4) (5)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto SuccNode = Node->MSuccessors.front();
+    auto SuccNode = Node->MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier));
@@ -1398,9 +1412,10 @@ TEST_F(CommandGraphTest, EnqueueBarrierWaitListMultipleQueues) {
   //     \|/
   //     (B2)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto SuccNode = Node->MSuccessors.front();
+    auto SuccNode = Node->MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier));
@@ -1460,21 +1475,24 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //    / | \
   // (6) (7) (8) (those nodes also have B1 as a predecessor)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
-  for (auto Node : GraphImpl->MRoots) {
+  for (auto Root : GraphImpl->MRoots) {
+    auto Node = Root.lock();
     ASSERT_EQ(Node->MSuccessors.size(), 1lu);
-    auto SuccNode = Node->MSuccessors.front();
+    auto SuccNode = Node->MSuccessors.front().lock();
     if (SuccNode->MCGType == sycl::detail::CG::Barrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier1));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
       ASSERT_EQ(SuccNode->MSuccessors.size(), 6lu);
-      for (auto SuccBarrier1 : SuccNode->MSuccessors) {
+      for (auto Succ1 : SuccNode->MSuccessors) {
+        auto SuccBarrier1 = Succ1.lock();
         if (SuccBarrier1->MCGType == sycl::detail::CG::Barrier) {
           ASSERT_EQ(GraphImpl->getEventForNode(SuccBarrier1),
                     sycl::detail::getSyclObjImpl(Barrier2));
           ASSERT_EQ(SuccBarrier1->MPredecessors.size(), 3lu);
           ASSERT_EQ(SuccBarrier1->MSuccessors.size(), 3lu);
-          for (auto SuccBarrier2 : SuccBarrier1->MSuccessors) {
+          for (auto Succ2 : SuccBarrier1->MSuccessors) {
+            auto SuccBarrier2 = Succ2.lock();
             // Nodes 6, 7, 8
             ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 2lu);
             ASSERT_EQ(SuccBarrier2->MSuccessors.size(), 0lu);
@@ -1812,11 +1830,11 @@ TEST_F(CommandGraphTest, MakeEdgeErrors) {
     auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
 
     ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
-    ASSERT_EQ(*(GraphImpl->MRoots.begin()), NodeAImpl);
+    ASSERT_EQ((*GraphImpl->MRoots.begin()).lock(), NodeAImpl);
 
     ASSERT_EQ(NodeAImpl->MSuccessors.size(), 1lu);
     ASSERT_EQ(NodeAImpl->MPredecessors.size(), 0lu);
-    ASSERT_EQ(NodeAImpl->MSuccessors.front(), NodeBImpl);
+    ASSERT_EQ(NodeAImpl->MSuccessors.front().lock(), NodeBImpl);
 
     ASSERT_EQ(NodeBImpl->MSuccessors.size(), 0lu);
     ASSERT_EQ(NodeBImpl->MPredecessors.size(), 1lu);
@@ -2058,8 +2076,18 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
   ASSERT_EQ(GraphImpl->MRoots.size(), 1lu);
 
   // Check structure graph
-  for (auto Node : GraphImpl->MRoots) {
-    ASSERT_EQ(depthSearchSuccessorCheck(Node), true);
+  auto CurrentNode = (*GraphImpl->MRoots.begin()).lock();
+  for (size_t i = 1; i <= GraphImpl->getNumberOfNodes(); i++) {
+    EXPECT_LE(CurrentNode->MSuccessors.size(), 1lu);
+
+    // Checking the last node has no successors
+    if (i == GraphImpl->getNumberOfNodes()) {
+      EXPECT_EQ(CurrentNode->MSuccessors.size(), 0lu);
+    } else {
+      // Check other nodes have 1 successor
+      EXPECT_EQ(CurrentNode->MSuccessors.size(), 1lu);
+      CurrentNode = CurrentNode->MSuccessors[0].lock();
+    }
   }
 }
 
