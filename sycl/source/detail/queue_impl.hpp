@@ -748,9 +748,26 @@ protected:
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
+    // Flag used to detect nested calls to submit and report an error.
+    thread_local static bool PreventSubmit = false;
+
+    if (PreventSubmit) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Calls to sycl::queue::submit cannot be nested. Command group "
+          "function objects should use the sycl::handler API instead.");
+    }
+
     handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
-    CGF(Handler);
+    PreventSubmit = true;
+    try {
+      CGF(Handler);
+    } catch (...) {
+      PreventSubmit = false;
+      throw;
+    }
+    PreventSubmit = false;
 
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
