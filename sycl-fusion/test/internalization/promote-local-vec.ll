@@ -50,28 +50,22 @@ define spir_kernel void @fused_0(ptr addrspace(1) align 16 %KernelOne_accTmp, pt
 ; CHECK:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds [[TYPE0:%.*]], ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP0]]
 ; CHECK:    [[TMP1:%.*]] = call spir_func i64 @_Z13get_global_idj(i32 0) #[[ATTR1:[0-9]+]]
 ; CHECK:    [[ADD_I_I_I:%.*]] = fadd <4 x float>
-; CHECK:    [[TMP9:%.*]] = add i64 [[TMP1]], [[TMP0]]
+; CHECK:    [[TMP9:%.*]] = add i64 [[TMP0]], [[TMP1]]
 ; CHECK:    [[TMP10:%.*]] = urem i64 [[TMP9]], 16
-; CHECK:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[ADD_PTR_I_I]], i64 [[TMP10]]
-; CHECK:    [[TMP11:%.*]] = add i64 0, [[TMP10]]
-; CHECK:    [[TMP12:%.*]] = add i64 [[TMP11]], [[TMP0]]
-; CHECK:    [[TMP13:%.*]] = urem i64 [[TMP12]], 16
-; CHECK:    [[REF_TMP_SROA_0_0__SROA_IDX_I_I:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[ARRAYIDX_I13_I_I]], i64 [[TMP13]], i32 0
+; CHECK:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP10]]
+; CHECK:    [[REF_TMP_SROA_0_0__SROA_IDX_I_I:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[ARRAYIDX_I13_I_I]], i64 0, i32 0
 ; CHECK:    store <4 x float> [[ADD_I_I_I]], ptr addrspace(3) [[REF_TMP_SROA_0_0__SROA_IDX_I_I]], align 16
 ; CHECK:    [[KERNELONE_ACCTMP35_SROA_0_0__SROA_IDX:%.*]] = getelementptr inbounds [[TYPE1]], ptr [[KERNELONE_ACCTMP3]], i64 0, i32 0, i32 0, i64 0
 ; CHECK:    [[KERNELONE_ACCTMP35_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[KERNELONE_ACCTMP35_SROA_0_0__SROA_IDX]], align 1
-; CHECK:    [[TMP14:%.*]] = urem i64 [[KERNELONE_ACCTMP35_SROA_0_0_COPYLOAD]], 16
-; CHECK:    [[ADD_PTR_I39_I8:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP14]]
-; CHECK:    [[TMP15:%.*]] = call spir_func i64 @_Z13get_global_idj(i32 0) #[[ATTR1]]
-; CHECK:    [[TMP21:%.*]] = add i64 [[TMP15]], [[TMP14]]
-; CHECK:    [[TMP22:%.*]] = urem i64 [[TMP21]], 16
-; CHECK:    [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[ADD_PTR_I39_I8]], i64 [[TMP22]]
-; CHECK:    [[TMP23:%.*]] = add i64 0, [[TMP22]]
-; CHECK:    [[TMP24:%.*]] = add i64 [[TMP23]], [[TMP14]]
-; CHECK:    [[TMP25:%.*]] = urem i64 [[TMP24]], 16
-; CHECK:    [[M_DATA_I_I_I15:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[ARRAYIDX_I_I_I11]], i64 [[TMP25]], i32 0
-; CHECK:    [[TMP26:%.*]] = load <4 x float>, ptr addrspace(3) [[M_DATA_I_I_I15]], align 16
-; CHECK:    [[MUL_I_I_I:%.*]] = fmul <4 x float> [[TMP26]]
+; CHECK:    [[TMP11:%.*]] = urem i64 [[KERNELONE_ACCTMP35_SROA_0_0_COPYLOAD]], 16
+; CHECK:    [[ADD_PTR_I39_I8:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP11]]
+; CHECK:    [[TMP12:%.*]] = call spir_func i64 @_Z13get_global_idj(i32 0) #[[ATTR1]]
+; CHECK:    [[TMP18:%.*]] = add i64 [[TMP11]], [[TMP12]]
+; CHECK:    [[TMP19:%.*]] = urem i64 [[TMP18]], 16
+; CHECK:    [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP19]]
+; CHECK:    [[M_DATA_I_I_I15:%.*]] = getelementptr inbounds [[TYPE0]], ptr addrspace(3) [[ARRAYIDX_I_I_I11]], i64 0, i32 0
+; CHECK:    [[TMP20:%.*]] = load <4 x float>, ptr addrspace(3) [[M_DATA_I_I_I15]], align 16
+; CHECK:    [[MUL_I_I_I:%.*]] = fmul <4 x float> [[TMP20]]
 ; CHECK:    store <4 x float> [[MUL_I_I_I]]
 ; CHECK-NOT: store
 ; CHECK:    ret void
