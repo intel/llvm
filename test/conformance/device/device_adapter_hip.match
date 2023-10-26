@@ -1,5 +1,6 @@
 {{OPT}}urDeviceCreateWithNativeHandleTest.Success
 {{OPT}}urDeviceGetTest.InvalidValueNumEntries
+{{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
 {{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_SINGLE_FP_CONFIG
 {{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_DOUBLE_FP_CONFIG
 {{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_QUEUE_PROPERTIES

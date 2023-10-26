@@ -939,9 +939,6 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
     UR_CHECK_ERROR(hipEventRecord(Event));
-  }
-
-  if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventSynchronize(Event));
     float ElapsedTime = 0.0f;
     UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
