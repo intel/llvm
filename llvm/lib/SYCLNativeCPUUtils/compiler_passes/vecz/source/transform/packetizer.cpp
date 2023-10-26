@@ -221,6 +221,17 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instructions.
   Value *packetizeSubgroupShuffle(Instruction *Ins);
+  /// @brief Packetize a sub-group shuffle-xor builtin
+  ///
+  /// Note - not any shuffle-like operation, but specifically the 'shuffle_xor'
+  /// builtin.
+  ///
+  /// @param[in] Ins Instruction to packetize.
+  /// @param[in] ShuffleXor Shuffle to packetize.
+  ///
+  /// @return Packetized instructions.
+  Result packetizeSubgroupShuffleXor(
+      Instruction *Ins, compiler::utils::GroupCollective ShuffleXor);
 
   /// @brief Packetize PHI node.
   ///
@@ -926,10 +937,19 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
   }
 
   if (auto shuffle = isSubgroupShuffleLike(Ins)) {
-    if (shuffle->Op == compiler::utils::GroupCollective::OpKind::Shuffle) {
-      if (auto *s = packetizeSubgroupShuffle(Ins)) {
-        return broadcast(s);
-      }
+    switch (shuffle->Op) {
+      default:
+        break;
+      case compiler::utils::GroupCollective::OpKind::Shuffle:
+        if (auto *s = packetizeSubgroupShuffle(Ins)) {
+          return broadcast(s);
+        }
+        break;
+      case compiler::utils::GroupCollective::OpKind::ShuffleXor:
+        if (auto s = packetizeSubgroupShuffleXor(Ins, *shuffle)) {
+          return s;
+        }
+        break;
     }
     // We can't packetize all sub-group shuffle-like operations, but we also
     // can't vectorize or instantiate them - so provide a diagnostic saying as
@@ -1412,6 +1432,161 @@ Value *Packetizer::Impl::packetizeSubgroupShuffle(Instruction *I) {
   CI->setOperand(1, MuxIdx);
 
   return CI;
+}
+
+Packetizer::Result Packetizer::Impl::packetizeSubgroupShuffleXor(
+    Instruction *I, compiler::utils::GroupCollective ShuffleXor) {
+  auto *const CI = cast<CallInst>(I);
+
+  // We don't support scalable vectorization of sub-group shuffles.
+  if (SimdWidth.isScalable()) {
+    return Packetizer::Result(*this);
+  }
+  unsigned const VF = SimdWidth.getFixedValue();
+
+  auto *const Data = CI->getArgOperand(0);
+  auto *const Val = CI->getArgOperand(1);
+
+  auto PackData = packetize(Data);
+  if (!PackData) {
+    return Packetizer::Result(*this);
+  }
+
+  // If the data operand happened to be a broadcast value already, we can use
+  // it directly.
+  if (PackData.info->numInstances == 0) {
+    IC.deleteInstructionLater(CI);
+    CI->replaceAllUsesWith(Data);
+    return PackData;
+  }
+
+  auto PackVal = packetize(Val);
+  if (!PackVal) {
+    return Packetizer::Result(*this);
+  }
+
+  // With the packetize operands in place, we have to perform the actual
+  // shuffling operation. Since we are one layer higher than the mux
+  // sub-groups, our IDs do not easily translate to the mux level. Therefore we
+  // perform each shuffle using the regular 'shuffle' and do the XOR of the IDs
+  // ourselves.
+
+  // Note: in this illustrative example, imagine two invocations across a
+  // single mux sub-groups, each being vectorized by 4; in other words, 8
+  // 'original' invocations to a sub-group, running in two vectorized
+  // invocations. Imagine value = 5:
+  //                |  shuffle(X, 5)       |  shuffle(A, 5)       |
+  // VF=4           |----------------------|----------------------|
+  //                |    s(<X,Y,Z,W>, 5)   |    s(<A,B,C,D>, 5)   |
+  // SG IDs         |       0,1,2,3        |       4,5,6,7        |
+  // SG IDs^5       |       5,4,7,6        |       1,0,3,2        |
+  // I=(SG IDs^5)/4 |       1,1,1,1        |       0,0,0,0        |
+  // J=(SG IDs^5)%4 |       1,0,3,2        |       1,0,3,2        |
+  // <X,Y,Z,W>[J]   |       Y,X,W,Z        |       B,A,D,A        |
+  // Mux-shuffle[I] | [Y,B][1],[X,A][1],.. | [Y,B][0],[X,A][1],.. |
+  //                |       B,A,D,A        |       Y,X,W,Z        |
+  IRBuilder<> B(CI);
+
+  auto *const SubgroupLocalIDFn = Ctx.builtins().getOrDeclareMuxBuiltin(
+      compiler::utils::eMuxBuiltinGetSubGroupLocalId, *F.getParent(),
+      {CI->getType()});
+  assert(SubgroupLocalIDFn);
+
+  auto *const SubgroupLocalID =
+      B.CreateCall(SubgroupLocalIDFn, {}, "sg.local.id");
+  auto const Builtin =
+      Ctx.builtins().analyzeBuiltinCall(*SubgroupLocalID, Dimension);
+
+  // Vectorize the sub-group local ID
+  auto *const VecSubgroupLocalID =
+      vectorizeWorkGroupCall(SubgroupLocalID, Builtin);
+  if (!VecSubgroupLocalID) {
+    return Packetizer::Result(*this);
+  }
+  VecSubgroupLocalID->setName("vec.sg.local.id");
+
+  // The value is always i32, as is the sub-group local ID. Vectorizing both of
+  // them should result in the same vector type, with as many elements as the
+  // vectorization factor.
+  auto *const VecVal = PackVal.getAsValue();
+
+  assert(VecVal->getType() == VecSubgroupLocalID->getType() &&
+         VecVal->getType()->isVectorTy() &&
+         cast<VectorType>(VecVal->getType())
+                 ->getElementCount()
+                 .getKnownMinValue() == VF &&
+         "Unexpected vectorization of sub-group shuffle xor");
+
+  // Perform the XOR of the sub-group IDs with the 'value', as per the
+  // semantics of the builtin.
+  auto *const XoredID = B.CreateXor(VecSubgroupLocalID, VecVal);
+
+  // We need to sanitize the input index so that it stays within the range of
+  // one vectorized group.
+  auto *const VecIdxFactor = ConstantInt::get(SubgroupLocalID->getType(), VF);
+
+  // Bring this ID into the range of 'mux' sub-groups by dividing it by the
+  // vector size.
+  auto *const MuxXoredID =
+      B.CreateUDiv(XoredID, B.CreateVectorSplat(VF, VecIdxFactor));
+  // And into the range of the vector group
+  auto *const VecXoredID =
+      B.CreateURem(XoredID, B.CreateVectorSplat(VF, VecIdxFactor));
+
+  // Now we defer to an *exclusive* scan over the group.
+  auto RegularShuffle = ShuffleXor;
+  RegularShuffle.Op = compiler::utils::GroupCollective::OpKind::Shuffle;
+
+  auto RegularShuffleID = Ctx.builtins().getMuxGroupCollective(RegularShuffle);
+  assert(RegularShuffleID != compiler::utils::eBuiltinInvalid);
+
+  auto *const RegularShuffleFn = Ctx.builtins().getOrDeclareMuxBuiltin(
+      RegularShuffleID, *F.getParent(), {CI->getType()});
+  assert(RegularShuffleFn);
+
+  auto *const VecData = PackData.getAsValue();
+  Value *CombinedShuffle = UndefValue::get(VecData->getType());
+
+  for (unsigned i = 0; i < VF; i++) {
+    auto *Idx = B.getInt32(i);
+    // Get the XORd index local to the vector group that this vector group
+    // element wants to shuffle with.
+    auto *const VecGroupIdx = B.CreateExtractElement(VecXoredID, Idx);
+    // Grab that element. It may be a vector, in which case we must extract
+    // each element individually.
+    Value *DataElt = nullptr;
+    if (auto *DataVecTy = dyn_cast<VectorType>(Data->getType()); !DataVecTy) {
+      DataElt = B.CreateExtractElement(VecData, VecGroupIdx);
+    } else {
+      DataElt = UndefValue::get(DataVecTy);
+      auto VecWidth = DataVecTy->getElementCount().getFixedValue();
+      // VecGroupIdx is the 'base' of the subvector, whose elements are stored
+      // sequentially from that point.
+      auto *const VecVecGroupIdx =
+          B.CreateMul(VecGroupIdx, B.getInt32(VecWidth));
+      for (unsigned j = 0; j != VecWidth; j++) {
+        auto *const Elt = B.CreateExtractElement(
+            VecData, B.CreateAdd(VecVecGroupIdx, B.getInt32(j)));
+        DataElt = B.CreateInsertElement(DataElt, Elt, B.getInt32(j));
+      }
+    }
+    assert(DataElt);
+    // Shuffle it across the mux sub-group.
+    auto *const MuxID = B.CreateExtractElement(MuxXoredID, Idx);
+    auto *const Shuff = B.CreateCall(RegularShuffleFn, {DataElt, MuxID});
+    // Combine that back into the final shuffled vector.
+    if (auto *DataVecTy = dyn_cast<VectorType>(Data->getType()); !DataVecTy) {
+      CombinedShuffle = B.CreateInsertElement(CombinedShuffle, Shuff, Idx);
+    } else {
+      auto VecWidth = DataVecTy->getElementCount().getFixedValue();
+      CombinedShuffle = B.CreateInsertVector(
+          CombinedShuffle->getType(), CombinedShuffle, Shuff,
+          B.getInt64(static_cast<uint64_t>(i) * VecWidth));
+    }
+  }
+
+  IC.deleteInstructionLater(CI);
+  return assign(CI, CombinedShuffle);
 }
 
 Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
