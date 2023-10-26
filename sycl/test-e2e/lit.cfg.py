@@ -125,6 +125,10 @@ if lit_config.params.get('matrix', False):
 
 if lit_config.params.get('matrix-xmx8', False):
     config.available_features.add('matrix-xmx8')
+    config.available_features.add('matrix-fp16') # XMX implies the support of FP16 matrix
+
+if lit_config.params.get('matrix-fp16', False):
+    config.available_features.add('matrix-fp16')
 
 #support for LIT parameter ze_debug<num>
 if lit_config.params.get('ze_debug'):
