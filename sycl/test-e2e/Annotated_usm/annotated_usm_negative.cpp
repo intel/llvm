@@ -3,10 +3,11 @@
 
 // UNSUPPORTED: gpu
 
-// Check expected runtime exceptions for annotated USM allocations
-// Note this test does not work on gpu because the shared allocation tests
-// expect to raise an error when the target device does not have the
-// corresponding aspect, while the gpu runtime has different behavior
+// Check expected runtime exception thrown for invalid input of annotated USM
+// allocations. Note this test does not work on gpu because the shared
+// allocation tests are expected to raise an error when the target device does
+// not have the corresponding aspect, while the gpu runtime has different
+// behavior
 
 #include <sycl/sycl.hpp>
 
@@ -43,8 +44,8 @@ constexpr int N = 10;
     }                                                                          \
   }
 
-// Check an exception is thrown if property list contains usm_kind conflicts
-// with the usm_kind argument
+// Check an exception is thrown if property list contains usm_kind that
+// conflicts with the usm_kind argument
 template <typename T> void testUsmKindConflict(sycl::queue &q) {
   const sycl::context &Ctx = q.get_context();
   auto dev = q.get_device();
@@ -67,7 +68,7 @@ template <typename T> void testUsmKindConflict(sycl::queue &q) {
                     properties{usm_kind_device});
 }
 
-// Check an exception is thrown when calling malloc shared functions on
+// Check an exception is thrown when calling malloc shared functions on SYCL
 // device that does not have shared aspect
 template <typename T> void testMissingDeviceAspect(sycl::queue &q) {
   const sycl::context &Ctx = q.get_context();

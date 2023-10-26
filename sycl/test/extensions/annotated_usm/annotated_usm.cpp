@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // expected-no-diagnostics
 
-// Compile-time tests for annotated USM allocation functions
+// Compile-time tests for various annotated USM allocation functions
 
 #include <sycl/sycl.hpp>
 

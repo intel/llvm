@@ -3,7 +3,8 @@
 
 // UNSUPPORTED: gpu
 
-// E2E tests for annotated USM allocation functions
+// This e2e test checks the alignment of the annotated USM allocation (host &
+// device) in various cases
 
 #include <sycl/sycl.hpp>
 
@@ -353,27 +354,63 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       // Case: malloc_xxx with compile-time alignment<K> (K is not a power of
       // 2),
       // nullptr is returned
-      [&]() { return MDevice(q, properties{alignment<3>}); },
-      [&]() { return MDevice(dev, Ctx, properties{alignment<5>}); },
-      [&]() { return MHost(q, properties{alignment<7>}); },
-      [&]() { return MHost(Ctx, properties{alignment<9>}); },
-      [&]() { return MAnnotated(q, alloc::device, properties{alignment<15>}); },
+      [&]() { return MDevice(q, properties{alignment<5>}); },
+      [&]() { return MDevice(dev, Ctx, properties{alignment<10>}); },
+      [&]() { return MHost(q, properties{alignment<25>}); },
+      [&]() { return MHost(Ctx, properties{alignment<50>}); },
       [&]() {
-        return MAnnotated(dev, Ctx, alloc::host, properties{alignment<17>});
+        return MAnnotated(q, alloc::device, properties{alignment<127>});
       },
       [&]() {
-        return MAnnotated(q, properties{usm_kind_device, alignment<31>});
+        return MAnnotated(dev, Ctx, alloc::host, properties{alignment<200>});
       },
       [&]() {
-        return MAnnotated(dev, Ctx, properties{usm_kind_host, alignment<63>});
+        return MAnnotated(q, properties{usm_kind_device, alignment<500>});
+      },
+      [&]() {
+        return MAnnotated(dev, Ctx, properties{usm_kind_host, alignment<1000>});
+      }
+
+      // Case: malloc_xxx<T> with compile-time alignment<K> (K is not a power of
+      // 2),
+      // nullptr is returned
+      ,
+      [&]() { return TDevice(q, properties{alignment<5>}); },
+      [&]() { return TDevice(dev, Ctx, properties{alignment<10>}); },
+      [&]() { return THost(q, properties{alignment<25>}); },
+      [&]() { return THost(Ctx, properties{alignment<50>}); },
+      [&]() {
+        return TAnnotated(q, alloc::device, properties{alignment<127>});
+      },
+      [&]() {
+        return TAnnotated(dev, Ctx, alloc::host, properties{alignment<200>});
+      },
+      [&]() {
+        return TAnnotated(q, properties{usm_kind_device, alignment<500>});
+      },
+      [&]() {
+        return TAnnotated(dev, Ctx, properties{usm_kind_host, alignment<1000>});
       }
       // Case: aligned_alloc_xxx with no alignment property, and the alignment
       // argument is not a power of 2, the result is nullptr
       ,
-      [&]() { return ADevice(3, q); }, [&]() { return ADevice(5, dev, Ctx); },
-      [&]() { return AHost(7, q); }, [&]() { return AHost(9, Ctx); },
+      [&]() { return ADevice(3, q); },
+      [&]() { return ADevice(7, dev, Ctx); },
+      [&]() { return AHost(7, q); },
+      [&]() { return AHost(9, Ctx); },
       [&]() { return AAnnotated(15, q, alloc::device); },
-      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }});
+      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
+
+      // Case: aligned_alloc_xxx<T> with no alignment property, and the
+      // alignment
+      // argument is not a power of 2, the result is nullptr
+      ,
+      [&]() { return ATDevice(3, q); },
+      [&]() { return ATDevice(7, dev, Ctx); },
+      [&]() { return ATHost(7, q); },
+      [&]() { return ATHost(9, Ctx); },
+      [&]() { return ATAnnotated(15, q, alloc::device); },
+      [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
 }
 
 int main() {

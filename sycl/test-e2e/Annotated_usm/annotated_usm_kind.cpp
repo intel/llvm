@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// E2E tests for annotated USM allocation functions
+// This e2e test checks the usm kind of the pointer returned by annotated USM
+// allocation
 
 #include <sycl/sycl.hpp>
 

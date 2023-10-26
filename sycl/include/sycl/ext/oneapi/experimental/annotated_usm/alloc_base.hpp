@@ -65,27 +65,13 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
     }
   }
 
-  void *rawPtr = nullptr;
-  switch (kind) {
-  case sycl::usm::alloc::device:
-    rawPtr = sycl::aligned_alloc_device(
-        combine_align(alignment, alignFromPropList), numBytes, syclDevice,
-        syclContext, usmPropList);
-    break;
-  case sycl::usm::alloc::host:
-    rawPtr =
-        sycl::aligned_alloc_host(combine_align(alignment, alignFromPropList),
-                                 numBytes, syclContext, usmPropList);
-    break;
-  case sycl::usm::alloc::shared:
-    rawPtr = sycl::aligned_alloc_shared(
-        combine_align(alignment, alignFromPropList), numBytes, syclDevice,
-        syclContext, usmPropList);
-    break;
-  default:
+  if (kind == sycl::usm::alloc::unknown)
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown USM allocation kind was specified.");
-  }
+
+  void *rawPtr =
+      sycl::aligned_alloc(combine_align(alignment, alignFromPropList), numBytes,
+                          syclDevice, syclContext, kind, usmPropList);
   return annotated_ptr<void, propertyListB>(rawPtr);
 }
 
@@ -121,28 +107,14 @@ aligned_alloc_annotated(size_t alignment, size_t count,
     }
   }
 
-  T *rawPtr = nullptr;
-  switch (kind) {
-  case sycl::usm::alloc::device:
-    rawPtr = sycl::aligned_alloc_device<T>(
-        combine_align(alignment, alignFromPropList), count, syclDevice,
-        syclContext, usmPropList);
-    break;
-  case sycl::usm::alloc::host:
-    rawPtr =
-        sycl::aligned_alloc_host<T>(combine_align(alignment, alignFromPropList),
-                                    count, syclContext, usmPropList);
-    break;
-  case sycl::usm::alloc::shared:
-    rawPtr = sycl::aligned_alloc_shared<T>(
-        combine_align(alignment, alignFromPropList), count, syclDevice,
-        syclContext, usmPropList);
-    break;
-  default:
+  if (kind == sycl::usm::alloc::unknown)
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown USM allocation kind was specified.");
-  }
-  return annotated_ptr<T, propertyListB>(rawPtr);
+
+  void *rawPtr = sycl::aligned_alloc(
+      combine_align(alignment, alignFromPropList), count * sizeof(T),
+      syclDevice, syclContext, kind, usmPropList);
+  return annotated_ptr<T, propertyListB>(static_cast<T *>(rawPtr));
 }
 
 template <typename propertyListA = detail::empty_properties_t,

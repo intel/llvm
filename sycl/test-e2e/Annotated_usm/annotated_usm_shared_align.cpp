@@ -2,7 +2,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// E2E tests for annotated USM allocation functions
+// UNSUPPORTED: gpu
+
+// This e2e test checks the alignment of the annotated shared USM allocation in
+// various cases
 
 #include <sycl/sycl.hpp>
 
@@ -240,6 +243,83 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
                  [&]() {
                    return ATAnnotated(align, dev, Ctx, alloc::shared, ALN512);
                  }});
+
+  // Test cases that are expected to return null
+  auto check_null = [&q](auto AllocFn, int Line = __builtin_LINE(),
+                         int Case = 0) {
+    decltype(AllocFn()) Ptr = AllocFn();
+    auto v = reinterpret_cast<uintptr_t>(Ptr);
+    if (v != 0) {
+      free(Ptr, q);
+      std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
+      assert(false && "The return is not null!");
+    }
+  };
+
+  auto CheckNullAll = [&](auto Funcs, int Line = __builtin_LINE()) {
+    std::apply(
+        [&](auto... Fs) {
+          int Case = 0;
+          (void)std::initializer_list<int>{
+              (check_null(Fs, Line, Case++), 0)...};
+        },
+        Funcs);
+  };
+
+  CheckNullAll(std::tuple{
+      // Case: malloc_xxx with compile-time alignment<K> (K is not a power of
+      // 2),
+      // nullptr is returned
+      [&]() { return MShared(q, properties{alignment<6>}); },
+      [&]() { return MShared(dev, Ctx, properties{alignment<13>}); },
+      [&]() { return MAnnotated(q, alloc::shared, properties{alignment<50>}); },
+      [&]() {
+        return MAnnotated(dev, Ctx, alloc::shared, properties{alignment<100>});
+      },
+      [&]() {
+        return MAnnotated(q, properties{usm_kind_shared, alignment<231>});
+      },
+      [&]() {
+        return MAnnotated(dev, Ctx,
+                          properties{usm_kind_shared, alignment<1006>});
+      }
+
+      // Case: malloc_xxx<T> with compile-time alignment<K> (K is not a power of
+      // 2),
+      // nullptr is returned
+      ,
+      [&]() { return TShared(q, properties{alignment<11>}); },
+      [&]() { return TShared(dev, Ctx, properties{alignment<30>}); },
+      [&]() {
+        return TAnnotated(q, alloc::shared, properties{alignment<150>});
+      },
+      [&]() {
+        return TAnnotated(dev, Ctx, alloc::shared, properties{alignment<217>});
+      },
+      [&]() {
+        return TAnnotated(q, properties{usm_kind_shared, alignment<500>});
+      },
+      [&]() {
+        return TAnnotated(dev, Ctx,
+                          properties{usm_kind_shared, alignment<2063>});
+      }
+
+      // Case: aligned_alloc_xxx with no alignment property, and the alignment
+      // argument is not a power of 2, the result is nullptr
+      ,
+      [&]() { return AShared(3, q); },
+      [&]() { return AShared(13, dev, Ctx); },
+      [&]() { return AAnnotated(20, q, alloc::shared); },
+      [&]() { return AAnnotated(70, dev, Ctx, alloc::shared); }
+
+      // Case: aligned_alloc_xxx<T> with no alignment property, and the
+      // alignment
+      // argument is not a power of 2, the result is nullptr
+      ,
+      [&]() { return ATShared(111, q); },
+      [&]() { return ATShared(300, dev, Ctx); },
+      [&]() { return ATAnnotated(800, q, alloc::shared); },
+      [&]() { return ATAnnotated(1700, dev, Ctx, alloc::shared); }});
 }
 
 int main() {

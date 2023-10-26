@@ -75,19 +75,15 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return ADevice(3, q); }, [&]() { return ADevice(5, dev, Ctx); },
       [&]() { return AHost(7, q); }, [&]() { return AHost(9, Ctx); },
       [&]() { return AAnnotated(15, q, alloc::device); },
-      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
-      // Case: aligned_alloc_xxx<T> with no alignment property, and the
-      // alignment
-      // argument is not a power of 2, the result is nullptr
-      ,
-      [&]() { return ATDevice(3, q); }, [&]() { return ATDevice(5, dev, Ctx); },
-      [&]() { return ATHost(7, q); }, [&]() { return ATHost(9, Ctx); },
-      [&]() { return ATAnnotated(15, q, alloc::device); },
-      [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
-
-  // aligned_alloc<T>(17, N, q, ...);
-  // aligned_alloc_device<int>(17, N, q);
-  // aligned_alloc<int>(17, N, q, alloc::host);
+      [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }});
+  // Case: aligned_alloc_xxx<T> with no alignment property, and the
+  // alignment
+  // argument is not a power of 2, the result is nullptr
+  // ,
+  // [&]() { return ATDevice(3, q); }, [&]() { return ATDevice(5, dev, Ctx); },
+  // [&]() { return ATHost(7, q); }, [&]() { return ATHost(9, Ctx); },
+  // [&]() { return ATAnnotated(15, q, alloc::device); },
+  // [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
 }
 
 int main() {

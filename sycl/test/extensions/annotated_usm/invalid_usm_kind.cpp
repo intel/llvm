@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -ferror-limit=0 -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
-// Expected failed tests for annotated USM allocation:
+// Annotated USM allocation tests that are expected to fail when:
 // 1. required usm_kind is not provided in the property list
 // 2. usm_kind in the property list conflicts with the function name
 
