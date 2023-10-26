@@ -1,7 +1,7 @@
 <%!
 import re
 from templates import helper as th
-%><%
+from templates import print_helper as tph
 %>
 
 ==============================
@@ -264,3 +264,66 @@ ${th.make_type_name(n, tags, obj)}
 %endfor # obj in objects
 
 %endfor # s in specs
+
+#################################################################
+## Print API not part of the spec, needs to be generated separately
+#################################################################
+<%
+    x = tags['$x']
+    api_types_funcs = tph.get_api_types_funcs(specs, meta, namespace, tags)
+%>\
+## Generate Print API links table
+Print
+============================================================
+The Print API functions are helpful for printing Unified Runtime API objects'
+values as human-readable strings using C interface. Those functions are complimentary
+to the set of operators in the Print API C++ header (ur_print.hpp).
+
+Each function is named in the same style based on the Unified Runtime object name
+to be printed. See examples:
+
+To print the :any:`${x}_function_t` object's value, call:
+    :ref:`${x}PrintFunction`
+
+To print the :any:`${x}_kernel_arg_local_properties_t` object's value, call:
+    :ref:`${x}PrintKernelArgLocalProperties`
+
+There is also one 'extras' function in this API, which can be used for printing
+all values of given function's parameters - :any:`${x}PrintFunctionParams`.
+
+See :ref:`core/api:Print Functions` for the description of common parameters of Print API functions.
+
+* Functions
+%for func in api_types_funcs:
+    * :ref:`${func.c_name.replace("_", "-")}`
+%endfor
+
+## 'Extras' functions
+    * :ref:`${x}PrintFunctionParams`
+
+<%def name="generate_api_doc(func_name)">\
+.. _${func_name.replace("_", "-")}:
+
+${func_name}
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. doxygenfunction:: ${func_name}
+    :project: UnifiedRuntime
+</%def>
+
+## Generate Print API documentation
+Print Functions
+------------------------------------------------------------------------------
+All functions output strings to print to the :any:`buffer` of a given
+size :any:`buff_size`. The outputted string's size is retrieved
+with the :any:`out_size` parameter.
+It is required for :any:`buff_size` to be less than :any:`out_size` in order
+to write the output string to the :any:`buffer`. Otherwise, :any:`buffer`
+will not be modified.
+
+%for func in api_types_funcs:
+${generate_api_doc(func.c_name)}
+%endfor
+
+## 'Extras' functions
+${generate_api_doc(f'{x}PrintFunctionParams')}
