@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "context.hpp"
 
 hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
 
