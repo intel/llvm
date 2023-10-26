@@ -5343,23 +5343,20 @@ class OffloadingActionBuilder final {
                 FileTableTformJobAction::COL_ZERO,
                 FileTableTformJobAction::COL_CODE);
             ActionList WrapperItems({RenameAction, RenameUnbundle});
-            auto *DeviceWrappingAction =
-                C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
-                                                      types::TY_Object);
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                WrapperItems, types::TY_Object);
             addDeps(DeviceWrappingAction, TC, BoundArch);
           } else {
             auto *FPGAAOTAction =
                 C.MakeAction<BackendCompileJobAction>(Device, FPGAOutType);
             auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
-                FPGAAOTAction, types::TY_Tempfilelist,
-                types::TY_Tempfilelist);
+                FPGAAOTAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
             RenameAction->addRenameColumnTform(
                 FileTableTformJobAction::COL_ZERO,
                 FileTableTformJobAction::COL_CODE);
             ActionList WrapperItems({RenameAction, RenameUnbundle});
-            auto *DeviceWrappingAction =
-                C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
-                                                      types::TY_Object);
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                WrapperItems, types::TY_Object);
 
             Action *DeviceAction = DeviceWrappingAction;
             if (Args.hasArg(options::OPT_fsycl_link_EQ)) {
