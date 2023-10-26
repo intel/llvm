@@ -239,14 +239,13 @@ event handler::finalize() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
-      auto InstrumentationData = emitKernelInstrumentationData(
+      auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
           KernelBundleImpPtr, MArgs);
-      auto CmdTraceEvent = InstrumentationData.first;
-      auto InstanceID = InstrumentationData.second;
 #endif
 
-      auto EnqueueKernel = [&]() {
+      auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
+                            InstanceID = InstanceID]() {
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
