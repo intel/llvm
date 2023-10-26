@@ -2444,13 +2444,13 @@ atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd<Tx, N> src1,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_device_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
+                  simd_mask<N> mask) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, src0, mask);
@@ -2507,10 +2507,12 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
-              simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
+                  simd_mask<N> mask) {
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
@@ -2555,10 +2557,13 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd<Tx, N> src0, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+                  simd<Tx, N> src0, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, mask);
 }
 
@@ -2586,7 +2591,9 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy> &&
+    std::is_integral_v<Toffset> &&
+        detail::is_accessor_with_v<AccessorTy,
+                                   detail::accessor_mode_cap::can_write> &&
         ((Op != atomic_op::store && Op != atomic_op::xchg) || N == 1),
     simd<Tx, N>>
 atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
@@ -2618,12 +2625,12 @@ atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API __ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
+__ESIMD_API __ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_device_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, mask);
@@ -2672,9 +2679,11 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd_mask<N> mask) {
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename AccessorTy>
-__ESIMD_API __ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd_mask<N> mask) {
+__ESIMD_API __ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd_mask<N> mask) {
   if constexpr (Op == atomic_op::load) {
     if constexpr (std::is_integral_v<Tx>) {
       return atomic_update<atomic_op::bit_or, Tx, N>(acc, offset,
@@ -2711,10 +2720,13 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd_mask<N> mask) {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+                  simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), mask);
 }
 
@@ -2738,9 +2750,12 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), mask);
 }
 
@@ -2769,13 +2784,13 @@ atomic_update(AccessorTy acc, Toffset offset, simd_mask<N> mask) {
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> &&
-        sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_device_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
+                  simd<Tx, N> src1, simd_mask<N> mask) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update<Op, Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc),
                                   offset, src0, src1, mask);
@@ -2820,10 +2835,12 @@ atomic_update(AccessorTy acc, simd<Toffset, N> offset, simd<Tx, N> src0,
 ///   update.
 ///
 template <atomic_op Op, typename Tx, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
+                  simd<Tx, N> src1, simd_mask<N> mask) {
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(
@@ -2856,10 +2873,13 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy, typename RegionTy = region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
-              simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
+                  simd<Tx, N> src0, simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, offsets.read(), src0, src1, mask);
 }
 
@@ -2885,10 +2905,13 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> offsets,
 ///
 template <atomic_op Op, typename Tx, int N, typename Toffset,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<Toffset> && !std::is_pointer_v<AccessorTy>, simd<Tx, N>>
-atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
-              simd<Tx, N> src1, simd_mask<N> mask) {
+__ESIMD_API
+    std::enable_if_t<std::is_integral_v<Toffset> &&
+                         detail::is_accessor_with_v<
+                             AccessorTy, detail::accessor_mode_cap::can_write>,
+                     simd<Tx, N>>
+    atomic_update(AccessorTy acc, Toffset offset, simd<Tx, N> src0,
+                  simd<Tx, N> src1, simd_mask<N> mask) {
   return atomic_update<Op, Tx, N>(acc, simd<Toffset, N>(offset), src0, src1,
                                   mask);
 }
