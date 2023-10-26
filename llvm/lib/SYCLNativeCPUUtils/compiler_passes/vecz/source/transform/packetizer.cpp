@@ -17,6 +17,7 @@
 #include "transform/packetizer.h"
 
 #include <compiler/utils/builtin_info.h>
+#include <compiler/utils/group_collective_helpers.h>
 #include <compiler/utils/mangling.h>
 #include <llvm/ADT/DepthFirstIterator.h>
 #include <llvm/ADT/SmallPtrSet.h>
@@ -24,6 +25,7 @@
 #include <llvm/ADT/Twine.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/VectorUtils.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/IRBuilder.h>
@@ -202,13 +204,24 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   Value *packetizeGroupBroadcast(Instruction *I);
-  /// @brief Returns true if the instruction is a subgroup shuffle.
+  /// @brief Returns true if the instruction is any subgroup shuffle.
   ///
   /// @param[in] I Instruction to query.
   ///
-  /// @return True if the instruction is a call to a mux subgroup shuffle
+  /// @return The group collective data if the instruction is a call to any of
+  /// the mux subgroup shuffle builtins; std::nullopt otherwise.
+  std::optional<compiler::utils::GroupCollective> isSubgroupShuffleLike(
+      Instruction *I);
+  /// @brief Packetize a sub-group shuffle builtin
+  ///
+  /// Note - not any shuffle-like operation, but specifically the 'shuffle'
   /// builtin.
-  bool isSubgroupShuffle(Instruction *I);
+  ///
+  /// @param[in] Ins Instruction to packetize.
+  ///
+  /// @return Packetized instructions.
+  Value *packetizeSubgroupShuffle(Instruction *Ins);
+
   /// @brief Packetize PHI node.
   ///
   /// @param[in] Phi PHI Node to packetize.
@@ -861,12 +874,6 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
 
   auto *const Ins = cast<Instruction>(V);
 
-  // FIXME: Add support for vectorizing sub-group shuffles
-  if (isSubgroupShuffle(Ins)) {
-    emitVeczRemarkMissed(&F, Ins, "Could not packetize sub-group shuffle");
-    return Packetizer::Result(*this);
-  }
-
   if (auto *const Branch = dyn_cast<BranchInst>(Ins)) {
     if (Branch->isConditional()) {
       // varying reductions need to be packetized
@@ -916,6 +923,19 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
 
   if (auto *brdcast = packetizeGroupBroadcast(Ins)) {
     return broadcast(brdcast);
+  }
+
+  if (auto shuffle = isSubgroupShuffleLike(Ins)) {
+    if (shuffle->Op == compiler::utils::GroupCollective::OpKind::Shuffle) {
+      if (auto *s = packetizeSubgroupShuffle(Ins)) {
+        return broadcast(s);
+      }
+    }
+    // We can't packetize all sub-group shuffle-like operations, but we also
+    // can't vectorize or instantiate them - so provide a diagnostic saying as
+    // much.
+    emitVeczRemarkMissed(&F, Ins, "Could not packetize sub-group shuffle");
+    return Packetizer::Result(*this);
   }
 
   // Check if we should broadcast the instruction.
@@ -1265,10 +1285,11 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   return CI;
 }
 
-bool Packetizer::Impl::isSubgroupShuffle(Instruction *I) {
+std::optional<compiler::utils::GroupCollective>
+Packetizer::Impl::isSubgroupShuffleLike(Instruction *I) {
   auto *const CI = dyn_cast<CallInst>(I);
   if (!CI || !CI->getCalledFunction()) {
-    return false;
+    return std::nullopt;
   }
   compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   Function *callee = CI->getCalledFunction();
@@ -1276,7 +1297,121 @@ bool Packetizer::Impl::isSubgroupShuffle(Instruction *I) {
   auto const Builtin = BI.analyzeBuiltin(*callee);
   auto const Info = BI.isMuxGroupCollective(Builtin.ID);
 
-  return Info && Info->isSubGroupScope() && Info->isShuffleLike();
+  if (Info && Info->isSubGroupScope() && Info->isShuffleLike()) {
+    return Info;
+  }
+
+  return std::nullopt;
+}
+
+Value *Packetizer::Impl::packetizeSubgroupShuffle(Instruction *I) {
+  auto *const CI = cast<CallInst>(I);
+
+  // We don't support scalable vectorization of sub-group shuffles.
+  if (SimdWidth.isScalable()) {
+    return nullptr;
+  }
+
+  auto *const Data = CI->getArgOperand(0);
+  auto *const Idx = CI->getArgOperand(1);
+
+  auto PackData = packetize(Data);
+  if (!PackData) {
+    return nullptr;
+  }
+
+  // If the data operand happened to be a broadcast value already, we can use
+  // it directly.
+  if (PackData.info->numInstances == 0) {
+    IC.deleteInstructionLater(CI);
+    CI->replaceAllUsesWith(Data);
+    return Data;
+  }
+
+  // We can't packetize varying shuffle indices yet.
+  if (UVR.isVarying(Idx)) {
+    return nullptr;
+  }
+
+  IRBuilder<> B(CI);
+
+  // We need to sanitize the input index so that it stays within the range of
+  // one vectorized group.
+  unsigned const VF = SimdWidth.getFixedValue();
+  auto *const VecIdxFactor = ConstantInt::get(Idx->getType(), VF);
+  // This index is the element of the vector-group which holds the desired
+  // data, per mux sub-group.
+  // <x, y>, <z, w>: idx 1 -> vector element 1, idx 2 -> vector element 0.
+  auto *const VecIdx = B.CreateURem(Idx, VecIdxFactor);
+  // This index is the mux sub-group in which the desired data resides.
+  // <x, y>, <z, w>: idx 1 -> mux sub-group 0, idx 3 -> mux sub-group 1.
+  auto *const MuxIdx = B.CreateUDiv(Idx, VecIdxFactor);
+
+  Value *VecData = PackData.getAsValue();
+
+  // Note: in each illustrative example, imagine two invocations across a
+  // single mux sub-groups, each being vectorized by 4; in other words, 8
+  // 'original' invocations to a sub-group, running in two vectorized
+  // invocations.
+  if (auto *const DataVecTy = dyn_cast<VectorType>(Data->getType());
+      !DataVecTy) {
+    // The vectorized shuffle is producing a scalar (assuming uniform indices,
+    // see above). Imagine i=6 (6 % 4 = 2 and 6 / 4 = 1):
+    //       |  shuffle(X, 6)  |  shuffle(A, 6)  |
+    // VF=4  |-----------------|-----------------|
+    //       | s(<X,Y,Z,W>, 2) | s(<A,B,C,D>, 2) |
+    // elt 2 |        Z        |        C        |
+    // shuff | shuffle(Z, 1)   | shuffle(C, 1)   |
+    //       |        C        |        C        |
+    // bcast |   <C,C,C,C>     |   <C,C,C,C>     |
+    // This way we can see how each of the 8 invocations end up with the 6th
+    // element of the total sub-group.
+    VecData = B.CreateExtractElement(VecData, VecIdx, "vec.extract");
+  } else if (auto *const CIdx = dyn_cast<ConstantInt>(VecIdx)) {
+    // The shuffle produces a vector, and we have a constant shuffle index - we
+    // can extract a subvector easily.
+    // Imagine i=6 (6 % 4 = 2 and 6 / 4 = 1):
+    //       |     shuffle(<X,Y>, 6)   |     shuffle(<A,B>, 6)   |
+    // VF=4  |-------------------------|-------------------------|
+    //       | s(<X,Y,Z,W,P,Q,-,->, 2) | s(<A,B,C,D,E,F,-,->, 2) |
+    // vec 2 |           <P,Q>         |           <E,F>         |
+    // shuff |     shuffle(<P,Q>, 1)   |     shuffle(<E,F>, 1)   |
+    //       |           <E,F>         |           <E,F>         |
+    // bcast |   <E,F,E,F,E,F,E,F>     |   <E,F,E,F,E,F,E,F>     |
+    // This way we can see how each of the 8 invocations end up with the 6th
+    // element of the total sub-group, which is a two-element vector.
+
+    // Note: the subvector vector index type has to be i64. Scale it up by the
+    // size of the vector we're extracting: the index is the *element* from
+    // which to extract - it is not implicitly scaled by the vector size.
+    auto *const ExtractIdx = B.getInt64(
+        CIdx->getZExtValue() * DataVecTy->getElementCount().getFixedValue());
+    VecData = B.CreateExtractVector(Data->getType(), VecData, ExtractIdx,
+                                    "vec.extract");
+  } else {
+    // This is as above, but the process of extracting the initial vector is
+    // more complicated - we have to manually extract and insert each element.
+    // It's possible that for some targets and for some combinations of vector
+    // width and vectorization factor, that going through memory would be
+    // faster.
+    Value *ExtractedVec = UndefValue::get(DataVecTy);
+    unsigned const DataNumElts = DataVecTy->getElementCount().getFixedValue();
+    auto *const BaseIdx = B.CreateMul(VecIdx, B.getInt32(DataNumElts));
+    for (unsigned i = 0; i < DataNumElts; i++) {
+      auto *const SubIdx = B.CreateAdd(BaseIdx, B.getInt32(i));
+      auto *const Elt = B.CreateExtractElement(VecData, SubIdx);
+      ExtractedVec = B.CreateInsertElement(ExtractedVec, Elt, B.getInt32(i));
+    }
+    VecData = ExtractedVec;
+  }
+
+  // We leave the original shuffle function and divert the vectorized
+  // shuffle through it, giving us a shuffle over the full apparent
+  // sub-group size (vecz * mux).
+  CI->setOperand(0, VecData);
+  CI->setOperand(1, MuxIdx);
+
+  return CI;
 }
 
 Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
