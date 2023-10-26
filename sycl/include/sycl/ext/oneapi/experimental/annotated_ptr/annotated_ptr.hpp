@@ -157,11 +157,17 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
   // buffer_location and alignment are allowed for annotated_ref
-  using allowed_properties = std::tuple<
-      decltype(ext::intel::experimental::buffer_location<0>),
-      decltype(ext::oneapi::experimental::alignment<0>),
-      decltype(read_hint<cache_control<cache_mode::cached, cache_level::L1>>),
-      decltype(write_hint<cache_control<cache_mode::cached, cache_level::L1>>)>;
+  using allowed_properties =
+      std::tuple<decltype(ext::intel::experimental::buffer_location<0>),
+                 decltype(ext::oneapi::experimental::alignment<0>),
+                 decltype(ext::intel::experimental::read_hint<
+                          ext::intel::experimental::cache_control<
+                              ext::intel::experimental::cache_mode::cached,
+                              cache_level::L1>>),
+                 decltype(ext::intel::experimental::write_hint<
+                          ext::intel::experimental::cache_control<
+                              ext::intel::experimental::cache_mode::cached,
+                              cache_level::L1>>)>;
   using filtered_properties =
       typename PropertiesFilter<allowed_properties, Props...>::tuple;
 

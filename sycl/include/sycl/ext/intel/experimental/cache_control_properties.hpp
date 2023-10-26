@@ -31,6 +31,7 @@ enum class cache_mode {
   write_through,
   write_back
 };
+using cache_mode = sycl::ext::intel::experimental::cache_mode;
 
 namespace detail {
 
@@ -76,6 +77,12 @@ struct write_hint_key {
   using value_t = property_value<write_hint_key, Cs...>;
 };
 
+template <typename... Cs>
+inline constexpr read_hint_key::value_t<Cs...> read_hint;
+
+template <typename... Cs>
+inline constexpr write_hint_key::value_t<Cs...> write_hint;
+
 } // namespace experimental
 } // namespace intel
 
@@ -102,12 +109,6 @@ struct is_property_key_of<write_hint_key, annotated_arg<T, PropertyListT>>
 template <typename T, typename PropertyListT>
 struct is_property_key_of<write_hint_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
-
-template <typename... Cs>
-inline constexpr read_hint_key::value_t<Cs...> read_hint;
-
-template <typename... Cs>
-inline constexpr write_hint_key::value_t<Cs...> write_hint;
 
 namespace detail {
 
