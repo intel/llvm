@@ -82,7 +82,7 @@ int main() {
 
   const int Expected = 22;
   for (size_t i = 0; i < N; i++) {
-    assert(check_value(i, Arr[i], Expected, "Expected"));
+    assert(check_value(i, Expected, Arr[i], "Arr"));
   }
 
   // Free the allocated memory

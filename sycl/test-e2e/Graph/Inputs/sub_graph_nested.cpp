@@ -132,7 +132,7 @@ int main() {
 
   for (size_t i = 0; i < N; i++) {
     int Ref = reference(i);
-    assert(check_value(i, Output[i], Ref, "Ref"));
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

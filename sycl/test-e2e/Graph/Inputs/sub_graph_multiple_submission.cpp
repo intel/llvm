@@ -63,7 +63,7 @@ int main() {
 
   const int Expected = -5;
   for (size_t i = 0; i < N; i++) {
-    assert(check_value(i, Output[i], Expected, "Expected"));
+    assert(check_value(i, Expected, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

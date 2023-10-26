@@ -93,8 +93,8 @@ int main() {
 
   const int NegThree = -3;
   for (size_t i = 0; i < N; i++) {
-    assert(check_value(i, OutputA[i], NegThree, "NegThree"));
-    assert(check_value(i, OutputB[i], refB(i), "refB"));
+    assert(check_value(i, NegThree, OutputA[i], "OutputA"));
+    assert(check_value(i, refB(i), OutputB[i], "OutputB"));
   }
 
   sycl::free(X, Queue);

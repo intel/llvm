@@ -33,20 +33,20 @@ int main() {
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
   int Expected = 0;
   for (size_t i = 0; i < N; i++)
-    assert(check_value(i, Output[i], Expected, "Expected"));
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   auto ExecGraph = Graph.finalize();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
   for (size_t i = 0; i < N; i++)
-    assert(check_value(i, Output[i], Expected, "Expected"));
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
   Expected = 3;
   for (size_t i = 0; i < N; i++)
-    assert(check_value(i, Output[i], Expected, "Expected"));
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 

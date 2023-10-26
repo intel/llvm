@@ -46,7 +46,7 @@ int main() {
 
     const int Zero = 0;
     for (size_t i = 0; i < N; i++) {
-      assert(check_value(i, Arr[i], Zero, "Zero"));
+      assert(check_value(i, Zero, Arr[i], "Arr"));
     }
 
     // Buffer elements set to 4
@@ -61,7 +61,7 @@ int main() {
     auto ExecGraph = Graph.finalize();
 
     for (size_t i = 0; i < N; i++) {
-      assert(check_value(i, Arr[i], Zero, "Zero"));
+      assert(check_value(i, Zero, Arr[i], "Arr"));
     }
 
     // Buffer elements set to 8
@@ -99,7 +99,7 @@ int main() {
 
   const int Expected = 22;
   for (size_t i = 0; i < N; i++) {
-    assert(check_value(i, Arr[i], Expected, "Expected"));
+    assert(check_value(i, Expected, Arr[i], "Arr"));
   }
 
   return 0;

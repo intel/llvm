@@ -52,7 +52,7 @@ int main() {
 
   const int Expected = 1;
   for (size_t i = 0; i < N; i++)
-    assert(check_value(i, HostData[i], Expected, "Expected"));
+    assert(check_value(i, Expected, HostData[i], "HostData"));
 
   sycl::free(Arr, Queue);
 

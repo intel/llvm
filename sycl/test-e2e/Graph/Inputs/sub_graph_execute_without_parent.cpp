@@ -66,7 +66,7 @@ int main() {
 
   const int Ref = ((1 * 3 + 2) * 2 * 3 + 2) * -1;
   for (size_t i = 0; i < N; i++) {
-    assert(check_value(i, Output[i], Ref, "Ref"));
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);
