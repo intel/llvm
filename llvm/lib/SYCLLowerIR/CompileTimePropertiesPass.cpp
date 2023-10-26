@@ -131,52 +131,28 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
     write_streaming = 3
   };
   // SYCL encodings of read/write control
-  enum cache_mode {
+  enum class cache_mode {
     uncached,
     cached,
     streaming,
     invalidate,
-    const_cached,
-    through,
-    back
+    constant,
+    write_through,
+    write_back
   };
+  static uint32_t SPIRVReadControl[] = {read_uncached, read_cached,
+                                        read_streaming, read_invalidate,
+                                        read_const_cached};
+  static uint32_t SPIRVWriteControl[] = {
+      write_uncached, write_uncached, write_streaming, write_uncached,
+      write_uncached, write_through,  write_back};
 
   // Map SYCL encoding to SPIR-V
   uint32_t CacheProp;
-  if (Name == "sycl-cache-read-hint") {
-    switch (CacheMode) {
-    case uncached:
-      CacheProp = read_uncached;
-      break;
-    case cached:
-      CacheProp = read_cached;
-      break;
-    case streaming:
-      CacheProp = read_streaming;
-      break;
-    case invalidate:
-      CacheProp = read_invalidate;
-      break;
-    case const_cached:
-      CacheProp = read_const_cached;
-      break;
-    }
-  } else {
-    switch (CacheMode) {
-    case uncached:
-      CacheProp = write_uncached;
-      break;
-    case through:
-      CacheProp = write_through;
-      break;
-    case back:
-      CacheProp = write_back;
-      break;
-    case streaming:
-      CacheProp = write_streaming;
-      break;
-    }
-  }
+  if (Name == "sycl-cache-read-hint")
+    CacheProp = SPIRVReadControl[CacheMode];
+  else
+    CacheProp = SPIRVWriteControl[CacheMode];
 
   auto *Ty = Type::getInt32Ty(Ctx);
   SmallVector<Metadata *, 3> MD;

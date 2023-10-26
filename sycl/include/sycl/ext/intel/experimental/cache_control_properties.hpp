@@ -21,12 +21,13 @@ namespace intel {
 namespace experimental {
 
 using cache_level = sycl::ext::oneapi::experimental::cache_level;
-enum class cache_mode : std::uint16_t {
+
+enum class cache_mode {
   uncached,
   cached,
   streaming,
   invalidate,
-  const_cached,
+  constant,
   write_through,
   write_back
 };
@@ -49,6 +50,7 @@ template <int count> static constexpr void checkLevel4() {
 } // namespace detail
 
 template <cache_mode M, cache_level... Ls> struct cache_control {
+  static constexpr const auto mode = M;
   static constexpr const int countL1 = ((Ls == cache_level::L1 ? 1 : 0) + ...);
   static constexpr const int countL2 = ((Ls == cache_level::L2 ? 1 : 0) + ...);
   static constexpr const int countL3 = ((Ls == cache_level::L3 ? 1 : 0) + ...);
@@ -101,8 +103,6 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<write_hint_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
 
-using namespace intel::experimental;
-
 template <typename... Cs>
 inline constexpr read_hint_key::value_t<Cs...> read_hint;
 
@@ -114,12 +114,33 @@ namespace detail {
 static constexpr int countL(int levels, int mask) {
   return levels & mask ? 1 : 0;
 }
+
 template <int countL1, int countL2, int countL3, int countL4>
 static constexpr void checkUnique() {
   static_assert(countL1 < 2, "Conflicting cache_mode at L1");
   static_assert(countL2 < 2, "Conflicting cache_mode at L2");
   static_assert(countL3 < 2, "Conflicting cache_mode at L3");
   static_assert(countL4 < 2, "Conflicting cache_mode at L4");
+}
+
+using cache_mode = sycl::ext::intel::experimental::cache_mode;
+
+template <cache_mode M> static constexpr int checkReadMode() {
+  static_assert(M != cache_mode::write_back,
+                "read_hint cannot specify cache_mode::write_back");
+  static_assert(M != cache_mode::write_through,
+                "read_hint cannot specify cache_mode::write_through");
+  return 0;
+}
+
+template <cache_mode M> static constexpr int checkWriteMode() {
+  static_assert(M != cache_mode::cached,
+                "write_hint cannot specify cache_mode::cached");
+  static_assert(M != cache_mode::invalidate,
+                "write_hint cannot specify cache_mode::validate");
+  static_assert(M != cache_mode::constant,
+                "write_hint cannot specify cache_mode::constant");
+  return 0;
 }
 
 template <> struct PropertyToKind<read_hint_key> {
@@ -130,7 +151,8 @@ template <typename... Cs>
 struct PropertyMetaInfo<read_hint_key::value_t<Cs...>> {
   static constexpr const char *name = "sycl-cache-read-hint";
   static constexpr const int value =
-      (checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
+      ((checkReadMode<Cs::mode>() + ...),
+       checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
                    (countL(Cs::levels, 4) + ...),
                    (countL(Cs::levels, 8) + ...)>(),
        ((Cs::encoding) | ...));
@@ -144,7 +166,8 @@ template <typename... Cs>
 struct PropertyMetaInfo<write_hint_key::value_t<Cs...>> {
   static constexpr const char *name = "sycl-cache-write-hint";
   static constexpr const int value =
-      (checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
+      ((checkWriteMode<Cs::mode>() + ...),
+       checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
                    (countL(Cs::levels, 4) + ...),
                    (countL(Cs::levels, 8) + ...)>(),
        ((Cs::encoding) | ...));

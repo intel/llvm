@@ -106,7 +106,7 @@ enum class cache_mode {
   cached,
   streaming,
   invalidate,
-  const_cached,
+  constant,
   write_through,
   write_back
 };
@@ -215,7 +215,7 @@ write_hint<cache_control<cache_mode::write_through, Ls...>>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
-should immediately write the data to the next-level cache after `L`
+should immediately write the data to the next-level cache after `Ls`
 and mark the cache line at levels `Ls` as "not dirty".
 a|
 [source]
@@ -263,7 +263,7 @@ the cache line and discard "dirty" data. If the assertion is violated
 a|
 [source]
 ----
-read_hint<cache_control<cache_mode::const_cached, Ls...>>
+read_hint<cache_control<cache_mode::constant, Ls...>>
 ----
 |
 This property asserts that the cache line containing the data
