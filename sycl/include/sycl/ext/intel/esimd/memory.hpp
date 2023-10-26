@@ -3057,11 +3057,12 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 ///
 template <typename Tx, int N, typename AccessorTy,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
-        is_simd_flag_type_v<Flags>,
-    simd<Tx, N>>
-block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
+__ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_read> &&
+                         is_simd_flag_type_v<Flags>,
+                     simd<Tx, N>>
+    block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
   return slm_block_load<Tx, N, Flags>(offset +
                                       __ESIMD_DNS::localAccessorToOffset(acc));
 }
@@ -3085,10 +3086,11 @@ block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
 ///
 template <typename Tx, int N, typename AccessorTy,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy> &&
-    is_simd_flag_type_v<Flags>>
-block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags = {}) {
+__ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write> &&
+                     is_simd_flag_type_v<Flags>>
+    block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags = {}) {
   slm_block_store<Tx, N, Flags>(
       offset + __ESIMD_DNS::localAccessorToOffset(acc), vals);
 }
@@ -3111,10 +3113,12 @@ block_store(AccessorTy acc, uint32_t offset, simd<Tx, N> vals, Flags = {}) {
 ///   undefined.
 ///
 template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>, simd<T, N>>
-gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
-       simd_mask<N> mask = 1) {
+__ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_read>,
+                     simd<T, N>>
+    gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+           simd_mask<N> mask = 1) {
   return slm_gather<T, N>(
       offsets + glob_offset + __ESIMD_DNS::localAccessorToOffset(acc), mask);
 }
@@ -3138,8 +3142,8 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 ///
 ///
 template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>>
+__ESIMD_API std::enable_if_t<detail::is_local_accessor_with_v<
+    AccessorTy, detail::accessor_mode_cap::can_write>>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
   slm_scatter<T, N>(offsets + glob_offset +
@@ -3174,11 +3178,12 @@ scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorT>,
-    simd<T, N * get_num_channels_enabled(RGBAMask)>>
-gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
-            uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+__ESIMD_API
+    std::enable_if_t<detail::is_local_accessor_with_v<
+                         AccessorT, detail::accessor_mode_cap::can_read>,
+                     simd<T, N * get_num_channels_enabled(RGBAMask)>>
+    gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
+                uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   return slm_gather_rgba<T, N, RGBAMask>(
       offsets + global_offset + __ESIMD_DNS::localAccessorToOffset(acc), mask);
 }
@@ -3202,8 +3207,8 @@ gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
 template <rgba_channel_mask RGBAMask = rgba_channel_mask::ABGR,
           typename AccessorT, int N,
           typename T = typename AccessorT::value_type>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorT>>
+__ESIMD_API std::enable_if_t<detail::is_local_accessor_with_v<
+    AccessorT, detail::accessor_mode_cap::can_write>>
 scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              uint32_t global_offset = 0, simd_mask<N> mask = 1) {
