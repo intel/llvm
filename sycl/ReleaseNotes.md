@@ -9,10 +9,9 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Turned on SPV extension `SPV_INTEL_fpga_latency_control` in the clang driver.  [1aabcf8eb9ed]
 - Added prototype implementation of the Device config file designed in [`DeviceConfigFile`](doc/design/DeviceConfigFile.md) [0bb722138216]
 - Added support for `-ftarget-export-symbols` option which allows to export symbols for AOT. [c33ba5dafe91]
-- Added support of `reqd_sub_group_size` to `sycl::is_compatible` and implemented device code split based on `reqd-sub-group-size` optional kernel feature. [841768794f7a]
-- Added support for `-ftarget-compile-fast` in JIT mode. [92855bea87f4]
+- Added support for `reqd_sub_group_size` to `sycl::is_compatible` and implemented device code split based on `reqd-sub-group-size` optional kernel feature. [841768794f7a]
+- Added support for `-ftarget-compile-fast` for spir64_gen and JIT mode. [b6b01b48cfd9][92855bea87f4]
 - Implemented adding C++ libraries to the linker with `-fsycl`. [da5e1b98f1c3]
-- Added support for `-ftarget-compile-fast`. [b6b01b48cfd9]
 - Added support for multiple call operators in a kernel functor. [84cc1e1eff04]
 - Added support to propagate compile flags to device backend compiler.[f45fb51ba6cf]
 - Enabled `SPV_INTEL_fpga_invocation_pipelining_attributes` spirv extension in the DPCPP compiler. [3bc05248602a]
@@ -24,10 +23,10 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added initial implementation of the experimental SYCL Graph extension [`sycl_ext_oneapi_graph`](doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc)  [35465da4824a][f9d4830babca][72341ee375d6][96a605095665]
 - Added `dimensions` member to item/range-like types. [9c7bd9ea046f]
 - Added support of `queue::priority_*` properties for OpenCL backend. [25fd689999f7]
-- Implemented initial version of the SYCL Native CPU Plug-in designed in [SYCLNativeCPU](doc/design/SYCLNativeCPU.md). [b2d0837e9644] [5b501eeca963]
+- Implemented initial version of the SYCL Native CPU Plug-in designed in [`SYCLNativeCPU`](doc/design/SYCLNativeCPU.md). [b2d0837e9644] [5b501eeca963]
 - Added USM calls parameter verification layer to `sycl-trace` which provides improved diagnostic on accessing invalid device memory under USM. [758bd264bb90]
 - Added `__imf_max/min/hadd/fast_*` functions to imf device libraries. [fe01366e8b08][d96e5075303a]
-- Introduced and implemented new `sycl::ext::oneapi::experimental::info::device::architecture` device descriptor and `device::ext_oneapi_architecture_is(ext::oneapi::experimental::architecture)` host API as part of [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)  extension (for Level Zero and OpenCL). [d0b01b265d92]
+- Introduced and implemented new `sycl::ext::oneapi::experimental::info::device::architecture` device descriptor and `device::ext_oneapi_architecture_is(ext::oneapi::experimental::architecture)` host API as part of [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension (for Level Zero and OpenCL). [d0b01b265d92]
 - Added experimental implementation of [`sycl_ext_intel_grf_size`](doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) [370aa2a01711]
 - Added experimental implementation of [`sycl_ext_oneapi_bindless_images`](doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) [58a8f2001d8b]
 - Experimental [sycl_ext_oneapi_device_global](doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) extension is supported now. [d812d1e13ab5]
@@ -50,7 +49,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added support for accessors to atomic_update ESIMD API. [59a1aa0841da]
 - Enabled pretty-printing of reference objects. [e3fc16f56c0e]
 - Added Xmethods that help GDB to support reading local_accessors on GPU from SLM. [ddfc5220afaa]
-- Enabled passing local accessors to ESIMD kernel and via `invoke_simd()` API, enabled usage of `get_pointer()` and `operator[]` for accessors in ESIMD kernel. The support of accessor and local_accessor is still limited comparing to SYCL. [82ae85d12bf0]
+- Enabled passing local accessors to ESIMD kernel and via `invoke_simd()` API, enabled usage of `get_pointer()` and `operator[]` for accessors in ESIMD kernel. The support of accessor and local_accessor is still limited comparing to SYCL. [21ca00fb1cc5][82ae85d12bf0]
 - Implement unpadding for 2d block load/store ESIMD API. [9be8a306d0eb]
 - Enabled improved code location for SYCL extensions. [4d73490220c8]
 - Added SYCL 2020 image classes. [9035cdb0898d][1a3e99307e4f]
@@ -69,6 +68,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Enhanced interop queue interface to choose standard or immediate commandlists. [0ff3ec40e241]
 - Enabled double type for `atomic_update()` ESIMD API. [98c443543c72]
 - Added support for `addc` and `subb` operations for ESIMD. [0a098933d9ba]
+- Allowed zero-sized 3D accessors. [5cb8279ddb8e]
 
 ### Documentation
 - Added experimental SYCL bindless images extension [`sycl_ext_oneapi_bindless_images`](doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) proposal.
@@ -95,6 +95,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Improved FPGA archive device unbundling with AOCO. [4ed3676f6402]
 - Moved imf `abs` to a separate device library for Deep Learning. [e4f074a6aabe]
 - Fixed the bug report URL for DPC++. [98b7de88a7d9]
+- Started to link with `bfloat16` related device libraries only when they are used. [663042b04b63]
 
 ### SYCL Library
 - Combined ADL-S and RPL-S device architectures. [f87be6f17428]
@@ -143,6 +144,8 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Improved error messages for InvokeSIMD. [0c74bbb20e65]
 - Updated `native_specialization_constant()` for the case when no specialization constants are present. [9eb1184686fb]
 - Optimized re-use of command lists in the Level Zero backend. [24ae0153e8e8]
+- Changed the behavior of `sycl::maximum` and `sycl::minimum` to be consistent with `std::max` and `std::min`. [77d648d949c3]
+- Switched to sycl::exception instead of sycl::runtime_error in the majority of SYCL device headers. sycl::runtime_error is deprecated in SYCL 2020. [23a836f39af6]
 
 ### Documentation
 - Updated restrictions in [`sycl_ext_oneapi_device_architecture`](doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension. [a69a54f38f2f]
@@ -261,6 +264,10 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added `noexcept` specifier to `vec::byte_size` to comply with SYCL 2020. [cb6c0580dc30]
 - Fixed undefined behaviour in vector printf specifier. [d190de65a4e1]
 - Fixed accessor fill for unsupported patterns. [7f49367d234b]
+- Fixed mechanism to throw exception when placeholder accessor passed to a command. (#10110) [93f477358d74]
+- Fixed empty zero-dimensional accessor access range. [b4d2b2c966b1]
+- Fixed incorrect write back in a case when a sycl::buffer is constructed with a `const T*` as host data. [d05818637be3][1b2b9ddc7f37]
+- Fixed empty accessor default constructor to not create a placeholder to comply with SYCL 2020. [e753fae9fad7]
 
 ### Documentation
 - Fixed link anchors in [`EnvironmentVariables`](doc/EnvironmentVariables.md) documentation. [ba1fc2e68d04]
