@@ -120,6 +120,7 @@ if lit_config.params.get('gpu-intel-dg2', False):
 if lit_config.params.get('gpu-intel-pvc', False):
     config.available_features.add('gpu-intel-pvc')
     config.available_features.add('matrix-fp16') # PVC implies the support of FP16 matrix
+    config.available_features.add('matrix-tf32') # PVC implies the support of TF32 matrix
 
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
