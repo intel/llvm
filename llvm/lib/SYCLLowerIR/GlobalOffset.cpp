@@ -59,9 +59,9 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
-// Recursive helper function to collect Loads from GEPs in a BFS fashion. 
+// Recursive helper function to collect Loads from GEPs in a BFS fashion.
 static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
-              SmallVectorImpl<LoadInst *> &Loads) {
+                     SmallVectorImpl<LoadInst *> &Loads) {
   Traversed.push_back(P);
   if (auto *L = dyn_cast<LoadInst>(P)) // Base case for recursion
     Loads.push_back(L);
