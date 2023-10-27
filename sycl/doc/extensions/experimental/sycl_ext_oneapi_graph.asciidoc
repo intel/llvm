@@ -508,7 +508,7 @@ A `command_graph` object is constructed in the _modifiable_ state and is made
 _executable_ by the user invoking `command_graph::finalize()` to create a
 new executable instance of the graph. An executable graph cannot be converted
 to a modifiable graph. After finalizing a graph in the modifiable state, it is
-valid for a user to add additional nodes into the modifialbe graph and finalize
+valid for a user to add additional nodes into the modifiable graph and finalize
 again to create subsequent executable graphs. The state of a `command_graph`
 object is made explicit by templating on state to make the class strongly typed,
 with the default template argument being `graph_state::modifiable` to reduce
