@@ -5,7 +5,7 @@
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -S -emit-llvm %s -o - | FileCheck --check-prefix=CHECK-TL %s
 
 // check that we added the state struct as a function argument, and that we
-// inject the calls to our builtins. 
+// inject the calls to our builtins.
 
 // CHECK: %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
 #include "sycl.hpp"

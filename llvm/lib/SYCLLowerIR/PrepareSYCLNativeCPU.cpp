@@ -52,10 +52,14 @@ using namespace llvm;
 
 namespace {
 static const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_global_id";
-static const constexpr char NativeCPUGlobaRange[] = "__dpcpp_nativecpu_global_range";
-static const constexpr char NativeCPUGlobalOffset[] = "__dpcpp_nativecpu_get_global_offset";
-static const constexpr char NativeCPULocalId[] = "__dpcpp_nativecpu_get_local_id";
-static const constexpr char NativeCPUNumGroups[] = "__dpcpp_nativecpu_get_num_groups";
+static const constexpr char NativeCPUGlobaRange[] =
+    "__dpcpp_nativecpu_global_range";
+static const constexpr char NativeCPUGlobalOffset[] =
+    "__dpcpp_nativecpu_get_global_offset";
+static const constexpr char NativeCPULocalId[] =
+    "__dpcpp_nativecpu_get_local_id";
+static const constexpr char NativeCPUNumGroups[] =
+    "__dpcpp_nativecpu_get_num_groups";
 static const constexpr char NativeCPUWGSize[] = "__dpcpp_nativecpu_get_wg_size";
 static const constexpr char NativeCPUWGId[] = "__dpcpp_nativecpu_get_wg_id";
 
@@ -232,8 +236,8 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
     }                                                                          \
   }
 #define GEN_xyz(b_name, len, ncpu_name)                                        \
-  GEN_p(#b_name "_x", len, ncpu_name, 0),                                     \
-      GEN_p(#b_name "_y", len, ncpu_name, 1),                                 \
+  GEN_p(#b_name "_x", len, ncpu_name, 0),                                      \
+      GEN_p(#b_name "_y", len, ncpu_name, 1),                                  \
       GEN_p(#b_name "_z", len, ncpu_name, 2)
 
 // Todo: add support for more SPIRV builtins here
@@ -249,7 +253,6 @@ static const std::pair<std::pair<StringRef, StringRef>,
         GEN_xyz(__spirv_WorkgroupId, 21, NativeCPUWGId),
 };
 
-
 static inline bool IsForVisualStudio(StringRef triple_str) {
   llvm::Triple triple(triple_str);
   return triple.isKnownWindowsMSVCEnvironment();
@@ -258,17 +261,19 @@ static inline bool IsForVisualStudio(StringRef triple_str) {
 static constexpr unsigned int NativeCPUGlobalAS = 1;
 static constexpr char StateTypeName[] = "struct.__nativecpu_state";
 
-static Type *getStateType(Module& M) {
-  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
-  // Check that there's no __nativecpu_state type
+static Type *getStateType(Module &M) {
+  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x
+  // i64], [3 x i64], [3 x i64], [3 x i64] } Check that there's no
+  // __nativecpu_state type
   auto Types = M.getIdentifiedStructTypes();
-  bool HasStateT = llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName;});
-  if(HasStateT)
+  bool HasStateT =
+      llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName; });
+  if (HasStateT)
     report_fatal_error("Native CPU state unexpectedly found in the module.");
-  auto& Ctx = M.getContext();
-  auto* I64Ty = Type::getInt64Ty(Ctx);
-  auto* Array3dTy = ArrayType::get(I64Ty, 3);
-  std::array<Type*, 7> Elements;
+  auto &Ctx = M.getContext();
+  auto *I64Ty = Type::getInt64Ty(Ctx);
+  auto *Array3dTy = ArrayType::get(I64Ty, 3);
+  std::array<Type *, 7> Elements;
   Elements.fill(Array3dTy);
   auto *StateType = StructType::create(Ctx, StateTypeName);
   StateType->setBody(Elements);
@@ -276,16 +281,13 @@ static Type *getStateType(Module& M) {
 }
 
 static const StringMap<unsigned> OffsetMap{
-  {NativeCPUGlobalId, 0 },
-  {NativeCPUGlobaRange, 1 },
-  {NativeCPUWGSize, 2},
-  {NativeCPUWGId, 3},
-  {NativeCPULocalId, 4 },
-  {NativeCPUNumGroups, 5 },
-  {NativeCPUGlobalOffset, 6}};
+    {NativeCPUGlobalId, 0},    {NativeCPUGlobaRange, 1},
+    {NativeCPUWGSize, 2},      {NativeCPUWGId, 3},
+    {NativeCPULocalId, 4},     {NativeCPUNumGroups, 5},
+    {NativeCPUGlobalOffset, 6}};
 
-static Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
-  auto& Ctx = M.getContext();
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
+  auto &Ctx = M.getContext();
   Type *I64Ty = Type::getInt64Ty(Ctx);
   Type *I32Ty = Type::getInt32Ty(Ctx);
   Type *RetTy = I64Ty;
@@ -293,14 +295,15 @@ static Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
   static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto* F = dyn_cast<Function>(FCallee.getCallee());
+  auto *F = dyn_cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
   auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
   auto *Zero = ConstantInt::get(I64Ty, 0);
   auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
-  auto *GEP = Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
+  auto *GEP =
+      Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
   auto *Load = Builder.CreateLoad(I64Ty, GEP);
   Builder.CreateRet(Load);
   F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
@@ -309,7 +312,7 @@ static Function *addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
 
 static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *F = M.getFunction(Name);
-  if(!F)
+  if (!F)
     return addReplaceFunc(M, Name, StateType);
   assert(F && "Error retrieving replace function");
   return F;
