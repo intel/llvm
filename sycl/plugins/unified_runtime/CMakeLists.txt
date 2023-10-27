@@ -53,14 +53,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cf26de283a1233e6c93feb085acc10c566888b59
-  # Merge: 3a3aae38 2fd9dea2
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Oct 25 10:36:48 2023 +0100
-  #     Merge pull request #940 from Naghasan/victor/kernel-fusion-amd
-  #     [UR][HIP] Enable kernel finalization using comgr
-  set(UNIFIED_RUNTIME_TAG cf26de283a1233e6c93feb085acc10c566888b59)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/kswiecicki/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 3c75bc2ea3e5c606d861ab7790a376e662b80097)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
