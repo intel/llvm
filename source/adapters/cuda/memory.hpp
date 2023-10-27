@@ -12,8 +12,136 @@
 #include <cassert>
 #include <cuda.h>
 #include <ur_api.h>
+#include <variant>
 
 #include "common.hpp"
+
+// Handler for plain, pointer-based CUDA allocations
+struct BufferMem {
+  using native_type = CUdeviceptr;
+
+  // If this allocation is a sub-buffer (i.e., a view on an existing
+  // allocation), this is the pointer to the parent handler structure
+  ur_mem_handle_t Parent;
+  // CUDA handler for the pointer
+  native_type Ptr;
+
+  /// Pointer associated with this device on the host
+  void *HostPtr;
+  /// Size of the allocation in bytes
+  size_t Size;
+  /// Size of the active mapped region.
+  size_t MapSize;
+  /// Offset of the active mapped region.
+  size_t MapOffset;
+  /// Pointer to the active mapped region, if any
+  void *MapPtr;
+  /// Original flags for the mapped region
+  ur_map_flags_t MapFlags;
+
+  /** AllocMode
+   * classic: Just a normal buffer allocated on the device via cuda malloc
+   * use_host_ptr: Use an address on the host for the device
+   * copy_in: The data for the device comes from the host but the host
+   pointer is not available later for re-use
+   * alloc_host_ptr: Uses pinned-memory allocation
+  */
+  enum class AllocMode {
+    Classic,
+    UseHostPtr,
+    CopyIn,
+    AllocHostPtr,
+  } MemAllocMode;
+
+  BufferMem(ur_mem_handle_t Parent, BufferMem::AllocMode Mode, CUdeviceptr Ptr,
+            void *HostPtr, size_t Size)
+      : Parent{Parent}, Ptr{Ptr}, HostPtr{HostPtr}, Size{Size}, MapSize{0},
+        MapOffset{0}, MapPtr{nullptr}, MapFlags{UR_MAP_FLAG_WRITE},
+        MemAllocMode{Mode} {};
+
+  native_type get() const noexcept { return Ptr; }
+
+  size_t getSize() const noexcept { return Size; }
+
+  void *getMapPtr() const noexcept { return MapPtr; }
+
+  size_t getMapSize() const noexcept { return MapSize; }
+
+  size_t getMapOffset() const noexcept { return MapOffset; }
+
+  /// Returns a pointer to data visible on the host that contains
+  /// the data on the device associated with this allocation.
+  /// The offset is used to index into the CUDA allocation.
+  void *mapToPtr(size_t Size, size_t Offset, ur_map_flags_t Flags) noexcept {
+    assert(MapPtr == nullptr);
+    MapSize = Size;
+    MapOffset = Offset;
+    MapFlags = Flags;
+    if (HostPtr) {
+      MapPtr = static_cast<char *>(HostPtr) + Offset;
+    } else {
+      // TODO: Allocate only what is needed based on the offset
+      MapPtr = static_cast<void *>(malloc(this->getSize()));
+    }
+    return MapPtr;
+  }
+
+  /// Detach the allocation from the host memory.
+  void unmap(void *) noexcept {
+    assert(MapPtr != nullptr);
+
+    if (MapPtr != HostPtr) {
+      free(MapPtr);
+    }
+    MapPtr = nullptr;
+    MapSize = 0;
+    MapOffset = 0;
+  }
+
+  ur_map_flags_t getMapFlags() const noexcept {
+    assert(MapPtr != nullptr);
+    return MapFlags;
+  }
+};
+
+// Handler data for surface object (i.e. Images)
+struct SurfaceMem {
+  CUarray Array;
+  CUsurfObject SurfObj;
+  ur_mem_type_t ImageType;
+
+  SurfaceMem(CUarray Array, CUsurfObject Surf, ur_mem_type_t ImageType,
+             void *HostPtr)
+      : Array{Array}, SurfObj{Surf}, ImageType{ImageType} {
+    (void)HostPtr;
+  }
+
+  CUarray getArray() const noexcept { return Array; }
+
+  CUsurfObject getSurface() const noexcept { return SurfObj; }
+
+  ur_mem_type_t getImageType() const noexcept { return ImageType; }
+};
+
+// For sampled/unsampled images
+struct ImageMem {
+  CUarray Array;
+  void *Handle;
+  ur_mem_type_t ImageType;
+  ur_sampler_handle_t Sampler;
+
+  ImageMem(CUarray Array, void *Handle, ur_mem_type_t ImageType,
+           ur_sampler_handle_t Sampler)
+      : Array{Array}, Handle{Handle}, ImageType{ImageType}, Sampler{Sampler} {};
+
+  CUarray get_array() const noexcept { return Array; }
+
+  void *get_handle() const noexcept { return Handle; }
+
+  ur_mem_type_t get_image_type() const noexcept { return ImageType; }
+
+  ur_sampler_handle_t get_sampler() const noexcept { return Sampler; }
+};
 
 /// UR Mem mapping to CUDA memory allocations, both data and texture/surface.
 /// \brief Represents non-SVM allocations on the CUDA backend.
@@ -35,136 +163,16 @@ struct ur_mem_handle_t_ {
   /// In CUDA their API handlers are different. Whereas "Buffers" are allocated
   /// as pointer-like structs, "Images" are stored in Textures or Surfaces.
   /// This union allows implementation to use either from the same handler.
-  union MemImpl {
-    // Handler for plain, pointer-based CUDA allocations
-    struct BufferMem {
-      using native_type = CUdeviceptr;
-
-      // If this allocation is a sub-buffer (i.e., a view on an existing
-      // allocation), this is the pointer to the parent handler structure
-      ur_mem_handle_t Parent;
-      // CUDA handler for the pointer
-      native_type Ptr;
-
-      /// Pointer associated with this device on the host
-      void *HostPtr;
-      /// Size of the allocation in bytes
-      size_t Size;
-      /// Size of the active mapped region.
-      size_t MapSize;
-      /// Offset of the active mapped region.
-      size_t MapOffset;
-      /// Pointer to the active mapped region, if any
-      void *MapPtr;
-      /// Original flags for the mapped region
-      ur_map_flags_t MapFlags;
-
-      /** AllocMode
-       * classic: Just a normal buffer allocated on the device via cuda malloc
-       * use_host_ptr: Use an address on the host for the device
-       * copy_in: The data for the device comes from the host but the host
-       pointer is not available later for re-use
-       * alloc_host_ptr: Uses pinned-memory allocation
-      */
-      enum class AllocMode {
-        Classic,
-        UseHostPtr,
-        CopyIn,
-        AllocHostPtr,
-      } MemAllocMode;
-
-      native_type get() const noexcept { return Ptr; }
-
-      size_t getSize() const noexcept { return Size; }
-
-      void *getMapPtr() const noexcept { return MapPtr; }
-
-      size_t getMapSize() const noexcept { return MapSize; }
-
-      size_t getMapOffset() const noexcept { return MapOffset; }
-
-      /// Returns a pointer to data visible on the host that contains
-      /// the data on the device associated with this allocation.
-      /// The offset is used to index into the CUDA allocation.
-      void *mapToPtr(size_t Size, size_t Offset,
-                     ur_map_flags_t Flags) noexcept {
-        assert(MapPtr == nullptr);
-        MapSize = Size;
-        MapOffset = Offset;
-        MapFlags = Flags;
-        if (HostPtr) {
-          MapPtr = static_cast<char *>(HostPtr) + Offset;
-        } else {
-          // TODO: Allocate only what is needed based on the offset
-          MapPtr = static_cast<void *>(malloc(this->getSize()));
-        }
-        return MapPtr;
-      }
-
-      /// Detach the allocation from the host memory.
-      void unmap(void *) noexcept {
-        assert(MapPtr != nullptr);
-
-        if (MapPtr != HostPtr) {
-          free(MapPtr);
-        }
-        MapPtr = nullptr;
-        MapSize = 0;
-        MapOffset = 0;
-      }
-
-      ur_map_flags_t getMapFlags() const noexcept {
-        assert(MapPtr != nullptr);
-        return MapFlags;
-      }
-    } BufferMem;
-
-    // Handler data for surface object (i.e. Images)
-    struct SurfaceMem {
-      CUarray Array;
-      CUsurfObject SurfObj;
-      ur_mem_type_t ImageType;
-
-      CUarray getArray() const noexcept { return Array; }
-
-      CUsurfObject getSurface() const noexcept { return SurfObj; }
-
-      ur_mem_type_t getImageType() const noexcept { return ImageType; }
-    } SurfaceMem;
-
-    struct ImageMem {
-      CUarray Array;
-      void *Handle;
-      ur_mem_type_t ImageType;
-      ur_sampler_handle_t Sampler;
-
-      CUarray get_array() const noexcept { return Array; }
-
-      void *get_handle() const noexcept { return Handle; }
-
-      ur_mem_type_t get_image_type() const noexcept { return ImageType; }
-
-      ur_sampler_handle_t get_sampler() const noexcept { return Sampler; }
-    } ImageMem;
-  } Mem;
+  std::variant<BufferMem, SurfaceMem, ImageMem> Mem;
 
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
   ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_handle_t Parent,
-                   ur_mem_flags_t MemFlags, MemImpl::BufferMem::AllocMode Mode,
+                   ur_mem_flags_t MemFlags, BufferMem::AllocMode Mode,
                    CUdeviceptr Ptr, void *HostPtr, size_t Size)
-      : Context{Context}, RefCount{1}, MemType{Type::Buffer}, MemFlags{
-                                                                  MemFlags} {
-    Mem.BufferMem.Ptr = Ptr;
-    Mem.BufferMem.Parent = Parent;
-    Mem.BufferMem.HostPtr = HostPtr;
-    Mem.BufferMem.Size = Size;
-    Mem.BufferMem.MapSize = 0;
-    Mem.BufferMem.MapOffset = 0;
-    Mem.BufferMem.MapPtr = nullptr;
-    Mem.BufferMem.MapFlags = UR_MAP_FLAG_WRITE;
-    Mem.BufferMem.MemAllocMode = Mode;
+      : Context{Context}, RefCount{1}, MemType{Type::Buffer},
+        MemFlags{MemFlags}, Mem{BufferMem{Parent, Mode, Ptr, HostPtr, Size}} {
     if (isSubBuffer()) {
-      urMemRetain(Mem.BufferMem.Parent);
+      urMemRetain(std::get<BufferMem>(Mem).Parent);
     } else {
       urContextRetain(Context);
     }
@@ -174,43 +182,30 @@ struct ur_mem_handle_t_ {
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
                    CUsurfObject Surf, ur_mem_flags_t MemFlags,
                    ur_mem_type_t ImageType, void *HostPtr)
-      : Context{Context}, RefCount{1}, MemType{Type::Surface}, MemFlags{
-                                                                   MemFlags} {
-    (void)HostPtr;
-
-    Mem.SurfaceMem.Array = Array;
-    Mem.SurfaceMem.SurfObj = Surf;
-    Mem.SurfaceMem.ImageType = ImageType;
+      : Context{Context}, RefCount{1}, MemType{Type::Surface},
+        MemFlags{MemFlags}, Mem{SurfaceMem{Array, Surf, ImageType, HostPtr}} {
     urContextRetain(Context);
   }
 
   /// Constructs the UR allocation for an unsampled image object
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
                    CUsurfObject Surf, ur_mem_type_t ImageType)
-      : Context{Context}, RefCount{1}, MemType{Type::Surface} {
-
-    Mem.ImageMem.Array = Array;
-    Mem.ImageMem.Handle = (void *)Surf;
-    Mem.ImageMem.ImageType = ImageType;
-    Mem.ImageMem.Sampler = nullptr;
+      : Context{Context}, RefCount{1}, MemType{Type::Surface},
+        Mem{ImageMem{Array, (void *)Surf, ImageType, nullptr}} {
     urContextRetain(Context);
   }
 
   /// Constructs the UR allocation for a sampled image object
   ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array, CUtexObject Tex,
                    ur_sampler_handle_t Sampler, ur_mem_type_t ImageType)
-      : Context{Context}, RefCount{1}, MemType{Type::Texture} {
-
-    Mem.ImageMem.Array = Array;
-    Mem.ImageMem.Handle = (void *)Tex;
-    Mem.ImageMem.ImageType = ImageType;
-    Mem.ImageMem.Sampler = Sampler;
+      : Context{Context}, RefCount{1}, MemType{Type::Texture},
+        Mem{ImageMem{Array, (void *)Tex, ImageType, Sampler}} {
     urContextRetain(Context);
   }
 
   ~ur_mem_handle_t_() {
     if (isBuffer() && isSubBuffer()) {
-      urMemRelease(Mem.BufferMem.Parent);
+      urMemRelease(std::get<BufferMem>(Mem).Parent);
       return;
     }
     urContextRelease(Context);
@@ -219,7 +214,7 @@ struct ur_mem_handle_t_ {
   bool isBuffer() const noexcept { return MemType == Type::Buffer; }
 
   bool isSubBuffer() const noexcept {
-    return (isBuffer() && (Mem.BufferMem.Parent != nullptr));
+    return (isBuffer() && (std::get<BufferMem>(Mem).Parent != nullptr));
   }
 
   bool isImage() const noexcept { return MemType == Type::Surface; }
