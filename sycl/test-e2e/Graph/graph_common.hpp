@@ -434,10 +434,23 @@ private:
 };
 
 template <typename T>
-bool check_value(const T &Ref, const T &Got, const std::string &VariableName) {
+bool inline check_value(const T &Ref, const T &Got, const std::string &VariableName) {
   if (Got != Ref) {
     std::cout << "Unexpected value of " << VariableName << ": " << Got
               << " (got) vs " << Ref << " (expected)" << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+template <typename T>
+bool inline check_value(const size_t index, const T &Ref, const T &Got,
+                        const std::string &VariableName) {
+  if (Got != Ref) {
+    std::cout << "Unexpected value at index " << index << " for "
+              << VariableName << ": " << Got << " (got) vs " << Ref
+              << " (expected)" << std::endl;
     return false;
   }
 

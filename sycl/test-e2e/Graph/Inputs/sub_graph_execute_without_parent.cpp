@@ -64,9 +64,9 @@ int main() {
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), X, N * sizeof(int), Event3).wait();
 
-  const int ref = ((1 * 3 + 2) * 2 * 3 + 2) * -1;
+  const int Ref = ((1 * 3 + 2) * 2 * 3 + 2) * -1;
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == ref);
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

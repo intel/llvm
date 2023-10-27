@@ -17,7 +17,7 @@ int main() {
 
   // Create reference data for output
   std::vector<T> ReferenceA(DataA), ReferenceB(DataB), ReferenceC(DataC);
-  for (unsigned i = 0; i < Iterations; i++) {
+  for (size_t i = 0; i < Iterations; i++) {
     for (size_t j = 0; j < Size * Size; j++) {
       ReferenceA[j] = ReferenceB[j];
       ReferenceA[j] += ModValue;
@@ -116,9 +116,10 @@ int main() {
 
   for (size_t i = 0; i < Size; i++) {
     for (size_t j = 0; j < Size; j++) {
-      assert(ReferenceA[i * Size + j] == HostAccA[i][j]);
-      assert(ReferenceB[i * Size + j] == HostAccB[i][j]);
-      assert(ReferenceC[i * Size + j] == HostAccC[i][j]);
+      const size_t index = i * Size + j;
+      assert(check_value(index, ReferenceA[index], HostAccA[i][j], "HostAccA"));
+      assert(check_value(index, ReferenceB[index], HostAccB[i][j], "HostAccB"));
+      assert(check_value(index, ReferenceC[index], HostAccC[i][j], "HostAccC"));
     }
   }
 
