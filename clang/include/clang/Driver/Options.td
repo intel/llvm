@@ -1310,6 +1310,14 @@ defm cuda_prec_sqrt : BoolFOption<"cuda-prec-sqrt",
 def emit_static_lib : Flag<["--"], "emit-static-lib">,
   HelpText<"Enable linker job to emit a static library.">;
 
+def fpreview_breaking_changes : Flag<["-"], "fpreview-breaking-changes">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption, CLOption]>,
+  HelpText<"When specified, it informs the compiler driver and compilation phases "
+           "that it is allowed to break backward compatibility. When this option is "
+           "specified the compiler will also set the macro __INTEL_PREVIEW_BREAKING_CHANGES.\n"
+           "When this option is used in conjunction with -fsycl, the driver will link against "
+           "an alternate form of libsycl, libsycl-preview.">;
+
 def mprintf_kind_EQ : Joined<["-"], "mprintf-kind=">, Group<m_Group>,
   HelpText<"Specify the printf lowering scheme (AMDGPU only), allowed values are "
   "\"hostcall\"(printing happens during kernel execution, this scheme "
@@ -3864,7 +3872,14 @@ def ftarget_register_alloc_mode_EQ : Joined<["-"], "ftarget-register-alloc-mode=
   HelpText<"Specify a register allocation mode for specific hardware for use by supported "
   "target backends.">;
 def : Flag<["-"], "fsycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fgpu_rdc>;
-def : Flag<["-"], "fno-sycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>;
+def : Flag<["-"], "fno-sycl-rdc">,
+  Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>,
+  HelpText<"Generate relocatable device code during SYCL offload target "
+           "compilation. Use of ‘-fno-sycl-rdc’ in combination with ‘-c’ will "
+           "produce final device binaries within the generated fat object. "
+           "When using this option, each kernel must be self-contained within "
+           "its translation unit (source file).  Therefore, the use of "
+           "SYCL_EXTERNAL is disallowed when this option is enabled.">;
 def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,

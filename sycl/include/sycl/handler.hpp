@@ -729,9 +729,9 @@ private:
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
-    auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
+    auto HostKernelPtr = new detail::HostKernel<decltype(NormalizedKernelFunc),
+                                                sycl::nd_item<Dims>, Dims>(
+        std::move(NormalizedKernelFunc));
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
@@ -1245,17 +1245,19 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
-#ifdef SYCL2020_CONFORMANT_APIS
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
+                      std::is_convertible_v<item<Dims, false>, LambdaArgType>,
+                  "sycl::parallel_for(sycl::range) kernel must have the "
+                  "first argument of sycl::item type, or of a type which is "
+                  "implicitly convertible from sycl::item");
+
     static_assert(
-        (std::is_invocable_v<KernelType, item<Dims>> ||
-         std::is_invocable_v<
-             KernelType, item<Dims>,
-             kernel_handler>)&&(std::is_invocable_v<KernelType,
-                                                    item<Dims, false>> ||
-                                std::is_invocable_v<KernelType,
-                                                    item<Dims, false>,
-                                                    kernel_handler>),
-        "Kernel should be invocable with a sycl::item");
+        (std::is_invocable_v<KernelType, LambdaArgType> ||
+         std::is_invocable_v<KernelType, LambdaArgType, kernel_handler>),
+        "SYCL kernel lambda/functor has an unexpected signature, it should be "
+        "invocable with sycl::item and optionally sycl::kernel_handler");
 #endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
@@ -1340,7 +1342,8 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef SYCL2020_CONFORMANT_APIS
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "

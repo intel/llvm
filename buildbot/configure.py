@@ -1,6 +1,7 @@
 import argparse
 import os
 import platform
+import shlex
 import subprocess
 import sys
 
@@ -55,6 +56,7 @@ def do_configure(args):
     llvm_enable_lld = 'OFF'
     sycl_enabled_plugins = ["opencl"]
     cgeist_allow_undefined_sycl_types = 'OFF'
+    sycl_preview_lib = 'ON'
 
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'OFF'
@@ -162,6 +164,9 @@ def do_configure(args):
     if args.verbose:
         verbose = args.verbose
 
+    if args.disable_preview_lib:
+        sycl_preview_lib = 'OFF'
+
     if args.cgeist_allow_undefined_sycl_types:
         cgeist_allow_undefined_sycl_types = 'ON'
 
@@ -205,6 +210,7 @@ def do_configure(args):
         "-DCMAKE_EXPORT_COMPILE_COMMANDS={}".format(export_compile_commands),
         "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose),
         "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
         "-DCGEIST_DEFAULT_ALLOW_UNDEFINED_SYCL_TYPES={}".format(cgeist_allow_undefined_sycl_types),
     ]
@@ -236,7 +242,7 @@ def do_configure(args):
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
 
-    print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
+    print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
     try:
         subprocess.check_call(cmake_cmd, cwd=abs_obj_dir)
@@ -292,6 +298,7 @@ def main():
     parser.add_argument("--build-compiler-cpp", metavar="BUILD_COMPILER_CPP", help="C++ compiler to use to build the project")
     parser.add_argument("--export-compile-commands", default='OFF', help="Export cmake compilation commands")
     parser.add_argument("--verbose", default='OFF', help="Verbose build")
+    parser.add_argument("--disable-preview-lib", action='store_true', help="Disable building of the SYCL runtime major release preview library")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
     parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
     parser.add_argument("--cgeist-allow-undefined-sycl-types", action='store_true', help="allow undefined SYCL types by default on cgeist")

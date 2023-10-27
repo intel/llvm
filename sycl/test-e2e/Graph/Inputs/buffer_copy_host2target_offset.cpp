@@ -42,7 +42,7 @@ int main() {
   host_accessor HostAccA(BufferA);
 
   for (size_t i = 0; i < Size + Offset; i++) {
-    assert(ReferenceA[i] == HostAccA[i]);
+    assert(check_value(i, ReferenceA[i], HostAccA[i], "HostAccA"));
   }
 
   return 0;

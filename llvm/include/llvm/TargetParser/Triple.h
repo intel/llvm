@@ -156,8 +156,11 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
+    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
+    SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
+    SPIRSubArch_x86_64_image,
 
     PPCSubArch_spe,
 
@@ -784,6 +787,13 @@ public:
   /// Tests whether the target is SPIR (32- or 64-bit).
   bool isSPIR() const {
     return getArch() == Triple::spir || getArch() == Triple::spir64;
+  }
+
+  /// Tests whether the target is SPIR and AOT related.
+  bool isSPIRAOT() const {
+    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_fpga ||
+                        getSubArch() == Triple::SPIRSubArch_gen ||
+                        getSubArch() == Triple::SPIRSubArch_x86_64);
   }
 
   /// Tests whether the target is SPIR-V (32/64-bit/Logical).

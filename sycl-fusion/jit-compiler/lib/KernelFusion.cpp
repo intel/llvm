@@ -59,6 +59,13 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
     return false;
 #endif // FUSION_JIT_SUPPORT_PTX
   }
+  case BinaryFormat::AMDGCN: {
+#ifdef FUSION_JIT_SUPPORT_AMDGCN
+    return true;
+#else  // FUSION_JIT_SUPPORT_AMDGCN
+    return false;
+#endif // FUSION_JIT_SUPPORT_AMDGCN
+  }
   default:
     return false;
   }
@@ -69,7 +76,7 @@ FusionResult KernelFusion::fuseKernels(
     const std::vector<SYCLKernelInfo> &KernelInformation,
     const std::vector<std::string> &KernelsToFuse,
     const std::string &FusedKernelName, ParamIdentList &Identities,
-    int BarriersFlags,
+    BarrierFlags BarriersFlags,
     const std::vector<jit_compiler::ParameterInternalization> &Internalization,
     const std::vector<jit_compiler::JITConstant> &Constants) {
   // Initialize the configuration helper to make the options for this invocation

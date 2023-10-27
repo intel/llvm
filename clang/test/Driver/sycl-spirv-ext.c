@@ -2,19 +2,19 @@
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xshardware %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xssimulation %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xssimulation %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga -Xssimulation %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-FPGA-HW
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -Xsemulator %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xsemulator %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fintelfpga -Xsemulator %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHECK-DEFAULT
@@ -54,7 +54,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_hw_thread_queries
 // CHECK-DEFAULT-SAME:,+SPV_KHR_uniform_group_instructions
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_masked_gather_scatter
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_tensor_float32_conversion"
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_tensor_float32_conversion
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
