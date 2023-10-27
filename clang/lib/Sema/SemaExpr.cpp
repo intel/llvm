@@ -262,12 +262,32 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       // there are some exceptions from this rule - functions that start
       // with '__spirv_', '__sycl_', '__assert_fail', etc.
       const IdentifierInfo *Id = FDecl->getIdentifier();
+      auto isMsvcMathFn = [=](StringRef Name) {
+        auto *AuxInfo = Context.getAuxTargetInfo();
+        if (!AuxInfo)
+          return false;
+        if (!AuxInfo->getTriple().isWindowsMSVCEnvironment())
+          return false;
+        return llvm::StringSwitch<bool>(Name)
+            .Case("_FDtest", true)
+            .Case("_hypotf", true)
+            .Case("_fdpcomp", true)
+            .Case("_fdsign", true)
+            .Case("_fdtest", true)
+            .Case("_FDnorm", true)
+            .Case("_FDscale", true)
+            .Case("_FExp", true)
+            .Case("_FCosh", true)
+            .Case("_FSinh", true)
+            .Default(false);
+      };
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
           Id && !Id->getName().startswith("__spirv_") &&
           !Id->getName().startswith("__sycl_") &&
           !Id->getName().startswith("__devicelib_ConvertBF16ToFINTEL") &&
           !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL") &&
-          !Id->getName().startswith("__assert_fail")) {
+          !Id->getName().startswith("__assert_fail") &&
+          !isMsvcMathFn(Id->getName())) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);
