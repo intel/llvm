@@ -35,7 +35,6 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added support for scalar logical operators with group algorithms. [11ac73003056][90406b2ba07c]
 - Implemented device query for 64 bit atomic support in ESIMD emulator. [c40baa6db64b]
 - Added support of 16 bit data for `lsc_atomic_update` and `lsc_slm_atomic_update` ESIMD API. [3028d82a75d2]
-- Added support for per-kernel auto GRF mode specification, and reimplemented the feature using kernel properties. Introduced a new property named `sycl::detail::register_alloc_mode` which takes in an enum `sycl::detail::register_alloc_mode_enum` with values: `automatic` and `large`. [f363bb272b5a]
 - Implemented [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. [743c35be2da7]
 - Added support for tf32 type using the unified interface for SYCL Matrix extension. [aba6d85f9f16]
 - Implemented Host Pipes described in [`sycl_ext_intel_dataflow_pipes`](https://github.com/intel/llvm/tree/992ef064289f/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension. [992ef064289f][5bd42eb6a7df]
@@ -289,6 +288,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Promoted the return type changes of SYCL relational builtins that changed between SYCL 1.2.1 and SYCL 2020 out from the guard of `SYCL2020_CONFORMANT_APIS`. [35fe4a21e1cb]
 - Fixed `get_pointer` to return `T*` for `target::device` specialized accessor according to specification. [712cb4e4f75e]
 - Fixed `max_work_item_sizes` return type from `id` to `range` according to SYCL 2020. [8f09d3e603da]
+- Deprecated experimental `set_kernel_properties` API and `use_double_grf/use_large_grf` properties were removed. New API provided in the extension [`sycl_ext_intel_grf_size`](https://github.com/intel/llvm/tree/370aa2a01711/sycl/doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) has to be used. [f363bb272b5a]
 
 ## Known issues
 - Having MESA OpenCL implementation which provides no devices on a
@@ -320,6 +320,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
   can happen when a SYCL application is built using MS Visual Studio 2019
   version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
 - Printing internal defines isn't supported on Windows. [50628db1]
+- The support of accessor and local_accessor for ESIMD is still limited comparing to SYCL.
 
 
 # March'23 release notes
