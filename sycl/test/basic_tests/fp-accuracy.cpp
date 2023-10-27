@@ -11,5 +11,8 @@ int main() {
     cgh.single_task<class Kernel0>([=]() { double res = std::sin(Value); });
   });
 
+  deviceQueue.submit([&](handler &cgh) {
+    cgh.single_task<class Kernel1>([=]() { double res = sycl::sin(Value); });
+  });
   return 0;
 }
