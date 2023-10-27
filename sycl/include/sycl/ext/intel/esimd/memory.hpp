@@ -576,10 +576,8 @@ __ESIMD_API
 
 template <typename T, int NElts, cache_hint L1H = cache_hint::none,
           cache_hint L2H = cache_hint::none, typename FlagsT>
-__ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
-block_store_impl(T *p, __ESIMD_NS::simd<T, NElts> vals,
-                 __ESIMD_NS::simd_mask<1> pred, FlagsT flags) {
-  // detail::check_lsc_data_size<T, DS>();
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>>
+block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
   detail::check_cache_hint<cache_action::store, L1H, L2H>();
   constexpr auto Alignment =
       FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
@@ -607,7 +605,7 @@ block_store_impl(T *p, __ESIMD_NS::simd<T, NElts> vals,
       Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
   constexpr int FactoredNElts = NElts / SmallIntFactor;
 
-  detail::check_lsc_vector_size<FactoredNElts>();
+  check_lsc_vector_size<FactoredNElts>();
 
   using StoreType = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
@@ -619,7 +617,7 @@ block_store_impl(T *p, __ESIMD_NS::simd<T, NElts> vals,
   constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
   constexpr auto Transposed = lsc_data_order::transpose;
   constexpr int N = 1;
-  __ESIMD_NS::simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+  simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
 
   __esimd_lsc_store_stateless<StoreType, L1H, L2H, AddressScale, ImmOffset,
                               ActualDS, VS, Transposed, N>(
@@ -1391,8 +1389,9 @@ block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints, and the minimally required element-size
+/// alignment otherwise. Note that additional/temporary restrictions may apply
 /// (see Restrictions below).
 ///
 /// Restrictions - cache hint imposed - temporary:
@@ -1434,9 +1433,10 @@ block_store(T *ptr, simd<T, N> vals, PropertyListT props = {}) {
         ptr, vals, Mask, overaligned_tag<Alignment>{});
   } else {
     // If the alignment property is not passed, then assume the pointer
-    // is element-aligned.
+    // is OWORD-aligned.
     constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            detail::OperandSize::OWORD);
     block_store<T, N>(ptr, vals, overaligned_tag<Alignment>{});
   }
 }
@@ -1458,14 +1458,15 @@ block_store(T *ptr, simd<T, N> vals, PropertyListT props = {}) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints, and the minimally required element-size
+/// alignment otherwise. Note that additional/temporary restrictions may apply
 /// (see Restrictions below).
 ///
 /// Restrictions - cache hint imposed - temporary:
 /// If L1 or L2 cache hint is passed, then:
-/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
+/// R1: The pointer plus byte offset must be at least 4-byte aligned for
+/// elements of 4-bytes or smaller and 8-byte aligned for 8-byte elements.
 /// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
 ///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
 ///                      or 128(only if alignment is 8-bytes or more);
@@ -1504,12 +1505,14 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals,
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints and \p pred is set to 1, and
+/// the minimally required element-size alignment otherwise.
+/// Note that additional/temporary restrictions may apply
 /// (see Restrictions below).
 ///
-/// Restrictions - cache hint imposed - temporary:
-/// If L1 or L2 cache hint is passed, then:
+/// Restrictions - cache hint or predicate imposed - temporary:
+/// If a predicate, L1 or L2 cache hint is passed, then:
 /// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
 ///     smaller and 8-byte aligned for 8-byte elements.
 /// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
@@ -1536,14 +1539,25 @@ block_store(T *ptr, simd<T, N> vals, simd_mask<1> pred,
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
+  bool ShouldUseOWordDefaultAlign =
+      pred == 1 && L1Hint == cache_hint::none && L2Hint == cache_hint::none;
+  if (ShouldUseOWordDefaultAlign) {
+    constexpr size_t DefaultAlignment = detail::OperandSize::OWORD;
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            DefaultAlignment);
 
-  detail::check_cache_hint<detail::cache_action::store, L1Hint, L2Hint>();
-  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+    detail::block_store_impl<T, N, L1Hint, L2Hint>(
+        ptr, vals, pred, overaligned_tag<Alignment>{});
+  } else {
+    constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            DefaultAlignment);
 
-  detail::block_store_impl<T, N, L1Hint, L2Hint>(ptr, vals, pred,
-                                                 overaligned_tag<Alignment>{});
+    detail::block_store_impl<T, N, L1Hint, L2Hint>(
+        ptr, vals, pred, overaligned_tag<Alignment>{});
+  }
 }
 
 /// void block_store(T* ptr, size_t byte_offset,         // (4)
@@ -1564,14 +1578,16 @@ block_store(T *ptr, simd<T, N> vals, simd_mask<1> pred,
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints and \p pred is set to 1, and
+//  the minimally required element-size alignment otherwise.
+/// Note that additional/temporary restrictions may apply
 /// (see Restrictions below).
 ///
-/// Restrictions - cache hint imposed - temporary:
-/// If L1 or L2 cache hint is passed, then:
-/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
+/// Restrictions - cache hint or predicate imposed - temporary:
+/// If a predicate, L1 or L2 cache hint is passed, then:
+/// R1: The pointer plus byte offset must be at least 4-byte aligned for
+/// elements of 4-bytes or smaller and 8-byte aligned for 8-byte elements.
 /// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
 ///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
 ///                      or 128(only if alignment is 8-bytes or more);
@@ -1645,8 +1661,8 @@ block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
 ///    1, 2, 4 or 8 owords long.
 /// @tparam AccessorTy Accessor type (auto-deduced).
 /// @param acc The accessor to store to.
-/// @param offset The offset to store at. It is in bytes and must be a
-/// multiple of \c 16.
+/// @param offset The offset to store at. It is in bytes and must be a multiple
+///   of \c 16.
 /// @param vals The vector to store.
 ///
 template <typename Tx, int N, typename AccessorTy,

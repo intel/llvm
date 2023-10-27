@@ -662,7 +662,7 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam AddressScale is the address scale.
 /// @tparam ImmOffset is the immediate offset added to each address.
 /// @tparam DS is the data size.
@@ -672,7 +672,7 @@ __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param vals is values to store.
-template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L3H,
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
           __ESIMD_DNS::lsc_vector_size VS,
           __ESIMD_DNS::lsc_data_order _Transposed, int N>
