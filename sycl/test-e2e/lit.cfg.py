@@ -124,6 +124,9 @@ if lit_config.params.get('gpu-intel-pvc', False):
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
 
+if lit_config.params.get('matrix-tf32', False):
+    config.available_features.add('matrix-tf32')
+
 if lit_config.params.get('matrix-xmx8', False):
     config.available_features.add('matrix-xmx8')
     config.available_features.add('matrix-fp16') # XMX implies the support of FP16 matrix
