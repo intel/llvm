@@ -434,7 +434,8 @@ private:
 };
 
 template <typename T>
-bool inline check_value(const T &Ref, const T &Got, const std::string &VariableName) {
+bool inline check_value(const T &Ref, const T &Got,
+                        const std::string &VariableName) {
   if (Got != Ref) {
     std::cout << "Unexpected value of " << VariableName << ": " << Got
               << " (got) vs " << Ref << " (expected)" << std::endl;
