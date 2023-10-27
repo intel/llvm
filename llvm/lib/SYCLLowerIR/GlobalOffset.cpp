@@ -59,11 +59,11 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
-void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
+// Recursive helper function to collect Loads from GEPs in a BFS fashion. 
+static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
               SmallVectorImpl<LoadInst *> &Loads) {
   Traversed.push_back(P);
-  auto *L = dyn_cast<LoadInst>(P);
-  if (L)
+  if (auto *L = dyn_cast<LoadInst>(P)) // Base case for recursion
     Loads.push_back(L);
   else {
     assert(isa<GetElementPtrInst>(*P));
@@ -88,19 +88,24 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
     SmallVector<LoadInst *, 4> LI;
     SmallVector<Instruction *, 4> PtrUses;
 
+    // Collect all GEPs and Loads from the intrinsic's CallInsts
     for (Value *V : ImplicitOffsetIntrinsic->users()) {
       Worklist.push_back(cast<CallInst>(V));
       for (Value *V2 : V->users())
         getLoads(cast<Instruction>(V2), PtrUses, LI);
     }
+
+    // Replace each use of a collected Load with a Constant 0
     for (LoadInst *L : LI)
       L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
 
+    // Remove all collected Loads and GEPs from the kernel.
     // PtrUses is returned by `getLoads` in topological order.
-    // Walk it backwards so we don't violate users
+    // Walk it backwards so we don't violate users.
     for (auto *I : reverse(PtrUses))
       I->eraseFromParent();
 
+    // Remove all collected CallInsts from the kernel.
     for (CallInst *CI : Worklist) {
       auto *I = cast<Instruction>(CI);
       I->eraseFromParent();
