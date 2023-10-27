@@ -42,9 +42,9 @@ int main() {
 
     // Test attribute is applied on lambda.
     h.single_task<class kernel_name2>(
-        []() [[intel::max_work_group_size(8, 8, 8),
-               intel::min_work_groups_per_cu(2),
-               intel::max_work_groups_per_mp(4)]] {});
+        [] [[intel::max_work_group_size(8, 8, 8),
+             intel::min_work_groups_per_cu(2),
+             intel::max_work_groups_per_mp(4)]] () {});
 
     // Test class template argument.
     Functor<6> f;

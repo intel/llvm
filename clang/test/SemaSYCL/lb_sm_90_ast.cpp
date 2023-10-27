@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -ast-dump -triple nvptx-unknown-unknown -target-cpu sm_90 %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -ast-dump -triple nvptx-unknown-unknown -target-cpu sm_90 -Wno-c++23-extensions %s | FileCheck %s
 
 // Tests for AST of Intel max_work_group_size, min_work_groups_per_cu and
 // max_work_groups_per_mp attribute.
@@ -77,22 +77,20 @@ func1() {}
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 6
 template <int N>
 [[intel::max_work_group_size(N, 8, 8), intel::min_work_groups_per_cu(N),
-  intel::max_work_groups_per_mp(N)]] void func2() {}
+  intel::max_work_groups_per_mp(N)]] void
+func2() {}
 
 class KernelFunctor {
 public:
-  void operator()() const {
-    func1();
-  }
+  void operator()() const { func1(); }
 };
 
 // Test that checks template parameter support on class member function.
-template <int N>
-class KernelFunctor2 {
+template <int N> class KernelFunctor2 {
 public:
   [[intel::max_work_group_size(N, 8, 8), intel::min_work_groups_per_cu(N),
-    intel::max_work_groups_per_mp(N)]] void operator()() const {
-  }
+    intel::max_work_groups_per_mp(N)]] void
+  operator()() const {}
 };
 
 int main() {
@@ -167,8 +165,9 @@ int main() {
     // CHECK-NEXT: value: Int 6
     // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 6
     h.single_task<class kernel_name_3>(
-        []() [[intel::max_work_group_size(8, 8, 8), intel::min_work_groups_per_cu(4),
-    intel::max_work_groups_per_mp(6)]]{});
+        [] [[intel::max_work_group_size(8, 8, 8),
+             intel::min_work_groups_per_cu(4),
+             intel::max_work_groups_per_mp(6)]] () {});
   });
 
   func2<6>();

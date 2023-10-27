@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple nvptx-unknown-unknown -target-cpu sm_90 -fsycl-is-device -S -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clang_cc1 -internal-isystem %S/Inputs %s -triple nvptx64-nvidia-cuda -target-cpu sm_90 -fsycl-is-device -fsyntax-only -verify
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple nvptx-unknown-unknown -target-cpu sm_90 -fsycl-is-device -Wno-c++23-extensions -S -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clang_cc1 -internal-isystem %S/Inputs %s -triple nvptx64-nvidia-cuda -target-cpu sm_90 -fsycl-is-device -fsyntax-only -Wno-c++23-extensions -verify
 // expected-no-diagnostics
 
 // Maximum work groups per multi-processor, mapped to maxclusterrank PTX
@@ -21,13 +21,11 @@ int main() {
   sycl::range<1> Gws(32);
 
   Q.submit([&](sycl::handler &cgh) {
-     cgh.parallel_for<class K1>(Gws,
-                      [=](sycl::id<1>) [[intel::max_work_group_size(1, 1, 256),
-                                         intel::min_work_groups_per_cu(2),
-                                         intel::max_work_groups_per_mp(4)]] {
-                        volatile int A = 42;
-                      });
-   });
+    cgh.parallel_for<class K1>(Gws, [=] [[intel::max_work_group_size(1, 1, 256),
+                                          intel::min_work_groups_per_cu(2),
+                                          intel::max_work_groups_per_mp(4)]] (
+                                        sycl::id<1>) { volatile int A = 42; });
+  });
   // CHECK-IR: !min_work_groups_per_cu [[MWGPCU:![0-9]+]]
   // CHECK-IR: !max_work_groups_per_mp [[MWGPMP:![0-9]+]]
   // CHECK-IR: !max_work_group_size [[MWGS:![0-9]+]]
