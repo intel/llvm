@@ -714,7 +714,7 @@ context associated with the graph. It is valid to call this method multiple time
 to create subsequent executable graphs. It is also valid to continue to add new
 nodes to the modifiable graph instance after calling this function. It is valid
 to finalize an empty graph instance with no recorded commands. The created
-executable graph(s) from the same non-empty modifiable graph could not be executed
+executable graph(s) from the same non-empty modifiable graph should not be executed
 simultaneously because they use the same memory address recorded in the modifiable
 graph, the behavior is undefined if we do so.
 
