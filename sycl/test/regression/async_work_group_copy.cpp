@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsyntax-only -fpreview-breaking-changes %s %}
 
 // Test checks for that no compile errors occur for
 // builtin async_work_group_copy

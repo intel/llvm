@@ -168,8 +168,10 @@ template <typename T, int dimensions = 1,
               typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   static_assert(is_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
+#endif
 
 public:
   using value_type = T;
