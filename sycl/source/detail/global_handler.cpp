@@ -52,8 +52,8 @@ public:
     if (!MModifyCounter)
       return;
 
-    MCounter--;
     LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
+    MCounter--;
     GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
     if (RTGlobalObjHandler) {
       RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
