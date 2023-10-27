@@ -86,13 +86,13 @@ struct DemangleHandle {
 
   ~DemangleHandle() { std::free(p); }
 };
-static std::string demangleKernelName(std::string Name) {
+static const char* demangleKernelName(const char* Name) {
   int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.c_str(), NULL, NULL, &Status));
+  DemangleHandle result(abi::__cxa_demangle(Name, NULL, NULL, &Status));
   return (Status == 0) ? result.p : Name;
 }
 #else
-static std::string demangleKernelName(std::string Name) { return Name; }
+static const char* demangleKernelName(const char* Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
@@ -1899,11 +1899,11 @@ ExecCGCommand::ExecCGCommand(
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-std::string instrumentationGetKernelName(
+const char* instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &FunctionName, const std::string &SyclKernelName,
+    const char* FunctionName, const char* SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
-  std::string KernelName;
+  const char* KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
     pi_kernel KernelHandle = SyclKernel->getHandleRef();
@@ -1919,7 +1919,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::string &KernelName,
+    const char* KernelName,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -2050,7 +2050,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
+    const detail::code_location &CodeLoc, const char* SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
@@ -2063,7 +2063,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   void *Address = nullptr;
   std::optional<bool> FromSource;
   std::string KernelName = instrumentationGetKernelName(
-      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
+      SyclKernel, CodeLoc.functionName(), SyclKernelName, Address,
       FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
@@ -2096,7 +2096,7 @@ void ExecCGCommand::emitInstrumentationData() {
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
-  std::string KernelName;
+  const char*  KernelName;
   std::optional<bool> FromSource;
   switch (MCommandGroup->getType()) {
   case detail::CG::Kernel: {
@@ -2107,7 +2107,7 @@ void ExecCGCommand::emitInstrumentationData() {
         KernelCG->getKernelName(), MAddress, FromSource);
   } break;
   default:
-    KernelName = cgTypeToString(MCommandGroup->getType());
+    KernelName = cgTypeToString(MCommandGroup->getType()).c_str();
     break;
   }
 
@@ -2150,7 +2150,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
       Stream << "created from source";
     else
-      Stream << demangleKernelName(KernelCG->getKernelName());
+      Stream << std::string(demangleKernelName(KernelCG->getKernelName()));
     Stream << "\\n";
     break;
   }
@@ -2496,7 +2496,7 @@ pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName,
+    const char* KernelName,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
@@ -2896,7 +2896,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
-    const std::string &KernelName = ExecKernel->MKernelName;
+    const char* KernelName = ExecKernel->MKernelName;
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one

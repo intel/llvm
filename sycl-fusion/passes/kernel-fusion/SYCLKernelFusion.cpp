@@ -357,12 +357,12 @@ Error SYCLKernelFusion::fuseKernel(
   // Initialize the jit_compiler::SYCLKernelInfo with the name. The remaining
   // information for functor & argument layout and attributes will be filled in
   // with information from the input kernels below.
-  if (!ModInfo->hasKernelFor(FusedKernelName.str())) {
-    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str()};
+  if (!ModInfo->hasKernelFor(FusedKernelName.data())) {
+    jit_compiler::SYCLKernelInfo KI{FusedKernelName.data()};
     ModInfo->addKernel(KI);
   }
   jit_compiler::SYCLKernelInfo &FusedKernelInfo =
-      *ModInfo->getKernelFor(FusedKernelName.str());
+      *ModInfo->getKernelFor(FusedKernelName.data());
   // Mapping from parameter in an input function (index in the list of input
   // functions and index in the original function) to the argument index in the
   // fused function.
@@ -432,10 +432,10 @@ Error SYCLKernelFusion::fuseKernel(
 
     // Update the fused kernel's KernelInfo with information from this input
     // kernel.
-    assert(ModInfo->hasKernelFor(FN.str()) &&
+    assert(ModInfo->hasKernelFor(FN.data()) &&
            "No jit_compiler::SYCLKernelInfo found");
     jit_compiler::SYCLKernelInfo &InputKernelInfo =
-        *ModInfo->getKernelFor(FN.str());
+        *ModInfo->getKernelFor(FN.data());
     appendKernelInfo(FusedKernelInfo, InputKernelInfo, UsedArgsMask);
     ++FuncIndex;
   }

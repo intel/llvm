@@ -154,7 +154,8 @@ public:
   // Member variables to capture the user code-location
   // information from Q.submit(), Q.parallel_for() etc
   // Storage for function name and source file name
-  std::string MFunctionName, MFileName;
+  std::string MFileName;
+  const char *MFunctionName;
   // Storage for line and column of code location
   int32_t MLine, MColumn;
 };
@@ -168,7 +169,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  const char* MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
@@ -177,7 +178,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
+               const char* KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
@@ -196,7 +197,7 @@ public:
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
+  const char* getKernelName() const { return MKernelName; }
   std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
     return MStreams;
   }
