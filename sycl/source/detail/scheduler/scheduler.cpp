@@ -405,13 +405,13 @@ Scheduler::Scheduler() {
 
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
-void Scheduler::releaseResources() {
+void Scheduler::releaseResources(BlockingT Blocking) {
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
   cleanupCommands({});
 
-  cleanupAuxiliaryResources(BlockingT::BLOCKING);
+  cleanupAuxiliaryResources(Blocking);
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we
@@ -420,7 +420,7 @@ void Scheduler::releaseResources() {
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
   while (!isDeferredMemObjectsEmpty())
-    cleanupDeferredMemObjects(BlockingT::BLOCKING);
+    cleanupDeferredMemObjects(Blocking);
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
