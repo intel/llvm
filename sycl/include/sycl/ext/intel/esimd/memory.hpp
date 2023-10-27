@@ -1493,9 +1493,8 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals,
 /// with data specified by \p vals. If the predicate \p pred is set to 0,
 /// then the store is omitted.
 ///
-/// There may be temporary restrictions depending on L1, L2 cache hints,
-/// See details in the 'Restrictions' section below. The restrictions will be
-/// relaxed in the future.
+/// There are temporary restrictions.  See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -1505,14 +1504,11 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals,
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is 16 bytes if \p props does not specify any
-/// L1 or L2 cache hints and \p pred is set to 1, and
-/// the minimally required element-size alignment otherwise.
-/// Note that additional/temporary restrictions may apply
-/// (see Restrictions below).
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions apply (see
+/// Restrictions below).
 ///
-/// Restrictions - cache hint or predicate imposed - temporary:
-/// If a predicate, L1 or L2 cache hint is passed, then:
+/// Restrictions - predicate imposed - temporary:
 /// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
 ///     smaller and 8-byte aligned for 8-byte elements.
 /// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
@@ -1539,25 +1535,13 @@ block_store(T *ptr, simd<T, N> vals, simd_mask<1> pred,
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  bool ShouldUseOWordDefaultAlign =
-      pred == 1 && L1Hint == cache_hint::none && L2Hint == cache_hint::none;
-  if (ShouldUseOWordDefaultAlign) {
-    constexpr size_t DefaultAlignment = detail::OperandSize::OWORD;
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(
-            DefaultAlignment);
 
-    detail::block_store_impl<T, N, L1Hint, L2Hint>(
-        ptr, vals, pred, overaligned_tag<Alignment>{});
-  } else {
-    constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(
-            DefaultAlignment);
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
-    detail::block_store_impl<T, N, L1Hint, L2Hint>(
-        ptr, vals, pred, overaligned_tag<Alignment>{});
-  }
+  detail::block_store_impl<T, N, L1Hint, L2Hint>(ptrr, vals, pred,
+                                                 overaligned_tag<Alignment>{});
 }
 
 /// void block_store(T* ptr, size_t byte_offset,         // (4)
