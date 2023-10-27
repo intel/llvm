@@ -64,6 +64,17 @@ bool CurrentCodeLocationValid() {
   return (FileName && FileName[0] != '\0') ||
          (FunctionName && FunctionName[0] != '\0');
 }
+
+void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
+                                xpti_td *TraceEvent, uint16_t Type,
+                                const char *Txt) {
+  if (!(xptiCheckTraceEnabled(StreamID, Type) && TraceEvent))
+    return;
+  // Trace event notifier that emits a Type event
+  xptiNotifySubscribers(StreamID, Type, detail::GSYCLGraphEvent,
+                        static_cast<xpti_td *>(TraceEvent), InstanceID,
+                        static_cast<const void *>(Txt));
+}
 #endif
 
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
@@ -381,9 +392,9 @@ public:
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
 
-        HostTask.MHostTask->call(IH);
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
       } else
-        HostTask.MHostTask->call();
+        HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo());
     } catch (...) {
       auto CurrentException = std::current_exception();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -640,7 +651,7 @@ void Command::emitEdgeEventForEventDependence(
 uint64_t Command::makeTraceEventProlog(void *MAddress) {
   uint64_t CommandInstanceNo = 0;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiCheckTraceEnabled(MStreamID, xpti::trace_node_create))
+  if (!xptiCheckTraceEnabled(MStreamID))
     return CommandInstanceNo;
 
   MTraceEventPrologComplete = true;
@@ -791,12 +802,11 @@ void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiCheckTraceEnabled(MStreamID, Type) && MTraceEvent))
-    return;
-  // Trace event notifier that emits a Type event
-  xptiNotifySubscribers(MStreamID, Type, detail::GSYCLGraphEvent,
-                        static_cast<xpti_td *>(MTraceEvent), MInstanceID,
-                        static_cast<const void *>(Txt));
+  return emitInstrumentationGeneral(
+      MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent), Type, Txt);
+#else
+  std::ignore = Type;
+  std::ignore = Txt;
 #endif
 }
 
@@ -990,6 +1000,7 @@ void AllocaCommandBase::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
   }
 #endif
 }
@@ -1108,6 +1119,7 @@ void AllocaSubBufCommand::emitInstrumentationData() {
                       this->MRequirement.MAccessRange[0]);
     xpti::addMetadata(TE, "access_range_end",
                       this->MRequirement.MAccessRange[1]);
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1185,6 +1197,8 @@ void ReleaseCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "allocation_type",
                       commandToName(MAllocaCmd->getType()));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1304,6 +1318,8 @@ void MapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1365,6 +1381,8 @@ void UnMapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1466,6 +1484,8 @@ void MemCpyCommand::emitInstrumentationData() {
     xpti::addMetadata(
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1640,6 +1660,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
     xpti::addMetadata(
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1729,6 +1751,8 @@ void EmptyCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1799,6 +1823,8 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
+
     makeTraceEventEpilog();
   }
 #endif
@@ -1935,8 +1961,7 @@ void instrumentationAddExtraKernelMetadata(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName,
-            nullptr);
+            Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
   }
 
   applyFuncOnFilteredArgs(EliminatedArgMask, CGArgs, FilterArgs);
@@ -1984,13 +2009,11 @@ void instrumentationFillCommonData(const std::string &KernelName,
     // create the hash
     Payload = xpti::payload_t(KernelName.c_str());
   }
-
   uint64_t CGKernelInstanceNo;
   // Create event using the payload
   xpti_td *CmdTraceEvent =
       xptiMakeEvent("ExecCG", &Payload, xpti::trace_graph_event,
                     xpti::trace_activity_type_t::active, &CGKernelInstanceNo);
-
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
@@ -2019,21 +2042,23 @@ void instrumentationFillCommonData(const std::string &KernelName,
       xpti::addMetadata(CmdTraceEvent, "sym_column_no",
                         static_cast<int>(Column));
     }
+    xpti::addMetadata(CmdTraceEvent, "queue_id", Queue->getQueueID());
   }
 }
 #endif
 
-void emitKernelInstrumentationData(
-    const std::shared_ptr<detail::kernel_impl> &SyclKernel,
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
+    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, const std::string &SyclKernelName,
     const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
+
+  auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
-    return;
+  if (!xptiCheckTraceEnabled(StreamID))
+    return XptiObjects;
 
   void *Address = nullptr;
   std::optional<bool> FromSource;
@@ -2041,8 +2066,8 @@ void emitKernelInstrumentationData(
       SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
       FromSource);
 
-  xpti_td *CmdTraceEvent = nullptr;
-  uint64_t InstanceID = -1;
+  auto &[CmdTraceEvent, InstanceID] = XptiObjects;
+
   std::string FileName =
       CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
   instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
@@ -2060,21 +2085,15 @@ void emitKernelInstrumentationData(
         static_cast<const void *>(
             commandToNodeType(Command::CommandType::RUN_CG).c_str()));
   }
-#else
-  std::ignore = SyclKernel;
-  std::ignore = CodeLoc;
-  std::ignore = SyclKernelName;
-  std::ignore = Queue;
-  std::ignore = NDRDesc;
-  std::ignore = KernelBundleImplPtr;
-  std::ignore = CGArgs;
-#endif
+
+  return XptiObjects;
 }
+#endif
 
 void ExecCGCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType))
+  if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
   std::string KernelName;
@@ -2388,13 +2407,36 @@ pi_int32 enqueueImpCommandBufferKernel(
   pi_program PiProgram = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
+  auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
   const KernelArgMask *EliminatedArgMask = nullptr;
-  if (Kernel != nullptr) {
+
+  // Use kernel_bundle if available unless it is interop.
+  // Interop bundles can't be used in the first branch, because the kernels
+  // in interop kernel bundles (if any) do not have kernel_id
+  // and can therefore not be looked up, but since they are self-contained
+  // they can simply be launched directly.
+  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+    std::shared_ptr<kernel_impl> SyclKernelImpl;
+    std::shared_ptr<device_image_impl> DeviceImageImpl;
+    auto KernelName = CommandGroup.MKernelName;
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    kernel SyclKernel =
+        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+    PiKernel = SyclKernelImpl->getHandleRef();
+    DeviceImageImpl = SyclKernelImpl->getDeviceImage();
+    PiProgram = DeviceImageImpl->get_program_ref();
+    std::tie(PiKernel, KernelMutex, EliminatedArgMask) =
+        detail::ProgramManager::getInstance().getOrCreateKernel(
+            KernelBundleImplPtr->get_context(), KernelName,
+            /*PropList=*/{}, PiProgram);
+  } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
   } else {
     std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, CommandGroup.MKernelName, nullptr);
+            ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
   auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
@@ -2499,26 +2541,18 @@ pi_int32 enqueueImpKernel(
     Kernel = MSyclKernel->getHandleRef();
     auto SyclProg = MSyclKernel->getProgramImpl();
     Program = SyclProg->getHandleRef();
-    if (SyclProg->is_cacheable()) {
-      sycl::detail::pi::PiKernel FoundKernel = nullptr;
-      std::tie(FoundKernel, KernelMutex, EliminatedArgMask, std::ignore) =
-          detail::ProgramManager::getInstance().getOrCreateKernel(
-              ContextImpl, DeviceImpl, KernelName, SyclProg.get());
-      assert(FoundKernel == Kernel);
-    } else {
-      // Non-cacheable kernels use mutexes from kernel_impls.
-      // TODO this can still result in a race condition if multiple SYCL
-      // kernels are created with the same native handle. To address this,
-      // we need to either store and use a pi_native_handle -> mutex map or
-      // reuse and return existing SYCL kernels from make_native to avoid
-      // their duplication in such cases.
-      KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
-      EliminatedArgMask = MSyclKernel->getKernelArgMask();
-    }
+    // Non-cacheable kernels use mutexes from kernel_impls.
+    // TODO this can still result in a race condition if multiple SYCL
+    // kernels are created with the same native handle. To address this,
+    // we need to either store and use a pi_native_handle -> mutex map or
+    // reuse and return existing SYCL kernels from make_native to avoid
+    // their duplication in such cases.
+    KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
+    EliminatedArgMask = MSyclKernel->getKernelArgMask();
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, nullptr);
+            ContextImpl, DeviceImpl, KernelName);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -2626,6 +2660,11 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
+
+  // Any non-allocation dependencies need to be waited on here since subsequent
+  // submissions of the command buffer itself will not receive dependencies on
+  // them, e.g. initial copies from host to device
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
   sycl::detail::pi::PiEvent *Event =
       (MQueue->has_discard_events_support() &&
@@ -3180,7 +3219,7 @@ void KernelFusionCommand::resetQueue() {
 void KernelFusionCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+  if (!xptiCheckTraceEnabled(MStreamID)) {
     return;
   }
   // Create a payload with the command name and an event using this payload to
@@ -3221,6 +3260,7 @@ void KernelFusionCommand::emitInstrumentationData() {
                       deviceToString(MQueue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
+    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
   }
 
   if (MFirstInstance) {
