@@ -35,7 +35,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
 - Added support for scalar logical operators with group algorithms. [11ac73003056][90406b2ba07c]
 - Implemented device query for 64 bit atomic support in ESIMD emulator. [c40baa6db64b]
 - Added support of 16 bit data for `lsc_atomic_update` and `lsc_slm_atomic_update` ESIMD API. [3028d82a75d2]
-- Implemented [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. [743c35be2da7]
+- Added initial implementation of [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. There are severe limitations: `max_num_work_group_sync` query always returns `1` and the implemented barrier has work group scope since all work items in a root group are currently in the same work group. [743c35be2da7]
 - Added support for tf32 type using the unified interface for SYCL Matrix extension. [aba6d85f9f16]
 - Implemented Host Pipes described in [`sycl_ext_intel_dataflow_pipes`](https://github.com/intel/llvm/tree/992ef064289f/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension. [992ef064289f][5bd42eb6a7df]
 - Added support for more math built-ins for `bfloat16` together with the extension specification [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/tree/c7759bb8cd0b/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) update [c7759bb8cd0b]
@@ -321,6 +321,7 @@ Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com
   version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
 - Printing internal defines isn't supported on Windows. [50628db1]
 - The support of accessor and local_accessor for ESIMD is still limited comparing to SYCL.
+- [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) implementation has the following limitations: `max_num_work_group_sync` query always returns `1` and the implemented barrier has work group scope since all work items in a root group are currently in the same work group.
 
 
 # March'23 release notes
