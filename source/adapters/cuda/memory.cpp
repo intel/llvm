@@ -44,22 +44,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     CUdeviceptr Ptr = 0;
     auto HostPtr = pProperties ? pProperties->pHost : nullptr;
 
-    ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
-        ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic;
+    BufferMem::AllocMode AllocMode = BufferMem::AllocMode::Classic;
 
     if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && EnableUseHostPtr) {
       UR_CHECK_ERROR(
           cuMemHostRegister(HostPtr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       UR_CHECK_ERROR(cuMemHostGetDevicePointer(&Ptr, HostPtr, 0));
-      AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::UseHostPtr;
+      AllocMode = BufferMem::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
       UR_CHECK_ERROR(cuMemAllocHost(&HostPtr, size));
       UR_CHECK_ERROR(cuMemHostGetDevicePointer(&Ptr, HostPtr, 0));
-      AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
+      AllocMode = BufferMem::AllocMode::AllocHostPtr;
     } else {
       UR_CHECK_ERROR(cuMemAlloc(&Ptr, size));
       if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
-        AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::CopyIn;
+        AllocMode = BufferMem::AllocMode::CopyIn;
       }
     }
 
@@ -121,21 +120,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     ScopedContext Active(MemObjPtr->getContext());
 
     if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
-      switch (MemObjPtr->Mem.BufferMem.MemAllocMode) {
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::CopyIn:
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic:
-        UR_CHECK_ERROR(cuMemFree(MemObjPtr->Mem.BufferMem.Ptr));
+      auto &BufferImpl = std::get<BufferMem>(MemObjPtr->Mem);
+      switch (BufferImpl.MemAllocMode) {
+      case BufferMem::AllocMode::CopyIn:
+      case BufferMem::AllocMode::Classic:
+        UR_CHECK_ERROR(cuMemFree(BufferImpl.Ptr));
         break;
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::UseHostPtr:
-        UR_CHECK_ERROR(cuMemHostUnregister(MemObjPtr->Mem.BufferMem.HostPtr));
+      case BufferMem::AllocMode::UseHostPtr:
+        UR_CHECK_ERROR(cuMemHostUnregister(BufferImpl.HostPtr));
         break;
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr:
-        UR_CHECK_ERROR(cuMemFreeHost(MemObjPtr->Mem.BufferMem.HostPtr));
+      case BufferMem::AllocMode::AllocHostPtr:
+        UR_CHECK_ERROR(cuMemFreeHost(BufferImpl.HostPtr));
       };
     } else if (hMem->MemType == ur_mem_handle_t_::Type::Surface) {
-      UR_CHECK_ERROR(
-          cuSurfObjectDestroy(MemObjPtr->Mem.SurfaceMem.getSurface()));
-      UR_CHECK_ERROR(cuArrayDestroy(MemObjPtr->Mem.SurfaceMem.getArray()));
+      auto &SurfaceImpl = std::get<SurfaceMem>(MemObjPtr->Mem);
+      UR_CHECK_ERROR(cuSurfObjectDestroy(SurfaceImpl.getSurface()));
+      UR_CHECK_ERROR(cuArrayDestroy(SurfaceImpl.getArray()));
     }
 
   } catch (ur_result_t Err) {
@@ -163,8 +163,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
-  *phNativeMem =
-      reinterpret_cast<ur_native_handle_t>(hMem->Mem.BufferMem.get());
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+      std::get<BufferMem>(hMem->Mem).get());
   return UR_RESULT_SUCCESS;
 }
 
@@ -183,8 +183,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   case UR_MEM_INFO_SIZE: {
     try {
       size_t AllocSize = 0;
-      UR_CHECK_ERROR(cuMemGetAddressRange(nullptr, &AllocSize,
-                                          hMemory->Mem.BufferMem.Ptr));
+      UR_CHECK_ERROR(cuMemGetAddressRange(
+          nullptr, &AllocSize, std::get<BufferMem>(hMemory->Mem).Ptr));
       return ReturnValue(AllocSize);
     } catch (ur_result_t Err) {
       return Err;
@@ -443,25 +443,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 
   UR_ASSERT(pRegion->size != 0u, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
+  auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
+
   assert((pRegion->origin <= (pRegion->origin + pRegion->size)) && "Overflow");
-  UR_ASSERT(
-      ((pRegion->origin + pRegion->size) <= hBuffer->Mem.BufferMem.getSize()),
-      UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+  UR_ASSERT(((pRegion->origin + pRegion->size) <= BufferImpl.getSize()),
+            UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
   // Retained indirectly due to retaining parent buffer below.
   ur_context_handle_t Context = hBuffer->Context;
 
-  ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
-      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic;
+  BufferMem::AllocMode AllocMode = BufferMem::AllocMode::Classic;
 
-  assert(hBuffer->Mem.BufferMem.Ptr !=
-         ur_mem_handle_t_::MemImpl::BufferMem::native_type{0});
-  ur_mem_handle_t_::MemImpl::BufferMem::native_type Ptr =
-      hBuffer->Mem.BufferMem.Ptr + pRegion->origin;
+  assert(BufferImpl.Ptr != BufferMem::native_type{0});
+  BufferMem::native_type Ptr = BufferImpl.Ptr + pRegion->origin;
 
   void *HostPtr = nullptr;
-  if (hBuffer->Mem.BufferMem.HostPtr) {
-    HostPtr =
-        static_cast<char *>(hBuffer->Mem.BufferMem.HostPtr) + pRegion->origin;
+  if (BufferImpl.HostPtr) {
+    HostPtr = static_cast<char *>(BufferImpl.HostPtr) + pRegion->origin;
   }
 
   std::unique_ptr<ur_mem_handle_t_> MemObj{nullptr};

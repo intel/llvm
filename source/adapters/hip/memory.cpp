@@ -35,24 +35,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     ScopedContext Active(uniqueMemObj->getContext()->getDevice());
 
     if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
-      switch (uniqueMemObj->Mem.BufferMem.MemAllocMode) {
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::CopyIn:
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic:
-        UR_CHECK_ERROR(hipFree((void *)uniqueMemObj->Mem.BufferMem.Ptr));
+      auto &hBuffer = std::get<BufferMem>(uniqueMemObj->Mem);
+      switch (hBuffer.MemAllocMode) {
+      case BufferMem::AllocMode::CopyIn:
+      case BufferMem::AllocMode::Classic:
+        UR_CHECK_ERROR(hipFree((void *)hBuffer.Ptr));
         break;
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::UseHostPtr:
-        UR_CHECK_ERROR(hipHostUnregister(uniqueMemObj->Mem.BufferMem.HostPtr));
+      case BufferMem::AllocMode::UseHostPtr:
+        UR_CHECK_ERROR(hipHostUnregister(hBuffer.HostPtr));
         break;
-      case ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr:
-        UR_CHECK_ERROR(hipFreeHost(uniqueMemObj->Mem.BufferMem.HostPtr));
+      case BufferMem::AllocMode::AllocHostPtr:
+        UR_CHECK_ERROR(hipFreeHost(hBuffer.HostPtr));
       };
     }
 
     else if (hMem->MemType == ur_mem_handle_t_::Type::Surface) {
-      UR_CHECK_ERROR(
-          hipDestroySurfaceObject(uniqueMemObj->Mem.SurfaceMem.getSurface()));
-      auto Array = uniqueMemObj->Mem.SurfaceMem.getArray();
-      UR_CHECK_ERROR(hipFreeArray(Array));
+      auto &hImage = std::get<SurfaceMem>(uniqueMemObj->Mem);
+      UR_CHECK_ERROR(hipDestroySurfaceObject(hImage.getSurface()));
+      UR_CHECK_ERROR(hipFreeArray(hImage.getArray()));
     }
 
   } catch (ur_result_t Err) {
@@ -103,30 +103,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ScopedContext Active(hContext->getDevice());
     void *Ptr;
     auto pHost = pProperties ? pProperties->pHost : nullptr;
-    ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
-        ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic;
+    BufferMem::AllocMode AllocMode = BufferMem::AllocMode::Classic;
 
     if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && EnableUseHostPtr) {
       UR_CHECK_ERROR(hipHostRegister(pHost, size, hipHostRegisterMapped));
       UR_CHECK_ERROR(hipHostGetDevicePointer(&Ptr, pHost, 0));
-      AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::UseHostPtr;
+      AllocMode = BufferMem::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
       UR_CHECK_ERROR(hipHostMalloc(&pHost, size));
       UR_CHECK_ERROR(hipHostGetDevicePointer(&Ptr, pHost, 0));
-      AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
+      AllocMode = BufferMem::AllocMode::AllocHostPtr;
     } else {
       UR_CHECK_ERROR(hipMalloc(&Ptr, size));
       if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
-        AllocMode = ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::CopyIn;
+        AllocMode = BufferMem::AllocMode::CopyIn;
       }
     }
 
     if (Result == UR_RESULT_SUCCESS) {
       ur_mem_handle_t parentBuffer = nullptr;
 
-      auto DevPtr =
-          reinterpret_cast<ur_mem_handle_t_::MemImpl::BufferMem::native_type>(
-              Ptr);
+      auto DevPtr = reinterpret_cast<BufferMem::native_type>(Ptr);
       auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
           hContext, parentBuffer, flags, AllocMode, DevPtr, pHost, size});
       if (URMemObj != nullptr) {
@@ -192,24 +189,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 
   UR_ASSERT(pRegion->size != 0u, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
-  UR_ASSERT(
-      ((pRegion->origin + pRegion->size) <= hBuffer->Mem.BufferMem.getSize()),
-      UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+  auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
+  UR_ASSERT(((pRegion->origin + pRegion->size) <= BufferImpl.getSize()),
+            UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
   // Retained indirectly due to retaining parent buffer below.
   ur_context_handle_t Context = hBuffer->Context;
-  ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
-      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::Classic;
+  BufferMem::AllocMode AllocMode = BufferMem::AllocMode::Classic;
 
-  UR_ASSERT(hBuffer->Mem.BufferMem.Ptr !=
-                ur_mem_handle_t_::MemImpl::BufferMem::native_type{0},
+  UR_ASSERT(BufferImpl.Ptr != BufferMem::native_type{0},
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  ur_mem_handle_t_::MemImpl::BufferMem::native_type Ptr =
-      hBuffer->Mem.BufferMem.getWithOffset(pRegion->origin);
+  BufferMem::native_type Ptr = BufferImpl.getWithOffset(pRegion->origin);
 
   void *HostPtr = nullptr;
-  if (hBuffer->Mem.BufferMem.HostPtr) {
-    HostPtr =
-        static_cast<char *>(hBuffer->Mem.BufferMem.HostPtr) + pRegion->origin;
+  if (BufferImpl.HostPtr) {
+    HostPtr = static_cast<char *>(BufferImpl.HostPtr) + pRegion->origin;
   }
 
   ReleaseGuard<ur_mem_handle_t> ReleaseGuard(hBuffer);
@@ -251,8 +244,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   case UR_MEM_INFO_SIZE: {
     try {
       size_t AllocSize = 0;
-      UR_CHECK_ERROR(hipMemGetAddressRange(nullptr, &AllocSize,
-                                           hMemory->Mem.BufferMem.Ptr));
+      UR_CHECK_ERROR(hipMemGetAddressRange(
+          nullptr, &AllocSize, std::get<BufferMem>(hMemory->Mem).Ptr));
       return ReturnValue(AllocSize);
     } catch (ur_result_t Err) {
       return Err;
@@ -278,24 +271,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
 #if defined(__HIP_PLATFORM_NVIDIA__)
-  if (sizeof(ur_mem_handle_t_::MemImpl::BufferMem::native_type) >
-      sizeof(ur_native_handle_t)) {
+  if (sizeof(BufferMem::native_type) > sizeof(ur_native_handle_t)) {
     // Check that all the upper bits that cannot be represented by
     // ur_native_handle_t are empty.
     // NOTE: The following shift might trigger a warning, but the check in the
     // if above makes sure that this does not underflow.
-    ur_mem_handle_t_::MemImpl::BufferMem::native_type UpperBits =
-        hMem->Mem.BufferMem.get() >> (sizeof(ur_native_handle_t) * CHAR_BIT);
+    BufferMem::native_type UpperBits = std::get<BufferMem>(hMem->Mem).get() >>
+                                       (sizeof(ur_native_handle_t) * CHAR_BIT);
     if (UpperBits) {
       // Return an error if any of the remaining bits is non-zero.
       return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
     }
   }
-  *phNativeMem =
-      reinterpret_cast<ur_native_handle_t>(hMem->Mem.BufferMem.get());
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+      std::get<BufferMem>(hMem->Mem).get());
 #elif defined(__HIP_PLATFORM_AMD__)
-  *phNativeMem =
-      reinterpret_cast<ur_native_handle_t>(hMem->Mem.BufferMem.get());
+  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+      std::get<BufferMem>(hMem->Mem).get());
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
