@@ -1540,7 +1540,7 @@ block_store(T *ptr, simd<T, N> vals, simd_mask<1> pred,
   constexpr size_t Alignment =
       detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
 
-  detail::block_store_impl<T, N, L1Hint, L2Hint>(ptrr, vals, pred,
+  detail::block_store_impl<T, N, L1Hint, L2Hint>(ptr, vals, pred,
                                                  overaligned_tag<Alignment>{});
 }
 
