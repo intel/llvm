@@ -394,6 +394,8 @@ This property is only meaningful on pointer kernel arguments.
 This property is passed to `annotated_ref` class when an `annotated_ptr` is
 deferenced with `operator*` and `operator[]`
 
+This property is sustainable through pointer arithmetic (i.e. + and -)
+
 a|
 [source,c++]
 ----
