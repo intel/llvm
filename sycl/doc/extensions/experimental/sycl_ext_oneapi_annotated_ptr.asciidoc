@@ -399,6 +399,8 @@ Returns an `annotated_ref` reference wrapper which can be used to read or write
 to the underlying pointer. Reads/Writes using the reference will retain the
 annotations.
 
+Only applicable properties will be passed to `annotated_ref`.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -408,6 +410,8 @@ reference operator[](std::ptrdiff_t Index) const;
 |
 Returns an `annotated_ref` reference wrapper to the object at offset `Index`.
 
+Only applicable properties will be passed to `annotated_ref`.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -416,6 +420,8 @@ annotated_ptr operator+(size_t Offset) const;
 ----
 |
 Returns an `annotated_ptr` that points to `this[Offset]`.
+
+Only applicable properties will be passed to the returned `annotated_ptr`.
 
 // --- ROW BREAK ---
 a|
@@ -455,6 +461,9 @@ annotated_ptr& operator++() noexcept;
 |
 Prefix increment operator.
 
+If property list contains properties that are not sustainable through pointer
+arithemic, this operator errors out.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -463,6 +472,9 @@ annotated_ptr operator++(int) noexcept;
 ----
 |
 Postfix increment operator.
+
+If property list contains properties that are not sustainable through pointer
+arithemic, this operator errors out.
 
 // --- ROW BREAK ---
 a|
@@ -473,6 +485,9 @@ annotated_ptr& operator--() noexcept;
 |
 Prefix decrement operator.
 
+If property list contains properties that are not sustainable through pointer
+arithemic, this operator errors out.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -481,6 +496,9 @@ annotated_ptr operator--(int) noexcept;
 ----
 |
 Postfix decrement operator.
+
+If property list contains properties that are not sustainable through pointer
+arithemic, this operator errors out.
 
 // --- ROW BREAK ---
 a|
@@ -612,6 +630,47 @@ T operator--(int);
 increment and decrement operator of annotated_ref. The annotations are applied
 when the object `T` is loaded and stored to the memory.
 |===
+
+=== Properties
+
+Below is a list of compile-time constant properties supported with
+`annotated_ptr`. Other extensions can define additional compile-time constant
+properties that can be supported with `annotated_ptr`. Runtime properties
+are not supported.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct alignment_key {
+  template<int K>
+  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
+};
+
+template<int K>
+inline constexpr alignment_key::value_t<K> alignment;
+
+template<>
+struct is_property_key<alignment_key> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+template<typename T, typename PropertyListT>
+} // namespace sycl::ext::oneapi::experimental
+```
+--
+[options="header"]
+|====
+| Property | Description
+|`alignment`
+|
+This property is an assertion by the application that the `annotated_ptr` has
+the given alignment, specified in bytes. The behavior is undefined if the
+pointer value does not have the indicated alignment.
+
+This property is passed to `annotated_ref` class when a `annotated_ptr` is
+deferenced with `operator*`.
+|====
+--
 
 == Issues related to `annotated_ptr`
 

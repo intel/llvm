@@ -32,32 +32,24 @@ namespace {
 #define PROPAGATE_OP(op)                                                       \
   T operator op##=(const T &rhs) const { return *this = *this op rhs; }
 
-// compare strings on compile time
-constexpr bool compareStrs(const char *Str1, const char *Str2) {
-  return std::string_view(Str1) == Str2;
-}
-
-// filter properties with AllowedPropsTuple via name checking
-template <typename TestProps, typename AllowedPropsTuple>
-struct PropertiesAreAllowed {};
-
-template <typename TestProps, typename... AllowedProps>
-struct PropertiesAreAllowed<TestProps, std::tuple<const AllowedProps...>> {
-  static constexpr const bool allowed =
-      (compareStrs(detail::PropertyMetaInfo<TestProps>::name,
-                   detail::PropertyMetaInfo<AllowedProps>::name) ||
-       ...);
-};
-
-template <typename... Ts>
-using tuple_cat_t = decltype(std::tuple_cat(std::declval<Ts>()...));
-
-template <typename AllowedPropTuple, typename... Props>
+template <typename mp_list_props, template <class...> typename filter>
 struct PropertiesFilter {
-  using tuple = tuple_cat_t<typename std::conditional<
-      PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
-      std::tuple<>>::type...>;
+  using tuple = sycl::detail::boost::mp11::mp_copy_if<mp_list_props, filter>;
 };
+
+// properties filter
+template <typename p>
+using annotated_ref_filter = propagatePassAnnotatedRef<typename p::key_t>;
+
+template <typename p>
+using pointer_arith_filter = propagatePassPointerArith<typename p::key_t>;
+
+// compound and inc/dec operator selector
+template <typename... Props> struct containsInvalidPropWithPointerArith {
+  static constexpr bool value =
+      detail::ContainsProperty<alignment_key, std::tuple<Props...>>::value;
+};
+
 } // namespace
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
@@ -73,6 +65,14 @@ class annotated_ref<T, detail::properties_t<Props...>> {
 private:
   T *m_Ptr;
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
+
+  inline T *base() const {
+    // Annotation will not appear in front of load/store in this private
+    // function
+    return __builtin_intel_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...);
+  }
 
 public:
   annotated_ref(const annotated_ref &) = delete;
@@ -155,23 +155,40 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-  // buffer_location and alignment are allowed for annotated_ref
-  using allowed_properties =
-      std::tuple<decltype(ext::intel::experimental::buffer_location<0>),
-                 decltype(ext::oneapi::experimental::alignment<0>)>;
-  using filtered_properties =
-      typename PropertiesFilter<allowed_properties, Props...>::tuple;
+  using mp_list_props = sycl::detail::boost::mp11::mp_list<Props...>;
+
+  // annotated_ref properties
+  using annotated_ref_properties =
+      typename PropertiesFilter<mp_list_props, annotated_ref_filter>::tuple;
+
+  // annotated_ptr properties propagate through pointer arithmetic
+  using ptr_pointer_arith_properties =
+      typename PropertiesFilter<mp_list_props, pointer_arith_filter>::tuple;
+
+  // annotated_ref properties propagate through pointer arithmetic
+  using ref_pointer_arith_properties =
+      typename PropertiesFilter<annotated_ref_properties,
+                                pointer_arith_filter>::tuple;
 
   // template unpack helper
   template <typename... FilteredProps> struct unpack {};
 
   template <typename... FilteredProps>
-  struct unpack<std::tuple<FilteredProps...>> {
+  struct unpack<sycl::detail::boost::mp11::mp_list<FilteredProps...>> {
     using type = detail::properties_t<FilteredProps...>;
   };
 
+  // annotated_ptr type with pointer arithemtic
+  using pointer_with_offset = sycl::ext::oneapi::experimental::annotated_ptr<
+      T, typename unpack<ptr_pointer_arith_properties>::type>;
+
+  // annotated_ref type
   using reference = sycl::ext::oneapi::experimental::annotated_ref<
-      T, typename unpack<filtered_properties>::type>;
+      T, typename unpack<annotated_ref_properties>::type>;
+
+  // annotated_ref type with pointer arithmetic
+  using reference_with_offset = sycl::ext::oneapi::experimental::annotated_ref<
+      T, typename unpack<ref_pointer_arith_properties>::type>;
 
 #ifdef __SYCL_DEVICE_ONLY__
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
@@ -269,12 +286,21 @@ public:
 
   reference operator*() const noexcept { return reference(m_Ptr); }
 
-  reference operator[](std::ptrdiff_t idx) const noexcept {
-    return reference(m_Ptr + idx);
+  reference_with_offset operator[](std::ptrdiff_t idx) const noexcept {
+
+#ifdef __SYCL_DEVICE_ONLY__
+    T *base = __builtin_intel_sycl_ptr_annotation(
+        (T *)m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...);
+#else
+    T *base = m_Ptr;
+#endif
+
+    return reference_with_offset(base + idx);
   }
 
-  annotated_ptr operator+(size_t offset) const noexcept {
-    return annotated_ptr<T, property_list_t>(m_Ptr + offset);
+  pointer_with_offset operator+(size_t offset) const noexcept {
+    return pointer_with_offset(m_Ptr + offset);
   }
 
   std::ptrdiff_t operator-(annotated_ptr other) const noexcept {
@@ -287,25 +313,40 @@ public:
 
   T *get() const noexcept { return m_Ptr; }
 
+#define OPERATOR_DISABLE_ERR(op)                                               \
+  "operator" op " is not supported with properties that are not sustainable "  \
+  "through pointer arithmetics (i.e. alignment). Please use operator[] "       \
+  "instead."
+
   annotated_ptr &operator++() noexcept {
-    m_Ptr += 1;
-    return *this;
+    constexpr bool support =
+        !containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(support, OPERATOR_DISABLE_ERR("++"));
+    return *this + 1;
   }
 
-  annotated_ptr operator++(int) noexcept {
+  annotated_ptr &operator++(int) noexcept {
+    constexpr bool support =
+        !containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(support, OPERATOR_DISABLE_ERR("++"));
     auto tmp = *this;
-    m_Ptr += 1;
+    *this = *this + 1;
     return tmp;
   }
 
   annotated_ptr &operator--() noexcept {
-    m_Ptr -= 1;
-    return *this;
+    constexpr bool support =
+        !containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(support, OPERATOR_DISABLE_ERR("--"));
+    return *this - 1;
   }
 
-  annotated_ptr operator--(int) noexcept {
+  annotated_ptr &operator--(int) noexcept {
+    constexpr bool support =
+        !containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(support, OPERATOR_DISABLE_ERR("--"));
     auto tmp = *this;
-    m_Ptr -= 1;
+    *this = *this - 1;
     return tmp;
   }
 

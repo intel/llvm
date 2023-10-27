@@ -30,8 +30,11 @@ int main() {
 
   auto *d = malloc_shared<int>(4, Q);
   auto d_ptr = annotated_ptr{d};
+
   for (int i = 0; i < 4; i++)
     d_ptr[i] = i;
+
+  auto *e = malloc_shared<int>(4, Q);
   Q.single_task([=]() {
      a_ptr[0] += 1;
      a_ptr[0] -= 2;
@@ -62,6 +65,12 @@ int main() {
      };
 
      d_ptr[3] = func(d_ptr[0], d_ptr[1], d_ptr[2]);
+
+     auto e_ptr = annotated_ptr{e, properties{alignment<32>}};
+     auto e_ptr2 = e_ptr + 1;
+     static_assert(std::is_same<decltype(e_ptr2), annotated_ptr<int>>::value);
+     auto e_ptr3 = annotated_ptr(e_ptr2, properties{alignment<32>});
+     static_assert(std::is_same<decltype(e_ptr3), decltype(e_ptr)>::value);
    }).wait();
 
   assert(a_ptr[0] == -1 && "a_ptr[0] value does not match.");
