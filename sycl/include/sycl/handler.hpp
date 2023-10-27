@@ -547,7 +547,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a char* pointing to the  name of SYCL kernel.
-  const char* getKernelName();
+  const char *getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -841,7 +841,7 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-  void verifyUsedKernelBundle(const char* KernelName);
+  void verifyUsedKernelBundle(const char *KernelName);
 
   /// Stores lambda to the template-free object
   ///
@@ -3299,7 +3299,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  const char* MKernelName;
+  const char *MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.

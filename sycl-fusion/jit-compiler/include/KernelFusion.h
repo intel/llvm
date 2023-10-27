@@ -59,7 +59,7 @@ public:
   fuseKernels(JITContext &JITCtx, Config &&JITConfig,
               const std::vector<SYCLKernelInfo> &KernelInformation,
               const std::vector<std::string> &KernelsToFuse,
-              const char* FusedKernelName,
+              const char *FusedKernelName,
               jit_compiler::ParamIdentList &Identities,
               BarrierFlags BarriersFlags,
               const std::vector<jit_compiler::ParameterInternalization>
