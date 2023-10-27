@@ -12,7 +12,7 @@
  * should abort. That said, a standard `abort()` function is to be called. The
  * function makes sure the app terminates due `SIGABRT` signal. This makes it
  * impossible to verify the feature in uni-process environment. Hence, we employ
- * multi-process envirnment i.e. we call a `fork()`. The child process is should
+ * multi-process environment i.e. we call a `fork()`. The child process is should
  * abort and the parent process verifies it and checks that child prints correct
  * error message to `stderr`. Verification of `stderr` output is performed via
  * pipe.
