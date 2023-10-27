@@ -43,3 +43,65 @@ func.func @nd_constructor_drop_zero_offset(
     -> memref<?x!sycl_nd_range_3_>
   func.return %nd, %cpy, %zero : memref<?x!sycl_nd_range_3_>, memref<?x!sycl_id_3_>, i64
 }
+
+// -----
+
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64>)>)>
+
+// CHECK-LABEL:   func.func @id_constructor_abstract_cast(
+// CHECK-SAME:                                            %[[VAL_0:.*]]: memref<?x!sycl_range_3_>) -> memref<?x!sycl_id_3_> {
+// CHECK:           %[[VAL_1:.*]] = sycl.id.constructor(%[[VAL_0]]) : (memref<?x!sycl_range_3_>) -> memref<?x!sycl_id_3_>
+// CHECK:           return %[[VAL_1]] : memref<?x!sycl_id_3_>
+// CHECK:         }
+
+func.func @id_constructor_abstract_cast(%range: memref<?x!sycl_range_3_>) -> memref<?x!sycl_id_3_> {
+  %cast = memref.memory_space_cast %range : memref<?x!sycl_range_3_> to memref<?x!sycl_range_3_, 4>
+  %res = sycl.id.constructor(%cast) : (memref<?x!sycl_range_3_, 4>) -> memref<?x!sycl_id_3_>
+  func.return %res : memref<?x!sycl_id_3_>
+}
+
+// -----
+
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64>)>)>
+
+// CHECK-LABEL:   func.func @range_constructor_abstract_cast(
+// CHECK-SAME:                                               %[[VAL_0:.*]]: memref<?x!sycl_range_3_, #sycl.access.address_space<global>>) -> memref<?x!sycl_range_3_> {
+// CHECK:           %[[VAL_1:.*]] = sycl.range.constructor(%[[VAL_0]]) : (memref<?x!sycl_range_3_, #sycl.access.address_space<global>>) -> memref<?x!sycl_range_3_>
+// CHECK:           return %[[VAL_1]] : memref<?x!sycl_range_3_>
+// CHECK:         }
+
+func.func @range_constructor_abstract_cast(%range: memref<?x!sycl_range_3_, #sycl.access.address_space<global>>) -> memref<?x!sycl_range_3_> {
+  %cast = memref.memory_space_cast %range : memref<?x!sycl_range_3_, #sycl.access.address_space<global>> to memref<?x!sycl_range_3_, #sycl.access.address_space<generic>>
+  %res = sycl.range.constructor(%cast) : (memref<?x!sycl_range_3_, #sycl.access.address_space<generic>>) -> memref<?x!sycl_range_3_>
+  func.return %res : memref<?x!sycl_range_3_>
+}
+
+// -----
+
+!sycl_id_3_ = !sycl.id<[3], (!sycl.array<[3], (memref<3xi64>)>)>
+!sycl_range_3_ = !sycl.range<[3], (!sycl.array<[3], (memref<3xi64>)>)>
+!sycl_nd_range_3_ = !sycl.nd_range<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
+
+// CHECK-LABEL:   func.func @nd_range_constructor_abstract_cast(
+// CHECK-SAME:                                                  %[[VAL_0:.*]]: memref<?x!sycl_range_3_, #sycl.access.address_space<global>>, %[[VAL_1:.*]]: memref<?x!sycl_range_3_, #sycl.access.address_space<global>>,
+// CHECK-SAME:                                                  %[[VAL_2:.*]]: memref<?x!sycl_id_3_, #sycl.access.address_space<global>>) -> memref<?x!sycl_nd_range_3_> {
+// CHECK:           %[[VAL_3:.*]] = sycl.nd_range.constructor(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (memref<?x!sycl_range_3_, #sycl.access.address_space<global>>, memref<?x!sycl_range_3_, #sycl.access.address_space<global>>, memref<?x!sycl_id_3_, #sycl.access.address_space<global>>) -> memref<?x!sycl_nd_range_3_>
+// CHECK:           return %[[VAL_3]] : memref<?x!sycl_nd_range_3_>
+// CHECK:         }
+
+func.func @nd_range_constructor_abstract_cast(
+    %global_size: memref<?x!sycl_range_3_, #sycl.access.address_space<global>>,
+    %local_size: memref<?x!sycl_range_3_, #sycl.access.address_space<global>>,
+    %offset: memref<?x!sycl_id_3_, #sycl.access.address_space<global>>) -> memref<?x!sycl_nd_range_3_> {
+  %cast0 = memref.memory_space_cast %global_size : memref<?x!sycl_range_3_, #sycl.access.address_space<global>> to memref<?x!sycl_range_3_, #sycl.access.address_space<generic>>
+  %cast1 = memref.memory_space_cast %local_size : memref<?x!sycl_range_3_, #sycl.access.address_space<global>> to memref<?x!sycl_range_3_, #sycl.access.address_space<generic>>
+  %cast2 = memref.memory_space_cast %offset : memref<?x!sycl_id_3_, #sycl.access.address_space<global>> to memref<?x!sycl_id_3_, #sycl.access.address_space<generic>>
+  %cast2.2 = memref.cast %cast2 : memref<?x!sycl_id_3_, #sycl.access.address_space<generic>> to memref<1x!sycl_id_3_, #sycl.access.address_space<generic>>
+  %res = sycl.nd_range.constructor(%cast0, %cast1, %cast2.2)
+      : (memref<?x!sycl_range_3_, #sycl.access.address_space<generic>>,
+         memref<?x!sycl_range_3_, #sycl.access.address_space<generic>>,
+         memref<1x!sycl_id_3_, #sycl.access.address_space<generic>>)
+      -> memref<?x!sycl_nd_range_3_>
+  func.return %res : memref<?x!sycl_nd_range_3_>
+}

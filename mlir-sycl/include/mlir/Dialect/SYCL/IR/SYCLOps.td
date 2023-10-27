@@ -64,6 +64,8 @@ class SYCLConstructor<string name, list<Trait> traits = []>
   let assemblyFormat = [{
     `(` operands `)` attr-dict `:` functional-type(operands, results)
   }];
+
+  let hasFolder = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,7 +621,6 @@ def SYCLNDRangeConstructorOp : SYCLConstructor<"nd_range"> {
                         ::mlir::MemoryEffects::Effect>> &effects);
   }];
   let hasVerifier = true;
-  let hasCanonicalizer = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -716,7 +717,6 @@ def SYCLIDConstructorOp : SYCLConstructor<"id"> {
                         ::mlir::MemoryEffects::Effect>> &effects);
   }];
   let hasVerifier = true;
-  let hasFolder = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

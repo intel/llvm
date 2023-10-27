@@ -79,14 +79,12 @@
 // CHECK:             %[[VAL_156:.*]] = memref.alloca() : memref<1x!sycl_id_1_>
 // CHECK:             %[[VAL_157:.*]] = memref.cast %[[VAL_156]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
 // CHECK:             %[[VAL_158:.*]] = memref.memory_space_cast %[[VAL_157]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
-// CHECK:             %[[VAL_159:.*]] = memref.memory_space_cast %[[VAL_151]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
-// CHECK:             %[[VAL_160:.*]] = sycl.id.constructor(%[[VAL_159]]) : (memref<?x!sycl_id_1_, 4>) -> memref<?x!sycl_id_1_, 4>
+// CHECK:             %[[VAL_160:.*]] = sycl.id.constructor(%[[VAL_151]]) : (memref<?x!sycl_id_1_>) -> memref<?x!sycl_id_1_, 4>
 // CHECK:             %[[VAL_161:.*]] = "polygeist.memref2pointer"(%[[VAL_158]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
 // CHECK:             %[[VAL_162:.*]] = "polygeist.memref2pointer"(%[[VAL_160]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
 // CHECK:             "llvm.intr.memcpy"(%[[VAL_161]], %[[VAL_162]], %[[VAL_153]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
 // CHECK:             %[[VAL_163:.*]] = memref.memory_space_cast %[[VAL_155]] : memref<?x!sycl_range_1_> to memref<?x!sycl_range_1_, 4>
-// CHECK:             %[[VAL_164:.*]] = memref.memory_space_cast %[[VAL_152]] : memref<?x!sycl_range_1_> to memref<?x!sycl_range_1_, 4>
-// CHECK:             %[[VAL_165:.*]] = sycl.range.constructor(%[[VAL_164]]) : (memref<?x!sycl_range_1_, 4>) -> memref<?x!sycl_range_1_, 4>
+// CHECK:             %[[VAL_165:.*]] = sycl.range.constructor(%[[VAL_152]]) : (memref<?x!sycl_range_1_>) -> memref<?x!sycl_range_1_, 4>
 // CHECK:             %[[VAL_166:.*]] = "polygeist.memref2pointer"(%[[VAL_163]]) : (memref<?x!sycl_range_1_, 4>) -> !llvm.ptr<4>
 // CHECK:             %[[VAL_167:.*]] = "polygeist.memref2pointer"(%[[VAL_165]]) : (memref<?x!sycl_range_1_, 4>) -> !llvm.ptr<4>
 // CHECK:             "llvm.intr.memcpy"(%[[VAL_166]], %[[VAL_167]], %[[VAL_153]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
@@ -97,16 +95,14 @@
 // CHECK-LLVM-NEXT:   [[RANGE:%.*]] = alloca [[RANGE_TYPE]], i64 1, align 8
 // CHECK-LLVM-NEXT:   [[ID:%.*]] = alloca [[ID_TYPE]], i64 1, align 8
 // CHECK-LLVM-NEXT:   [[ID_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
-// CHECK-LLVM-NEXT:   [[ARG0_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
 // CHECK-LLVM-NEXT:   [[TMP:%.*]] = alloca [[ID_TYPE]], align 8
 // CHECK-LLVM-NEXT:   [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
-// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ARG0_AS]], i64 8, i1 false)
+// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) [[TMP_AS]], ptr [[ARG0]], i64 8, i1 false)
 // CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[ID_AS]], ptr addrspace(4) [[TMP_AS]], i64 8, i1 false)
 // CHECK-LLVM-NEXT:   [[RANGE_AS:%.*]] = addrspacecast ptr [[RANGE]] to ptr addrspace(4)
-// CHECK-LLVM-NEXT:   [[ARG1_AS:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
 // CHECK-LLVM-NEXT:   [[TMP:%.*]] = alloca [[RANGE_TYPE]], align 8
 // CHECK-LLVM-NEXT:   [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
-// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ARG1_AS]], i64 8, i1 false)
+// CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) [[TMP_AS]], ptr [[ARG1]], i64 8, i1 false)
 // CHECK-LLVM-NEXT:   call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[RANGE_AS]], ptr addrspace(4) [[TMP_AS]], i64 8, i1 false)
 // CHECK-LLVM-NEXT:   ret void
 
@@ -169,8 +165,7 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK:             %[[VAL_200:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK:             %[[VAL_201:.*]] = memref.cast %[[VAL_200]] : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK:             %[[VAL_202:.*]] = memref.memory_space_cast %[[VAL_201]] : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
-// CHECK:             %[[VAL_203:.*]] = memref.memory_space_cast %[[VAL_198]] : memref<?x!sycl_item_2_> to memref<?x!sycl_item_2_, 4>
-// CHECK:             %[[VAL_204:.*]] = sycl.id.constructor(%[[VAL_203]]) : (memref<?x!sycl_item_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK:             %[[VAL_204:.*]] = sycl.id.constructor(%[[VAL_198]]) : (memref<?x!sycl_item_2_>) -> memref<?x!sycl_id_2_, 4>
 // CHECK:             %[[VAL_205:.*]] = "polygeist.memref2pointer"(%[[VAL_202]]) : (memref<?x!sycl_id_2_, 4>) -> !llvm.ptr<4>
 // CHECK:             %[[VAL_206:.*]] = "polygeist.memref2pointer"(%[[VAL_204]]) : (memref<?x!sycl_id_2_, 4>) -> !llvm.ptr<4>
 // CHECK:             "llvm.intr.memcpy"(%[[VAL_205]], %[[VAL_206]], %[[VAL_199]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
@@ -179,13 +174,12 @@ extern "C" SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
 // CHECK-LLVM: define spir_func void @cons_3(ptr noundef byval([[ITEM_TYPE:%"class.sycl::_V1::item.2.true"]]) align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE:%"class.sycl::_V1::id.2"]]  
 // CHECK-LLVM: [[ID_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
-// CHECK-LLVM: [[ITEM_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
 // CHECK-LLVM: [[ID2:%.*]] = alloca %"class.sycl::_V1::id.2", align 8
 // CHECK-LLVM: [[ID2_AS:%.*]] = addrspacecast ptr [[ID2]] to ptr addrspace(4)
-// CHECK-LLVM: [[GEP0:%.*]] = getelementptr inbounds %"class.sycl::_V1::item.2.true", ptr addrspace(4) [[ITEM_AS]], i32 0, i32 0, i32 1, i32 0, i32 0, i32 0
-// CHECK-LLVM: [[D0:%.*]] = load i64, ptr addrspace(4) [[GEP0]], align 8
-// CHECK-LLVM: [[GEP1:%.*]] = getelementptr inbounds %"class.sycl::_V1::item.2.true", ptr addrspace(4) [[ITEM_AS]], i32 0, i32 0, i32 1, i32 0, i32 0, i32 1
-// CHECK-LLVM: [[V1:%.*]] = load i64, ptr addrspace(4) [[GEP1]], align 8
+// CHECK-LLVM: [[GEP0:%.*]] = getelementptr inbounds %"class.sycl::_V1::item.2.true", ptr [[ARG0]], i32 0, i32 0, i32 1, i32 0, i32 0, i32 0
+// CHECK-LLVM: [[D0:%.*]] = load i64, ptr [[GEP0]], align 8
+// CHECK-LLVM: [[GEP1:%.*]] = getelementptr inbounds %"class.sycl::_V1::item.2.true", ptr [[ARG0]], i32 0, i32 0, i32 1, i32 0, i32 0, i32 1
+// CHECK-LLVM: [[V1:%.*]] = load i64, ptr [[GEP1]], align 8
 // CHECK-LLVM: [[GEP2:%.*]] = getelementptr inbounds %"class.sycl::_V1::id.2", ptr [[ID2]], i32 0, i32 0, i32 0, i32 0
 // CHECK-LLVM: store i64 [[D0]], ptr [[GEP2]], align 8
 // CHECK-LLVM: [[GEP3:%.*]] = getelementptr inbounds %"class.sycl::_V1::id.2", ptr [[ID2]], i32 0, i32 0, i32 0, i32 1
@@ -202,8 +196,7 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %cast = memref.cast %alloca : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %memspacecast = memref.memory_space_cast %cast : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: %memspacecast_0 = memref.memory_space_cast %arg0 : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
-// CHECK-NEXT: %[[VAL_212:.*]] = sycl.id.constructor(%memspacecast_0) : (memref<?x!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
+// CHECK-NEXT: %[[VAL_212:.*]] = sycl.id.constructor(%arg0) : (memref<?x!sycl_id_2_>) -> memref<?x!sycl_id_2_, 4>
 // CHECK-NEXT: %[[VAL_213:.*]] = "polygeist.memref2pointer"(%memspacecast) : (memref<?x!sycl_id_2_, 4>) -> !llvm.ptr<4>
 // CHECK-NEXT: %[[VAL_214:.*]] = "polygeist.memref2pointer"(%[[VAL_212]]) : (memref<?x!sycl_id_2_, 4>) -> !llvm.ptr<4>
 // CHECK-NEXT: "llvm.intr.memcpy"(%[[VAL_213]], %[[VAL_214]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
@@ -211,10 +204,9 @@ extern "C" SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
 // CHECK-LLVM: define spir_func void @cons_4(ptr noundef byval([[ID_TYPE:%"class.sycl::_V1::id.2"]]) align 8 [[ARG0:%.*]]) #[[FUNCATTRS]]
 // CHECK-LLVM-DAG: [[ID:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM: [[ID1_AS:%.*]] = addrspacecast ptr [[ID]] to ptr addrspace(4)
-// CHECK-LLVM: [[ID2_AS:%.*]] = addrspacecast ptr [[ARG0]] to ptr addrspace(4)
 // CHECK-LLVM: [[TMP:%.*]] = alloca [[ID_TYPE]]
 // CHECK-LLVM: [[TMP_AS:%.*]] = addrspacecast ptr [[TMP]] to ptr addrspace(4)
-// CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[TMP_AS]], ptr addrspace(4) [[ID2_AS]], i64 16, i1 false)
+// CHECK-LLVM: call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) [[TMP_AS]], ptr [[ARG0]], i64 16, i1 false)
 // CHECK-LLVM: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) [[ID1_AS]], ptr addrspace(4) [[TMP_AS]], i64 16, i1 false) 
 
 extern "C" SYCL_EXTERNAL void cons_4(sycl::id<2> val) {

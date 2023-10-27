@@ -72,21 +72,6 @@ static bool isDefaultConstructedID(Value id) {
 }
 
 namespace {
-/// Transform:
-/// ```
-/// %off = sycl.id.constructor() : () -> memref<?x!sycl_id_X_>
-/// sycl.nd_range.constructor(%gs, %ls, %off)
-///   : (memref<?x!sycl_range_X_>,
-///      memref<?x!sycl_range_X_>,
-///      memref<?x!sycl_id_X_>)
-///   -> memref<?x!sycl_nd_range_X_>
-/// ```
-/// To:
-/// ```
-/// sycl.nd_range.constructor(%gs, %ls)
-///   : (memref<?x!sycl_range_X_>, memref<?x!sycl_range_X_>)
-///   -> memref<?x!sycl_nd_range_X_>
-/// ```
 class SYCLNDRangeConstructorEraseDefaultOffset
     : public OpRewritePattern<SYCLNDRangeConstructorOp> {
 public:
@@ -312,6 +297,35 @@ LogicalResult SYCLIDConstructorOp::verify() {
   return emitBadSignatureError(*this);
 }
 
+/// Abstract memref.memory_space_cast and supported memref.cast operations.
+///
+/// As only the first element pointed to by each pointer argument is used and
+/// memory space casts can be omitted, these casts can be abstracted.
+static bool removeOperandsMemoryCasts(MutableOperandRange args) {
+  bool mutated = false;
+  constexpr auto getCast = [](OpOperand &operand) -> CastOpInterface {
+    Operation *op = operand.get().getDefiningOp();
+    if (!op)
+      return nullptr;
+    if (isa<memref::MemorySpaceCastOp>(op))
+      return cast<CastOpInterface>(op);
+    if (auto castOp = dyn_cast<memref::CastOp>(op)) {
+      if (cast<MemRefType>(castOp.getSource().getType()).getLayout() ==
+          cast<MemRefType>(castOp.getDest().getType()).getLayout())
+        return cast<CastOpInterface>(op);
+    }
+    return nullptr;
+  };
+  for (OpOperand &operand : args) {
+    CastOpInterface cast;
+    for (cast = getCast(operand); cast; cast = getCast(operand)) {
+      operand.assign(cast->getOperand(0));
+      mutated = true;
+    }
+  }
+  return mutated;
+}
+
 /// Fold:
 /// ```
 /// %c0 = arith.constant 0 : index
@@ -321,7 +335,9 @@ LogicalResult SYCLIDConstructorOp::verify() {
 /// ```
 /// sycl.id.constructor() : () -> memref<?x!sycl_id_X_>
 /// ```
-OpFoldResult SYCLIDConstructorOp::fold(FoldAdaptor adaptor) {
+static OpFoldResult
+foldToDefaultConstructor(SYCLIDConstructorOp::FoldAdaptor adaptor,
+                         SYCLIDConstructorOp op) {
   ArrayRef<Attribute> args = adaptor.getArgs();
   if (args.empty())
     // Already dealing with the default constructor
@@ -335,8 +351,20 @@ OpFoldResult SYCLIDConstructorOp::fold(FoldAdaptor adaptor) {
     return {};
 
   // Erase arguments
-  (*this)->setOperands({});
-  return getId();
+  op->setOperands({});
+  return op.getId();
+}
+
+OpFoldResult SYCLIDConstructorOp::fold(FoldAdaptor adaptor) {
+  OpFoldResult res = foldToDefaultConstructor(adaptor, *this);
+  if (res)
+    return res;
+
+  return removeOperandsMemoryCasts(getArgsMutable()) ? getId() : nullptr;
+}
+
+OpFoldResult SYCLRangeConstructorOp::fold(FoldAdaptor) {
+  return removeOperandsMemoryCasts(getArgsMutable()) ? getRange() : nullptr;
 }
 
 LogicalResult SYCLRangeConstructorOp::verify() {
@@ -438,9 +466,36 @@ LogicalResult SYCLNDRangeConstructorOp::verify() {
   return emitBadSignatureError(*this);
 }
 
-void SYCLNDRangeConstructorOp::getCanonicalizationPatterns(
-    RewritePatternSet &patterns, MLIRContext *context) {
-  patterns.add<SYCLNDRangeConstructorEraseDefaultOffset>(context);
+OpFoldResult SYCLNDRangeConstructorOp::fold(FoldAdaptor) {
+  bool mutated = false;
+
+  /// Transform:
+  /// ```
+  /// %off = sycl.id.constructor() : () -> memref<?x!sycl_id_X_>
+  /// sycl.nd_range.constructor(%gs, %ls, %off)
+  ///   : (memref<?x!sycl_range_X_>,
+  ///      memref<?x!sycl_range_X_>,
+  ///      memref<?x!sycl_id_X_>)
+  ///   -> memref<?x!sycl_nd_range_X_>
+  /// ```
+  /// To:
+  /// ```
+  /// sycl.nd_range.constructor(%gs, %ls)
+  ///   : (memref<?x!sycl_range_X_>, memref<?x!sycl_range_X_>)
+  ///   -> memref<?x!sycl_nd_range_X_>
+  /// ```
+  constexpr unsigned offsetOperandIndex = 2;
+  MutableOperandRange args = getArgsMutable();
+  if (args.size() == offsetOperandIndex + 1 &&
+      isDefaultConstructedID(args[offsetOperandIndex].get())) {
+    args.erase(offsetOperandIndex);
+    mutated = true;
+  }
+
+  if (removeOperandsMemoryCasts(args))
+    mutated = true;
+
+  return mutated ? getResult() : nullptr;
 }
 
 void SYCLNDRangeConstructorOp::getEffects(

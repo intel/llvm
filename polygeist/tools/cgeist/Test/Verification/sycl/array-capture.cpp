@@ -57,8 +57,7 @@ int main(){
 // CHECK-NEXT:        %[[VAL_371:.*]] = llvm.load %[[VAL_370]] : !llvm.ptr<4> -> f32
 // CHECK-NEXT:        %[[VAL_372:.*]] = "polygeist.subindex"(%[[VAL_358]], %[[VAL_361]]) : (memref<?x!llvm.struct<(!sycl_accessor_1_f32_rw_dev, array<8 x f32>)>, 4>, index) -> memref<?x!sycl_accessor_1_f32_rw_dev, 4>
 // CHECK-NEXT:        %[[VAL_373:.*]] = memref.memory_space_cast %[[VAL_365]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
-// CHECK-NEXT:        %[[VAL_374:.*]] = memref.memory_space_cast %[[VAL_359]] : memref<?x!sycl_id_1_> to memref<?x!sycl_id_1_, 4>
-// CHECK-NEXT:        %[[VAL_405:.*]] = sycl.id.constructor(%[[VAL_374]]) : (memref<?x!sycl_id_1_, 4>) -> memref<?x!sycl_id_1_, 4>
+// CHECK-NEXT:        %[[VAL_405:.*]] = sycl.id.constructor(%[[VAL_359]]) : (memref<?x!sycl_id_1_>) -> memref<?x!sycl_id_1_, 4>
 // CHECK-NEXT:        %[[VAL_406:.*]] = "polygeist.memref2pointer"(%[[VAL_373]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
 // CHECK-NEXT:        %[[VAL_407:.*]] = "polygeist.memref2pointer"(%[[VAL_405]]) : (memref<?x!sycl_id_1_, 4>) -> !llvm.ptr<4>
 // CHECK-NEXT:        "llvm.intr.memcpy"(%[[VAL_406]], %[[VAL_407]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr<4>, !llvm.ptr<4>, i64) -> ()
