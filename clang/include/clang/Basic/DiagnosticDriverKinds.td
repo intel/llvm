@@ -209,8 +209,8 @@ def warn_drv_sycl_native_cpu_and_targets: Warning<
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
-def err_drv_minws_unsupported_input_type : Error<
-  "'-fminimize-whitespace' invalid for input of type %0">;
+def err_drv_opt_unsupported_input_type : Error<
+  "'%0' invalid for input of type %1">;
 def err_drv_amdgpu_ieee_without_no_honor_nans : Error<
   "invalid argument '-mno-amdgpu-ieee' only allowed with relaxed NaN handling">;
 def err_drv_argument_not_allowed_with : Error<
@@ -394,6 +394,9 @@ def err_drv_no_rdc_sycl_target_missing : Error<
   "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-non-user-code option can be used only in conjunction with %0">;
+def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
+  "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).">,
+  InGroup<SyclTarget>;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<

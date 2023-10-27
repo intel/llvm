@@ -918,7 +918,6 @@ The complete set of matrix data types and shapes that are supported by
 the `ext_oneapi_cuda` backend are represented in the following
 table. In this architecture's implementation,
 the type of the A matrix must be the same as the type of the B
-matrix. Also, the type of the C matrix must be the same as the type of the D
 matrix.
 
 IMPORTANT: When compiling for the `ext_oneapi_cuda` backend the target
@@ -933,29 +932,37 @@ supported parameter combination is specified in the following table.
 
 [frame="none",options="header"]
 |======================
-| A and B type | C and D type | M | N | K | Minimum Compute Capability
-.3+| `matrix_type::fp16`  .3+| `matrix_type::fp32`
-|16 |16 |16 .6+| sm_70
+| A and B type | C type | D type | M | N | K | Minimum Compute Capability
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp32` .3+| `matrix_type::fp32`
+|16 |16 |16 .12+| sm_70
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16`
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16` .3+| `matrix_type::fp16`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::sint8`  .3+| `matrix_type::sint32`
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp32` .3+| `matrix_type::fp16`
+|16 |16 |16
+|8 |32 |16
+|32 |8 |16
+.3+| `matrix_type::fp16`  .3+| `matrix_type::fp16` .3+| `matrix_type::fp32`
+|16 |16 |16
+|8 |32 |16
+|32 |8 |16
+.3+| `matrix_type::sint8`  .3+| `matrix_type::sint32` .3+| `matrix_type::sint32`
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
-.3+|`matrix_type::uint8`  .3+|`matrix_type::sint32`
+.3+|`matrix_type::uint8`  .3+|`matrix_type::sint32` .3+|`matrix_type::sint32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-| `matrix_type::tf32`  | `matrix_type::fp32` |16 |16 |8 .5+| sm_80
-.3+|`matrix_type::bf16`  .3+| `matrix_type::fp32`
+| `matrix_type::tf32`  | `matrix_type::fp32` | `matrix_type::fp32` |16 |16 |8 .5+| sm_80
+.3+|`matrix_type::bf16`  .3+| `matrix_type::fp32` .3+| `matrix_type::fp32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-| `matrix_type::fp64`  | `matrix_type::fp64` |8 |8 |4
+| `matrix_type::fp64`  | `matrix_type::fp64` | `matrix_type::fp64` |8 |8 |4
 |======================
 
 IMPORTANT: The `stride` argument to `joint_matrix_load` and

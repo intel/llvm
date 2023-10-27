@@ -72,7 +72,9 @@ using namespace llvm::opt;
 static void CheckPreprocessingOptions(const Driver &D, const ArgList &Args) {
   if (Arg *A = Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC,
                                options::OPT_fminimize_whitespace,
-                               options::OPT_fno_minimize_whitespace)) {
+                               options::OPT_fno_minimize_whitespace,
+                               options::OPT_fkeep_system_includes,
+                               options::OPT_fno_keep_system_includes)) {
     if (!Args.hasArg(options::OPT_E) && !Args.hasArg(options::OPT__SLASH_P) &&
         !Args.hasArg(options::OPT__SLASH_EP) && !D.CCCIsCPP()) {
       D.Diag(clang::diag::err_drv_argument_only_allowed_with)
@@ -1456,7 +1458,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     }
   }
 
-  Args.AddAllArgs(CmdArgs,
+  Args.addAllArgs(CmdArgs,
                   {options::OPT_D, options::OPT_U, options::OPT_I_Group,
                    options::OPT_F, options::OPT_index_header_map});
 
@@ -4783,6 +4785,11 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (IsMSVCHostCompiler)
     HostCompileArgs.push_back("/Zc:__cplusplus");
 
+  if (TCArgs.hasArg(options::OPT_fpreview_breaking_changes)) {
+    HostCompileArgs.push_back(IsMSVCHostCompiler ? "/D" : "-D");
+    HostCompileArgs.push_back("__INTEL_PREVIEW_BREAKING_CHANGES");
+  }
+
   // FIXME: Reuse existing toolchains which are already supported to put
   // together the options.
   // FIXME: For any potential obscure host compilers that do not use the
@@ -4990,10 +4997,19 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
     // Add SYCL dependent library
     if (Args.hasArg(options::OPT_fsycl) &&
         !Args.hasArg(options::OPT_nolibsycl)) {
-      if (RTOptionID == options::OPT__SLASH_MDd)
-        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
-      else
-        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
+      if (RTOptionID == options::OPT__SLASH_MDd) {
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                            "-previewd");
+        else
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+      } else {
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                            "-preview");
+        else
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
+      }
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
@@ -5306,6 +5322,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
                                  options::OPT_fno_sycl_id_queries_fit_in_int))
       A->render(Args, CmdArgs);
+
+    if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+      CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
 
     if (SYCLStdArg) {
       // Use of -sycl-std=1.2.1 is deprecated. Emit a diagnostic stating so.
@@ -6149,8 +6168,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (Args.hasFlag(options::OPT_mrtd, options::OPT_mno_rtd, false))
-    CmdArgs.push_back("-fdefault-calling-conv=stdcall");
+  if (Args.hasFlag(options::OPT_mrtd, options::OPT_mno_rtd, false)) {
+    if (Triple.getArch() == llvm::Triple::m68k)
+      CmdArgs.push_back("-fdefault-calling-conv=rtdcall");
+    else
+      CmdArgs.push_back("-fdefault-calling-conv=stdcall");
+  }
 
   if (Args.hasArg(options::OPT_fenable_matrix)) {
     // enable-matrix is needed by both the LangOpts and by LLVM.
@@ -6472,10 +6495,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // library.
   if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
     if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment()) {
-      if (isDependentLibAdded(Args, "msvcrtd"))
-        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+      if (isDependentLibAdded(Args, "msvcrtd")) {
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                            "-previewd");
+        else
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+      }
     } else if (!D.IsCLMode() && TC.getTriple().isWindowsGNUEnvironment()) {
-      CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION ".dll");
+      if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                          "-preview.dll");
+      else
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION ".dll");
     }
     CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
   }
@@ -7461,9 +7493,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_fno_minimize_whitespace, false)) {
     types::ID InputType = Inputs[0].getType();
     if (!isDerivedFromC(InputType))
-      D.Diag(diag::err_drv_minws_unsupported_input_type)
-          << types::getTypeName(InputType);
+      D.Diag(diag::err_drv_opt_unsupported_input_type)
+          << "-fminimize-whitespace" << types::getTypeName(InputType);
     CmdArgs.push_back("-fminimize-whitespace");
+  }
+
+  // -fno-keep-system-includes is default.
+  if (Args.hasFlag(options::OPT_fkeep_system_includes,
+                   options::OPT_fno_keep_system_includes, false)) {
+    types::ID InputType = Inputs[0].getType();
+    if (!isDerivedFromC(InputType))
+      D.Diag(diag::err_drv_opt_unsupported_input_type)
+          << "-fkeep-system-includes" << types::getTypeName(InputType);
+    CmdArgs.push_back("-fkeep-system-includes");
   }
 
   // -fms-extensions=0 is default.
@@ -9200,7 +9242,24 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                    ? Action::GetOffloadKindName(Action::OFK_SYCL)
                    : Action::GetOffloadKindName(CurKind);
     Triples += '-';
-    Triples += CurTC->getTriple().normalize();
+    // Incoming DeviceArch is set, break down the Current triple and add the
+    // device arch value to it.
+    // This is done for AOT targets only.
+    std::string DeviceArch;
+    llvm::Triple TargetTriple(CurTC->getTriple());
+    if (CurKind == Action::OFK_SYCL && TargetTriple.isSPIRAOT() &&
+        tools::SYCL::shouldDoPerObjectFileLinking(C))
+      DeviceArch = std::string("image");
+    if (CurKind != Action::OFK_Host && !DeviceArch.empty()) {
+      llvm::Triple T(CurTC->getTriple());
+      SmallString<128> ArchName(CurTC->getArchName());
+      ArchName += "_";
+      ArchName += DeviceArch.data();
+      T.setArchName(ArchName);
+      Triples += T.normalize();
+    } else {
+      Triples += CurTC->getTriple().normalize();
+    }
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         !StringRef(CurDep->getOffloadingArch()).empty() &&
@@ -9277,6 +9336,11 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     if (!DepFile.empty())
       CmdArgs.push_back(TCArgs.MakeArgString("-input=" + DepFile));
   }
+  if (TCArgs.hasFlag(options::OPT_offload_compress,
+                     options::OPT_no_offload_compress, false))
+    CmdArgs.push_back("-compress");
+  if (TCArgs.hasArg(options::OPT_v))
+    CmdArgs.push_back("-verbose");
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -9446,7 +9510,16 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += '-';
     Triples += types::getTypeName(types::TY_FPGA_Dependencies);
   }
-  CmdArgs.push_back(TCArgs.MakeArgString(Triples));
+  std::string TargetString(UA.getTargetString());
+  if (!TargetString.empty()) {
+    // The target string was provided, we will override the defaults and use
+    // the string provided.
+    SmallString<128> TSTriple("-targets=");
+    TSTriple += TargetString;
+    CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
+  } else {
+    CmdArgs.push_back(TCArgs.MakeArgString(Triples));
+  }
 
   // Get bundled file command.
   CmdArgs.push_back(
@@ -9471,6 +9544,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
+  if (TCArgs.hasArg(options::OPT_v))
+    CmdArgs.push_back("-verbose");
 
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
@@ -9925,7 +10000,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_INTEL_hw_thread_queries"
                 ",+SPV_KHR_uniform_group_instructions"
                 ",+SPV_INTEL_masked_gather_scatter"
-                ",+SPV_INTEL_tensor_float32_conversion";
+                ",+SPV_INTEL_tensor_float32_conversion"
+                ",+SPV_INTEL_optnone";
     if (ShouldPreserveMetadata)
       ExtArg += ",+SPV_KHR_non_semantic_info";
 
@@ -10036,6 +10112,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   assert(SYCLPostLink && "Expecting SYCL post link job!");
   ArgStringList CmdArgs;
 
+  llvm::Triple T = getToolChain().getTriple();
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -10047,7 +10124,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {"-split=auto"});
     else { // Device code split is off
     }
-  } else if (getToolChain().getTriple().getArchName() != "spir64_fpga") {
+  } else if (T.getArchName() != "spir64_fpga") {
     // for FPGA targets, off is the default split mode,
     // otherwise auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
@@ -10056,16 +10133,16 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // On FPGA target we don't need non-kernel functions as entry points, because
   // it only increases amount of code for device compiler to handle, without any
   // actual benefits.
-  if (getToolChain().getTriple().getArchName() == "spir64_fpga")
+  if (T.getArchName() == "spir64_fpga")
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto
 
-  if (!(getToolChain().getTriple().isAMDGCN()))
+  if (!(T.isAMDGCN()))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
   // Enable PI program metadata
-  if (getToolChain().getTriple().isNVPTX())
+  if (T.isNVPTX())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
   if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
     // single file output requested - this means only perform necessary IR
@@ -10074,7 +10151,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
     assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = getToolChain().getTriple().isSPIR();
+    bool SplitEsimdByDefault = T.isSPIR();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
@@ -10093,6 +10170,16 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-spec-const=native"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=emulation"});
+
+  bool isAOT = T.isNVPTX() || T.isAMDGCN() ||
+               T.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+               T.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+               T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+  if (TCArgs.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
+                     options::OPT_fno_sycl_add_default_spec_consts_image,
+                     false) &&
+      isAOT)
+    addArgs(CmdArgs, TCArgs, {"-generate-device-image-default-spec-consts"});
 
   // Process device-globals.
   addArgs(CmdArgs, TCArgs, {"-device-globals"});
