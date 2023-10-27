@@ -296,6 +296,15 @@ Specific environment variables can be set to control the behavior of unified run
 
     This environment variable is ignored when :envvar:`UR_ADAPTERS_FORCE_LOAD` environment variable is used.
 
+.. envvar:: UR_ADAPTERS_DEEP_BIND
+
+   If set, the loader will use `RTLD_DEEPBIND` when opening adapter libraries. This might be useful if an adapter
+   requires a different version of a shared library compared to the rest of the applcation.
+
+   .. note::
+
+    This environment variable is Linux-only.
+
 .. envvar:: UR_ENABLE_LAYERS
 
     Holds a comma-separated list of layers to enable in addition to any specified via ``urInit``.
