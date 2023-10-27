@@ -11,7 +11,7 @@
 #pragma once
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <sycl/detail/generic_type_traits.hpp> // CP ?
+#include <sycl/detail/generic_type_traits.hpp>
 #endif
 
 // Check if Clang's ext_vector_type attribute is available. Host compiler
