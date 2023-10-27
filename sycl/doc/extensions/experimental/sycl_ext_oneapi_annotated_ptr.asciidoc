@@ -667,7 +667,7 @@ This property is an assertion by the application that the `annotated_ptr` has
 the given alignment, specified in bytes. The behavior is undefined if the
 pointer value does not have the indicated alignment.
 
-This property is passed to `annotated_ref` class when a `annotated_ptr` is
+This property is passed to the `annotated_ref` class when an `annotated_ptr` is
 deferenced with `operator*`.
 |====
 --
