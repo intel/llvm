@@ -288,7 +288,7 @@ X86PreAMXConfig::getShapesAndConfigPosEnd(BasicBlock::iterator Iter,
 
   // See KeyAMX as TileStore if only TileLoad and TileStore.
   if (!KeyAMX)
-    KeyAMX = dyn_cast<IntrinsicInst>(&*PosEnd);
+    KeyAMX = cast<IntrinsicInst>(&*PosEnd);
 
   // Get Shapes in order.
   assert(Shapes.empty() && "Shapes should be clean.");
