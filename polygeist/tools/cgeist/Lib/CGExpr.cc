@@ -1318,11 +1318,20 @@ Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
                               /*operands=*/{}, /*types=*/OpType);
 }
 
+/// Return whether Args are valid arguments to generate a specific SYCL
+/// constructor.
+///
+/// Constructors being passed integer arguments are not allowed due to
+/// inconsistent cgeist type system.
+static bool areValidSpecificConstructorArgs(ValueRange Args) {
+  return llvm::none_of(Args.getTypes(),
+                       [](mlir::Type Ty) { return isa<IntegerType>(Ty); });
+}
+
 mlir::Operation *
 MLIRScanner::EmitSpecificSYCLConstructor(const clang::CXXConstructExpr *Expr,
                                          ValueRange Args) {
-  assert(isMemcpyEquivalentSpecialMember(Expr->getConstructor()) &&
-         "Only memcpyable constructors are supported by now");
+  assert(areValidSpecificConstructorArgs(Args));
   // TODO: Replace with constructor with memref semantics when available.
   // Current approach copies originated object back to `this`. As we only
   // support memcpyable constructors, this will be lowered to two memcpy
@@ -1374,12 +1383,7 @@ MLIRScanner::EmitSYCLConstructor(const clang::CXXConstructExpr *Expr,
         !RD->getName().empty()))
     return nullptr;
 
-  // SYCL memcpyable constructors are lowered to a specific SYCL constructor
-  // operation. We do not rely on canonicalization for this as this saves us
-  // generating code for constructor functions.
-  // FIXME: Non-memcpyable are not lowered this way due to inconsistent
-  // cgeist type system.
-  if (isMemcpyEquivalentSpecialMember(CtorDecl)) {
+  if (areValidSpecificConstructorArgs(Args)) {
     mlir::Operation *SpecificConstructor =
         EmitSpecificSYCLConstructor(Expr, Args);
     if (SpecificConstructor)
