@@ -399,7 +399,7 @@ Returns an `annotated_ref` reference wrapper which can be used to read or write
 to the underlying pointer. Reads/Writes using the reference will retain the
 annotations.
 
-Only applicable properties will be passed to `annotated_ref`.
+Only applicable properties will be passed to `annotated_ref`.  Unless a property's description states otherwise it will not be passed on.  
 
 // --- ROW BREAK ---
 a|
@@ -667,8 +667,8 @@ This property is an assertion by the application that the `annotated_ptr` has
 the given alignment, specified in bytes. The behavior is undefined if the
 pointer value does not have the indicated alignment.
 
-This property is passed to `annotated_ref` class when a `annotated_ptr` is
-deferenced with `operator*`.
+This property is passed to the `annotated_ref` class when an `annotated_ptr` is
+dereferenced with `operator*`.
 |====
 --
 
