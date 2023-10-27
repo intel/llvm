@@ -75,7 +75,6 @@
 #include <utility>     // for index_sequence, make_...
 #include <variant>     // for tuple, variant
 
-// CP -----
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __SYCL_USE_EXT_VECTOR_TYPE__
@@ -89,8 +88,6 @@
 #include <variant>
 
 #endif //__INTEL_PREVIEW_BREAKING_CHANGES
-// CP -----
-
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <sycl/builtins_scalar_gen.hpp> // for ceil, floor, rint, trunc
