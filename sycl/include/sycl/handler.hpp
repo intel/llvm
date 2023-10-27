@@ -55,7 +55,6 @@
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
-
 #include <assert.h>
 #include <functional>
 #include <memory>
