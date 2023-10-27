@@ -716,7 +716,7 @@ nodes to the modifiable graph instance after calling this function. It is valid
 to finalize an empty graph instance with no recorded commands. The created
 executable graph(s) from the same non-empty modifiable graph should not be executed
 simultaneously because they use the same memory address recorded in the modifiable
-graph, the behavior is undefined if we do so.
+graph, it is undefined behavior to do so.
 
 Preconditions:
 
