@@ -1657,6 +1657,7 @@ public:
 #endif
   }
 
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<std::is_same<std::byte, T>::value, vec<T, N>>
   operator!() const {
@@ -1688,6 +1689,20 @@ public:
     return Ret;
 #endif
   }
+#else // no std::byte
+  template <typename T = DataT, int N = NumElements>
+  vec<T, N> operator!() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return vec<T, N>{(typename vec<T, N>::DataType) !m_Data}; // T, N
+#else
+    vec<T, N> Ret;
+    for (size_t I = 0; I < N; ++I) {
+      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+    }
+    return Ret;
+#endif
+  }
+#endif // std::byte check
 
   vec operator+() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
