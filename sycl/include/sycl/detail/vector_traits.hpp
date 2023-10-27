@@ -16,7 +16,7 @@ inline namespace _V1 {
 namespace detail {
 
 // 4.10.2.6 Memory layout and alignment
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // due to MSVC the maximum alignment for sycl::vec is 64 and this proposed
 // change is being brought to the spec committee.
 constexpr size_t MaxVecAlignment = 64;

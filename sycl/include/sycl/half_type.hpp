@@ -259,13 +259,13 @@ using BIsRepresentationT = half;
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using Vec2StorageT = std::array<StorageT, 2>;
 using Vec3StorageT = std::array<StorageT, 3>;
 using Vec4StorageT = std::array<StorageT, 4>;
 using Vec8StorageT = std::array<StorageT, 8>;
 using Vec16StorageT = std::array<StorageT, 16>;
-#else  // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
 template <int NumElements> struct half_vec {
   alignas(
       vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
@@ -288,7 +288,7 @@ using Vec3StorageT = half_vec<3>;
 using Vec4StorageT = half_vec<4>;
 using Vec8StorageT = half_vec<8>;
 using Vec16StorageT = half_vec<16>;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #endif // SYCL_DEVICE_ONLY
 
 #ifndef __SYCL_DEVICE_ONLY__

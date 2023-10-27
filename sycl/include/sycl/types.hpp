@@ -10,7 +10,7 @@
 
 #pragma once
 
-#ifndef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/generic_type_traits.hpp> // CP ?
 #endif
 
@@ -28,11 +28,11 @@
 #endif
 #endif // __clang__
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #error "Undefine __SYCL_USE_EXT_VECTOR_TYPE__ macro"
 #endif
@@ -45,7 +45,7 @@
 // support, but that should not be a hard requirement.
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif // __HAS_EXT_VECTOR_TYPE__
-#endif //__SYCL_PREVIEW_MAJOR_RELEASE__
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 #include <sycl/access/access.hpp>              // for decorated, address_space
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
@@ -76,7 +76,7 @@
 #include <variant>     // for tuple, variant
 
 // CP -----
-#ifndef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 #include <sycl/detail/cl.h>
@@ -88,7 +88,7 @@
 #include <optional>
 #include <variant>
 
-#endif //__SYCL_PREVIEW_MAJOR_RELEASE__
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 // CP -----
 
 
@@ -575,7 +575,7 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
-#ifndef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #if defined(_WIN32) && (_MSC_VER)
 // MSVC Compiler doesn't allow using of function arguments with alignment
@@ -597,7 +597,7 @@ Requested alignment applied, limited at 64.")
 #define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
 #endif
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 /// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
@@ -610,7 +610,7 @@ template <typename Type, int NumElements> class vec {
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   // This represents HOW  we will approach the underlying value, so as to
   // benefit from vector speed improvements
@@ -651,7 +651,7 @@ template <typename Type, int NumElements> class vec {
   static constexpr bool IsUsingArrayOnHost = true; // host always std::array.
 #endif
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   static constexpr int getNumElements() { return NumElements; }
 
@@ -705,7 +705,7 @@ template <typename Type, int NumElements> class vec {
   }
   template <typename DataT_, typename T>
   static constexpr auto FlattenVecArgHelper(const T &A) {
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     return std::array<DataT_, 1>{vec_data<DataT_>::get(static_cast<DataT_>(A))};
 #else
     return std::array<DataT_, 1>{vec_data<DataT_>::get(A)};
@@ -814,16 +814,16 @@ public:
   using rel_t = detail::rel_t<DataT>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using vector_t = VectorDataType;
 #else
   using vector_t = DataType;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 #endif // __SYCL_DEVICE_ONLY__
 
   vec() = default;
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   constexpr vec(const vec &Rhs) = default;
   constexpr vec(vec &&Rhs) = default;
 
@@ -840,7 +840,7 @@ public:
 #endif
 
   vec(vec &&Rhs) = default;
-#endif //__SYCL_PREVIEW_MAJOR_RELEASE__
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
@@ -852,7 +852,7 @@ public:
     return *this;
   }
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <typename T = void>
   using EnableIfUsingArray =
@@ -1019,7 +1019,7 @@ public:
     }
   }
 #endif // __SYCL_DEVICE_ONLY__
-#else  // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
@@ -1153,7 +1153,7 @@ public:
   operator vector_t() const { return m_Data; }
 #endif
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Available only when: NumElements == 1
   template <int N = NumElements>
@@ -1304,7 +1304,7 @@ public:
 #error "Undefine __SYCL_BINOP macro"
 #endif
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
@@ -1377,7 +1377,7 @@ public:
   }
 #endif // __SYCL_DEVICE_ONLY__
 
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
@@ -1447,7 +1447,7 @@ public:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   __SYCL_BINOP(+, +=, true)
   __SYCL_BINOP(-, -=, true)
@@ -1544,7 +1544,7 @@ public:
   __SYCL_UOP(--, -=)
 #undef __SYCL_UOP
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   // operator~() available only when: dataT != float && dataT != double
   // && dataT != half
@@ -1636,7 +1636,7 @@ public:
     return Ret;
   }
 
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Available only when: dataT != cl_float && dataT != cl_double
   // && dataT != cl_half
@@ -1718,7 +1718,7 @@ public:
 #endif
   }
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // OP is: &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
@@ -1729,7 +1729,7 @@ public:
   // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
 private:
   // Generic method that execute "Operation" on underlying values.
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <template <typename> class Operation,
@@ -1766,7 +1766,7 @@ private:
   }
 #endif // __SYCL_DEVICE_ONLY
 
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <template <typename> class Operation,
@@ -1803,11 +1803,11 @@ private:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-#endif //__SYCL_PREVIEW_MAJOR_RELEASE__
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
 // setValue and getValue should be able to operate on different underlying
 // types: enum cl_float#N , builtin vector float#N, builtin type float.
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <int Num = NumElements, typename Ty = int,
@@ -1848,7 +1848,7 @@ private:
   }
 #endif // __SYCL_DEVICE_ONLY__
 
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements, typename Ty = int,
             typename = typename std::enable_if_t<1 != Num>>
@@ -1888,7 +1888,7 @@ private:
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 == Num>>
@@ -1915,13 +1915,13 @@ private:
   }
 
   // fields
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Alignment is the same as size, to a maximum size of 64.
   // detail::vector_alignment will return that value.
   alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
 
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // Used "__SYCL_ALIGNED_VAR" instead "alignas" to handle MSVC compiler.
   // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
@@ -1932,7 +1932,7 @@ private:
                      (detail::vector_alignment<DataT, NumElements>::value),
                      m_Data);
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2694,7 +2694,7 @@ template <typename T, int N, typename V> struct VecStorage {
   static_assert(!std::is_same_v<V, void>, "Incorrect data type for sycl::vec");
 };
 
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_DEVICE_ONLY__
 // device always has ext vector support, but for huge vectors
@@ -2739,7 +2739,7 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // __SYCL_DEVICE_ONLY__
 
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 template <typename T, int N> struct VecStorageImpl {
@@ -2774,14 +2774,14 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
   using DataType = bool;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = bool;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Multiple element bool
@@ -2791,12 +2791,12 @@ struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
       typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                                 std::int32_t, std::int64_t>,
                               N>::DataType;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType =
       typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                                 std::int32_t, std::int64_t>,
                               N>::VectorDataType;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element signed integers
@@ -2804,9 +2804,9 @@ template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
   using DataType = select_apply_cl_t<T, std::int8_t, std::int16_t, std::int32_t,
                                      std::int64_t>;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = DataType;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element unsigned integers
@@ -2814,9 +2814,9 @@ template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
   using DataType = select_apply_cl_t<T, std::uint8_t, std::uint16_t,
                                      std::uint32_t, std::uint64_t>;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = DataType;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element floating-point (except half)
@@ -2825,9 +2825,9 @@ struct VecStorage<
     T, 1, typename std::enable_if_t<!is_half_v<T> && is_sgenfloat_v<T>>> {
   using DataType =
       select_apply_cl_t<T, std::false_type, std::false_type, float, double>;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = DataType;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 // Multiple elements signed/unsigned integers and floating-point (except half)
 template <typename T, int N>
@@ -2838,28 +2838,28 @@ struct VecStorage<
                                (is_sgenfloat_v<T> && !is_half_v<T>))>> {
   using DataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType, N>::DataType;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType,
                               N>::VectorDataType;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element half
 template <> struct VecStorage<half, 1, void> {
   using DataType = sycl::detail::half_impl::StorageT;
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = sycl::detail::half_impl::StorageT;
-#endif // __SYCL_PREVIEW_MAJOR_RELEASE__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 // Multiple elements half
-#ifdef __SYCL_PREVIEW_MAJOR_RELEASE__
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
     using VectorDataType = sycl::detail::half_impl::Vec##Num##StorageT;        \
   };
-#else // __SYCL_PREVIEW_MAJOR_RELEASE__
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \

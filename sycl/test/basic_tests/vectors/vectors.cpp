@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t_default.out
 // RUN: %t_default.out
-// RUN: %clangxx -fsycl -fpreview-major-release %s -o %t_vec.out
-// RUN: %t_vec.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t_vec.out %}
+// RUN: %if preview-breaking-changes-supported %{ %t_vec.out %}
 
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
