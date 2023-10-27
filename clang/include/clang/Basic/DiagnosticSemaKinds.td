@@ -3526,6 +3526,10 @@ def warn_dllimport_dropped_from_inline_function : Warning<
 def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
   " only on a function directly called from a SYCL kernel function; attribute ignored">,
   InGroup<IgnoredAttributes>;
+def warn_amd_reqd_sub_group_attribute_n
+    : Warning<"attribute argument %0 is invalid and will be ignored; AMD "
+              "requires sub_group size %1">,
+  InGroup<IgnoredAttributes>;
 def warn_nothrow_attribute_ignored : Warning<"'nothrow' attribute conflicts with"
   " exception specification; attribute ignored">,
   InGroup<IgnoredAttributes>;
