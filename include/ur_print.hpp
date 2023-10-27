@@ -869,6 +869,15 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
         break;
+    case UR_FUNCTION_PROGRAM_BUILD_EXP:
+        os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
+        break;
+    case UR_FUNCTION_PROGRAM_COMPILE_EXP:
+        os << "UR_FUNCTION_PROGRAM_COMPILE_EXP";
+        break;
+    case UR_FUNCTION_PROGRAM_LINK_EXP:
+        os << "UR_FUNCTION_PROGRAM_LINK_EXP";
+        break;
     case UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK:
         os << "UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK";
         break;
@@ -9988,6 +9997,43 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_build_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_build_exp_params_t *params) {
+
+    os << ".hProgram = ";
+
+    details::printPtr(os,
+                      *(params->phProgram));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        details::printPtr(os,
+                          (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    details::printPtr(os,
+                      *(params->ppOptions));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_compile_params_t type
 /// @returns
 ///     std::ostream &
@@ -10014,6 +10060,43 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_compile_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_compile_exp_params_t *params) {
+
+    os << ".hProgram = ";
+
+    details::printPtr(os,
+                      *(params->phProgram));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        details::printPtr(os,
+                          (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    details::printPtr(os,
+                      *(params->ppOptions));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_link_params_t type
 /// @returns
 ///     std::ostream &
@@ -10023,6 +10106,66 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     details::printPtr(os,
                       *(params->phContext));
+
+    os << ", ";
+    os << ".count = ";
+
+    os << *(params->pcount);
+
+    os << ", ";
+    os << ".phPrograms = {";
+    for (size_t i = 0; *(params->pphPrograms) != NULL && i < *params->pcount; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        details::printPtr(os,
+                          (*(params->pphPrograms))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    details::printPtr(os,
+                      *(params->ppOptions));
+
+    os << ", ";
+    os << ".phProgram = ";
+
+    details::printPtr(os,
+                      *(params->pphProgram));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_link_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_link_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    details::printPtr(os,
+                      *(params->phContext));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        details::printPtr(os,
+                          (*(params->pphDevices))[i]);
+    }
+    os << "}";
 
     os << ", ";
     os << ".count = ";
@@ -15830,11 +15973,20 @@ UR_APIEXPORT inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     case UR_FUNCTION_PROGRAM_BUILD: {
         os << (const struct ur_program_build_params_t *)params;
     } break;
+    case UR_FUNCTION_PROGRAM_BUILD_EXP: {
+        os << (const struct ur_program_build_exp_params_t *)params;
+    } break;
     case UR_FUNCTION_PROGRAM_COMPILE: {
         os << (const struct ur_program_compile_params_t *)params;
     } break;
+    case UR_FUNCTION_PROGRAM_COMPILE_EXP: {
+        os << (const struct ur_program_compile_exp_params_t *)params;
+    } break;
     case UR_FUNCTION_PROGRAM_LINK: {
         os << (const struct ur_program_link_params_t *)params;
+    } break;
+    case UR_FUNCTION_PROGRAM_LINK_EXP: {
+        os << (const struct ur_program_link_exp_params_t *)params;
     } break;
     case UR_FUNCTION_PROGRAM_RETAIN: {
         os << (const struct ur_program_retain_params_t *)params;
