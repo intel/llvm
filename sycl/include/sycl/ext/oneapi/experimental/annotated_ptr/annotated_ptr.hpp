@@ -319,34 +319,36 @@ public:
   "instead."
 
   annotated_ptr &operator++() noexcept {
-    constexpr bool support =
-        !containsInvalidPropWithPointerArith<Props...>::value;
-    static_assert(support, OPERATOR_DISABLE_ERR("++"));
-    return *this + 1;
+    constexpr bool containsUnsupportedProperties =
+        containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(!containsUnsupportedProperties, OPERATOR_DISABLE_ERR("++"));
+    m_Ptr += 1;
+    return *this;
   }
 
   annotated_ptr &operator++(int) noexcept {
-    constexpr bool support =
-        !containsInvalidPropWithPointerArith<Props...>::value;
-    static_assert(support, OPERATOR_DISABLE_ERR("++"));
+    constexpr bool containsUnsupportedProperties =
+        containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(!containsUnsupportedProperties, OPERATOR_DISABLE_ERR("++"));
     auto tmp = *this;
-    *this = *this + 1;
+    m_Ptr += 1;
     return tmp;
   }
 
   annotated_ptr &operator--() noexcept {
-    constexpr bool support =
-        !containsInvalidPropWithPointerArith<Props...>::value;
-    static_assert(support, OPERATOR_DISABLE_ERR("--"));
-    return *this - 1;
+    constexpr bool containsUnsupportedProperties =
+        containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(!containsUnsupportedProperties, OPERATOR_DISABLE_ERR("--"));
+    m_Ptr -= 1;
+    return *this;
   }
 
   annotated_ptr &operator--(int) noexcept {
-    constexpr bool support =
-        !containsInvalidPropWithPointerArith<Props...>::value;
-    static_assert(support, OPERATOR_DISABLE_ERR("--"));
+    constexpr bool containsUnsupportedProperties =
+        containsInvalidPropWithPointerArith<Props...>::value;
+    static_assert(!containsUnsupportedProperties, OPERATOR_DISABLE_ERR("--"));
     auto tmp = *this;
-    *this = *this - 1;
+    m_Ptr -= 1;
     return tmp;
   }
 
