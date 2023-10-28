@@ -214,6 +214,38 @@ __SYCL_EXPORT interop_mem_handle import_external_memory(
     const sycl::queue &syclQueue);
 
 /**
+ *  @brief   [Deprecated] Maps an interop memory handle to an image memory
+ *           handle (which may have a device optimized memory layout)
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   desc        The image descriptor
+ *  @param   syclDevice The device in which we create our image memory handle
+ *  @param   syclContext The conext in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext);
+
+/**
+ *  @brief   [Deprecated] Maps an interop memory handle to an image memory
+ *           handle (which may have a device optimized memory layout)
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   desc        The image descriptor
+ *  @param   syclQueue   The queue in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue);
+
+/**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
  *           have a device optimized memory layout)
  *
@@ -223,9 +255,11 @@ __SYCL_EXPORT interop_mem_handle import_external_memory(
  *  @param   syclContext The conext in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::device &syclDevice, const sycl::context &syclContext);
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext);
 
 /**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
@@ -236,9 +270,10 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
  *  @param   syclQueue   The queue in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::queue &syclQueue);
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external semaphore taking an external semaphore handle (the
