@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: windows
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -I %sycl_include
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
 // The tests validates an ability to build ESIMD code on windows platform.
 
 #include <cmath>
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl;
