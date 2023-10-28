@@ -12,8 +12,8 @@
 // The tests validates an ability to build ESIMD code on windows platform.
 
 #include <cmath>
-#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
