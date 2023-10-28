@@ -3,16 +3,16 @@
 // REQUIRES: ocloc, gpu
 // UNSUPPORTED: cuda, hip
 
-// RUN: split-file %s %t
-
 // Build the early AOT device binaries
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c %t/add.cpp -o %t/add.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c %t/sub.cpp -o %t/sub.o
-// RUN: %clangxx -fsycl %t/main.cpp %t/add.o %t/sub.o -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DSUB_CPP %s -o %t_sub.o
+// RUN: %clangxx -fsycl -DMAIN_CPP %s %t_add.o %t_sub.o -o %t.out
 
 // RUN: %{run} %t.out
 
-//--- main.cpp
+#ifdef MAIN_CPP
+// main.cpp
+
 #include "sycl/sycl.hpp"
 #include <iostream>
 
@@ -52,16 +52,23 @@ int main() {
   return 0;
 }
 
-//--- add.cpp
+#endif // MAIN_CPP
+
+#ifdef ADD_CPP
+// add.cpp
 #include "sycl/sycl.hpp"
 
 void add(sycl::queue q, int *result, int a, int b) {
   q.single_task<class add_dummy>([=] { *result = a + b; });
 }
 
-//--- sub.cpp
+#endif // ADD_CPP
+
+#ifdef SUB_CPP
+// sub.cpp
 #include "sycl/sycl.hpp"
 
 void sub(sycl::queue q, int *result, int a, int b) {
   q.single_task<class sub_dummy>([=] { *result = a - b; });
 }
+#endif // SUB_CPP
