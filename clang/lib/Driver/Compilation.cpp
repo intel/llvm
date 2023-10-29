@@ -47,6 +47,18 @@ Compilation::Compilation(const Driver &D, const ToolChain &_DefaultToolChain,
 Compilation::~Compilation() {
   // Remove temporary files. This must be done before arguments are freed, as
   // the file names might be derived from the input arguments.
+  /*
+    for (const auto &File: TempFiles) {
+      if(File.second == types::TY_Filetable) {
+        Expected<llvm::util::SimpleTable::UPtrTy> Table =
+        llvm::util::SimpleTable::read(File);
+        if (!Table)
+            return Table1.takeError();
+        Error Res = Table.peelColumns({"Code"});
+        return Res ? std::move(Res) : std::move(Error::success());
+      }
+    }
+  */
   if (!TheDriver.isSaveTempsEnabled() && !ForceKeepTempFiles)
     CleanupFileList(TempFiles);
 
@@ -161,6 +173,19 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
                                   bool IssueErrors) const {
   bool Success = true;
   for (const auto &File: Files) {
+    // new code
+    /*
+    if(File.second == types::TY_Filetable) {
+      Expected<llvm::util::SimpleTable::UPtrTy> Table =
+      llvm::util::SimpleTable::read(File);
+      if (!Table)
+          return Table1.takeError();
+      Error Res = Table.peelColumns({"Code"});
+      return Res ? std::move(Res) : std::move(Error::success());
+    }
+  */
+    // end new code
+
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
     if (File.second == types::TY_Tempfilelist ||

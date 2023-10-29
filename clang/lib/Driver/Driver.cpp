@@ -5025,8 +5025,7 @@ class OffloadingActionBuilder final {
             else
               FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, types::TY_LLVM_BC,
-                types::TY_Tempfiletable);
+                FullDeviceLinkAction, types::TY_LLVM_BC, types::TY_Filetable);
             PostLinkAction->setRTSetsSpecConstants(!isAOT);
             auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
                 PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
@@ -5038,7 +5037,7 @@ class OffloadingActionBuilder final {
 
             ActionList TformInputs{PostLinkAction, TranslateAction};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+                TformInputs, types::TY_Filetable, types::TY_Filetable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
@@ -5643,7 +5642,7 @@ class OffloadingActionBuilder final {
         // First symbol indicates output/input type
         //   . - single file output (TY_SPIRV, TY_LLVM_BC,...)
         //   - - TY_Tempfilelist
-        //   + - TY_Tempfiletable
+        //   + - TY_Filetable
         //
         //                   .-----------------.
         //                   |Link(LinkObjects)|
@@ -5809,12 +5808,12 @@ class OffloadingActionBuilder final {
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
           types::ID PostLinkOutType = isSPIR || isSYCLNativeCPU
-                                          ? types::TY_Tempfiletable
+                                          ? types::TY_Filetable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
-            // For SPIR-V targets, force TY_Tempfiletable.
+            // For SPIR-V targets, force TY_Filetable.
             auto TypedPostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, PostLinkOutType, types::TY_Tempfiletable);
+                FullDeviceLinkAction, PostLinkOutType, types::TY_Filetable);
             TypedPostLinkAction->setRTSetsSpecConstants(!isAOT);
             return TypedPostLinkAction;
           };
@@ -5876,7 +5875,7 @@ class OffloadingActionBuilder final {
 
             ActionList TformInputs{PostLinkAction, ForEachWrapping};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+                TformInputs, types::TY_Filetable, types::TY_Filetable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
@@ -5943,7 +5942,7 @@ class OffloadingActionBuilder final {
             }
             ActionList TformInputs{PostLinkAction, BuildCodeAction};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+                TformInputs, types::TY_Filetable, types::TY_Filetable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);

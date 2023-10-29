@@ -9559,13 +9559,13 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
-    assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
+    assert(((Inputs[0].getType() != types::TY_Filetable) ||
             (Inputs.size() == 1)) &&
            "wrong usage of clang-offload-wrapper with SYCL");
     const InputInfo &I = Inputs[0];
     assert(I.isFilename() && "Invalid input.");
 
-    if (I.getType() == types::TY_Tempfiletable ||
+    if (I.getType() == types::TY_Filetable ||
         I.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
       // wrapper actual input files are passed via the batch job file table:
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
@@ -10055,7 +10055,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // output LLVMIR
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
-    assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
+    assert(SYCLPostLink->getTrueType() == types::TY_Filetable);
     bool SplitEsimdByDefault = getToolChain().getTriple().isSPIR();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
