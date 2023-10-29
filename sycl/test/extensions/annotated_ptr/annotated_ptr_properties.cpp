@@ -9,11 +9,10 @@ using namespace sycl::ext::intel::experimental;
 
 static annotated_ptr<int, decltype(properties())> AnnotatedPtr1;
 static annotated_ptr<int, decltype(properties(register_map))> AnnotatedPtr2;
-static annotated_ptr<int, decltype(properties(conduit, stable))>
-    AnnotatedPtr3;
+static annotated_ptr<int, decltype(properties(conduit, stable))> AnnotatedPtr3;
 static annotated_ptr<int, decltype(properties(buffer_location<1>,
-                                                read_write_mode_read, stable,
-                                                conduit))>
+                                              read_write_mode_read, stable,
+                                              conduit))>
     AnnotatedPtr4;
 
 struct A {};
