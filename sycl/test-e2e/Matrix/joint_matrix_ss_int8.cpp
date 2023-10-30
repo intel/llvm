@@ -8,7 +8,7 @@
 // REQUIRES: matrix
 
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// RUN: %{run} %t.out
+// RUN: UR_L0_DEBUG=-1 %{run} %t.out
 
 #include "common.hpp"
 
