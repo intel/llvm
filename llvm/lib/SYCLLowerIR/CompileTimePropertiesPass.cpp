@@ -149,7 +149,7 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
 
   // Map SYCL encoding to SPIR-V
   uint32_t CacheProp;
-  if (Name == "sycl-cache-read-hint")
+  if (Name == "sycl-cache-read")
     CacheProp = SPIRVReadControl[CacheMode];
   else
     CacheProp = SPIRVWriteControl[CacheMode];

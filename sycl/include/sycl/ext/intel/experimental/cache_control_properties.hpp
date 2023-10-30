@@ -20,8 +20,6 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-using cache_level = sycl::ext::oneapi::experimental::cache_level;
-
 enum class cache_mode {
   uncached,
   cached,
@@ -32,6 +30,7 @@ enum class cache_mode {
   write_back
 };
 using cache_mode = sycl::ext::intel::experimental::cache_mode;
+using cache_level = sycl::ext::oneapi::experimental::cache_level;
 
 namespace detail {
 
@@ -72,6 +71,11 @@ struct read_hint_key {
   using value_t = property_value<read_hint_key, Cs...>;
 };
 
+struct read_assertion_key {
+  template <typename... Cs>
+  using value_t = property_value<read_assertion_key, Cs...>;
+};
+
 struct write_hint_key {
   template <typename... Cs>
   using value_t = property_value<write_hint_key, Cs...>;
@@ -79,6 +83,9 @@ struct write_hint_key {
 
 template <typename... Cs>
 inline constexpr read_hint_key::value_t<Cs...> read_hint;
+
+template <typename... Cs>
+inline constexpr read_assertion_key::value_t<Cs...> read_assertion;
 
 template <typename... Cs>
 inline constexpr write_hint_key::value_t<Cs...> write_hint;
@@ -99,6 +106,15 @@ struct is_property_key_of<read_hint_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<read_hint_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+using read_assertion_key = intel::experimental::read_assertion_key;
+template <> struct is_property_key<read_assertion_key> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_assertion_key, annotated_arg<T, PropertyListT>>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_assertion_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
 
 using write_hint_key = intel::experimental::write_hint_key;
@@ -126,21 +142,27 @@ static constexpr void checkUnique() {
 
 using cache_mode = sycl::ext::intel::experimental::cache_mode;
 
-template <cache_mode M> static constexpr int checkReadMode() {
-  static_assert(M != cache_mode::write_back,
-                "read_hint cannot specify cache_mode::write_back");
-  static_assert(M != cache_mode::write_through,
-                "read_hint cannot specify cache_mode::write_through");
+template <cache_mode M> static constexpr int checkReadHint() {
+  static_assert(M == cache_mode::uncached || M == cache_mode::cached ||
+                    M == cache_mode::streaming,
+                "read_hint must specify cache_mode::uncached or "
+                "cache_mode::cached or cache_mode::streaming");
   return 0;
 }
 
-template <cache_mode M> static constexpr int checkWriteMode() {
-  static_assert(M != cache_mode::cached,
-                "write_hint cannot specify cache_mode::cached");
-  static_assert(M != cache_mode::invalidate,
-                "write_hint cannot specify cache_mode::validate");
-  static_assert(M != cache_mode::constant,
-                "write_hint cannot specify cache_mode::constant");
+template <cache_mode M> static constexpr int checkReadAssertion() {
+  static_assert(
+      M == cache_mode::invalidate || M == cache_mode::constant,
+      "read_hint must specify cache_mode::invalidate or cache_mode::constant");
+  return 0;
+}
+
+template <cache_mode M> static constexpr int checkWriteHint() {
+  static_assert(M == cache_mode::uncached || M == cache_mode::write_through ||
+                    M == cache_mode::write_back || M == cache_mode::streaming,
+                "write_hint must specify cache_mode::uncached or "
+                "cache_mode::write_through or "
+                "cache_mode::write_back or cache_mode::streaming");
   return 0;
 }
 
@@ -150,9 +172,25 @@ template <> struct PropertyToKind<read_hint_key> {
 template <> struct IsCompileTimeProperty<read_hint_key> : std::true_type {};
 template <typename... Cs>
 struct PropertyMetaInfo<read_hint_key::value_t<Cs...>> {
-  static constexpr const char *name = "sycl-cache-read-hint";
+  static constexpr const char *name = "sycl-cache-read";
   static constexpr const int value =
-      ((checkReadMode<Cs::mode>() + ...),
+      ((checkReadHint<Cs::mode>() + ...),
+       checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
+                   (countL(Cs::levels, 4) + ...),
+                   (countL(Cs::levels, 8) + ...)>(),
+       ((Cs::encoding) | ...));
+};
+
+template <> struct PropertyToKind<read_assertion_key> {
+  static constexpr PropKind Kind = PropKind::CacheControlRead;
+};
+template <>
+struct IsCompileTimeProperty<read_assertion_key> : std::true_type {};
+template <typename... Cs>
+struct PropertyMetaInfo<read_assertion_key::value_t<Cs...>> {
+  static constexpr const char *name = "sycl-cache-read";
+  static constexpr const int value =
+      ((checkReadAssertion<Cs::mode>() + ...),
        checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
                    (countL(Cs::levels, 4) + ...),
                    (countL(Cs::levels, 8) + ...)>(),
@@ -165,9 +203,9 @@ template <> struct PropertyToKind<write_hint_key> {
 template <> struct IsCompileTimeProperty<write_hint_key> : std::true_type {};
 template <typename... Cs>
 struct PropertyMetaInfo<write_hint_key::value_t<Cs...>> {
-  static constexpr const char *name = "sycl-cache-write-hint";
+  static constexpr const char *name = "sycl-cache-write";
   static constexpr const int value =
-      ((checkWriteMode<Cs::mode>() + ...),
+      ((checkWriteHint<Cs::mode>() + ...),
        checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
                    (countL(Cs::levels, 4) + ...),
                    (countL(Cs::levels, 8) + ...)>(),
@@ -178,6 +216,10 @@ struct PropertyMetaInfo<write_hint_key::value_t<Cs...>> {
 
 template <typename T, typename... Cs>
 struct is_valid_property<T, read_hint_key::value_t<Cs...>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
+template <typename T, typename... Cs>
+struct is_valid_property<T, read_assertion_key::value_t<Cs...>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, typename... Cs>

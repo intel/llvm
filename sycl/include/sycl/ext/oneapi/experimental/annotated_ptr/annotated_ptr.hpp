@@ -164,6 +164,10 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
                           ext::intel::experimental::cache_control<
                               ext::intel::experimental::cache_mode::cached,
                               cache_level::L1>>),
+                 decltype(ext::intel::experimental::read_assertion<
+                          ext::intel::experimental::cache_control<
+                              ext::intel::experimental::cache_mode::cached,
+                              cache_level::L1>>),
                  decltype(ext::intel::experimental::write_hint<
                           ext::intel::experimental::cache_control<
                               ext::intel::experimental::cache_mode::cached,
