@@ -373,6 +373,12 @@ template <typename... Args> struct checkValidFPGAPropertySet {
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
+
+template <typename... Args> struct hasConduitAndRegisterMap {
+  using list = std::tuple<Args...>;
+  static constexpr bool value =
+      ContainsProperty<conduit, list>::value && ContainsProperty<register_map, list>::value;
+};
 } // namespace detail
 
 } // namespace experimental

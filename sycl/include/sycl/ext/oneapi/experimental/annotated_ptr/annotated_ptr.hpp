@@ -200,6 +200,10 @@ public:
   static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
                 "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static_assert(detail::hasConduitAndRegisterMap<Props...>::value,
+                "The properties conduit and register_map cannot be"
+                "specified at the same time.");
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
