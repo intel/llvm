@@ -10,14 +10,14 @@ corresponding compilation environment can guarantee that any and all the
 supported devices support the `aspect`.
 
 The design of these traits is inspired by the implementation of the
-[sycl\_ext\_oneapi\_device\_if][2] and
+[sycl\_ext\_oneapi\_if\_device\_has][2] and
 [sycl\_ext\_oneapi\_device\_architecture][3] extensions as described in
-[DeviceIf.md][4]. Additionally, it leverages part of the design for optional
+[IfDeviceHas.md][4]. Additionally, it leverages part of the design for optional
 kernel features, as described in [OptionalDeviceFeatures.md][5].
 
 ## Changes to the compiler driver
 
-Using the `-fsycl-targets` options introduced in [DeviceIf.md][4] and the
+Using the `-fsycl-targets` options introduced in [IfDeviceHas.md][4] and the
 configuration file introduced in [OptionalDeviceFeatures.md][5], the compiler
 driver finds the set of all aspects supported by each specified target. Note
 that in this section we refer to aspects as their integral representation as
@@ -124,7 +124,7 @@ This relies on the fact that unspecialized variants of `any_device_has` and
 `all_devices_have` are undefined.
 
 [1]: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:device-aspects>
-[2]: <../extensions/proposed/sycl_ext_oneapi_device_if.asciidoc>
+[2]: <../extensions/proposed/sycl_ext_oneapi_if_device_has.asciidoc>
 [3]: <../extensions/proposed/sycl_ext_oneapi_device_architecture.asciidoc>
-[4]: <DeviceIf.md>
+[4]: <IfDeviceHas.md>
 [5]: <OptionalDeviceFeatures.md>
