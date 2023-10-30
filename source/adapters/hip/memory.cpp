@@ -29,7 +29,7 @@ size_t GetHipFormatPixelSize(hipArray_Format Format) {
   case HIP_AD_FORMAT_FLOAT:
     return 4;
   default:
-    assert(0 && "Invalid hipFormat specifier.");
+    detail::ur::die("Invalid HIP format specifier");
   }
 }
 
@@ -257,7 +257,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 
   UR_ASSERT(MemInfoType <= UR_MEM_INFO_CONTEXT,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
-  UR_ASSERT(hMemory->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   UrReturnHelper ReturnValue(propSize, pMemInfo, pPropSizeRet);
 
@@ -279,9 +278,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
           const auto PixelSizeBytes =
               GetHipFormatPixelSize(ArrayDescriptor.Format) *
               ArrayDescriptor.NumChannels;
-          const auto ImageSizeBytes = PixelSizeBytes * ArrayDescriptor.Width *
-                                      ArrayDescriptor.Height *
-                                      ArrayDescriptor.Depth;
+          const auto ImageSizeBytes =
+              PixelSizeBytes *
+              (ArrayDescriptor.Width ? ArrayDescriptor.Width : 1) *
+              (ArrayDescriptor.Height ? ArrayDescriptor.Height : 1) *
+              (ArrayDescriptor.Depth ? ArrayDescriptor.Depth : 1);
           return ImageSizeBytes;
         } else {
           static_assert(ur_always_false_t<T>, "Not exhaustive visitor!");
