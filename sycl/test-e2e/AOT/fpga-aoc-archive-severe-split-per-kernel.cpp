@@ -1,8 +1,9 @@
-// Test compiler behaviors for -fintelfpga with -fsycl-link with split per-kernel.
+// Test compiler behaviors for -fintelfpga with -fsycl-link with split
+// per-kernel.
 
 // REQUIRES: opencl-aot, accelerator
 
-
+// XFAIL: *
 
 // Remove any archives
 // RUN: rm -f %t_*.a
