@@ -201,7 +201,7 @@ public:
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+      return strcmp(ExecKernelA->MKernelName,ExecKernelB->MKernelName);
     }
     case sycl::detail::CG::CGTYPE::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
