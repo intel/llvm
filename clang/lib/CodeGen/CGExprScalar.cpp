@@ -2110,10 +2110,10 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       Src = Builder.CreateAddrSpaceCast(
           Src,
           llvm::PointerType::get(VMContext, DstTy->getPointerAddressSpace()));
-    else if (SrcTy->isPtrOrPtrVectorTy() && DstTy->isPtrOrPtrVectorTy() &&
-             SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
-      llvm_unreachable("wrong cast for pointers in different address spaces"
-                       "(must be an address space cast)!");
+    assert(
+        (!SrcTy->isPtrOrPtrVectorTy() || !DstTy->isPtrOrPtrVectorTy() ||
+         SrcTy->getPointerAddressSpace() == DstTy->getPointerAddressSpace()) &&
+        "Address-space cast must be used to convert address spaces");
 
     if (CGF.SanOpts.has(SanitizerKind::CFIUnrelatedCast)) {
       if (auto *PT = DestTy->getAs<PointerType>()) {
