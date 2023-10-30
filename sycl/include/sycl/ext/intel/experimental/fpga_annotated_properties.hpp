@@ -376,9 +376,8 @@ template <typename... Args> struct checkValidFPGAPropertySet {
 
 template <typename... Args> struct hasConduitAndRegisterMap {
   using list = std::tuple<Args...>;
-  static constexpr bool value =
-      ContainsProperty<conduit_key, list>::value &&
-      ContainsProperty<register_map_key, list>::value;
+  static constexpr bool value = ContainsProperty<conduit_key, list>::value &&
+                                ContainsProperty<register_map_key, list>::value;
 };
 } // namespace detail
 
