@@ -2,7 +2,7 @@
 
 ## Context
 
-To support the [user driven kernel fusion extension](https://github.com/intel/llvm/pull/7098) (a presentation can be found [here](https://github.com/oneapi-src/oneAPI-tab/blob/main/tab-dpcpp-onedpl/presentations/oneAPI-TAB-20220727-Kernel-Fusion.pdf)).
+To support the [user driven kernel fusion extension](https://github.com/intel/llvm/pull/7098) (a presentation can be found [here](https://github.com/oneapi-src/oneAPI-tab/blob/main/language/presentations/oneAPI-TAB-20220727-Kernel-Fusion.pdf)).
 
 The basic workflow is shown in the diagram below
 
