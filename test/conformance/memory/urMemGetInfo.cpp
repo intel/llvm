@@ -2,13 +2,14 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#include <array>
 #include <map>
 #include <uur/fixtures.h>
 
 using urMemGetInfoTest = uur::urMemBufferTestWithParam<ur_mem_info_t>;
 
-static constexpr std::array mem_info_values = {UR_MEM_INFO_SIZE,
-                                               UR_MEM_INFO_CONTEXT};
+static constexpr std::array<ur_mem_info_t, 2> mem_info_values{
+    UR_MEM_INFO_SIZE, UR_MEM_INFO_CONTEXT};
 static std::unordered_map<ur_mem_info_t, size_t> mem_info_size_map = {
     {UR_MEM_INFO_SIZE, sizeof(size_t)},
     {UR_MEM_INFO_CONTEXT, sizeof(ur_context_handle_t)},
