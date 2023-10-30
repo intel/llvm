@@ -266,10 +266,19 @@ _Throws:_
 
 * An `exception` with the `errc::build` error code if the compilation or
   linking operations fail.
-  In this case, the exception `what` string contains a description of the
-  error.
+  In this case, the exception `what` string provides a full build log,
+  including descriptions of any errors, warning messages, and other
+  diagnostics.
   This string is intended for human consumption, and the format may not be
   stable across implementations of this extension.
+
+[NOTE]
+====
+An uncaught `errc::build` exception may result in some or all of the source
+code used to create the kernel bundle being printed to the terminal.
+In situations where this is undesirable, developers must ensure that the
+exception is caught and handled appropriately.
+====
 
 Overload (2):
 
@@ -327,14 +336,14 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-struct build_log {
+struct save_log {
   std::string *log;
-  build_log(std::string *log);  (1)
+  save_log(std::string *to);  (1)
 };
-using build_log_key = build_log;
+using save_log_key = save_log;
 
 template<>
-struct is_property_key<build_log_key> : std::true_type {};
+struct is_property_key<save_log_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental {
 ----
@@ -347,7 +356,7 @@ build.
 When a build fails, an `exception` is thrown and the exception's `what` string
 provides a description of the error.
 
-Instead, the `build_log` property provides information about a build operation
+Instead, the `save_log` property provides information about a build operation
 that succeeds.
 This might include warning messages or other diagnostics.
 Each source language specification can define specific information that is
@@ -355,7 +364,7 @@ provided in the log.
 In general, the log information is intended for human consumption, and the
 format may not be stable across implementations of this extension.
 
-_Effects (1):_ Constructs a `build_log` property with a pointer to a
+_Effects (1):_ Constructs a `save_log` property with a pointer to a
 `std::string`.
 When the `build` function completes successfully, this string will contain the
 log.
