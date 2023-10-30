@@ -280,9 +280,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
 
-  UR_ASSERT(size + dstOffset <= hDstMem->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + dstOffset <= std::get<BufferMem>(hDstMem->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(size + srcOffset <= hSrcMem->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hSrcMem->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
   UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
@@ -294,8 +294,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
   }
 
   try {
-    auto Src = hSrcMem->Mem.BufferMem.get() + srcOffset;
-    auto Dst = hDstMem->Mem.BufferMem.get() + dstOffset;
+    auto Src = std::get<BufferMem>(hSrcMem->Mem).get() + srcOffset;
+    auto Dst = std::get<BufferMem>(hDstMem->Mem).get() + dstOffset;
 
     CUDA_MEMCPY3D NodeParams = {};
     setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, &Dst, CU_MEMORYTYPE_DEVICE, size,
@@ -334,8 +334,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
   }
 
   try {
-    CUdeviceptr SrcPtr = hSrcMem->Mem.BufferMem.get();
-    CUdeviceptr DstPtr = hDstMem->Mem.BufferMem.get();
+    CUdeviceptr SrcPtr = std::get<BufferMem>(hSrcMem->Mem).get();
+    CUdeviceptr DstPtr = std::get<BufferMem>(hDstMem->Mem).get();
     CUDA_MEMCPY3D NodeParams = {};
 
     setCopyRectParams(region, &SrcPtr, CU_MEMORYTYPE_DEVICE, srcOrigin,
@@ -374,7 +374,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
   }
 
   try {
-    auto Dst = hBuffer->Mem.BufferMem.get() + offset;
+    auto Dst = std::get<BufferMem>(hBuffer->Mem).get() + offset;
 
     CUDA_MEMCPY3D NodeParams = {};
     setCopyParams(pSrc, CU_MEMORYTYPE_HOST, &Dst, CU_MEMORYTYPE_DEVICE, size,
@@ -411,7 +411,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
   }
 
   try {
-    auto Src = hBuffer->Mem.BufferMem.get() + offset;
+    auto Src = std::get<BufferMem>(hBuffer->Mem).get() + offset;
 
     CUDA_MEMCPY3D NodeParams = {};
     setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, pDst, CU_MEMORYTYPE_HOST, size,
@@ -451,7 +451,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
   }
 
   try {
-    CUdeviceptr DstPtr = hBuffer->Mem.BufferMem.get();
+    CUdeviceptr DstPtr = std::get<BufferMem>(hBuffer->Mem).get();
     CUDA_MEMCPY3D NodeParams = {};
 
     setCopyRectParams(region, pSrc, CU_MEMORYTYPE_HOST, hostOffset,
@@ -493,7 +493,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
   }
 
   try {
-    CUdeviceptr SrcPtr = hBuffer->Mem.BufferMem.get();
+    CUdeviceptr SrcPtr = std::get<BufferMem>(hBuffer->Mem).get();
     CUDA_MEMCPY3D NodeParams = {};
 
     setCopyRectParams(region, &SrcPtr, CU_MEMORYTYPE_DEVICE, bufferOffset,
