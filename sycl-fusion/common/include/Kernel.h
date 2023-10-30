@@ -248,8 +248,9 @@ struct SYCLKernelInfo {
   //// Explicit constructor for compatibility with LLVM YAML I/O.
   SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
 
-  SYCLKernelInfo(const std::string &KernelName, const SYCLArgumentDescriptor &ArgDesc,
-                 const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
+  SYCLKernelInfo(const std::string &KernelName,
+                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
+                 const SYCLKernelBinaryInfo &BinInfo)
       : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
         BinaryInfo{BinInfo} {}
 
