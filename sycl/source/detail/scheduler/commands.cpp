@@ -86,13 +86,13 @@ struct DemangleHandle {
 
   ~DemangleHandle() { std::free(p); }
 };
-static const char *demangleKernelName(const char *Name) {
+static std::string demangleKernelName(std::string Name) {
   int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name, NULL, NULL, &Status));
+  DemangleHandle result(abi::__cxa_demangle(Name.c_str(), NULL, NULL, &Status));
   return (Status == 0) ? result.p : Name;
 }
 #else
-static const char *demangleKernelName(const char *Name) { return Name; }
+static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
 static std::string deviceToString(device Device) {
@@ -1899,11 +1899,11 @@ ExecCGCommand::ExecCGCommand(
 }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-const char *instrumentationGetKernelName(
+std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const char *FunctionName, const char *SyclKernelName, void *&Address,
+    const std::string &FunctionName, const std::string &SyclKernelName, void *&Address,
     std::optional<bool> &FromSource) {
-  const char *KernelName;
+	std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
     pi_kernel KernelHandle = SyclKernel->getHandleRef();
@@ -2057,13 +2057,13 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(StreamID))
-    return XptiObjects;
+ /* if (!xptiCheckTraceEnabled(StreamID))
+    return XptiObjects;*/
 
   void *Address = nullptr;
   std::optional<bool> FromSource;
   std::string KernelName = instrumentationGetKernelName(
-      SyclKernel, CodeLoc.functionName(), SyclKernelName, Address, FromSource);
+      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address, FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
@@ -2095,18 +2095,18 @@ void ExecCGCommand::emitInstrumentationData() {
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
-  const char *KernelName;
+  std::string KernelName;
   std::optional<bool> FromSource;
   switch (MCommandGroup->getType()) {
   case detail::CG::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
     KernelName = instrumentationGetKernelName(
-        KernelCG->MSyclKernel, MCommandGroup->MFunctionName,
+        KernelCG->MSyclKernel, MCommandGroup->MFunctionName.c_str(),
         KernelCG->getKernelName(), MAddress, FromSource);
   } break;
   default:
-    KernelName = cgTypeToString(MCommandGroup->getType()).c_str();
+    KernelName = cgTypeToString(MCommandGroup->getType());
     break;
   }
 
@@ -2149,7 +2149,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
       Stream << "created from source";
     else
-      Stream << std::string(demangleKernelName(KernelCG->getKernelName()));
+      Stream << demangleKernelName(KernelCG->getKernelName());
     Stream << "\\n";
     break;
   }

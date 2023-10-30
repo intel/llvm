@@ -154,8 +154,7 @@ public:
   // Member variables to capture the user code-location
   // information from Q.submit(), Q.parallel_for() etc
   // Storage for function name and source file name
-  std::string MFileName;
-  const char *MFunctionName;
+  std::string MFunctionName, MFileName;
   // Storage for line and column of code location
   int32_t MLine, MColumn;
 };
