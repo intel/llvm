@@ -40,7 +40,7 @@ struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
 template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
-template <typename T> inline void serializePtr(std::ostream &os, const T *ptr);
+template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
 template <typename T>
 inline void serializeFlag(std::ostream &os, uint32_t flag);
 template <typename T>
@@ -1323,8 +1323,7 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
         return;
     }
 
-    const enum ur_structure_type_t *value =
-        (const enum ur_structure_type_t *)ptr;
+    enum ur_structure_type_t *value = (enum ur_structure_type_t *)ptr;
     switch (*value) {
 
     case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES: {
@@ -2077,7 +2076,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2124,7 +2123,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_adapter_backend_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2138,7 +2137,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2264,7 +2263,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_platform_backend_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2946,7 +2945,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_device_type_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2960,7 +2959,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2974,7 +2973,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -2988,7 +2987,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3002,7 +3001,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3031,7 +3030,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3047,7 +3046,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_fp_capability_flag_t>(os, *tptr);
 
@@ -3063,7 +3062,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_fp_capability_flag_t>(os, *tptr);
 
@@ -3079,7 +3078,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_fp_capability_flag_t>(os, *tptr);
 
@@ -3093,7 +3092,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
@@ -3107,7 +3106,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3121,7 +3120,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3135,7 +3134,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3149,7 +3148,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3163,7 +3162,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3177,7 +3176,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3191,7 +3190,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3205,7 +3204,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3219,7 +3218,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3233,7 +3232,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3247,7 +3246,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3261,7 +3260,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3275,7 +3274,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3289,7 +3288,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3303,7 +3302,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3317,7 +3316,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3331,7 +3330,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3345,7 +3344,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3359,7 +3358,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3373,7 +3372,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3387,7 +3386,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3401,7 +3400,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3415,7 +3414,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3429,7 +3428,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3443,7 +3442,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3457,7 +3456,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3471,7 +3470,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3485,7 +3484,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3499,7 +3498,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3513,7 +3512,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3527,7 +3526,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3541,7 +3540,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3556,7 +3555,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_device_mem_cache_type_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3570,7 +3569,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3584,7 +3583,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3598,7 +3597,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3612,7 +3611,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3626,7 +3625,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3640,7 +3639,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3655,7 +3654,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_device_local_mem_type_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3669,7 +3668,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3683,7 +3682,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3697,7 +3696,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3711,7 +3710,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3725,7 +3724,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3739,7 +3738,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3753,7 +3752,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3767,7 +3766,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3783,7 +3782,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_exec_capability_flag_t>(os, *tptr);
 
@@ -3797,7 +3796,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
@@ -3811,7 +3810,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
@@ -3831,7 +3830,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_platform_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -3845,7 +3844,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3907,7 +3906,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3921,7 +3920,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3935,7 +3934,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -3964,7 +3963,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -3980,7 +3979,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_affinity_domain_flag_t>(os, *tptr);
 
@@ -4010,7 +4009,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4024,7 +4023,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4054,7 +4053,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
@@ -4070,7 +4069,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
@@ -4086,7 +4085,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
@@ -4102,7 +4101,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
@@ -4118,7 +4117,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << sizeof(ur_device_usm_access_capability_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_device_usm_access_capability_flag_t>(os,
                                                                          *tptr);
@@ -4145,7 +4144,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4159,7 +4158,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4173,7 +4172,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4187,7 +4186,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4201,7 +4200,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4215,7 +4214,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4229,7 +4228,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4243,7 +4242,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4257,7 +4256,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4271,7 +4270,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4287,7 +4286,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
@@ -4303,7 +4302,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
@@ -4319,7 +4318,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
@@ -4335,7 +4334,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
@@ -4349,7 +4348,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4363,7 +4362,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4377,7 +4376,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4391,7 +4390,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4420,7 +4419,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4434,7 +4433,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4448,7 +4447,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4462,7 +4461,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4476,7 +4475,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4490,7 +4489,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4504,7 +4503,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4518,7 +4517,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4532,7 +4531,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4546,7 +4545,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4560,7 +4559,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4574,7 +4573,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4588,7 +4587,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4602,7 +4601,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4616,7 +4615,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4630,7 +4629,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4644,7 +4643,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4658,7 +4657,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4672,7 +4671,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4686,7 +4685,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4700,7 +4699,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4714,7 +4713,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -4728,7 +4727,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -5649,7 +5648,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -5678,7 +5677,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -5692,7 +5691,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -5706,7 +5705,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -5722,7 +5721,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
@@ -5738,7 +5737,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
@@ -5754,7 +5753,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_order_capability_flag_t>(os, *tptr);
 
@@ -5770,7 +5769,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
@@ -5986,7 +5985,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6000,7 +5999,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -6204,7 +6203,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_image_format_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6218,7 +6217,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6232,7 +6231,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6246,7 +6245,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6260,7 +6259,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6274,7 +6273,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6288,7 +6287,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6595,7 +6594,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6609,7 +6608,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -6623,7 +6622,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6639,7 +6638,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6654,7 +6653,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_sampler_filter_mode_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6945,7 +6944,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_usm_type_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6953,13 +6952,13 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     } break;
 
     case UR_USM_ALLOC_INFO_BASE_PTR: {
-        const void *const *tptr = (const void *const *)ptr;
+        const void **tptr = (const void **)ptr;
         if (sizeof(void *) > size) {
             os << "invalid size (is: " << size
                << ", expected: >=" << sizeof(void *) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6973,7 +6972,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -6987,7 +6986,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -7001,7 +7000,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_usm_pool_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -7415,7 +7414,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -7429,7 +7428,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -7477,7 +7476,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -7491,7 +7490,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -7608,7 +7607,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_virtual_mem_access_flag_t>(os, *tptr);
 
@@ -7870,7 +7869,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -7884,7 +7883,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -7898,7 +7897,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -7954,7 +7953,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8066,7 +8065,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_program_build_status_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8093,7 +8092,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_program_binary_type_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8243,7 +8242,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8257,7 +8256,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8271,7 +8270,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -8285,7 +8284,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_program_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -8305,7 +8304,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8383,7 +8382,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8412,7 +8411,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8426,7 +8425,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8440,7 +8439,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(size_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8495,7 +8494,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8509,7 +8508,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8523,7 +8522,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8537,7 +8536,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8609,7 +8608,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8618,7 +8617,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 
     case UR_KERNEL_EXEC_INFO_USM_PTRS: {
 
-        const void *const *tptr = (const void *const *)ptr;
+        const void **tptr = (const void **)ptr;
         os << "{";
         size_t nelems = size / sizeof(void *);
         for (size_t i = 0; i < nelems; ++i) {
@@ -8639,7 +8638,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_kernel_cache_config_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8800,7 +8799,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -8814,7 +8813,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -8828,7 +8827,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -8842,7 +8841,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_flags_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializeFlag<ur_queue_flag_t>(os, *tptr);
 
@@ -8856,7 +8855,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8870,7 +8869,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -8884,7 +8883,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_bool_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9360,7 +9359,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_queue_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -9374,7 +9373,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_context_handle_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         ur_params::serializePtr(os, *tptr);
 
@@ -9388,7 +9387,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_command_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9402,7 +9401,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(ur_event_status_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9416,7 +9415,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9475,7 +9474,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9489,7 +9488,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9503,7 +9502,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9517,7 +9516,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9531,7 +9530,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint64_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9934,7 +9933,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -9948,7 +9947,7 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
                << ", expected: >=" << sizeof(uint32_t) << ")";
             return;
         }
-        os << (const void *)(tptr) << " (";
+        os << (void *)(tptr) << " (";
 
         os << *tptr;
 
@@ -11343,7 +11342,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".pfnDeleter = ";
 
-    os << reinterpret_cast<void *>(*(params->ppfnDeleter));
+    os << *(params->ppfnDeleter);
 
     os << ", ";
     os << ".pUserData = ";
@@ -12996,7 +12995,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".pfnNotify = ";
 
-    os << reinterpret_cast<void *>(*(params->ppfnNotify));
+    os << *(params->ppfnNotify);
 
     os << ", ";
     os << ".pUserData = ";
@@ -15311,21 +15310,21 @@ operator<<(std::ostream &os,
 
 namespace ur_params {
 
-template <typename T> inline void serializePtr(std::ostream &os, const T *ptr) {
+template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
     if (ptr == nullptr) {
         os << "nullptr";
     } else if constexpr (std::is_pointer_v<T>) {
-        os << (const void *)(ptr) << " (";
+        os << (void *)(ptr) << " (";
         serializePtr(os, *ptr);
         os << ")";
     } else if constexpr (std::is_void_v<T> || is_handle_v<T *>) {
-        os << (const void *)ptr;
+        os << (void *)ptr;
     } else if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
-        os << (const void *)(ptr) << " (";
+        os << (void *)(ptr) << " (";
         os << ptr;
         os << ")";
     } else {
-        os << (const void *)(ptr) << " (";
+        os << (void *)(ptr) << " (";
         os << *ptr;
         os << ")";
     }
