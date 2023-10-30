@@ -36,6 +36,8 @@ from templates import helper as th
         ${x}_params::serializePtr(os, ${caller.body()});
     %elif th.type_traits.is_handle(itype):
         ${x}_params::serializePtr(os, ${caller.body()});
+    %elif iname and iname.startswith("pfn"):
+        os << reinterpret_cast<void*>(${caller.body()});
     %else:
         os << ${caller.body()};
     %endif
@@ -104,7 +106,7 @@ template <> struct is_handle<${th.make_type_name(n, tags, obj)}> : std::true_typ
 %endfor
 template <typename T>
 inline constexpr bool is_handle_v = is_handle<T>::value;
-template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
+template <typename T> inline void serializePtr(std::ostream &os, const T *ptr);
 template <typename T> inline void serializeFlag(std::ostream &os, uint32_t flag);
 template <typename T> inline void serializeTagged(std::ostream &os, const void *ptr, T value, size_t size);
 
@@ -192,7 +194,11 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                 case ${ename}: {
                     %if th.value_traits.is_array(vtype):
                     <% atype = th.value_traits.get_array_name(vtype) %>
+                    %if 'void' in atype:
+                    const ${atype} const *tptr = (const ${atype} const*)ptr;
+                    %else:
                     const ${atype} *tptr = (const ${atype} *)ptr;
+                    %endif
                         %if "char" in atype: ## print char* arrays as simple NULL-terminated strings
                             serializePtr(os, tptr);
                         %else:
@@ -209,12 +215,16 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                             os << "}";
                         %endif
                     %else:
+                    %if 'void' in vtype:
+                    const ${vtype} const *tptr = (const ${vtype} const *)ptr;
+                    %else:
                     const ${vtype} *tptr = (const ${vtype} *)ptr;
+                    %endif
                     if (sizeof(${vtype}) > size) {
                         os << "invalid size (is: " << size << ", expected: >=" << sizeof(${vtype}) << ")";
                         return;
                     }
-                    os << (void *)(tptr) << " (";
+                    os << (const void *)(tptr) << " (";
                     <%call expr="member(tptr, vtype, False)">
                         *tptr
                     </%call>
@@ -237,7 +247,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
         }
 
         ## structure type enum value must be first
-        enum ${th.make_enum_name(n, tags, obj)} *value = (enum ${th.make_enum_name(n, tags, obj)} *)ptr;
+        const enum ${th.make_enum_name(n, tags, obj)} *value = (const enum ${th.make_enum_name(n, tags, obj)} *)ptr;
         switch (*value) {
             %for n, item in enumerate(obj['etors']):
                 <%
@@ -362,21 +372,21 @@ inline std::ostream &operator<<(std::ostream &os, const struct ${th.make_pfncb_p
 
 namespace ${x}_params {
 
-template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
+template <typename T> inline void serializePtr(std::ostream &os, const T *ptr) {
     if (ptr == nullptr) {
         os << "nullptr";
     } else if constexpr (std::is_pointer_v<T>) {
-        os << (void *)(ptr) << " (";
+        os << (const void *)(ptr) << " (";
         serializePtr(os, *ptr);
         os << ")";
     } else if constexpr (std::is_void_v<T> || is_handle_v<T *>) {
-        os << (void *)ptr;
+        os << (const void *)ptr;
     } else if constexpr (std::is_same_v<std::remove_cv_t< T >, char>) {
-        os << (void *)(ptr) << " (";
+        os << (const void *)(ptr) << " (";
         os << ptr;
         os << ")";
     } else {
-        os << (void *)(ptr) << " (";
+        os << (const void *)(ptr) << " (";
         os << *ptr;
         os << ")";
     }
