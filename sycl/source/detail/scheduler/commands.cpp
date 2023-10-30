@@ -2719,6 +2719,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
         Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::AdviseUSM: {
@@ -2727,6 +2728,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         MQueue->getContextImplPtr(), MCommandBuffer, Advise->getDst(),
         Advise->getLength(), Advise->getAdvice(), std::move(MSyncPointDeps),
         &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   default:
