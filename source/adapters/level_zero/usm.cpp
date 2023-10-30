@@ -192,8 +192,13 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  return USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context,
-                                   Device, *ResultPtr, Size);
+  auto Result = USMAllocationMakeResident(USMDeviceAllocationForceResidency,
+                                          Context, Device, *ResultPtr, Size);
+  if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
+      Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+    return Result;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 static ur_result_t USMSharedAllocImpl(void **ResultPtr,
@@ -224,9 +229,15 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  auto Result = USMAllocationMakeResident(USMSharedAllocationForceResidency,
+                                          Context, Device, *ResultPtr, Size);
+  if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
+      Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+    return Result;
+  }
+
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
-  return USMAllocationMakeResident(USMSharedAllocationForceResidency, Context,
-                                   Device, *ResultPtr, Size);
+  return UR_RESULT_SUCCESS;
 }
 
 static ur_result_t USMHostAllocImpl(void **ResultPtr,
@@ -244,8 +255,13 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  return USMAllocationMakeResident(USMHostAllocationForceResidency, Context,
-                                   nullptr, *ResultPtr, Size);
+  auto Result = USMAllocationMakeResident(USMHostAllocationForceResidency,
+                                          Context, nullptr, *ResultPtr, Size);
+  if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
+      Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+    return Result;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
