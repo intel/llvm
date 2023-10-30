@@ -136,6 +136,29 @@ However, there are no enumerators defined by this extension.
 Instead, this enumeration is an extension point for other extensions, which can
 specify the exact semantics of each possible kernel language.
 
+=== New member functions for the device class
+
+This extension adds the following new member functions to the `device` class:
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+class device {
+
+bool ext_oneapi_can_compile(ext::oneapi::experimental::source_language lang);
+
+};
+----
+!====
+
+_Returns:_ The value `true` only if the device supports kernel bundles written
+in the source language `lang`.
+|====
+
 === New free functions to create and build kernel bundles
 
 This extension adds the following new free functions to create and build a
@@ -172,28 +195,20 @@ state.
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if the source language
-  `lang` is not supported by the backend associated with `ctxt`.
+  `lang` is not supported by any device contained by the context `ctxt`.
 
-_Remarks:_ Calling this function does not attempt to compile the source code.
+[NOTE]
+====
+Calling this function does not attempt to compile the source code.
 As a result, syntactic errors in the source code string are not diagnosed by
 this function.
 
-a|
-[frame=all,grid=none]
-!====
-a!
-[source]
-----
-namespace sycl::ext::oneapi::experimental {
-
-bool is_source_kernel_bundle_supported(backend be, source_language lang)
-
-} // namespace sycl::ext::oneapi::experimental {
-----
-!====
-
-_Returns:_ The value `true` only if the backend `be` supports kernel bundles
-written in the source language `lang`.
+This function succeeds even if some devices in `ctxt` do not support the source
+language `lang`.
+However, the `build` function fails unless _all_ of its devices support `lang`.
+Therefore, applications should take care to omit devices that do not support
+`lang` when calling `build`.
+====
 
 a|
 [frame=all,grid=none]
@@ -241,6 +256,10 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if any of the devices in
   `devs` is not contained by the context associated with `sourceBundle`.
+
+* An `exception` with the `errc::invalid` error code if any of the devices in
+  `devs` does not support compilation of kernels in the source language of
+  `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if `props` contains an
   `options` property that specifies an invalid option.
