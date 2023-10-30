@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
-  # Merge: 62e6d2f9 5fb82924
+  # commit: 7c8617b3710736db642585fe310a64e19e059d2e
+  # Merge:  20d4f49  9a13af
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 8 13:32:46 2023 +0000
-  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
-  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
-  set(UNIFIED_RUNTIME_TAG ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc)
+  # Date:   Thu Oct 26 10:20:03 2023 +0100
+  #         Merge pull request #965 from Bensuo/ewan/L0_internal_event_fix
+  #         [Command-buffer][L0] Reset sync-point events
+  set(UNIFIED_RUNTIME_TAG fb00d47cdc403a67b7fa182f55a33de8e7500ed7)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
