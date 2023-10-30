@@ -1377,6 +1377,8 @@
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?map@MemoryManager@detail@_V1@sycl@@SAPEAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@W4mode@access@34@IV?$range@$02@34@4V?$id@$02@34@IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
+?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
+?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?map_external_memory_array@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?map_external_memory_array@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?markAsInternal@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
