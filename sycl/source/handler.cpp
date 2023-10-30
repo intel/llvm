@@ -826,7 +826,7 @@ const char *handler::getKernelName() {
   return kernelNameCStr;
 }
 
-void handler::verifyUsedKernelBundle(const char* KernelName) {
+void handler::verifyUsedKernelBundle(const char *KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
