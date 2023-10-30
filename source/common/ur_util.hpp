@@ -293,4 +293,6 @@ inline ur_result_t exceptionToResult(std::exception_ptr eptr) {
     }
 }
 
+template <class> inline constexpr bool ur_always_false_t = false;
+
 #endif /* UR_UTIL_H */
