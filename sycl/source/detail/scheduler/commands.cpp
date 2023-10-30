@@ -1901,9 +1901,9 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &FunctionName, const std::string &SyclKernelName, void *&Address,
-    std::optional<bool> &FromSource) {
-	std::string KernelName;
+    const std::string &FunctionName, const std::string &SyclKernelName,
+    void *&Address, std::optional<bool> &FromSource) {
+  std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
     pi_kernel KernelHandle = SyclKernel->getHandleRef();
@@ -2057,13 +2057,14 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
- /* if (!xptiCheckTraceEnabled(StreamID))
-    return XptiObjects;*/
+  /* if (!xptiCheckTraceEnabled(StreamID))
+     return XptiObjects;*/
 
   void *Address = nullptr;
   std::optional<bool> FromSource;
   std::string KernelName = instrumentationGetKernelName(
-      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address, FromSource);
+      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
+      FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
