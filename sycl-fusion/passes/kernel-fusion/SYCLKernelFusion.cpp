@@ -358,11 +358,11 @@ Error SYCLKernelFusion::fuseKernel(
   // information for functor & argument layout and attributes will be filled in
   // with information from the input kernels below.
   if (!ModInfo->hasKernelFor(FusedKernelName.data())) {
-    jit_compiler::SYCLKernelInfo KI{FusedKernelName.data()};
+    jit_compiler::SYCLKernelInfo KI{FusedKernelName.str()};
     ModInfo->addKernel(KI);
   }
   jit_compiler::SYCLKernelInfo &FusedKernelInfo =
-      *ModInfo->getKernelFor(FusedKernelName.data());
+      *ModInfo->getKernelFor(FusedKernelName.str().c_str());
   // Mapping from parameter in an input function (index in the list of input
   // functions and index in the original function) to the argument index in the
   // fused function.

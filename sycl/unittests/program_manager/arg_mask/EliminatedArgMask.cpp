@@ -156,7 +156,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
       << "Expect command group to contain kernel bundle";
 
   auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
-      ExecKernel->MKernelName);
+      ExecKernel->MKernelName.c_str());
   sycl::kernel SyclKernel =
       KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
