@@ -27,7 +27,7 @@ using annotated_ptr_t3 =
 
 struct MyIP {
 
-  // CHECK-IR: spir_kernel void @_ZTS4MyIP(ptr addrspace(5) {{.*}} %_arg_a, ptr addrspace(6) {{.*}} %_arg_b, ptr addrspace(6) {{.*}} %_arg_c)
+  // CHECK-IR: spir_kernel void @_ZTS4MyIP(ptr addrspace(5) {{.*}} %_arg_a, ptr addrspace(6) {{.*}} %_arg_b, ptr addrspace(1) {{.*}} %_arg_c)
   annotated_ptr_t1 a;
   annotated_ptr_t2 b;
   annotated_ptr_t3 c;

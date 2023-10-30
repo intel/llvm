@@ -180,8 +180,7 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
       detail::IsUsmKindDevice<property_list_t>::value,
       typename sycl::ext::intel::decorated_device_ptr<T>::pointer,
       std::conditional_t<
-          detail::IsUsmKindHost<property_list_t>::value ||
-              detail::IsUsmKindShared<property_list_t>::value,
+          detail::IsUsmKindHost<property_list_t>::value,
           typename sycl::ext::intel::decorated_host_ptr<T>::pointer,
           typename decorated_global_ptr<T>::pointer>>;
 #else
