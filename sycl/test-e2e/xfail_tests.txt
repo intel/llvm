@@ -487,6 +487,8 @@ SpecConstants/2020/host_apis.cpp
 SpecConstants/2020/kernel-bundle-api.cpp
 SpecConstants/2020/kernel_lambda_with_kernel_handler_arg.cpp
 SpecConstants/2020/non_native/aot_w_kernel_handler_wo_spec_consts.cpp
+SpecConstants/2020/nested-non-packed-struct.cpp
+SpecConstants/2020/non-packed-struct-2.cpp
 SpecConstants/2020/non-packed-struct.cpp
 SpecConstants/2020/vector-convolution-demo.cpp
 SubGroup/broadcast_fp16.cpp
