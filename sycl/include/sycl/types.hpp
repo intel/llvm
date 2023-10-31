@@ -82,7 +82,6 @@
 #endif
 
 #include <array>
-#include <cmath>
 #include <cstring>
 #include <optional>
 #include <variant>
@@ -628,9 +627,9 @@ template <typename Type, int NumElements> class vec {
       (Sz > detail::MaxVecAlignment);
 
   static constexpr bool IsHostHalf =
-      std::is_same<DataT, sycl::detail::half_impl::half>::value &&
-      std::is_same<sycl::detail::half_impl::StorageT,
-                   sycl::detail::host_half_impl::half>::value;
+      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
+      std::is_same_v<sycl::detail::half_impl::StorageT,
+                     sycl::detail::host_half_impl::half>;
 
   // TODO: There is no support for vector half type on host yet.
   // Also, when Sz is greater than alignment, we use std::array instead of
@@ -795,7 +794,7 @@ template <typename Type, int NumElements> class vec {
   // Shortcuts for args validation in vec(const argTN &... args) ctor.
   template <typename... argTN>
   using EnableIfSuitableTypes = typename std::enable_if_t<
-      std::conjunction<TypeChecker<argTN, DataT>...>::value>;
+      std::conjunction_v<TypeChecker<argTN, DataT>...>>;
 
   template <typename... argTN>
   using EnableIfSuitableNumElements =
