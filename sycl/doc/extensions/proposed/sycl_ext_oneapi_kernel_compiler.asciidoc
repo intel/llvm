@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -197,9 +198,7 @@ _Throws:_
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` is not supported by any device contained by the context `ctxt`.
 
-[NOTE]
-====
-Calling this function does not attempt to compile the source code.
+[_Note:_ Calling this function does not attempt to compile the source code.
 As a result, syntactic errors in the source code string are not diagnosed by
 this function.
 
@@ -208,7 +207,7 @@ language `lang`.
 However, the `build` function fails unless _all_ of its devices support `lang`.
 Therefore, applications should take care to omit devices that do not support
 `lang` when calling `build`.
-====
+_{endnote}_]
 
 a|
 [frame=all,grid=none]
@@ -272,13 +271,11 @@ _Throws:_
   This string is intended for human consumption, and the format may not be
   stable across implementations of this extension.
 
-[NOTE]
-====
-An uncaught `errc::build` exception may result in some or all of the source
-code used to create the kernel bundle being printed to the terminal.
+[_Note:_ An uncaught `errc::build` exception may result in some or all of the
+source code used to create the kernel bundle being printed to the terminal.
 In situations where this is undesirable, developers must ensure that the
 exception is caught and handled appropriately.
-====
+_{endnote}_]
 
 Overload (2):
 
