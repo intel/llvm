@@ -98,7 +98,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(bool{false});
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
-    return ReturnValue(uint32_t{256});
+    // todo: return number of threads in theadpool
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
@@ -158,14 +159,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+  // todo: how can we query vector width in a platform
+  // indipendent way?
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+    return ReturnValue(uint32_t{32});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+    return ReturnValue(uint32_t{16});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+    return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+    return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
-    return ReturnValue(uint32_t{1});
+    return ReturnValue(uint32_t{16});
 
   // Imported from level_zero
   case UR_DEVICE_INFO_USM_HOST_SUPPORT:

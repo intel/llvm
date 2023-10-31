@@ -29,7 +29,7 @@
 
 namespace llvm {
 cl::opt<bool> NativeCPUVecz("ncpu-vecz", cl::init(false), cl::desc("Run vectorizer on SYCL Native CPU"));
-cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(1), cl::desc("Vector width for SYCL Native CPU vectorizer"));
+cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(8), cl::desc("Vector width for SYCL Native CPU vectorizer"));
 void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
