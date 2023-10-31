@@ -223,12 +223,12 @@ public:
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {
-    static constexpr bool has_same_properties =
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t,
+                                    decltype(properties{props...})>>::value;
+    static_assert(
+        has_same_properties,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -242,15 +242,16 @@ public:
       : m_Ptr(other.m_Ptr) {
     static constexpr bool is_input_convertible =
         std::is_convertible<T2 *, T *>::value;
-    static_assert(is_input_convertible,
+    static_assert(
+        is_input_convertible,
         "The underlying pointer type of the input annotated_ptr is not "
         "convertible to the target pointer type");
 
-    static constexpr bool has_same_properties =
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value;
+    static_assert(
+        has_same_properties,
         "The constructed annotated_ptr type must contain all the properties "
         "of the input annotated_ptr");
   }
@@ -265,14 +266,16 @@ public:
       : m_Ptr(other.m_Ptr) {
     static constexpr bool is_input_convertible =
         std::is_convertible<T2 *, T *>::value;
-    static_assert(is_input_convertible,
+    static_assert(
+        is_input_convertible,
         "The underlying pointer type of the input annotated_ptr is not "
         "convertible to the target pointer type");
 
-    static constexpr bool has_same_properties =
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<PropertyListU, PropertyListV>>::value;
+    static_assert(
+        has_same_properties,
         "The property list of constructed annotated_ptr type must be the "
         "union of the input property lists");
   }

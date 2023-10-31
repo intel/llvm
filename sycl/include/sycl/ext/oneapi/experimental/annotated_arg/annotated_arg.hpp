@@ -115,12 +115,12 @@ public:
   template <typename... PropertyValueTs>
   annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
       : obj(global_pointer_t(_ptr)) {
-    static constexpr bool has_same_properties =
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t,
+                                    decltype(properties{props...})>>::value;
+    static_assert(
+        has_same_properties,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -138,11 +138,11 @@ public:
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
-    static constexpr bool has_same_properties =
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value;
+    static_assert(
+        has_same_properties,
         "The constructed annotated_arg type must contain all the properties of "
         "the input annotated_arg");
   }
@@ -162,10 +162,11 @@ public:
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
-    static constexpr bool has_same_properties =
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<PropertyListU, PropertyListV>>::value;
+    static_assert(
+        has_same_properties,
         "The property list of constructed annotated_arg type must be the union "
         "of the input property lists");
   }
@@ -237,12 +238,12 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   annotated_arg(const T &_obj, PropertyValueTs... props) noexcept : obj(_obj) {
-    static constexpr bool has_same_properties =
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t,
+                                    decltype(properties{props...})>>::value;
+    static_assert(
+        has_same_properties,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -260,11 +261,11 @@ public:
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
-    static constexpr bool has_same_properties =
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value,
+    static_assert(
+        has_same_properties,
         "The constructed annotated_arg type must contain all the properties of "
         "the input annotated_arg");
   }
@@ -284,10 +285,11 @@ public:
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
-    static constexpr bool has_same_properties =
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value;
-    static_assert(has_same_properties,
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<PropertyListU, PropertyListV>>::value;
+    static_assert(
+        has_same_properties,
         "The property list of constructed annotated_arg type must be the union "
         "of the input property lists");
   }
