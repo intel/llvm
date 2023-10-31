@@ -2778,7 +2778,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         AllocaCmd->getMemAllocation(), Fill->MPattern.size(),
         Fill->MPattern.data(), Req->MDims, Req->MMemoryRange, Req->MAccessRange,
         Req->MOffset, Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
-
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::FillUSM: {
@@ -2787,7 +2787,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
         Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
         &OutSyncPoint);
-
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   default:
