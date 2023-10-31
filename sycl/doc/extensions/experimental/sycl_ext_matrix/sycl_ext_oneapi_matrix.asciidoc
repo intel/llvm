@@ -50,7 +50,7 @@ specification.*
 This extension is currently implemented in {dpcpp} only for devices
 that contain a matrix hardware, specifically Intel(R) Advanced Matrix
 Extensions (Intel(R) AMX), Intel(R) Xe Matrix Extensions (Intel(R)
-XMX) and Nvidia(R) Tensor Cores.
+XMX), Nvidia(R) Tensor Cores and AMD Matrix Cores(R).
 
 The `joint_matrix` type and the `joint_matrix_mad` function are
 optional kernel features as defined in section 5.7 of the core SYCL
@@ -67,8 +67,8 @@ implementation throws a synchronous exception with the
 
 == Overview
 Joint matrix is a SYCL extension for matrix hardware programming. It
-unifies targets like Intel AMX in CPUs, Intel XMX in Intel GPUs and
-Nvidia Tensor Cores. This provides a portable and performant API for
+unifies targets like Intel AMX in CPUs, Intel XMX in Intel GPUs,
+Nvidia Tensor Cores and AMD Matrix Cores(R). This provides a portable and performant API for
 users who want to build their own neural networks applications,
 perform custom optimizations, or experiment with new operations in a
 timely and performing manner.
@@ -921,7 +921,8 @@ the type of the A matrix must be the same as the type of the B
 matrix.
 
 IMPORTANT: When compiling for the `ext_oneapi_cuda` backend the target
-arch backend flag, `-Xsycl-target-backend --cuda-gpu-arch=sm_xx`, must
+arch backend flag, `-fsycl-targets=nvidia_gpu_sm_xx`
+(or equivalents, e.g. `-Xsycl-target-backend --cuda-gpu-arch=sm_xx`), must
 be used, where `sm_xx` must be a Compute Capability that is equal to
 or greater than the appropriate Minimum Compute Capability. When an
 executable has been compiled for `sm_xx`, if the executable is run on
@@ -971,6 +972,34 @@ multiple of 4 when `T` is `float`; where `T` is the type of the
 `joint_matrix` elements. When `T` is not `half` or `float` there are
 no restrictions to `stride`.
 
+==== AMD Matrix Cores Supported Combinations
+The complete set of matrix data types and dimensions that are supported by
+the `ext_oneapi_hip` backend are represented in the following
+table. In this architecture's implementation, A and B matrices must have the same type. 
+Similarly, C and D matrices must share the same type.
+
+IMPORTANT: The supported instructions may be run on GFX90A (MI200, MI210, MI250 and MI250X GPUs)
+architecture. When compiling for the `ext_oneapi_hip` backend the 
+target arch backend flag, `-fsycl-targets=amd_gpu_gfx90a`, must
+be used. An attempt to run the compiled code on an unsupported architecture will throw an error. 
+
+
+[frame="none",options="header"]
+|======================
+| A and B type | C and D type | M | N | K
+.2+| `matrix_type::fp16`  .2+| `matrix_type::fp32`
+|32 |32 |8 
+|16 |16 |16
+.2+| `matrix_type::sint8`  .2+| `matrix_type::sint32`
+|32 |32 |8 
+|16 |16 |16
+.2+|`matrix_type::bf16`  .2+|`matrix_type::fp32`
+|32 |32 |8 
+|16 |16 |16
+.1+|`matrix_type::fp64`  .1+| `matrix_type::fp64`
+|16 |16 |4
+|======================
+
 === Revision History
 
 [frame="none",options="header"]
@@ -990,4 +1019,5 @@ the Intel-specifics to a separate extension document
 type, runtime query, and supported combinations appendix for Intel AMX
 and Intel XMX
 |7   |2023-04-11 |Jack Kirk |Add Nvidia Tensor Cores supported combinations
+|8   |2023-10-05 |Mahmoud Moadeli |Add AMD Matrix Core supported combinations
 |======================

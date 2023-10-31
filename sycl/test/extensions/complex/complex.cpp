@@ -2,7 +2,7 @@
 
 #define SYCL_EXT_ONEAPI_COMPLEX
 
-#include <sycl/ext/oneapi/experimental/sycl_complex.hpp>
+#include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
@@ -24,8 +24,9 @@ template <template <typename> typename action> void test_valid_types() {
   template <typename T> struct test##_##op_name##_##types {                    \
     bool operator()() {                                                        \
       static_assert(                                                           \
-          std::is_same_v<complex<T>, decltype(declval<complex<T>>()            \
-                                                  op declval<complex<T>>())>); \
+          std::is_same_v<complex<T>,                                           \
+                         decltype(std::declval<complex<T>>()                   \
+                                      op std::declval<complex<T>>())>);        \
       return true;                                                             \
     }                                                                          \
   };
