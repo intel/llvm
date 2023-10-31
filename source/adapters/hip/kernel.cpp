@@ -321,3 +321,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     const ur_kernel_native_properties_t *, ur_kernel_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] uint32_t count,
+    [[maybe_unused]] const ur_specialization_constant_info_t *pSpecConstants) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
