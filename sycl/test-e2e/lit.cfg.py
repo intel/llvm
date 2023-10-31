@@ -275,6 +275,8 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
     devices = set()
     sp = subprocess.check_output(sycl_ls, text=True)
     for line in sp.splitlines():
+        if "gfx90a" in line:
+            config.available_features.add("gpu-amd-gfx90a")
         (backend, device, _) = line[1:].split(':', 2)
         devices.add('{}:{}'.format(backend, device))
     config.sycl_devices = list(devices)
