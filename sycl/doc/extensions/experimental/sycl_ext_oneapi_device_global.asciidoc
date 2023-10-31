@@ -208,7 +208,7 @@ below for a list of the properties that are allowed.
 [NOTE]
 ====
 
-On a device, `device_global` has similar semantics to a reference wrapper.  The dot operator (`operator.`) cannot be overloaded, so a `get()` member is provided to allow a reference to be extracted directly when needed.  Some operators are declared in `device_global` that must be members (e.g. `operator[]` and `+operator->+`).  Note that other operators can be overloaded by specific `T` as free functions, which will be selected through implicit conversion to `T` in device functions.
+On a device, `device_global` has similar semantics to a reference wrapper.  The dot operator (`operator.`) cannot be overloaded, so a `get()` member is provided to allow a reference to be extracted directly when needed.  Some operators are declared in `device_global` that must be members (e.g. `operator[]` and `+operator->+`).  Note that other operators are overloaded to call the operators for the underlying type `T`. This allows for ease of use when a `device_global` is templated on more complex `T` that may itself be templated. An example of this would be `device_global` templated on a `fpga_mem` which in turn is templated on type `int`.
 
 ====
 
