@@ -943,33 +943,33 @@ public:
           }
         } else if (LoadInst *Load = dyn_cast<LoadInst>(U)) {
           BuiltinKind BK;
-          uint32_t dim = 0;
+          uint32_t Dim = 0;
           int64_t OffsetInt = Offset.getSExtValue();
           // Offset are in byte
           switch (OffsetInt) {
           case 4:
             BK = BuiltinKind::LocalSizeRemapper;
-            dim = 0;
+            Dim = 0;
             break;
           case 6:
             BK = BuiltinKind::LocalSizeRemapper;
-            dim = 1;
+            Dim = 1;
             break;
           case 8:
             BK = BuiltinKind::LocalSizeRemapper;
-            dim = 2;
+            Dim = 2;
             break;
           case 12:
             BK = BuiltinKind::GlobalSizeRemapper;
-            dim = 0;
+            Dim = 0;
             break;
           case 16:
             BK = BuiltinKind::GlobalSizeRemapper;
-            dim = 1;
+            Dim = 1;
             break;
           case 20:
             BK = BuiltinKind::GlobalSizeRemapper;
-            dim = 2;
+            Dim = 2;
             break;
           default:
             if (OffsetInt >= 4 && OffsetInt <= 23) {
@@ -980,7 +980,7 @@ public:
             // those cases.
             return Error::success();
           }
-          IdxAccess.insert({Load, {BK, dim}});
+          IdxAccess.insert({Load, {BK, Dim}});
         }
 
         return createStringError(inconvertibleErrorCode(),
