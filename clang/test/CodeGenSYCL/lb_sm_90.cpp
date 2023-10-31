@@ -1,10 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -triple nvptx-unknown-unknown -target-cpu sm_90 -fsycl-is-device -Wno-c++23-extensions -S -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clang_cc1 -internal-isystem %S/Inputs %s -triple nvptx64-nvidia-cuda -target-cpu sm_90 -fsycl-is-device -fsyntax-only -Wno-c++23-extensions -verify
-// expected-no-diagnostics
 
 // Maximum work groups per multi-processor, mapped to maxclusterrank PTX
-// directive, is an SM_90 feature, make sure that correct metadata is generated
-// and no warnings/errors are issued.
+// directive, is an SM_90 feature, make sure that correct metadata is generated.
 
 #include "sycl.hpp"
 

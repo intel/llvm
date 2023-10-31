@@ -12003,7 +12003,7 @@ def err_sycl_special_type_num_init_method : Error<
   "types with 'sycl_special_class' attribute must have one and only one '__init' "
   "method defined">;
 def warn_launch_bounds_is_cuda_specific : Warning<
-  "%0 attribute ignored, only applicable when targetting Nvidia devices">,
+  "%0 attribute ignored, only applicable when targeting Nvidia devices">,
   InGroup<IgnoredAttributes>;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<

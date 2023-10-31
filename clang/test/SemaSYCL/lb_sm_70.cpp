@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple nvptx-unknown-unknown -target-cpu sm_70 -fsycl-is-device -Wno-c++23-extensions -S -emit-llvm %s -o -ferror-limit=100 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple nvptx-unknown-unknown -target-cpu sm_70 -fsycl-is-device -Wno-c++23-extensions -S -emit-llvm %s -o -fsyntax-only -verify %s
 
 // Maximum work groups per multi-processor, mapped to maxclusterrank PTX
 // directive, is an SM_90 feature, make sure that correct warning is issued on
