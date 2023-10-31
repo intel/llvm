@@ -53,16 +53,13 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-
-  # commit 74f42f8fdd3b92b355c5769bd13d4d982e839c78
-  # Author: Ben Tracy <ben.tracy@codeplay.com>
-  # Date:   Fri Oct 6 12:57:03 2023 +0100
-  # [CUDA][EXP] CUDA adapter support for command buffers
-  # - Implement initial subset of command buffer functions for CUDA
-  # - Report command buffer extension as supported from device query
-  # - Some additional methods and refactoring to reuse existing adapter code
-  set(UNIFIED_RUNTIME_TAG 5ecaf66a2d0325cb9b8cfcb8e39a60810fa46cc2)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit be53fb3ba5bf1ac33051456d72c61b6a01d94a72
+  # Merge: 55d432c 5ecaf66
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Oct 31 13:22:52 2023 +0000
+  #     Merge pull request #932 from Bensuo/cuda-cmd-buffers
+  #     [CUDA][EXP] CUDA adapter support for command buffers
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
