@@ -272,7 +272,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     if (hArgValue->MemType == ur_mem_handle_t_::Type::Surface) {
-      auto array = hArgValue->Mem.SurfaceMem.getArray();
+      auto array = std::get<SurfaceMem>(hArgValue->Mem).getArray();
       hipArray_Format Format;
       size_t NumChannels;
       getArrayDesc(array, Format, NumChannels);
@@ -283,12 +283,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
             "UR HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
       }
-      hipSurfaceObject_t hipSurf = hArgValue->Mem.SurfaceMem.getSurface();
+      hipSurfaceObject_t hipSurf =
+          std::get<SurfaceMem>(hArgValue->Mem).getSurface();
       hKernel->setKernelArg(argIndex, sizeof(hipSurf), (void *)&hipSurf);
-    } else
-
-    {
-      void *HIPPtr = hArgValue->Mem.BufferMem.getVoid();
+    } else {
+      void *HIPPtr = std::get<BufferMem>(hArgValue->Mem).getVoid();
       hKernel->setKernelArg(argIndex, sizeof(void *), (void *)&HIPPtr);
     }
   } catch (ur_result_t Err) {
