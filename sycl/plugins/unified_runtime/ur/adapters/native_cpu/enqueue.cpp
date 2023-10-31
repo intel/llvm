@@ -52,6 +52,16 @@ static void runWorkGroupLoops(const sycl::detail::NDRDescT &ndr,
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
+  const bool localSizeOne = ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
+  if(localSizeOne) {
+    // put everything in one work group, this is just an experiment
+    state.MWorkGroup_size[0] = numWG0;
+    state.MWorkGroup_size[1] = numWG1;
+    state.MWorkGroup_size[2] = numWG2;
+    numWG0 = 1;
+    numWG1 = 1;
+    numWG2 = 1;
+  }
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
       for (unsigned g0 = 0; g0 < numWG0; g0++) {

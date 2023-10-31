@@ -49,6 +49,7 @@
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/attributes.h"
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/metadata.h"
 #endif
 
 using namespace llvm;
@@ -57,19 +58,6 @@ namespace {
 
 void fixCallingConv(Function *F) {
   F->setCallingConv(llvm::CallingConv::C);
-  // The frame-pointer=all and the "byval" attributes lead to code generation
-  // that conflicts with the Kernel declaration that we emit in the Native CPU
-  // helper header (in which all the kernel argument are void* or scalars).
-  auto AttList = F->getAttributes();
-  for (unsigned ArgNo = 0; ArgNo < F->getFunctionType()->getNumParams();
-       ArgNo++) {
-    if (AttList.hasParamAttr(ArgNo, Attribute::AttrKind::ByVal)) {
-      AttList = AttList.removeParamAttribute(F->getContext(), ArgNo,
-                                             Attribute::AttrKind::ByVal);
-    }
-  }
-  F->setAttributes(AttList);
-  F->addFnAttr("frame-pointer", "none");
 }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
@@ -196,6 +184,8 @@ static Function *getReplaceFunc(const Module &M, StringRef Name) {
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
+  // Todo: we should probably cache the state thread local load here 
+  // to avoid re-emitting it for each builtin
   if (StateTLS) {
     IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
     llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
@@ -232,6 +222,18 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   CurrentStatePointerTLS = nullptr;
 
+  // check if any of the kernels is called by some other function.
+  // This can happen e.g. with OCK, where wrapper functions are 
+  // created around the origianl kernel.
+  bool KernelIsCalled = false;
+  for(auto& K : OldKernels) {
+    for(auto& U : K->uses()){
+      if(isa<CallBase>(U.getUser())) {
+        KernelIsCalled = true;
+      }
+    }
+  }
+
   // Then we iterate over all the supported builtins, find the used ones
   llvm::SmallVector<std::pair<llvm::Function *, StringRef>> UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
@@ -242,9 +244,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       auto I = dyn_cast<CallInst>(Use.getUser());
       if (!I)
         report_fatal_error("Unsupported Value in SYCL Native CPU\n");
-      if (!IsNativeCPUKernel(I->getFunction())) {
+      if (!IsNativeCPUKernel(I->getFunction()) || KernelIsCalled) {
         // only use the threadlocal if we have kernels calling builtins
-        // indirectly
+        // indirectly, or if the kernel is called by some other func.
         if (CurrentStatePointerTLS == nullptr)
           CurrentStatePointerTLS = M.getOrInsertGlobal(
               STATE_TLS_NAME, StatePtrType, [&M, StatePtrType]() {
@@ -271,6 +273,15 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 #ifdef NATIVECPU_USE_OCK
     auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
     OldF->setName(Name);
+    // if vectorization occurred, at this point we have a wrapper function that 
+    // runs the vectorized kernel and peels using the scalar kernel. We make it so
+    // this wrapper steals the original kernel name.
+    std::optional<compiler::utils::LinkMetadataResult> veczR = compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
+    if(veczR) {
+      auto ScalarF = veczR.value().first;
+      OldF->takeName(ScalarF);
+      ScalarF->setName(OldF->getName() + "_scalar");
+    }
 #endif
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);

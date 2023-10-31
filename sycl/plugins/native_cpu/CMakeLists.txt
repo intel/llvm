@@ -55,8 +55,8 @@ if(Native_CPU_USE_OCK)
 
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
-   GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-   GIT_TAG        sycl_native_experimental
+   GIT_REPOSITORY https://github.com/PietroGhg/oneapi-construction-kit.git
+   GIT_TAG        pietro/vecz
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
@@ -70,8 +70,9 @@ if(Native_CPU_USE_OCK)
   target_include_directories(LLVMSYCLLowerIR PRIVATE 
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
     ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/vecz/include
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
-  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-utils)
+  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-utils vecz)
   target_compile_definitions(pi_native_cpu PRIVATE NATIVECPU_USE_OCK)
 
 endif()

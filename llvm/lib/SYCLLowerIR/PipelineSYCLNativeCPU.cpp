@@ -15,19 +15,43 @@
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
+#include "llvm/Passes/PassBuilder.h"
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/device_info.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
+#include "vecz/pass.h"
+#include "vecz/vecz_target_info.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #endif
 
 namespace llvm {
+cl::opt<bool> NativeCPUVecz("ncpu-vecz", cl::init(false), cl::desc("Run vectorizer on SYCL Native CPU"));
+cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(1), cl::desc("Vector width for SYCL Native CPU vectorizer"));
 void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
+  if(NativeCPUVecz) {
+    MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
+    MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
+    auto queryFunc =
+        [](llvm::Function &F, llvm::ModuleAnalysisManager &,
+           llvm::SmallVectorImpl<vecz::VeczPassOptions> &Opts) -> bool {
+      if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL) {
+        return false;
+      }
+      compiler::utils::VectorizationFactor VF(NativeCPUVeczWidth, false);
+      vecz::VeczPassOptions VPO;
+      VPO.factor = VF;
+      Opts.emplace_back(VPO);
+      return true;
+    };
+    MAM.registerPass([&] { return vecz::VeczPassOptionsAnalysis(queryFunc); });
+    MPM.addPass(vecz::RunVeczPass());
+  }
   // Todo set options properly
   compiler::utils::WorkItemLoopsPassOptions Opts;
   Opts.IsDebug = false;
@@ -36,9 +60,15 @@ void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
   MAM.registerPass([&] { return compiler::utils::SubgroupAnalysis(); });
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
   MPM.addPass(AlwaysInlinerPass());
-
 #endif
   MPM.addPass(PrepareSYCLNativeCPUPass());
   MPM.addPass(RenameKernelSYCLNativeCPUPass());
+
+  // Run optimization passes after all the changes we made to the kernels.
+  // Todo: check optimization level from clang
+  // Todo: maybe we could find a set of relevant passes instead of re-running the full 
+  // optimization pipeline.
+  PassBuilder PB;
+  MPM.addPass(PB.buildPerModuleDefaultPipeline(OptimizationLevel()));
 }
 } // namespace llvm
