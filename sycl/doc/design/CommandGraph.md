@@ -1,7 +1,7 @@
 # Command-Graph Extension
 
 This document describes the implementation design of the
-[SYCL Graph Extension](../extensions/proposed/sycl_ext_oneapi_graph.asciidoc).
+[SYCL Graph Extension](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc).
 
 A related presentation can be found
 [here](https://www.youtube.com/watch?v=aOTAmyr04rM).
@@ -139,14 +139,14 @@ proposal. Memory operations will be supported subsequently by the current
 implementation starting with `memcpy`.
 
 Buffers and accessors are supported in a command-graph. There are
-[spec restrictions](../extensions/proposed/sycl_ext_oneapi_graph.asciidoc#storage-lifetimes)
+[spec restrictions](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc#storage-lifetimes)
 on buffer usage in a graph so that their lifetime semantics are compatible with
 a lazy work execution model. However these changes to storage lifetimes have not
 yet been implemented.
 
 ## Backend Implementation
 
-Implementation of [UR command-buffers](#UR-command-buffer-experimental-feature)
+Implementation of UR command-buffers
 for each of the supported SYCL 2020 backends.
 
 This is currently only Level Zero but more sub-sections will be added here as
