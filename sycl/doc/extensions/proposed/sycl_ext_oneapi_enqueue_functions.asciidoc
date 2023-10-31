@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -176,13 +177,11 @@ together all components of a kernel's launch configuration, including:
 1. The range of execution.
 2. Any compile-time properties.
 
-[NOTE]
-====
-Any compile-time properties passed to a `launch_config` do not affect the
-type of the enqueued kernel, and are primarily intended to be used for
-properties with run-time values that may impact how a kernel is launched
-by an underlying backend.
-====
+[_Note:_ Any compile-time properties passed to a `launch_config` do not affect
+the type of the enqueued kernel, and are primarily intended to be used for
+properties with run-time values that may impact how a kernel is launched by an
+underlying backend.
+_{endnote}_]
 
 [source,c++]
 ----
@@ -693,13 +692,11 @@ _Effects_: Enqueues a _partial_ command barrier to the `sycl::queue` or
 execution until all commands associated with `events` (and any commands
 associated with other dependent events) have completed.
 
-[NOTE]
-====
-If `events` is empty and a partial barrier has no other dependencies (e.g.,
-specified by `handler::depends_on`), it is not required to wait for any
+[_Note:_ If `events` is empty and a partial barrier has no other dependencies
+(e.g., specified by `handler::depends_on`), it is not required to wait for any
 commands unless the `queue` is in-order. Implementations may be able to
-optimized such partial barriers.
-====
+optimize such partial barriers.
+_{endnote}_]
 |====
 
 
