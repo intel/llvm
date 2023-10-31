@@ -3299,7 +3299,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  const char* MKernelName;
+  const char *MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.

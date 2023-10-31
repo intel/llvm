@@ -180,8 +180,7 @@ event handler::finalize() {
       if (!KernelBundleImpPtr->isInterop() &&
           !MImpl->isStateExplicitKernelBundle()) {
         kernel_id KernelID =
-            detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName);
+            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
         bool KernelInserted =
             KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
         // If kernel was not inserted and the bundle is in input mode we try
@@ -273,8 +272,8 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents,
-                                 NewEvent, nullptr, MImpl->MKernelCacheConfig);
+                                 MKernel, MKernelName, RawEvents, NewEvent,
+                                 nullptr, MImpl->MKernelCacheConfig);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION

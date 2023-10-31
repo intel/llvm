@@ -168,7 +168,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  const char* MKernelName=nullptr;
+  const char *MKernelName = nullptr;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
@@ -177,7 +177,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               const char* KernelName,
+               const char *KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
