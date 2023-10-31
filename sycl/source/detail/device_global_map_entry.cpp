@@ -77,7 +77,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     // value inside of the device_global will be zero-initialized if it was not
     // given a value on construction.
     MemoryManager::copy_usm(
-        (const uintptr_t *)MDeviceGlobalPtr + sizeof(MDeviceGlobalPtr),
+        reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) + sizeof(MDeviceGlobalPtr)),
         QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
         std::vector<sycl::detail::pi::PiEvent>{}, &InitEvent);
     NewAlloc.MInitEvent = InitEvent;
