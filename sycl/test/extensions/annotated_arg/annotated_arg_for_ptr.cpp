@@ -17,7 +17,7 @@ using annotated_arg_t1 =
                                              dwidth<32>))>;
 
 using annotated_arg_t2 =
-    annotated_arg<int, decltype(properties(conduit, register_map))>;
+    annotated_arg<int, decltype(properties(register_map))>;
 
 using annotated_arg_t3 =
     annotated_arg<int *, decltype(properties(buffer_location<0>, awidth<32>))>;

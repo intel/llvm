@@ -16,7 +16,7 @@ using annotated_ptr_t1 =
                                            dwidth<32>))>;
 
 using annotated_ptr_t2 =
-    annotated_ptr<int, decltype(properties(buffer_location<0>, conduit,
+    annotated_ptr<int, decltype(properties(buffer_location<0>,
                                            register_map, alignment<8>))>;
 
 using annotated_ptr_t3 =
