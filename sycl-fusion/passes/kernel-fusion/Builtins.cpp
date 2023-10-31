@@ -373,6 +373,9 @@ jit_compiler::Remapper::remapBuiltins(Function *F, const NDRange &SrcNDRange,
 
   // Set Cached to support recursive functions.
   Cached = Clone;
-  TargetInfo.scanForBuiltinsToRemap(Clone, *this, SrcNDRange, FusedNDRange);
+  if (auto Err = TargetInfo.scanForBuiltinsToRemap(Clone, *this, SrcNDRange,
+                                                   FusedNDRange)) {
+    return Err;
+  }
   return Clone;
 }

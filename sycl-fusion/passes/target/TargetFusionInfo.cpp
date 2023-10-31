@@ -84,7 +84,7 @@ public:
   virtual bool shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
                            const NDRange &FusedNDRange) const = 0;
 
-  virtual Expected<Function *>
+  virtual Error
   scanForBuiltinsToRemap(Function *F, Remapper &R,
                          const jit_compiler::NDRange &SrcNDRange,
                          const jit_compiler::NDRange &FusedNDRange) const {
@@ -94,7 +94,7 @@ public:
         auto *OldF = Call->getCalledFunction();
         auto ErrOrNewF = R.remapBuiltins(OldF, SrcNDRange, FusedNDRange);
         if (auto Err = ErrOrNewF.takeError()) {
-          return std::move(Err);
+          return Err;
         }
         // Override called function.
         auto *NewF = *ErrOrNewF;
@@ -103,6 +103,7 @@ public:
         Call->setAttributes(NewF->getAttributes());
       }
     }
+    return Error::success();
   }
 
   virtual bool isSafeToNotRemapBuiltin(Function *F) const = 0;
@@ -986,9 +987,11 @@ public:
                                  "Cannot track dispatch ptr use");
       }
     }
+
+    return Error::success();
   }
 
-  Expected<Function *> scanForBuiltinsToRemap(
+  Error scanForBuiltinsToRemap(
       Function *F, Remapper &R, const jit_compiler::NDRange &SrcNDRange,
       const jit_compiler::NDRange &FusedNDRange) const override {
     llvm::SmallMapVector<Instruction *, std::pair<BuiltinKind, uint32_t>, 16>
@@ -999,12 +1002,14 @@ public:
         // Recursive call
         auto *OldF = Call->getCalledFunction();
         if (OldF->getIntrinsicID() == Intrinsic::amdgcn_dispatch_ptr) {
-          collectDispatchedId(Call, IdxAccess);
+          if (auto Err = collectDispatchedId(Call, IdxAccess)) {
+            return Err;
+          }
           continue;
         }
         auto ErrOrNewF = R.remapBuiltins(OldF, SrcNDRange, FusedNDRange);
         if (auto Err = ErrOrNewF.takeError()) {
-          return std::move(Err);
+          return Err;
         }
         // Override called function.
         auto *NewF = *ErrOrNewF;
@@ -1039,6 +1044,8 @@ public:
       Call->setCallingConv(F->getCallingConv());
       V->replaceAllUsesWith(Call);
     }
+
+    return Error::success();
   }
 };
 #endif // FUSION_JIT_SUPPORT_ADMGCN
@@ -1121,7 +1128,7 @@ bool TargetFusionInfo::shouldRemap(BuiltinKind K, const NDRange &SrcNDRange,
   return Impl->shouldRemap(K, SrcNDRange, FusedNDRange);
 }
 
-Expected<Function *> TargetFusionInfo::scanForBuiltinsToRemap(
+Error TargetFusionInfo::scanForBuiltinsToRemap(
     Function *F, jit_compiler::Remapper &R,
     const jit_compiler::NDRange &SrcNDRange,
     const jit_compiler::NDRange &FusedNDRange) const {

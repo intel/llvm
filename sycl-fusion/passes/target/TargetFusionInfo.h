@@ -82,10 +82,9 @@ public:
 
   ///
   /// Scan function for instructions to remap.
-  Expected<Function *>
-  scanForBuiltinsToRemap(Function *F, jit_compiler::Remapper &R,
-                         const jit_compiler::NDRange &SrcNDRange,
-                         const jit_compiler::NDRange &FusedNDRange) const;
+  Error scanForBuiltinsToRemap(Function *F, jit_compiler::Remapper &R,
+                               const jit_compiler::NDRange &SrcNDRange,
+                               const jit_compiler::NDRange &FusedNDRange) const;
 
   ///
   /// Returns true if calls to \p F can be safely ignored in the remapping
