@@ -2057,8 +2057,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   auto XptiObjects = std::make_pair<xpti_td *, uint64_t>(nullptr, -1);
   constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  /* if (!xptiCheckTraceEnabled(StreamID))
-     return XptiObjects;*/
+  if (!xptiCheckTraceEnabled(StreamID))
+     return XptiObjects;
 
   void *Address = nullptr;
   std::optional<bool> FromSource;
