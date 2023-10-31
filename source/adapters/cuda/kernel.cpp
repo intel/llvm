@@ -304,7 +304,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
     if (hArgValue->MemType == ur_mem_handle_t_::Type::Surface) {
       CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
       UR_CHECK_ERROR(cuArray3DGetDescriptor(
-          &arrayDesc, hArgValue->Mem.SurfaceMem.getArray()));
+          &arrayDesc, std::get<SurfaceMem>(hArgValue->Mem).getArray()));
       if (arrayDesc.Format != CU_AD_FORMAT_UNSIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_HALF &&
@@ -314,10 +314,10 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
-      CUsurfObject CuSurf = hArgValue->Mem.SurfaceMem.getSurface();
+      CUsurfObject CuSurf = std::get<SurfaceMem>(hArgValue->Mem).getSurface();
       hKernel->setKernelArg(argIndex, sizeof(CuSurf), (void *)&CuSurf);
     } else {
-      CUdeviceptr CuPtr = hArgValue->Mem.BufferMem.get();
+      CUdeviceptr CuPtr = std::get<BufferMem>(hArgValue->Mem).get();
       hKernel->setKernelArg(argIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
     }
   } catch (ur_result_t Err) {

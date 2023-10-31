@@ -187,6 +187,146 @@ bool hasExceededMaxRegistersPerBlock(ur_device_handle_t Device,
   return BlockSize * Kernel->getRegsPerThread() > Device->getMaxRegsPerBlock();
 }
 
+// Helper to compute kernel parameters from workload
+// dimensions.
+// @param [in]  Context handler to the target Context
+// @param [in]  Device handler to the target Device
+// @param [in]  WorkDim workload dimension
+// @param [in]  GlobalWorkOffset pointer workload global offsets
+// @param [in]  LocalWorkOffset pointer workload local offsets
+// @param [inout] Kernel handler to the kernel
+// @param [inout] CuFunc handler to the cuda function attached to the kernel
+// @param [out] ThreadsPerBlock Number of threads per block we should run
+// @param [out] BlocksPerGrid Number of blocks per grid we should run
+ur_result_t
+setKernelParams(const ur_context_handle_t Context,
+                const ur_device_handle_t Device, const uint32_t WorkDim,
+                const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+                const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
+                CUfunction &CuFunc, size_t (&ThreadsPerBlock)[3],
+                size_t (&BlocksPerGrid)[3]) {
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  size_t MaxWorkGroupSize = 0u;
+  size_t MaxThreadsPerBlock[3] = {};
+  bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
+  uint32_t LocalSize = Kernel->getLocalSize();
+
+  try {
+    // Set the active context here as guessLocalWorkSize needs an active context
+    ScopedContext Active(Context);
+    {
+      size_t *ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
+      MaxWorkGroupSize = Device->getMaxWorkGroupSize();
+      Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
+                                  MaxThreadsPerBlock);
+
+      if (ProvidedLocalWorkGroupSize) {
+        auto IsValid = [&](int Dim) {
+          if (ReqdThreadsPerBlock[Dim] != 0 &&
+              LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
+            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+          if (LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
+            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+          // Checks that local work sizes are a divisor of the global work sizes
+          // which includes that the local work sizes are neither larger than
+          // the global work sizes and not 0.
+          if (0u == LocalWorkSize[Dim])
+            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+          if (0u != (GlobalWorkSize[Dim] % LocalWorkSize[Dim]))
+            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+          ThreadsPerBlock[Dim] = LocalWorkSize[Dim];
+          return UR_RESULT_SUCCESS;
+        };
+
+        size_t KernelLocalWorkGroupSize = 0;
+        for (size_t Dim = 0; Dim < WorkDim; Dim++) {
+          auto Err = IsValid(Dim);
+          if (Err != UR_RESULT_SUCCESS)
+            return Err;
+          // If no error then sum the total local work size per dim.
+          KernelLocalWorkGroupSize += LocalWorkSize[Dim];
+        }
+
+        if (hasExceededMaxRegistersPerBlock(Device, Kernel,
+                                            KernelLocalWorkGroupSize)) {
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+        }
+      } else {
+        guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
+                           MaxThreadsPerBlock, Kernel, LocalSize);
+      }
+    }
+
+    if (MaxWorkGroupSize <
+        ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
+      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+    }
+
+    for (size_t i = 0; i < WorkDim; i++) {
+      BlocksPerGrid[i] =
+          (GlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
+    }
+
+    // Set the implicit global offset parameter if kernel has offset variant
+    if (Kernel->get_with_offset_parameter()) {
+      std::uint32_t CudaImplicitOffset[3] = {0, 0, 0};
+      if (GlobalWorkOffset) {
+        for (size_t i = 0; i < WorkDim; i++) {
+          CudaImplicitOffset[i] =
+              static_cast<std::uint32_t>(GlobalWorkOffset[i]);
+          if (GlobalWorkOffset[i] != 0) {
+            CuFunc = Kernel->get_with_offset_parameter();
+          }
+        }
+      }
+      Kernel->setImplicitOffsetArg(sizeof(CudaImplicitOffset),
+                                   CudaImplicitOffset);
+    }
+
+    if (Context->getDevice()->maxLocalMemSizeChosen()) {
+      // Set up local memory requirements for kernel.
+      auto Device = Context->getDevice();
+      if (Device->getMaxChosenLocalMem() < 0) {
+        bool EnvVarHasURPrefix =
+            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
+        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
+        setErrorMessage("Too much local memory allocated for device",
+                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
+        bool EnvVarHasURPrefix =
+            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
+        setErrorMessage(
+            EnvVarHasURPrefix
+                ? "Local memory for kernel exceeds the amount requested using "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
+                : "Local memory for kernel exceeds the amount requested using "
+                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
+                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
+            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      }
+      UR_CHECK_ERROR(cuFuncSetAttribute(
+          CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+          Device->getMaxChosenLocalMem()));
+    }
+
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
+}
+
 /// Enqueues a wait on the given CUstream for all specified events (See
 /// \ref enqueueEventWaitWithBarrier.) If the events list is empty, the enqueued
 /// wait will wait on all previous events in the queue.
@@ -291,99 +431,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
-  size_t MaxWorkGroupSize = 0u;
-  size_t MaxThreadsPerBlock[3] = {};
-  bool ProvidedLocalWorkGroupSize = (pLocalWorkSize != nullptr);
+  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+
   uint32_t LocalSize = hKernel->getLocalSize();
   ur_result_t Result = UR_RESULT_SUCCESS;
+  CUfunction CuFunc = hKernel->get();
+
+  Result = setKernelParams(hQueue->getContext(), hQueue->Device, workDim,
+                           pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+                           hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
 
   try {
-    // Set the active context here as guessLocalWorkSize needs an active context
-    ScopedContext Active(hQueue->getContext());
-    {
-      size_t *ReqdThreadsPerBlock = hKernel->ReqdThreadsPerBlock;
-      MaxWorkGroupSize = hQueue->Device->getMaxWorkGroupSize();
-      hQueue->Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
-                                          MaxThreadsPerBlock);
-
-      if (ProvidedLocalWorkGroupSize) {
-        auto IsValid = [&](int Dim) {
-          if (ReqdThreadsPerBlock[Dim] != 0 &&
-              pLocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-
-          if (pLocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          // Checks that local work sizes are a divisor of the global work sizes
-          // which includes that the local work sizes are neither larger than
-          // the global work sizes and not 0.
-          if (0u == pLocalWorkSize[Dim])
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          if (0u != (pGlobalWorkSize[Dim] % pLocalWorkSize[Dim]))
-            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-          ThreadsPerBlock[Dim] = pLocalWorkSize[Dim];
-          return UR_RESULT_SUCCESS;
-        };
-
-        size_t KernelLocalWorkGroupSize = 0;
-        for (size_t Dim = 0; Dim < workDim; Dim++) {
-          auto Err = IsValid(Dim);
-          if (Err != UR_RESULT_SUCCESS)
-            return Err;
-          // If no error then sum the total local work size per dim.
-          KernelLocalWorkGroupSize += pLocalWorkSize[Dim];
-        }
-
-        if (hasExceededMaxRegistersPerBlock(hQueue->Device, hKernel,
-                                            KernelLocalWorkGroupSize)) {
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
-      } else {
-        guessLocalWorkSize(hQueue->Device, ThreadsPerBlock, pGlobalWorkSize,
-                           workDim, MaxThreadsPerBlock, hKernel, LocalSize);
-      }
-    }
-
-    if (MaxWorkGroupSize <
-        ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
-      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-    }
-
-    size_t BlocksPerGrid[3] = {1u, 1u, 1u};
-
-    for (size_t i = 0; i < workDim; i++) {
-      BlocksPerGrid[i] =
-          (pGlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
-    }
-
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
     uint32_t StreamToken;
     ur_stream_guard_ Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
-    CUfunction CuFunc = hKernel->get();
 
     Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                phEventWaitList);
-
-    // Set the implicit global offset parameter if kernel has offset variant
-    if (hKernel->get_with_offset_parameter()) {
-      std::uint32_t CudaImplicitOffset[3] = {0, 0, 0};
-      if (pGlobalWorkOffset) {
-        for (size_t i = 0; i < workDim; i++) {
-          CudaImplicitOffset[i] =
-              static_cast<std::uint32_t>(pGlobalWorkOffset[i]);
-          if (pGlobalWorkOffset[i] != 0) {
-            CuFunc = hKernel->get_with_offset_parameter();
-          }
-        }
-      }
-      hKernel->setImplicitOffsetArg(sizeof(CudaImplicitOffset),
-                                    CudaImplicitOffset);
-    }
-
-    auto &ArgIndices = hKernel->getArgIndices();
 
     if (phEvent) {
       RetImplEvent =
@@ -392,47 +462,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    if (hQueue->getContext()->getDevice()->maxLocalMemSizeChosen()) {
-      // Set up local memory requirements for kernel.
-      auto Device = hQueue->getContext()->getDevice();
-      if (Device->getMaxChosenLocalMem() < 0) {
-        bool EnvVarHasURPrefix =
-            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
-        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
-                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
-                                          : "Invalid value specified for "
-                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-      if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
-        setErrorMessage("Too much local memory allocated for device",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-      if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
-        bool EnvVarHasURPrefix =
-            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
-        setErrorMessage(
-            EnvVarHasURPrefix
-                ? "Local memory for kernel exceeds the amount requested using "
-                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
-                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
-                : "Local memory for kernel exceeds the amount requested using "
-                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
-                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
-            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-      UR_CHECK_ERROR(cuFuncSetAttribute(
-          CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-          Device->getMaxChosenLocalMem()));
-    }
-
+    auto &ArgIndices = hKernel->getArgIndices();
     UR_CHECK_ERROR(cuLaunchKernel(
         CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
         CuStream, const_cast<void **>(ArgIndices.data()), nullptr));
+
     if (LocalSize != 0)
       hKernel->clearLocalSize();
 
@@ -440,29 +475,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
+
   } catch (ur_result_t Err) {
     Result = Err;
   }
   return Result;
 }
 
-/// General 3D memory copy operation.
-/// This function requires the corresponding CUDA context to be at the top of
-/// the context stack
+/// Set parameters for general 3D memory copy.
 /// If the source and/or destination is on the device, SrcPtr and/or DstPtr
 /// must be a pointer to a CUdeviceptr
-static ur_result_t commonEnqueueMemBufferCopyRect(
-    CUstream cu_stream, ur_rect_region_t region, const void *SrcPtr,
-    const CUmemorytype_enum SrcType, ur_rect_offset_t src_offset,
-    size_t src_row_pitch, size_t src_slice_pitch, void *DstPtr,
-    const CUmemorytype_enum DstType, ur_rect_offset_t dst_offset,
-    size_t dst_row_pitch, size_t dst_slice_pitch) {
-
-  UR_ASSERT(SrcType == CU_MEMORYTYPE_DEVICE || SrcType == CU_MEMORYTYPE_HOST,
-            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(DstType == CU_MEMORYTYPE_DEVICE || DstType == CU_MEMORYTYPE_HOST,
-            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
+void setCopyRectParams(ur_rect_region_t region, const void *SrcPtr,
+                       const CUmemorytype_enum SrcType,
+                       ur_rect_offset_t src_offset, size_t src_row_pitch,
+                       size_t src_slice_pitch, void *DstPtr,
+                       const CUmemorytype_enum DstType,
+                       ur_rect_offset_t dst_offset, size_t dst_row_pitch,
+                       size_t dst_slice_pitch, CUDA_MEMCPY3D &params) {
   src_row_pitch =
       (!src_row_pitch) ? region.width + src_offset.x : src_row_pitch;
   src_slice_pitch = (!src_slice_pitch)
@@ -473,8 +502,6 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
   dst_slice_pitch = (!dst_slice_pitch)
                         ? ((region.height + dst_offset.y) * dst_row_pitch)
                         : dst_slice_pitch;
-
-  CUDA_MEMCPY3D params = {};
 
   params.WidthInBytes = region.width;
   params.Height = region.height;
@@ -500,6 +527,29 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
   params.dstZ = dst_offset.z;
   params.dstPitch = dst_row_pitch;
   params.dstHeight = dst_slice_pitch / dst_row_pitch;
+}
+
+/// General 3D memory copy operation.
+/// This function requires the corresponding CUDA context to be at the top of
+/// the context stack
+/// If the source and/or destination is on the device, SrcPtr and/or DstPtr
+/// must be a pointer to a CUdeviceptr
+static ur_result_t commonEnqueueMemBufferCopyRect(
+    CUstream cu_stream, ur_rect_region_t region, const void *SrcPtr,
+    const CUmemorytype_enum SrcType, ur_rect_offset_t src_offset,
+    size_t src_row_pitch, size_t src_slice_pitch, void *DstPtr,
+    const CUmemorytype_enum DstType, ur_rect_offset_t dst_offset,
+    size_t dst_row_pitch, size_t dst_slice_pitch) {
+  UR_ASSERT(SrcType == CU_MEMORYTYPE_DEVICE || SrcType == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(DstType == CU_MEMORYTYPE_DEVICE || DstType == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  CUDA_MEMCPY3D params = {};
+
+  setCopyRectParams(region, SrcPtr, SrcType, src_offset, src_row_pitch,
+                    src_slice_pitch, DstPtr, DstType, dst_offset, dst_row_pitch,
+                    dst_slice_pitch, params);
 
   UR_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
 
@@ -514,7 +564,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-  CUdeviceptr DevPtr = hBuffer->Mem.BufferMem.get();
+  CUdeviceptr DevPtr = std::get<BufferMem>(hBuffer->Mem).get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -562,7 +612,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-  CUdeviceptr DevPtr = hBuffer->Mem.BufferMem.get();
+  CUdeviceptr DevPtr = std::get<BufferMem>(hBuffer->Mem).get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -606,9 +656,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(size + dstOffset <= hBufferDst->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + dstOffset <= std::get<BufferMem>(hBufferDst->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(size + srcOffset <= hBufferSrc->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hBufferSrc->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -628,8 +678,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    auto Src = hBufferSrc->Mem.BufferMem.get() + srcOffset;
-    auto Dst = hBufferDst->Mem.BufferMem.get() + dstOffset;
+    auto Src = std::get<BufferMem>(hBufferSrc->Mem).get() + srcOffset;
+    auto Dst = std::get<BufferMem>(hBufferDst->Mem).get() + dstOffset;
 
     UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
 
@@ -654,8 +704,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   ur_result_t Result = UR_RESULT_SUCCESS;
-  CUdeviceptr SrcPtr = hBufferSrc->Mem.BufferMem.get();
-  CUdeviceptr DstPtr = hBufferDst->Mem.BufferMem.get();
+  CUdeviceptr SrcPtr = std::get<BufferMem>(hBufferSrc->Mem).get();
+  CUdeviceptr DstPtr = std::get<BufferMem>(hBufferDst->Mem).get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -726,7 +776,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
+  UR_ASSERT(size + offset <= std::get<BufferMem>(hBuffer->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -745,7 +795,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    auto DstDevice = hBuffer->Mem.BufferMem.get() + offset;
+    auto DstDevice = std::get<BufferMem>(hBuffer->Mem).get() + offset;
     auto N = size / patternSize;
 
     // pattern size in bytes
@@ -892,7 +942,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                phEventWaitList);
 
-    CUarray Array = hImage->Mem.SurfaceMem.getArray();
+    CUarray Array = std::get<SurfaceMem>(hImage->Mem).getArray();
 
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
     UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
@@ -902,7 +952,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     size_t ByteOffsetX = origin.x * ElementByteSize * ArrayDesc.NumChannels;
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
 
-    ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
+    ur_mem_type_t ImgType = std::get<SurfaceMem>(hImage->Mem).getImageType();
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
@@ -964,7 +1014,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                phEventWaitList);
 
-    CUarray Array = hImage->Mem.SurfaceMem.getArray();
+    CUarray Array = std::get<SurfaceMem>(hImage->Mem).getArray();
 
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
     UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
@@ -982,7 +1032,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
+    ur_mem_type_t ImgType = std::get<SurfaceMem>(hImage->Mem).getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       UR_CHECK_ERROR(
           cuMemcpyHtoAAsync(Array, ByteOffsetX, pSrc, BytesToCopy, CuStream));
@@ -1023,8 +1073,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(hImageDst->MemType == ur_mem_handle_t_::Type::Surface,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hImageSrc->Mem.SurfaceMem.getImageType() ==
-                hImageDst->Mem.SurfaceMem.getImageType(),
+  UR_ASSERT(std::get<SurfaceMem>(hImageSrc->Mem).getImageType() ==
+                std::get<SurfaceMem>(hImageDst->Mem).getImageType(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -1035,8 +1085,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
                                phEventWaitList);
 
-    CUarray SrcArray = hImageSrc->Mem.SurfaceMem.getArray();
-    CUarray DstArray = hImageDst->Mem.SurfaceMem.getArray();
+    CUarray SrcArray = std::get<SurfaceMem>(hImageSrc->Mem).getArray();
+    CUarray DstArray = std::get<SurfaceMem>(hImageDst->Mem).getArray();
 
     CUDA_ARRAY_DESCRIPTOR SrcArrayDesc;
     UR_CHECK_ERROR(cuArrayGetDescriptor(&SrcArrayDesc, SrcArray));
@@ -1065,7 +1115,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    ur_mem_type_t ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
+    ur_mem_type_t ImgType = std::get<SurfaceMem>(hImageSrc->Mem).getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
                                   SrcByteOffsetX, BytesToCopy));
@@ -1108,22 +1158,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_event_handle_t *phEvent, void **ppRetMap) {
   UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.getSize(),
+  UR_ASSERT(offset + size <= std::get<BufferMem>(hBuffer->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
+  auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
   ur_result_t Result = UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   const bool IsPinned =
-      hBuffer->Mem.BufferMem.MemAllocMode ==
-      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
+      BufferImpl.MemAllocMode == BufferMem::AllocMode::AllocHostPtr;
 
   // Currently no support for overlapping regions
-  if (hBuffer->Mem.BufferMem.getMapPtr() != nullptr) {
+  if (BufferImpl.getMapPtr() != nullptr) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(size, offset, mapFlags);
-  *ppRetMap = hBuffer->Mem.BufferMem.getMapPtr();
+  auto HostPtr = BufferImpl.mapToPtr(size, offset, mapFlags);
+  *ppRetMap = BufferImpl.getMapPtr();
   if (HostPtr) {
     Result = UR_RESULT_SUCCESS;
   }
@@ -1168,21 +1218,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   ur_result_t Result = UR_RESULT_SUCCESS;
   UR_ASSERT(hMem->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() != nullptr,
+  UR_ASSERT(std::get<BufferMem>(hMem->Mem).getMapPtr() != nullptr,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(hMem->Mem.BufferMem.getMapPtr() == pMappedPtr,
+  UR_ASSERT(std::get<BufferMem>(hMem->Mem).getMapPtr() == pMappedPtr,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  const bool IsPinned =
-      hMem->Mem.BufferMem.MemAllocMode ==
-      ur_mem_handle_t_::MemImpl::BufferMem::AllocMode::AllocHostPtr;
+  const bool IsPinned = std::get<BufferMem>(hMem->Mem).MemAllocMode ==
+                        BufferMem::AllocMode::AllocHostPtr;
 
-  if (!IsPinned && (hMem->Mem.BufferMem.getMapFlags() & UR_MAP_FLAG_WRITE)) {
+  if (!IsPinned &&
+      (std::get<BufferMem>(hMem->Mem).getMapFlags() & UR_MAP_FLAG_WRITE)) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(),
-        hMem->Mem.BufferMem.getMapSize(), pMappedPtr, numEventsInWaitList,
-        phEventWaitList, phEvent);
+        hQueue, hMem, true, std::get<BufferMem>(hMem->Mem).getMapOffset(),
+        std::get<BufferMem>(hMem->Mem).getMapSize(), pMappedPtr,
+        numEventsInWaitList, phEventWaitList, phEvent);
   } else {
     ScopedContext Active(hQueue->getContext());
 
@@ -1203,7 +1253,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     }
   }
 
-  hMem->Mem.BufferMem.unmap(pMappedPtr);
+  std::get<BufferMem>(hMem->Mem).unmap(pMappedPtr);
   return Result;
 }
 
@@ -1502,11 +1552,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   UR_ASSERT(!hBuffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.Size,
+  UR_ASSERT(offset + size <= std::get<BufferMem>(hBuffer->Mem).Size,
             UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  CUdeviceptr DevPtr = hBuffer->Mem.BufferMem.get();
+  CUdeviceptr DevPtr = std::get<BufferMem>(hBuffer->Mem).get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -1549,11 +1599,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   UR_ASSERT(!hBuffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.Size,
+  UR_ASSERT(offset + size <= std::get<BufferMem>(hBuffer->Mem).Size,
             UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  CUdeviceptr DevPtr = hBuffer->Mem.BufferMem.get();
+  CUdeviceptr DevPtr = std::get<BufferMem>(hBuffer->Mem).get();
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
