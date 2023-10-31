@@ -10,6 +10,10 @@
 #define LLVM_CLANG_TOOLS_CLANG_OFFLOAD_WRAPPER_SYM_PROP_H
 
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/Support/PropertySetIO.h"
+#include "llvm/Support/SimpleTable.h"
+#include "llvm/Support/WithColor.h"
 
 using namespace llvm;
 
@@ -40,9 +44,11 @@ public:
     Expected<std::unique_ptr<util::SimpleTable>> TPtr =
         util::SimpleTable::read(SymPropBCFiles);
 
-    if (!TPtr)
-      WithColor::warning(errs(), ToolName)
-          << "cannot open " << SymPropBCFiles << "\n";
+    if (!TPtr) {
+      logAllUnhandledErrors(std::move(TPtr.takeError()),
+                            WithColor::error(errs(), ToolName));
+      exit(1);
+    }
 
     SymPropTable = std::move(*TPtr);
   }

@@ -14,6 +14,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "SymPropReader.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -56,7 +57,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include <SymPropReader.h>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -354,7 +354,7 @@ public:
   std::vector<std::string> TempFiles;
 
 private:
-  std::unique_ptr<SymPropReader> symPropReader{nullptr};
+  std::unique_ptr<SymPropReader> MySymPropReader;
 
   IntegerType *getSizeTTy() {
     switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
@@ -754,7 +754,7 @@ private:
   // specified.
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
-    if (EntriesFile.empty() && !symPropReader) {
+    if (EntriesFile.empty() && !MySymPropReader) {
       auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
@@ -766,11 +766,11 @@ private:
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
     // compatibility and new SYCL features
-    if (symPropReader) {
-      for (uint64_t i = 0; i < symPropReader->getNumEntries(); i++)
+    if (MySymPropReader) {
+      for (uint64_t i = 0; i < MySymPropReader->getNumEntries(); i++)
         EntriesInits.push_back(ConstantStruct::get(
             getEntryTy(), NullPtr,
-            addStringToModule(symPropReader->getEntryName(i),
+            addStringToModule(MySymPropReader->getEntryName(i),
                               "__sycl_offload_entry_name"),
             Zero, i32Zero, i32Zero));
     } else {
@@ -878,8 +878,8 @@ private:
 
     std::unique_ptr<llvm::util::PropertySetRegistry> PropRegistry;
 
-    if (symPropReader) {
-      PropRegistry = symPropReader->getPropRegistry();
+    if (MySymPropReader) {
+      PropRegistry = MySymPropReader->getPropRegistry();
     } else {
       if (PropRegistryFile.empty()) {
         auto *NullPtr =
@@ -1033,8 +1033,8 @@ private:
                                                            Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
 
-      if (symPropReader)
-        symPropReader->getNextDeviceImageInitializer();
+      if (MySymPropReader)
+        MySymPropReader->getNextDeviceImageInitializer();
 
       if (Img.Manif.empty()) {
         // no manifest - zero out the fields
@@ -1232,7 +1232,8 @@ public:
       : M("offload.wrapper.object", C), ToolName(ToolName) {
 
     if (!SymPropBCFiles.empty())
-      symPropReader = std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
+      MySymPropReader =
+          std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
 
     M.setTargetTriple(Target);
     // Look for llvm-objcopy in the same directory, from which
@@ -1742,6 +1743,18 @@ int main(int argc, const char **argv) {
   if (Triple(Target).getArch() == Triple::UnknownArch) {
     reportError(createStringError(
         errc::invalid_argument, "'" + Target + "': unsupported target triple"));
+    return 1;
+  }
+  if (!SymPropBCFiles.empty() && Entries.size()) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "Entry points cannot be provided by both "
+                                  "-sym-prop-bc-files and -entries"));
+    return 1;
+  }
+  if (!SymPropBCFiles.empty() && Properties.size()) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "Properties cannot be provided by both "
+                                  "-sym-prop-bc-files and -properties"));
     return 1;
   }
 
