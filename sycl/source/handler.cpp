@@ -181,7 +181,7 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.c_str());
+                MKernelName);
         bool KernelInserted =
             KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
         // If kernel was not inserted and the bundle is in input mode we try
@@ -241,7 +241,7 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
+          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
           KernelBundleImpPtr, MArgs);
 #endif
 
@@ -273,7 +273,7 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName.c_str(), RawEvents,
+                                 MKernel, MKernelName, RawEvents,
                                  NewEvent, nullptr, MImpl->MKernelCacheConfig);
           }
         }

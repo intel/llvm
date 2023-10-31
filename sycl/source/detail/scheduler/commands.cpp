@@ -2124,7 +2124,7 @@ void ExecCGCommand::emitInstrumentationData() {
           reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
       instrumentationAddExtraKernelMetadata(
           CmdTraceEvent, KernelCG->MNDRDesc, KernelCG->getKernelBundle(),
-          KernelCG->MKernelName.c_str(), KernelCG->MSyclKernel, MQueue,
+          KernelCG->MKernelName, KernelCG->MSyclKernel, MQueue,
           KernelCG->MArgs);
     }
 
@@ -2418,7 +2418,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
     std::shared_ptr<kernel_impl> SyclKernelImpl;
     std::shared_ptr<device_image_impl> DeviceImageImpl;
-    auto KernelName = CommandGroup.MKernelName.c_str();
+    auto KernelName = CommandGroup.MKernelName;
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
     kernel SyclKernel =
@@ -2895,7 +2895,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
-    const char *KernelName = ExecKernel->MKernelName.c_str();
+    const char *KernelName = ExecKernel->MKernelName;
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
