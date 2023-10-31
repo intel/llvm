@@ -263,11 +263,11 @@ public:
 
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
-        detail::merged_properties_t<property_list_t, PropertyList2>>::value,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value;
     static_assert(
         has_same_properties,
-        "The constructed annotated_arg type must contain all the properties of "
-        "the input annotated_arg");
+        "The constructed annotated_arg type must contain all the properties "
+        "of the input annotated_arg");
   }
 
   // Constructs an annotated_arg object from another annotated_arg object and a
