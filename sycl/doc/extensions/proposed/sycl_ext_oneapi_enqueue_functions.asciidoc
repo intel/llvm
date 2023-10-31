@@ -668,6 +668,7 @@ void barrier(sycl::handler h);
 
 }
 ----
+!====
 _Effects_: Enqueues a command barrier to the `sycl::queue` or `sycl::handler`.
 Any commands submitted after this barrier cannot begin execution until all
 previously submitted commands (and any commands associated with dependendent
@@ -687,6 +688,7 @@ void partial_barrier(sycl::handler h, const std::vector<sycl::event>& events);
 
 }
 ----
+!====
 _Effects_: Enqueues a _partial_ command barrier to the `sycl::queue` or
 `sycl::handler`. Any commands submitted after this barrier cannot begin
 execution until all commands associated with `events` (and any commands
