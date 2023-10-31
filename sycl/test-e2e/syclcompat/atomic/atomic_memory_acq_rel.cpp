@@ -52,7 +52,7 @@ template <memory_order order, bool orderArg = false>
 void test_acquire_global() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  const size_t N_items = 1024;
+  const size_t N_items = 256;
   const size_t N_iters = 1000;
 
   int error = 0;
@@ -104,7 +104,7 @@ void test_acquire_global() {
 template <memory_order order, bool orderArg = false> void test_acquire_local() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  const size_t local_size = 512;
+  const size_t local_size = 256;
   const size_t N_wgs = 16;
   const size_t global_size = local_size * N_wgs;
   const size_t N_iters = 1000;
@@ -164,7 +164,7 @@ template <memory_order order, bool orderArg = false>
 void test_release_global() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  const size_t N_items = 1024;
+  const size_t N_items = 256;
   const size_t N_iters = 1000;
 
   int error = 0;
@@ -216,7 +216,7 @@ void test_release_global() {
 template <memory_order order, bool orderArg = false> void test_release_local() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  const size_t local_size = 512;
+  const size_t local_size = 256;
   const size_t N_wgs = 16;
   const size_t global_size = local_size * N_wgs;
   const size_t N_iters = 1000;

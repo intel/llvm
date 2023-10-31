@@ -195,8 +195,8 @@ public:
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-    for (auto SpecConst : MSpecConstSymMap) {
-      for (auto Desc : SpecConst.second) {
+    for (auto &SpecConst : MSpecConstSymMap) {
+      for (auto &Desc : SpecConst.second) {
         if (Desc.IsSet)
           return true;
       }

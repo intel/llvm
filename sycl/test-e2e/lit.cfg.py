@@ -119,12 +119,21 @@ if lit_config.params.get('gpu-intel-dg2', False):
     config.available_features.add('gpu-intel-dg2')
 if lit_config.params.get('gpu-intel-pvc', False):
     config.available_features.add('gpu-intel-pvc')
+    config.available_features.add('matrix-fp16') # PVC implies the support of FP16 matrix
+    config.available_features.add('matrix-tf32') # PVC implies the support of TF32 matrix
 
 if lit_config.params.get('matrix', False):
     config.available_features.add('matrix')
 
+if lit_config.params.get('matrix-tf32', False):
+    config.available_features.add('matrix-tf32')
+
 if lit_config.params.get('matrix-xmx8', False):
     config.available_features.add('matrix-xmx8')
+    config.available_features.add('matrix-fp16') # XMX implies the support of FP16 matrix
+
+if lit_config.params.get('matrix-fp16', False):
+    config.available_features.add('matrix-fp16')
 
 #support for LIT parameter ze_debug<num>
 if lit_config.params.get('ze_debug'):
@@ -266,6 +275,8 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
     devices = set()
     sp = subprocess.check_output(sycl_ls, text=True)
     for line in sp.splitlines():
+        if "gfx90a" in line:
+            config.available_features.add("gpu-amd-gfx90a")
         (backend, device, _) = line[1:].split(':', 2)
         devices.add('{}:{}'.format(backend, device))
     config.sycl_devices = list(devices)
