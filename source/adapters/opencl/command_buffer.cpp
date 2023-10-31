@@ -331,6 +331,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] void *pPtr, [[maybe_unused]] const void *pPattern,
+    [[maybe_unused]] size_t PatternSize, [[maybe_unused]] size_t Size,
+    [[maybe_unused]] uint32_t NumSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
