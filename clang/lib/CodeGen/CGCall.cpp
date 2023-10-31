@@ -5688,10 +5688,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (!getLangOpts().FPAccuracyFuncMap.empty() ||
         !getLangOpts().FPAccuracyVal.empty()) {
       const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
-      assert(FD && "expecting a function");
-      CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
-      if (CI)
-        return RValue::get(CI);
+      if (FD) {
+        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+        if (CI)
+          return RValue::get(CI);
+      }
     }
     CI = Builder.CreateCall(IRFuncTy, CalleePtr, IRCallArgs, BundleList);
   } else {
