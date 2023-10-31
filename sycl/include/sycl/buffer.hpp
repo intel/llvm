@@ -171,6 +171,9 @@ class buffer : public detail::buffer_plain,
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   static_assert(is_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
+#else
+  static_assert(!std::is_same_v<T, std::string>,
+                "'std::string' is not a device copyable type");
 #endif
 
 public:
