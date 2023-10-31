@@ -54,12 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+
   # commit be53fb3ba5bf1ac33051456d72c61b6a01d94a72
-  # Merge: 55d432c 5ecaf66
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Tue Oct 31 13:22:52 2023 +0000
-  #     Merge pull request #932 from Bensuo/cuda-cmd-buffers
-  #     [CUDA][EXP] CUDA adapter support for command buffers
+  # - Merge pull request #932 from Bensuo/cuda-cmd-buffers
+  # - [CUDA][EXP] CUDA adapter support for command buffers
+  set(UNIFIED_RUNTIME_TAG be53fb3ba5bf1ac33051456d72c61b6a01d94a72)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
