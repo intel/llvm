@@ -2736,7 +2736,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Req->MDims, Req->MAccessRange,
         /*DstOffset=*/{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
-
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyPtrToAcc: {
@@ -2750,7 +2750,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
-
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   default:
