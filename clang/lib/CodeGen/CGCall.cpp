@@ -74,6 +74,7 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
   case CC_PreserveAll: return llvm::CallingConv::PreserveAll;
   case CC_Swift: return llvm::CallingConv::Swift;
   case CC_SwiftAsync: return llvm::CallingConv::SwiftTail;
+  case CC_M68kRTD: return llvm::CallingConv::M68k_RTD;
   }
 }
 
@@ -253,6 +254,9 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
 
   if (D->hasAttr<PreserveAllAttr>())
     return CC_PreserveAll;
+
+  if (D->hasAttr<M68kRTDAttr>())
+    return CC_M68kRTD;
 
   return CC_C;
 }
@@ -5684,10 +5688,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (!getLangOpts().FPAccuracyFuncMap.empty() ||
         !getLangOpts().FPAccuracyVal.empty()) {
       const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
-      assert(FD && "expecting a function");
-      CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
-      if (CI)
-        return RValue::get(CI);
+      if (FD) {
+        CI = EmitFPBuiltinIndirectCall(IRFuncTy, IRCallArgs, CalleePtr, FD);
+        if (CI)
+          return RValue::get(CI);
+      }
     }
     CI = Builder.CreateCall(IRFuncTy, CalleePtr, IRCallArgs, BundleList);
   } else {

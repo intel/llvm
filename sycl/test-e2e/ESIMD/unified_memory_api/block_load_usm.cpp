@@ -22,17 +22,17 @@ int main() {
   constexpr bool TestPVCFeatures = true;
   bool Passed = true;
 
-  Passed &= test_block_load<int8_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_load<int16_t, !TestPVCFeatures>(Q);
+  Passed &= testUSM<int8_t, !TestPVCFeatures>(Q);
+  Passed &= testUSM<int16_t, !TestPVCFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp16))
-    Passed &= test_block_load<sycl::half, !TestPVCFeatures>(Q);
-  Passed &= test_block_load<uint32_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_load<float, !TestPVCFeatures>(Q);
-  Passed &= test_block_load<ext::intel::experimental::esimd::tfloat32,
-                            !TestPVCFeatures>(Q);
-  Passed &= test_block_load<int64_t, !TestPVCFeatures>(Q);
+    Passed &= testUSM<sycl::half, !TestPVCFeatures>(Q);
+  Passed &= testUSM<uint32_t, !TestPVCFeatures>(Q);
+  Passed &= testUSM<float, !TestPVCFeatures>(Q);
+  Passed &=
+      testUSM<ext::intel::experimental::esimd::tfloat32, !TestPVCFeatures>(Q);
+  Passed &= testUSM<int64_t, !TestPVCFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
-    Passed &= test_block_load<double, !TestPVCFeatures>(Q);
+    Passed &= testUSM<double, !TestPVCFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

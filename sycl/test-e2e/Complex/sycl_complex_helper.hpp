@@ -2,7 +2,7 @@
 #include <iomanip>
 
 #define SYCL_EXT_ONEAPI_COMPLEX
-#include <sycl/ext/oneapi/experimental/sycl_complex.hpp>
+#include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi;

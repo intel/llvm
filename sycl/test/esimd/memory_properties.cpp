@@ -51,10 +51,12 @@ foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
   static_assert(props_b.has_property<alignment_key>(), "Missing alignment");
 
   properties props_c{alignment<4>};
+  properties props_c16{alignment<16>};
   static_assert(props_c.has_property<alignment_key>(), "Missing alignment");
 
   constexpr int N = 4;
-  simd<int, N> old_values = 1;
+  simd<float, N> pass_thru = 1;
+  simd<int, N> pass_thrui = 1;
   const int *ptri = reinterpret_cast<const int *>(ptrf);
 
   // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
@@ -71,7 +73,7 @@ foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
   auto d4 = block_load<float, N>(ptrf, mask, props_a);
 
   // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
-  auto d5 = block_load<float, N>(ptrf, mask, old_values, props_b);
+  auto d5 = block_load<float, N>(ptrf, mask, pass_thru, props_b);
 
   // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   auto d6 = block_load<float, N>(ptrf, byte_offset32, mask, props_a);
@@ -80,13 +82,13 @@ foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
   auto d7 = block_load<int, N>(ptri, byte_offset64, mask, props_b);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
-  auto d8 = block_load<int, N>(ptri, byte_offset32, mask, old_values, props_a);
+  auto d8 = block_load<int, N>(ptri, byte_offset32, mask, pass_thrui, props_a);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
-  auto d9 = block_load<int, N>(ptri, byte_offset64, mask, old_values, props_b);
+  auto d9 = block_load<int, N>(ptri, byte_offset64, mask, pass_thru, props_b);
 
-  // Now repeat all the calls used above but in without cache hints to
-  // verify svm/legacy code-gen. Also, intentially use vector lengths that are
+  // Now try block_load without cache hints and using the mask to verify
+  // svm/legacy code-gen. Also, intentially use vector lengths that are
   // not power-of-two because only svm/legacy block_load supports
   // non-power-of-two vector lengths now.
 
@@ -98,4 +100,47 @@ foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
 
   // CHECK: load <7 x float>, ptr addrspace(4) {{[^)]+}}, align 4
   auto x3 = block_load<float, 7>(ptrf, byte_offset64, props_c);
+
+  // Verify ACCESSOR-based block_load.
+
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  auto a1 = block_load<float, N>(acc, props_a);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  auto a2 = block_load<int, N>(acc, byte_offset32, props_a);
+
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  auto a3 = block_load<float, N>(acc, byte_offset64, props_b);
+
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  auto a4 = block_load<float, N>(acc, mask, props_a);
+
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  auto a5 = block_load<float, N>(acc, mask, pass_thru, props_b);
+
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  auto a6 = block_load<float, N>(acc, byte_offset32, mask, props_a);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  auto a7 = block_load<int, N>(acc, byte_offset64, mask, props_b);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  auto a8 = block_load<int, N>(acc, byte_offset32, mask, pass_thru, props_a);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  auto a9 = block_load<int, N>(acc, byte_offset64, mask, pass_thrui, props_b);
+
+  // Now try block_load without cache hints and using the mask to verify
+  // svm/legacy code-gen. Also, intentially use vector lengths that are
+  // not power-of-two because only svm/legacy block_load supports
+  // non-power-of-two vector lengths now.
+
+  // CHECK: call <4 x float> @llvm.genx.oword.ld.unaligned.v4f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  auto z1 = block_load<float, 4>(acc, props_c);
+
+  // CHECK: call <8 x i32> @llvm.genx.oword.ld.unaligned.v8i32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  auto z2 = block_load<int, 8>(acc, byte_offset32, props_c);
+
+  // CHECK: call <16 x float> @llvm.genx.oword.ld.v16f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  auto z3 = block_load<float, 16>(acc, byte_offset64, props_c16);
 }

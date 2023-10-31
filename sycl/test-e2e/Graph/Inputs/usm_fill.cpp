@@ -21,8 +21,8 @@ int main() {
 
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == Pattern);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Pattern, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 
