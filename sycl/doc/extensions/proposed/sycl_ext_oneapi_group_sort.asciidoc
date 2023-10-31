@@ -516,6 +516,9 @@ namespace sycl::ext::oneapi::experimental {
         template<typename T>
         static constexpr size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (3)
+        template<typename T>
+        static constexpr size_t
+        memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (4)
     };
 
     template<typename T,
@@ -524,18 +527,20 @@ namespace sycl::ext::oneapi::experimental {
     class group_sorter{
     public:
         template<std::size_t Extent>
-        group_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = {}); // (4)
+        group_sorter(sycl::span<std::byte, Extent> scratch, Compare comp = {}); // (5)
 
         template<typename Group>
-        T operator()(Group g, T value); // (5)
+        T operator()(Group g, T value); // (6)
 
         template<typename Group, typename Properties>
         void operator()(Group g,
                         sycl::span<T, ElementsPerWorkItem> values,
-                        Properties properties); // (6)
+                        Properties properties); // (7)
 
         static constexpr size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (7)
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (8)
+        static constexpr size_t
+        memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (9)
     };
 
     template<typename T,
@@ -546,19 +551,21 @@ namespace sycl::ext::oneapi::experimental {
     public:
         template<std::size_t Extent>
         group_key_value_sorter(sycl::span<std::byte, Extent> scratch,
-                               Compare comp = {}); // (8)
+                               Compare comp = {}); // (10)
 
         template<typename Group>
-        std::tuple<T, U> operator()(Group g, T key, U value); // (9)
+        std::tuple<T, U> operator()(Group g, T key, U value); // (11)
 
         template<typename Group, typename Properties>
         void operator()(Group g,
                         sycl::span<T, ElementsPerWorkItem> keys,
                         sycl::span<U, ElementsPerWorkItem> values,
-                        Properties property); // (10)
+                        Properties property); // (12)
 
         static constexpr std::size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (11)
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (13)
+        static constexpr std::size_t
+        memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (14)
     };
   }
 
@@ -573,13 +580,13 @@ namespace sycl::ext::oneapi::experimental {
         template<std::size_t Extent>
         joint_sorter(sycl::span<std::byte, Extent> scratch,
                      const std::bitset<sizeof(T) * CHAR_BIT> mask =
-                       std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (12)
+                       std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (15)
 
         template<typename Group, typename Ptr>
-        void operator()(Group g, Ptr first, Ptr last); // (13)
+        void operator()(Group g, Ptr first, Ptr last); // (16)
 
         static constexpr std::size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (14)
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (17)
     };
 
     template<typename T,
@@ -592,18 +599,18 @@ namespace sycl::ext::oneapi::experimental {
         template<std::size_t Extent>
         group_sorter(sycl::span<std::byte, Extent> scratch,
                      const std::bitset<sizeof(T) * CHAR_BIT> mask =
-                       std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (15)
+                       std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (18)
 
         template<typename Group>
-        T operator()(Group g, T value); // (16)
+        T operator()(Group g, T value); // (19)
 
         template<typename Group, typename Properties>
         void operator()(Group g,
                         sycl::span<T, ElementsPerWorkItem> values,
-                        Properties properties); // (17)
+                        Properties properties); // (20)
 
         static constexpr std::size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (18)
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (21)
     };
 
     template<typename T,
@@ -617,19 +624,19 @@ namespace sycl::ext::oneapi::experimental {
         template<std::size_t Extent>
         group_key_value_sorter(sycl::span<std::byte, Extent> scratch,
                                const std::bitset<sizeof(T) * CHAR_BIT> mask =
-                                 std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (19)
+                                 std::bitset<sizeof(T) * CHAR_BIT> (std::numeric_limits<unsigned long long>::max())); // (22)
 
         template<typename Group>
-        std::tuple<T, U> operator()(Group g, T key, U value); // (20)
+        std::tuple<T, U> operator()(Group g, T key, U value); // (23)
 
         template<typename Group, typename Properties>
         void operator()(Group g,
                         sycl::span<T, ElementsPerWorkItem> keys,
                         sycl::span<U, ElementsPerWorkItem> values,
-                        Properties properties); // (21)
+                        Properties properties); // (24)
 
         static constexpr std::size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (22)
+        memory_required(sycl::memory_scope scope, std::size_t range_size); // (25)
     };
 
   }
@@ -659,7 +666,7 @@ callers side.
 Size of required memory (bytes) is defined by calling `memory_required`.
 |===
 
-(1), (4), (8) create the object using `comp`.
+(1), (5), (10) create the object using `comp`.
 Additional memory for the algorithm is provided using `scratch`.
 If `scratch.size()` is less than the value returned by
 `memory_required`, behavior of the corresponding sorting algorithm
@@ -674,6 +681,7 @@ _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 the default sorting algorithm defined by the sorter calling by `joint_sort`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
+It must be called within a SYCL kernel.
 Result depends on the `scope` parameter:
 use `sycl::memory_scope::work_group` to get memory size required
 for each work-group;
@@ -681,62 +689,100 @@ use `sycl::memory_scope::sub_group` to get memory size required
 for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
-(5) Implements a default sorting algorithm to be called by
+(4) Returns size of temporary memory (in bytes) that is required by
+the default sorting algorithm defined by the sorter calling by `joint_sort`
+depending on `d`.
+`range_size` represents a range size for sorting,
+e.g. `last-first` from `operator()` arguments.
+It mustn't be called within a SYCL kernel, only on host.
+Result depends on the `scope` parameter:
+use `sycl::memory_scope::work_group` to get memory size required
+for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required
+for each sub-group.
+If other `scope` values are passed, behavior is unspecified.
+
+(6) Implements a default sorting algorithm to be called by
 the `sort_over_group` algorithm.
 
 _Complexity_: Let `N` be the `Group` size. `O(N*log(N)*log(N))` comparisons.
 
-(6) Implements a default sorting algorithm that is called by
+(7) Implements a default sorting algorithm that is called by
 `sort_over_group` and that accepts the `sycl::span` value as
 an input parameter.
 
 _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
-(7) Returns the size of temporary memory (in bytes) that is required by the default
+(8) Returns the size of temporary memory (in bytes) that is required by the default
 sorting algorithm defined by the sorter calling by `sort_over_group`.
 `ElementsPerWorkItem` is the extent parameter for `sycl::span`
 that is an input parameter for `sort_over_group`.
+It must be called within a SYCL kernel.
 If `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 
-(9) Implements a default key-value sorting algorithm that is called
+(9) Returns the size of temporary memory (in bytes) that is required by the default
+sorting algorithm defined by the sorter calling by `sort_over_group`
+depending on `d`.
+`ElementsPerWorkItem` is the extent parameter for `sycl::span`
+that is an input parameter for `sort_over_group`.
+It mustn't be called within a SYCL kernel, only on host.
+If `scope == sycl::memory_scope::work_group`,
+`range_size` is the size of the local range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
+If other `scope` values are passed, behavior is unspecified.
+
+(11) Implements a default key-value sorting algorithm that is called
 by `sort_key_value_over_group` and that doesn't accept
 `sycl::span` values as input parameters.
 
 _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
-(10) Implements a default key-value sorting algorithm that is called
+(12) Implements a default key-value sorting algorithm that is called
 by `sort_key_value_over_group` and that
 accepts `sycl::span` values as input parameters.
 
 _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
-(11) Returns size of temporary memory (in bytes) that is required by
+(13) Returns size of temporary memory (in bytes) that is required by
 the default key-value
 sorting algorithm defined by the sorter calling by `sort_key_value_over_group`.
+It must be called within a SYCL kernel.
 If `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 
-(12), (15), (19) create
+(14) Returns size of temporary memory (in bytes) that is required by
+the default key-value
+sorting algorithm defined by the sorter calling by `sort_key_value_over_group`
+depending on `d`.
+It mustn't be called within a SYCL kernel, only on host.
+If `scope == sycl::memory_scope::work_group`,
+`range_size` is the size of the local range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
+If other `scope` values are passed, behavior is unspecified.
+
+(15), (18), (22) create
 the class object to sort values considering only bits
 that corresponds to 1 in `mask`.
 Additional memory for the algorithm is provided using `scratch`.
 If `scratch.size()` is less than the value returned by `memory_required`,
 behavior of the corresponding sorting algorithm is undefined.
 
-(13) Implements the radix sorting algorithm to be called by
+(16) Implements the radix sorting algorithm to be called by
 the `joint_sort` algorithm.
 
-(14) Returns size of temporary memory (in bytes) that is required by
+(17) Returns size of temporary memory (in bytes) that is required by
 the radix sort algorithm
 calling by `joint_sort`.
 `range_size` represents a range size for sorting,
@@ -748,14 +794,14 @@ use `sycl::memory_scope::sub_group` to get memory size required
 for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
-(16) Implements the radix sorting algorithm to be called by
+(19) Implements the radix sorting algorithm to be called by
 the `sort_over_group` algorithm.
 
-(17) Implements the radix sorting algorithm that is called by
+(20) Implements the radix sorting algorithm that is called by
 `sort_over_group` and that accepts
 the `sycl::span` value as an input parameter.
 
-(18) Returns size of temporary memory (in bytes) that is required by the radix
+(21) Returns size of temporary memory (in bytes) that is required by the radix
 sorting algorithm defined by the sorter calling by `sort_over_group`.
 `ElementsPerWorkItem` is a parameter for `sycl::span<T, ElementsPerWorkItem>`
 that is an input parameter for `sort_over_group`, where `T` is
@@ -766,15 +812,15 @@ that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
 If other `scope` values are passed, behavior is unspecified.
 
-(20) Implements the radix sorting algorithm that is called
+(23) Implements the radix sorting algorithm that is called
 by `sort_key_value_over_group` and that doesn't accept
 `sycl::span` values as input parameters.
 
-(21) Implements the radix key-value sorting algorithm that is called
+(24) Implements the radix key-value sorting algorithm that is called
 by `sort_key_value_over_group` and that
 accepts `sycl::span` values as input parameters.
 
-(22) Returns size of temporary memory (in bytes) that is required by the radix key-value
+(25) Returns size of temporary memory (in bytes) that is required by the radix key-value
 sorting algorithm defined by the sorter calling by `sort_key_value_over_group`
 with `sycl::span<T, ElementsPerWorkItem>` and
 `sycl::span<U, ElementsPerWorkItem>` as input parameters.
@@ -998,7 +1044,7 @@ namespace my_sycl = sycl::ext::oneapi::experimental;
 // calculate required local memory size
 size_t temp_memory_size =
     my_sycl::default_sorters::joint_sorter<>::memory_required<T>(
-      sycl::memory_scope::work_group, n);
+      d, sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
@@ -1075,7 +1121,7 @@ using TupleType =
 // calculate required local memory size
 size_t temp_memory_size =
     my_sycl::default_sorters::joint_sorter<>::memory_required<TupleType>(
-      sycl::memory_scope::work_group, n);
+      d, sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
@@ -1185,8 +1231,6 @@ because it's easy to pass different comparator types.
 . Think about reducing overloads for sorting functions. The thing is that
 overloads with `Compare` objects seems extra and overloads with sorters,
 without sorters are enough.
-. It would be better if `memory_required` methods had a `sycl::device` parameter
-because different devices can require different amount of memory.
 
 == Non-implemented features
 Please, note that following is not inplemented yet for the open-source repo:
