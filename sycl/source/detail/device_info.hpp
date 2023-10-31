@@ -674,9 +674,10 @@ struct get_device_info_impl<
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           ResultSize, DeviceArch.get(), nullptr);
-      char *deviceArchRawPtr = const_cast<char *>(DeviceArch.get());
-      return MapArchIDToArchName(
-          strtok_r(deviceArchRawPtr, ":", &deviceArchRawPtr));
+      std::string DeviceArchCopy(DeviceArch.get());
+      std::string DeviceArchSubstr =
+          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       auto MapArchIDToArchName = [](const int arch) {
         INTEL_CPU_ARCHES(CMP_INTEL);
