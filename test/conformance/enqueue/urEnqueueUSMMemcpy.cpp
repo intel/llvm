@@ -115,6 +115,7 @@ TEST_P(urEnqueueUSMMemcpyTest, NonBlocking) {
                                       allocation_size, 0, nullptr,
                                       &memcpy_event));
     ASSERT_SUCCESS(urEventWait(1, &memcpy_event));
+    ASSERT_SUCCESS(urEventRelease(memcpy_event));
 
     ASSERT_NO_FATAL_FAILURE(verifyData());
 }
