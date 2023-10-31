@@ -211,8 +211,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   auto DeleteCallback = [](cl_event, cl_int, void *pUserData) {
     delete[] static_cast<uint64_t *>(pUserData);
   };
-  CL_RETURN_ON_FAILURE(
-      clSetEventCallback(WriteEvent, CL_COMPLETE, DeleteCallback, HostBuffer));
+  ClErr =
+      clSetEventCallback(WriteEvent, CL_COMPLETE, DeleteCallback, HostBuffer);
+  if (ClErr != CL_SUCCESS) {
+    // We can attempt to recover gracefully by attempting to wait for the write
+    // to finish and deleting the host buffer.
+    clWaitForEvents(1, &WriteEvent);
+    delete[] HostBuffer;
+    clReleaseEvent(WriteEvent);
+    CL_RETURN_ON_FAILURE(ClErr);
+  }
 
   if (phEvent) {
     *phEvent = cl_adapter::cast<ur_event_handle_t>(WriteEvent);

@@ -257,24 +257,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       &CopyEvent));
 
   struct DeleteCallbackInfo {
+    DeleteCallbackInfo(clMemBlockingFreeINTEL_fn USMFree, cl_context CLContext,
+                       void *HostBuffer)
+        : USMFree(USMFree), CLContext(CLContext), HostBuffer(HostBuffer) {
+      clRetainContext(CLContext);
+    }
+    ~DeleteCallbackInfo() {
+      USMFree(CLContext, HostBuffer);
+      clReleaseContext(CLContext);
+    }
+    DeleteCallbackInfo(const DeleteCallbackInfo &) = delete;
+    DeleteCallbackInfo &operator=(const DeleteCallbackInfo &) = delete;
+
     clMemBlockingFreeINTEL_fn USMFree;
     cl_context CLContext;
     void *HostBuffer;
-    void execute() {
-      USMFree(CLContext, HostBuffer);
-      delete this;
-    }
   };
 
-  auto Info = new DeleteCallbackInfo{USMFree, CLContext, HostBuffer};
+  auto Info = new DeleteCallbackInfo(USMFree, CLContext, HostBuffer);
 
   auto DeleteCallback = [](cl_event, cl_int, void *pUserData) {
-    static_cast<DeleteCallbackInfo *>(pUserData)->execute();
+    auto Info = static_cast<DeleteCallbackInfo *>(pUserData);
+    delete Info;
   };
 
-  CL_RETURN_ON_FAILURE(
-      clSetEventCallback(CopyEvent, CL_COMPLETE, DeleteCallback, Info));
-
+  ClErr = clSetEventCallback(CopyEvent, CL_COMPLETE, DeleteCallback, Info);
+  if (ClErr != CL_SUCCESS) {
+    // We can attempt to recover gracefully by attempting to wait for the copy
+    // to finish and deleting the info struct here.
+    clWaitForEvents(1, &CopyEvent);
+    delete Info;
+    clReleaseEvent(CopyEvent);
+    CL_RETURN_ON_FAILURE(ClErr);
+  }
   if (phEvent) {
     *phEvent = cl_adapter::cast<ur_event_handle_t>(CopyEvent);
   } else {
@@ -426,7 +441,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     return RetVal;
   }
 
-  std::vector<cl_event> Events;
+  std::vector<cl_event> Events(height);
   for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
     cl_event Event = nullptr;
     auto ClResult =
@@ -435,7 +450,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
                 static_cast<const uint8_t *>(pSrc) + srcPitch * HeightIndex,
                 width, numEventsInWaitList,
                 cl_adapter::cast<const cl_event *>(phEventWaitList), &Event);
-    Events.push_back(Event);
+    Events[HeightIndex] = Event;
     if (ClResult != CL_SUCCESS) {
       for (const auto &E : Events) {
         clReleaseEvent(E);
@@ -453,7 +468,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         Events.data(), cl_adapter::cast<cl_event *>(phEvent));
   }
   for (const auto &E : Events) {
-    clReleaseEvent(E);
+    CL_RETURN_ON_FAILURE(clReleaseEvent(E));
   }
   CL_RETURN_ON_FAILURE(ClResult)
   return UR_RESULT_SUCCESS;
