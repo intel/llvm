@@ -22,6 +22,14 @@ and not recommended to use in production environment.
     You can specify more than one target, comma separated. Default just in time
     (JIT) compilation target can be added to the list to produce a combination
     of AOT and JIT code in the resulting fat binary.
+
+    Normally, '-fsycl-targets' is specified when linking an application, in
+    which case the AOT compiled device binaries are embedded within the
+    application’s fat executable.  However, this option may also be used in
+    combination with '-c' and '-fno-sycl-rdc' when compiling a source file.
+    In this case, the AOT compiled device binaries are embedded within the fat
+    object file.
+
     The following triples are supported by default:
     * spir64 - this is the default generic SPIR-V target;
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;

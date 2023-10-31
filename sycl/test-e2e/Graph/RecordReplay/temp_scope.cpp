@@ -45,7 +45,7 @@ int main() {
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == ExpectedValue);
+    assert(check_value(i, ExpectedValue, Output[i], "Output"));
   }
 
   sycl::free(Arr, Queue);

@@ -114,11 +114,10 @@ the scheduler for adding to the UR command-buffer, otherwise the node can
 be appended directly as a command in the UR command-buffer. This is in-keeping
 with the existing behaviour of the handler with normal queue submissions.
 
-Scheduler commands which enqueue command-groups to a command-graph will perform
-an explicit wait on their dependencies. Since these commands differ from typical
-command-group submission in the scheduler in that they do not launch any
-asynchronous work which relies on their dependencies, they are considered
-complete immediately after enqueing the command-group to the graph.
+Scheduler commands for adding graph nodes differ from typical command-group
+submission in the scheduler, in that they do not launch any asynchronous work
+which relies on their dependencies, and are considered complete immediately
+after adding the command-group node to the graph.
 
 This presents problems with device allocations which create both an allocation
 command and a separate initial copy command of data to the new allocation.
@@ -127,6 +126,11 @@ dependencies on the allocation command (since this is all the information
 available), this could lead to situations where the device execution of the
 initial copy command is delayed due to device occupancy, and the command-graph
 and initial copy could execute on the device in an incorrect order.
+
+To solve this issue, when the scheduler enqueues command-groups to add as nodes
+in a command-graph, it will perform a blocking wait on the dependencies of the
+command-group first. The user will experience this wait as part of graph
+finalization.
 
 ## Memory handling: Buffer and Accessor
 
@@ -177,6 +181,9 @@ created on UR command-buffer enqueue.
 
 There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
+This WaitEvent is reset at the end of the suffix, along with reset commands
+to reset the L0 events used to implement the UR sync-points back to the
+non-signaled state.
 
 ![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
 

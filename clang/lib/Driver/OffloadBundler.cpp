@@ -1059,39 +1059,49 @@ public:
     for (auto &C : Ar->children(Err)) {
       ++ChildIndex;
       auto BinOrErr = C.getAsBinary();
+
+      std::unique_ptr<FileHandler> FH{nullptr};
+      std::unique_ptr<MemoryBuffer> Buf{nullptr};
+
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
-        continue;
+
+        // Handle bundled BC Files
+        FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
+        auto MR = C.getMemoryBufferRef();
+        assert(MR);
+        Buf = MemoryBuffer::getMemBuffer(*MR, false);
+      } else {
+        auto &Bin = BinOrErr.get();
+        if (!Bin->isObject())
+          continue;
+
+        auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
+        if (!CheckOrErr)
+          return CheckOrErr.takeError();
+
+        if (*CheckOrErr) {
+          LLVM_DEBUG(outs()
+                     << "Add child to ban list. Index: " << ChildIndex << "\n");
+          ExcludedChildIndexes.emplace(ChildIndex);
+        }
+
+        auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+        Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+
+        FH = std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
-      auto &Bin = BinOrErr.get();
-      if (!Bin->isObject())
-        continue;
-
-      auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
-      if (!CheckOrErr)
-        return CheckOrErr.takeError();
-
-      if (*CheckOrErr) {
-        LLVM_DEBUG(outs() << "Add child to ban list. Index: " << ChildIndex
-                          << "\n");
-        ExcludedChildIndexes.emplace(ChildIndex);
-      }
-
-      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
-      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
-
-      // Collect the list of bundles from the object.
-      ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
-      if (Error Err = OFH.ReadHeader(*Buf))
+      // Collect the list of bundles from the object or bundled BC file.
+      if (Error Err = FH->ReadHeader(*Buf))
         return Err;
-      Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+      Expected<std::optional<StringRef>> NameOrErr = FH->ReadBundleStart(*Buf);
       if (!NameOrErr)
         return NameOrErr.takeError();
       while (*NameOrErr) {
         ++Bundles[**NameOrErr];
-        NameOrErr = OFH.ReadBundleStart(*Buf);
+        NameOrErr = FH->ReadBundleStart(*Buf);
         if (!NameOrErr)
           return NameOrErr.takeError();
       }
@@ -1144,28 +1154,40 @@ public:
         continue;
       }
 
+      std::unique_ptr<FileHandler> FH{nullptr};
+      std::unique_ptr<MemoryBuffer> Buf{nullptr};
+      StringRef Ext("o");
+      if (BundlerConfig.FilesType == "aocr" ||
+          BundlerConfig.FilesType == "aocx")
+        Ext = BundlerConfig.FilesType;
+
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
+        // Not a recognized binary file.  Specifically not an object file
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
-        continue;
+
+        if (BundlerConfig.FilesType == "aoo") {
+          // Handle bundled BC Files
+          Ext = "bc";
+          FH = std::make_unique<BinaryFileHandler>(BundlerConfig);
+          auto MR = C.getMemoryBufferRef();
+          assert(MR);
+          Buf = MemoryBuffer::getMemBuffer(*MR, false);
+        } else
+          continue;
+      } else {
+        auto &Bin = BinOrErr.get();
+        if (!Bin->isObject())
+          continue;
+        auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+        Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+        FH = std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
-      auto &Bin = BinOrErr.get();
-      if (!Bin->isObject())
-        continue;
-
-      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
-      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
-
-      auto ChildNameOrErr = C.getName();
-      if (!ChildNameOrErr)
-        return ChildNameOrErr.takeError();
-
-      ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
-      if (Error Err = OFH.ReadHeader(*Buf))
+      if (Error Err = FH->ReadHeader(*Buf))
         return Err;
-      Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+      Expected<std::optional<StringRef>> NameOrErr = FH->ReadBundleStart(*Buf);
       if (!NameOrErr)
         return NameOrErr.takeError();
       while (*NameOrErr) {
@@ -1175,10 +1197,7 @@ public:
           if (Mode == OutputType::FileList) {
             // Create temporary file where the device part will be extracted to.
             SmallString<128u> ChildFileName;
-            StringRef Ext("o");
-            if (BundlerConfig.FilesType == "aocr" ||
-                BundlerConfig.FilesType == "aocx")
-              Ext = BundlerConfig.FilesType;
+
             auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
                                                    ChildFileName);
             if (EC)
@@ -1188,7 +1207,7 @@ public:
             if (EC)
               return createFileError(ChildFileName, EC);
 
-            if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
+            if (Error Err = FH->ReadBundle(ChildOS, *Buf))
               return Err;
 
             if (ChildOS.has_error())
@@ -1199,13 +1218,17 @@ public:
             OS << ChildFileName << "\n";
           } else if (Mode == OutputType::Object) {
             // Extract the bundle to the output file in single file mode.
-            if (Error Err = OFH.ReadBundle(OS, *Buf))
+            if (Error Err = FH->ReadBundle(OS, *Buf))
               return Err;
           } else if (Mode == OutputType::Archive) {
+            auto ChildNameOrErr = C.getName();
+            if (!ChildNameOrErr)
+              return ChildNameOrErr.takeError();
+
             // Extract the bundle to a buffer.
             SmallVector<char> Data;
             raw_svector_ostream ChildOS{Data};
-            if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
+            if (Error Err = FH->ReadBundle(ChildOS, *Buf))
               return Err;
 
             // Add new archive member.
@@ -1214,10 +1237,10 @@ public:
             Member.Buf = MemoryBuffer::getMemBufferCopy(ChildOS.str(), Name);
             Member.MemberName = Member.Buf->getBufferIdentifier();
           }
-          if (Error Err = OFH.ReadBundleEnd(*Buf))
+          if (Error Err = FH->ReadBundleEnd(*Buf))
             return Err;
         }
-        NameOrErr = OFH.ReadBundleStart(*Buf);
+        NameOrErr = FH->ReadBundleStart(*Buf);
         if (!NameOrErr)
           return NameOrErr.takeError();
       }

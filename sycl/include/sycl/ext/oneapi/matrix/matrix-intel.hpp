@@ -533,8 +533,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_apply(
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   std::ignore = sg;
-  for (int i = 0; i < jm.cuda_impl.wi_marray.size(); i++) {
-    lambda(jm.cuda_impl.wi_marray[i]);
+  for (int i = 0; i < jm.matrix_impl.wi_marray.size(); i++) {
+    lambda(jm.matrix_impl.wi_marray[i]);
   }
 #else // NVPTX
   using storage_element_type =

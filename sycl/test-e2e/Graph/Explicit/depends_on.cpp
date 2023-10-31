@@ -37,11 +37,11 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  constexpr int ref = 42 * 2;
+  constexpr int Ref = 42 * 2;
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == ref);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Ref, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 
