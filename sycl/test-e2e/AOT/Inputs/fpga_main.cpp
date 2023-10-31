@@ -31,6 +31,8 @@ int main() {
   // Check the results
   if (result[0] == 3 && result[1] == 1)
     std::cout << "PASSED\n";
-  else
+  else {
     std::cout << "FAILED\n";
+    exit(-1);
+  }
 }

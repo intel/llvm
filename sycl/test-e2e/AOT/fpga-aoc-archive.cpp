@@ -2,6 +2,9 @@
 
 // REQUIRES: opencl-aot, accelerator
 
+// Remove any archives
+// RUN: rm -f %t_*.a
+
 // Build any early archive binaries.
 // RUN: %clangxx -fintelfpga -fsycl -fsycl-link=early %S/Inputs/fpga_sub.cpp -o %t_early_sub.a
 // RUN: %clangxx -fintelfpga -fsycl -fsycl-link=early %S/Inputs/fpga_add.cpp -o %t_early_add.a
