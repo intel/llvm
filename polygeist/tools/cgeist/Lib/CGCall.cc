@@ -8,11 +8,13 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "mlir/Support/LLVM.h"
 #include "utils.h"
 
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/WithColor.h"
 
 #define DEBUG_TYPE "CGCall"
@@ -89,6 +91,23 @@ static Value castCallerMemRefArg(Value CallerArg, Type CalleeArgType,
   return CallerArg;
 }
 
+/// Try to cast to a pointer with the same address space if different.
+static Value castCallerPtrArg(Value CallerArg, Type CalleeArgType,
+                              OpBuilder &B) {
+  Type CallerArgType = CallerArg.getType();
+
+  if (CallerArgType == CalleeArgType)
+    return CallerArg;
+
+  assert(isa<LLVM::LLVMPointerType>(CallerArgType));
+
+  OpBuilder::InsertionGuard Guard(B);
+  B.setInsertionPointAfterValue(CallerArg);
+
+  return B.create<LLVM::AddrSpaceCastOp>(CallerArg.getLoc(), CalleeArgType,
+                                         CallerArg);
+}
+
 /// Typecast the caller args to match the callee's signature. Mismatches that
 /// cannot be resolved by given rules won't raise exceptions, e.g., if the
 /// expected type for an arg is memref<10xi8> while the provided is
@@ -115,8 +134,14 @@ static void castCallerArgs(func::FuncOp Callee,
     if (CalleeArgType == CallerArgType)
       continue;
 
-    if (isa<MemRefType>(CalleeArgType))
-      Args[I] = castCallerMemRefArg(Args[I], CalleeArgType, B);
+    Args[I] = TypeSwitch<Type, Value>(CalleeArgType)
+                  .Case<MemRefType>([&](auto) {
+                    return castCallerMemRefArg(Args[I], CalleeArgType, B);
+                  })
+                  .Case<LLVM::LLVMPointerType>([&](auto) {
+                    return castCallerPtrArg(Args[I], CalleeArgType, B);
+                  })
+                  .Default(Args[I]);
     assert(CalleeArgType == Args[I].getType() && "Callsite argument mismatch");
   }
 }
