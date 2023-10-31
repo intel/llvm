@@ -1015,8 +1015,7 @@ handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
 |Invokes the execution of a graph. Only one instance of `graph` may be executing,
-or pending execution, at any time. Concurrent graph execution can be achieved by
-finalizing a graph in modifiable state into multiple graphs in executable state.
+or pending execution, at any time.
 
 Parameters:
 
