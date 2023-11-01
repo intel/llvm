@@ -9,48 +9,143 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer.hpp"
-#include "common.hpp"
 
-/// Stub implementations of UR experimental feature command-buffers
+#include "common.hpp"
+#include "enqueue.hpp"
+#include "event.hpp"
+#include "kernel.hpp"
+#include "memory.hpp"
+#include "queue.hpp"
+
+#include <cstring>
+
+ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice)
+    : Context(hContext),
+      Device(hDevice), CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1} {
+  urContextRetain(hContext);
+  urDeviceRetain(hDevice);
+}
+
+/// The ur_exp_command_buffer_handle_t_ destructor releases
+/// all the memory objects allocated for command_buffer managment
+ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+  // Release the memory allocated to the Context stored in the command_buffer
+  UR_TRACE(urContextRelease(Context));
+
+  // Release the device
+  UR_TRACE(urDeviceRelease(Device));
+
+  // Release the memory allocated to the CudaGraph
+  cuGraphDestroy(CudaGraph);
+
+  // Release the memory allocated to the CudaGraphExec
+  cuGraphExecDestroy(CudaGraphExec);
+}
+
+/// Helper function for finding the Cuda Nodes associated with the
+/// commands in a command-buffer, each event is pointed to by a sync-point in
+/// the wait list.
+///
+/// @param[in] CommandBuffer to lookup the events from.
+/// @param[in] NumSyncPointsInWaitList Length of \p SyncPointWaitList.
+/// @param[in] SyncPointWaitList List of sync points in \p CommandBuffer
+/// to find the events for.
+/// @param[out] CuNodesList Return parameter for the Cuda Nodes associated with
+/// each sync-point in \p SyncPointWaitList.
+///
+/// @return UR_RESULT_SUCCESS or an error code on failure
+static ur_result_t getNodesFromSyncPoints(
+    const ur_exp_command_buffer_handle_t &CommandBuffer,
+    size_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    std::vector<CUgraphNode> &CuNodesList) {
+  // Map of ur_exp_command_buffer_sync_point_t to ur_event_handle_t defining
+  // the event associated with each sync-point
+  auto SyncPoints = CommandBuffer->SyncPoints;
+
+  // For each sync-point add associated CUDA graph node to the return list.
+  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
+    if (auto NodeHandle = SyncPoints.find(SyncPointWaitList[i]);
+        NodeHandle != SyncPoints.end()) {
+      CuNodesList.push_back(*NodeHandle->second.get());
+    } else {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+/// Set parameter for General 1D memory copy.
+/// If the source and/or destination is on the device, SrcPtr and/or DstPtr
+/// must be a pointer to a CUdeviceptr
+static void setCopyParams(const void *SrcPtr, const CUmemorytype_enum SrcType,
+                          void *DstPtr, const CUmemorytype_enum DstType,
+                          size_t Size, CUDA_MEMCPY3D &Params) {
+  // Set all params to 0 first
+  std::memset(&Params, 0, sizeof(CUDA_MEMCPY3D));
+
+  Params.srcMemoryType = SrcType;
+  Params.srcDevice = SrcType == CU_MEMORYTYPE_DEVICE
+                         ? *static_cast<const CUdeviceptr *>(SrcPtr)
+                         : 0;
+  Params.srcHost = SrcType == CU_MEMORYTYPE_HOST ? SrcPtr : nullptr;
+  Params.dstMemoryType = DstType;
+  Params.dstDevice =
+      DstType == CU_MEMORYTYPE_DEVICE ? *static_cast<CUdeviceptr *>(DstPtr) : 0;
+  Params.dstHost = DstType == CU_MEMORYTYPE_HOST ? DstPtr : nullptr;
+  Params.WidthInBytes = Size;
+  Params.Height = 1;
+  Params.Depth = 1;
+}
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
-  (void)hContext;
-  (void)hDevice;
   (void)pCommandBufferDesc;
-  (void)phCommandBuffer;
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  try {
+    *phCommandBuffer = new ur_exp_command_buffer_handle_t_(hContext, hDevice);
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  try {
+    UR_CHECK_ERROR(cuGraphCreate(&(*phCommandBuffer)->CudaGraph, 0));
+  } catch (...) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  (void)hCommandBuffer;
-
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  hCommandBuffer->incrementReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  (void)hCommandBuffer;
+  if (hCommandBuffer->decrementReferenceCount() != 0)
+    return UR_RESULT_SUCCESS;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  delete hCommandBuffer;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  (void)hCommandBuffer;
-
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  try {
+    UR_CHECK_ERROR(cuGraphInstantiate(&hCommandBuffer->CudaGraphExec,
+                                      hCommandBuffer->CudaGraph, 0));
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
@@ -60,19 +155,85 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hKernel;
-  (void)workDim;
-  (void)pGlobalWorkOffset;
-  (void)pGlobalWorkSize;
-  (void)pLocalWorkSize;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  // Preconditions
+  UR_ASSERT(hCommandBuffer->Context == hKernel->getContext(),
+            UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+
+  std::vector<CUgraphNode> DepsList;
+
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
+
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  if (*pGlobalWorkSize == 0) {
+    try {
+      // Create an empty node if the kernel workload size is zero
+      UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                         DepsList.data(), DepsList.size()));
+
+      // Get sync point and register the cuNode with it.
+      *pSyncPoint = hCommandBuffer->AddSyncPoint(
+          std::make_shared<CUgraphNode>(GraphNode));
+    } catch (ur_result_t Err) {
+      Result = Err;
+    }
+    return Result;
+  }
+
+  // Set the number of threads per block to the number of threads per warp
+  // by default unless user has provided a better number
+  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+
+  uint32_t LocalSize = hKernel->getLocalSize();
+  CUfunction CuFunc = hKernel->get();
+  Result =
+      setKernelParams(hCommandBuffer->Context, hCommandBuffer->Device, workDim,
+                      pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+                      hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    // Set node param structure with the kernel related data
+    auto &ArgIndices = hKernel->getArgIndices();
+    CUDA_KERNEL_NODE_PARAMS NodeParams;
+    NodeParams.func = CuFunc;
+    NodeParams.gridDimX = BlocksPerGrid[0];
+    NodeParams.gridDimY = BlocksPerGrid[1];
+    NodeParams.gridDimZ = BlocksPerGrid[2];
+    NodeParams.blockDimX = ThreadsPerBlock[0];
+    NodeParams.blockDimY = ThreadsPerBlock[1];
+    NodeParams.blockDimZ = ThreadsPerBlock[2];
+    NodeParams.sharedMemBytes = LocalSize;
+    NodeParams.kernelParams = const_cast<void **>(ArgIndices.data());
+    NodeParams.extra = nullptr;
+
+    // Create and add an new kernel node to the Cuda graph
+    UR_CHECK_ERROR(cuGraphAddKernelNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                        DepsList.data(), DepsList.size(),
+                                        &NodeParams));
+
+    if (LocalSize != 0)
+      hKernel->clearLocalSize();
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
@@ -80,17 +241,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)pDst;
-  (void)pSrc;
-  (void)size;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    CUDA_MEMCPY3D NodeParams = {};
+    setCopyParams(pSrc, CU_MEMORYTYPE_HOST, pDst, CU_MEMORYTYPE_HOST, size,
+                  NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
@@ -99,19 +276,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hSrcMem;
-  (void)hDstMem;
-  (void)srcOffset;
-  (void)dstOffset;
-  (void)size;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  UR_ASSERT(size + dstOffset <= std::get<BufferMem>(hDstMem->Mem).getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+  UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hSrcMem->Mem).getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
+
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    auto Src = std::get<BufferMem>(hSrcMem->Mem).get() + srcOffset;
+    auto Dst = std::get<BufferMem>(hDstMem->Mem).get() + dstOffset;
+
+    CUDA_MEMCPY3D NodeParams = {};
+    setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, &Dst, CU_MEMORYTYPE_DEVICE, size,
+                  NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
@@ -122,23 +322,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hSrcMem;
-  (void)hDstMem;
-  (void)srcOrigin;
-  (void)dstOrigin;
-  (void)region;
-  (void)srcRowPitch;
-  (void)srcSlicePitch;
-  (void)dstRowPitch;
-  (void)dstSlicePitch;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    CUdeviceptr SrcPtr = std::get<BufferMem>(hSrcMem->Mem).get();
+    CUdeviceptr DstPtr = std::get<BufferMem>(hDstMem->Mem).get();
+    CUDA_MEMCPY3D NodeParams = {};
+
+    setCopyRectParams(region, &SrcPtr, CU_MEMORYTYPE_DEVICE, srcOrigin,
+                      srcRowPitch, srcSlicePitch, &DstPtr, CU_MEMORYTYPE_DEVICE,
+                      dstOrigin, dstRowPitch, dstSlicePitch, NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT
@@ -148,18 +362,35 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)offset;
-  (void)size;
-  (void)pSrc;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    auto Dst = std::get<BufferMem>(hBuffer->Mem).get() + offset;
+
+    CUDA_MEMCPY3D NodeParams = {};
+    setCopyParams(pSrc, CU_MEMORYTYPE_HOST, &Dst, CU_MEMORYTYPE_DEVICE, size,
+                  NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT
@@ -168,18 +399,35 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)offset;
-  (void)size;
-  (void)pDst;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    auto Src = std::get<BufferMem>(hBuffer->Mem).get() + offset;
+
+    CUDA_MEMCPY3D NodeParams = {};
+    setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, pDst, CU_MEMORYTYPE_HOST, size,
+                  NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT
@@ -191,23 +439,37 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)bufferOffset;
-  (void)hostOffset;
-  (void)region;
-  (void)bufferRowPitch;
-  (void)bufferSlicePitch;
-  (void)hostRowPitch;
-  (void)hostSlicePitch;
-  (void)pSrc;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    CUdeviceptr DstPtr = std::get<BufferMem>(hBuffer->Mem).get();
+    CUDA_MEMCPY3D NodeParams = {};
+
+    setCopyRectParams(region, pSrc, CU_MEMORYTYPE_HOST, hostOffset,
+                      hostRowPitch, hostSlicePitch, &DstPtr,
+                      CU_MEMORYTYPE_DEVICE, bufferOffset, bufferRowPitch,
+                      bufferSlicePitch, NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT
@@ -219,37 +481,75 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hBuffer;
-  (void)bufferOffset;
-  (void)hostOffset;
-  (void)region;
-  (void)bufferRowPitch;
-  (void)bufferSlicePitch;
-  (void)hostRowPitch;
-  (void)hostSlicePitch;
-  (void)pDst;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList),
+          Result);
 
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  try {
+    CUdeviceptr SrcPtr = std::get<BufferMem>(hBuffer->Mem).get();
+    CUDA_MEMCPY3D NodeParams = {};
+
+    setCopyRectParams(region, &SrcPtr, CU_MEMORYTYPE_DEVICE, bufferOffset,
+                      bufferRowPitch, bufferSlicePitch, pDst,
+                      CU_MEMORYTYPE_HOST, hostOffset, hostRowPitch,
+                      hostSlicePitch, NodeParams);
+
+    UR_CHECK_ERROR(cuGraphAddMemcpyNode(
+        &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
+        &NodeParams, hCommandBuffer->Device->getContext()));
+
+    // Get sync point and register the cuNode with it.
+    *pSyncPoint =
+        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  (void)hCommandBuffer;
-  (void)hQueue;
-  (void)numEventsInWaitList;
-  (void)phEventWaitList;
-  (void)phEvent;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  try {
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    ScopedContext Active(hQueue->getContext());
+    uint32_t StreamToken;
+    ur_stream_guard_ Guard;
+    CUstream CuStream = hQueue->getNextComputeStream(
+        numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+
+    if ((Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                    phEventWaitList)) != UR_RESULT_SUCCESS) {
+      return Result;
+    }
+
+    if (phEvent) {
+      RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
+          ur_event_handle_t_::makeNative(UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
+                                         hQueue, CuStream, StreamToken));
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
+
+    // Launch graph
+    UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
+
+    if (phEvent) {
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
+    }
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+
+  return Result;
 }
