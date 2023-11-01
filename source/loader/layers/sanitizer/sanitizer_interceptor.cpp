@@ -403,17 +403,144 @@ bool SanitizerInterceptor::updateHostShadowMemory(
     return true;
 }
 
-ur_result_t SanitizerInterceptor::piextMemAllocShadow(
-    ur_context_handle_t Context, ur_device_handle_t Device, void **ShadowOffset,
-    size_t *ShadowSize) {
+uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
+    return USM_SHADOW_BASE + (UPtr >> 3);
+}
+
+uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
+    if (UPtr & 0xFF00000000000000ULL) { // Device USM
+        return USM_SHADOW_BASE + 0x200000000000ULL +
+               ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
+    } else { // Only consider 47bit VA
+        return USM_SHADOW_BASE + ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
+    }
+}
+
+uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
+    if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
+        return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
+    } else {
+        return USM_SHADOW_BASE + (UPtr >> 3);
+    }
+}
+
+ur_result_t
+SanitizerInterceptor::piextMemAllocShadow(ur_context_handle_t Context,
+                                          ur_device_handle_t Device) {
+    auto &ContextInfo = getContextInfo(Context);
+    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    if (DeviceInfo.Type == UR_DEVICE_TYPE_CPU) {
+        DeviceInfo.ShadowOffset = 0x00007fff7fffULL;
+        DeviceInfo.ShadowOffsetEnd = 0x10007fff7fffULL;
+    } else if (DeviceInfo.Type == UR_DEVICE_TYPE_GPU) {
+        /// SHADOW MAPPING (PVC, with CPU 47bit)
+        ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
+        ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
+        ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
+        constexpr size_t SHADOW_SIZE = 1ULL << 46;
+
+        // TODO: Protect Bad Zone
+        auto URes = m_Dditable.VirtualMem.pfnReserve(
+            Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo.ShadowOffset);
+        if (URes != UR_RESULT_SUCCESS) {
+            printf("urVirtualMemReserve(): %p\n", (void *)URes);
+        }
+        assert(URes == UR_RESULT_SUCCESS);
+
+        DeviceInfo.ShadowOffsetEnd = DeviceInfo.ShadowOffset + SHADOW_SIZE;
+    } else {
+        assert(false && "Unsupport device type");
+    }
     return UR_RESULT_SUCCESS;
 }
 
 ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
     ur_context_handle_t Context, ur_device_handle_t Device,
-    ur_queue_handle_t Queue, void *Addr, size_t Size, uint8_t Value,
-    size_t NumEvents, const ur_event_handle_t *EventsList,
+    ur_queue_handle_t Queue, void *Ptr, size_t Size, uint8_t Value,
+    size_t NumEventsInWaitList, const ur_event_handle_t *EventsWaitList,
     ur_event_handle_t *OutEvent) {
+    auto &ContextInfo = getContextInfo(Context);
+    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    if (DeviceInfo.Type == UR_DEVICE_TYPE_CPU) {
+        assert(false && "Unsupport device type");
+    } else if (DeviceInfo.Type == UR_DEVICE_TYPE_GPU) {
+        const uptr UPtr = (uptr)Ptr;
+
+        ur_event_handle_t InternalEvent{};
+        ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+
+        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo.ShadowOffset, UPtr);
+        uptr ShadowEnd =
+            MemToShadow_PVC(DeviceInfo.ShadowOffset, UPtr + Size - 1);
+
+        // Maybe in future, we needn't to map physical memory manually
+        const bool IsNeedMapPhysicalMem = true;
+
+        if (IsNeedMapPhysicalMem) {
+            // We use fixed GPU PageSize: 64KB
+            const size_t PageSize = 64 * 1024u;
+
+            ur_physical_mem_properties_t Desc{
+                UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, nullptr, 0};
+            static ur_physical_mem_handle_t PhysicalMem{};
+
+            // Make sure [Ptr, Ptr + Size] is mapped to physical memory
+            for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
+                 MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
+                if (!PhysicalMem) {
+                    auto URes = m_Dditable.PhysicalMem.pfnCreate(
+                        Context, Device, PageSize, &Desc, &PhysicalMem);
+                    if (URes != UR_RESULT_SUCCESS) {
+                        printf("    zePhysicalMemCreate(): %p\n", (void *)URes);
+                    }
+                    assert(URes == UR_RESULT_SUCCESS);
+                }
+
+                printf("  zeVirtualMemMap: %p ~ %p\n", MappedPtr,
+                       MappedPtr + PageSize - 1);
+
+                // FIXME: No flag to check the failed reason is VA is already mapped
+                auto URes = m_Dditable.VirtualMem.pfnMap(
+                    Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
+                    UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
+                if (URes != UR_RESULT_SUCCESS) {
+                    printf("    zeVirtualMemMap(): %p\n", (void *)URes);
+                }
+
+                // Initialize to zero
+                if (URes == UR_RESULT_SUCCESS) {
+                    // Reset PhysicalMem to null since it's been mapped
+                    PhysicalMem = nullptr;
+
+                    // FIXME: Maybe we needn't to initialize shadow memory to zero? Or it'd be better to be a negative value?
+                    const char Pattern[] = {0};
+
+                    auto URes = m_Dditable.Enqueue.pfnUSMFill(
+                        Queue, (void *)MappedPtr, 1, Pattern, PageSize,
+                        NumEventsInWaitList, EventsWaitList, Event);
+                    if (URes != UR_RESULT_SUCCESS) {
+                        printf("    urEnqueueUSMFill(): %p\n", (void *)URes);
+                    }
+                    assert(URes == UR_RESULT_SUCCESS);
+
+                    NumEventsInWaitList = 1;
+                    EventsWaitList = Event;
+                }
+            }
+        }
+
+        const char Pattern[] = {(char)Value};
+        auto URes = m_Dditable.Enqueue.pfnUSMFill(
+            Queue, (void *)ShadowBegin, 1, Pattern,
+            (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
+            Event);
+        if (URes != UR_RESULT_SUCCESS) {
+            printf("  urEnqueueUSMFill(): %p\n", (void *)URes);
+        }
+        assert(URes == UR_RESULT_SUCCESS);
+    } else {
+        assert(false && "Unsupport device type");
+    }
     return UR_RESULT_SUCCESS;
 }
 
@@ -541,18 +668,21 @@ void SanitizerInterceptor::initDevice(ur_context_handle_t Context,
         return;
     }
 
+    // Query Device Type
+    auto Result = m_Dditable.Device.pfnGetInfo(Device, UR_DEVICE_INFO_TYPE,
+                                               sizeof(DeviceInfo.Type),
+                                               &DeviceInfo.Type, nullptr);
+    assert(Result == UR_RESULT_SUCCESS);
+
     // Query alignment
-    auto Result = m_Dditable.Device.pfnGetInfo(
+    Result = m_Dditable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN,
         sizeof(DeviceInfo.Alignment), &DeviceInfo.Alignment, nullptr);
     assert(Result == UR_RESULT_SUCCESS);
 
     // Allocate shadow memory
-    size_t ShadowSize{};
-    Result = piextMemAllocShadow(
-        Context, Device, (void **)&DeviceInfo.ShadowOffset, &ShadowSize);
+    Result = piextMemAllocShadow(Context, Device);
     assert(Result == UR_RESULT_SUCCESS);
-    DeviceInfo.ShadowOffsetEnd = DeviceInfo.ShadowOffset + ShadowSize - 1;
 
     std::cout << "Device ShadowOffset: " << (void *)DeviceInfo.ShadowOffset
               << " - " << (void *)DeviceInfo.ShadowOffsetEnd << "\n";

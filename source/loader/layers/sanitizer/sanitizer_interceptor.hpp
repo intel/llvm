@@ -64,6 +64,7 @@ class SanitizerInterceptor {
         bool Init = false;
         bool InitPool = false;
 
+        ur_device_type_t Type;
         size_t Alignment;
         uptr ShadowOffset;
         uptr ShadowOffsetEnd;
@@ -131,8 +132,7 @@ class SanitizerInterceptor {
     void initDevice(ur_context_handle_t Context, ur_device_handle_t Device);
     std::string getKernelName(ur_kernel_handle_t Kernel);
     ur_result_t piextMemAllocShadow(ur_context_handle_t Context,
-                                    ur_device_handle_t Device,
-                                    void **ShadowOffset, size_t *ShadowSize);
+                                    ur_device_handle_t Device);
     ur_result_t piextEnqueueMemSetShadow(ur_context_handle_t Context,
                                          ur_device_handle_t Device,
                                          ur_queue_handle_t Queue, void *Addr,
