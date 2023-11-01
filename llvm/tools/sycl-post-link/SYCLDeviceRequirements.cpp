@@ -9,10 +9,10 @@
 #include "SYCLDeviceRequirements.h"
 #include "ModuleSplitter.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/PropertySetIO.h"
-#include "llvm/ADT/SmallString.h"
 
 #include <set>
 #include <vector>
