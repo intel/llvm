@@ -64,8 +64,8 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)), MKernelArgMaskPtr{
-                                                          ArgMask} {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
   MIsInterop = MKernelBundleImpl->isInterop();
 }
 
