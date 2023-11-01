@@ -1095,6 +1095,11 @@ will throw synchronously with error code `invalid`.
 - Waiting on a queue in the recording state is an error and will throw
 synchronously with error code `invalid`.
 
+Events returned from queue submissions when a queue is not in the recording
+state should not be used as parameters to `handler::depends_on()` or as dependent
+events for queue shortcuts like `queue::parallel_for()` for submissions which
+are being recorded.
+
 ==== Buffer Limitations
 
 The use of buffers inside a `command_graph` is restricted unless the user
