@@ -100,6 +100,18 @@ if(UR_ENABLE_TRACING)
     )
 endif()
 
+if(UR_ENABLE_SANITIZER)
+    target_sources(ur_loader
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_interceptor.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_interceptor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
+    )
+endif()
+
 
 # link validation backtrace dependencies
 if(UNIX)
