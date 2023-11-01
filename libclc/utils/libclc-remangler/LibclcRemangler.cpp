@@ -631,7 +631,7 @@ private:
       }
       case Node::Kind::KVectorType: {
         Res = AST->getVectorType(Res, I->Data,
-                                 clang::VectorType::VectorKind::GenericVector);
+                                 clang::VectorKind::Generic);
         break;
       }
       case Node::Kind::KQualType: {
