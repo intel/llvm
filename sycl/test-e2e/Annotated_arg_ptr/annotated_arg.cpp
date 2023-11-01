@@ -1,4 +1,4 @@
-// REQUIRES: accelerator, opencl-aot
+// UNSUPPORTED: gpu
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
