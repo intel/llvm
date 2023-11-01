@@ -149,7 +149,7 @@ yet been implemented.
 Implementation of UR command-buffers
 for each of the supported SYCL 2020 backends.
 
-Currently Level Zero and CUDA backends are implemented. 
+Currently Level Zero and CUDA backends are implemented.
 More sub-sections will be added here as other backends are supported.
 
 ### Level Zero
@@ -239,7 +239,7 @@ using graph dependencies.
 Executable CUDA Graphs can be submitted to a CUDA stream
 in the same way as regular kernels.
 The CUDA backend enables enqueuing events to wait for into a stream.
-It also allows signaling the completion of a submission with an event.   
+It also allows signaling the completion of a submission with an event.
 Therefore, submitting a UR command-buffer consists only of submitting to a stream
 the executable CUDA Graph that represent this series of operations.
 
