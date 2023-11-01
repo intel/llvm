@@ -275,13 +275,17 @@ namespace bitmap {
       fclose(f_out);
       fclose(f_gold);
 
+      bool check_res = true;
       for (i = 0; i < width * height * 3; i++) {
         if (std::abs(img_out[i] - img_gold[i]) > tolerance) {
-          return false;
+          check_res = false;
+          break;
         }
       }
 
-      return true;
+      std::free(img_out);
+      std::free(img_gold);
+      return check_res;
     }
   };
 
