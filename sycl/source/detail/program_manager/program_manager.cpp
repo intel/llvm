@@ -2590,12 +2590,13 @@ checkDevSupportDeviceRequirements(const device &Dev,
             break;
         }
 
-        // TODO: report parameters of incompatible joint_matrix as well
         if (!IsMatrixCompatible)
-          return sycl::exception(
-              errc::kernel_not_supported,
-              "One of joint_matrix is not supported on this device due to "
-              "unsupported matrix_type or sizes");
+          return sycl::exception(errc::kernel_not_supported,
+                                 "joint_matrix with parameters " +
+                                     MatrixTypeUser + ", " + UseStrUser +
+                                     ", Rows=" + std::to_string(RowsUser) +
+                                     ", Cols=" + std::to_string(ColsUser) +
+                                     " is not supported on this device");
       }
     }
   }
@@ -2671,12 +2672,17 @@ checkDevSupportDeviceRequirements(const device &Dev,
             break;
         }
 
-        // TODO: report parameters of incompatible joint_matrix as well
         if (!IsMatrixMadCompatible)
           return sycl::exception(
               errc::kernel_not_supported,
-              "One of joint_matrix_mad functions is not supported on this "
-              "device due to unsupported matrix_type or sizes");
+              "joint_matrix_mad function with parameters atype=" +
+                  MatrixTypeAStrUser + ", btype=" + MatrixTypeBStrUser +
+                  ", ctype=" + MatrixTypeCStrUser + ", dtype=" +
+                  MatrixTypeDStrUser + ", M=" + std::to_string(MSizeUser) +
+                  ", K=" + std::to_string(KSizeUser) +
+                  ", N=" + std::to_string(NSizeUser) +
+                  " is not supported on this "
+                  "device");
       }
     }
   }

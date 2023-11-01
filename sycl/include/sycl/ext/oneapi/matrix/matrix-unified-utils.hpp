@@ -56,7 +56,7 @@ convertMatrixUseEnumToString(ext::oneapi::experimental::matrix::use Use) {
 constexpr std::optional<ext::oneapi::experimental::matrix::use>
 convertMatrixUseStringToEnum(const char *UseString) {
   for (const auto &Item : UseToUseStringMap) {
-    if (strcmp(Item.second, UseString) == 0)
+    if (std::string_view(Item.second) == UseString)
       return Item.first;
   }
   return std::nullopt;

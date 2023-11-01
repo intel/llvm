@@ -20,7 +20,7 @@
 ;   return 0;
 ; }
 
-; RUN: sycl-post-link -split=per_kernel %s -o %t.table
+; RUN: sycl-post-link -split=kernel %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefix CHECK-PROP-KERNEL-SPLIT-0
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefix CHECK-PROP-KERNEL-SPLIT-1
 
