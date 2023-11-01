@@ -5025,8 +5025,8 @@ class OffloadingActionBuilder final {
             else
               FullDeviceLinkAction = DeviceLinkAction;
             auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, types::TY_LLVM_BC, types::TY_Filetable);
-            PostLinkAction->setRTSetsSpecConstants(!isAOT);
+                FullDeviceLinkAction, types::TY_LLVM_BC, types::TY_Tempfiletable);
+            PostLinkAction->setRTSetsSpecConstants(!TT.isSPIRAOT());
             auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
                 PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
             // single column w/o title fits TY_Tempfilelist format
@@ -5642,7 +5642,7 @@ class OffloadingActionBuilder final {
         // First symbol indicates output/input type
         //   . - single file output (TY_SPIRV, TY_LLVM_BC,...)
         //   - - TY_Tempfilelist
-        //   + - TY_Filetable
+        //   + - TY_Tempfiletable
         //
         //                   .-----------------.
         //                   |Link(LinkObjects)|
@@ -5811,7 +5811,7 @@ class OffloadingActionBuilder final {
                                           ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
-            // For SPIR-V targets, force TY_Filetable.
+            // For SPIR-V targets, force TY_Tempfiletable.
             auto TypedPostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
                 FullDeviceLinkAction, PostLinkOutType, types::TY_Tempfiletable);
             TypedPostLinkAction->setRTSetsSpecConstants(!isAOT);
