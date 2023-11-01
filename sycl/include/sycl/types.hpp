@@ -1313,8 +1313,8 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
-      std::is_convertible<DataT, T>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                        \
+      std::is_convertible_v<DataT, T> &&                                       \
+          (std::is_fundamental_v<vec_data_t<T>> ||                             \
            std::is_same_v<typename std::remove_const_t<T>, half>),             \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
@@ -1344,8 +1344,8 @@ public:
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
-      std::is_convertible<DataT, T>::value &&                                  \
-          (std::is_fundamental<vec_data_t<T>>::value ||                        \
+      std::is_convertible_v<DataT, T> &&                                       \
+          (std::is_fundamental_v<vec_data_t<T>> ||                             \
            std::is_same_v<typename std::remove_const_t<T>, half>),             \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
