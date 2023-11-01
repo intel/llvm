@@ -36,6 +36,9 @@ extensions = [
     'myst_parser'
 ]
 
+# Implicit targets for cross reference
+myst_heading_anchors = 5
+
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'friendly'
 

@@ -31,7 +31,7 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-template <typename Ta, typename Tb, typename Tc, uint VF = 1>
+template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1>
 void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
                          bool transpose_c = false, bool colmajor_a = false,
                          bool colmajor_b = false) {
@@ -47,7 +47,7 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
         Tb *vb = (Tb *)(B + b_ind * VF);
         Tc acc = *(C + c_ind);
 
-        for (uint i = 0; i < VF; i++) {
+        for (unsigned int i = 0; i < VF; i++) {
           if constexpr (std::is_same_v<Ta, bfloat16> &&
                         std::is_same_v<Tc, float>)
             acc += make_fp32(va[i]) * make_fp32(vb[i]);

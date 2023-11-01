@@ -189,11 +189,15 @@ static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg));
 
-// template <typename RetType, typename Func>
-// static void member_ptr_helper(RetType (Func::*)() const);
+// Version with two arguments to handle the case when kernel_handler is passed
+// to a lambda
+template <typename RetType, typename Func, typename Arg1, typename Arg2>
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
-// template <typename RetType, typename Func>
-// static void member_ptr_helper(RetType (Func::*)());
+// Non-const version of the above template to match functors whose 'operator()'
+// is declared w/o the 'const' qualifier.
+template <typename RetType, typename Func, typename Arg1, typename Arg2>
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -729,9 +733,9 @@ private:
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
-    auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
+    auto HostKernelPtr = new detail::HostKernel<decltype(NormalizedKernelFunc),
+                                                sycl::nd_item<Dims>, Dims>(
+        std::move(NormalizedKernelFunc));
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
@@ -1280,7 +1284,7 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
+      kernel_parallel_for_wrapper<KName, TransformedArgType, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       // We are executing over the rounded range, but there are still
@@ -1290,7 +1294,7 @@ private:
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
       MNDRDesc.set(*RoundedRange);
-      StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
+      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
 #endif

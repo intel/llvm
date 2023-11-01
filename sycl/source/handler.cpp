@@ -244,7 +244,8 @@ event handler::finalize() {
           KernelBundleImpPtr, MArgs);
 #endif
 
-      auto EnqueueKernel = [&]() {
+      auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
+                            InstanceID = InstanceID]() {
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
