@@ -50,12 +50,15 @@ convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent,
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] const ur_event_native_properties_t *pProperties,
-    ur_event_handle_t *phEvent) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
+                              [[maybe_unused]] ur_context_handle_t hContext,
+                              const ur_event_native_properties_t *pProperties,
+                              ur_event_handle_t *phEvent) {
   *phEvent = reinterpret_cast<ur_event_handle_t>(hNativeEvent);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urEventRetain(*phEvent);
+  }
   return UR_RESULT_SUCCESS;
 }
 
