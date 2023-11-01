@@ -51,8 +51,7 @@ int main(int argc, char *argv[]) {
   unsigned int img_size = width * height * bpp / 8;
 
   // Sets output to blank image.
-  auto output_image_data = new unsigned char[img_size];
-  output_image.setData(output_image_data);
+  output_image.setData(new unsigned char[img_size]);
 
   queue q = esimd_test::createQueue();
 
@@ -151,8 +150,6 @@ int main(int argc, char *argv[]) {
   output_image.save("linear_out.bmp");
   bool passed = sycl::ext::intel::util::bitmap::BitMap::checkResult(
       "linear_out.bmp", argv[2], 5);
-
-  delete[] output_image_data;
 
   if (passed) {
     std::cerr << "PASSED\n";
