@@ -620,10 +620,12 @@ public:
       // collected above and return its address.
       auto *CTy = ArrayType::get(Builder.getInt32Ty(), 3);
       auto *C = ConstantArray::get(CTy, Offsets);
-      auto *GV =
-          new GlobalVariable(*M, CTy, /*isConstant*/ true,
-                             GlobalValue::InternalLinkage, C, Name + "__const");
-      auto *FTy = FunctionType::get(Builder.getPtrTy(), /*isVarArg*/ false);
+      auto *GV = new GlobalVariable(
+          *M, CTy, /*isConstant*/ true, GlobalValue::InternalLinkage, C,
+          Name + "__const", /*InsertBefore*/ nullptr,
+          GlobalVariable::NotThreadLocal, getPrivateAddressSpace());
+      auto *FTy = FunctionType::get(Builder.getPtrTy(getPrivateAddressSpace()),
+                                    /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
 
