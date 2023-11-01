@@ -51,4 +51,3 @@ void cache_control_read_func(queue q) {
     });
   });
 }
-
