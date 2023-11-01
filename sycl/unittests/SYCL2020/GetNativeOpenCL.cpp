@@ -124,6 +124,6 @@ TEST(GetNative, GetNativeHandle) {
 
   // Depending on global caches state, piDeviceRetain is called either once or
   // twice, so there'll be 5 or 6 calls.
-  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
+  ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";
 }

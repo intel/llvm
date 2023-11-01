@@ -2531,10 +2531,16 @@ pi_int32 enqueueImpKernel(
 
     Program = DeviceImageImpl->get_program_ref();
 
-    std::tie(Kernel, KernelMutex, EliminatedArgMask) =
-        detail::ProgramManager::getInstance().getOrCreateKernel(
-            KernelBundleImplPtr->get_context(), KernelName,
-            /*PropList=*/{}, Program);
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    if (!std::getenv("SYCL_CACHE_DISABLE")) {
+      auto [CachedKernel, CachedKernelMutex, CachedEliminatedArgMask] =
+          detail::ProgramManager::getInstance().getOrCreateKernel(
+              KernelBundleImplPtr->get_context(), KernelName,
+              /*PropList=*/{}, Program);
+      assert(CachedKernel == Kernel);
+      assert(CachedEliminatedArgMask == EliminatedArgMask);
+      KernelMutex = CachedKernelMutex;
+    }
   } else if (nullptr != MSyclKernel) {
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
@@ -2575,8 +2581,9 @@ pi_int32 enqueueImpKernel(
 
   pi_result Error = PI_SUCCESS;
   {
-    assert(KernelMutex);
-    std::lock_guard<std::mutex> Lock(*KernelMutex);
+    using OptionalLockGuard = std::optional<std::lock_guard<std::mutex>>;
+    auto Lock =
+        KernelMutex ? OptionalLockGuard(*KernelMutex) : OptionalLockGuard();
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.
@@ -2591,6 +2598,12 @@ pi_int32 enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
                                      EliminatedArgMask, getMemAllocationFunc);
+
+    const PluginPtr &Plugin = Queue->getPlugin();
+    if (!SyclKernelImpl && !MSyclKernel) {
+      Plugin->call<PiApiKind::piKernelRelease>(Kernel);
+      Plugin->call<PiApiKind::piProgramRelease>(Program);
+    }
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
