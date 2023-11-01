@@ -26,9 +26,6 @@ template <typename T, typename PropertyListT> class annotated_ptr;
 //===----------------------------------------------------------------------===//
 //   Utility type trait for annotated_arg/annotated_ptr deduction guide
 //===----------------------------------------------------------------------===//
-template <typename T, typename PropertyValueT>
-struct is_valid_property : std::false_type {};
-
 namespace detail {
 // Deduce a `properties<>` type from given variadic properties
 template <typename... Args> struct DeducedProperties {
@@ -43,19 +40,6 @@ struct DeducedProperties<detail::properties_t<Args...>> {
 };
 } // namespace detail
 
-template <typename T, typename... Props>
-struct check_property_list : std::true_type {};
-
-template <typename T, typename Prop, typename... Props>
-struct check_property_list<T, Prop, Props...>
-    : std::conditional_t<is_valid_property<T, Prop>::value,
-                         check_property_list<T, Props...>, std::false_type> {
-  static constexpr bool is_valid_property_for_given_type =
-      is_valid_property<T, Prop>::value;
-  static_assert(is_valid_property_for_given_type,
-                "Property is invalid for the given type.");
-};
-
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
@@ -67,10 +51,6 @@ struct alignment_key {
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
 template <> struct is_property_key<alignment_key> : std::true_type {};
-
-template <typename T, int W>
-struct is_valid_property<T, alignment_key::value_t<W>>
-    : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>

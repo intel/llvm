@@ -315,44 +315,6 @@ struct PropertyMetaInfo<read_write_mode_key::value_t<Mode>> {
 
 } // namespace detail
 
-// 'buffer_location' and mmhost properties are pointers-only
-template <typename T, int N>
-struct is_valid_property<T, buffer_location_key::value_t<N>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-template <typename T, int W>
-struct is_valid_property<T, awidth_key::value_t<W>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-template <typename T, int W>
-struct is_valid_property<T, dwidth_key::value_t<W>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-template <typename T, int N>
-struct is_valid_property<T, latency_key::value_t<N>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-template <typename T, read_write_mode_enum Mode>
-struct is_valid_property<T, read_write_mode_key::value_t<Mode>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-template <typename T, int N>
-struct is_valid_property<T, maxburst_key::value_t<N>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-template <typename T, int Enable>
-struct is_valid_property<T, wait_request_key::value_t<Enable>>
-    : std::bool_constant<std::is_pointer_v<T>> {};
-
-// 'register_map',  'conduit',  'stable' are common properties for pointers
-// and non pointers;
-template <typename T>
-struct is_valid_property<T, register_map_key::value_t> : std::true_type {};
-template <typename T>
-struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
-template <typename T>
-struct is_valid_property<T, stable_key::value_t> : std::true_type {};
-
 //===----------------------------------------------------------------------===//
 //   Utility for FPGA properties
 //===----------------------------------------------------------------------===//
@@ -381,6 +343,45 @@ template <typename... Args> struct checkHasConduitAndRegisterMap {
   static constexpr bool has_RegisterMap =
       ContainsProperty<register_map_key, list>::value;
   static constexpr bool value = !(has_Conduit && has_RegisterMap);
+};
+
+template <typename... Args> struct checkPropertiesForNonPointerType : std::true_type {
+  using list = std::tuple<Args...>;
+  static constexpr bool has_BufferLocation =
+      ContainsProperty<buffer_location_key, list>::value;
+  static_assert(!has_BufferLocation,
+                "Property buffer location cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_awidth =
+      ContainsProperty<awidth_key, list>::value;
+  static_assert(!has_awidth,
+                "Property awidth cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_dwidth =
+      ContainsProperty<dwidth_key, list>::value;
+  static_assert(!has_dwidth,
+                "Property dwidth cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_latency =
+      ContainsProperty<latency_key, list>::value;
+  static_assert(!has_latency,
+                "Property latency cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_read_write_mode =
+      ContainsProperty<read_write_mode_key, list>::value;
+  static_assert(!has_read_write_mode,
+                "Property read_write_mode cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_maxburst =
+      ContainsProperty<maxburst_key, list>::value;
+  static_assert(!has_maxburst,
+                "Property maxburst cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_wait_request =
+      ContainsProperty<wait_request_key, list>::value;
+  static_assert(!has_wait_request,
+                "Property wait_request cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
 };
 } // namespace detail
 
