@@ -225,5 +225,7 @@ int main(int argc, char **argv) {
   else
     std::cout << "FAILED\n";
 
+  free(hist);
+
   return res ? 0 : -1;
 }

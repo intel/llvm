@@ -69,7 +69,9 @@ template <class Ty> bool test(queue q, int inc) {
     std::cout << "Fail";
   }
 
-  return ((Ty)inc == data[0]);
+  auto res = ((Ty)inc == data[0]);
+  delete[] data;
+  return res;
 }
 
 int main(int argc, char *argv[]) {

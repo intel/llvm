@@ -207,5 +207,7 @@ int main() {
   else
     std::cout << "FAILED\n";
 
+  free(hist);
+
   return res ? 0 : -1;
 }
