@@ -143,26 +143,25 @@ static constexpr void checkUnique() {
 using cache_mode = sycl::ext::intel::experimental::cache_mode;
 
 template <cache_mode M> static constexpr int checkReadHint() {
-  static_assert(M == cache_mode::uncached || M == cache_mode::cached ||
-                    M == cache_mode::streaming,
-                "read_hint must specify cache_mode::uncached or "
-                "cache_mode::cached or cache_mode::streaming");
+  static_assert(
+      M == cache_mode::uncached || M == cache_mode::cached ||
+          M == cache_mode::streaming,
+      "read_hint must specify cache_mode uncached, cached or streaming");
   return 0;
 }
 
 template <cache_mode M> static constexpr int checkReadAssertion() {
   static_assert(
       M == cache_mode::invalidate || M == cache_mode::constant,
-      "read_hint must specify cache_mode::invalidate or cache_mode::constant");
+      "read_assertion must specify cache_mode invalidate or constant");
   return 0;
 }
 
 template <cache_mode M> static constexpr int checkWriteHint() {
   static_assert(M == cache_mode::uncached || M == cache_mode::write_through ||
                     M == cache_mode::write_back || M == cache_mode::streaming,
-                "write_hint must specify cache_mode::uncached or "
-                "cache_mode::write_through or "
-                "cache_mode::write_back or cache_mode::streaming");
+                "write_hint must specify cache_mode uncached, write_through, "
+                "write_back or streaming");
   return 0;
 }
 
