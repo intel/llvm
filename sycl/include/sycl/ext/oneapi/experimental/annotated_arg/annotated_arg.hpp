@@ -10,6 +10,7 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -17,6 +18,13 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
+#define CHECK_INVALID_PROPERTY(property, list)                                 \
+  static constexpr bool has_##property =                                       \
+      detail::ContainsProperty<property##_key, list>::value;                   \
+  static_assert(!has_##property,                                               \
+                "Property " #property " cannot be specified for "              \
+                "annotated_arg<T> when T is a non pointer type.");
 
 namespace sycl {
 
@@ -95,7 +103,7 @@ public:
   static constexpr bool hasValidFPGAProperties =
       detail::checkValidFPGAPropertySet<Props...>::value;
   static_assert(hasValidFPGAProperties,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
                 "can only be set with BufferLocation together.");
   // check if conduit and register_map properties are specified together
   static constexpr bool hasConduitAndRegisterMapProperties =
@@ -198,6 +206,7 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+  using property_tuple = std::tuple<Props...>;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
@@ -214,6 +223,18 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
 public:
   static constexpr bool is_device_copyable = is_device_copyable_v<T>;
   static_assert(is_device_copyable, "Type T must be device copyable.");
+
+  // check if invalid properties are specified for non pointer type
+  CHECK_INVALID_PROPERTY(buffer_location, property_tuple)
+  CHECK_INVALID_PROPERTY(awidth, property_tuple)
+  CHECK_INVALID_PROPERTY(dwidth, property_tuple)
+  CHECK_INVALID_PROPERTY(latency, property_tuple)
+  CHECK_INVALID_PROPERTY(read_write_mode, property_tuple)
+  CHECK_INVALID_PROPERTY(maxburst, property_tuple)
+  CHECK_INVALID_PROPERTY(wait_request, property_tuple)
+  CHECK_INVALID_PROPERTY(alignment, property_tuple)
+  CHECK_INVALID_PROPERTY(usm_kind, property_tuple)
+
   static constexpr bool is_valid_property_list =
       is_property_list<property_list_t>::value;
   static_assert(is_valid_property_list, "Property list is invalid.");
@@ -225,7 +246,7 @@ public:
   static constexpr bool hasValidFPGAProperties =
       detail::checkValidFPGAPropertySet<Props...>::value;
   static_assert(hasValidFPGAProperties,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
                 "can only be set with BufferLocation together.");
   // check if conduit and register_map properties are specified together
   static constexpr bool hasConduitAndRegisterMapProperties =
