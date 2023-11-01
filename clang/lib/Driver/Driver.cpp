@@ -5612,7 +5612,7 @@ class OffloadingActionBuilder final {
 
             ActionList TformInputs{PostLinkAction, ForEachWrapping};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Filetable, types::TY_Filetable);
+                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
@@ -5680,7 +5680,7 @@ class OffloadingActionBuilder final {
             }
             ActionList TformInputs{PostLinkAction, BuildCodeAction};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Filetable, types::TY_Filetable);
+                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
