@@ -118,13 +118,10 @@ int main() {
   try {
     init_and_multiply<bfloat16, float, 2, 1, 500, 16>();
   } catch (const sycl::exception &e) {
-    if (e.code() != errc::kernel_not_supported) {
-      std::cout << "fail: " << test_name << "\n"
-                << "Caught wrong exception with error code " << e.code() << "\n"
-                << e.what() << "\n";
-      return 1;
+    if (e.code() == errc::kernel_not_supported) {
+      return 0;
     }
   }
 
-  return 0;
+  return 1;
 }
