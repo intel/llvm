@@ -106,9 +106,9 @@ int main() {
   auto *r3 = malloc_shared<MyStruct<int>>(5, Q);
 
   // testing logical overloaded operators
-  annotated_arg<MyStruct<bool>)> m =
+  annotated_arg<MyStruct<bool>> m =
       MyStruct(true);
-  annotated_arg<MyStruct<bool>)> n =
+  annotated_arg<MyStruct<bool>> n =
       MyStruct(false);
 
   auto *r4 = malloc_shared<MyStruct<bool>>(3, Q);
