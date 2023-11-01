@@ -37,11 +37,8 @@ add_sycl_plugin(native_cpu
     UnifiedRuntime-Headers
 )
 
-if(NOT DEFINED NATIVECPU_USE_OCK)
-  option(Native_CPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" On)
-endif()
 
-if(Native_CPU_USE_OCK)
+if(NATIVECPU_USE_OCK)
   # TODO: I'm not sure why we need this here, but we get errors when configuring without it 
   if(NOT CMAKE_CLC_COMPILE_OBJECT)
     set(CMAKE_CLC_COMPILE_OBJECT
@@ -60,9 +57,9 @@ if(Native_CPU_USE_OCK)
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
-    message("Cloning oneAPI Construction Kit")
+    message(STATUS "Cloning oneAPI Construction Kit")
     FetchContent_Populate(oneapi-ck)
-    message("oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
+    message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
     set(CA_NATIVE_CPU 1)
     add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR})
   endif()
