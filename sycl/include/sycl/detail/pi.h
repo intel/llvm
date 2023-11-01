@@ -147,9 +147,10 @@
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
+// 14.41 Add coarse-grain memory advice flag for HIP.
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 40
+#define _PI_H_VERSION_MINOR 41
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -578,6 +579,8 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
 

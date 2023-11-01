@@ -3370,6 +3370,12 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
   }
+  if (Advice & PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY;
+  }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
   }
