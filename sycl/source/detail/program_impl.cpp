@@ -225,7 +225,7 @@ cl_program program_impl::get() const {
   return pi::cast<cl_program>(MProgram);
 }
 
-void program_impl::compile_with_kernel_name(std::string KernelName,
+void program_impl::compile_with_kernel_name(const char*  KernelName,
                                             std::string CompileOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
   throw_if_state_is_not(program_state::none);
@@ -433,7 +433,7 @@ void program_impl::throw_if_state_is_not(program_state State) const {
 }
 
 void program_impl::create_pi_program_with_kernel_name(
-    const std::string &KernelName, bool JITCompilationIsRequired) {
+    const char* KernelName, bool JITCompilationIsRequired) {
   assert(!MProgram && "This program already has an encapsulated PI program");
   ProgramManager &PM = ProgramManager::getInstance();
   const device FirstDevice = get_devices()[0];

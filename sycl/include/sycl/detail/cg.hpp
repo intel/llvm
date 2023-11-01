@@ -187,7 +187,7 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(strdup(KernelName)), MStreams(std::move(Streams)),
+        MKernelName((KernelName != nullptr) ? strdup(KernelName) : nullptr), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
     assert(getType() == Kernel && "Wrong type of exec kernel CG.");

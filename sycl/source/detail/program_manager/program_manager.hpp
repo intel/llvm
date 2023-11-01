@@ -90,7 +90,7 @@ public:
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
 
-  RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
+  RTDeviceBinaryImage &getDeviceImage(const char* KernelName,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
@@ -137,11 +137,11 @@ public:
   ///        add a check that kernel is compiled, otherwise don't add the check.
   sycl::detail::pi::PiProgram getBuiltPIProgram(
       const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-      const std::string &KernelName, bool JITCompilationIsRequired = false);
+      const char* KernelName, bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram
   getBuiltPIProgram(const context &Context, const device &Device,
-                    const std::string &KernelName,
+                    const char* KernelName,
                     const property_list &PropList,
                     bool JITCompilationIsRequired = false);
 
@@ -149,7 +149,7 @@ public:
              sycl::detail::pi::PiProgram>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    const std::string &KernelName);
+                    const char* KernelName);
 
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
@@ -183,7 +183,7 @@ public:
   /// \param KernelName the name of the kernel.
   const KernelArgMask *
   getEliminatedKernelArgMask(pi::PiProgram NativePrg,
-                             const std::string &KernelName);
+                             const char* KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
   // kernel name.
@@ -195,7 +195,7 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // built-in kernel name.
-  kernel_id getBuiltInKernelID(const std::string &KernelName);
+  kernel_id getBuiltInKernelID(const char* KernelName);
 
   // The function inserts or initializes a device_global entry into the
   // device_global map.
@@ -282,14 +282,14 @@ public:
                            const property_list &PropList);
 
   std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *>
-  getOrCreateKernel(const context &Context, const std::string &KernelName,
+  getOrCreateKernel(const context &Context, const char* KernelName,
                     const property_list &PropList,
                     sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
   ~ProgramManager() = default;
 
-  bool kernelUsesAssert(const std::string &KernelName) const;
+  bool kernelUsesAssert(const char* KernelName) const;
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -351,7 +351,7 @@ private:
   /// in the sycl::detail::__sycl_service_kernel__ namespace which is
   /// exclusively used for this purpose.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<std::string, RTDeviceBinaryImage *> m_ServiceKernels;
+  std::unordered_multimap<const char*, RTDeviceBinaryImage *> m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.

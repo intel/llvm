@@ -2063,7 +2063,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   void *Address = nullptr;
   std::optional<bool> FromSource;
   std::string KernelName = instrumentationGetKernelName(
-      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
+      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName?std::string(SyclKernelName):std::string(), Address,
       FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
