@@ -983,21 +983,11 @@ public:
       : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
 
-  // TODO: Remove, for debug purposes only.
-  void dump() const {
-#ifndef __SYCL_DEVICE_ONLY__
-    for (int I = 0; I < NumElements; ++I) {
-      std::cout << "  " << I << ": " << getValue(I) << std::endl;
-    }
-    std::cout << std::endl;
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,
-            typename = typename std::enable_if_t<
-                std::is_same<vector_t_, vector_t>::value &&
-                !std::is_same<vector_t_, DataT>::value>>
+            typename =
+                typename std::enable_if_t<std::is_same_v<vector_t_, vector_t> &&
+                                          !std::is_same_v<vector_t_, DataT>>>
   constexpr vec(vector_t openclVector) {
     if constexpr (!IsUsingArrayOnDevice) {
       m_Data = openclVector;
@@ -1142,9 +1132,9 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,
-            typename = typename std::enable_if_t<
-                std::is_same<vector_t_, vector_t>::value &&
-                !std::is_same<vector_t_, DataT>::value>>
+            typename =
+                typename std::enable_if_t<std::is_same_v<vector_t_, vector_t> &&
+                                          !std::is_same_v<vector_t_, DataT>>>
   constexpr vec(vector_t openclVector) : m_Data(openclVector) {}
   operator vector_t() const { return m_Data; }
 #endif
@@ -1308,7 +1298,7 @@ public:
   vec operator BINOP(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {     \
     vec Ret;                                                                   \
     Ret.m_Data = m_Data BINOP Rhs.m_Data;                                      \
-    if constexpr (std::is_same<Type, bool>::value && CONVERT) {                \
+    if constexpr (std::is_same_v<Type, bool> && CONVERT) {                     \
       Ret.ConvertToDataT();                                                    \
     }                                                                          \
     return Ret;                                                                \
@@ -1325,7 +1315,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
+           std::is_same_v<typename std::remove_const_t<T>, half>),             \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1356,7 +1346,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename std::remove_const_t<T>, half>::value),        \
+           std::is_same_v<typename std::remove_const_t<T>, half>),             \
       vec>                                                                     \
   operator BINOP(const T & Rhs) const {                                        \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1550,7 +1540,7 @@ public:
                             vec>
   operator~() const {
     vec Ret{(typename vec::DataType) ~m_Data};
-    if constexpr (std::is_same<Type, bool>::value) {
+    if constexpr (std::is_same_v<Type, bool>) {
       Ret.ConvertToDataT();
     }
     return Ret;
@@ -1577,7 +1567,7 @@ public:
   // needed. And, worse, Windows has a conflict with 'byte'.
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <typename T = DataT, int N = NumElements>
-  typename std::enable_if_t<std::is_same<std::byte, T>::value &&
+  typename std::enable_if_t<std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
                             vec<T, N>>
   operator!() const {
@@ -1589,7 +1579,7 @@ public:
   }
 
   template <typename T = DataT, int N = NumElements>
-  typename std::enable_if_t<!std::is_same<std::byte, T>::value &&
+  typename std::enable_if_t<!std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
                             vec<T, N>>
   operator!() const {
@@ -1658,7 +1648,7 @@ public:
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <typename T = DataT, int N = NumElements>
-  typename std::enable_if_t<std::is_same<std::byte, T>::value, vec<T, N>>
+  typename std::enable_if_t<std::is_same_v<std::byte, T>, vec<T, N>>
   operator!() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
@@ -1674,7 +1664,7 @@ public:
   }
 
   template <typename T = DataT, int N = NumElements>
-  typename std::enable_if_t<!std::is_same<std::byte, T>::value, vec<T, N>>
+  typename std::enable_if_t<!std::is_same_v<std::byte, T>, vec<T, N>>
   operator!() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
