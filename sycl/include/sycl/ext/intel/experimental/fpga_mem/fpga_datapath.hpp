@@ -36,6 +36,8 @@ public:
   // constructor at compile-time
   template <typename... S> constexpr fpga_datapath(S... args) : val{args...} {}
 
+  fpga_datapath() = default;
+
   fpga_datapath(const fpga_datapath &) = default;
   fpga_datapath(fpga_datapath &&) = default;
   fpga_datapath &operator=(const fpga_datapath &) = default;
