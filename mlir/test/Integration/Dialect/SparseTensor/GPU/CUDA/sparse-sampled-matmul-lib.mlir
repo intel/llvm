@@ -2,8 +2,9 @@
 // NOTE: this test requires gpu-sm80
 //
 // DEFINE: %{compile} = mlir-opt %s \
-// DEFINE:   --sparse-compiler="enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71
-// DEFINE: %{run} = TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
+// DEFINE:   --sparse-compiler="enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71 gpu-format=%gpu_compilation_format
+// DEFINE: %{run} = \
+// DEFINE:   env TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
 // DEFINE:   mlir-cpu-runner \
 // DEFINE:   --shared-libs=%mlir_cuda_runtime \
 // DEFINE:   --shared-libs=%mlir_c_runner_utils \
@@ -12,23 +13,23 @@
 //
 // with RT lib:
 //
-//  RUN:  %{compile} enable-runtime-library=true" | %{run}
-//  RUN:  %{compile} enable-runtime-library=true gpu-data-transfer-strategy=pinned-dma" | %{run}
-//  Tracker #64316
-//  RUNNOT: %{compile} enable-runtime-library=true gpu-data-transfer-strategy=zero-copy" | %{run}
+// RUN:  %{compile} enable-runtime-library=true" | %{run}
+// RUN:  %{compile} enable-runtime-library=true gpu-data-transfer-strategy=pinned-dma" | %{run}
+// TODO: Tracker #64316
+// RUNNOT: %{compile} enable-runtime-library=true gpu-data-transfer-strategy=zero-copy" | %{run}
 //
 // without RT lib:
 //
 // RUN:  %{compile} enable-runtime-library=false" | %{run}
 // RUN:  %{compile} enable-runtime-library=false gpu-data-transfer-strategy=pinned-dma" | %{run}
-//  Tracker #64316
+// TODO:  Tracker #64316
 // RUNNOT: %{compile} enable-runtime-library=false gpu-data-transfer-strategy=zero-copy" | %{run}
 //
 
 !Filename = !llvm.ptr<i8>
 
 #CSR = #sparse_tensor.encoding<{
-  lvlTypes = ["dense", "compressed"]
+  map = (d0, d1) -> (d0 : dense, d1 : compressed)
 }>
 
 #trait_sampled_dense_dense = {

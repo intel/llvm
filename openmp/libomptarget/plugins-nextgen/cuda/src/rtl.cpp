@@ -576,6 +576,17 @@ struct CUDADeviceTy : public GenericDeviceTy {
     if (auto Err = getStream(AsyncInfoWrapper, Stream))
       return Err;
 
+    // If there is already pending work on the stream it could be waiting for
+    // someone to check the RPC server.
+    if (auto RPCServer = getRPCServer()) {
+      CUresult Res = cuStreamQuery(Stream);
+      while (Res == CUDA_ERROR_NOT_READY) {
+        if (auto Err = RPCServer->runServer(*this))
+          return Err;
+        Res = cuStreamQuery(Stream);
+      }
+    }
+
     CUresult Res = cuMemcpyDtoHAsync(HstPtr, (CUdeviceptr)TgtPtr, Size, Stream);
     return Plugin::check(Res, "Error in cuMemcpyDtoHAsync: %s");
   }
@@ -830,6 +841,11 @@ struct CUDADeviceTy : public GenericDeviceTy {
     Info.add("Compute Capabilities", ComputeCapability.str());
 
     return Plugin::success();
+  }
+
+  virtual bool shouldSetupDeviceMemoryPool() const override {
+    /// We use the CUDA malloc for now.
+    return false;
   }
 
   /// Getters and setters for stack and heap sizes.

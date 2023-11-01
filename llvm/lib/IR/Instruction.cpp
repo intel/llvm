@@ -80,7 +80,7 @@ void Instruction::removeFromParent() {
   getParent()->getInstList().remove(getIterator());
 }
 
-iplist<Instruction>::iterator Instruction::eraseFromParent() {
+BasicBlock::iterator Instruction::eraseFromParent() {
   return getParent()->getInstList().erase(getIterator());
 }
 
@@ -114,8 +114,7 @@ void Instruction::moveAfter(Instruction *MovePos) {
   moveBefore(*MovePos->getParent(), ++MovePos->getIterator());
 }
 
-void Instruction::moveBefore(BasicBlock &BB,
-                             SymbolTableList<Instruction>::iterator I) {
+void Instruction::moveBefore(BasicBlock &BB, InstListType::iterator I) {
   assert(I == BB.end() || I->getParent() == &BB);
   BB.splice(I, getParent(), getIterator());
 }
@@ -883,6 +882,13 @@ Instruction::getPrevNonDebugInstruction(bool SkipPseudoOp) const {
     if (!isa<DbgInfoIntrinsic>(I) && !(SkipPseudoOp && isa<PseudoProbeInst>(I)))
       return I;
   return nullptr;
+}
+
+const DebugLoc &Instruction::getStableDebugLoc() const {
+  if (isa<DbgInfoIntrinsic>(this))
+    if (const Instruction *Next = getNextNonDebugInstruction())
+      return Next->getDebugLoc();
+  return getDebugLoc();
 }
 
 bool Instruction::isAssociative() const {

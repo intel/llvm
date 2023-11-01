@@ -235,20 +235,6 @@ static_assert(std::is_trivially_copyable<OptionalFileEntryRef>::value,
 
 namespace llvm {
 
-template <> struct PointerLikeTypeTraits<clang::FileEntryRef> {
-  static inline void *getAsVoidPointer(clang::FileEntryRef File) {
-    return const_cast<clang::FileEntryRef::MapEntry *>(&File.getMapEntry());
-  }
-
-  static inline clang::FileEntryRef getFromVoidPointer(void *Ptr) {
-    return clang::FileEntryRef(
-        *reinterpret_cast<const clang::FileEntryRef::MapEntry *>(Ptr));
-  }
-
-  static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<
-      const clang::FileEntryRef::MapEntry *>::NumLowBitsAvailable;
-};
-
 /// Specialisation of DenseMapInfo for FileEntryRef.
 template <> struct DenseMapInfo<clang::FileEntryRef> {
   static inline clang::FileEntryRef getEmptyKey() {
@@ -275,6 +261,18 @@ template <> struct DenseMapInfo<clang::FileEntryRef> {
     // It's safe to use operator==.
     return LHS == RHS;
   }
+
+  /// Support for finding `const FileEntry *` in a `DenseMap<FileEntryRef, T>`.
+  /// @{
+  static unsigned getHashValue(const clang::FileEntry *Val) {
+    return llvm::hash_value(Val);
+  }
+  static bool isEqual(const clang::FileEntry *LHS, clang::FileEntryRef RHS) {
+    if (RHS.isSpecialDenseMapKey())
+      return false;
+    return LHS == RHS;
+  }
+  /// @}
 };
 
 } // end namespace llvm
@@ -397,7 +395,6 @@ class FileEntry {
 public:
   ~FileEntry();
   StringRef getName() const { return LastRef->getName(); }
-  FileEntryRef getLastRef() const { return *LastRef; }
 
   StringRef tryGetRealPathName() const { return RealPathName; }
   off_t getSize() const { return Size; }

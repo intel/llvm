@@ -346,31 +346,32 @@ tgtok::TokKind TGLexer::LexIdentifier() {
   StringRef Str(IdentStart, CurPtr-IdentStart);
 
   tgtok::TokKind Kind = StringSwitch<tgtok::TokKind>(Str)
-    .Case("int", tgtok::Int)
-    .Case("bit", tgtok::Bit)
-    .Case("bits", tgtok::Bits)
-    .Case("string", tgtok::String)
-    .Case("list", tgtok::List)
-    .Case("code", tgtok::Code)
-    .Case("dag", tgtok::Dag)
-    .Case("class", tgtok::Class)
-    .Case("def", tgtok::Def)
-    .Case("true", tgtok::TrueVal)
-    .Case("false", tgtok::FalseVal)
-    .Case("foreach", tgtok::Foreach)
-    .Case("defm", tgtok::Defm)
-    .Case("defset", tgtok::Defset)
-    .Case("multiclass", tgtok::MultiClass)
-    .Case("field", tgtok::Field)
-    .Case("let", tgtok::Let)
-    .Case("in", tgtok::In)
-    .Case("defvar", tgtok::Defvar)
-    .Case("include", tgtok::Include)
-    .Case("if", tgtok::If)
-    .Case("then", tgtok::Then)
-    .Case("else", tgtok::ElseKW)
-    .Case("assert", tgtok::Assert)
-    .Default(tgtok::Id);
+                            .Case("int", tgtok::Int)
+                            .Case("bit", tgtok::Bit)
+                            .Case("bits", tgtok::Bits)
+                            .Case("string", tgtok::String)
+                            .Case("list", tgtok::List)
+                            .Case("code", tgtok::Code)
+                            .Case("dag", tgtok::Dag)
+                            .Case("class", tgtok::Class)
+                            .Case("def", tgtok::Def)
+                            .Case("true", tgtok::TrueVal)
+                            .Case("false", tgtok::FalseVal)
+                            .Case("foreach", tgtok::Foreach)
+                            .Case("defm", tgtok::Defm)
+                            .Case("defset", tgtok::Defset)
+                            .Case("multiclass", tgtok::MultiClass)
+                            .Case("field", tgtok::Field)
+                            .Case("let", tgtok::Let)
+                            .Case("in", tgtok::In)
+                            .Case("defvar", tgtok::Defvar)
+                            .Case("include", tgtok::Include)
+                            .Case("if", tgtok::If)
+                            .Case("then", tgtok::Then)
+                            .Case("else", tgtok::ElseKW)
+                            .Case("assert", tgtok::Assert)
+                            .Case("dump", tgtok::Dump)
+                            .Default(tgtok::Id);
 
   // A couple of tokens require special processing.
   switch (Kind) {
@@ -605,6 +606,7 @@ tgtok::TokKind TGLexer::LexExclaim() {
           .Case("exists", tgtok::XExists)
           .Case("tolower", tgtok::XToLower)
           .Case("toupper", tgtok::XToUpper)
+          .Case("repr", tgtok::XRepr)
           .Default(tgtok::Error);
 
   return Kind != tgtok::Error ? Kind : ReturnError(Start-1, "Unknown operator");
@@ -723,16 +725,15 @@ tgtok::TokKind TGLexer::lexPreprocessor(
 
     bool MacroIsDefined = DefinedMacros.count(MacroName) != 0;
 
-    // Canonicalize ifndef to ifdef equivalent
-    if (Kind == tgtok::Ifndef) {
+    // Canonicalize ifndef's MacroIsDefined to its ifdef equivalent.
+    if (Kind == tgtok::Ifndef)
       MacroIsDefined = !MacroIsDefined;
-      Kind = tgtok::Ifdef;
-    }
 
     // Regardless of whether we are processing tokens or not,
     // we put the #ifdef control on stack.
+    // Note that MacroIsDefined has been canonicalized against ifdef.
     PrepIncludeStack.back()->push_back(
-        {Kind, MacroIsDefined, SMLoc::getFromPointer(TokStart)});
+        {tgtok::Ifdef, MacroIsDefined, SMLoc::getFromPointer(TokStart)});
 
     if (!prepSkipDirectiveEnd())
       return ReturnError(CurPtr, "Only comments are supported after " +

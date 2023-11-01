@@ -39,6 +39,13 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output, const Tool *T,
                                  StringRef Increment, StringRef Ext = "out",
                                  StringRef ParallelJobs = "");
+
+// Provides a vector of device library names that are associated with the
+// given triple and AOT information.
+SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
+                                               const llvm::Triple &TargetTriple,
+                                               bool IsSpirvAOT);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -108,6 +115,7 @@ public:
 
 StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
+StringRef getGenGRFFlag(StringRef GRFMode);
 
 // // Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
@@ -184,6 +192,12 @@ public:
     if (this->IsSYCLNativeCPU)
       return this->HostTC.isPICDefault();
     return false;
+  }
+  llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
+    if (this->IsSYCLNativeCPU ||
+        this->HostTC.getTriple().isWindowsMSVCEnvironment())
+      return this->HostTC.getDefaultDebugFormat();
+    return ToolChain::getDefaultDebugFormat();
   }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;

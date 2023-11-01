@@ -40,12 +40,12 @@ One use for compile-time properties is with types that are used exclusively
 for declaring global variables.  One such example is the
 [sycl\_ext\_oneapi\_device\_global][2] extension:
 
-[2]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc>
+[2]: <../extensions/experimental/sycl_ext_oneapi_device_global.asciidoc>
 
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = experimental::empty_properties_t>
 class device_global {/*...*/};
 
 } // namespace sycl::ext::oneapi
@@ -68,7 +68,7 @@ is a list that is created through a template parameter pack expansion:
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = experimental::empty_properties_t>
 class device_global {/*...*/};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -155,7 +155,7 @@ template <typename dataT,
           access::mode accessmode,
           access::target accessTarget,
           access::placeholder isPlaceholder,
-          typename PropertyListT = ext::oneapi::properties<>>
+          typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
 class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 } // namespace sycl
@@ -185,7 +185,7 @@ template <typename dataT,
           access::mode accessmode,
           access::target accessTarget,
           access::placeholder isPlaceholder,
-          typename PropertyListT = ext::oneapi::properties<>>
+          typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
 class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -271,7 +271,7 @@ proposed in the [sycl\_ext\_oneapi\_kernel\_properties][8] extension.  There
 are two ways the application can specify these properties.  The first is by
 passing a `properties` parameter to the function that submits the kernel:
 
-[8]: <../extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc>
+[8]: <../extensions/experimental/sycl_ext_oneapi_kernel_properties.asciidoc>
 
 ```
 namespace sycl {
@@ -378,7 +378,7 @@ class.
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = experimental::empty_properties_t>
 class annotated_ptr {
   T *ptr;
  public:
@@ -406,7 +406,7 @@ represent the properties.
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = experimental::empty_properties_t>
 class annotated_ptr;
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -432,7 +432,7 @@ Illustrating this with properties from our previous example:
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = properties<>>
+template <typename T, typename PropertyListT = experimental::empty_properties_t>
 class annotated_ptr;
 
 // Partial specialization to make PropertyListT visible as a parameter pack

@@ -689,7 +689,7 @@ bool Sema::checkMustTailAttr(const Stmt *St, const Attr &MTA) {
     if (CMD->isStatic())
       Type.MemberType = FuncType::ft_static_member;
     else {
-      Type.This = CMD->getThisObjectType();
+      Type.This = CMD->getFunctionObjectParameterType();
       Type.MemberType = FuncType::ft_non_static_member;
     }
     Type.Func = CMD->getType()->castAs<FunctionProtoType>();
@@ -3577,6 +3577,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
   CapturingScopeInfo *CurCap = cast<CapturingScopeInfo>(getCurFunction());
   QualType FnRetType = CurCap->ReturnType;
   LambdaScopeInfo *CurLambda = dyn_cast<LambdaScopeInfo>(CurCap);
+  if (CurLambda && CurLambda->CallOperator->getType().isNull())
+    return StmtError();
   bool HasDeducedReturnType =
       CurLambda && hasDeducedReturnType(CurLambda->CallOperator);
 
@@ -4624,8 +4626,12 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
     Diag(TryLoc, diag::err_seh_try_outside_functions);
 
   // Reject __try on unsupported targets.
-  if (!Context.getTargetInfo().isSEHTrySupported())
-    Diag(TryLoc, diag::err_seh_try_unsupported);
+  if (!Context.getTargetInfo().isSEHTrySupported()) {
+    if (getLangOpts().SYCLIsDevice)
+      SYCLDiagIfDeviceCode(TryLoc, diag::err_seh_try_unsupported);
+    else
+      Diag(TryLoc, diag::err_seh_try_unsupported);
+  }
 
   return SEHTryStmt::Create(Context, IsCXXTry, TryLoc, TryBlock, Handler);
 }

@@ -121,25 +121,54 @@ static bool CheckGlobal(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
 
 namespace clang {
 namespace interp {
+static void popArg(InterpState &S, const Expr *Arg) {
+  PrimType Ty = S.getContext().classify(Arg->getType()).value_or(PT_Ptr);
+  TYPE_SWITCH(Ty, S.Stk.discard<T>());
+}
 
-bool popBuiltinArgs(InterpState &S, CodePtr OpPC) {
-  assert(S.Current && S.Current->getFunction()->needsRuntimeArgPop(S.getCtx()));
-  const Expr *E = S.Current->getExpr(OpPC);
-  assert(isa<CallExpr>(E));
-  const CallExpr *CE = cast<CallExpr>(E);
-  for (int32_t I = CE->getNumArgs() - 1; I >= 0; --I) {
-    const Expr *A = CE->getArg(I);
-    PrimType Ty = S.getContext().classify(A->getType()).value_or(PT_Ptr);
-    TYPE_SWITCH(Ty, S.Stk.discard<T>());
+void cleanupAfterFunctionCall(InterpState &S, CodePtr OpPC) {
+  assert(S.Current);
+  const Function *CurFunc = S.Current->getFunction();
+  assert(CurFunc);
+
+  // Certain builtin functions are declared as func-name(...), so the
+  // parameters are checked in Sema and only available through the CallExpr.
+  // The interp::Function we create for them has 0 parameters, so we need to
+  // remove them from the stack by checking the CallExpr.
+  // FIXME: This is potentially just a special case and could be handled more
+  // generally with the code just below?
+  if (CurFunc->needsRuntimeArgPop(S.getCtx())) {
+    const auto *CE = cast<CallExpr>(S.Current->getExpr(OpPC));
+    for (int32_t I = CE->getNumArgs() - 1; I >= 0; --I) {
+      popArg(S, CE->getArg(I));
+    }
+    return;
   }
-  return true;
+
+  if (S.Current->Caller && CurFunc->isVariadic()) {
+    // CallExpr we're look for is at the return PC of the current function, i.e.
+    // in the caller.
+    // This code path should be executed very rarely.
+    const auto *CE =
+        cast<CallExpr>(S.Current->Caller->getExpr(S.Current->getRetPC()));
+    unsigned FixedParams = CurFunc->getNumParams();
+    int32_t ArgsToPop = CE->getNumArgs() - FixedParams;
+    assert(ArgsToPop >= 0);
+    for (int32_t I = ArgsToPop - 1; I >= 0; --I) {
+      const Expr *A = CE->getArg(FixedParams + I);
+      popArg(S, A);
+    }
+  }
+  // And in any case, remove the fixed parameters (the non-variadic ones)
+  // at the end.
+  S.Current->popArgs();
 }
 
 bool CheckExtern(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
   if (!Ptr.isExtern())
     return true;
 
-  if (!S.checkingPotentialConstantExpression()) {
+  if (!S.checkingPotentialConstantExpression() && S.getLangOpts().CPlusPlus) {
     const auto *VD = Ptr.getDeclDesc()->asValueDecl();
     const SourceInfo &Loc = S.Current->getSource(OpPC);
     S.FFDiag(Loc, diag::note_constexpr_ltor_non_constexpr, 1) << VD;
@@ -261,9 +290,8 @@ bool CheckInitialized(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
     return true;
 
   if (!S.checkingPotentialConstantExpression()) {
-    const SourceInfo &Loc = S.Current->getSource(OpPC);
-    S.FFDiag(Loc, diag::note_constexpr_access_uninit)
-        << AK << /*uninitialized=*/true;
+    S.FFDiag(S.Current->getSource(OpPC), diag::note_constexpr_access_uninit)
+        << AK << /*uninitialized=*/true << S.Current->getRange(OpPC);
   }
   return false;
 }
@@ -468,6 +496,12 @@ static bool CheckFieldsInitialized(InterpState &S, CodePtr OpPC,
   // Check Fields in all bases
   for (const Record::Base &B : R->bases()) {
     Pointer P = BasePtr.atField(B.Offset);
+    if (!P.isInitialized()) {
+      S.FFDiag(BasePtr.getDeclDesc()->asDecl()->getLocation(),
+               diag::note_constexpr_uninitialized_base)
+          << B.Desc->getType();
+      return false;
+    }
     Result &= CheckFieldsInitialized(S, OpPC, P, B.R);
   }
 
@@ -496,13 +530,25 @@ bool CheckPotentialReinterpretCast(InterpState &S, CodePtr OpPC,
   return false;
 }
 
-bool CheckFloatResult(InterpState &S, CodePtr OpPC, APFloat::opStatus Status) {
+bool CheckFloatResult(InterpState &S, CodePtr OpPC, const Floating &Result,
+                      APFloat::opStatus Status) {
+  const SourceInfo &E = S.Current->getSource(OpPC);
+
+  // [expr.pre]p4:
+  //   If during the evaluation of an expression, the result is not
+  //   mathematically defined [...], the behavior is undefined.
+  // FIXME: C++ rules require us to not conform to IEEE 754 here.
+  if (Result.isNan()) {
+    S.CCEDiag(E, diag::note_constexpr_float_arithmetic)
+        << /*NaN=*/true << S.Current->getRange(OpPC);
+    return S.noteUndefinedBehavior();
+  }
+
   // In a constant context, assume that any dynamic rounding mode or FP
   // exception state matches the default floating-point environment.
   if (S.inConstantContext())
     return true;
 
-  const SourceInfo &E = S.Current->getSource(OpPC);
   FPOptions FPO = E.asExpr()->getFPFeaturesInEffect(S.Ctx.getLangOpts());
 
   if ((Status & APFloat::opInexact) &&
@@ -529,6 +575,42 @@ bool CheckFloatResult(InterpState &S, CodePtr OpPC, APFloat::opStatus Status) {
   }
 
   return true;
+}
+
+/// We aleady know the given DeclRefExpr is invalid for some reason,
+/// now figure out why and print appropriate diagnostics.
+bool CheckDeclRef(InterpState &S, CodePtr OpPC, const DeclRefExpr *DR) {
+  const ValueDecl *D = DR->getDecl();
+  const SourceInfo &E = S.Current->getSource(OpPC);
+
+  if (isa<ParmVarDecl>(D)) {
+    if (S.getLangOpts().CPlusPlus11) {
+      S.FFDiag(E, diag::note_constexpr_function_param_value_unknown) << D;
+      S.Note(D->getLocation(), diag::note_declared_at) << D->getSourceRange();
+    } else {
+      S.FFDiag(E);
+    }
+  } else if (const auto *VD = dyn_cast<VarDecl>(D)) {
+    if (!VD->getType().isConstQualified()) {
+      S.FFDiag(E,
+               VD->getType()->isIntegralOrEnumerationType()
+                   ? diag::note_constexpr_ltor_non_const_int
+                   : diag::note_constexpr_ltor_non_constexpr,
+               1)
+          << VD;
+      S.Note(VD->getLocation(), diag::note_declared_at) << VD->getSourceRange();
+      return false;
+    }
+
+    // const, but no initializer.
+    if (!VD->getAnyInitializer()) {
+      S.FFDiag(E, diag::note_constexpr_var_init_unknown, 1) << VD;
+      S.Note(VD->getLocation(), diag::note_declared_at) << VD->getSourceRange();
+      return false;
+    }
+  }
+
+  return false;
 }
 
 bool Interpret(InterpState &S, APValue &Result) {

@@ -5,6 +5,9 @@
 // (https://github.com/intel/llvm/issues/10360)
 // UNSUPPORTED: cuda || hip
 
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
+
 // Tests the size and iterator members of an empty zero-dimensional accessor.
 
 #include <sycl/sycl.hpp>

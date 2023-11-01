@@ -8,31 +8,42 @@
 #include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
-// #define VERBOSE_PRINT
+#define VERBOSE_PRINT
 
-class image_addition;
+template <typename DType, sycl::image_channel_type CType> class kernel;
 
-int main() {
+template <typename DType, sycl::image_channel_type CType> bool runTest() {
+  using VecType = sycl::vec<DType, 4>;
 
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
+
+  // skip half tests if not supported
+  if constexpr (std::is_same_v<DType, sycl::half>) {
+    if (!dev.has(sycl::aspect::fp16)) {
+#ifdef VERBOSE_PRINT
+      std::cout << "Test skipped due to lack of device support for fp16\n";
+#endif
+      return false;
+    }
+  }
 
   // declare image data
   size_t width = 5;
   size_t height = 5;
   size_t depth = 5;
   size_t N = width * height * depth;
-  std::vector<float> out(N);
-  std::vector<float> expected(N);
-  std::vector<sycl::float4> dataIn1(N);
-  std::vector<sycl::float4> dataIn2(N);
+  std::vector<DType> out(N);
+  std::vector<DType> expected(N);
+  std::vector<VecType> dataIn1(N);
+  std::vector<VecType> dataIn2(N);
   for (int i = 0; i < width; i++) {
     for (int j = 0; j < height; j++) {
       for (int k = 0; k < depth; k++) {
         expected[i + width * (j + height * k)] = i + width * (j + height * k);
-        dataIn1[i + width * (j + height * k)] = {i + width * (j + height * k),
-                                                 0, 0, 0};
+        dataIn1[i + width * (j + height * k)] =
+            VecType(i + width * (j + height * k));
       }
     }
   }
@@ -45,8 +56,7 @@ int main() {
     // Extension: image descriptor -- number of levels
     unsigned int numLevels = 2;
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp32,
+        {width, height, depth}, sycl::image_channel_order::rgba, CType,
         sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: define a sampler object -- extended mipmap attributes
@@ -71,13 +81,13 @@ int main() {
         sycl::ext::oneapi::experimental::create_image(mipMem, samp, desc, dev,
                                                       ctxt);
 
-    sycl::buffer<float, 3> buf((float *)out.data(),
+    sycl::buffer<DType, 3> buf((DType *)out.data(),
                                sycl::range<3>{depth, height, width});
     q.submit([&](sycl::handler &cgh) {
-      auto outAcc = buf.get_access<sycl::access_mode::write>(
+      auto outAcc = buf.template get_access<sycl::access_mode::write>(
           cgh, sycl::range<3>{depth, height, width});
 
-      cgh.parallel_for<image_addition>(
+      cgh.parallel_for<kernel<DType, CType>>(
           sycl::nd_range<3>{{width, height, depth}, {width, height, depth}},
           [=](sycl::nd_item<3> it) {
             size_t dim0 = it.get_local_id(0);
@@ -91,11 +101,10 @@ int main() {
 
             // Extension: read mipmap with anisotropic filtering with zero
             // viewing gradients
-            sycl::float4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                    mipHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0),
-                    sycl::float4(0.0f, 0.0f, 0.0f, 0.0f),
-                    sycl::float4(0.0f, 0.0f, 0.0f, 0.0f));
+            VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
+                mipHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0),
+                sycl::float4(0.0f, 0.0f, 0.0f, 0.0f),
+                sycl::float4(0.0f, 0.0f, 0.0f, 0.0f));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1[0];
           });
@@ -108,10 +117,12 @@ int main() {
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    return 1;
+    std::cout << "Test failed!" << std::endl;
+    exit(1);
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    return 2;
+    std::cout << "Test failed!" << std::endl;
+    exit(2);
   }
 
   // collect and validate output
@@ -133,10 +144,37 @@ int main() {
     }
   }
   if (validated) {
-    std::cout << "Test passed!" << std::endl;
     return 0;
   }
 
-  std::cout << "Test failed!" << std::endl;
-  return 3;
+  return 1;
+}
+
+int main() {
+
+  int failed = 0;
+
+  failed += runTest<int, sycl::image_channel_type::signed_int32>();
+
+  failed += runTest<uint, sycl::image_channel_type::unsigned_int32>();
+
+  failed += runTest<float, sycl::image_channel_type::fp32>();
+
+  failed += runTest<short, sycl::image_channel_type::signed_int16>();
+
+  failed += runTest<ushort, sycl::image_channel_type::unsigned_int16>();
+
+  failed += runTest<char, sycl::image_channel_type::signed_int8>();
+
+  failed += runTest<unsigned char, sycl::image_channel_type::unsigned_int8>();
+
+  failed += runTest<sycl::half, sycl::image_channel_type::fp16>();
+
+  if (failed) {
+    std::cout << "Test failed!" << std::endl;
+  } else {
+    std::cout << "Test passed!" << std::endl;
+  }
+
+  return failed;
 }

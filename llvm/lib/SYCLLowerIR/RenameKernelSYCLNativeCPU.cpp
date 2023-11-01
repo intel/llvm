@@ -13,16 +13,37 @@
 
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include <set>
 
 using namespace llvm;
+
+static bool isSpirvSyclBuiltin(StringRef FName) {
+  if (!FName.consume_front("_Z"))
+    return false;
+  // now skip the digits
+  FName = FName.drop_while([](char C) { return std::isdigit(C); });
+
+  return FName.startswith("__spirv_") || FName.startswith("__sycl_");
+}
 
 PreservedAnalyses
 RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
+  // Add NativeCPU suffix to module exports (kernels) and make other
+  // function definitions private
   for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
+      ModuleChanged = true;
+    } else if (isSpirvSyclBuiltin(F.getName()) || F.isIntrinsic())
+      continue;
+    else if (!F.isDeclaration()) {
+      F.setComdat(nullptr);
+      // todo: check what functions could be exported
+      F.setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+      ModuleChanged = true;
     }
   }
+
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

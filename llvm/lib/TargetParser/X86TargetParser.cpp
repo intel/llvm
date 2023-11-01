@@ -72,7 +72,7 @@ constexpr FeatureBitset FeaturesX86_64_V2 = FeaturesX86_64 | FeatureSAHF |
 constexpr FeatureBitset FeaturesX86_64_V3 =
     FeaturesX86_64_V2 | FeatureAVX2 | FeatureBMI | FeatureBMI2 | FeatureF16C |
     FeatureFMA | FeatureLZCNT | FeatureMOVBE | FeatureXSAVE;
-constexpr FeatureBitset FeaturesX86_64_V4 = FeaturesX86_64_V3 |
+constexpr FeatureBitset FeaturesX86_64_V4 = FeaturesX86_64_V3 | FeatureEVEX512 |
                                             FeatureAVX512BW | FeatureAVX512CD |
                                             FeatureAVX512DQ | FeatureAVX512VL;
 
@@ -96,8 +96,8 @@ constexpr FeatureBitset FeaturesBroadwell =
 // Intel Knights Landing and Knights Mill
 // Knights Landing has feature parity with Broadwell.
 constexpr FeatureBitset FeaturesKNL =
-    FeaturesBroadwell | FeatureAES | FeatureAVX512F | FeatureAVX512CD |
-    FeatureAVX512ER | FeatureAVX512PF | FeaturePREFETCHWT1;
+    FeaturesBroadwell | FeatureAES | FeatureAVX512F | FeatureEVEX512 |
+    FeatureAVX512CD | FeatureAVX512ER | FeatureAVX512PF | FeaturePREFETCHWT1;
 constexpr FeatureBitset FeaturesKNM = FeaturesKNL | FeatureAVX512VPOPCNTDQ;
 
 // Intel Skylake processors.
@@ -107,9 +107,9 @@ constexpr FeatureBitset FeaturesSkylakeClient =
 // SkylakeServer inherits all SkylakeClient features except SGX.
 // FIXME: That doesn't match gcc.
 constexpr FeatureBitset FeaturesSkylakeServer =
-    (FeaturesSkylakeClient & ~FeatureSGX) | FeatureAVX512F | FeatureAVX512CD |
-    FeatureAVX512DQ | FeatureAVX512BW | FeatureAVX512VL | FeatureCLWB |
-    FeaturePKU;
+    (FeaturesSkylakeClient & ~FeatureSGX) | FeatureAVX512F | FeatureEVEX512 |
+    FeatureAVX512CD | FeatureAVX512DQ | FeatureAVX512BW | FeatureAVX512VL |
+    FeatureCLWB | FeaturePKU;
 constexpr FeatureBitset FeaturesCascadeLake =
     FeaturesSkylakeServer | FeatureAVX512VNNI;
 constexpr FeatureBitset FeaturesCooperLake =
@@ -117,9 +117,9 @@ constexpr FeatureBitset FeaturesCooperLake =
 
 // Intel 10nm processors.
 constexpr FeatureBitset FeaturesCannonlake =
-    FeaturesSkylakeClient | FeatureAVX512F | FeatureAVX512CD | FeatureAVX512DQ |
-    FeatureAVX512BW | FeatureAVX512VL | FeatureAVX512IFMA | FeatureAVX512VBMI |
-    FeaturePKU | FeatureSHA;
+    FeaturesSkylakeClient | FeatureAVX512F | FeatureEVEX512 | FeatureAVX512CD |
+    FeatureAVX512DQ | FeatureAVX512BW | FeatureAVX512VL | FeatureAVX512IFMA |
+    FeatureAVX512VBMI | FeaturePKU | FeatureSHA;
 constexpr FeatureBitset FeaturesICLClient =
     FeaturesCannonlake | FeatureAVX512BITALG | FeatureAVX512VBMI2 |
     FeatureAVX512VNNI | FeatureAVX512VPOPCNTDQ | FeatureGFNI | FeatureRDPID |
@@ -166,6 +166,10 @@ constexpr FeatureBitset FeaturesGrandridge =
     FeaturesSierraforest | FeatureRAOINT;
 constexpr FeatureBitset FeaturesArrowlakeS = FeaturesSierraforest |
     FeatureAVXVNNIINT16 | FeatureSHA512 | FeatureSM3 | FeatureSM4;
+constexpr FeatureBitset FeaturesPantherlake =
+    FeaturesArrowlakeS | FeaturePREFETCHI;
+constexpr FeatureBitset FeaturesClearwaterforest =
+    FeaturesArrowlakeS | FeatureUSERMSR | FeaturePREFETCHI;
 
 // Geode Processor.
 constexpr FeatureBitset FeaturesGeode =
@@ -230,11 +234,11 @@ static constexpr FeatureBitset FeaturesZNVER3 = FeaturesZNVER2 |
                                                 FeatureINVPCID | FeaturePKU |
                                                 FeatureVAES | FeatureVPCLMULQDQ;
 static constexpr FeatureBitset FeaturesZNVER4 =
-    FeaturesZNVER3 | FeatureAVX512F | FeatureAVX512CD | FeatureAVX512DQ |
-    FeatureAVX512BW | FeatureAVX512VL | FeatureAVX512IFMA | FeatureAVX512VBMI |
-    FeatureAVX512VBMI2 | FeatureAVX512VNNI | FeatureAVX512BITALG |
-    FeatureAVX512VPOPCNTDQ | FeatureAVX512BF16 | FeatureGFNI |
-    FeatureSHSTK;
+    FeaturesZNVER3 | FeatureAVX512F | FeatureEVEX512 | FeatureAVX512CD |
+    FeatureAVX512DQ | FeatureAVX512BW | FeatureAVX512VL | FeatureAVX512IFMA |
+    FeatureAVX512VBMI | FeatureAVX512VBMI2 | FeatureAVX512VNNI |
+    FeatureAVX512BITALG | FeatureAVX512VPOPCNTDQ | FeatureAVX512BF16 |
+    FeatureGFNI | FeatureSHSTK;
 
 // D151696 tranplanted Mangling and OnlyForCPUDispatchSpecific from
 // X86TargetParser.def to here. They are assigned by following ways:
@@ -360,6 +364,8 @@ constexpr ProcInfo Processors[] = {
   { {"lunarlake"}, CK_Lunarlake, FEATURE_AVX2, FeaturesArrowlakeS, 'p', false },
   // Gracemont microarchitecture based processors.
   { {"gracemont"}, CK_Gracemont, FEATURE_AVX2, FeaturesAlderlake, 'p', false },
+  // Pantherlake microarchitecture based processors.
+  { {"pantherlake"}, CK_Lunarlake, FEATURE_AVX2, FeaturesPantherlake, 'p', false },
   // Sierraforest microarchitecture based processors.
   { {"sierraforest"}, CK_Sierraforest, FEATURE_AVX2, FeaturesSierraforest, 'p', false },
   // Grandridge microarchitecture based processors.
@@ -371,6 +377,8 @@ constexpr ProcInfo Processors[] = {
   { {"graniterapids_d"}, CK_GraniterapidsD, FEATURE_AVX512BF16, FeaturesGraniteRapids | FeatureAMX_COMPLEX, 'n', true },
   // Emerald Rapids microarchitecture based processors.
   { {"emeraldrapids"}, CK_Emeraldrapids, FEATURE_AVX512BF16, FeaturesSapphireRapids, 'n', false },
+  // Clearwaterforest microarchitecture based processors.
+  { {"clearwaterforest"}, CK_Lunarlake, FEATURE_AVX2, FeaturesClearwaterforest, 'p', false },
   // Knights Landing processor.
   { {"knl"}, CK_KNL, FEATURE_AVX512F, FeaturesKNL, 'Z', false },
   { {"mic_avx512"}, CK_KNL, FEATURE_AVX512F, FeaturesKNL, 'Z', true },
@@ -509,6 +517,7 @@ constexpr FeatureBitset ImpliedFeaturesSHSTK = {};
 constexpr FeatureBitset ImpliedFeaturesTBM = {};
 constexpr FeatureBitset ImpliedFeaturesTSXLDTRK = {};
 constexpr FeatureBitset ImpliedFeaturesUINTR = {};
+constexpr FeatureBitset ImpliedFeaturesUSERMSR = {};
 constexpr FeatureBitset ImpliedFeaturesWAITPKG = {};
 constexpr FeatureBitset ImpliedFeaturesWBNOINVD = {};
 constexpr FeatureBitset ImpliedFeaturesVZEROUPPER = {};
@@ -542,6 +551,7 @@ constexpr FeatureBitset ImpliedFeaturesSSE4_1 = FeatureSSSE3;
 constexpr FeatureBitset ImpliedFeaturesSSE4_2 = FeatureSSE4_1;
 constexpr FeatureBitset ImpliedFeaturesAVX = FeatureSSE4_2;
 constexpr FeatureBitset ImpliedFeaturesAVX2 = FeatureAVX;
+constexpr FeatureBitset ImpliedFeaturesEVEX512 = {};
 constexpr FeatureBitset ImpliedFeaturesAVX512F =
     FeatureAVX2 | FeatureF16C | FeatureFMA;
 
@@ -608,6 +618,15 @@ constexpr FeatureBitset ImpliedFeaturesWIDEKL = FeatureKL;
 
 // AVXVNNI Features
 constexpr FeatureBitset ImpliedFeaturesAVXVNNI = FeatureAVX2;
+
+// AVX10 Features
+constexpr FeatureBitset ImpliedFeaturesAVX10_1 =
+    FeatureAVX512CD | FeatureAVX512VBMI | FeatureAVX512IFMA |
+    FeatureAVX512VNNI | FeatureAVX512BF16 | FeatureAVX512VPOPCNTDQ |
+    FeatureAVX512VBMI2 | FeatureAVX512BITALG | FeatureVAES | FeatureVPCLMULQDQ |
+    FeatureAVX512FP16;
+constexpr FeatureBitset ImpliedFeaturesAVX10_1_512 =
+    FeatureAVX10_1 | FeatureEVEX512;
 
 constexpr FeatureInfo FeatureInfos[X86::CPU_FEATURE_MAX] = {
 #define X86_FEATURE(ENUM, STR) {{"+" STR}, ImpliedFeatures##ENUM},

@@ -1,0 +1,316 @@
+= sycl_ext_intel_cache_controls
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension depends on the following SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension introduces additional compile-time properties for
+the `sycl::ext::oneapi::experimental::annotated_ptr` class to specify
+cache control information.
+
+The cache controls are a strong request that memory accesses through the
+pointer should use instructions with the specified cache controls.
+However, the implementation may choose a different cache control or none
+if the requested one is unsupported or for any other reason.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_CACHE_CONTROLS` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Properties
+
+Below is a list of new compile-time constant properties supported with
+`annotated_ptr`.
+
+```c++
+namespace sycl::ext::intel::experimental {
+
+enum class cache_level : /*unspecified*/ {
+    L1,
+    L2,
+    L3,
+    L4,
+};
+
+enum class cache_control_read_type : /* unspecified */ {
+    cached,
+    uncached,
+    streaming,
+    invalidate_after_read,
+    const_cached
+};
+
+enum class cache_control_write_type : /* unspecified */ {
+    uncached,
+    streaming,
+    write_through,
+    write_back
+};
+
+struct cache_control_read_key {
+  template<cache_control_read_type C, cache_level L>
+  using value_t = property_value<cache_control_read, C, std::integral_constant<cache_level, L>>;
+};
+
+struct cache_control_write_key {
+  template<cache_control_write_type C, cache_level L>
+  using value_t = property_value<cache_control_write, C, std::integral_constant<cache_level, L>>;
+};
+
+template<cache_control_read_type C, cache_level L>
+inline constexpr cache_control_read_key::value_t<C, L> cache_control_read;
+
+template<cache_control_write_type C, cache_level L>
+inline constexpr cache_control_write_key::value_t<C, L> cache_control_write;
+
+template<>
+struct is_property_key<cache_control_read_key> : std::true_type {};
+
+template<>
+struct is_property_key<cache_control_write_key> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  cache_control_read_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  cache_control_write_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+
+template<cache_level L>
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::cached, L>
+cache_control_read_cached;
+
+template<cache_level L>
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::uncached, L> cache_control_read_uncached;
+
+template<cache_level L>
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::streaming, L> cache_control_read_streaming;
+
+template<cache_level L>
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::invalidate_after_read, L> cache_control_invalidate_after_read;
+
+template<cache_level L>
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::const_cached, L> cache_control_read_const_cached;
+
+template<cache_level L>
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::uncached, L> cache_control_write_uncached;
+
+template<cache_level L>
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_streaming, L> cache_control_write_streaming;
+
+template<cache_level L>
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_through, L> cache_control_write_through;
+
+template<cache_level L>
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_back, L> cache_control_write_back;
+
+} // namespace sycl::ext::intel::experimental
+```
+Each of these properties takes a cache level parameter indicating which level
+of the cache hierarchy is affected. Cache level 0 indicates the cache closest
+to the processing unit, cache level 1 indicates the next furthest cache
+level, etc. It is legal to specify a cache level that does not exist on
+the target device, but the property will be ignored in this case.
+
+Note that a property specifies the cache behavior only for the indicated
+cache level. In order to specify the behavior for multiple cache levels, 
+multiple properties should be specified.
+
+It is legal to specify several different cache control properties in the
+same `annotated_ptr`. However, all instances of `cache_control_read_type` must
+have different cache levels and all instances of `cache_control_write_type`
+must have difference cache levels.
+
+The cache control properties are divided into two categories: those that
+are hints and those that are assertions by the application.
+
+==== Cache control hints
+These properties are hints requesting specific cache behavior when
+loading or storing to memory through the `annotated_ptr`. These properties can
+affect the performance of device code, but they do not change the semantics.
+
+--
+[options="header", cols="2,1"]
+|====
+| Property | Description
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::cached, L>
+----
+|
+This property requests that loads from memory through the `annotated_ptr`
+may cache the data at level `L` in the memory hierarchy.
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::uncached, L>
+----
+|
+This property requests that loads from memory through the `annotated_ptr`
+should not cache the data at level `L` in the memory hierarchy.
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::streaming, L>
+----
+|
+This property requests that loads from memory through the `annotated_ptr`
+should cache the data at cache level `L`. The eviction policy is to give
+lower priority to data cached using this property versus the `cached`
+property.
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::uncached, L>
+----
+|
+This property requests that writes to memory through the `annotated_ptr`
+should not cache the data at level `L` in the memory hierarchy.
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::write_through, L>
+----
+|
+This property requests that writes to memory through the `annotated_ptr`
+should immediately write the data to the next-level cache after `L`
+and mark the cache line at level `L` as "not dirty".
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::write_back, L>
+----
+|
+This property requests that writes to memory through the `annotated_ptr`
+should write the data into the cache at level `L` and mark the cache line as
+"dirty". Upon eviction, "dirty" data will be written into the cache at
+level higher than `L`.
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::streaming, L>
+----
+|
+This property is the same as `write_through`, but requests use of a
+policy that gives lower priority to data in the cache present
+via a `streaming` cache control.
+|====
+--
+
+==== Assertions by the application
+These properties are assertions by the application, promising that the
+application accesses memory in a certain way. Care must be taken when
+using these properties because they can lead to undefined behavior if
+they are misused.
+
+--
+[options="header", cols="3,1"]
+|====
+| Property | Description
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::invalidate_after_read, L>
+----
+|
+This property asserts that the cache line into which data is loaded
+from memory through the `annotated_ptr` will not be read again
+until it is overwritten. Therefore the load operation can invalidate
+the cache line and discard "dirty" data. If the assertion is violated 
+(i.e., the cache line is read again) then the behavior is undefined.
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::const_cached, L>
+----
+|
+This property asserts that the cache line containing the data
+loaded from memory through the `annotated_ptr` will not be written
+until kernel execution is completed.
+If the assertion is violated (the cache line is written), the behavior
+is undefined.
+|====
+--
+
+== Implementation notes
+
+It is intended that the SYCL cache control properties will be used by the
+compiler to generate SPIR-V cache control operations. Alternatively, the
+properties could be implemented by generating intrinsic function calls
+that match the cache control types.
+

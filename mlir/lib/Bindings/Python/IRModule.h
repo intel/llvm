@@ -37,6 +37,7 @@ class PyMlirContext;
 class DefaultingPyMlirContext;
 class PyModule;
 class PyOperation;
+class PyOperationBase;
 class PyType;
 class PySymbolTable;
 class PyValue;
@@ -208,6 +209,16 @@ public:
   /// corrupt by holding references they shouldn't have accessed in the first
   /// place.
   size_t clearLiveOperations();
+
+  /// Removes an operation from the live operations map and sets it invalid.
+  /// This is useful for when some non-bindings code destroys the operation and
+  /// the bindings need to made aware. For example, in the case when pass
+  /// manager is run.
+  void clearOperation(MlirOperation op);
+
+  /// Clears all operations nested inside the given op using
+  /// `clearOperation(MlirOperation)`.
+  void clearOperationsInside(PyOperationBase &op);
 
   /// Gets the count of live modules associated with this context.
   /// Used for testing.
@@ -748,6 +759,41 @@ private:
   MlirRegion region;
 };
 
+/// Wrapper around an MlirAsmState.
+class PyAsmState {
+ public:
+  PyAsmState(MlirValue value, bool useLocalScope) {
+    flags = mlirOpPrintingFlagsCreate();
+    // The OpPrintingFlags are not exposed Python side, create locally and
+    // associate lifetime with the state.
+    if (useLocalScope)
+      mlirOpPrintingFlagsUseLocalScope(flags);
+    state = mlirAsmStateCreateForValue(value, flags);
+  }
+
+  PyAsmState(PyOperationBase &operation, bool useLocalScope) {
+    flags = mlirOpPrintingFlagsCreate();
+    // The OpPrintingFlags are not exposed Python side, create locally and
+    // associate lifetime with the state.
+    if (useLocalScope)
+      mlirOpPrintingFlagsUseLocalScope(flags);
+    state =
+        mlirAsmStateCreateForOperation(operation.getOperation().get(), flags);
+  }
+  ~PyAsmState() {
+    mlirOpPrintingFlagsDestroy(flags);
+  }
+  // Delete copy constructors.
+  PyAsmState(PyAsmState &other) = delete;
+  PyAsmState(const PyAsmState &other) = delete;
+
+  MlirAsmState get() { return state; }
+
+ private:
+  MlirAsmState state;
+  MlirOpPrintingFlags flags;
+};
+
 /// Wrapper around an MlirBlock.
 /// Blocks are managed completely by their containing operation. Unlike the
 /// C++ API, the python API does not support detached blocks.
@@ -798,6 +844,7 @@ public:
                    const pybind11::object &excTb);
 
   PyBlock &getBlock() { return block; }
+  std::optional<PyOperationRef> &getRefOperation() { return refOperation; }
 
 private:
   // Trampoline constructor that avoids null initializing members while

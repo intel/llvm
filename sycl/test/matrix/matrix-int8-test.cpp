@@ -4,6 +4,9 @@
 // CHECK-DAG: target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2)
 // CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 48, 12, 2, 3, 1)
 
+// CHECK: !{!"matrix_type::sint32,use::accumulator,12,12;matrix_type::sint8,use::a,12,48;matrix_type::sint8,use::b,48,12"}
+// CHECK: !{!"matrix_type::sint8,matrix_type::sint8,matrix_type::sint32,matrix_type::sint32,12,48,12"}
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -74,7 +77,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            // the packed_b layout. By default, the layout is row_major and size
            // is (TK, TN).
            joint_matrix<sycl::sub_group, int8_t, use::b, TK, TN,
-                        sycl::ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
            joint_matrix<sycl::sub_group, int32_t, use::accumulator, TM, TN>
                sub_c;
@@ -94,7 +97,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<sycl::access::decorated::no>() +
                      (k * TK / 4) * (N * 4) + sg_starty / SG_SZ * TN * 4,
                  N * 4);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,

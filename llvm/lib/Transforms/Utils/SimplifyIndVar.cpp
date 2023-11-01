@@ -659,12 +659,12 @@ bool SimplifyIndvar::replaceFloatIVWithIntegerIV(Instruction *UseInst) {
   Instruction *IVOperand = cast<Instruction>(UseInst->getOperand(0));
   // Get the symbolic expression for this instruction.
   const SCEV *IV = SE->getSCEV(IVOperand);
-  unsigned MaskBits;
+  int MaskBits;
   if (UseInst->getOpcode() == CastInst::SIToFP)
-    MaskBits = SE->getSignedRange(IV).getMinSignedBits();
+    MaskBits = (int)SE->getSignedRange(IV).getMinSignedBits();
   else
-    MaskBits = SE->getUnsignedRange(IV).getActiveBits();
-  unsigned DestNumSigBits = UseInst->getType()->getFPMantissaWidth();
+    MaskBits = (int)SE->getUnsignedRange(IV).getActiveBits();
+  int DestNumSigBits = UseInst->getType()->getFPMantissaWidth();
   if (MaskBits <= DestNumSigBits) {
     for (User *U : UseInst->users()) {
       // Match for fptosi/fptoui of sitofp and with same type.
@@ -1673,7 +1673,8 @@ bool WidenIV::widenWithVariantUse(WidenIV::NarrowIVDefUse DU) {
     assert(LoopExitingBlock && L->contains(LoopExitingBlock) &&
            "Not a LCSSA Phi?");
     WidePN->addIncoming(WideBO, LoopExitingBlock);
-    Builder.SetInsertPoint(&*User->getParent()->getFirstInsertionPt());
+    Builder.SetInsertPoint(User->getParent(),
+                           User->getParent()->getFirstInsertionPt());
     auto *TruncPN = Builder.CreateTrunc(WidePN, User->getType());
     User->replaceAllUsesWith(TruncPN);
     DeadInsts.emplace_back(User);
@@ -1726,7 +1727,8 @@ Instruction *WidenIV::widenIVUse(WidenIV::NarrowIVDefUse DU, SCEVExpander &Rewri
           PHINode::Create(DU.WideDef->getType(), 1, UsePhi->getName() + ".wide",
                           UsePhi);
         WidePhi->addIncoming(DU.WideDef, UsePhi->getIncomingBlock(0));
-        IRBuilder<> Builder(&*WidePhi->getParent()->getFirstInsertionPt());
+        BasicBlock *WidePhiBB = WidePhi->getParent();
+        IRBuilder<> Builder(WidePhiBB, WidePhiBB->getFirstInsertionPt());
         Value *Trunc = Builder.CreateTrunc(WidePhi, DU.NarrowDef->getType());
         UsePhi->replaceAllUsesWith(Trunc);
         DeadInsts.emplace_back(UsePhi);

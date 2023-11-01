@@ -73,6 +73,8 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"xcvsimd", RISCVExtensionVersion{1, 0}},
     {"xsfcie", RISCVExtensionVersion{1, 0}},
     {"xsfvcp", RISCVExtensionVersion{1, 0}},
+    {"xsfvqmaccdod", RISCVExtensionVersion{1, 0}},
+    {"xsfvqmaccqoq", RISCVExtensionVersion{1, 0}},
     {"xtheadba", RISCVExtensionVersion{1, 0}},
     {"xtheadbb", RISCVExtensionVersion{1, 0}},
     {"xtheadbs", RISCVExtensionVersion{1, 0}},
@@ -106,6 +108,7 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
 
     {"zdinx", RISCVExtensionVersion{1, 0}},
 
+    {"zfa", RISCVExtensionVersion{1, 0}},
     {"zfh", RISCVExtensionVersion{1, 0}},
     {"zfhmin", RISCVExtensionVersion{1, 0}},
     {"zfinx", RISCVExtensionVersion{1, 0}},
@@ -116,12 +119,12 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"zicbom", RISCVExtensionVersion{1, 0}},
     {"zicbop", RISCVExtensionVersion{1, 0}},
     {"zicboz", RISCVExtensionVersion{1, 0}},
-    {"zicntr", RISCVExtensionVersion{1, 0}},
+    {"zicntr", RISCVExtensionVersion{2, 0}},
     {"zicsr", RISCVExtensionVersion{2, 0}},
     {"zifencei", RISCVExtensionVersion{2, 0}},
     {"zihintntl", RISCVExtensionVersion{1, 0}},
     {"zihintpause", RISCVExtensionVersion{2, 0}},
-    {"zihpm", RISCVExtensionVersion{1, 0}},
+    {"zihpm", RISCVExtensionVersion{2, 0}},
 
     {"zk", RISCVExtensionVersion{1, 0}},
     {"zkn", RISCVExtensionVersion{1, 0}},
@@ -166,7 +169,6 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
 
     {"zacas", RISCVExtensionVersion{1, 0}},
 
-    {"zfa", RISCVExtensionVersion{0, 2}},
     {"zfbfmin", RISCVExtensionVersion{0, 8}},
 
     {"zicfilp", RISCVExtensionVersion{0, 2}},
@@ -210,24 +212,36 @@ static void verifyTables() {
 #endif
 }
 
-void llvm::riscvExtensionsHelp() {
+static void PrintExtension(const std::string Name, const std::string Version,
+                           const std::string Description) {
+  outs() << "    "
+         << format(Description.empty() ? "%-20s%s\n" : "%-20s%-10s%s\n",
+                   Name.c_str(), Version.c_str(), Description.c_str());
+}
+
+void llvm::riscvExtensionsHelp(StringMap<StringRef> DescMap) {
+
   outs() << "All available -march extensions for RISC-V\n\n";
-  outs() << '\t' << left_justify("Name", 20) << "Version\n";
+  PrintExtension("Name", "Version", (DescMap.empty() ? "" : "Description"));
 
   RISCVISAInfo::OrderedExtensionMap ExtMap;
   for (const auto &E : SupportedExtensions)
     ExtMap[E.Name] = {E.Version.Major, E.Version.Minor};
-  for (const auto &E : ExtMap)
-    outs() << format("\t%-20s%d.%d\n", E.first.c_str(), E.second.MajorVersion,
-                     E.second.MinorVersion);
+  for (const auto &E : ExtMap) {
+    std::string Version = std::to_string(E.second.MajorVersion) + "." +
+                          std::to_string(E.second.MinorVersion);
+    PrintExtension(E.first, Version, DescMap[E.first].str());
+  }
 
   outs() << "\nExperimental extensions\n";
   ExtMap.clear();
   for (const auto &E : SupportedExperimentalExtensions)
     ExtMap[E.Name] = {E.Version.Major, E.Version.Minor};
-  for (const auto &E : ExtMap)
-    outs() << format("\t%-20s%d.%d\n", E.first.c_str(), E.second.MajorVersion,
-                     E.second.MinorVersion);
+  for (const auto &E : ExtMap) {
+    std::string Version = std::to_string(E.second.MajorVersion) + "." +
+                          std::to_string(E.second.MinorVersion);
+    PrintExtension(E.first, Version, DescMap["experimental-" + E.first].str());
+  }
 
   outs() << "\nUse -march to specify the target's extension.\n"
             "For example, clang -march=rv32i_v1p0\n";
@@ -979,6 +993,8 @@ static const char *ImpliedExtsF[] = {"zicsr"};
 static const char *ImpliedExtsV[] = {"zvl128b", "zve64d"};
 static const char *ImpliedExtsXTHeadVdot[] = {"v"};
 static const char *ImpliedExtsXsfvcp[] = {"zve32x"};
+static const char *ImpliedExtsXsfvqmaccdod[] = {"zve32x"};
+static const char *ImpliedExtsXsfvqmaccqoq[] = {"zve32x"};
 static const char *ImpliedExtsZacas[] = {"a"};
 static const char *ImpliedExtsZcb[] = {"zca"};
 static const char *ImpliedExtsZcd[] = {"d", "zca"};
@@ -1046,6 +1062,8 @@ static constexpr ImpliedExtsEntry ImpliedExts[] = {
     {{"f"}, {ImpliedExtsF}},
     {{"v"}, {ImpliedExtsV}},
     {{"xsfvcp"}, {ImpliedExtsXsfvcp}},
+    {{"xsfvqmaccdod"}, {ImpliedExtsXsfvqmaccdod}},
+    {{"xsfvqmaccqoq"}, {ImpliedExtsXsfvqmaccqoq}},
     {{"xtheadvdot"}, {ImpliedExtsXTHeadVdot}},
     {{"zacas"}, {ImpliedExtsZacas}},
     {{"zcb"}, {ImpliedExtsZcb}},

@@ -604,36 +604,42 @@ struct AACalleeToCallSite : public BaseType {
            "returned positions!");
     auto &S = this->getState();
 
-    const Function *AssociatedFunction =
-        this->getIRPosition().getAssociatedFunction();
-    if (!AssociatedFunction)
-      return S.indicatePessimisticFixpoint();
-
     CallBase &CB = cast<CallBase>(this->getAnchorValue());
     if (IntroduceCallBaseContext)
       LLVM_DEBUG(dbgs() << "[Attributor] Introducing call base context:" << CB
                         << "\n");
 
-    IRPosition FnPos =
-        IRPKind == llvm::IRPosition::IRP_CALL_SITE_RETURNED
-            ? IRPosition::returned(*AssociatedFunction,
-                                   IntroduceCallBaseContext ? &CB : nullptr)
-            : IRPosition::function(*AssociatedFunction,
-                                   IntroduceCallBaseContext ? &CB : nullptr);
+    ChangeStatus Changed = ChangeStatus::UNCHANGED;
+    auto CalleePred = [&](ArrayRef<const Function *> Callees) {
+      for (const Function *Callee : Callees) {
+        IRPosition FnPos =
+            IRPKind == llvm::IRPosition::IRP_CALL_SITE_RETURNED
+                ? IRPosition::returned(*Callee,
+                                       IntroduceCallBaseContext ? &CB : nullptr)
+                : IRPosition::function(
+                      *Callee, IntroduceCallBaseContext ? &CB : nullptr);
+        // If possible, use the hasAssumedIRAttr interface.
+        if (Attribute::isEnumAttrKind(IRAttributeKind)) {
+          bool IsKnown;
+          if (!AA::hasAssumedIRAttr<IRAttributeKind>(
+                  A, this, FnPos, DepClassTy::REQUIRED, IsKnown))
+            return false;
+          continue;
+        }
 
-    // If possible, use the hasAssumedIRAttr interface.
-    if (Attribute::isEnumAttrKind(IRAttributeKind)) {
-      bool IsKnown;
-      if (!AA::hasAssumedIRAttr<IRAttributeKind>(A, this, FnPos,
-                                                 DepClassTy::REQUIRED, IsKnown))
-        return S.indicatePessimisticFixpoint();
-      return ChangeStatus::UNCHANGED;
-    }
-
-    const AAType *AA = A.getAAFor<AAType>(*this, FnPos, DepClassTy::REQUIRED);
-    if (!AA)
+        const AAType *AA =
+            A.getAAFor<AAType>(*this, FnPos, DepClassTy::REQUIRED);
+        if (!AA)
+          return false;
+        Changed |= clampStateAndIndicateChange(S, AA->getState());
+        if (S.isAtFixpoint())
+          return S.isValidState();
+      }
+      return true;
+    };
+    if (!A.checkForAllCallees(CalleePred, *this, CB))
       return S.indicatePessimisticFixpoint();
-    return clampStateAndIndicateChange(S, AA->getState());
+    return Changed;
   }
 };
 
@@ -1194,6 +1200,11 @@ struct AAPointerInfoImpl
         A, this, IRPosition::function(Scope), DepClassTy::OPTIONAL,
         IsKnownNoRecurse);
 
+    // TODO: Use reaching kernels from AAKernelInfo (or move it to
+    // AAExecutionDomain) such that we allow scopes other than kernels as long
+    // as the reaching kernels are disjoint.
+    bool InstInKernel = Scope.hasFnAttribute("kernel");
+    bool ObjHasKernelLifetime = false;
     const bool UseDominanceReasoning =
         FindInterferingWrites && IsKnownNoRecurse;
     const DominatorTree *DT =
@@ -1226,6 +1237,7 @@ struct AAPointerInfoImpl
       // If the alloca containing function is not recursive the alloca
       // must be dead in the callee.
       const Function *AIFn = AI->getFunction();
+      ObjHasKernelLifetime = AIFn->hasFnAttribute("kernel");
       bool IsKnownNoRecurse;
       if (AA::hasAssumedIRAttr<Attribute::NoRecurse>(
               A, this, IRPosition::function(*AIFn), DepClassTy::OPTIONAL,
@@ -1235,7 +1247,8 @@ struct AAPointerInfoImpl
     } else if (auto *GV = dyn_cast<GlobalValue>(&getAssociatedValue())) {
       // If the global has kernel lifetime we can stop if we reach a kernel
       // as it is "dead" in the (unknown) callees.
-      if (HasKernelLifetime(GV, *GV->getParent()))
+      ObjHasKernelLifetime = HasKernelLifetime(GV, *GV->getParent());
+      if (ObjHasKernelLifetime)
         IsLiveInCalleeCB = [](const Function &Fn) {
           return !Fn.hasFnAttribute("kernel");
         };
@@ -1246,6 +1259,15 @@ struct AAPointerInfoImpl
     AA::InstExclusionSetTy ExclusionSet;
 
     auto AccessCB = [&](const Access &Acc, bool Exact) {
+      Function *AccScope = Acc.getRemoteInst()->getFunction();
+      bool AccInSameScope = AccScope == &Scope;
+
+      // If the object has kernel lifetime we can ignore accesses only reachable
+      // by other kernels. For now we only skip accesses *in* other kernels.
+      if (InstInKernel && ObjHasKernelLifetime && !AccInSameScope &&
+          AccScope->hasFnAttribute("kernel"))
+        return true;
+
       if (Exact && Acc.isMustAccess() && Acc.getRemoteInst() != &I) {
         if (Acc.isWrite() || (isa<LoadInst>(I) && Acc.isWriteOrAssumption()))
           ExclusionSet.insert(Acc.getRemoteInst());
@@ -1256,8 +1278,7 @@ struct AAPointerInfoImpl
         return true;
 
       bool Dominates = FindInterferingWrites && DT && Exact &&
-                       Acc.isMustAccess() &&
-                       (Acc.getRemoteInst()->getFunction() == &Scope) &&
+                       Acc.isMustAccess() && AccInSameScope &&
                        DT->dominates(Acc.getRemoteInst(), &I);
       if (Dominates)
         DominatingWrites.insert(&Acc);
@@ -2525,7 +2546,8 @@ static int64_t getKnownNonNullAndDerefBytesForUse(
   }
 
   std::optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
-  if (!Loc || Loc->Ptr != UseV || !Loc->Size.isPrecise() || I->isVolatile())
+  if (!Loc || Loc->Ptr != UseV || !Loc->Size.isPrecise() ||
+      Loc->Size.isScalable() || I->isVolatile())
     return 0;
 
   int64_t Offset;
@@ -10347,8 +10369,22 @@ struct AANoFPClassImpl : AANoFPClass {
                             /*Depth=*/0, TLI, AC, I, DT);
     State.addKnownBits(~KnownFPClass.KnownFPClasses);
 
-    bool TrackUse = false;
-    return TrackUse;
+    if (auto *CI = dyn_cast<CallInst>(UseV)) {
+      // Special case FP intrinsic with struct return type.
+      switch (CI->getIntrinsicID()) {
+      case Intrinsic::frexp:
+        return true;
+      case Intrinsic::not_intrinsic:
+        // TODO: Could recognize math libcalls
+        return false;
+      default:
+        break;
+      }
+    }
+
+    if (!UseV->getType()->isFPOrFPVectorTy())
+      return false;
+    return !isa<LoadInst, AtomicRMWInst>(UseV);
   }
 
   const std::string getAsStr(Attributor *A) const override {
@@ -12544,8 +12580,13 @@ struct AAAddressSpaceImpl : public AAAddressSpace {
       // CGSCC if the AA is run on CGSCC instead of the entire module.
       if (!A.isRunOn(Inst->getFunction()))
         return true;
-      if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
+      if (isa<LoadInst>(Inst))
         MakeChange(Inst, const_cast<Use &>(U));
+      if (isa<StoreInst>(Inst)) {
+        // We only make changes if the use is the pointer operand.
+        if (U.getOperandNo() == 1)
+          MakeChange(Inst, const_cast<Use &>(U));
+      }
       return true;
     };
 

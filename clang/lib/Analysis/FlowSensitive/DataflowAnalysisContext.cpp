@@ -73,7 +73,7 @@ StorageLocation &DataflowAnalysisContext::createStorageLocation(QualType Type) {
 }
 
 StorageLocation &
-DataflowAnalysisContext::getStableStorageLocation(const VarDecl &D) {
+DataflowAnalysisContext::getStableStorageLocation(const ValueDecl &D) {
   if (auto *Loc = DeclToLoc.lookup(&D))
     return *Loc;
   auto &Loc = createStorageLocation(D.getType().getNonReferenceType());
@@ -102,6 +102,13 @@ DataflowAnalysisContext::getOrCreateNullPointerValue(QualType PointeeType) {
     Res.first->second = &arena().create<PointerValue>(PointeeLoc);
   }
   return *Res.first->second;
+}
+
+void DataflowAnalysisContext::addInvariant(const Formula &Constraint) {
+  if (Invariant == nullptr)
+    Invariant = &Constraint;
+  else
+    Invariant = &arena().makeAnd(*Invariant, Constraint);
 }
 
 void DataflowAnalysisContext::addFlowConditionConstraint(
@@ -134,34 +141,30 @@ DataflowAnalysisContext::joinFlowConditions(Atom FirstToken,
 
 Solver::Result DataflowAnalysisContext::querySolver(
     llvm::SetVector<const Formula *> Constraints) {
-  Constraints.insert(&arena().makeLiteral(true));
-  Constraints.insert(&arena().makeNot(arena().makeLiteral(false)));
   return S->solve(Constraints.getArrayRef());
 }
 
 bool DataflowAnalysisContext::flowConditionImplies(Atom Token,
-                                                   const Formula &Val) {
+                                                   const Formula &F) {
   // Returns true if and only if truth assignment of the flow condition implies
-  // that `Val` is also true. We prove whether or not this property holds by
+  // that `F` is also true. We prove whether or not this property holds by
   // reducing the problem to satisfiability checking. In other words, we attempt
-  // to show that assuming `Val` is false makes the constraints induced by the
+  // to show that assuming `F` is false makes the constraints induced by the
   // flow condition unsatisfiable.
   llvm::SetVector<const Formula *> Constraints;
   Constraints.insert(&arena().makeAtomRef(Token));
-  Constraints.insert(&arena().makeNot(Val));
-  llvm::DenseSet<Atom> VisitedTokens;
-  addTransitiveFlowConditionConstraints(Token, Constraints, VisitedTokens);
+  Constraints.insert(&arena().makeNot(F));
+  addTransitiveFlowConditionConstraints(Token, Constraints);
   return isUnsatisfiable(std::move(Constraints));
 }
 
-bool DataflowAnalysisContext::flowConditionIsTautology(Atom Token) {
-  // Returns true if and only if we cannot prove that the flow condition can
-  // ever be false.
+bool DataflowAnalysisContext::flowConditionAllows(Atom Token,
+                                                  const Formula &F) {
   llvm::SetVector<const Formula *> Constraints;
-  Constraints.insert(&arena().makeNot(arena().makeAtomRef(Token)));
-  llvm::DenseSet<Atom> VisitedTokens;
-  addTransitiveFlowConditionConstraints(Token, Constraints, VisitedTokens);
-  return isUnsatisfiable(std::move(Constraints));
+  Constraints.insert(&arena().makeAtomRef(Token));
+  Constraints.insert(&F);
+  addTransitiveFlowConditionConstraints(Token, Constraints);
+  return isSatisfiable(std::move(Constraints));
 }
 
 bool DataflowAnalysisContext::equivalentFormulas(const Formula &Val1,
@@ -172,28 +175,33 @@ bool DataflowAnalysisContext::equivalentFormulas(const Formula &Val1,
 }
 
 void DataflowAnalysisContext::addTransitiveFlowConditionConstraints(
-    Atom Token, llvm::SetVector<const Formula *> &Constraints,
-    llvm::DenseSet<Atom> &VisitedTokens) {
-  auto Res = VisitedTokens.insert(Token);
-  if (!Res.second)
-    return;
+    Atom Token, llvm::SetVector<const Formula *> &Constraints) {
+  llvm::DenseSet<Atom> AddedTokens;
+  std::vector<Atom> Remaining = {Token};
 
-  auto ConstraintsIt = FlowConditionConstraints.find(Token);
-  if (ConstraintsIt == FlowConditionConstraints.end()) {
-    Constraints.insert(&arena().makeAtomRef(Token));
-  } else {
-    // Bind flow condition token via `iff` to its set of constraints:
-    // FC <=> (C1 ^ C2 ^ ...), where Ci are constraints
-    Constraints.insert(&arena().makeEquals(arena().makeAtomRef(Token),
-                                           *ConstraintsIt->second));
-  }
+  if (Invariant)
+    Constraints.insert(Invariant);
+  // Define all the flow conditions that might be referenced in constraints.
+  while (!Remaining.empty()) {
+    auto Token = Remaining.back();
+    Remaining.pop_back();
+    if (!AddedTokens.insert(Token).second)
+      continue;
 
-  auto DepsIt = FlowConditionDeps.find(Token);
-  if (DepsIt != FlowConditionDeps.end()) {
-    for (Atom DepToken : DepsIt->second) {
-      addTransitiveFlowConditionConstraints(DepToken, Constraints,
-                                            VisitedTokens);
+    auto ConstraintsIt = FlowConditionConstraints.find(Token);
+    if (ConstraintsIt == FlowConditionConstraints.end()) {
+      Constraints.insert(&arena().makeAtomRef(Token));
+    } else {
+      // Bind flow condition token via `iff` to its set of constraints:
+      // FC <=> (C1 ^ C2 ^ ...), where Ci are constraints
+      Constraints.insert(&arena().makeEquals(arena().makeAtomRef(Token),
+                                             *ConstraintsIt->second));
     }
+
+    if (auto DepsIt = FlowConditionDeps.find(Token);
+        DepsIt != FlowConditionDeps.end())
+      for (Atom A : DepsIt->second)
+        Remaining.push_back(A);
   }
 }
 
@@ -201,16 +209,10 @@ void DataflowAnalysisContext::dumpFlowCondition(Atom Token,
                                                 llvm::raw_ostream &OS) {
   llvm::SetVector<const Formula *> Constraints;
   Constraints.insert(&arena().makeAtomRef(Token));
-  llvm::DenseSet<Atom> VisitedTokens;
-  addTransitiveFlowConditionConstraints(Token, Constraints, VisitedTokens);
-
-  // TODO: have formulas know about true/false directly instead
-  Atom True = arena().makeLiteral(true).getAtom();
-  Atom False = arena().makeLiteral(false).getAtom();
-  Formula::AtomNames Names = {{False, "false"}, {True, "true"}};
+  addTransitiveFlowConditionConstraints(Token, Constraints);
 
   for (const auto *Constraint : Constraints) {
-    Constraint->print(OS, &Names);
+    Constraint->print(OS);
     OS << "\n";
   }
 }

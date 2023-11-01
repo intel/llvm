@@ -41,8 +41,11 @@ class SVESIMDRegistersTestCase(TestBase):
         if (mode == Mode.SVE) and not self.isAArch64SVE():
             self.skipTest("SVE registers must be supported.")
 
-        if (mode == Mode.SSVE) and not self.isAArch64SME():
-            self.skipTest("SSVE registers must be supported.")
+        if (mode == Mode.SSVE) and not self.isAArch64SMEFA64():
+            self.skipTest(
+                "SSVE registers must be supported and the smefa64 "
+                "extension must be present."
+            )
 
     def make_simd_value(self, n):
         pad = " ".join(["0x00"] * 7)
@@ -52,8 +55,10 @@ class SVESIMDRegistersTestCase(TestBase):
         # These are 128 bit registers, so getting them from the API as unsigned
         # values doesn't work. Check the command output instead.
         for i in range(32):
-            self.expect("register read v{}".format(i),
-                substrs=[self.make_simd_value(i+value_offset)])
+            self.expect(
+                "register read v{}".format(i),
+                substrs=[self.make_simd_value(i + value_offset)],
+            )
 
     def sve_simd_registers_impl(self, mode):
         self.skip_if_needed(mode)

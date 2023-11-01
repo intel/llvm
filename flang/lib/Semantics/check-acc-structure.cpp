@@ -331,10 +331,31 @@ void AccStructureChecker::Leave(const parser::OpenACCAtomicConstruct &x) {
   dirContext_.pop_back();
 }
 
+void AccStructureChecker::Enter(const parser::AccAtomicUpdate &x) {
+  const parser::AssignmentStmt &assignment{
+      std::get<parser::Statement<parser::AssignmentStmt>>(x.t).statement};
+  const auto &var{std::get<parser::Variable>(assignment.t)};
+  const auto &expr{std::get<parser::Expr>(assignment.t)};
+  const auto *rhs{GetExpr(context_, expr)};
+  const auto *lhs{GetExpr(context_, var)};
+  if (lhs && rhs) {
+    if (lhs->Rank() != 0)
+      context_.Say(expr.source,
+          "LHS of atomic update statement must be scalar"_err_en_US);
+    if (rhs->Rank() != 0)
+      context_.Say(var.GetSource(),
+          "RHS of atomic update statement must be scalar"_err_en_US);
+  }
+}
+
 void AccStructureChecker::Enter(const parser::OpenACCCacheConstruct &x) {
   const auto &verbatim = std::get<parser::Verbatim>(x.t);
   PushContextAndClauseSets(verbatim.source, llvm::acc::Directive::ACCD_cache);
   SetContextDirectiveSource(verbatim.source);
+  if (loopNestLevel == 0) {
+    context_.Say(verbatim.source,
+          "The CACHE directive must be inside a loop"_err_en_US);
+  }
 }
 void AccStructureChecker::Leave(const parser::OpenACCCacheConstruct &x) {
   dirContext_.pop_back();
@@ -355,19 +376,16 @@ CHECK_SIMPLE_CLAUSE(DeviceNum, ACCC_device_num)
 CHECK_SIMPLE_CLAUSE(Finalize, ACCC_finalize)
 CHECK_SIMPLE_CLAUSE(Firstprivate, ACCC_firstprivate)
 CHECK_SIMPLE_CLAUSE(Host, ACCC_host)
-CHECK_SIMPLE_CLAUSE(If, ACCC_if)
 CHECK_SIMPLE_CLAUSE(IfPresent, ACCC_if_present)
 CHECK_SIMPLE_CLAUSE(Independent, ACCC_independent)
 CHECK_SIMPLE_CLAUSE(NoCreate, ACCC_no_create)
 CHECK_SIMPLE_CLAUSE(Nohost, ACCC_nohost)
-CHECK_SIMPLE_CLAUSE(NumWorkers, ACCC_num_workers)
 CHECK_SIMPLE_CLAUSE(Private, ACCC_private)
 CHECK_SIMPLE_CLAUSE(Read, ACCC_read)
 CHECK_SIMPLE_CLAUSE(Seq, ACCC_seq)
 CHECK_SIMPLE_CLAUSE(Tile, ACCC_tile)
 CHECK_SIMPLE_CLAUSE(UseDevice, ACCC_use_device)
 CHECK_SIMPLE_CLAUSE(Vector, ACCC_vector)
-CHECK_SIMPLE_CLAUSE(VectorLength, ACCC_vector_length)
 CHECK_SIMPLE_CLAUSE(Wait, ACCC_wait)
 CHECK_SIMPLE_CLAUSE(Worker, ACCC_worker)
 CHECK_SIMPLE_CLAUSE(Write, ACCC_write)
@@ -521,11 +539,28 @@ void AccStructureChecker::Enter(const parser::AccClause::Gang &g) {
 }
 
 void AccStructureChecker::Enter(const parser::AccClause::NumGangs &n) {
-  CheckAllowed(llvm::acc::Clause::ACCC_num_gangs);
+  CheckAllowed(llvm::acc::Clause::ACCC_num_gangs,
+      /*warnInsteadOfError=*/GetContext().directive ==
+              llvm::acc::Directive::ACCD_serial ||
+          GetContext().directive == llvm::acc::Directive::ACCD_serial_loop);
 
   if (n.v.size() > 3)
     context_.Say(GetContext().clauseSource,
         "NUM_GANGS clause accepts a maximum of 3 arguments"_err_en_US);
+}
+
+void AccStructureChecker::Enter(const parser::AccClause::NumWorkers &n) {
+  CheckAllowed(llvm::acc::Clause::ACCC_num_workers,
+      /*warnInsteadOfError=*/GetContext().directive ==
+              llvm::acc::Directive::ACCD_serial ||
+          GetContext().directive == llvm::acc::Directive::ACCD_serial_loop);
+}
+
+void AccStructureChecker::Enter(const parser::AccClause::VectorLength &n) {
+  CheckAllowed(llvm::acc::Clause::ACCC_vector_length,
+      /*warnInsteadOfError=*/GetContext().directive ==
+              llvm::acc::Directive::ACCD_serial ||
+          GetContext().directive == llvm::acc::Directive::ACCD_serial_loop);
 }
 
 void AccStructureChecker::Enter(const parser::AccClause::Reduction &reduction) {
@@ -639,6 +674,24 @@ void AccStructureChecker::Enter(const parser::AccClause::Link &x) {
   CheckMultipleOccurrenceInDeclare(x.v, llvm::acc::Clause::ACCC_link);
 }
 
+void AccStructureChecker::Enter(const parser::AccClause::If &x) {
+  CheckAllowed(llvm::acc::Clause::ACCC_if);
+  if (const auto *expr{GetExpr(x.v)}) {
+    if (auto type{expr->GetType()}) {
+      if (type->category() == TypeCategory::Integer ||
+          type->category() == TypeCategory::Logical) {
+        return; // LOGICAL and INTEGER type supported for the if clause.
+      }
+    }
+  }
+  context_.Say(
+      GetContext().clauseSource, "Must have LOGICAL or INTEGER type"_err_en_US);
+}
+
+void AccStructureChecker::Enter(const parser::OpenACCEndConstruct &x) {
+  context_.Say(x.source, "Misplaced OpenACC end directive"_warn_en_US);
+}
+
 void AccStructureChecker::Enter(const parser::Module &) {
   declareSymbols.clear();
 }
@@ -653,6 +706,14 @@ void AccStructureChecker::Enter(const parser::SubroutineSubprogram &) {
 
 void AccStructureChecker::Enter(const parser::SeparateModuleSubprogram &) {
   declareSymbols.clear();
+}
+
+void AccStructureChecker::Enter(const parser::DoConstruct &) {
+  ++loopNestLevel;
+}
+
+void AccStructureChecker::Leave(const parser::DoConstruct &) {
+  --loopNestLevel;
 }
 
 llvm::StringRef AccStructureChecker::getDirectiveName(

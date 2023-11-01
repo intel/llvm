@@ -253,6 +253,17 @@ struct TargetMemcpyArgsTy {
         DstOffsets(DstOffsets), SrcOffsets(SrcOffsets),
         DstDimensions(DstDimensions), SrcDimensions(SrcDimensions){};
 };
+
+struct TargetMemsetArgsTy {
+  // Common attributes of a memset operation
+  void *Ptr;
+  int C;
+  size_t N;
+  int DeviceNum;
+
+  // no constructors defined, because this is a PoD
+};
+
 // Invalid GTID as defined by libomp; keep in sync
 #define KMP_GTID_DNE (-2)
 #ifdef __cplusplus
@@ -438,6 +449,6 @@ public:
 #define TIMESCOPE()
 #define TIMESCOPE_WITH_IDENT(IDENT)
 #define TIMESCOPE_WITH_NAME_AND_IDENT(NAME, IDENT)
-#define TIMESCOPE_WITH_RTM_AND_IDENT(RegionTypeMsg, IDENT)                                    
+#define TIMESCOPE_WITH_RTM_AND_IDENT(RegionTypeMsg, IDENT)
 
 #endif

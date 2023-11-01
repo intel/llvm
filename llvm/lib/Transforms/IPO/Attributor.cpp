@@ -260,7 +260,8 @@ AA::getInitialValueForObj(Attributor &A, const AbstractAttribute &QueryingAA,
     if (!Initializer)
       return nullptr;
   } else {
-    if (!GV->hasLocalLinkage() && !(GV->isConstant() && GV->hasInitializer()))
+    if (!GV->hasLocalLinkage() &&
+        (GV->isInterposable() || !(GV->isConstant() && GV->hasInitializer())))
       return nullptr;
     if (!GV->hasInitializer())
       return UndefValue::get(&Ty);
@@ -1731,6 +1732,21 @@ bool Attributor::isAssumedDead(const BasicBlock &BB,
   }
 
   return false;
+}
+
+bool Attributor::checkForAllCallees(
+    function_ref<bool(ArrayRef<const Function *>)> Pred,
+    const AbstractAttribute &QueryingAA, const CallBase &CB) {
+  if (const Function *Callee = dyn_cast<Function>(CB.getCalledOperand()))
+    return Pred(Callee);
+
+  const auto *CallEdgesAA = getAAFor<AACallEdges>(
+      QueryingAA, IRPosition::callsite_function(CB), DepClassTy::OPTIONAL);
+  if (!CallEdgesAA || CallEdgesAA->hasUnknownCallee())
+    return false;
+
+  const auto &Callees = CallEdgesAA->getOptimisticEdges();
+  return Pred(Callees.getArrayRef());
 }
 
 bool Attributor::checkForAllUses(

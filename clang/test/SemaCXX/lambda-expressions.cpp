@@ -150,9 +150,10 @@ namespace Array {
   int &f(int *p);
   char &f(...);
   void g() {
-    int n = -1;
+    int n = -1;   // expected-note {{declared here}}
     [=] {
-      int arr[n]; // VLA
+      int arr[n]; // expected-warning {{variable length arrays in C++ are a Clang extension}} \
+                     expected-note {{read of non-const variable 'n' is not allowed in a constant expression}}
     } ();
 
     const int m = -1;
@@ -713,4 +714,13 @@ void foo() {
   // CHECK: AlignedAttr
   // CHECK-NEXT: ConstantExpr
   // CHECK-NEXT: value: Int 2
+}
+
+void GH48527() {
+  auto a = []()__attribute__((b(({ return 0; })))){}; // expected-warning {{unknown attribute 'b' ignored}}
+}
+
+void GH67492() {
+  constexpr auto test = 42;
+  auto lambda = (test, []() noexcept(true) {});
 }

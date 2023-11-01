@@ -70,6 +70,8 @@ int main() {
     });
   });
 
+  E4.wait();
+
   // Buffer elements set to 22
   Queue.submit([&](handler &CGH) {
     CGH.depends_on(E5);
@@ -78,8 +80,9 @@ int main() {
 
   Queue.wait();
 
+  const int Expected = 22;
   for (size_t i = 0; i < N; i++) {
-    assert(Arr[i] == 22);
+    assert(check_value(i, Expected, Arr[i], "Arr"));
   }
 
   // Free the allocated memory

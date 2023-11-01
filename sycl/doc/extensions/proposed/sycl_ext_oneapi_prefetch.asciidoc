@@ -138,7 +138,7 @@ struct prefetch_hint_key {
   template <cache_level Level, typename Hint>
   using value_t = property_value<prefetch_hint_key,
                                  std::integral_constant<cache_level, Level>,
-                                 Hint>
+                                 Hint>;
 };
 
 template <cache_level Level, typename Hint>
@@ -178,49 +178,49 @@ The functions in this section allow individual work-items to prefetch data.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Properties = empty_properties_t>
 void prefetch(void* ptr, Properties properties = {});
 
-template <typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Properties = empty_properties_t>
 void prefetch(void* ptr, size_t bytes, Properties properties = {});
 
-template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename T, typename Properties = empty_properties_t>
 void prefetch(T* ptr, Properties properties = {});
 
-template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename T, typename Properties = empty_properties_t>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes, Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count, Properties properties = {});
 
 // Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
 template <typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
               id<Dimensions> offset, Properties properties = {});
 
 // Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
 template <typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
               id<Dimensions> offset, size_t count, Properties properties = {});
 
@@ -229,7 +229,7 @@ void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlacehol
 
 [source,c++]
 ----
-template <typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Properties = empty_properties_t>
 void prefetch(void* ptr, Properties properties = {});
 ----
 _Preconditions_: `ptr` must point to an object in global memory.
@@ -240,7 +240,7 @@ the byte at `ptr` should be prefetched into the levels of cache specified by
 
 [source,c++]
 ----
-template <typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Properties = empty_properties_t>
 void prefetch(void* ptr, size_t bytes, Properties properties = {});
 ----
 _Preconditions_: `ptr` must point to an object in global memory.
@@ -251,7 +251,7 @@ cache specified by `properties`.
 
 [source,c++]
 ----
-template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename T, typename Properties = empty_properties_t>
 void prefetch(T* ptr, Properties properties = {});
 ----
 _Preconditions_: `ptr` must point to an object in global memory.
@@ -260,7 +260,7 @@ _Effects_: Equivalent to `prefetch((void*) ptr, sizeof(T), properties)`.
 
 [source,c++]
 ----
-template <typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename T, typename Properties = empty_properties_t>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 ----
 _Preconditions_: `ptr` must point to an object in global memory.
@@ -270,7 +270,7 @@ _Effects_: Equivalent to `prefetch((void*) ptr, count * sizeof(T), properties)`.
 [source,c++]
 ----
 template <access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
@@ -283,7 +283,7 @@ _Effects_: Equivalent to `prefetch(ptr.get(), properties)`.
 [source,c++]
 ----
 template <access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
@@ -296,7 +296,7 @@ _Effects_: Equivalent to `prefetch(ptr.get(), bytes, properties)`.
 [source,c++]
 ----
 template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
@@ -309,7 +309,7 @@ _Effects_: Equivalent to `prefetch(ptr.get(), properties)`.
 [source,c++]
 ----
 template <typename T, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
@@ -323,7 +323,7 @@ _Effects_: Equivalent to `prefetch(ptr.get(), count, properties)`.
 ----
 template <typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
               id<Dimensions> offset, Properties properties = {});
 ----
@@ -337,7 +337,7 @@ properties)`.
 ----
 template <typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
               size_t offset, size_t count, Properties properties = {});
 ----
@@ -352,7 +352,7 @@ properties)`.
 
 [source,c++]
 ----
-using syclex = sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 q.parallel_for(N, [=](auto i) {
   for (int j = 0; j < M; ++j) {
@@ -365,7 +365,7 @@ q.parallel_for(N, [=](auto i) {
 
 [source,c++]
 ----
-using syclex = sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 q.parallel_for(N, [=](auto i) {
   for (int j = 0; j < M; ++j) {
@@ -392,55 +392,55 @@ to issue cooperative prefetches more efficiently on some hardware.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename Group, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, void* ptr, Properties properties = {});
 
-template <typename Group, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, void* ptr, size_t bytes, Properties properties = {});
 
-template <typename Group, typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename T, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, T* ptr, Properties properties = {});
 
-template <typename Group, typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename T, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
                     Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
                     Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <typename Group, typename T,
           access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
                     Properties properties = {});
 
 // Only available if AddressSpace == global_space || AddressSpace == generic_space
 template <typename Group, typename T,
           access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
                     Properties properties = {});
 
 // Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
                     size_t offset, Properties properties = {});
 
 // Only available if Dimensions > 0 && (AccessMode == read || AccessMode == read_write)
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
                     size_t offset, size_t count, Properties properties = {});
 
@@ -449,7 +449,7 @@ void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::dev
 
 [source,c++]
 ----
-template <typename Group, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, void* ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
@@ -464,7 +464,7 @@ the byte at `ptr` should be prefetched into the levels of cache specified by
 
 [source,c++]
 ----
-template <typename Group, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, void* ptr, size_t bytes, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
@@ -479,7 +479,7 @@ cache specified by `properties`.
 
 [source,c++]
 ----
-template <typename Group, typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename T, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, T* ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
@@ -493,7 +493,7 @@ properties)`.
 
 [source,c++]
 ----
-template <typename Group, typename T, typename Properties = ext::oneapi::experimental::properties<>>
+template <typename Group, typename T, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
@@ -508,7 +508,7 @@ properties)`.
 [source,c++]
 ----
 template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
                     Properties properties = {});
 ----
@@ -525,7 +525,7 @@ _Effects_: Equivalent to `joint_prefetch(g, ptr.get(), properties)`.
 [source,c++]
 ----
 template <typename Group, access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes,
                     Properties properties = {});
 ----
@@ -542,7 +542,7 @@ _Effects_: Equivalent to `joint_prefetch(g, ptr.get(), bytes, properties)`.
 ----
 template <typename Group, typename T,
           access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
                     Properties properties = {});
 ----
@@ -559,7 +559,7 @@ _Effects_: Equivalent to `joint_prefetch(g, ptr.get(), properties)`.
 ----
 template <typename Group, typename T,
           access::address_space AddressSpace, access::decorated IsDecorated,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count,
                     Properties properties = {});
 ----
@@ -575,7 +575,7 @@ _Effects_: Equivalent to `joint_prefetch(g, ptr.get(), count, properties)`.
 ----
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
                     size_t offset, Properties properties = {});
 ----
@@ -593,7 +593,7 @@ sizeof(DataT), properties)`.
 ----
 template <typename Group, typename DataT, int Dimensions,
           access_mode AccessMode, access::placeholder IsPlaceholder,
-          typename Properties = ext::oneapi::experimental::properties<>>
+          typename Properties = empty_properties_t>
 void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::device, IsPlaceholder> acc,
                     size_t offset, size_t count, Properties properties = {});
 ----
@@ -612,7 +612,7 @@ sizeof(DataT), properties)`.
 
 [source,c++]
 ----
-using syclex = sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 q.parallel_for(sycl::nd_range{N, L}, [=](sycl::nd_item<1> it) {
   auto sg = it.get_sub_group();

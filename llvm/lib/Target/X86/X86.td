@@ -119,6 +119,8 @@ def FeatureFMA     : SubtargetFeature<"fma", "HasFMA", "true",
 def FeatureF16C    : SubtargetFeature<"f16c", "HasF16C", "true",
                        "Support 16-bit floating point conversion instructions",
                        [FeatureAVX]>;
+def FeatureEVEX512  : SubtargetFeature<"evex512", "HasEVEX512", "true",
+                        "Support ZMM and 64-bit mask instructions">;
 def FeatureAVX512   : SubtargetFeature<"avx512f", "X86SSELevel", "AVX512",
                                       "Enable AVX-512 instructions",
                                       [FeatureAVX2, FeatureFMA, FeatureF16C]>;
@@ -323,12 +325,22 @@ def FeatureTSXLDTRK : SubtargetFeature<"tsxldtrk", "HasTSXLDTRK", "true",
                                        "Support TSXLDTRK instructions">;
 def FeatureUINTR : SubtargetFeature<"uintr", "HasUINTR", "true",
                                     "Has UINTR Instructions">;
+def FeatureUSERMSR : SubtargetFeature<"usermsr", "HasUSERMSR", "true",
+                                      "Support USERMSR instructions">;
 def FeaturePCONFIG : SubtargetFeature<"pconfig", "HasPCONFIG", "true",
                                       "platform configuration instruction">;
 def FeatureMOVDIRI  : SubtargetFeature<"movdiri", "HasMOVDIRI", "true",
                                        "Support movdiri instruction (direct store integer)">;
 def FeatureMOVDIR64B : SubtargetFeature<"movdir64b", "HasMOVDIR64B", "true",
                                         "Support movdir64b instruction (direct store 64 bytes)">;
+def FeatureAVX10_1 : SubtargetFeature<"avx10.1-256", "HasAVX10_1", "true",
+                                      "Support AVX10.1 up to 256-bit instruction",
+                                      [FeatureCDI, FeatureVBMI, FeatureIFMA, FeatureVNNI,
+                                       FeatureBF16, FeatureVPOPCNTDQ, FeatureVBMI2, FeatureBITALG,
+                                       FeatureVAES, FeatureVPCLMULQDQ, FeatureFP16]>;
+def FeatureAVX10_1_512 : SubtargetFeature<"avx10.1-512", "HasAVX10_1_512", "true",
+                                          "Support AVX10.1 up to 512-bit instruction",
+                                          [FeatureAVX10_1, FeatureEVEX512]>;
 
 // Ivy Bridge and newer processors have enhanced REP MOVSB and STOSB (aka
 // "string operations"). See "REP String Enhancement" in the Intel Software
@@ -817,6 +829,7 @@ def ProcessorFeatures {
   ];
 
   list<SubtargetFeature> X86_64V4Features = !listconcat(X86_64V3Features, [
+    FeatureEVEX512,
     FeatureBWI,
     FeatureCDI,
     FeatureDQI,
@@ -940,6 +953,7 @@ def ProcessorFeatures {
                                                   FeatureXSAVES,
                                                   FeatureCLFLUSHOPT,
                                                   FeatureAVX512,
+                                                  FeatureEVEX512,
                                                   FeatureCDI,
                                                   FeatureDQI,
                                                   FeatureBWI,
@@ -982,6 +996,7 @@ def ProcessorFeatures {
 
   // Cannonlake
   list<SubtargetFeature> CNLAdditionalFeatures = [FeatureAVX512,
+                                                  FeatureEVEX512,
                                                   FeatureCDI,
                                                   FeatureDQI,
                                                   FeatureBWI,
@@ -1242,6 +1257,18 @@ def ProcessorFeatures {
   list<SubtargetFeature> ARLSFeatures =
     !listconcat(SRFFeatures, ARLSAdditionalFeatures);
 
+  // Pantherlake
+  list<SubtargetFeature> PTLAdditionalFeatures = [FeaturePREFETCHI];
+  list<SubtargetFeature> PTLFeatures =
+    !listconcat(ARLSFeatures, PTLAdditionalFeatures);
+
+
+  // Clearwaterforest
+  list<SubtargetFeature> CWFAdditionalFeatures = [FeaturePREFETCHI,
+                                                  FeatureUSERMSR];
+  list<SubtargetFeature> CWFFeatures =
+    !listconcat(ARLSFeatures, CWFAdditionalFeatures);
+
   // Knights Landing
   list<SubtargetFeature> KNLFeatures = [FeatureX87,
                                         FeatureCX8,
@@ -1262,6 +1289,7 @@ def ProcessorFeatures {
                                         FeatureF16C,
                                         FeatureFSGSBase,
                                         FeatureAVX512,
+                                        FeatureEVEX512,
                                         FeatureERI,
                                         FeatureCDI,
                                         FeaturePFI,
@@ -1471,6 +1499,7 @@ def ProcessorFeatures {
     !listconcat(ZN2Features, ZN3AdditionalFeatures);
   list<SubtargetFeature> ZN4Tuning = ZN3Tuning;
   list<SubtargetFeature> ZN4AdditionalFeatures = [FeatureAVX512,
+                                                  FeatureEVEX512,
                                                   FeatureCDI,
                                                   FeatureDQI,
                                                   FeatureBWI,
@@ -1753,6 +1782,10 @@ foreach P = ["arrowlake-s", "arrowlake_s", "lunarlake"] in {
 def : ProcModel<P, AlderlakePModel,
                 ProcessorFeatures.ARLSFeatures, ProcessorFeatures.ADLTuning>;
 }
+def : ProcModel<"pantherlake", AlderlakePModel,
+                ProcessorFeatures.PTLFeatures, ProcessorFeatures.ADLTuning>;
+def : ProcModel<"clearwaterforest", AlderlakePModel,
+                ProcessorFeatures.CWFFeatures, ProcessorFeatures.ADLTuning>;
 def : ProcModel<"graniterapids", SapphireRapidsModel,
                 ProcessorFeatures.GNRFeatures, ProcessorFeatures.SPRTuning>;
 def : ProcModel<"emeraldrapids", SapphireRapidsModel,
