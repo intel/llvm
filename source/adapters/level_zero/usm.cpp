@@ -195,7 +195,7 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
   auto Result = USMAllocationMakeResident(USMDeviceAllocationForceResidency,
                                           Context, Device, *ResultPtr, Size);
   if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
-      Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+      Result == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
     return Result;
   }
   return UR_RESULT_SUCCESS;
@@ -232,7 +232,7 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
   auto Result = USMAllocationMakeResident(USMSharedAllocationForceResidency,
                                           Context, Device, *ResultPtr, Size);
   if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
-      Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+      Result == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
     return Result;
   }
 
@@ -258,7 +258,7 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
   auto Result = USMAllocationMakeResident(USMHostAllocationForceResidency,
                                           Context, nullptr, *ResultPtr, Size);
   if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
-      Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+      Result == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
     return Result;
   }
   return UR_RESULT_SUCCESS;
