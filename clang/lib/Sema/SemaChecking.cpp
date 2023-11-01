@@ -4683,7 +4683,7 @@ static QualType DecodePPCMMATypeFromStr(ASTContext &Context, const char *&Str,
   switch (*Str++) {
   case 'V':
     return Context.getVectorType(Context.UnsignedCharTy, 16,
-                                 VectorType::VectorKind::AltiVecVector);
+                                 VectorKind::AltiVecVector);
   case 'i': {
     char *End;
     unsigned size = strtoul(Str, &End, 10);
@@ -9369,8 +9369,8 @@ ExprResult Sema::SemaBuiltinShuffleVector(CallExpr *TheCall) {
                                       TheCall->getArg(1)->getEndLoc()));
     } else if (numElements != numResElements) {
       QualType eltType = LHSType->castAs<VectorType>()->getElementType();
-      resType = Context.getVectorType(eltType, numResElements,
-                                      VectorType::GenericVector);
+      resType =
+          Context.getVectorType(eltType, numResElements, VectorKind::Generic);
     }
   }
 
