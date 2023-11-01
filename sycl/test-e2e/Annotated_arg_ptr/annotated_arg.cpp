@@ -96,10 +96,10 @@ int main() {
     d_ptr[i] = i;
 
   // testing arithmetic overloaded operators
-  annotated_arg<MyStruct<int>)> e = MyStruct(5);
-  annotated_arg<MyStruct<int>)> f = MyStruct(6);
-  annotated_arg<MyStruct<int>)> g = MyStruct(3);
-  annotated_arg<MyStruct<int>)> h = MyStruct(2);
+  annotated_arg<MyStruct<int>> e = MyStruct(5);
+  annotated_arg<MyStruct<int>> f = MyStruct(6);
+  annotated_arg<MyStruct<int>> g = MyStruct(3);
+  annotated_arg<MyStruct<int>> h = MyStruct(2);
 
   auto *r1 = malloc_shared<MyStruct<int>>(5, Q);
   auto *r2 = malloc_shared<MyStruct<int>>(5, Q);
@@ -116,9 +116,9 @@ int main() {
   auto *r6 = malloc_shared<MyStruct<bool>>(3, Q);
 
   // testing bit shift overloaded operators
-  annotated_arg<MyStruct<int>)> x = MyStruct(1);
-  annotated_arg<MyStruct<int>)> y = MyStruct(2);
-  annotated_arg<MyStruct<int>)> z = MyStruct(4);
+  annotated_arg<MyStruct<int>> x = MyStruct(1);
+  annotated_arg<MyStruct<int>> y = MyStruct(2);
+  annotated_arg<MyStruct<int>> z = MyStruct(4);
 
   auto *r7 = malloc_shared<MyStruct<int>>(2, Q);
   auto *r8 = malloc_shared<MyStruct<int>>(2, Q);
