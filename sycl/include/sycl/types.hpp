@@ -913,8 +913,8 @@ public:
 
   template <typename Ty = DataT>
   typename std::enable_if_t<
-      std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename std::remove_const_t<Ty>, half>::value,
+      std::is_fundamental_v<vec_data_t<Ty>> ||
+          std::is_same_v<typename std::remove_const_t<Ty>, half>,
       vec &>
   operator=(const DataT &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
