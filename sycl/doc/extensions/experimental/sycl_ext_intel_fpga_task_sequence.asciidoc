@@ -214,11 +214,19 @@ asynchronous `f` invocation completes executing, and potentially before `f` even
 begins executing (return from the `async` provides no implicit information on
 the execution status of `f`).
 
-The `get` member function retrieves results in the same order in which
-`async` was invoked. The call blocks if there is no result to retrieve. Both
-functions may only be invoked on the device on which a `task_sequence` object
-has been instantiated. Calling `async` or `get` on a different device results in
-undefined behavior.
+The `get` member function retrieves results in the same order in which `async`
+was invoked. The call blocks if there is no result to retrieve. An asynchronous
+invocation of `f`, upon the end of its execution of `f`, will net a return
+value. At that point, that particular asynchronous invocation is now considered
+to be complete, and the result of that invocation is now ready to be retrieved
+by a `get` call. Results from completed invocations are stored in a results data
+structure until the appropriate `get` call retrieves it. This results data
+structure will keep the results in the same order in which their corresponding
+`async` invocations were invoked.
+
+Both functions may only be invoked on the device on which a `task_sequence`
+object has been instantiated. Calling `async` or `get` on a different device
+results in undefined behavior.
 
 [frame="topbot",options="header"]
 |===
