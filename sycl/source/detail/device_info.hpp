@@ -345,7 +345,8 @@ struct get_device_info_impl<std::vector<kernel_id>,
     std::vector<kernel_id> ids;
     ids.reserve(names.size());
     for (const auto &name : names) {
-      ids.push_back(ProgramManager::getInstance().getBuiltInKernelID(name.c_str()));
+      ids.push_back(
+          ProgramManager::getInstance().getBuiltInKernelID(name.c_str()));
     }
     return ids;
   }

@@ -153,7 +153,7 @@ public:
   /// \param KernelName is a string containing SYCL kernel name.
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param Module is an OS handle to user code module.
-  void compile_with_kernel_name(const char* KernelName,
+  void compile_with_kernel_name(const char *KernelName,
                                 std::string CompileOptions);
 
   /// Builds the SYCL kernel function into encapsulated raw program.
@@ -329,7 +329,7 @@ private:
   /// \param JITCompilationIsRequired If JITCompilationIsRequired is true
   ///        add a check that kernel is compiled, otherwise don't add the check.
   void
-  create_pi_program_with_kernel_name(const char* KernelName,
+  create_pi_program_with_kernel_name(const char *KernelName,
                                      bool JITCompilationIsRequired = false);
 
   /// Compiles underlying plugin interface program.

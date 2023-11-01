@@ -100,7 +100,7 @@ public:
 
   using KernelFastCacheKeyT =
       std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
-                 const char*>;
+                 const char *>;
   using KernelFastCacheValT =
       std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
                  const KernelArgMask *, sycl::detail::pi::PiProgram>;
