@@ -15,7 +15,6 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t, size_t size, void **ppMem) {
 
   void *Ptr = nullptr;
-  ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
   cl_mem_alloc_flags_intel Flags = 0;
@@ -40,23 +39,28 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
   // First we need to look up the function pointer
   clHostMemAllocINTEL_fn FuncPtr = nullptr;
   cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
-  RetVal = cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
-      cl_ext::HostMemAllocName, &FuncPtr);
+  if (auto UrResult = cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+          CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
+          cl_ext::HostMemAllocName, &FuncPtr)) {
+    return UrResult;
+  }
 
   if (FuncPtr) {
-    Ptr = FuncPtr(CLContext, Properties, size, Alignment,
-                  cl_adapter::cast<cl_int *>(&RetVal));
+    cl_int ClResult = CL_SUCCESS;
+    Ptr = FuncPtr(CLContext, Properties, size, Alignment, &ClResult);
+    if (ClResult == CL_INVALID_BUFFER_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
   }
 
   *ppMem = Ptr;
 
-  // ensure we aligned the allocation correctly
-  if (RetVal == UR_RESULT_SUCCESS && Alignment != 0)
-    assert(reinterpret_cast<std::uintptr_t>(*ppMem) % Alignment == 0 &&
-           "allocation not aligned correctly");
+  assert((Alignment == 0 ||
+          reinterpret_cast<std::uintptr_t>(*ppMem) % Alignment == 0) &&
+         "Allocation not aligned correctly!");
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -65,7 +69,6 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  size_t size, void **ppMem) {
 
   void *Ptr = nullptr;
-  ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
   cl_mem_alloc_flags_intel Flags = 0;
@@ -92,24 +95,30 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   // First we need to look up the function pointer
   clDeviceMemAllocINTEL_fn FuncPtr = nullptr;
   cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
-  RetVal = cl_ext::getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clDeviceMemAllocINTELCache,
-      cl_ext::DeviceMemAllocName, &FuncPtr);
+  if (auto UrResult = cl_ext::getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
+          CLContext, cl_ext::ExtFuncPtrCache->clDeviceMemAllocINTELCache,
+          cl_ext::DeviceMemAllocName, &FuncPtr)) {
+    return UrResult;
+  }
 
   if (FuncPtr) {
+    cl_int ClResult = CL_SUCCESS;
     Ptr = FuncPtr(CLContext, cl_adapter::cast<cl_device_id>(hDevice),
                   cl_adapter::cast<cl_mem_properties_intel *>(Properties), size,
-                  Alignment, cl_adapter::cast<cl_int *>(&RetVal));
+                  Alignment, &ClResult);
+    if (ClResult == CL_INVALID_BUFFER_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
   }
 
   *ppMem = Ptr;
 
-  // ensure we aligned the allocation correctly
-  if (RetVal == UR_RESULT_SUCCESS && Alignment != 0)
-    assert(reinterpret_cast<std::uintptr_t>(*ppMem) % Alignment == 0 &&
-           "allocation not aligned correctly");
+  assert((Alignment == 0 ||
+          reinterpret_cast<std::uintptr_t>(*ppMem) % Alignment == 0) &&
+         "Allocation not aligned correctly!");
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -118,7 +127,6 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  size_t size, void **ppMem) {
 
   void *Ptr = nullptr;
-  ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
   uint32_t Alignment = pUSMDesc ? pUSMDesc->align : 0;
 
   cl_mem_alloc_flags_intel Flags = 0;
@@ -155,22 +163,29 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   // First we need to look up the function pointer
   clSharedMemAllocINTEL_fn FuncPtr = nullptr;
   cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
-  RetVal = cl_ext::getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clSharedMemAllocINTELCache,
-      cl_ext::SharedMemAllocName, &FuncPtr);
+  if (auto UrResult = cl_ext::getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
+          CLContext, cl_ext::ExtFuncPtrCache->clSharedMemAllocINTELCache,
+          cl_ext::SharedMemAllocName, &FuncPtr)) {
+    return UrResult;
+  }
 
   if (FuncPtr) {
+    cl_int ClResult = CL_SUCCESS;
     Ptr = FuncPtr(CLContext, cl_adapter::cast<cl_device_id>(hDevice),
                   cl_adapter::cast<cl_mem_properties_intel *>(Properties), size,
-                  Alignment, cl_adapter::cast<cl_int *>(&RetVal));
+                  Alignment, cl_adapter::cast<cl_int *>(&ClResult));
+    if (ClResult == CL_INVALID_BUFFER_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
   }
 
   *ppMem = Ptr;
 
-  assert(Alignment == 0 ||
-         (RetVal == UR_RESULT_SUCCESS &&
-          reinterpret_cast<std::uintptr_t>(*ppMem) % Alignment == 0));
-  return RetVal;
+  assert((Alignment == 0 ||
+          reinterpret_cast<std::uintptr_t>(*ppMem) % Alignment == 0) &&
+         "Allocation not aligned correctly!");
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
@@ -255,13 +270,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
-    [[maybe_unused]] size_t size, ur_usm_migration_flags_t flags,
+    [[maybe_unused]] size_t size,
+    [[maybe_unused]] ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  // flags is currently unused so fail if set
-  if (flags != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
 
   return mapCLErrorToUR(clEnqueueMarkerWithWaitList(
       cl_adapter::cast<cl_command_queue>(hQueue), numEventsInWaitList,
@@ -387,9 +399,14 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   }
 
   if (FuncPtr) {
-    RetVal =
-        mapCLErrorToUR(FuncPtr(cl_adapter::cast<cl_context>(hContext), pMem,
-                               PropNameCL, propSize, pPropValue, pPropSizeRet));
+    size_t CheckPropSize = 0;
+    size_t *CheckPropSizeRet = pPropSizeRet ? pPropSizeRet : &CheckPropSize;
+    RetVal = mapCLErrorToUR(FuncPtr(cl_adapter::cast<cl_context>(hContext),
+                                    pMem, PropNameCL, propSize, pPropValue,
+                                    CheckPropSizeRet));
+    if (pPropValue && *CheckPropSizeRet != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
     if (RetVal == UR_RESULT_SUCCESS && pPropValue &&
         propName == UR_USM_ALLOC_INFO_TYPE) {
       auto *AllocTypeCL =
