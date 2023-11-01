@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/cg_types.hpp>
+#include <array>
+#include <cstdint>
 
 #include "ur_api.h"
 
@@ -14,32 +15,28 @@
 #include "kernel.hpp"
 #include "memory.hpp"
 
-sycl::detail::NDRDescT getNDRDesc(uint32_t WorkDim,
-                                  const size_t *GlobalWorkOffset,
-                                  const size_t *GlobalWorkSize,
-                                  const size_t *LocalWorkSize) {
-  // Todo: we flip indexes here, I'm not sure we should, if we don't we need to
-  // un-flip them in the spirv builtins definitions as well
-  sycl::detail::NDRDescT Res;
-  switch (WorkDim) {
-  case 1:
-    Res.set<1>(sycl::nd_range<1>({GlobalWorkSize[0]}, {LocalWorkSize[0]},
-                                 {GlobalWorkOffset[0]}));
-    break;
-  case 2:
-    Res.set<2>(sycl::nd_range<2>({GlobalWorkSize[0], GlobalWorkSize[1]},
-                                 {LocalWorkSize[0], LocalWorkSize[1]},
-                                 {GlobalWorkOffset[0], GlobalWorkOffset[1]}));
-    break;
-  case 3:
-    Res.set<3>(sycl::nd_range<3>(
-        {GlobalWorkSize[0], GlobalWorkSize[1], GlobalWorkSize[2]},
-        {LocalWorkSize[0], LocalWorkSize[1], LocalWorkSize[2]},
-        {GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]}));
-    break;
+namespace native_cpu {
+struct NDRDescT {
+  using RangeT = std::array<size_t, 3>;
+  uint32_t WorkDim;
+  RangeT GlobalOffset;
+  RangeT GlobalSize;
+  RangeT LocalSize;
+  NDRDescT(uint32_t WorkDim, const size_t *GlobalWorkOffset,
+           const size_t *GlobalWorkSize, const size_t *LocalWorkSize) {
+    for (uint32_t I = 0; I < WorkDim; I++) {
+      GlobalOffset[I] = GlobalWorkOffset[I];
+      GlobalSize[I] = GlobalWorkSize[I];
+      LocalSize[I] = LocalWorkSize[I];
+    }
+    for (uint32_t I = WorkDim; I < 3; I++) {
+      GlobalSize[I] = 1;
+      LocalSize[I] = LocalSize[0] ? 1 : 0;
+      GlobalOffset[I] = 0;
+    }
   }
-  return Res;
-}
+};
+} // namespace native_cpu
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
@@ -62,11 +59,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // TODO: add proper error checking
   // TODO: add proper event dep management
-  sycl::detail::NDRDescT ndr =
-      getNDRDesc(workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize);
+  native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
+                           pLocalWorkSize);
   hKernel->handleLocalArgs();
 
-  __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
+  native_cpu::state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
                           ndr.LocalSize[2], ndr.GlobalOffset[0],
                           ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
@@ -124,7 +121,7 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
     ur_rect_region_t region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch,
     typename std::conditional<IsRead, void *, const void *>::type DstMem,
-    pi_uint32, const ur_event_handle_t *, ur_event_handle_t *) {
+    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   // TODO: events, blocking, check other constraints, performance optimizations
   //       More sharing with level_zero where possible
 
