@@ -334,6 +334,14 @@ public:
       return nullptr;
   }
 
+  void releaseEvent(xpti::trace_event_data_t *Event) {
+    if (!Event)
+      return;
+    std::lock_guard<std::mutex> Lock(MEventMutex);
+    std::ignore = MEvents.erase(Event->unique_id);
+    std::ignore = MPayloads.erase(Event->unique_id);
+  }
+
   // Sometimes, the user may want to add key-value pairs as metadata associated
   // with an event; this would be in addition to the source_file, line_no and
   // column_no fields that may already be present. Since we are not sure of the
@@ -826,6 +834,10 @@ public:
     return Event;
   }
 
+  void releaseEvent(xpti::trace_event_data_t *event) {
+    MTracepoints.releaseEvent(event);
+  }
+
   inline const xpti::trace_event_data_t *findEvent(uint64_t UniversalID) {
     return MTracepoints.eventData(UniversalID);
   }
@@ -1179,6 +1191,10 @@ xptiQueryMetadata(xpti::trace_event_data_t *Event) {
 
 XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool YesOrNo) {
   xpti::Framework::instance().setTraceEnabled(YesOrNo);
+}
+
+XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *Event) {
+  return xpti::Framework::instance().releaseEvent(Event);
 }
 } // extern "C"
 

@@ -54,3 +54,9 @@ SYCL_COMPILE_TIME_PROPERTY("sycl-stride-size", 5883, DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-word-size", 5884, DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-bi-directional-ports-true", 5885,
                            DecorValueTy::none)
+
+// The corresponding SPIR-V OpCodes for sycl_ext_oneapi_prefetch
+// SYCL Spec: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_prefetch.asciidoc
+// SPIR-V Spec: https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_cache_controls.asciidoc
+SYCL_COMPILE_TIME_PROPERTY("sycl-prefetch-hint", 6442, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-prefetch-hint-nt", 6442, DecorValueTy::uint32)
