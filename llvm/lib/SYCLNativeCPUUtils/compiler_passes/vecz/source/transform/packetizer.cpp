@@ -1249,17 +1249,17 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   if (SimdWidth.isScalable()) {
     idxFactor = B.CreateVScale(minVal);
   }
-  idx = B.CreateURem(idx, idxFactor);
+  auto *const vecIdx = B.CreateURem(idx, idxFactor);
 
   Value *val = nullptr;
   // Optimize the constant fixed-vector case, where we can choose the exact
   // subpacket to extract from directly.
-  if (isa<ConstantInt>(idx) && !SimdWidth.isScalable()) {
+  if (isa<ConstantInt>(vecIdx) && !SimdWidth.isScalable()) {
     ValuePacket opPackets;
     op.getPacketValues(opPackets);
     auto factor = SimdWidth.divideCoefficientBy(opPackets.size());
     const unsigned subvecSize = factor.getFixedValue();
-    const unsigned idxVal = cast<ConstantInt>(idx)->getZExtValue();
+    const unsigned idxVal = cast<ConstantInt>(vecIdx)->getZExtValue();
     // If individual elements are scalar (through instantiation, say) then just
     // use the desired packet directly.
     if (subvecSize == 1) {
@@ -1268,16 +1268,37 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
       // Else extract from the correct packet, adjusting the index as we go.
       val = B.CreateExtractElement(
           opPackets[idxVal / subvecSize],
-          ConstantInt::get(idx->getType(), idxVal % subvecSize));
+          ConstantInt::get(vecIdx->getType(), idxVal % subvecSize));
     }
   } else {
-    val = B.CreateExtractElement(op.getAsValue(), idx);
+    val = B.CreateExtractElement(op.getAsValue(), vecIdx);
   }
 
-  // We leave the origial broadcast function and divert the vectorized
+  // We leave the original broadcast function and divert the vectorized
   // broadcast through it, giving us a broadcast over the full apparent
   // sub-group or work-group size (vecz * mux).
   CI->setOperand(argIdx, val);
+  if (!isWorkGroup) {
+    // For sub-groups, we need to normalize the sub-group ID into the range of
+    // mux sub-groups.
+    //       |-----------------|-----------------|
+    //       | broadcast(X, 6) | broadcast(A, 6) |
+    // VF=4  |-----------------|-----------------|
+    //       | b(<X,Y,Z,W>, 6) | b(<A,B,C,D>, 6) |
+    //       |-----------------|-----------------|
+    // M=I/4 |        1        |        1        |
+    // V=I%4 |        2        |        2        |
+    //       |-----------------|-----------------|
+    //       |   <X,Y,Z,W>[V]  |   <A,B,C,D>[V]  |
+    //       |       Z         |       C         |
+    //       |-----------------|-----------------|
+    //       | broadcast(Z, M) | broadcast(C, M) |
+    // res   |       C         |       C         |
+    // splat |    <C,C,C,C>    |    <C,C,C,C>    |
+    //       |-----------------|-----------------|
+    auto *const muxIdx = B.CreateUDiv(idx, idxFactor);
+    CI->setOperand(argIdx + 1, muxIdx);
+  }
 
   return CI;
 }

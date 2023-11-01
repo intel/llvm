@@ -83,7 +83,7 @@ define spir_kernel void @sub_group_broadcast_wider_than_vf(i32 addrspace(1)* %in
 ; CHECK: [[LD:%.*]] = load <4 x i32>, ptr addrspace(1) {{%.*}}, align 4
 ; The sixth sub-group member is the (6 % 4 ==) 2nd vector group member
 ; CHECK: [[EXT:%.*]] = extractelement <4 x i32> [[LD]], i64 2
-; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 6)
+; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 1)
 ; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[BDCAST]], i64 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
 ; CHECK: store <4 x i32> [[SPLAT]], ptr addrspace(1)
