@@ -127,7 +127,7 @@
 // RUN:  echo "Dummy AOCX image" > %t.aocx
 // RUN:  echo "void foo() {}" > %t.c
 // RUN:  %clang -c -o %t.o %t.c
-// RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=spir64_fpga %t.aocx
+// RUN:  clang-offload-wrapper -o %t-aocx.bc -host=x86_64-unknown-linux-gnu -kind=sycl -target=fpga_aocx-intel-unknown %t.aocx
 // RUN:  llc -filetype=obj -o %t-aocx.o %t-aocx.bc
 // RUN:  clang-offload-bundler -type=o -targets=host-fpga_aocx-intel-unknown -input=%t-aocx.o -output=%t-aocxb.o
 // RUN:  llvm-ar crv %t_aocx.a %t.o %t-aocxb.o
