@@ -67,6 +67,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     if (nullptr == pfnDeviceAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    std::cerr << "=== urUSMDeviceAlloc" << std::endl;
 
     return context.interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::DEVICE);
@@ -142,6 +143,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    std::cerr << "=== urKernelCreate" << std::endl;
 
     ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
     if (result == UR_RESULT_SUCCESS) {
@@ -166,6 +168,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
+    std::cerr << "=== urQueueCreate" << std::endl;
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
     if (result == UR_RESULT_SUCCESS) {
@@ -212,7 +215,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    std::cerr << "=== __asan_piEnqueueKernelLaunch" << std::endl;
+    std::cerr << "=== urEnqueueKernelLaunch" << std::endl;
     ur_event_handle_t lk_event{};
     std::vector<ur_event_handle_t> events(numEventsInWaitList + 1);
     for (unsigned i = 0; i < numEventsInWaitList; ++i) {
