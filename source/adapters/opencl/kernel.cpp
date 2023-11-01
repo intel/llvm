@@ -335,9 +335,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ur_context_handle_t, ur_program_handle_t,
-    const ur_kernel_native_properties_t *, ur_kernel_handle_t *phKernel) {
-
+    const ur_kernel_native_properties_t *pProperties,
+    ur_kernel_handle_t *phKernel) {
   *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urKernelRetain(*phKernel);
+  }
   return UR_RESULT_SUCCESS;
 }
 
