@@ -345,28 +345,24 @@ template <typename... Args> struct checkHasConduitAndRegisterMap {
   static constexpr bool value = !(has_Conduit && has_RegisterMap);
 };
 
-template <typename... Args> struct checkPropertiesForNonPointerType : std::true_type {
+template <typename... Args>
+struct checkPropertiesForNonPointerType : std::true_type {
   using list = std::tuple<Args...>;
   static constexpr bool has_BufferLocation =
       ContainsProperty<buffer_location_key, list>::value;
   static_assert(!has_BufferLocation,
                 "Property buffer location cannot be specified for "
                 "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_awidth =
-      ContainsProperty<awidth_key, list>::value;
-  static_assert(!has_awidth,
-                "Property awidth cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_dwidth =
-      ContainsProperty<dwidth_key, list>::value;
-  static_assert(!has_dwidth,
-                "Property dwidth cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_awidth = ContainsProperty<awidth_key, list>::value;
+  static_assert(!has_awidth, "Property awidth cannot be specified for "
+                             "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_dwidth = ContainsProperty<dwidth_key, list>::value;
+  static_assert(!has_dwidth, "Property dwidth cannot be specified for "
+                             "annotated_arg<T> when T is a non pointer type.");
   static constexpr bool has_latency =
       ContainsProperty<latency_key, list>::value;
-  static_assert(!has_latency,
-                "Property latency cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
+  static_assert(!has_latency, "Property latency cannot be specified for "
+                              "annotated_arg<T> when T is a non pointer type.");
   static constexpr bool has_read_write_mode =
       ContainsProperty<read_write_mode_key, list>::value;
   static_assert(!has_read_write_mode,
