@@ -9,6 +9,9 @@
 #ifndef SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 #define SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 
+#include "Kernel.h"
+#include "kernel-fusion/Builtins.h"
+
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -55,7 +58,8 @@ public:
   /// kernel.
   llvm::ArrayRef<llvm::StringRef> getUniformKernelAttributes() const;
 
-  void createBarrierCall(IRBuilderBase &Builder, int BarrierFlags) const;
+  void createBarrierCall(IRBuilderBase &Builder,
+                         jit_compiler::BarrierFlags BarrierFlags) const;
 
   unsigned getPrivateAddressSpace() const;
 
@@ -64,6 +68,49 @@ public:
   void updateAddressSpaceMetadata(Function *KernelFunc,
                                   ArrayRef<size_t> LocalSize,
                                   unsigned AddressSpace) const;
+
+  ///
+  /// Try to map \p F to a known index space getter builtin.
+  std::optional<jit_compiler::BuiltinKind> getBuiltinKind(Function *F) const;
+
+  ///
+  /// Determine whether \p K needs to be remapped in context of the given
+  /// ranges.
+  bool shouldRemap(jit_compiler::BuiltinKind K,
+                   const jit_compiler::NDRange &SrcNDRange,
+                   const jit_compiler::NDRange &FusedNDRange) const;
+
+  ///
+  /// Returns true if calls to \p F can be safely ignored in the remapping
+  /// process.
+  bool isSafeToNotRemapBuiltin(Function *F) const;
+
+  ///
+  /// Query the integer bitwidth of the native index space.
+  unsigned getIndexSpaceBuiltinBitwidth() const;
+
+  ///
+  /// Apply target-specific attributes and calling conventions to a function
+  /// generated during the remapping process.
+  void setMetadataForGeneratedFunction(Function *F) const;
+
+  ///
+  /// Retrieve the runtime global ID (when executing the fused kernel) without
+  /// the global offset. The index is in "backend order", i.e. 0 is always the
+  /// fastest-changing dimension.
+  Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
+                                  const jit_compiler::NDRange &FusedNDRange,
+                                  uint32_t Idx) const;
+
+  /// Construct a target-specific remapper function for builtin \p K that
+  /// returns its origin value (under \p SrcNDRange) when executing on the \p
+  /// FusedNDRange.
+  Function *
+  createRemapperFunction(const jit_compiler::Remapper &R,
+                         jit_compiler::BuiltinKind K, StringRef OrigName,
+                         StringRef Name, Module *M,
+                         const jit_compiler::NDRange &SrcNDRange,
+                         const jit_compiler::NDRange &FusedNDRange) const;
 
 private:
   using ImplPtr = std::shared_ptr<TargetFusionInfoImpl>;

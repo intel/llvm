@@ -33,7 +33,7 @@ include(SYCLUtils)
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
 set(SYCL_MAJOR_VERSION 7)
-set(SYCL_MINOR_VERSION 0)
+set(SYCL_MINOR_VERSION 1)
 set(SYCL_PATCH_VERSION 0)
 
 set(SYCL_DEV_ABI_VERSION 8)
@@ -152,15 +152,15 @@ if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
       BOOL "Kernel fusion not yet supported on Windows" FORCE)
 endif()
 
+# Option for enabling building the SYCL major release preview library.
+option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
+
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_CUDA ON)
 endif()
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_HIP ON)
-endif()
-if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_OPENCL ON)
@@ -262,12 +262,21 @@ install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} C
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}-preview)
+  endif()
   # Do we really support non-MSVC ABI on WIN?
   if (MSVC)
     list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}d)
+    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+      list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}-previewd)
+    endif()
   endif()
 else()
   set(SYCL_RT_LIBS sycl)
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    list(APPEND SYCL_RT_LIBS sycl-preview)
+  endif()
 endif()
 
 # This function allows building multiple libraries with the same options.
@@ -337,6 +346,8 @@ add_custom_target(sycl-compiler
           clang-offload-bundler
           clang-offload-deps
           clang-offload-extract
+          clang-offload-packager
+          clang-linker-wrapper
           file-table-tform
           llc
           llvm-ar
@@ -502,15 +513,6 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(sycl-toolchain pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_hip)
-endif()
-
-if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
-  if (MSVC)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
-  else()
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
-  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

@@ -196,6 +196,7 @@ static bool needsGuard(const jit_compiler::NDRange &SrcNDRange,
 }
 
 static FusionInsertPoints addGuard(IRBuilderBase &Builder,
+                                   const TargetFusionInfo &TargetInfo,
                                    const jit_compiler::NDRange &SrcNDRange,
                                    const jit_compiler::NDRange &FusedNDRange,
                                    bool IsLast) {
@@ -221,23 +222,26 @@ static FusionInsertPoints addGuard(IRBuilderBase &Builder,
   auto *Exit = BasicBlock::Create(C, "", F);
   auto *CallInsertion = BasicBlock::Create(C, "", F, Exit); // If
 
-  auto *GlobalLinearID = jit_compiler::getGlobalLinearID(Builder, FusedNDRange);
+  auto *GlobalLinearID =
+      jit_compiler::getGlobalLinearID(Builder, TargetInfo, FusedNDRange);
 
   const auto GI = jit_compiler::NDRange::linearize(SrcNDRange.getGlobalSize());
-  auto *Cond = Builder.CreateICmpULT(GlobalLinearID, Builder.getInt64(GI));
+  auto *Cond = Builder.CreateICmpULT(
+      GlobalLinearID,
+      Builder.getIntN(TargetInfo.getIndexSpaceBuiltinBitwidth(), GI));
 
   Builder.CreateCondBr(Cond, CallInsertion, Exit);
   return {Entry, CallInsertion, Exit};
 }
 
-static Expected<CallInst *>
-createFusionCall(IRBuilderBase &Builder, Function *F,
-                 ArrayRef<Value *> CallArgs,
-                 const jit_compiler::NDRange &SrcNDRange,
-                 const jit_compiler::NDRange &FusedNDRange, bool IsLast,
-                 int BarriersFlags, jit_compiler::Remapper &Remapper,
-                 bool ShouldRemap, TargetFusionInfo &TargetInfo) {
-  const auto IPs = addGuard(Builder, SrcNDRange, FusedNDRange, IsLast);
+static Expected<CallInst *> createFusionCall(
+    IRBuilderBase &Builder, Function *F, ArrayRef<Value *> CallArgs,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange, bool IsLast,
+    jit_compiler::BarrierFlags BarriersFlags, jit_compiler::Remapper &Remapper,
+    bool ShouldRemap, TargetFusionInfo &TargetInfo) {
+  const auto IPs =
+      addGuard(Builder, TargetInfo, SrcNDRange, FusedNDRange, IsLast);
 
   if (ShouldRemap) {
     auto FOrErr = Remapper.remapBuiltins(F, SrcNDRange, FusedNDRange);
@@ -261,7 +265,7 @@ createFusionCall(IRBuilderBase &Builder, Function *F,
   Builder.SetInsertPoint(IPs.Exit);
 
   // Insert barrier if needed
-  if (!IsLast && BarriersFlags > 0) {
+  if (!IsLast && !jit_compiler::isNoBarrierFlag(BarriersFlags)) {
     TargetInfo.createBarrierCall(Builder, BarriersFlags);
   }
 
@@ -531,7 +535,7 @@ Error SYCLKernelFusion::fuseKernel(
     const auto BarriersEnd = InputFunctions.size() - 1;
     const auto IsHeterogeneousNDRangesList =
         hasHeterogeneousNDRangesList(InputFunctions);
-    jit_compiler::Remapper Remapper;
+    jit_compiler::Remapper Remapper(TargetInfo);
 
     Error DeferredErrs = Error::success();
     for (auto &KF : InputFunctions) {

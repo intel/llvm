@@ -15,7 +15,6 @@
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/Object/ObjectFile.h"
-#include "llvm/Support/Endian.h"
 #include <memory>
 #include <vector>
 
@@ -335,7 +334,6 @@ Error linkDebugInfoImpl(object::ObjectFile &File, const Options &Options,
   DebugInfoLinker->setUpdateIndexTablesOnly(!Options.DoGarbageCollection);
 
   std::vector<std::unique_ptr<OutDwarfFile>> ObjectsForLinking(1);
-  std::vector<std::string> EmptyWarnings;
 
   // Add object files to the DWARFLinker.
   std::unique_ptr<DWARFContext> Context = DWARFContext::create(
@@ -354,9 +352,8 @@ Error linkDebugInfoImpl(object::ObjectFile &File, const Options &Options,
       std::make_unique<ObjFileAddressMap<AddressMapBase>>(*Context, Options,
                                                           File));
 
-  ObjectsForLinking[0] =
-      std::make_unique<OutDwarfFile>(File.getFileName(), std::move(Context),
-                                     std::move(AddressesMap), EmptyWarnings);
+  ObjectsForLinking[0] = std::make_unique<OutDwarfFile>(
+      File.getFileName(), std::move(Context), std::move(AddressesMap));
 
   uint16_t MaxDWARFVersion = 0;
   std::function<void(const DWARFUnit &Unit)> OnCUDieLoaded =

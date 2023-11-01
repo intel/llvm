@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// https://github.com/intel/llvm/issues/11224
+// UNSUPPORTED: windows
 
 #include "common.hpp"
 

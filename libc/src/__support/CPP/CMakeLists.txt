@@ -15,7 +15,10 @@ add_header_library(
   HDRS
     bit.h
   DEPENDS
-    libc.src.__support.macros.properties.compiler
+    .type_traits
+    libc.src.__support.macros.attributes
+    libc.src.__support.macros.config
+    libc.src.__support.macros.sanitizer
 )
 
 add_header_library(
@@ -105,6 +108,8 @@ add_header_library(
     type_traits/enable_if.h
     type_traits/false_type.h
     type_traits/integral_constant.h
+    type_traits/invoke.h
+    type_traits/invoke_result.h
     type_traits/is_arithmetic.h
     type_traits/is_array.h
     type_traits/is_base_of.h

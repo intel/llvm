@@ -203,6 +203,7 @@ set(SYCL_SOURCES
     "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
+    "detail/preview_marker.cpp"
     "detail/reduction.cpp"
     "detail/sampler_impl.cpp"
     "detail/stream_impl.cpp"
@@ -255,11 +256,20 @@ if (MSVC)
   set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
     add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    endif()
   else()
     add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    endif()
   endif()
   unset(WIN_DUPE)
   add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_library(sycl-previewd ALIAS sycl${SYCL_MAJOR_VERSION}-previewd)
+  endif()
 
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
@@ -278,12 +288,21 @@ endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
   add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+  endif()
 else()
   add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+  endif()
 endif()
 
 if (WIN32)
   add_library(sycl ALIAS ${LIB_NAME})
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_library(sycl-preview ALIAS sycl${SYCL_MAJOR_VERSION}-preview)
+  endif()
 endif()
 
 install(TARGETS ${SYCL_RT_LIBS}

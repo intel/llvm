@@ -126,14 +126,16 @@ int main() {
   free(PtrB2, Queue);
   free(PtrC2, Queue);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
-  assert(ReferenceC == HostTaskOutput);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, ReferenceC[i], HostTaskOutput[i], "HostTaskOutput"));
 
-  assert(ReferenceA == DataA2);
-  assert(ReferenceB == DataB2);
-  assert(ReferenceC == DataC2);
+    assert(check_value(i, ReferenceA[i], DataA2[i], "DataA2"));
+    assert(check_value(i, ReferenceB[i], DataB2[i], "DataB2"));
+    assert(check_value(i, ReferenceC[i], DataC2[i], "DataC2"));
+  }
 
   return 0;
 }

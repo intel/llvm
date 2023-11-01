@@ -234,18 +234,6 @@ void DwarfStreamer::emitSectionContents(StringRef SecData, StringRef SecName) {
   }
 }
 
-/// Emit DIE containing warnings.
-void DwarfStreamer::emitPaperTrailWarningsDie(DIE &Die) {
-  switchToDebugInfoSection(/* Version */ 2);
-  auto &Asm = getAsmPrinter();
-  Asm.emitInt32(11 + Die.getSize() - 4);
-  Asm.emitInt16(2);
-  Asm.emitInt32(0);
-  Asm.emitInt8(MC->getTargetTriple().isArch64Bit() ? 8 : 4);
-  DebugInfoSectionSize += 11;
-  emitDIE(Die);
-}
-
 /// Emit the debug_str section stored in \p Pool.
 void DwarfStreamer::emitStrings(const NonRelocatableStringpool &Pool) {
   Asm->OutStreamer->switchSection(MOFI->getDwarfStrSection());
@@ -303,13 +291,12 @@ void DwarfStreamer::emitLineStrings(const NonRelocatableStringpool &Pool) {
   }
 }
 
-void DwarfStreamer::emitDebugNames(
-    AccelTable<DWARF5AccelTableStaticData> &Table) {
+void DwarfStreamer::emitDebugNames(DWARF5AccelTable &Table) {
   if (EmittedUnits.empty())
     return;
 
   // Build up data structures needed to emit this section.
-  std::vector<MCSymbol *> CompUnits;
+  std::vector<std::variant<MCSymbol *, uint64_t>> CompUnits;
   DenseMap<unsigned, size_t> UniqueIdToCuMap;
   unsigned Id = 0;
   for (auto &CU : EmittedUnits) {
@@ -319,11 +306,10 @@ void DwarfStreamer::emitDebugNames(
   }
 
   Asm->OutStreamer->switchSection(MOFI->getDwarfDebugNamesSection());
-  emitDWARF5AccelTable(
-      Asm.get(), Table, CompUnits,
-      [&UniqueIdToCuMap](const DWARF5AccelTableStaticData &Entry) {
-        return UniqueIdToCuMap[Entry.getCUIndex()];
-      });
+  emitDWARF5AccelTable(Asm.get(), Table, CompUnits,
+                       [&UniqueIdToCuMap](const DWARF5AccelTableData &Entry) {
+                         return UniqueIdToCuMap[Entry.getUnitID()];
+                       });
 }
 
 void DwarfStreamer::emitAppleNamespaces(

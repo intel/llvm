@@ -31,7 +31,7 @@ inline namespace _V1 {
 // TODO: Move these feature-test macros to compiler driver.
 #define SYCL_EXT_INTEL_DEVICE_INFO 6
 #define SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE 1
-#define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 1
+#define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 2
 #define SYCL_EXT_ONEAPI_LOCAL_MEMORY 1
 #define SYCL_EXT_ONEAPI_MATRIX 1
 #define SYCL_EXT_ONEAPI_ASSERT 1
@@ -67,6 +67,9 @@ inline namespace _V1 {
 #define SYCL_EXT_INTEL_USM_ADDRESS_SPACES 2
 #define SYCL_EXT_INTEL_RUNTIME_BUFFER_LOCATION 1
 #define SYCL_EXT_INTEL_QUEUE_INDEX 1
+#define SYCL_EXT_INTEL_FPGA_MEM 1
+#define SYCL_EXT_INTEL_FPGA_DATAPATH 1
+#define SYCL_EXT_ONEAPI_AUTO_LOCAL_RANGE 1
 #define SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO 5
 #define SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY 1
 #define SYCL_EXT_ONEAPI_KERNEL_PROPERTIES 1
@@ -87,6 +90,7 @@ inline namespace _V1 {
 #define SYCL_EXT_CODEPLAY_MAX_REGISTERS_PER_WORK_GROUP_QUERY 1
 #define SYCL_EXT_ONEAPI_DEVICE_GLOBAL 1
 #define SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST 1
+#define SYCL_EXT_ONEAPI_PREFETCH 1
 
 #ifndef __has_include
 #define __has_include(x) 0
@@ -98,10 +102,6 @@ inline namespace _V1 {
 
 #if __has_include("detail/plugins/hip/features.hpp")
 #include "detail/plugins/hip/features.hpp"
-#endif
-
-#if __has_include("detail/plugins/esimd_emulator/features.hpp")
-#include "detail/plugins/esimd_emulator/features.hpp"
 #endif
 
 } // namespace _V1

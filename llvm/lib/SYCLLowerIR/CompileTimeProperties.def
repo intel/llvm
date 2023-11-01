@@ -7,7 +7,8 @@
 \*===----------------------------------------------------------------------===*/
 
 #ifndef SYCL_COMPILE_TIME_PROPERTY
-#error "SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType) is not defined."
+#error                                                                         \
+    "SYCL_COMPILE_TIME_PROPERTY(PropertyName, Decoration, ValueType) is not defined."
 #endif
 
 // The corresponding SPIR-V OpCodes for the sycl-init-mode and
@@ -32,4 +33,30 @@ SYCL_COMPILE_TIME_PROPERTY("sycl-wait-request", 6182, DecorValueTy::uint32)
 SYCL_COMPILE_TIME_PROPERTY("sycl-stable", 6183, DecorValueTy::boolean)
 SYCL_COMPILE_TIME_PROPERTY("sycl-strict", 19, DecorValueTy::boolean)
 SYCL_COMPILE_TIME_PROPERTY("sycl-latency-anchor-id", 6172, DecorValueTy::string)
-SYCL_COMPILE_TIME_PROPERTY("sycl-latency-constraint", 6173, DecorValueTy::string)
+SYCL_COMPILE_TIME_PROPERTY("sycl-latency-constraint", 6173,
+                           DecorValueTy::string)
+
+// The corresponding SPIR-V OpCodes for fpga_mem/fpga_datapath
+// SYCL Spec: https://github.com/intel/llvm/pull/9533
+// SPIR-V Spec: https://github.com/KhronosGroup/SPIRV-Registry/pull/215
+SYCL_COMPILE_TIME_PROPERTY("sycl-datapath", 5825, DecorValueTy::none)
+SYCL_COMPILE_TIME_PROPERTY("sycl-resource", 5826, DecorValueTy::string)
+SYCL_COMPILE_TIME_PROPERTY("sycl-num-banks", 5827, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-ram-stitching", 5836, DecorValueTy::boolean)
+SYCL_COMPILE_TIME_PROPERTY("sycl-max-private-copies", 5829,
+                           DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-num-replicates", 5832, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-bi-directional-ports-false", 5833,
+                           DecorValueTy::none)
+SYCL_COMPILE_TIME_PROPERTY("sycl-clock-2x-false", 5830, DecorValueTy::none)
+SYCL_COMPILE_TIME_PROPERTY("sycl-clock-2x-true", 5831, DecorValueTy::none)
+SYCL_COMPILE_TIME_PROPERTY("sycl-stride-size", 5883, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-word-size", 5884, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-bi-directional-ports-true", 5885,
+                           DecorValueTy::none)
+
+// The corresponding SPIR-V OpCodes for sycl_ext_oneapi_prefetch
+// SYCL Spec: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_prefetch.asciidoc
+// SPIR-V Spec: https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_cache_controls.asciidoc
+SYCL_COMPILE_TIME_PROPERTY("sycl-prefetch-hint", 6442, DecorValueTy::uint32)
+SYCL_COMPILE_TIME_PROPERTY("sycl-prefetch-hint-nt", 6442, DecorValueTy::uint32)

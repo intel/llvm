@@ -7,6 +7,11 @@ endif()
 include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
   NO_POLICY_SCOPE)
 
+# `llvm-project/llvm/CMakeLists.txt` adds the following directive
+# `include_directories( ${LLVM_INCLUDE_DIR} ${LLVM_MAIN_INCLUDE_DIR})`
+# We undo it to be able to precisely control what is getting included.
+set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES "")
+
 # Default to C++17
 set(CMAKE_CXX_STANDARD 17)
 
@@ -190,7 +195,17 @@ if(LLVM_LIBC_ENABLE_LINTING)
     if(LLVM_LIBC_CLANG_TIDY)
       # Check clang-tidy major version.
       execute_process(COMMAND ${LLVM_LIBC_CLANG_TIDY} "--version"
-                      OUTPUT_VARIABLE CLANG_TIDY_OUTPUT)
+        OUTPUT_VARIABLE CLANG_TIDY_OUTPUT
+        ERROR_VARIABLE CLANG_TIDY_ERROR
+        RESULT_VARIABLE CLANG_TIDY_RESULT)
+
+      if(CLANG_TIDY_RESULT AND NOT CLANG_TIDY_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to execute '${LLVM_LIBC_CLANG_TIDY} --version'
+          output : '${CLANG_TIDY_OUTPUT}'
+          error  : '${CLANG_TIDY_ERROR}'
+          result : '${CLANG_TIDY_RESULT}'
+          ")
+      endif()
       string(REGEX MATCH "[0-9]+" CLANG_TIDY_VERSION "${CLANG_TIDY_OUTPUT}")
       string(REGEX MATCH "[0-9]+" CLANG_MAJOR_VERSION
         "${CMAKE_CXX_COMPILER_VERSION}")

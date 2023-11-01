@@ -2,9 +2,9 @@
 // RUN: %{run} %t.out
 
 #ifdef _WIN32
-#define _USE_MATH_DEFINES // To use vath constants
-#include <cmath>
+#define _USE_MATH_DEFINES // To use math constants
 #endif
+#include <cmath>
 
 #include <sycl/sycl.hpp>
 

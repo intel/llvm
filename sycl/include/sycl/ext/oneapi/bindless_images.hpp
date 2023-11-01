@@ -214,6 +214,38 @@ __SYCL_EXPORT interop_mem_handle import_external_memory(
     const sycl::queue &syclQueue);
 
 /**
+ *  @brief   [Deprecated] Maps an interop memory handle to an image memory
+ *           handle (which may have a device optimized memory layout)
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   desc        The image descriptor
+ *  @param   syclDevice The device in which we create our image memory handle
+ *  @param   syclContext The conext in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext);
+
+/**
+ *  @brief   [Deprecated] Maps an interop memory handle to an image memory
+ *           handle (which may have a device optimized memory layout)
+ *
+ *  @param   memHandle   Interop memory handle
+ *  @param   desc        The image descriptor
+ *  @param   syclQueue   The queue in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue);
+
+/**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
  *           have a device optimized memory layout)
  *
@@ -223,9 +255,11 @@ __SYCL_EXPORT interop_mem_handle import_external_memory(
  *  @param   syclContext The conext in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::device &syclDevice, const sycl::context &syclContext);
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext);
 
 /**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
@@ -236,9 +270,10 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
  *  @param   syclQueue   The queue in which we create our image memory handle
  *  @return  Memory handle to externally allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::queue &syclQueue);
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external semaphore taking an external semaphore handle (the
@@ -633,15 +668,26 @@ get_image_num_channels(const image_mem_handle memHandle,
                        const sycl::queue &syclQueue);
 
 namespace detail {
+
+// is sycl::vec
+template <typename T> struct is_vec {
+  static constexpr bool value = false;
+};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> {
+  static constexpr bool value = true;
+};
+template <typename T> inline constexpr bool is_vec_v = is_vec<T>::value;
+
 // Get the number of coordinates
 template <typename CoordT> constexpr size_t coord_size() {
-  if constexpr (std::is_scalar<CoordT>::value) {
+  if constexpr (std::is_scalar_v<CoordT>) {
     return 1;
   } else {
     return CoordT::size();
   }
 }
 
+#if defined(__NVPTX__)
 // bit_cast Color to a type the NVPTX backend is known to accept
 template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
   constexpr size_t dataSize = sizeof(DataT);
@@ -662,7 +708,31 @@ template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
     return sycl::bit_cast<sycl::vec<uint32_t, 4>>(Color);
   }
 }
+#endif
 
+// assert coords or elements of coords is of an integer type
+template <typename CoordT> constexpr void assert_unsampled_coords() {
+  if constexpr (std::is_scalar_v<CoordT>) {
+    static_assert(std::is_same_v<CoordT, int>,
+                  "Expected integer coordinate data type");
+  } else {
+    static_assert(is_vec_v<CoordT>, "Expected sycl::vec coordinates");
+    static_assert(std::is_same_v<typename CoordT::element_type, int>,
+                  "Expected integer coordinates data type");
+  }
+}
+
+// assert coords or elements of coords is of a float type
+template <typename CoordT> constexpr void assert_sampled_coords() {
+  if constexpr (std::is_scalar_v<CoordT>) {
+    static_assert(std::is_same_v<CoordT, float>,
+                  "Expected float coordinate data type");
+  } else {
+    static_assert(is_vec_v<CoordT>, "Expected sycl::vec coordinates");
+    static_assert(std::is_same_v<typename CoordT::element_type, float>,
+                  "Expected float coordinates data type");
+  }
+}
 } // namespace detail
 
 /**
@@ -670,7 +740,7 @@ template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
  *
  *  @tparam  DataT The return type
  *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int4 for
- *           1D, 2D, and 3D respectively
+ *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to fetch image data
  *  @return  Image data
@@ -684,10 +754,11 @@ template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
 template <typename DataT, typename CoordT>
 DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
+  detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
-                "for 1D, 2D and 3D images respectively.");
+                "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
@@ -705,7 +776,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  @tparam  DataT The return type
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
- *           1D, 2D, and 3D respectively
+ *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to fetch image data
  *  @return  Sampled image data
@@ -719,10 +790,11 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 template <typename DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
-                "for 1D, 2D and 3D images respectively.");
+                "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
@@ -740,20 +812,21 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  @tparam  DataT The return type
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
- *           1D, 2D, and 3D respectively
+ *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The mipmap image handle
  *  @param   coords The coordinates at which to fetch mipmap image data
  *  @param   level The mipmap level at which to sample
  *  @return  Mipmap image data with LOD filtering
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]],
-                 const float level [[maybe_unused]]) {
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const float level [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
-                "for 1D, 2D and 3D images respectively.");
+                "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
@@ -771,7 +844,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  @tparam  DataT The return type
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
- *           1D, 2D, and 3D respectively
+ *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The mipmap image handle
  *  @param   coords The coordinates at which to fetch mipmap image data
  *  @param   dX Screen space gradient in the x dimension
@@ -779,15 +852,87 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @return  Mipmap image data with anisotropic filtering
  */
 template <typename DataT, typename CoordT>
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const CoordT &dX [[maybe_unused]],
+                  const CoordT &dY [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinates and gradients to have 1, 2, or 4 "
+                "components for 1D, 2D, and 3D images, respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
+#else
+  // TODO: add SPIRV part for mipmap grad read
+#endif
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to fetch mipmap image data
+ *  @param   level The mipmap level at which to sample
+ *  @return  Mipmap image data with LOD filtering
+ */
+template <typename DataT, typename CoordT>
+__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
+                  "Instead use read_mipmap.")
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]],
+                 const float level [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
+                "Expected input coordinate to be have 1, 2, or 4 components "
+                "for 1D, 2D and 3D images, respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
+#else
+  // TODO: add SPIRV for mipmap level read
+#endif
+#else
+  assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to fetch mipmap image data
+ *  @param   dX Screen space gradient in the x dimension
+ *  @param   dY Screen space gradient in the y dimension
+ *  @return  Mipmap image data with anisotropic filtering
+ */
+template <typename DataT, typename CoordT>
+__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
+                  "Instead use read_mipmap.")
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const CoordT &dX [[maybe_unused]],
                  const CoordT &dY [[maybe_unused]]) {
+  detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinate and gradient to have 1, 2, or 4 "
-                "components "
-                "for 1D, 2D and 3D images respectively.");
+                "Expected input coordinates and gradients to have 1, 2, or 4 "
+                "components for 1D, 2D, and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
@@ -805,23 +950,24 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  @tparam  DataT The data type to write
  *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int4 for
- *           1D, 2D, and 3D respectively
+ *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to write image data
  */
 template <typename DataT, typename CoordT>
 void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &Coords [[maybe_unused]],
-                 const DataT &Color [[maybe_unused]]) {
+                 const CoordT &coords [[maybe_unused]],
+                 const DataT &color [[maybe_unused]]) {
+  detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
-                "for 1D, 2D and 3D images respectively.");
+                "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, Coords,
-                       detail::convert_color_nvptx(Color));
+  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
+                       detail::convert_color_nvptx(color));
 #else
   // TODO: add SPIRV part for unsampled image write
 #endif

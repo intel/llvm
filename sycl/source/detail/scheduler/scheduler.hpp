@@ -438,6 +438,8 @@ public:
 
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
+  /// \return true if an instance of the scheduler object exists.
+  static bool isInstanceAlive();
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
@@ -459,7 +461,7 @@ public:
 
   Scheduler();
   ~Scheduler();
-  void releaseResources();
+  void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
   void enqueueCommandForCG(EventImplPtr NewEvent,
