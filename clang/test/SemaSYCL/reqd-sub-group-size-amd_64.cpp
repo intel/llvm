@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple amdgcn-amd-amdhsa -target-cpu gfx90a -internal-isystem %S/Inputs -std=c++2b -verify %s
 
-// Sub-group size is optimized for 32, warn (and ignore the attribute) if the
-// size exceeds 32.
+// Sub-group size is optimized for 64, warn (and ignore the attribute) if the
+// size is not 64.
 #include "sycl.hpp"
 
 int main() {
