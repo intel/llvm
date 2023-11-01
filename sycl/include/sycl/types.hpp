@@ -534,6 +534,22 @@ class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
 
+// Helper type for getting the return type of vec::operator! based on Table 143
+// of the SYCL 2020 specification.
+template <size_t N> struct OperatorNotReturnType {};
+template <> struct OperatorNotReturnType<1> {
+  using type = int8_t;
+};
+template <> struct OperatorNotReturnType<2> {
+  using type = int16_t;
+};
+template <> struct OperatorNotReturnType<4> {
+  using type = int32_t;
+};
+template <> struct OperatorNotReturnType<8> {
+  using type = int64_t;
+};
+
 } // namespace detail
 
 template <typename T> using vec_data = detail::vec_helper<T>;
@@ -1267,10 +1283,14 @@ public:
     return Ret;
   }
 
+  template <typename T>
+  using OpNotRet = typename detail::OperatorNotReturnType<sizeof(T)>::type;
+
   // operator!
   template <typename T = DataT, int N = NumElements>
-  EnableIfNotUsingArray<vec<T, N>> operator!() const {
-    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data};
+  EnableIfNotUsingArray<vec<OpNotRet<T>, N>> operator!() const {
+    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data}
+        .template as<vec<OpNotRet<T>, N>>();
   }
 
   // std::byte neither supports ! unary op or casting, so special handling is
@@ -1279,32 +1299,32 @@ public:
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<T, N>>
+                            vec<OpNotRet<T>, N>>
   operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
     }
-    return Ret;
+    return Ret.template as<vec<OpNotRet<T>, N>>();
   }
 
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<!std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<T, N>>
+                            vec<OpNotRet<T>, N>>
   operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
-    return Ret;
+    return Ret.template as<vec<OpNotRet<T>, N>>();
   }
 #else
   template <typename T = DataT, int N = NumElements>
-  EnableIfUsingArray<vec<T, N>> operator!() const {
+  EnableIfUsingArray<vec<OpNotRet<T>, N>> operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
-    return Ret;
+    return Ret.template as<vec<OpNotRet<T>, N>>();
   }
 #endif
 
