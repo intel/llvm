@@ -1,4 +1,4 @@
-// REQUIRES: accelerator
+// REQUIRES: accelerator, opencl-aot
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
