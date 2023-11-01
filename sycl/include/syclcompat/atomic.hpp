@@ -374,6 +374,63 @@ inline T atomic_fetch_max(T *addr, T operand, sycl::memory_order memoryOrder) {
   }
 }
 
+/// Atomically set \p operand to the value stored in \p addr, if old value
+/// stored in \p addr is equal to zero or greater than \p operand, else decrease
+/// the value stored in \p addr. \param [in, out] addr The pointer to the data.
+/// \param operand The threshold value.
+/// \param memoryOrder The memory ordering used.
+/// \returns The old value stored in \p addr.
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::global_space,
+          sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
+          sycl::memory_scope memoryScope = sycl::memory_scope::device>
+unsigned int atomic_fetch_compare_dec(unsigned int *addr,
+                                      unsigned int operand) {
+  auto atm =
+      sycl::atomic_ref<unsigned int, memoryOrder, memoryScope, addressSpace>(
+          addr[0]);
+  unsigned int old;
+
+  while (true) {
+    old = atm.load();
+    if (old == 0 || old > operand) {
+      if (atm.compare_exchange_strong(old, operand))
+        break;
+    } else if (atm.compare_exchange_strong(old, old - 1))
+      break;
+  }
+
+  return old;
+}
+
+/// Atomically increment the value stored in \p addr if old value stored in \p
+/// addr is less than \p operand, else set 0 to the value stored in \p addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand The threshold value.
+/// \param memoryOrder The memory ordering used.
+/// \returns The old value stored in \p addr.
+template <sycl::access::address_space addressSpace =
+              sycl::access::address_space::global_space>
+unsigned int atomic_fetch_compare_dec(unsigned int *addr, unsigned int operand,
+                                      sycl::memory_order memoryOrder) {
+  switch (memoryOrder) {
+  case sycl::memory_order::relaxed:
+    return atomic_fetch_compare_dec<addressSpace, sycl::memory_order::relaxed,
+                                    sycl::memory_scope::device>(addr, operand);
+  case sycl::memory_order::acq_rel:
+    return atomic_fetch_compare_dec<addressSpace, sycl::memory_order::acq_rel,
+                                    sycl::memory_scope::device>(addr, operand);
+  case sycl::memory_order::seq_cst:
+    return atomic_fetch_compare_dec<addressSpace, sycl::memory_order::seq_cst,
+                                    sycl::memory_scope::device>(addr, operand);
+  default:
+    assert(false &&
+           "Invalid memory_order for atomics. Valid memory_order for "
+           "atomics are: sycl::memory_order::relaxed, "
+           "sycl::memory_order::acq_rel, sycl::memory_order::seq_cst!");
+  }
+}
+
 /// Atomically increment the value stored in \p addr if old value stored in \p
 /// addr is less than \p operand, else set 0 to the value stored in \p addr.
 /// \param [in, out] addr The pointer to the data.

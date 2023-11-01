@@ -63,6 +63,15 @@ inline void atomic_fetch_compare_inc_kernel(T *data, T operand) {
   }
 }
 template <typename T, bool orderArg = false>
+inline void atomic_fetch_compare_dec_kernel(T *data, T operand) {
+  if constexpr (orderArg) {
+    syclcompat::atomic_fetch_compare_dec(data, operand,
+                                         sycl::memory_order::relaxed);
+  } else {
+    syclcompat::atomic_fetch_compare_dec(data, operand);
+  }
+}
+template <typename T, bool orderArg = false>
 inline void atomic_exchange_kernel(T *data, T operand) {
   if constexpr (orderArg) {
     syclcompat::atomic_exchange(data, operand, sycl::memory_order::relaxed);
@@ -81,7 +90,7 @@ inline void atomic_compare_exchange_strong_kernel(T *data, T expected,
   }
 }
 
-void test_atomic_comp() {
+void test_atomic_comp_inc() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
@@ -100,6 +109,27 @@ void test_atomic_comp() {
   AtomicLauncher<atomic_fetch_compare_inc_kernel<unsigned int, true>,
                  unsigned int>(grid, threads)
       .launch_test(1, 0, 6);
+}
+
+void test_atomic_comp_dec() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{6};
+
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int>, unsigned int>(
+      grid, threads)
+      .launch_test(6, 0, 0);
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int>, unsigned int>(
+      grid, threads)
+      .launch_test(0, 6, 11);
+
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int, true>,
+                 unsigned int>(grid, threads)
+      .launch_test(6, 0, 0);
+  AtomicLauncher<atomic_fetch_compare_dec_kernel<unsigned int, true>,
+                 unsigned int>(grid, threads)
+      .launch_test(0, 6, 11);
 }
 
 template <typename T> void test_atomic_exch() {
@@ -195,5 +225,6 @@ int main() {
   INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_ptr_exch);
   INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_ptr_exch_strong);
 
-  test_atomic_comp();
+  test_atomic_comp_inc();
+  test_atomic_comp_dec();
 }
