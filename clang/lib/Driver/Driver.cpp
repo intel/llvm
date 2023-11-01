@@ -5808,12 +5808,12 @@ class OffloadingActionBuilder final {
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
           types::ID PostLinkOutType = isSPIR || isSYCLNativeCPU
-                                          ? types::TY_Filetable
+                                          ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
             // For SPIR-V targets, force TY_Filetable.
             auto TypedPostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, PostLinkOutType, types::TY_Filetable);
+                FullDeviceLinkAction, PostLinkOutType, types::TY_Tempfiletable);
             TypedPostLinkAction->setRTSetsSpecConstants(!isAOT);
             return TypedPostLinkAction;
           };

@@ -172,27 +172,17 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
 bool Compilation::CleanupFileList(const TempFileList &Files,
                                   bool IssueErrors) const {
   bool Success = true;
-  for (const auto &File: Files) {
-    // new code
-    /*
-    if(File.second == types::TY_Filetable) {
-      Expected<llvm::util::SimpleTable::UPtrTy> Table =
-      llvm::util::SimpleTable::read(File);
-      if (!Table)
-          return Table1.takeError();
-      Error Res = Table.peelColumns({"Code"});
-      return Res ? std::move(Res) : std::move(Error::success());
-    }
-  */
-    // end new code
-
+  for (const auto &File : Files) {
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
+
     if (File.second == types::TY_Tempfilelist ||
         File.second == types::TY_Tempfiletable ||
-        File.second == types::TY_FPGA_Dependencies_List) {
+        File.second == types::TY_FPGA_Dependencies_List ||
+        File.second == types::TY_Filetable) {
       // These are temporary files and need to be removed.
-      bool IsTable = File.second == types::TY_Tempfiletable;
+      bool IsTable = File.second == types::TY_Tempfiletable ||
+                     File.second == types::TY_Filetable;
 
       if (IsTable) {
         if (llvm::sys::fs::exists(File.first)) {
@@ -201,8 +191,16 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
             Success = false;
             continue;
           }
+          llvm::util::SimpleTable &Table = *T->get();
+          if (TheDriver.isDumpDeviceCodeEnabled() &&
+              File.second == types::TY_Filetable) {
+            llvm::Error Res = Table.peelColumns({"Code"});
+            if (Res)
+              Success = false;
+          }
+
           std::vector<std::string> TmpFileNames;
-          T->get()->linearize(TmpFileNames);
+          Table.linearize(TmpFileNames);
 
           for (const auto &TmpFileName : TmpFileNames) {
             if (!TmpFileName.empty())

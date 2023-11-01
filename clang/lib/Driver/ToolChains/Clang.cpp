@@ -10055,7 +10055,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // output LLVMIR
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
-    assert(SYCLPostLink->getTrueType() == types::TY_Filetable);
+    assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
     bool SplitEsimdByDefault = getToolChain().getTriple().isSPIR();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
