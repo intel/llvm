@@ -11,9 +11,6 @@
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_usm/alloc_util.hpp>
 
-#define VALIDATE_PROPERTIES(t)                                                 \
-  detail::ValidAllocPropertyList<t, propertyListA>::value
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -43,7 +40,7 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
                         const device &syclDevice, const context &syclContext,
                         sycl::usm::alloc kind,
                         const propertyListA &propList = properties{}) {
-  VALIDATE_PROPERTIES(void);
+  detail::ValidAllocPropertyList<void, propertyListA>::value;
 
   // The input argument `propList` is useful when propertyListA contains valid
   // runtime properties. While such case is not defined yet, suppress unused
@@ -85,7 +82,7 @@ aligned_alloc_annotated(size_t alignment, size_t count,
                         const device &syclDevice, const context &syclContext,
                         sycl::usm::alloc kind,
                         const propertyListA &propList = properties{}) {
-  VALIDATE_PROPERTIES(T);
+  detail::ValidAllocPropertyList<T, propertyListA>::value;
 
   // The input argument `propList` is useful when propertyListA contains valid
   // runtime properties. While such case is not defined yet, suppress unused
