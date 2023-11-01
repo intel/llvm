@@ -382,6 +382,11 @@ template <typename... Args> struct checkPropertiesForNonPointerType : std::true_
   static_assert(!has_wait_request,
                 "Property wait_request cannot be specified for "
                 "annotated_arg<T> when T is a non pointer type.");
+  static constexpr bool has_alignment =
+      ContainsProperty<alignment_key, list>::value;
+  static_assert(!has_alignment,
+                "Property alignment cannot be specified for "
+                "annotated_arg<T> when T is a non pointer type.");
 };
 } // namespace detail
 
