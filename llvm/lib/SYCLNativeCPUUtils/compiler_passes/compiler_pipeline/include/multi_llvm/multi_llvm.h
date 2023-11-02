@@ -67,24 +67,6 @@ inline void insertAtEnd(llvm::BasicBlock *bb, llvm::Instruction *newInst) {
 #endif
 }
 
-template <typename T>
-inline typename std::remove_reference_t<T>::ScalarTy getFixedValue(T &&V) {
-#if LLVM_VERSION_MAJOR >= 16
-  return V.getFixedValue();
-#else
-  return V.getFixedSize();
-#endif
-}
-
-template <typename T>
-inline typename std::remove_reference_t<T>::ScalarTy getKnownMinValue(T &&M) {
-#if LLVM_VERSION_MAJOR >= 16
-  return M.getKnownMinValue();
-#else
-  return M.getKnownMinSize();
-#endif
-}
-
 /// @brief Create a binary operation corresponding to the given
 /// `llvm::RecurKind` with the two provided arguments. It may not
 /// necessarily return one of LLVM's in-built `BinaryOperator`s, or even one

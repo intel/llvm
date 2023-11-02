@@ -171,8 +171,9 @@ SimdWidthAnalysis::Result SimdWidthAnalysis::run(
   VectorizationUnit &VU = AM.getResult<VectorizationUnitAnalysis>(F).getVU();
 
   // If the target does not provide vector registers, return 0.
-  MaxVecRegBitWidth = multi_llvm::getFixedValue(
-      TTI.getRegisterBitWidth(llvm::TargetTransformInfo::RGK_FixedWidthVector));
+  MaxVecRegBitWidth =
+      TTI.getRegisterBitWidth(llvm::TargetTransformInfo::RGK_FixedWidthVector)
+          .getFixedValue();
 
   if (MaxVecRegBitWidth == 0) {
     return 0;
