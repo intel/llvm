@@ -320,7 +320,7 @@
 // CHK-LINK-UB: 3: sycl-post-link, {2}, ir, (device-sycl)
 // CHK-LINK-UB: 4: file-table-tform, {3}, tempfilelist, (device-sycl)
 // CHK-LINK-UB: 5: llvm-spirv, {4}, tempfilelist, (device-sycl)
-// CHK-LINK-UB: 6: file-table-tform, {3, 5}, tempfiletable, (device-sycl)
+// CHK-LINK-UB: 6: file-table-tform, {3, 5}, filetable, (device-sycl)
 // CHK-LINK-UB: 7: clang-offload-wrapper, {6}, object, (device-sycl)
 // CHK-LINK-UB: 8: offload, "device-sycl (spir64-unknown-unknown)" {7}, object
 
@@ -338,7 +338,7 @@
 // CHK-LINK: 4: sycl-post-link, {3}, ir, (device-sycl)
 // CHK-LINK: 5: file-table-tform, {4}, tempfilelist, (device-sycl)
 // CHK-LINK: 6: llvm-spirv, {5}, tempfilelist, (device-sycl)
-// CHK-LINK: 7: file-table-tform, {4, 6}, tempfiletable, (device-sycl)
+// CHK-LINK: 7: file-table-tform, {4, 6}, filetable, (device-sycl)
 // CHK-LINK: 8: clang-offload-wrapper, {7}, object, (device-sycl)
 // CHK-LINK: 9: offload, "device-sycl (spir64-unknown-unknown)" {8}, object
 
