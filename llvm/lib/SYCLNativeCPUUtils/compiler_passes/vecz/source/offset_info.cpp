@@ -36,7 +36,7 @@ using namespace llvm;
 
 namespace {
 inline uint64_t SizeOrZero(TypeSize &&T) {
-  return T.isScalable() ? 0 : multi_llvm::getFixedValue(T);
+  return T.isScalable() ? 0 : T.getFixedValue();
 }
 
 uint8_t highbit(const uint32_t x) {
