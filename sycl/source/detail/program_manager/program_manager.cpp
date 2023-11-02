@@ -1065,7 +1065,7 @@ ProgramManager::getDeviceImage(const char *KernelName, const context &Context,
                                     Context, Device);
       assert(Img && "No binary image found for kernel id");
     } else {
-      Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, Context,
+      Img = getBinImageFromMultiMap(m_ServiceKernels, std::string(KernelName), Context,
                                     Device);
     }
   }

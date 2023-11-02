@@ -349,7 +349,7 @@ private:
   /// in the sycl::detail::__sycl_service_kernel__ namespace which is
   /// exclusively used for this purpose.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<const char *, RTDeviceBinaryImage *> m_ServiceKernels;
+  std::unordered_multimap<std::string, RTDeviceBinaryImage *> m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.
