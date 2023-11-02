@@ -53,14 +53,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/jandres742/unified-runtime.git")
   # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
   # Merge: 2ab0734 86f96f0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Fri Oct 27 16:36:23 2023 +0100
   #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
   #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
-  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
+  set(UNIFIED_RUNTIME_TAG 176fb77102185676b858d2f209cd1f76a593b2ed)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
