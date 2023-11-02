@@ -50,19 +50,20 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
 }
 
 enum CommandType { KERNEL = 1, MEMSET = 2 };
-std::vector<CommandType> ExecutedCommands;
+std::vector<std::pair<CommandType, size_t>> ExecutedCommands;
 
 inline pi_result customEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                            const size_t *, const size_t *,
-                                           const size_t *, pi_uint32,
+                                           const size_t *,
+                                           pi_uint32 EventsCount,
                                            const pi_event *, pi_event *) {
-  ExecutedCommands.push_back(CommandType::KERNEL);
+  ExecutedCommands.push_back({CommandType::KERNEL, EventsCount});
   return PI_SUCCESS;
 }
 inline pi_result customextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
-                                           pi_uint32, const pi_event *,
-                                           pi_event *) {
-  ExecutedCommands.push_back(CommandType::MEMSET);
+                                           pi_uint32 EventsCount,
+                                           const pi_event *, pi_event *) {
+  ExecutedCommands.push_back({CommandType::MEMSET, EventsCount});
   return PI_SUCCESS;
 }
 
@@ -118,6 +119,8 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
-  EXPECT_EQ(ExecutedCommands[0], MEMSET);
-  EXPECT_EQ(ExecutedCommands[1], KERNEL);
+  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, MEMSET);
+  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
+  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, KERNEL);
+  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
 }
