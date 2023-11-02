@@ -462,7 +462,7 @@ annotated_ptr& operator++() noexcept;
 Prefix increment operator.
 
 If property list contains properties that are not sustainable through pointer
-arithemic, this operator errors out.
+arithmetic, this operator is not valid and if it is used a diagnostic is required.
 
 // --- ROW BREAK ---
 a|
@@ -474,7 +474,7 @@ annotated_ptr operator++(int) noexcept;
 Postfix increment operator.
 
 If property list contains properties that are not sustainable through pointer
-arithemic, this operator errors out.
+arithmetic, this operator is not valid and if it is used a diagnostic is required.
 
 // --- ROW BREAK ---
 a|
@@ -486,7 +486,7 @@ annotated_ptr& operator--() noexcept;
 Prefix decrement operator.
 
 If property list contains properties that are not sustainable through pointer
-arithemic, this operator errors out.
+arithmetic, this operator is not valid and if it is used a diagnostic is required.
 
 // --- ROW BREAK ---
 a|
@@ -498,7 +498,7 @@ annotated_ptr operator--(int) noexcept;
 Postfix decrement operator.
 
 If property list contains properties that are not sustainable through pointer
-arithemic, this operator errors out.
+arithmetic, this operator is not valid and if it is used a diagnostic is required.
 
 // --- ROW BREAK ---
 a|
