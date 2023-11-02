@@ -279,13 +279,15 @@ template <typename T> struct test_pow_cplx_deci {
 
     /* Check cplx::complex output from device */
     Q.single_task([=]() {
-       *cplx_out = experimental::pow(cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
+       *cplx_out = experimental::pow(
+           cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
      }).wait();
     pass &= check_results(*cplx_out, convert_marray<T>(std_out),
                           /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = experimental::pow(cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
+    *cplx_out = experimental::pow(
+        cplx_in, sycl::ext::oneapi::experimental::real(cplx_in));
     pass &= check_results(*cplx_out, convert_marray<T>(std_out),
                           /*is_device*/ false);
 
@@ -334,13 +336,15 @@ template <typename T> struct test_pow_deci_cplx {
 
     /* Check cplx::complex output from device */
     Q.single_task([=]() {
-       *cplx_out = experimental::pow(sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
+       *cplx_out = experimental::pow(
+           sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
      }).wait();
     pass &= check_results(*cplx_out, convert_marray<T>(std_out),
                           /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = experimental::pow(sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
+    *cplx_out = experimental::pow(
+        sycl::ext::oneapi::experimental::real(cplx_in), cplx_in);
     pass &= check_results(*cplx_out, convert_marray<T>(std_out),
                           /*is_device*/ false);
 
