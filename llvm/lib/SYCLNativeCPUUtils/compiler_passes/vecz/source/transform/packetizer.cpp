@@ -36,7 +36,6 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils/LoopUtils.h>
-#include <multi_llvm/creation_apis_helper.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>

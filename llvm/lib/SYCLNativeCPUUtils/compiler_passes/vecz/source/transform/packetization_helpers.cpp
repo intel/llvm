@@ -27,7 +27,6 @@
 #include <llvm/Analysis/VectorUtils.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
-#include <multi_llvm/creation_apis_helper.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
