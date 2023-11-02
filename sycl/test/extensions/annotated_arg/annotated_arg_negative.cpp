@@ -8,7 +8,7 @@ using namespace ext::oneapi::experimental;
 using namespace ext::intel::experimental;
 
 void check_conduit_and_register_map_properties() {
-  // check for conduit and register_map properties specified for the same variable
+  // check for conduit and register_map properties specified together
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
   annotated_arg<int, decltype(properties{conduit, register_map})> a;
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
