@@ -284,8 +284,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
              (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Write device global variable is out of range.",
-                    UR_RESULT_ERROR_INVALID_VALUE);
-    return UR_RESULT_ERROR_UNKNOWN;
+                    UR_RESULT_ERROR_INVALID_VALUE,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
   // Copy engine is preferred only for host to device transfer.
@@ -333,8 +334,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
              (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Read from device global variable is out of range.",
-                    UR_RESULT_ERROR_INVALID_VALUE);
-    return UR_RESULT_ERROR_UNKNOWN;
+                    UR_RESULT_ERROR_INVALID_VALUE,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
   // Copy engine is preferred only for host to device transfer.
