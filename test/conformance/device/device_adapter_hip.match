@@ -1,6 +1,5 @@
 urDeviceCreateWithNativeHandleTest.Success
 urDeviceGetTest.InvalidValueNumEntries
-urDeviceGetGlobalTimestampTest.Success
-urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
+{{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_SUPPORTED_PARTITIONS
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_PARTITION_TYPE
