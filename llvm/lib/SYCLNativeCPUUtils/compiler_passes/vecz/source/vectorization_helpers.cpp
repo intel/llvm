@@ -22,8 +22,6 @@
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/Support/Debug.h>
-#include <multi_llvm/multi_llvm.h>
-#include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
 #include "vectorization_context.h"
@@ -221,6 +219,14 @@ Function *cloneFunctionToVector(VectorizationUnit const &VU) {
   return VectorizedFn;
 }
 
+static DILocation *getDILocation(unsigned Line, unsigned Column, MDNode *Scope,
+                                 MDNode *InlinedAt = nullptr) {
+  // If no scope is available, this is an unknown location.
+  if (!Scope) return DebugLoc();
+  return DILocation::get(Scope->getContext(), Line, Column, Scope, InlinedAt,
+                         /*ImplicitCode*/ false);
+}
+
 void cloneDebugInfo(VectorizationUnit const &VU) {
   DISubprogram *const ScalarDI = VU.scalarFunction()->getSubprogram();
   // We don't have debug info
@@ -279,14 +285,13 @@ void cloneDebugInfo(VectorizationUnit const &VU) {
             continue;
           }
 
-          const DebugLoc InlinedAtLoc = multi_llvm::getDILocation(
+          const DebugLoc InlinedAtLoc = getDILocation(
               InlinedLoc->getLine(), InlinedLoc->getColumn(), VectorDI);
-          VectorLoc =
-              multi_llvm::getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(),
-                                        ScalarLoc.getScope(), InlinedAtLoc);
+          VectorLoc = getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(),
+                                    ScalarLoc.getScope(), InlinedAtLoc);
         } else {
-          VectorLoc = multi_llvm::getDILocation(ScalarLoc.getLine(),
-                                                ScalarLoc.getCol(), VectorDI);
+          VectorLoc =
+              getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(), VectorDI);
         }
 
         // New DILocalVariable in the scope of vectorized function
@@ -353,15 +358,14 @@ void cloneDebugInfo(VectorizationUnit const &VU) {
         if (DILocation *const InlinedLoc = ScalarLoc.getInlinedAt()) {
           // Don't support nested inlined locations for now
           if (!InlinedLoc->getInlinedAt()) {
-            const DebugLoc VectorKernel = multi_llvm::getDILocation(
+            const DebugLoc VectorKernel = getDILocation(
                 InlinedLoc->getLine(), InlinedLoc->getColumn(), VectorDI);
-            VectorLoc = multi_llvm::getDILocation(
-                ScalarLoc.getLine(), ScalarLoc.getCol(), ScalarLoc.getScope(),
-                VectorKernel);
+            VectorLoc = getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(),
+                                      ScalarLoc.getScope(), VectorKernel);
           }
         } else {
-          VectorLoc = multi_llvm::getDILocation(ScalarLoc.getLine(),
-                                                ScalarLoc.getCol(), VectorDI);
+          VectorLoc =
+              getDILocation(ScalarLoc.getLine(), ScalarLoc.getCol(), VectorDI);
         }
         InstItr.setDebugLoc(VectorLoc);
       }

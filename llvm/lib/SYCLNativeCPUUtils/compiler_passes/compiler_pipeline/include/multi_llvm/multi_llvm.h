@@ -25,15 +25,6 @@
 
 namespace multi_llvm {
 
-inline llvm::DILocation *getDILocation(unsigned Line, unsigned Column,
-                                       llvm::MDNode *Scope,
-                                       llvm::MDNode *InlinedAt = nullptr) {
-  // If no scope is available, this is an unknown location.
-  if (!Scope) return llvm::DebugLoc();
-  return llvm::DILocation::get(Scope->getContext(), Line, Column, Scope,
-                               InlinedAt, /*ImplicitCode*/ false);
-}
-
 /// @brief Create a binary operation corresponding to the given
 /// `llvm::RecurKind` with the two provided arguments. It may not
 /// necessarily return one of LLVM's in-built `BinaryOperator`s, or even one
