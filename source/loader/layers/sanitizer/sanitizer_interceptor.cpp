@@ -140,6 +140,149 @@ inline constexpr uptr MemToShadow(uptr Addr, uptr ShadowOffset) {
     return ShadowOffset + ((Addr) >> ASAN_SHADOW_SCALE);
 }
 
+static auto getUrResultString = [](ur_result_t Result) {
+    switch (Result) {
+    case UR_RESULT_SUCCESS:
+        return "UR_RESULT_SUCCESS";
+    case UR_RESULT_ERROR_INVALID_OPERATION:
+        return "UR_RESULT_ERROR_INVALID_OPERATION";
+    case UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
+        return "UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES";
+    case UR_RESULT_ERROR_INVALID_QUEUE:
+        return "UR_RESULT_ERROR_INVALID_QUEUE";
+    case UR_RESULT_ERROR_INVALID_VALUE:
+        return "UR_RESULT_ERROR_INVALID_VALUE";
+    case UR_RESULT_ERROR_INVALID_CONTEXT:
+        return "UR_RESULT_ERROR_INVALID_CONTEXT";
+    case UR_RESULT_ERROR_INVALID_PLATFORM:
+        return "UR_RESULT_ERROR_INVALID_PLATFORM";
+    case UR_RESULT_ERROR_INVALID_BINARY:
+        return "UR_RESULT_ERROR_INVALID_BINARY";
+    case UR_RESULT_ERROR_INVALID_PROGRAM:
+        return "UR_RESULT_ERROR_INVALID_PROGRAM";
+    case UR_RESULT_ERROR_INVALID_SAMPLER:
+        return "UR_RESULT_ERROR_INVALID_SAMPLER";
+    case UR_RESULT_ERROR_INVALID_BUFFER_SIZE:
+        return "UR_RESULT_ERROR_INVALID_BUFFER_SIZE";
+    case UR_RESULT_ERROR_INVALID_MEM_OBJECT:
+        return "UR_RESULT_ERROR_INVALID_MEM_OBJECT";
+    case UR_RESULT_ERROR_INVALID_EVENT:
+        return "UR_RESULT_ERROR_INVALID_EVENT";
+    case UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        return "UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST";
+    case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
+        return "UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET";
+    case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
+        return "UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE";
+    case UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
+        return "UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE";
+    case UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
+        return "UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE";
+    case UR_RESULT_ERROR_DEVICE_NOT_FOUND:
+        return "UR_RESULT_ERROR_DEVICE_NOT_FOUND";
+    case UR_RESULT_ERROR_INVALID_DEVICE:
+        return "UR_RESULT_ERROR_INVALID_DEVICE";
+    case UR_RESULT_ERROR_DEVICE_LOST:
+        return "UR_RESULT_ERROR_DEVICE_LOST";
+    case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
+        return "UR_RESULT_ERROR_DEVICE_REQUIRES_RESET";
+    case UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE:
+        return "UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE";
+    case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
+        return "UR_RESULT_ERROR_DEVICE_PARTITION_FAILED";
+    case UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT:
+        return "UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT";
+    case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
+        return "UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE";
+    case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
+        return "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
+    case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
+        return "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
+    case UR_RESULT_ERROR_INVALID_KERNEL:
+        return "UR_RESULT_ERROR_INVALID_KERNEL";
+    case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
+        return "UR_RESULT_ERROR_INVALID_KERNEL_NAME";
+    case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
+        return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX";
+    case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
+        return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE";
+    case UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
+        return "UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE";
+    case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
+        return "UR_RESULT_ERROR_INVALID_IMAGE_SIZE";
+    case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+        return "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
+    case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
+        return "UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED";
+    case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
+        return "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
+    case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
+        return "UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE";
+    case UR_RESULT_ERROR_UNINITIALIZED:
+        return "UR_RESULT_ERROR_UNINITIALIZED";
+    case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
+        return "UR_RESULT_ERROR_OUT_OF_HOST_MEMORY";
+    case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
+        return "UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY";
+    case UR_RESULT_ERROR_OUT_OF_RESOURCES:
+        return "UR_RESULT_ERROR_OUT_OF_RESOURCES";
+    case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
+        return "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE";
+    case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
+        return "UR_RESULT_ERROR_PROGRAM_LINK_FAILURE";
+    case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
+        return "UR_RESULT_ERROR_UNSUPPORTED_VERSION";
+    case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        return "UR_RESULT_ERROR_UNSUPPORTED_FEATURE";
+    case UR_RESULT_ERROR_INVALID_ARGUMENT:
+        return "UR_RESULT_ERROR_INVALID_ARGUMENT";
+    case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
+        return "UR_RESULT_ERROR_INVALID_NULL_HANDLE";
+    case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
+        return "UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE";
+    case UR_RESULT_ERROR_INVALID_NULL_POINTER:
+        return "UR_RESULT_ERROR_INVALID_NULL_POINTER";
+    case UR_RESULT_ERROR_INVALID_SIZE:
+        return "UR_RESULT_ERROR_INVALID_SIZE";
+    case UR_RESULT_ERROR_UNSUPPORTED_SIZE:
+        return "UR_RESULT_ERROR_UNSUPPORTED_SIZE";
+    case UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
+        return "UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT";
+    case UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
+        return "UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT";
+    case UR_RESULT_ERROR_INVALID_ENUMERATION:
+        return "UR_RESULT_ERROR_INVALID_ENUMERATION";
+    case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        return "UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION";
+    case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
+        return "UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
+    case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
+        return "UR_RESULT_ERROR_INVALID_NATIVE_BINARY";
+    case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
+        return "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
+    case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
+        return "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
+    case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
+        return "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
+    case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
+        return "UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION";
+    case UR_RESULT_ERROR_PROGRAM_UNLINKED:
+        return "UR_RESULT_ERROR_PROGRAM_UNLINKED";
+    case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
+        return "UR_RESULT_ERROR_OVERLAPPING_REGIONS";
+    case UR_RESULT_ERROR_INVALID_HOST_PTR:
+        return "UR_RESULT_ERROR_INVALID_HOST_PTR";
+    case UR_RESULT_ERROR_INVALID_USM_SIZE:
+        return "UR_RESULT_ERROR_INVALID_USM_SIZE";
+    case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
+        return "UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE";
+    case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
+        return "UR_RESULT_ERROR_ADAPTER_SPECIFIC";
+    default:
+        return "UR_RESULT_ERROR_UNKNOWN";
+    }
+};
+
 } // namespace
 
 ur_result_t SanitizerInterceptor::allocateMemory(
@@ -328,34 +471,44 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
                                             ur_event_handle_t *Event,
                                             bool SetCallback) {
-    // auto &KernelInfo = getKernelInfo(Kernel);
-    // auto Program = KernelInfo.Program;
+    auto &KernelInfo = getKernelInfo(Kernel);
+    auto Program = KernelInfo.Program;
 
-    // ur_event_handle_t ReadEvent{};
+    ur_event_handle_t ReadEvent{};
 
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
     // to host, but it's okay that it isn't defined
-    // auto Ret = m_Dditable.Enqueue.pfnDeviceGlobalVariableRead(
-    //     Queue, Program, kSPIR_DeviceSanitizerReportMem, false,
-    //     sizeof(SPIR_DeviceSanitizerReportMem), 0,
-    //     &SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
+    auto Ret = m_Dditable.Enqueue.pfnDeviceGlobalVariableRead(
+        Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
+        sizeof(SPIR_DeviceSanitizerReportMem), 0,
+        &SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
 
-    // if (Ret == UR_RESULT_SUCCESS && SetCallback) {
-    //     Ret = piEventSetCallback(
-    //         ReadEvent, ur_event_handle_t_COMPLETE,
-    //         [](ur_event_handle_t Event, pi_int32 EventCommandStatus,
-    //            void *user_data) {
-    //             (void)Event;
-    //             (void)EventCommandStatus;
-    //             auto *KernelName = (const char *)user_data;
-    //             checkSanitizerReport(KernelName);
-    //         },
-    //         (void *)KernelInfo.Name.c_str());
-    //     assert(Ret == UR_RESULT_SUCCESS);
-    // }
+    if (Ret == UR_RESULT_SUCCESS) {
+        *Event = ReadEvent;
 
-    // *Event = ReadEvent;
-    return;
+        auto AH = &SPIR_DeviceSanitizerReportMem;
+        if (!AH->Flag) {
+            return;
+        }
+
+        const char *File = AH->File[0] ? AH->File : "<unknown file>";
+        const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
+
+        fprintf(stderr, "\n====ERROR: DeviceSanitizer: %s on %s\n\n",
+                DeviceSanitizerFormat(AH->ErrorType),
+                DeviceSanitizerFormat(AH->MemoryType));
+        fprintf(stderr,
+                "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
+                "%lu, %lu)\n",
+                AH->IsWrite ? "WRITE" : "READ", AH->AccessSize,
+                KernelInfo.Name.c_str(), AH->LID0, AH->LID1, AH->LID2, AH->GID0,
+                AH->GID1, AH->GID2);
+        fprintf(stderr, "  #0 %s %s:%d\n", Func, File, AH->Line);
+        fflush(stderr);
+        if (!AH->IsRecover) {
+            abort();
+        }
+    }
 }
 
 std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
@@ -443,7 +596,7 @@ SanitizerInterceptor::piextMemAllocShadow(ur_context_handle_t Context,
         auto URes = m_Dditable.VirtualMem.pfnReserve(
             Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo.ShadowOffset);
         if (URes != UR_RESULT_SUCCESS) {
-            printf("urVirtualMemReserve(): %p\n", (void *)URes);
+                printf("urVirtualMemReserve(): %s\n", getUrResultString(URes));
         }
         assert(URes == UR_RESULT_SUCCESS);
 
@@ -491,20 +644,22 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
                     auto URes = m_Dditable.PhysicalMem.pfnCreate(
                         Context, Device, PageSize, &Desc, &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
-                        printf("    zePhysicalMemCreate(): %p\n", (void *)URes);
+                        printf("    zePhysicalMemCreate(): %s\n",
+                               getUrResultString(URes));
                     }
                     assert(URes == UR_RESULT_SUCCESS);
                 }
 
-                printf("  zeVirtualMemMap: %p ~ %p\n", MappedPtr,
-                       MappedPtr + PageSize - 1);
+                printf("  zeVirtualMemMap: %p ~ %p\n", (void *)MappedPtr,
+                       (void *)(MappedPtr + PageSize - 1));
 
                 // FIXME: No flag to check the failed reason is VA is already mapped
                 auto URes = m_Dditable.VirtualMem.pfnMap(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    printf("    zeVirtualMemMap(): %p\n", (void *)URes);
+                    printf("    zeVirtualMemMap(): %s\n",
+                           getUrResultString(URes));
                 }
 
                 // Initialize to zero
@@ -519,7 +674,8 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
                         NumEventsInWaitList, EventsWaitList, Event);
                     if (URes != UR_RESULT_SUCCESS) {
-                        printf("    urEnqueueUSMFill(): %p\n", (void *)URes);
+                        printf("    urEnqueueUSMFill(): %s\n",
+                               getUrResultString(URes));
                     }
                     assert(URes == UR_RESULT_SUCCESS);
 
@@ -535,7 +691,7 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
             (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
             Event);
         if (URes != UR_RESULT_SUCCESS) {
-            printf("  urEnqueueUSMFill(): %p\n", (void *)URes);
+            printf("  urEnqueueUSMFill(): %s\n", getUrResultString(URes));
         }
         assert(URes == UR_RESULT_SUCCESS);
     } else {
