@@ -91,11 +91,12 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   std::mutex CvMutex;
   std::condition_variable Cv;
+  bool ready = false;
 
   InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.host_task([&] {
       std::unique_lock lk(CvMutex);
-      Cv.wait(lk);
+      Cv.wait(lk, [&ready] { return ready; });
     });
   });
 
@@ -109,6 +110,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     CGH.single_task<TestKernel<>>([] {});
   });
 
+  ready = true;
   Cv.notify_one();
 
   InOrderQueue.wait();
