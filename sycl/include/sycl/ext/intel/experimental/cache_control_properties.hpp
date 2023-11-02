@@ -1,4 +1,4 @@
-//==--------- SYCL annotated_arg/ptr properties for caching control --------==//
+//==--------- SYCL annotated_ptr properties for caching control ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,6 +13,8 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -29,7 +31,6 @@ enum class cache_mode {
   write_through,
   write_back
 };
-using cache_mode = sycl::ext::intel::experimental::cache_mode;
 using cache_level = sycl::ext::oneapi::experimental::cache_level;
 
 namespace detail {
@@ -96,35 +97,26 @@ inline constexpr write_hint_key::value_t<Cs...> write_hint;
 namespace oneapi {
 namespace experimental {
 
-template <typename T, typename PropertyListT> class annotated_arg;
 template <typename T, typename PropertyListT> class annotated_ptr;
 
-using read_hint_key = intel::experimental::read_hint_key;
-template <> struct is_property_key<read_hint_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::read_hint_key> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<read_hint_key, annotated_arg<T, PropertyListT>>
-    : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<read_hint_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
+struct is_property_key_of<intel::experimental::read_hint_key,
+                          annotated_ptr<T, PropertyListT>> : std::true_type {};
 
-using read_assertion_key = intel::experimental::read_assertion_key;
-template <> struct is_property_key<read_assertion_key> : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<read_assertion_key, annotated_arg<T, PropertyListT>>
+template <>
+struct is_property_key<intel::experimental::read_assertion_key>
     : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<read_assertion_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
+struct is_property_key_of<intel::experimental::read_assertion_key,
+                          annotated_ptr<T, PropertyListT>> : std::true_type {};
 
-using write_hint_key = intel::experimental::write_hint_key;
-template <> struct is_property_key<write_hint_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::write_hint_key> : std::true_type {};
 template <typename T, typename PropertyListT>
-struct is_property_key_of<write_hint_key, annotated_arg<T, PropertyListT>>
-    : std::true_type {};
-template <typename T, typename PropertyListT>
-struct is_property_key_of<write_hint_key, annotated_ptr<T, PropertyListT>>
-    : std::true_type {};
+struct is_property_key_of<intel::experimental::write_hint_key,
+                          annotated_ptr<T, PropertyListT>> : std::true_type {};
 
 namespace detail {
 
@@ -165,13 +157,15 @@ template <cache_mode M> static constexpr int checkWriteHint() {
   return 0;
 }
 
-template <> struct PropertyToKind<read_hint_key> {
-  static constexpr PropKind Kind = PropKind::CacheControlRead;
+template <> struct PropertyToKind<intel::experimental::read_hint_key> {
+  static constexpr PropKind Kind = PropKind::CacheControlReadHint;
 };
-template <> struct IsCompileTimeProperty<read_hint_key> : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::read_hint_key>
+    : std::true_type {};
 template <typename... Cs>
-struct PropertyMetaInfo<read_hint_key::value_t<Cs...>> {
-  static constexpr const char *name = "sycl-cache-read";
+struct PropertyMetaInfo<intel::experimental::read_hint_key::value_t<Cs...>> {
+  static constexpr const char *name = "sycl-cache-read-hint";
   static constexpr const int value =
       ((checkReadHint<Cs::mode>() + ...),
        checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
@@ -180,14 +174,16 @@ struct PropertyMetaInfo<read_hint_key::value_t<Cs...>> {
        ((Cs::encoding) | ...));
 };
 
-template <> struct PropertyToKind<read_assertion_key> {
-  static constexpr PropKind Kind = PropKind::CacheControlRead;
+template <> struct PropertyToKind<intel::experimental::read_assertion_key> {
+  static constexpr PropKind Kind = PropKind::CacheControlReadAssertion;
 };
 template <>
-struct IsCompileTimeProperty<read_assertion_key> : std::true_type {};
+struct IsCompileTimeProperty<intel::experimental::read_assertion_key>
+    : std::true_type {};
 template <typename... Cs>
-struct PropertyMetaInfo<read_assertion_key::value_t<Cs...>> {
-  static constexpr const char *name = "sycl-cache-read";
+struct PropertyMetaInfo<
+    intel::experimental::read_assertion_key::value_t<Cs...>> {
+  static constexpr const char *name = "sycl-cache-read-assertion";
   static constexpr const int value =
       ((checkReadAssertion<Cs::mode>() + ...),
        checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
@@ -196,13 +192,15 @@ struct PropertyMetaInfo<read_assertion_key::value_t<Cs...>> {
        ((Cs::encoding) | ...));
 };
 
-template <> struct PropertyToKind<write_hint_key> {
+template <> struct PropertyToKind<intel::experimental::write_hint_key> {
   static constexpr PropKind Kind = PropKind::CacheControlWrite;
 };
-template <> struct IsCompileTimeProperty<write_hint_key> : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::write_hint_key>
+    : std::true_type {};
 template <typename... Cs>
-struct PropertyMetaInfo<write_hint_key::value_t<Cs...>> {
-  static constexpr const char *name = "sycl-cache-write";
+struct PropertyMetaInfo<intel::experimental::write_hint_key::value_t<Cs...>> {
+  static constexpr const char *name = "sycl-cache-write-hint";
   static constexpr const int value =
       ((checkWriteHint<Cs::mode>() + ...),
        checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
@@ -214,15 +212,16 @@ struct PropertyMetaInfo<write_hint_key::value_t<Cs...>> {
 } // namespace detail
 
 template <typename T, typename... Cs>
-struct is_valid_property<T, read_hint_key::value_t<Cs...>>
+struct is_valid_property<T, intel::experimental::read_hint_key::value_t<Cs...>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, typename... Cs>
-struct is_valid_property<T, read_assertion_key::value_t<Cs...>>
+struct is_valid_property<
+    T, intel::experimental::read_assertion_key::value_t<Cs...>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 template <typename T, typename... Cs>
-struct is_valid_property<T, write_hint_key::value_t<Cs...>>
+struct is_valid_property<T, intel::experimental::write_hint_key::value_t<Cs...>>
     : std::bool_constant<std::is_pointer<T>::value> {};
 
 } // namespace experimental
