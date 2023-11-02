@@ -59,14 +59,6 @@ inline llvm::DILocation *getDILocation(unsigned Line, unsigned Column,
                                InlinedAt, /*ImplicitCode*/ false);
 }
 
-inline void insertAtEnd(llvm::BasicBlock *bb, llvm::Instruction *newInst) {
-#if LLVM_VERSION_MAJOR >= 16
-  newInst->insertInto(bb, bb->end());
-#else
-  bb->getInstList().push_back(newInst);
-#endif
-}
-
 /// @brief Create a binary operation corresponding to the given
 /// `llvm::RecurKind` with the two provided arguments. It may not
 /// necessarily return one of LLVM's in-built `BinaryOperator`s, or even one
