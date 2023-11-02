@@ -5075,12 +5075,10 @@ class OffloadingActionBuilder final {
             // -fsycl-dump-device-code option is passed, otherwise
             // TY_Tempfiletable.
             if (C.getDriver().isDumpDeviceCodeEnabled())
-              ReplaceFilesAction = 
-              C.MakeAction<FileTableTformJobAction>(
+              ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
                   TformInputs, types::TY_Filetable, types::TY_Filetable);
             else
-              ReplaceFilesAction = 
-              C.MakeAction<FileTableTformJobAction>(
+              ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
                   TformInputs, types::TY_Tempfiletable,
                   types::TY_Tempfiletable);
             ReplaceFilesAction->addReplaceColumnTform(
