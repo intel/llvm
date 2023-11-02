@@ -60,7 +60,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Thu Oct 26 10:20:03 2023 +0100
   #         Merge pull request #965 from Bensuo/ewan/L0_internal_event_fix
   #         [Command-buffer][L0] Reset sync-point events
-  set(UNIFIED_RUNTIME_TAG b2056527868bfd3b38133f0ddaa2fcd9b6f6eff0)
+  set(UNIFIED_RUNTIME_TAG fe469d7fb77d2ebdd70b0713483ed61846a43881)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
