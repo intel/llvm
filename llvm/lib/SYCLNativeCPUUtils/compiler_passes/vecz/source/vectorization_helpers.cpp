@@ -22,6 +22,7 @@
 #include <llvm/IR/DIBuilder.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 
 #include "debugging.h"
 #include "vectorization_context.h"
