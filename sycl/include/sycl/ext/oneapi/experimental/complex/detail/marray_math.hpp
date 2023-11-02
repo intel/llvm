@@ -155,6 +155,32 @@ _SYCL_EXT_CPLX_INLINE_VISIBILITY
   return rtn;
 }
 
+// real
+
+template<typename T, std::size_t NumElements>
+_SYCL_EXT_CPLX_INLINE_VISIBILITY
+typename std::enable_if_t<is_genfloat<T>::value, sycl::marray<T, NumElements>>
+real(const marray<complex<T>, NumElements> &z) {
+  sycl::marray<T, NumElements> rtn;
+  for (std::size_t i = 0; i < NumElements; ++i) {
+    rtn[i] = z[i].real();
+  }
+  return rtn;
+}
+
+// imag
+
+template<typename T, std::size_t NumElements>
+_SYCL_EXT_CPLX_INLINE_VISIBILITY
+typename std::enable_if_t<is_genfloat<T>::value, sycl::marray<T, NumElements>>
+imag(const marray<complex<T>, NumElements> &z) {
+  sycl::marray<T, NumElements> rtn;
+  for (std::size_t i = 0; i < NumElements; ++i) {
+    rtn[i] = z[i].imag();
+  }
+  return rtn;
+}
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
