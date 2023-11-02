@@ -732,8 +732,7 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
       };
-    }
-    else if (architecture::intel_gpu_pvc == DeviceArch) {
+    } else if (architecture::intel_gpu_pvc == DeviceArch) {
       std::cout << ">>> PVC\n";
       return {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
