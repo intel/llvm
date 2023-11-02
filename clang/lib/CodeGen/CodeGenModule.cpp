@@ -2681,7 +2681,7 @@ void CodeGenModule::SetCommonAttributes(GlobalDecl GD, llvm::GlobalValue *GV) {
       const auto *VD = cast<VarDecl>(D);
       const RecordDecl *RD = VD->getType()->getAsRecordDecl();
       if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>() &&
-          VD->getFormalLinkage() == InternalLinkage)
+          VD->getFormalLinkage() == Linkage::Internal)
         addUsedOrCompilerUsedGlobal(GV);
     }
   }
