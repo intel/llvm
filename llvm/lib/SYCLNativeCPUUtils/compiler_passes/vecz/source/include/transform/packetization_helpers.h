@@ -117,6 +117,14 @@ llvm::Value *getGatherIndicesVector(llvm::IRBuilder<> &B, llvm::Value *Indices,
                                     llvm::Type *Ty, unsigned FixedVecElts,
                                     const llvm::Twine &N = "");
 
+/// @brief Returns a boolean vector with all elements set to 'true'.
+llvm::Value *createAllTrueMask(llvm::IRBuilder<> &B, llvm::ElementCount EC);
+
+/// @brief Returns an integer step vector, representing the sequence 0 ... N-1.
+llvm::Value *createIndexSequence(llvm::IRBuilder<> &Builder,
+                                 llvm::VectorType *VecTy,
+                                 const llvm::Twine &Name = "");
+
 /// @brief Class that represents a range in a vector of Value pointers.
 /// The range is represented by its integer starting index and length, so that
 /// it remains valid if the vector re-allocates its storage.

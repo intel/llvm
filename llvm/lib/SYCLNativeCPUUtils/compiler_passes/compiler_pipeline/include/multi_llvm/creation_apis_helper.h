@@ -21,33 +21,8 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/TypeSize.h>
-#include <multi_llvm/vector_type_helper.h>
 
 namespace multi_llvm {
-
-inline llvm::Value *createAllTrueMask(llvm::IRBuilder<> &B,
-                                      llvm::ElementCount EC) {
-  return llvm::ConstantInt::getTrue(llvm::VectorType::get(B.getInt1Ty(), EC));
-}
-
-inline llvm::Value *createIndexSequence(llvm::IRBuilder<> &Builder,
-                                        llvm::Type *Ty, llvm::ElementCount EC,
-                                        const llvm::Twine &Name = "") {
-  (void)Builder;
-  (void)Name;
-  if (EC.isScalable()) {
-    // FIXME: This intrinsic works on fixed-length types too: should we migrate
-    // to using it starting from LLVM 13?
-    return Builder.CreateStepVector(Ty, Name);
-  }
-
-  llvm::SmallVector<llvm::Constant *, 16> Indices;
-  unsigned SimdWidth = EC.getFixedValue();
-  for (unsigned i = 0; i < SimdWidth; i++) {
-    Indices.push_back(llvm::ConstantInt::get(getVectorElementType(Ty), i));
-  }
-  return llvm::ConstantVector::get(Indices);
-}
 
 inline llvm::CallInst *createRISCVMaskedIntrinsic(
     llvm::IRBuilder<> &B, llvm::Intrinsic::ID ID,
