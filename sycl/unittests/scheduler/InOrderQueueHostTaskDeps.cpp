@@ -68,6 +68,7 @@ inline pi_result customextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
+  ExecutedCommands.clear();
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
       customEnqueueKernelLaunch);
@@ -110,6 +111,57 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     CGH.use_kernel_bundle(ExecBundle);
     CGH.single_task<TestKernel<>>([] {});
   });
+
+  ready = true;
+  Cv.notify_one();
+
+  InOrderQueue.wait();
+
+  sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
+
+  ASSERT_EQ(ExecutedCommands.size(), 2u);
+  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, MEMSET);
+  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
+  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, KERNEL);
+  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
+  ExecutedCommands.clear();
+  sycl::unittest::PiMock Mock;
+  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
+      customEnqueueKernelLaunch);
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+      customextUSMEnqueueMemset);
+
+  sycl::platform Plt = Mock.getPlatform();
+  if (Plt.is_host()) {
+    std::cout << "Not run due to host-only environment\n";
+    GTEST_SKIP();
+  }
+  MockScheduler *MockSchedulerPtr = new MockScheduler();
+  sycl::detail::GlobalHandler::instance().attachScheduler(
+      dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  std::mutex CvMutex;
+  std::condition_variable Cv;
+  bool ready = false;
+
+  InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.host_task([&] {
+      std::unique_lock lk(CvMutex);
+      Cv.wait(lk, [&ready] { return ready; });
+    });
+  });
+
+  auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
+
+  event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
+
+  event Ev2 = InOrderQueue.single_task<TestKernel<>>([] {});
 
   ready = true;
   Cv.notify_one();
