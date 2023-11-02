@@ -1,1 +1,25 @@
-Segmentation fault
+{{OPT}}Segmentation Fault
+{{OPT}}urKernelGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_FUNCTION_NAME
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_ARGS
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_REFERENCE_COUNT
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_CONTEXT
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_PROGRAM
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_ATTRIBUTES
+{{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
+{{OPT}}urKernelSetArgLocalTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgPointerTest.SuccessShared/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgPointerNegativeTest.InvalidNullHandleKernel/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgSamplerTest.Success/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgSamplerTest.InvalidNullHandleKernel/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgSamplerTest.InvalidNullHandleArgValue/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgSamplerTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgValueTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgValueTest.InvalidKernelArgumentSize/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetExecInfoUSMPointersTest.SuccessShared/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetSpecializationConstantsTest.Success/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urKernelSetSpecializationConstantsTest.InvalidSizeCount/AMD_HIP_BACKEND___{{.*}}_
