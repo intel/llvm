@@ -66,14 +66,6 @@ private:
   T *m_Ptr;
   annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
-  inline T *base() const {
-    // Annotation will not appear in front of load/store in this private
-    // function
-    return __builtin_intel_sycl_ptr_annotation(
-        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...);
-  }
-
 public:
   annotated_ref(const annotated_ref &) = delete;
 
