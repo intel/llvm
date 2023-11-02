@@ -113,5 +113,38 @@ int main(int, char **) {
     std::cout << "sycl::ext::intel::math::dmul_rz passes." << std::endl;
   }
 
+  {
+    std::initializer_list<double> input_vals1 = {
+        0x1.5ef3da7bf609ap+4, 0x1.fbd37afb0f8edp-1, 0x1.9238e38e38e35p+6,
+        0x1.7p+3};
+    std::initializer_list<double> input_vals2 = {
+        -0x1.bc7db6de6d33fp+9, 0x1.2f638fa4e71a6p+10, 0x1.08e38e38e38e3p+4,
+        -0x1.94p+3};
+    std::initializer_list<unsigned long long> ref_vals_rd = {
+        0xbf994414312c26ab, 0x3f4ac811fc63acd9, 0x40184b98e9aa180a,
+        0xbfed260511be1959};
+    std::initializer_list<unsigned long long> ref_vals_rn = {
+        0xbf994414312c26ab, 0x3f4ac811fc63acd9, 0x40184b98e9aa180b,
+        0xbfed260511be1959};
+    std::initializer_list<unsigned long long> ref_vals_ru = {
+        0xbf994414312c26aa, 0x3f4ac811fc63acda, 0x40184b98e9aa180b,
+        0xbfed260511be1958};
+    std::initializer_list<unsigned long long> ref_vals_rz = {
+        0xbf994414312c26aa, 0x3f4ac811fc63acd9, 0x40184b98e9aa180a,
+        0xbfed260511be1958};
+    test2(device_queue, input_vals1, input_vals2, ref_vals_rd,
+          F2T(unsigned long long, sycl::ext::intel::math::ddiv_rd));
+    std::cout << "sycl::ext::intel::math::ddiv_rd passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals_rn,
+          F2T(unsigned long long, sycl::ext::intel::math::ddiv_rn));
+    std::cout << "sycl::ext::intel::math::ddiv_rn passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals_ru,
+          F2T(unsigned long long, sycl::ext::intel::math::ddiv_ru));
+    std::cout << "sycl::ext::intel::math::ddiv_ru passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals_rz,
+          F2T(unsigned long long, sycl::ext::intel::math::ddiv_rz));
+    std::cout << "sycl::ext::intel::math::ddiv_rz passes." << std::endl;
+  }
+
   return 0;
 }

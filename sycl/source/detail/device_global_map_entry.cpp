@@ -22,21 +22,20 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
-  assert(!MZeroInitEvent.has_value() &&
-         "MZeroInitEvent has not been cleaned up.");
+  assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedPiEvent DeviceGlobalUSMMem::getZeroInitEvent(const PluginPtr &Plugin) {
-  std::lock_guard<std::mutex> Lock(MZeroInitEventMutex);
-  // If there is a zero-init event we can remove it if it is done.
-  if (MZeroInitEvent.has_value()) {
+OwnedPiEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
+  std::lock_guard<std::mutex> Lock(MInitEventMutex);
+  // If there is a init event we can remove it if it is done.
+  if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
-            *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
-      Plugin->call<PiApiKind::piEventRelease>(*MZeroInitEvent);
-      MZeroInitEvent = {};
+            *MInitEvent, Plugin) == info::event_command_status::complete) {
+      Plugin->call<PiApiKind::piEventRelease>(*MInitEvent);
+      MInitEvent = {};
       return OwnedPiEvent(Plugin);
     } else {
-      return OwnedPiEvent(*MZeroInitEvent, Plugin);
+      return OwnedPiEvent(*MInitEvent, Plugin);
     }
   }
   return OwnedPiEvent(Plugin);
@@ -67,14 +66,23 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
 
-  // Zero-initialize here and save the event.
+  // Initialize here and save the event.
   {
-    std::lock_guard<std::mutex> Lock(NewAlloc.MZeroInitEventMutex);
+    std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
     sycl::detail::pi::PiEvent InitEvent;
-    MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
+    // C++ guarantees members appear in memory in the order they are declared,
+    // so since the member variable that contains the initial contents of the
+    // device_global is right after the usm_ptr member variable we can do
+    // some pointer arithmetic to memcopy over this value to the usm_ptr. This
+    // value inside of the device_global will be zero-initialized if it was not
+    // given a value on construction.
+    MemoryManager::copy_usm(reinterpret_cast<const void *>(
+                                reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
+                                sizeof(MDeviceGlobalPtr)),
+                            QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
                             std::vector<sycl::detail::pi::PiEvent>{},
                             &InitEvent);
-    NewAlloc.MZeroInitEvent = InitEvent;
+    NewAlloc.MInitEvent = InitEvent;
   }
 
   CtxImpl->addAssociatedDeviceGlobal(MDeviceGlobalPtr);
@@ -90,14 +98,14 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
     if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
-      if (USMMem.MZeroInitEvent.has_value())
+      if (USMMem.MInitEvent.has_value())
         CtxImpl->getPlugin()->call<PiApiKind::piEventRelease>(
-            *USMMem.MZeroInitEvent);
+            *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
       // to allow us to check that this cleanup happens before erasure.
       USMMem.MPtr = nullptr;
-      USMMem.MZeroInitEvent = {};
+      USMMem.MInitEvent = {};
 #endif
       MDeviceToUSMPtrMap.erase(USMPtrIt);
     }

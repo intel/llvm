@@ -236,10 +236,23 @@ event handler::finalize() {
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
+      int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
+      auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
+          KernelBundleImpPtr, MArgs);
+      auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
+                            InstanceID = InstanceID]() {
+#else
       auto EnqueueKernel = [&]() {
+#endif
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
-
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                           xpti::trace_task_begin, nullptr);
+#endif
         if (MQueue->is_host()) {
           MHostKernel->call(MNDRDesc, (NewEvent)
                                           ? NewEvent->getHostProfilingInfo()
@@ -264,11 +277,12 @@ event handler::finalize() {
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                           xpti::trace_task_end, nullptr);
+#endif
         return Result;
       };
-
-      emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName, MQueue,
-                                    MNDRDesc, KernelBundleImpPtr, MArgs);
 
       bool DiscardEvent = false;
       if (MQueue->has_discard_events_support()) {

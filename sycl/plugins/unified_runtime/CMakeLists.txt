@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a76e3b185a5e1df9114dc483077227f88f522244
-  # Merge: 3653e582 657ffde9
+  # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
+  # Merge: 2ab0734 86f96f0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 20 12:12:15 2023 +0100
-  #     Merge pull request #972 from oneapi-src/revert-906-l0_usm_error_checking
-  #     Revert "[UR][L0] Propagate errors from `USMAllocationMakeResident`"
-  set(UNIFIED_RUNTIME_TAG a76e3b185a5e1df9114dc483077227f88f522244)
+  # Date:   Fri Oct 27 16:36:23 2023 +0100
+  #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
+  #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
+  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -189,12 +189,9 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
       Threads::Threads
-      sycl
       OpenCL-Headers
   )
 
