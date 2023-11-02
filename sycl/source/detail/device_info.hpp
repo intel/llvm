@@ -719,7 +719,7 @@ struct get_device_info_impl<
         ext::oneapi::experimental::architecture,
         ext::oneapi::experimental::info::device::architecture>::get(Dev);
     if (architecture::intel_cpu_spr == DeviceArch) {
-      std::cout << ">>> SPR\n";
+      std::cerr << ">>> SPR\n";
       return {
           {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -733,7 +733,7 @@ struct get_device_info_impl<
            matrix_type::fp32, matrix_type::fp32},
       };
     } else if (architecture::intel_gpu_pvc == DeviceArch) {
-      std::cout << ">>> PVC\n";
+      std::cerr << ">>> PVC\n";
       return {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -751,7 +751,7 @@ struct get_device_info_impl<
     } else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
                (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
                (architecture::intel_gpu_dg2_g12 == DeviceArch)) {
-      std::cout << ">>> DG2\n";
+      std::cerr << ">>> DG2\n";
       return {
           {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -767,7 +767,7 @@ struct get_device_info_impl<
            matrix_type::fp32, matrix_type::fp32},
       };
     }
-    std::cout << ">>> Empty matrix_combinations\n";
+    std::cerr << ">>> Empty matrix_combinations\n";
     return {};
   }
 };

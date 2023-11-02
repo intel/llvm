@@ -2529,7 +2529,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
       JointMatrixByteArrayToStr += JointMatrixByteArray.consume<char>();
     }
     std::istringstream JointMatrixStrStream(JointMatrixByteArrayToStr);
-    std::cout << ">>> JointMatrixByteArrayToStr: " << JointMatrixByteArrayToStr
+    std::cerr << ">>> JointMatrixByteArrayToStr: " << JointMatrixByteArrayToStr
               << "\n";
     std::string SingleJointMatrix;
 
@@ -2554,7 +2554,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
         size_t RowsUser = std::stoi(JointMatrixVec[2]);
         size_t ColsUser = std::stoi(JointMatrixVec[3]);
 
-        std::cout << ">>> Choose: " << MatrixTypeUser << " " << UseStrUser
+        std::cerr << ">>> Choose: " << MatrixTypeUser << " " << UseStrUser
                   << " " << RowsUser << " " << ColsUser << "\n";
 
         bool IsMatrixCompatible = false;
@@ -2616,7 +2616,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
       JointMatrixMadByteArrayToStr += JointMatrixMadByteArray.consume<char>();
     }
     std::istringstream JointMatrixMadStrStream(JointMatrixMadByteArrayToStr);
-    std::cout << ">>> JointMatrixMadByteArrayToStr: "
+    std::cerr << ">>> JointMatrixMadByteArrayToStr: "
               << JointMatrixMadByteArrayToStr << "\n";
     std::string SingleJointMatrixMad;
 
@@ -2644,7 +2644,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
         size_t KSizeUser = std::stoi(JointMatrixMadVec[5]);
         size_t NSizeUser = std::stoi(JointMatrixMadVec[6]);
 
-        std::cout << "Choose: " << MatrixTypeAStrUser << " "
+        std::cerr << "Choose: " << MatrixTypeAStrUser << " "
                   << MatrixTypeBStrUser << " " << MatrixTypeCStrUser << " "
                   << MatrixTypeDStrUser << " " << MSizeUser << " " << KSizeUser
                   << " " << NSizeUser << "\n";
