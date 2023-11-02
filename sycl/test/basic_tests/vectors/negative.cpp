@@ -18,11 +18,11 @@ struct CustomT {
 };
 
 void unsupported_data_type() {
-  // expected-error@sycl/types.hpp:* {{Incorrect data type for sycl::vec}}
+  // expected-error@detail/vec_* {{Incorrect data type for sycl::vec}}
   sycl::vec<CustomT, 4> v;
 }
 
 void unsupported_size() {
-  // expected-error@sycl/types.hpp:* {{Incorrect number of elements for sycl::vec}}
+  // expected-error@detail/vec_* {{Incorrect number of elements for sycl::vec}}
   sycl::vec<int, 15> v;
 }
