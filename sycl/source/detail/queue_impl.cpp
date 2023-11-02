@@ -27,12 +27,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-  
 std::vector<sycl::detail::pi::PiEvent>
-getPIEvents(const std::vector<sycl::event>& DepEvents, sycl::event const * const ExtraDepEvent) {
+getPIEvents(const std::vector<sycl::event> &DepEvents,
+            sycl::event const *const ExtraDepEvent) {
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
-  auto AddEvent = [&RetPiEvents](const sycl::event& Event)
-  {
+  auto AddEvent = [&RetPiEvents](const sycl::event &Event) {
     auto EventImpl = detail::getSyclObjImpl(Event);
     if (EventImpl->getHandleRef() == nullptr)
       return;
@@ -44,10 +43,10 @@ getPIEvents(const std::vector<sycl::event>& DepEvents, sycl::event const * const
   return RetPiEvents;
 }
 
-bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event* const ExtraDepEventPtr, ContextImplPtr Context)
-{
-  auto CheckEvent = [&Context](const sycl::event& Event)
-  {
+bool isEventsReady(const std::vector<sycl::event> &DepEvents,
+                   const sycl::event *const ExtraDepEventPtr,
+                   ContextImplPtr Context) {
+  auto CheckEvent = [&Context](const sycl::event &Event) {
     auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
@@ -59,7 +58,8 @@ bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event*
     // The fusion command and its event are associated with a non-host context,
     // but still does not produce a PI event.
     if (SyclEventImplPtr->is_host() ||
-        SyclEventImplPtr->getContextImpl() != Context || !SyclEventImplPtr->producesPiEvent()) {
+        SyclEventImplPtr->getContextImpl() != Context ||
+        !SyclEventImplPtr->producesPiEvent()) {
       return false;
     } else {
       // In this path nullptr native event means that the command has not been
@@ -71,7 +71,8 @@ bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event*
     return true;
   };
 
-  return (!ExtraDepEventPtr || CheckEvent(*ExtraDepEventPtr)) && std::all_of(DepEvents.begin(), DepEvents.end(), CheckEvent);
+  return (!ExtraDepEventPtr || CheckEvent(*ExtraDepEventPtr)) &&
+         std::all_of(DepEvents.begin(), DepEvents.end(), CheckEvent);
 }
 
 template <>
@@ -133,25 +134,24 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // have in-order queue.
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event* ExtraEventToWait = nullptr;
-    if (isInOrder())
-    {
+    sycl::event *ExtraEventToWait = nullptr;
+    if (isInOrder()) {
       quard.lock();
       ExtraEventToWait = &MLastEvent;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
-    {
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+                                getPIEvents(DepEvents, ExtraEventToWait),
+                                nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getPIEvents(DepEvents, ExtraEventToWait),
-                            &EventImpl->getHandleRef(), EventImpl);
+                              getPIEvents(DepEvents, ExtraEventToWait),
+                              &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
@@ -228,25 +228,24 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event* ExtraEventToWait = nullptr;
-    if (isInOrder())
-    {
+    sycl::event *ExtraEventToWait = nullptr;
+    if (isInOrder()) {
       quard.lock();
       ExtraEventToWait = &MLastEvent;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
-    {
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::copy_usm(Src, Self, Count, Dest,
-                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+                                getPIEvents(DepEvents, ExtraEventToWait),
+                                nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getPIEvents(DepEvents, ExtraEventToWait),
-                            &EventImpl->getHandleRef(), EventImpl);
+                              getPIEvents(DepEvents, ExtraEventToWait),
+                              &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
@@ -273,25 +272,24 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const std::vector<event> &DepEvents) {
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event* ExtraEventToWait = nullptr;
-    if (isInOrder())
-    {
+    sycl::event *ExtraEventToWait = nullptr;
+    if (isInOrder()) {
       quard.lock();
       ExtraEventToWait = &MLastEvent;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
-    {
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
         MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+                                  getPIEvents(DepEvents, ExtraEventToWait),
+                                  nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                            getPIEvents(DepEvents, ExtraEventToWait),
-                            &EventImpl->getHandleRef(), EventImpl);
+                                getPIEvents(DepEvents, ExtraEventToWait),
+                                &EventImpl->getHandleRef(), EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
@@ -318,27 +316,25 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::vector<event> &DepEvents) {
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event* ExtraEventToWait = nullptr;
-    if (isInOrder())
-    {
+    sycl::event *ExtraEventToWait = nullptr;
+    if (isInOrder()) {
       quard.lock();
       ExtraEventToWait = &MLastEvent;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
-    {
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
-        MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Src,
-                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        MemoryManager::copy_to_device_global(
+            DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+            getPIEvents(DepEvents, ExtraEventToWait), nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Src,
-                            getPIEvents(DepEvents, ExtraEventToWait),
-                            &EventImpl->getHandleRef(), EventImpl);
+      MemoryManager::copy_to_device_global(
+          DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
+          getPIEvents(DepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
@@ -354,7 +350,8 @@ event queue_impl::memcpyToDeviceGlobal(
   return submit(
       [&](handler &CGH) {
         CGH.depends_on(DepEvents);
-        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope, NumBytes, Offset);
+        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
+                                 NumBytes, Offset);
       },
       Self, {});
 }
@@ -363,29 +360,27 @@ event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
-    {
+  {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event* ExtraEventToWait = nullptr;
-    if (isInOrder())
-    {
+    sycl::event *ExtraEventToWait = nullptr;
+    if (isInOrder()) {
       quard.lock();
       ExtraEventToWait = &MLastEvent;
     }
-    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
-    {
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
-        MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Dest,
-                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        MemoryManager::copy_from_device_global(
+            DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+            getPIEvents(DepEvents, ExtraEventToWait), nullptr);
         return createDiscardedEvent();
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
-      MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
-                                         Self, NumBytes, Offset, Dest,
-                            getPIEvents(DepEvents, ExtraEventToWait),
-                            &EventImpl->getHandleRef(), EventImpl);
+      MemoryManager::copy_from_device_global(
+          DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
+          getPIEvents(DepEvents, ExtraEventToWait), &EventImpl->getHandleRef(),
+          EventImpl);
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
@@ -401,7 +396,8 @@ event queue_impl::memcpyFromDeviceGlobal(
   return submit(
       [&](handler &CGH) {
         CGH.depends_on(DepEvents);
-        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope, NumBytes, Offset);
+        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
+                                   NumBytes, Offset);
       },
       Self, {});
 }

@@ -351,7 +351,7 @@ protected:
   // stored here.
   sycl::detail::pi::PiExtSyncPoint MSyncPoint;
 
-  bool MProducesPiEvent{false };
+  bool MProducesPiEvent{false};
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

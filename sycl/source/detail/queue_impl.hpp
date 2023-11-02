@@ -708,8 +708,11 @@ protected:
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
       // This dependency is needed for the following purposes:
-      //    - host tasks is handled by runtime and could not be implicitly synchronized by backend.
-      //    - to prevent 2nd kernel enqueue when 1st kernel is blocked by host task. This dependency allows to build enqueue order in RT but will be not passed to backend. Look at getPIEvents in Command.
+      //    - host tasks is handled by runtime and could not be implicitly
+      //    synchronized by backend.
+      //    - to prevent 2nd kernel enqueue when 1st kernel is blocked by host
+      //    task. This dependency allows to build enqueue order in RT but will
+      //    be not passed to backend. Look at getPIEvents in Command.
       Handler.depends_on(MLastEvent);
 
       EventRet = Handler.finalize();
