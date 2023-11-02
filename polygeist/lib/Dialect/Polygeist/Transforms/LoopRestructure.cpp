@@ -419,9 +419,13 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           header->addArgument(V.getType(), V.getLoc());
         }
       };
-      for (auto *B : L->getBlocks()) {
-        for (const BlockArgument &Arg : B->blk.getArguments())
-          preserveValueIfNeeded(Arg);
+      for (Wrapper *W : L->getBlocks()) {
+        Block *B = &W->blk;
+        if (B != header) {
+          // Do not add twice
+          for (const BlockArgument &Arg : B->getArguments())
+            preserveValueIfNeeded(Arg);
+        }
         for (auto &O : *(Block *)B) {
           for (auto V : O.getResults())
             preserveValueIfNeeded(V);

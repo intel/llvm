@@ -31,6 +31,7 @@
 // CHECK:           ^bb0(%[[VAL_17:.*]]: i32, %[[VAL_18:.*]]: i32):
 // CHECK:             scf.yield %[[VAL_17]], %[[VAL_18]] : i32, i32
 // CHECK:           }
+// CHECK:           "use"(%[[VAL_2]]#0) : (i32) -> ()
 // CHECK:           return %[[VAL_2]]#1 : i32
 // CHECK:         }
 func.func @test_do_while() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
@@ -53,5 +54,6 @@ func.func @test_do_while() -> i32 attributes {llvm.linkage = #llvm.linkage<exter
   %6 = "cond"() : () -> i1
   cf.cond_br %6, ^bb1(%5 : i32), ^bb5
 ^bb5:  // pred: ^bb4
+  "use"(%1) : (i32) -> ()
   return %5 : i32
 }
