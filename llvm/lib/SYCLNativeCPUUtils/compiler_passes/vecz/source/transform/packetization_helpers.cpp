@@ -253,8 +253,8 @@ Value *sanitizeVPReductionInput(IRBuilder<> &B, Value *Val, Value *VL,
   Type *const ValTy = Val->getType();
   ElementCount const EC = multi_llvm::getVectorElementCount(ValTy);
   Value *const VLSplat = B.CreateVectorSplat(EC, VL);
-  Value *const IdxVec = multi_llvm::createIndexSequence(
-      B, VectorType::get(VL->getType(), EC), EC);
+  Value *const IdxVec =
+      createIndexSequence(B, VectorType::get(VL->getType(), EC));
   Value *const ActiveMask = B.CreateICmp(CmpInst::ICMP_ULT, IdxVec, VLSplat);
   auto *const NeutralVal = compiler::utils::getNeutralVal(Kind, ValTy);
   return B.CreateSelect(ActiveMask, Val, NeutralVal);
@@ -272,6 +272,28 @@ Value *getGatherIndicesVector(IRBuilder<> &B, Value *Indices, Type *Ty,
   auto *const StepsMul = B.CreateMul(Steps, FixedVecEltsSplat);
   return B.CreateAdd(StepsMul, Indices, N);
 }
+
+Value *createAllTrueMask(IRBuilder<> &B, ElementCount EC) {
+  return ConstantInt::getTrue(VectorType::get(B.getInt1Ty(), EC));
+}
+
+Value *createIndexSequence(IRBuilder<> &Builder, VectorType *VecTy,
+                           const Twine &Name) {
+  auto EC = VecTy->getElementCount();
+  if (EC.isScalable()) {
+    // FIXME: This intrinsic works on fixed-length types too: should we migrate
+    // to using it starting from LLVM 13?
+    return Builder.CreateStepVector(VecTy, Name);
+  }
+
+  SmallVector<Constant *, 16> Indices;
+  auto *EltTy = VecTy->getElementType();
+  for (unsigned i = 0, e = EC.getFixedValue(); i != e; i++) {
+    Indices.push_back(ConstantInt::get(EltTy, i));
+  }
+  return ConstantVector::get(Indices);
+}
+
 }  // namespace vecz
 
 PacketRange PacketInfo::getRange(std::vector<llvm::Value *> &d,
