@@ -46,7 +46,7 @@ getPIEvents(const std::vector<sycl::event>& DepEvents, sycl::event const * const
 
 bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event* const ExtraDepEventPtr, ContextImplPtr Context)
 {
-  auto CheckEvent = [&Context](sycl::event& Event)
+  auto CheckEvent = [&Context](const sycl::event& Event)
   {
     auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
     // throwaway events created with empty constructor will not have a context
@@ -58,14 +58,8 @@ bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event*
     }
     // The fusion command and its event are associated with a non-host context,
     // but still does not produce a PI event.
-    to add field to event with producesPiEvent value
-    bool NoPiEvent =
-        SyclEventImplPtr->MCommand &&
-        !static_cast<Command *>(SyclEventImplPtr->MCommand)->producesPiEvent();
     if (SyclEventImplPtr->is_host() ||
-        SyclEventImplPtr->getContextImpl() != Context || NoPiEvent) {
-      // Call wait, because the command for the event might not have been
-      // enqueued when kernel fusion is happening.
+        SyclEventImplPtr->getContextImpl() != Context || !SyclEventImplPtr->producesPiEvent()) {
       return false;
     } else {
       // In this path nullptr native event means that the command has not been
@@ -75,7 +69,7 @@ bool isEventsReady(const std::vector<sycl::event>& DepEvents, const sycl::event*
       }
     }
     return true;
-  }
+  };
 
   return (!ExtraDepEventPtr || CheckEvent(*ExtraDepEventPtr)) && std::all_of(DepEvents.begin(), DepEvents.end(), CheckEvent);
 }
@@ -137,38 +131,45 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
-  if (std::unique_lock<std::mutex>(isInOrder() ? MLastEventMtx : {}) && isEventsReady(DepEvents, isInOrder() ? &MLastEvent: nullptr, MContext))
   {
-    if (MHasDiscardEventsSupport) {
-      MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                              getPIEvents(DepEvents, MLastEvent), nullptr);
-      return createDiscardedEvent();
+    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    sycl::event* ExtraEventToWait = nullptr;
+    if (isInOrder())
+    {
+      quard.lock();
+      ExtraEventToWait = &MLastEvent;
     }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
+    {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
 
-    event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                          getPIEvents(DepEvents, MLastEvent),
-                          &EventImpl->getHandleRef(), EventImpl);
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                            getPIEvents(DepEvents, ExtraEventToWait),
+                            &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        MLastEvent = ResEvent;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
     }
-    // Track only if we won't be able to handle it with piQueueFinish.
-    if (MEmulateOOO)
-      addSharedEvent(ResEvent);
-    return MDiscardEvents ? createDiscardedEvent() : ResEvent;
   }
-  else
-  {
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.memset(Ptr, Value, Count);
-        },
-        Self, {});
-  }
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memset(Ptr, Value, Count);
+      },
+      Self, {});
 }
 
 void report(const code_location &CodeLoc) {
@@ -224,176 +225,185 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
   }
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
 
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
+    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    sycl::event* ExtraEventToWait = nullptr;
+    if (isInOrder())
+    {
+      quard.lock();
+      ExtraEventToWait = &MLastEvent;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
+    {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::copy_usm(Src, Self, Count, Dest,
+                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
 
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext),
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::copy_usm(Src, Self, Count, Dest,
+                            getPIEvents(DepEvents, ExtraEventToWait),
                             &EventImpl->getHandleRef(), EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        MLastEvent = ResEvent;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memcpy(Dest, Src, Count);
+      },
+      Self, {});
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
+    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    sycl::event* ExtraEventToWait = nullptr;
+    if (isInOrder())
+    {
+      quard.lock();
+      ExtraEventToWait = &MLastEvent;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
+    {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
 
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext),
-                              &EventImpl->getHandleRef(), EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                            getPIEvents(DepEvents, ExtraEventToWait),
+                            &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        MLastEvent = ResEvent;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.mem_advise(Ptr, Length, Advice);
+      },
+      Self, {});
 }
 
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_to_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    sycl::event* ExtraEventToWait = nullptr;
+    if (isInOrder())
+    {
+      quard.lock();
+      ExtraEventToWait = &MLastEvent;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
+    {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
                                          Self, NumBytes, Offset, Src,
-                                         getOrWaitEvents(DepEvents, MContext),
-                                         &EventImpl->getHandleRef(), EventImpl);
+                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
 
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::copy_to_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                         Self, NumBytes, Offset, Src,
+                            getPIEvents(DepEvents, ExtraEventToWait),
+                            &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        MLastEvent = ResEvent;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope, NumBytes, Offset);
+      },
+      Self, {});
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_from_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
+    {
+    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    sycl::event* ExtraEventToWait = nullptr;
+    if (isInOrder())
+    {
+      quard.lock();
+      ExtraEventToWait = &MLastEvent;
+    }
+    if (isEventsReady(DepEvents, ExtraEventToWait, MContext))
+    {
+      if (MHasDiscardEventsSupport) {
+        MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                         Self, NumBytes, Offset, Dest,
+                                getPIEvents(DepEvents, ExtraEventToWait), nullptr);
+        return createDiscardedEvent();
+      }
 
-  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-  {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
-      MLastEvent.wait();
-
-    auto EventImpl = detail::getSyclObjImpl(ResEvent);
-    MemoryManager::copy_from_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &EventImpl->getHandleRef(),
-        EventImpl);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      MemoryManager::copy_from_device_global(DeviceGlobalPtr, IsDeviceImageScope,
+                                         Self, NumBytes, Offset, Dest,
+                            getPIEvents(DepEvents, ExtraEventToWait),
+                            &EventImpl->getHandleRef(), EventImpl);
+      if (MContext->is_host())
+        return MDiscardEvents ? createDiscardedEvent() : event();
+      if (isInOrder()) {
+        MLastEvent = ResEvent;
+      }
+      // Track only if we won't be able to handle it with piQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
     }
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope, NumBytes, Offset);
+      },
+      Self, {});
 }
 
 void queue_impl::addEvent(const event &Event) {
