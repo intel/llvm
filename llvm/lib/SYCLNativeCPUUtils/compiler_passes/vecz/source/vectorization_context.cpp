@@ -19,6 +19,7 @@
 #include <compiler/utils/builtin_info.h>
 #include <compiler/utils/group_collective_helpers.h>
 #include <compiler/utils/mangling.h>
+#include <compiler/utils/pass_functions.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/Target/TargetMachine.h>
@@ -661,7 +662,8 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
       N = N2;
       auto *const Shuffle =
           createOptimalShuffle(B, Result, NeutralVec, mask, Twine("scan_impl"));
-      Result = multi_llvm::createBinOpForRecurKind(B, Result, Shuffle, OpKind);
+      Result =
+          compiler::utils::createBinOpForRecurKind(B, Result, Shuffle, OpKind);
     }
 
     if (!IsInclusive) {
@@ -738,7 +740,7 @@ bool VectorizationContext::emitSubgroupScanBody(Function &F, bool IsInclusive,
   auto *const Mask = B.CreateXor(MaskPhi, SplatN, "mask");
   auto *const Shuffle = VTI.createVectorShuffle(B, VecPhi, Mask, VL);
   auto *const Accum =
-      multi_llvm::createBinOpForRecurKind(B, VecPhi, Shuffle, OpKind);
+      compiler::utils::createBinOpForRecurKind(B, VecPhi, Shuffle, OpKind);
 
   auto *const NBit = B.CreateAnd(MaskPhi, SplatN, "isolate");
   auto *const Which = B.CreateICmpNE(NBit, VZero, "which");

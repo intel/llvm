@@ -22,8 +22,11 @@
 #define VECZ_VECTORIZATION_CONTEXT_H_INCLUDED
 
 #include <llvm/ADT/DenseMap.h>
+#include <llvm/Analysis/IVDescriptors.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IR/ValueHandle.h>
 #include <llvm/Support/TypeSize.h>
+#include <llvm/Transforms/Utils/ValueMapper.h>
 #include <multi_llvm/multi_llvm.h>
 
 #include <map>

@@ -19,8 +19,10 @@
 #include <compiler/utils/builtin_info.h>
 #include <compiler/utils/group_collective_helpers.h>
 #include <compiler/utils/mangling.h>
+#include <compiler/utils/pass_functions.h>
 #include <llvm/ADT/DepthFirstIterator.h>
 #include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/ADT/Twine.h>
 #include <llvm/Analysis/LoopInfo.h>
@@ -1208,8 +1210,8 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
     for (decltype(packetWidth) i = 0; i < packetWidth; ++i) {
       Value *const lhs = opPackets[i];
       Value *const rhs = opPackets[i + packetWidth];
-      opPackets[i] =
-          multi_llvm::createBinOpForRecurKind(B, lhs, rhs, Info->Recurrence);
+      opPackets[i] = compiler::utils::createBinOpForRecurKind(B, lhs, rhs,
+                                                              Info->Recurrence);
     }
   }
 
@@ -2098,8 +2100,8 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
 
   Value *const Splat = B.CreateVectorSplat(SimdWidth, ExclScanCI);
 
-  auto *const Result = multi_llvm::createBinOpForRecurKind(B, VectorScan, Splat,
-                                                           Scan.Recurrence);
+  auto *const Result = compiler::utils::createBinOpForRecurKind(
+      B, VectorScan, Splat, Scan.Recurrence);
 
   results.push_back(Result);
   return results;

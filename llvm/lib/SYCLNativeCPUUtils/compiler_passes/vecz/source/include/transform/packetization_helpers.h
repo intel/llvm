@@ -23,6 +23,7 @@
 
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/Analysis/IVDescriptors.h>
 #include <llvm/IR/IRBuilder.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
