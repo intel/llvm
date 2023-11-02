@@ -29,24 +29,6 @@
 
 namespace multi_llvm {
 
-template <typename T>
-llvm::ArrayRef<T> ArrayRef(T *data, size_t size) {
-#if LLVM_VERSION_MAJOR >= 16
-  return llvm::ArrayRef<T>(data, size);
-#else
-  return llvm::makeArrayRef<T>(data, size);
-#endif
-}
-
-template <typename T>
-llvm::ArrayRef<T> ArrayRef(llvm::SmallVectorImpl<T> &data) {
-#if LLVM_VERSION_MAJOR >= 16
-  return llvm::ArrayRef<T>(data.data(), data.size());
-#else
-  return llvm::makeArrayRef<T>(data.data(), data.size());
-#endif
-}
-
 // LLVM 11 changes the InlineFunction API so it takes the CallBase argument as
 // a reference now. Therefore, we need a generic helper that will also work for
 // prior LLVM versions.
