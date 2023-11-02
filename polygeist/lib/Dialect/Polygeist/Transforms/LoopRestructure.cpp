@@ -405,22 +405,26 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         valsCallingLoop.push_back(a);
 
       SmallVector<std::pair<Value, size_t>> preservedVals;
+      const auto preserveValueIfNeeded = [&](Value V) {
+        if (llvm::any_of(V.getUsers(), [&](Operation *user) {
+              Block *blk = user->getBlock();
+              while (blk->getParent() != &region)
+                blk = blk->getParentOp()->getBlock();
+              return !L->contains((Wrapper *)blk);
+            })) {
+          preservedVals.emplace_back(V, headerArgumentTypes.size());
+          headerArgumentTypes.push_back(V.getType());
+          valsCallingLoop.push_back(builder.create<mlir::LLVM::UndefOp>(
+              builder.getUnknownLoc(), V.getType()));
+          header->addArgument(V.getType(), V.getLoc());
+        }
+      };
       for (auto *B : L->getBlocks()) {
+        for (const BlockArgument &Arg : B->blk.getArguments())
+          preserveValueIfNeeded(Arg);
         for (auto &O : *(Block *)B) {
-          for (auto V : O.getResults()) {
-            if (llvm::any_of(V.getUsers(), [&](Operation *user) {
-                  Block *blk = user->getBlock();
-                  while (blk->getParent() != &region)
-                    blk = blk->getParentOp()->getBlock();
-                  return !L->contains((Wrapper *)blk);
-                })) {
-              preservedVals.emplace_back(V, headerArgumentTypes.size());
-              headerArgumentTypes.push_back(V.getType());
-              valsCallingLoop.push_back(builder.create<mlir::LLVM::UndefOp>(
-                  builder.getUnknownLoc(), V.getType()));
-              header->addArgument(V.getType(), V.getLoc());
-            }
-          }
+          for (auto V : O.getResults())
+            preserveValueIfNeeded(V);
         }
       }
 
