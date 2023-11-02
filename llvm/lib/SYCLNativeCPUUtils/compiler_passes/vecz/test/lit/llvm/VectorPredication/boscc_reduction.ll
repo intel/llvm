@@ -43,9 +43,4 @@ if.end:                                           ; preds = %if.then, %entry
 
 ; CHECK: define spir_kernel void @__vecz_nxv2_vp_foo(ptr addrspace(1) nocapture readonly %a, ptr addrspace(1) nocapture %out)
 ; CHECK:  [[CMP:%.*]] = fcmp oeq <vscale x 2 x float> %{{.*}}, zeroinitializer
-; CHECK:  [[INS:%.*]] = insertelement <vscale x 2 x i32> poison, i32 [[VL:%.*]], {{(i32|i64)}} 0
-; CHECK:  [[SPLAT:%.*]] = shufflevector <vscale x 2 x i32> [[INS]], <vscale x 2 x i32> poison, <vscale x 2 x i32> zeroinitializer
-; CHECK:  [[IDX:%.*]] = call <vscale x 2 x i32> @llvm.experimental.stepvector.nxv2i32()
-; CHECK:  [[MASK:%.*]] = icmp ult <vscale x 2 x i32> [[IDX]], [[SPLAT]]
-; CHECK:  [[INP:%.*]] = select <vscale x 2 x i1> [[MASK]], <vscale x 2 x i1> [[CMP]], <vscale x 2 x i1> zeroinitializer
-; CHECK:  %{{.*}} = call i1 @llvm.vector.reduce.or.nxv2i1(<vscale x 2 x i1> [[INP]])
+; CHECK:  %{{.*}} = call i1 @llvm.vp.reduce.or.nxv2i1(i1 false, <vscale x 2 x i1> [[CMP]], {{.*}}, i32 {{.*}})

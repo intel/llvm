@@ -839,12 +839,7 @@ Value *Packetizer::Impl::reduceBranchCond(Value *cond, Instruction *terminator,
   // value.
   Value *&f = conds.front();
 
-  if (VL) {
-    f = sanitizeVPReductionInput(B, f, VL, kind);
-    VECZ_FAIL_IF(!f);
-  }
-
-  return createSimpleTargetReduction(B, &TTI, f, kind);
+  return createMaybeVPTargetReduction(B, TTI, f, kind, VL);
 }
 
 Packetizer::Result Packetizer::Impl::assign(Value *Scalar, Value *Vectorized) {
@@ -899,14 +894,7 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
       if (newCond->getType()->isVectorTy()) {
         IRBuilder<> B(Branch);
         RecurKind kind = RecurKind::Or;
-        // Sanitize VP reduction inputs, if required.
-        if (VL) {
-          newCond = sanitizeVPReductionInput(B, newCond, VL, kind);
-          if (!newCond) {
-            return Packetizer::Result(*this);
-          }
-        }
-        newCond = createSimpleTargetReduction(B, &TTI, newCond, kind);
+        newCond = createMaybeVPTargetReduction(B, TTI, newCond, kind, VL);
       }
 
       Branch->setCondition(newCond);
@@ -1183,19 +1171,8 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   // them of ordering? See CA-3969.
   op.getPacketValues(packetWidth, opPackets);
 
-  // When in VP mode, pre-sanitize the reduction input (before VP reduction
-  // intrinsics, introduced in LLVM 14)
-  if (VL) {
-    assert(opPackets.size() == 1 &&
-           "Should have bailed if dealing with more than one packet");
-    Value *&val = opPackets.front();
-    val = sanitizeVPReductionInput(B, val, VL, Info->Recurrence);
-    if (!val) {
-      emitVeczRemarkMissed(
-          &F, CI, "Can not vector-predicate workgroup/subgroup reduction");
-      return nullptr;
-    }
-  }
+  assert((!VL || packetWidth) &&
+         "Should have bailed if dealing with more than one VP packet");
 
   // According to the OpenCL Spec, we are allowed to rearrange the operation
   // order of a workgroup/subgroup reduction any way we like (even though
@@ -1216,8 +1193,8 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   }
 
   // Reduce to a scalar.
-  Value *v =
-      createSimpleTargetReduction(B, &TTI, opPackets.front(), Info->Recurrence);
+  Value *v = createMaybeVPTargetReduction(B, TTI, opPackets.front(),
+                                          Info->Recurrence, VL);
 
   // We leave the original reduction function and divert the vectorized
   // reduction through it, giving us a reduction over the full apparent
@@ -1624,14 +1601,8 @@ Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
     auto *maskInst = dyn_cast<Instruction>(vecMask);
     IRBuilder<> B(maskInst ? buildAfter(maskInst, F) : I);
 
-    // Sanitize any vector-predicated inputs.
-    if (VL) {
-      vecMask = sanitizeVPReductionInput(B, vecMask, VL, RecurKind::Or);
-      VECZ_FAIL_IF(!vecMask);
-    }
-
     Value *anyOfMask =
-        createSimpleTargetReduction(B, &TTI, vecMask, RecurKind::Or);
+        createMaybeVPTargetReduction(B, TTI, vecMask, RecurKind::Or, VL);
     anyOfMask->setName("any_of_mask");
 
     if (isVector) {
@@ -2072,13 +2043,8 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
   // Thus we essentially keep the original group scan, but change it to be an
   // exclusive one.
   auto *Reduction = Ops.front();
-  if (VL) {
-    Reduction = sanitizeVPReductionInput(B, Reduction, VL, Scan.Recurrence);
-    if (!Reduction) {
-      return results;
-    }
-  }
-  Reduction = createSimpleTargetReduction(B, &TTI, Reduction, Scan.Recurrence);
+  Reduction =
+      createMaybeVPTargetReduction(B, TTI, Reduction, Scan.Recurrence, VL);
 
   // Now we defer to an *exclusive* scan over the group.
   auto ExclScan = Scan;
