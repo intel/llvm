@@ -6,9 +6,6 @@
 //
 // CHECK-NOT: LEAK
 
-// https://github.com/intel/llvm/issues/11434
-// UNSUPPORTED: gpu-intel-dg2
-
 // Tests memcpy operation using device USM and an in-order queue.
 
 #include "../graph_common.hpp"
@@ -76,8 +73,9 @@ int main() {
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Z, N * sizeof(int)).wait();
 
+  const int Expected = 2;
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == 2);
+    assert(check_value(i, Expected, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

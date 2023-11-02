@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include <llvm/ADT/BitVector.h>
+#include <llvm/ADT/TypeSwitch.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/WithColor.h>
 #include <llvm/Transforms/Utils/Cloning.h>
@@ -164,44 +165,66 @@ static void updateInternalizationMD(Function *F, StringRef Kind,
 }
 
 ///
-/// Function to get the all the indices of a GEP instruction.
-static SmallVector<Value *> getIndices(IRBuilderBase &Builder,
-                                       GetElementPtrInst *GEPI) {
-  SmallVector<Value *> Indices;
-  const auto GetPtrOp = [](GetElementPtrInst *Inst) {
-    return Inst ? dyn_cast<GetElementPtrInst>(Inst->getPointerOperand())
-                : nullptr;
-  };
-  for (GetElementPtrInst *Val = GEPI, *Ptr = GetPtrOp(Val); Val;
-       Val = Ptr, Ptr = GetPtrOp(Val)) {
-    assert((!Ptr /*Val is the getelementptr instruction we inserted at the
-                    beginning of the function*/
-            || Val == GEPI /*Val is the instruction we are promoting*/ ||
-            Val->getNumIndices() == 1) &&
-           "Only one index expected in source of promotable GEP instruction "
-           "pointer argument");
-    Indices.emplace_back(Val->idx_begin()->get());
-  }
-  return Indices;
-}
-
-///
 /// When performing internalization, GEP instructions must be remapped, as the
-/// address space has changed from N to N / LocalSize. As a result, each GEP (p
-/// + off) must be remapped to (p + off % LocalSize).
-static void remapIndices(GetElementPtrInst *GEPI, std::size_t LocalSize) {
+/// address space has changed from N to N / LocalSize.
+static void remap(GetElementPtrInst *GEPI, std::size_t LocalSize) {
   IRBuilder<> Builder{GEPI};
-  auto *NewIndex = [&]() -> Value * {
-    if (LocalSize == 1) {
-      return Builder.getInt64(0);
-    }
-    SmallVector<Value *> OldIndexValue = getIndices(Builder, GEPI);
-    auto *OldIndexSum = std::accumulate(
-        std::next(OldIndexValue.begin()), OldIndexValue.end(), OldIndexValue[0],
-        [&](Value *Lhs, Value *Rhs) { return Builder.CreateAdd(Lhs, Rhs); });
-    return Builder.CreateURem(OldIndexSum, Builder.getInt64(LocalSize));
-  }();
-  GEPI->idx_begin()->set(NewIndex);
+  Value *C0 = Builder.getInt64(0);
+
+  auto NIdx = GEPI->getNumIndices();
+  if (NIdx > 1) {
+    // `GEPI` indexes into an aggregate. If the first index is 0, the base
+    // pointer is used as-is and we do not need to perform remapping. This is
+    // the common case.
+    // TODO: Support non-zero pointer offset, too. If the pointer operand is
+    //       a GEP as well, we must check if the source element types match.
+    assert(GEPI->idx_begin()->get() == C0);
+    return;
+  }
+
+  if (LocalSize == 1) {
+    // Squash the index and let instcombine clean-up afterwards.
+    GEPI->idx_begin()->set(C0);
+    return;
+  }
+
+  // An individual `GEP(ptr, offset)` is rewritten as
+  // `GEP(ptr, offset % LocalSize)`.
+  //
+  // However, we often encounter chains of single-index GEPs:
+  // ```
+  // a = GEP ptr, off_1
+  // b = GEP a, off_2
+  // c = GEP b, off_3
+  // ```
+  //
+  // These must be rewritten as:
+  // ```
+  // a = GEP ptr, off_1 % LocalSize
+  // b = GEP ptr, (off_1 + off_2) % LocalSize
+  // c = GEP ptr, (off_1 + off_2 + off_3) % LocalSize
+  // ```
+  //
+  // This method is called during a def-use-traversal, i.e. `GEPI`'s pointer
+  // operand has already been visited. Modular arithmetic satisfies the
+  // following equation:
+  // ```
+  // ((x mod n) + y) mod n = (x + y) mod n
+  // ```
+  // Together, this means we can propagate the predecessor GEP's pointer
+  // operand, and take its already wrapped offset, add `GEPI`'s offset, and wrap
+  // the result again around LocalSize.
+  //
+  // If the predecessor is not a GEP, then we just rewrap `GEPI`'s index.
+  Value *Dividend =
+      TypeSwitch<Value *, Value *>(GEPI->getPointerOperand())
+          .Case<GetElementPtrInst>([&](auto Pred) {
+            GEPI->op_begin()->set(Pred->getPointerOperand());
+            return Builder.CreateAdd(*Pred->idx_begin(), *GEPI->idx_begin());
+          })
+          .Default(GEPI->idx_begin()->get());
+  Value *Remainder = Builder.CreateURem(Dividend, Builder.getInt64(LocalSize));
+  GEPI->idx_begin()->set(Remainder);
 }
 
 ///
@@ -372,7 +395,7 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
   // Not PointerType is unreachable. Other case is catched in caller.
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() != AS) {
     if (!InAggregate)
-      remapIndices(GEPI, LocalSize);
+      remap(GEPI, LocalSize);
     auto *ValTy = cast<PointerType>(Val->getType());
     GEPI->mutateType(PointerType::getWithSamePointeeType(
         cast<PointerType>(GEPI->getType()), ValTy->getAddressSpace()));
@@ -387,7 +410,10 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
 
 void SYCLInternalizerImpl::promoteValue(Value *Val, std::size_t LocalSize,
                                         bool InAggregate) const {
-  for (auto *U : Val->users()) {
+  // Freeze the current list of users, as promoteGEPI re-links the elements in a
+  // GEP chain, and hence may introduce new users to `Val`.
+  SmallVector<User *> CurrentUsers{Val->users()};
+  for (auto *U : CurrentUsers) {
     auto *I = cast<Instruction>(U);
     switch (I->getOpcode()) {
     case Instruction::Call:

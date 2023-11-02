@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/BinaryFormat/MsgPack.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
@@ -49,6 +51,17 @@
 using namespace llvm;
 
 namespace {
+static const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_global_id";
+static const constexpr char NativeCPUGlobaRange[] =
+    "__dpcpp_nativecpu_global_range";
+static const constexpr char NativeCPUGlobalOffset[] =
+    "__dpcpp_nativecpu_get_global_offset";
+static const constexpr char NativeCPULocalId[] =
+    "__dpcpp_nativecpu_get_local_id";
+static const constexpr char NativeCPUNumGroups[] =
+    "__dpcpp_nativecpu_get_num_groups";
+static const constexpr char NativeCPUWGSize[] = "__dpcpp_nativecpu_get_wg_size";
+static const constexpr char NativeCPUWGId[] = "__dpcpp_nativecpu_get_wg_id";
 
 void fixCallingConv(Function *F) {
   F->setCallingConv(llvm::CallingConv::C);
@@ -223,21 +236,21 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
     }                                                                          \
   }
 #define GEN_xyz(b_name, len, ncpu_name)                                        \
-  GEN_p(#b_name "_x", len, #ncpu_name, 0),                                     \
-      GEN_p(#b_name "_y", len, #ncpu_name, 1),                                 \
-      GEN_p(#b_name "_z", len, #ncpu_name, 2)
+  GEN_p(#b_name "_x", len, ncpu_name, 0),                                      \
+      GEN_p(#b_name "_y", len, ncpu_name, 1),                                  \
+      GEN_p(#b_name "_z", len, ncpu_name, 2)
 
 // Todo: add support for more SPIRV builtins here
 static const std::pair<std::pair<StringRef, StringRef>,
                        std::pair<StringRef, unsigned int>>
     BuiltinNamesMap[] = {
-        GEN_xyz(__spirv_GlobalInvocationId, 28, __dpcpp_nativecpu_global_id),
-        GEN_xyz(__spirv_GlobalSize, 20, __dpcpp_nativecpu_global_range),
-        GEN_xyz(__spirv_GlobalOffset, 22, __dpcpp_nativecpu_get_global_offset),
-        GEN_xyz(__spirv_LocalInvocationId, 27, __dpcpp_nativecpu_get_local_id),
-        GEN_xyz(__spirv_NumWorkgroups, 23, __dpcpp_nativecpu_get_num_groups),
-        GEN_xyz(__spirv_WorkgroupSize, 23, __dpcpp_nativecpu_get_wg_size),
-        GEN_xyz(__spirv_WorkgroupId, 21, __dpcpp_nativecpu_get_wg_id),
+        GEN_xyz(__spirv_GlobalInvocationId, 28, NativeCPUGlobalId),
+        GEN_xyz(__spirv_GlobalSize, 20, NativeCPUGlobaRange),
+        GEN_xyz(__spirv_GlobalOffset, 22, NativeCPUGlobalOffset),
+        GEN_xyz(__spirv_LocalInvocationId, 27, NativeCPULocalId),
+        GEN_xyz(__spirv_NumWorkgroups, 23, NativeCPUNumGroups),
+        GEN_xyz(__spirv_WorkgroupSize, 23, NativeCPUWGSize),
+        GEN_xyz(__spirv_WorkgroupId, 21, NativeCPUWGId),
 };
 
 static inline bool IsForVisualStudio(StringRef triple_str) {
@@ -245,8 +258,62 @@ static inline bool IsForVisualStudio(StringRef triple_str) {
   return triple.isKnownWindowsMSVCEnvironment();
 }
 
-static Function *getReplaceFunc(const Module &M, StringRef Name) {
+static constexpr unsigned int NativeCPUGlobalAS = 1;
+static constexpr char StateTypeName[] = "struct.__nativecpu_state";
+
+static Type *getStateType(Module &M) {
+  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x
+  // i64], [3 x i64], [3 x i64], [3 x i64] } Check that there's no
+  // __nativecpu_state type
+  auto Types = M.getIdentifiedStructTypes();
+  bool HasStateT =
+      llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName; });
+  if (HasStateT)
+    report_fatal_error("Native CPU state unexpectedly found in the module.");
+  auto &Ctx = M.getContext();
+  auto *I64Ty = Type::getInt64Ty(Ctx);
+  auto *Array3dTy = ArrayType::get(I64Ty, 3);
+  std::array<Type *, 7> Elements;
+  Elements.fill(Array3dTy);
+  auto *StateType = StructType::create(Ctx, StateTypeName);
+  StateType->setBody(Elements);
+  return StateType;
+}
+
+static const StringMap<unsigned> OffsetMap{
+    {NativeCPUGlobalId, 0},    {NativeCPUGlobaRange, 1},
+    {NativeCPUWGSize, 2},      {NativeCPUWGId, 3},
+    {NativeCPULocalId, 4},     {NativeCPUNumGroups, 5},
+    {NativeCPUGlobalOffset, 6}};
+
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
+  auto &Ctx = M.getContext();
+  Type *I64Ty = Type::getInt64Ty(Ctx);
+  Type *I32Ty = Type::getInt32Ty(Ctx);
+  Type *RetTy = I64Ty;
+  Type *DimTy = I32Ty;
+  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
+  static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
+  auto FCallee = M.getOrInsertFunction(Name, FTy);
+  auto *F = dyn_cast<Function>(FCallee.getCallee());
+  IRBuilder<> Builder(Ctx);
+  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
+  Builder.SetInsertPoint(BB);
+  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
+  auto *Zero = ConstantInt::get(I64Ty, 0);
+  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
+  auto *GEP =
+      Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
+  auto *Load = Builder.CreateLoad(I64Ty, GEP);
+  Builder.CreateRet(Load);
+  F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
+  return F;
+}
+
+static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *F = M.getFunction(Name);
+  if (!F)
+    return addReplaceFunc(M, Name, StateType);
   assert(F && "Error retrieving replace function");
   return F;
 }
@@ -280,8 +347,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Materialize builtins
   // First we add a pointer to the Native CPU state as arg to all the
   // kernels.
-  Type *StateType =
-      StructType::getTypeByName(M.getContext(), "struct.__nativecpu_state");
+  Type *StateType = getStateType(M);
+  // Todo: fix this check since we are emitting the state type in the pass now
   if (!StateType)
     return PreservedAnalyses::all();
   Type *StatePtrType = PointerType::get(StateType, 1);
@@ -349,7 +416,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     SmallVector<Instruction *> ToRemove;
     Function *const Glob = Entry.first;
     for (const auto &Use : Glob->uses()) {
-      auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
+      auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first, StateType);
       auto I = dyn_cast<CallInst>(Use.getUser());
       if (!I)
         report_fatal_error("Unsupported Value in SYCL Native CPU\n");
