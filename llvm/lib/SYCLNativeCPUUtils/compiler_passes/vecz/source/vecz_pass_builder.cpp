@@ -119,7 +119,6 @@ void VeczPassMachinery::addClassToPassNames() {
   // Register a callback which skips all passes once we've failed to vectorize
   // a function.
   PIC.registerShouldRunOptionalPassCallback([&](StringRef, llvm::Any IR) {
-#if LLVM_VERSION_GREATER_EQUAL(16, 0)
     const Function **FPtr = any_cast<const Function *>(&IR);
     const Function *F = FPtr ? *FPtr : nullptr;
     if (!F) {
@@ -130,17 +129,6 @@ void VeczPassMachinery::addClassToPassNames() {
         return true;
       }
     }
-#else
-    const Function *F = nullptr;
-    if (any_isa<const Function *>(IR)) {
-      F = any_cast<const Function *>(IR);
-    } else if (any_isa<const Loop *>(IR)) {
-      F = any_cast<const Loop *>(IR)->getHeader()->getParent();
-    } else {
-      // Always run module passes
-      return true;
-    }
-#endif
     // FIXME: This is repeating the job of the VectorizationUnitAnalysis.
     // We should track 'failure' more directly in the
     // Function/VectorizationContext?
