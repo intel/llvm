@@ -185,14 +185,8 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
     // first div_causing block.
     if (!sortedNewRegionBlocks.empty() &&
         entry->getNextNode() != sortedNewRegionBlocks[0]) {
-#if LLVM_VERSION_MAJOR >= 16
       F.splice(entry->getNextNode()->getIterator(), &F,
                sortedNewRegionBlocks[0]->getIterator(), F.end());
-#else
-      F.getBasicBlockList().splice(
-          entry->getNextNode()->getIterator(), F.getBasicBlockList(),
-          sortedNewRegionBlocks[0]->getIterator(), F.end());
-#endif
     }
   }
 
