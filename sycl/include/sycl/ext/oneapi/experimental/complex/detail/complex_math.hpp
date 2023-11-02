@@ -27,7 +27,7 @@ namespace experimental {
 
 namespace cplx::detail {
 
-template <bool _Val> using _BoolConstant = std::integral_constant<bool, _Val>;
+template <bool _Val> using _BoolConstant = std::bool_constant<_Val>;
 
 template <class _Tp, class _Up>
 using _IsNotSame = _BoolConstant<!__is_same(_Tp, _Up)>;
