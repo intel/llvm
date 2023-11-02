@@ -2646,7 +2646,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
 
         std::cout << "Choose: " << MatrixTypeAStrUser << " "
                   << MatrixTypeBStrUser << " " << MatrixTypeCStrUser << " "
-                  << MatrixTypeDStrUser << " " << MSizeUser << " " KSizeUser
+                  << MatrixTypeDStrUser << " " << MSizeUser << " " << KSizeUser
                   << " " << NSizeUser << "\n";
 
         std::optional<matrix_ext::matrix_type> MatrixTypeAUserOpt =
