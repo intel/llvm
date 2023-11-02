@@ -16,11 +16,7 @@
 #ifndef MULTI_LLVM_MULTI_LLVM_H_INCLUDED
 #define MULTI_LLVM_MULTI_LLVM_H_INCLUDED
 
-#include <llvm/ADT/ArrayRef.h>
-#include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/IVDescriptors.h>
-#include <llvm/Analysis/TargetLibraryInfo.h>
-#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Transforms/Utils/Cloning.h>
