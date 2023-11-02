@@ -77,22 +77,6 @@ public:
 
   static constexpr std::size_t size() noexcept { return NumElements; }
 
-  marray<T, NumElements> real() const {
-    sycl::marray<T, NumElements> rtn;
-    for (std::size_t i = 0; i < NumElements; ++i) {
-      rtn[i] = MData[i].real();
-    }
-    return rtn;
-  }
-
-  marray<T, NumElements> imag() const {
-    sycl::marray<T, NumElements> rtn;
-    for (std::size_t i = 0; i < NumElements; ++i) {
-      rtn[i] = MData[i].imag();
-    }
-    return rtn;
-  }
-
   // subscript operator
   reference operator[](std::size_t i) { return MData[i]; }
   const_reference operator[](std::size_t i) const { return MData[i]; }
