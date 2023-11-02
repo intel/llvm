@@ -192,6 +192,8 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  // TODO: Return any non-success result from USMAllocationMakeResident once
+  // oneapi-src/level-zero-spec#240 is resolved.
   auto Result = USMAllocationMakeResident(USMDeviceAllocationForceResidency,
                                           Context, Device, *ResultPtr, Size);
   if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
@@ -229,6 +231,8 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  // TODO: Return any non-success result from USMAllocationMakeResident once
+  // oneapi-src/level-zero-spec#240 is resolved.
   auto Result = USMAllocationMakeResident(USMSharedAllocationForceResidency,
                                           Context, Device, *ResultPtr, Size);
   if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
@@ -255,6 +259,8 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
+  // TODO: Return any non-success result from USMAllocationMakeResident once
+  // oneapi-src/level-zero-spec#240 is resolved.
   auto Result = USMAllocationMakeResident(USMHostAllocationForceResidency,
                                           Context, nullptr, *ResultPtr, Size);
   if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
