@@ -76,7 +76,7 @@ attributes #3 = { convergent nounwind }
 
 !0 = !{i32 1, i32 2}
 !1 = !{i32 4, i32 100000}
-!2 = !{!"clang version 18.0.0 (https://github.com/dm-vodopyanov/llvm.git 7afc2d03fd0040177009967aca057cc80708747b)"}
+!2 = !{!""}
 !3 = !{i32 1, !"wchar_size", i32 4}
 !4 = !{i32 7, !"frame-pointer", i32 2}
 !5 = !{i32 1091}
