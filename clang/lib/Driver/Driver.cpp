@@ -5071,6 +5071,9 @@ class OffloadingActionBuilder final {
 
             ActionList TformInputs{PostLinkAction, TranslateAction};
             FileTableTformJobAction *ReplaceFilesAction;
+            // Device code files(.spv files) have TY_Filetable type when
+            // -fsycl-dump-device-code option is passed, otherwise
+            // TY_Tempfiletable.
             if(C.getDriver().isDumpDeviceCodeEnabled())
               ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
                   TformInputs, types::TY_Filetable, types::TY_Filetable);
