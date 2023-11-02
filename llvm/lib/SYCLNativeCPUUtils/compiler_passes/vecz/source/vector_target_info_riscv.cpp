@@ -18,7 +18,6 @@
 #include <llvm/IR/IntrinsicsRISCV.h>
 #include <llvm/Support/MathExtras.h>
 #include <llvm/Target/TargetMachine.h>
-#include <multi_llvm/creation_apis_helper.h>
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -444,6 +443,18 @@ llvm::Value *TargetInfoRISCV::createScalableBroadcast(llvm::IRBuilder<> &B,
   return gather;
 }
 
+static CallInst *createRISCVMaskedIntrinsic(IRBuilder<> &B, Intrinsic::ID ID,
+                                            ArrayRef<Type *> Types,
+                                            ArrayRef<Value *> Args,
+                                            unsigned TailPolicy,
+                                            Instruction *FMFSource = nullptr,
+                                            const Twine &Name = "") {
+  SmallVector<Value *> InArgs(Args.begin(), Args.end());
+  InArgs.push_back(
+      B.getIntN(Args.back()->getType()->getIntegerBitWidth(), TailPolicy));
+  return B.CreateIntrinsic(ID, Types, InArgs, FMFSource, Name);
+}
+
 llvm::Value *TargetInfoRISCV::createScalableInsertElement(
     llvm::IRBuilder<> &B, vecz::VectorizationContext &Ctx,
     llvm::Instruction *origInsert, llvm::Value *elt, llvm::Value *into,
@@ -546,10 +557,9 @@ llvm::Value *TargetInfoRISCV::createScalableInsertElement(
   // -> <0,1,0,0, 0,0,0,1, 1,0,0,0, ...>
   auto *const mask = B.CreateICmpEQ(index, innerIndices, "vm");
 
-  return multi_llvm::createRISCVMaskedIntrinsic(
-      B, intrinsicID, {intoTy, avl->getType()},
-      {into, elt, outerIndices, mask, avl},
-      /*TailUndisturbed*/ 1);
+  return createRISCVMaskedIntrinsic(B, intrinsicID, {intoTy, avl->getType()},
+                                    {into, elt, outerIndices, mask, avl},
+                                    /*TailUndisturbed*/ 1);
 }
 
 llvm::Value *TargetInfoRISCV::createVectorShuffle(llvm::IRBuilder<> &B,

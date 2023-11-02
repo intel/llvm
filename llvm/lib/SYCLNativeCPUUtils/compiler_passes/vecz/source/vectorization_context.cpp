@@ -22,7 +22,6 @@
 #include <llvm/ADT/Statistic.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/Target/TargetMachine.h>
-#include <multi_llvm/creation_apis_helper.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <algorithm>
