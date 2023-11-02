@@ -95,17 +95,6 @@ inline llvm::Value *createBinOpForRecurKind(llvm::IRBuilder<> &B,
             : (isSigned ? llvm::Intrinsic::smax : llvm::Intrinsic::umax);
   return B.CreateBinaryIntrinsic(intrOpc, lhs, rhs);
 }
-
-inline void addVectorizableFunctionsFromVecLib(
-    llvm::TargetLibraryInfoImpl &TLII,
-    llvm::TargetLibraryInfoImpl::VectorLibrary VecLib, llvm::Triple TT) {
-#if LLVM_VERSION_MAJOR >= 16
-  TLII.addVectorizableFunctionsFromVecLib(VecLib, TT);
-#else
-  (void)TT;
-  TLII.addVectorizableFunctionsFromVecLib(VecLib);
-#endif
-}
 }  // namespace multi_llvm
 
 #endif  // MULTI_LLVM_MULTI_LLVM_H_INCLUDED
