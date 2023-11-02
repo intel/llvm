@@ -715,8 +715,8 @@ to create subsequent executable graphs. It is also valid to continue to add new
 nodes to the modifiable graph instance after calling this function. It is valid
 to finalize an empty graph instance with no recorded commands. The created
 executable graph(s) should not be executed simultaneously if at least one
-execution contains a write operation to a memory address accessed by another
-execution, it is undefined behavior to do so.
+execution contains a write operation to a memory accessed by another execution,
+it is undefined behavior to do so.
 
 Preconditions:
 
