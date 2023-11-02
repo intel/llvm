@@ -66,7 +66,7 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
     CGH.parallel_for(sycl::range<1>{N}, Kernel);
   });
 
-  auto Out = OutputBuf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor Out{OutputBuf};
   for (int I = 0; I < N; I++)
     assert(Out[I] == ((I * multiplier) + added));
 }
@@ -82,8 +82,8 @@ void test_build_and_run() {
   bool ok = syclex::is_source_kernel_bundle_supported(
       ctx.get_backend(), syclex::source_language::opencl);
   if (!ok) {
-    std::cout << "Apparently this backend does not support SOURCE kernel "
-                 "bundle extension: "
+    std::cout << "Apparently this backend does not support OpenCL C source "
+                 "kernel bundle extension: "
               << ctx.get_backend() << std::endl;
     return;
   }
@@ -98,6 +98,11 @@ void test_build_and_run() {
   std::vector<std::string> flags{"-cl-fast-relaxed-math",
                                  "-cl-finite-math-only"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
+  sycl::context ctxRes = kbSrc.get_context();
+  assert(ctxRes == ctx);
+  sycl::backend beRes = kbSrc.get_backend();
+  assert(beRes == ctx.get_backend());
+
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log}});
@@ -140,6 +145,7 @@ void test_error() {
     assert(false && "we should not be here.");
   } catch (sycl::exception &e) {
     // nice!
+    assert(e.code() == sycl::errc::build);
   }
   // any other error will escape and cause the test to fail ( as it should ).
 }

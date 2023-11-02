@@ -1,4 +1,4 @@
-//==-- kernel_compiler_ opencl.cpp  OpenCL kernel compilation support      -==//
+//==-- kernel_compiler_opencl.cpp  OpenCL kernel compilation support       -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

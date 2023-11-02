@@ -267,13 +267,18 @@ public:
 
   /// \returns true only if the kernel bundle contains the kernel identified by
   /// KernelName.
-  template <typename KernelName> bool has_kernel() const noexcept {
+  template <
+      typename KernelName, bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
+  bool has_kernel() const noexcept {
     return has_kernel(get_kernel_id<KernelName>());
   }
 
   /// \returns true only if the kernel bundle contains the kernel identified by
   /// KernelName and if that kernel is compatible with the device Dev.
-  template <typename KernelName>
+  template <
+      typename KernelName, bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   bool has_kernel(const device &Dev) const noexcept {
     return has_kernel(get_kernel_id<KernelName>(), Dev);
   }
@@ -322,7 +327,10 @@ public:
 
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
-  template <auto &SpecName> bool has_specialization_constant() const noexcept {
+  template <
+      auto &SpecName, bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
+  bool has_specialization_constant() const noexcept {
     const char *SpecSymName = detail::get_spec_constant_symbolic_ID<SpecName>();
     return has_specialization_constant_impl(SpecSymName);
   }
@@ -341,7 +349,9 @@ public:
 
   /// \returns the value of the specialization constant whose address is
   /// SpecName for this kernel bundle.
-  template <auto &SpecName>
+  template <
+      auto &SpecName, bundle_state _State = State,
+      typename = std::enable_if_t<_State != bundle_state::ext_oneapi_source>>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
     using SCType =
