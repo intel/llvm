@@ -29,22 +29,6 @@
 
 namespace multi_llvm {
 
-// LLVM 11 changes the InlineFunction API so it takes the CallBase argument as
-// a reference now. Therefore, we need a generic helper that will also work for
-// prior LLVM versions.
-inline llvm::InlineResult InlineFunction(llvm::CallInst *CI,
-                                         llvm::InlineFunctionInfo &IFI,
-                                         llvm::AAResults *CalleeAAR = nullptr,
-                                         bool InsertLifetime = true) {
-#if LLVM_VERSION_MAJOR >= 16
-  return llvm::InlineFunction(*CI, IFI, /* MergeAttributes */ false, CalleeAAR,
-                              InsertLifetime,
-                              /* *ForwardVarArgsTo */ nullptr);
-#else
-  return llvm::InlineFunction(*CI, IFI, CalleeAAR, InsertLifetime);
-#endif
-}
-
 inline llvm::StructType *getStructTypeByName(llvm::LLVMContext &ctx,
                                              llvm::StringRef name) {
   return llvm::StructType::getTypeByName(ctx, name);
