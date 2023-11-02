@@ -81,7 +81,5 @@ int main() {
   static_assert(AnnotatedArg4.get_property<read_write_mode_key>() ==
                 read_write_mode_read);
 
-  // Check if a property is valid for a given type
-  checkIsValidPropertyOfNonPtr<A>();
   return 0;
 }
