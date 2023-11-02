@@ -24,6 +24,7 @@
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/IVDescriptors.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/IR/IRBuilder.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
@@ -87,18 +88,21 @@ bool createSubSplats(const vecz::TargetInfo &TI, llvm::IRBuilder<> &B,
                      llvm::SmallVectorImpl<llvm::Value *> &srcs,
                      unsigned subWidth);
 
-/// @brief Utility function for sanitizing the input to a reduction when
-/// vector-predicating. Since VP reduction intrinsics didn't land in LLVM 13,
-/// reductions must ensure that elements past VL don't affect the result.
+/// @brief Utility function for creating a reduction operation.
 ///
-/// Only works on RecurKind::And, Or, Add, SMin, SMax, UMin, UMax, FAdd.
+/// The value must be a vector.
 ///
-/// @param[in] B IRBuilder to build any new instructions created
-/// @param[in] Val The value to sanitize
-/// @param[in] VL The vector length
-/// @param[in] Kind The kind of reduction to sanitize for
-llvm::Value *sanitizeVPReductionInput(llvm::IRBuilder<> &B, llvm::Value *Val,
-                                      llvm::Value *VL, llvm::RecurKind Kind);
+/// If VL is passed and is non-null, it is assumed to be the i32 value
+/// representing the active vector length. The reduction will be
+/// vector-predicated according to this length.
+///
+/// Only works on RecurKind::And, Or, Xor, Add, Mul, FAdd, FMul, {S,U,F}Min,
+/// {S,U,F}Max.
+llvm::Value *createMaybeVPTargetReduction(llvm::IRBuilderBase &B,
+                                          const llvm::TargetTransformInfo &TTI,
+                                          llvm::Value *Val,
+                                          llvm::RecurKind Kind,
+                                          llvm::Value *VL = nullptr);
 
 /// @brief Utility function to obtain an indices vector to be used in a gather
 /// operation.
@@ -119,7 +123,7 @@ llvm::Value *getGatherIndicesVector(llvm::IRBuilder<> &B, llvm::Value *Indices,
                                     const llvm::Twine &N = "");
 
 /// @brief Returns a boolean vector with all elements set to 'true'.
-llvm::Value *createAllTrueMask(llvm::IRBuilder<> &B, llvm::ElementCount EC);
+llvm::Value *createAllTrueMask(llvm::IRBuilderBase &B, llvm::ElementCount EC);
 
 /// @brief Returns an integer step vector, representing the sequence 0 ... N-1.
 llvm::Value *createIndexSequence(llvm::IRBuilder<> &Builder,

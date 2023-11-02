@@ -39,12 +39,7 @@ if.end:
   ret void
 ; CHECK: define spir_kernel void @__vecz_nxv4_vp_mask_varying
 ; CHECK: [[CMP:%.*]] = icmp slt <vscale x 4 x i64> %{{.*}},
-; CHECK: [[INS:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[VL:%.*]], {{(i32|i64)}} 0
-; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[INS]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
-; CHECK: [[IDX:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
-; CHECK: [[MASK:%.*]] = icmp ult <vscale x 4 x i32> [[IDX]], [[SPLAT]]
-; CHECK: [[INP:%.*]] = select <vscale x 4 x i1> [[MASK]], <vscale x 4 x i1> [[CMP]], <vscale x 4 x i1> zeroinitializer
-; CHECK: [[RED:%.*]] = call i1 @llvm.vector.reduce.or.nxv4i1(<vscale x 4 x i1> [[INP]])
+; CHECK: [[RED:%.*]] = call i1 @llvm.vp.reduce.or.nxv4i1(i1 false, <vscale x 4 x i1> [[CMP]], {{.*}}, i32 {{.*}})
 ; CHECK: [[REINS:%.*]] = insertelement <4 x i1> poison, i1 [[RED]], {{(i32|i64)}} 0
 ; CHECK: [[RESPLAT:%.*]] = shufflevector <4 x i1> [[REINS]], <4 x i1> poison, <4 x i32> zeroinitializer
 }
