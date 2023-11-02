@@ -939,15 +939,6 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
     UR_CHECK_ERROR(hipEventRecord(Event));
-  }
-  if (pHostTimestamp) {
-    using namespace std::chrono;
-    *pHostTimestamp =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
-  }
-
-  if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventSynchronize(Event));
     float ElapsedTime = 0.0f;
     UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
@@ -955,5 +946,11 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
     *pDeviceTimestamp = (uint64_t)(ElapsedTime * (double)1e6);
   }
 
+  if (pHostTimestamp) {
+    using namespace std::chrono;
+    *pHostTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
   return UR_RESULT_SUCCESS;
 }
