@@ -233,7 +233,7 @@ UR commands (e.g. kernels) are mapped as graph nodes using the
 [CUDA Driver API](https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__GRAPH.html#group__CUDA__GRAPH).
 The CUDA Driver API is preferred over the CUDA Runtime API to implement
 the SYCL Graph backend to remain consistent with other UR functions.
-Synchonizations between commands (UR sync-points) are implemented
+Synchronization between commands (UR sync-points) is implemented
 using graph dependencies.
 
 Executable CUDA Graphs can be submitted to a CUDA stream
@@ -243,6 +243,6 @@ It also allows signaling the completion of a submission with an event.
 Therefore, submitting a UR command-buffer consists only of submitting to a stream
 the executable CUDA Graph that represent this series of operations.
 
-An executable CUDA Graph, which contains all commands and synchonization
+An executable CUDA Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
 graph resubmission.
