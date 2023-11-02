@@ -10,8 +10,8 @@
 
 #include "common.hpp"
 
-#include <sycl/types.hpp>
 #include <sycl/marray.hpp>
+#include <sycl/types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
