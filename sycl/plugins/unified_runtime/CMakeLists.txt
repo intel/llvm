@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit: 7c8617b3710736db642585fe310a64e19e059d2e
-  # Merge:  20d4f49  9a13af
+  # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
+  # Merge: 2ab0734 86f96f0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Oct 26 10:20:03 2023 +0100
-  #         Merge pull request #965 from Bensuo/ewan/L0_internal_event_fix
-  #         [Command-buffer][L0] Reset sync-point events
-  set(UNIFIED_RUNTIME_TAG 7c8617b3710736db642585fe310a64e19e059d2e)
+  # Date:   Fri Oct 27 16:36:23 2023 +0100
+  #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
+  #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
+  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -189,12 +189,9 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
       Threads::Threads
-      sycl
       OpenCL-Headers
   )
 
