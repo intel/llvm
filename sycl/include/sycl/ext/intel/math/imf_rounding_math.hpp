@@ -23,6 +23,10 @@ float __imf_fmul_rz(float, float);
 float __imf_fmul_rn(float, float);
 float __imf_fmul_ru(float, float);
 float __imf_fmul_rd(float, float);
+float __imf_fdiv_rz(float, float);
+float __imf_fdiv_rn(float, float);
+float __imf_fdiv_ru(float, float);
+float __imf_fdiv_rd(float, float);
 
 double __imf_dadd_rz(double, double);
 double __imf_dadd_rn(double, double);
@@ -36,6 +40,10 @@ double __imf_dmul_rz(double, double);
 double __imf_dmul_rn(double, double);
 double __imf_dmul_ru(double, double);
 double __imf_dmul_rd(double, double);
+double __imf_ddiv_rz(double, double);
+double __imf_ddiv_rn(double, double);
+double __imf_ddiv_ru(double, double);
+double __imf_ddiv_rd(double, double);
 };
 
 namespace sycl {
@@ -90,6 +98,22 @@ template <typename Tp = float> Tp fmul_rz(Tp x, Tp y) {
   return __imf_fmul_rz(x, y);
 }
 
+template <typename Tp = float> Tp fdiv_rd(Tp x, Tp y) {
+  return __imf_fdiv_rd(x, y);
+}
+
+template <typename Tp = float> Tp fdiv_rn(Tp x, Tp y) {
+  return __imf_fdiv_rn(x, y);
+}
+
+template <typename Tp = float> Tp fdiv_ru(Tp x, Tp y) {
+  return __imf_fdiv_ru(x, y);
+}
+
+template <typename Tp = float> Tp fdiv_rz(Tp x, Tp y) {
+  return __imf_fdiv_rz(x, y);
+}
+
 template <typename Tp = double> Tp dadd_rd(Tp x, Tp y) {
   return __imf_dadd_rd(x, y);
 }
@@ -136,6 +160,22 @@ template <typename Tp = double> Tp dmul_ru(Tp x, Tp y) {
 
 template <typename Tp = double> Tp dmul_rz(Tp x, Tp y) {
   return __imf_dmul_rz(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_rd(Tp x, Tp y) {
+  return __imf_ddiv_rd(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_rn(Tp x, Tp y) {
+  return __imf_ddiv_rn(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_ru(Tp x, Tp y) {
+  return __imf_ddiv_ru(x, y);
+}
+
+template <typename Tp = double> Tp ddiv_rz(Tp x, Tp y) {
+  return __imf_ddiv_rz(x, y);
 }
 } // namespace ext::intel::math
 } // namespace _V1

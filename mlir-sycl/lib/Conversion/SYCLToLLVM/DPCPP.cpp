@@ -1141,10 +1141,11 @@ private:
     const auto acc = opAdaptor.getAcc();
     const auto resTy = getTypeConverter()->getIndexType();
     Value res = builder.create<arith::ConstantIntOp>(loc, 0, resTy);
+    Type convAccTy = getTypeConverter()->convertType(accTy);
     for (unsigned i = 0; i < accTy.getDimension(); ++i) {
       // Res = Res * Mem[I] + Id[I]
-      const auto memI = getMemRange(builder, loc, accTy, resTy, acc, i);
-      const auto idI = getID(builder, loc, accTy, resTy, acc, i);
+      const auto memI = getMemRange(builder, loc, convAccTy, resTy, acc, i);
+      const auto idI = getID(builder, loc, convAccTy, resTy, acc, i);
       res = builder.create<arith::AddIOp>(
           loc, builder.create<arith::MulIOp>(loc, res, memI), idI);
     }
