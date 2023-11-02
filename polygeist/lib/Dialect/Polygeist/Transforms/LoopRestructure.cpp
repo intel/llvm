@@ -426,7 +426,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           for (const BlockArgument &Arg : B->getArguments())
             preserveValueIfNeeded(Arg);
         }
-        for (auto &O : *(Block *)B) {
+        for (auto &O : *B) {
           for (auto V : O.getResults())
             preserveValueIfNeeded(V);
         }
