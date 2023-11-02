@@ -25,11 +25,6 @@
 
 namespace multi_llvm {
 
-inline llvm::StructType *getStructTypeByName(llvm::LLVMContext &ctx,
-                                             llvm::StringRef name) {
-  return llvm::StructType::getTypeByName(ctx, name);
-}
-
 inline llvm::DILocation *getDILocation(unsigned Line, unsigned Column,
                                        llvm::MDNode *Scope,
                                        llvm::MDNode *InlinedAt = nullptr) {
