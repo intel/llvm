@@ -23,11 +23,11 @@ template <typename T> struct test_real {
         sycl::malloc_shared<sycl::marray<T, GETTERS_TEST_CASE_SIZE>>(1, Q);
 
     /* Check cplx::complex output from device */
-    Q.single_task([=]() { *cplx_out = cplx_in.real(); }).wait();
+    Q.single_task([=]() { *cplx_out = sycl::ext::oneapi::experimental::real(cplx_in); }).wait();
     pass &= check_results(*cplx_out, std_in, /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = cplx_in.real();
+    *cplx_out = sycl::ext::oneapi::experimental::real(cplx_in);
     pass &= check_results(*cplx_out, std_in, /*is_device*/ false);
 
     sycl::free(cplx_out, Q);
@@ -56,11 +56,11 @@ template <typename T> struct test_imag {
         sycl::malloc_shared<sycl::marray<T, GETTERS_TEST_CASE_SIZE>>(1, Q);
 
     /* Check cplx::complex output from device */
-    Q.single_task([=]() { *cplx_out = cplx_in.imag(); }).wait();
+    Q.single_task([=]() { *cplx_out = sycl::ext::oneapi::experimental::imag(cplx_in); }).wait();
     pass &= check_results(*cplx_out, std_in, /*is_device*/ true);
 
     /* Check cplx::complex output from host */
-    *cplx_out = cplx_in.imag();
+    *cplx_out = sycl::ext::oneapi::experimental::imag(cplx_in);
     pass &= check_results(*cplx_out, std_in, /*is_device*/ false);
 
     sycl::free(cplx_out, Q);
