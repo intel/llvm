@@ -84,6 +84,9 @@ int main() {
       NumErrors++;
     }
   }
+  free(A, Q);
+  free(B, Q);
+  free(Res, Q);
   std::cout << ((NumErrors == 0) ? "Passed\n" : "FAILED\n");
   return NumErrors == 0 ? 0 : 1;
 }
