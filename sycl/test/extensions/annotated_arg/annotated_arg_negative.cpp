@@ -9,11 +9,11 @@ using namespace ext::intel::experimental;
 
 void check_conduit_and_register_map_properties() {
   // check for conduit and register_map properties specified for the same variable
-  // exptected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
+  // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
   annotated_arg<int, decltype(properties{conduit, register_map})> a;
-  // exptected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
+  // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
   annotated_arg<int *, decltype(properties{conduit, register_map})> b;
-  // exptected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
+  // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{The properties conduit and register_map cannot be specified at the same time.}}
   annotated_ptr<int, decltype(properties{conduit, register_map})> c;
 }
 
