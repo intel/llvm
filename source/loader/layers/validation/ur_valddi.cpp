@@ -94,7 +94,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     ur_result_t result = pfnAdapterRetain(hAdapter);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hAdapter, true);
+        refCountContext.incrementRefCount(hAdapter, true);
     }
 
     return result;
