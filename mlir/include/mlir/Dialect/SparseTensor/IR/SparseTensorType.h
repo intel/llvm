@@ -336,10 +336,15 @@ private:
   const AffineMap lvlToDim;
 };
 
-/// Convenience method to abbreviate wrapping `getRankedTensorType`.
+/// Convenience methods to abbreviate wrapping `getRankedTensorType`.
 template <typename T>
 inline SparseTensorType getSparseTensorType(T t) {
   return SparseTensorType(getRankedTensorType(t));
+}
+inline std::optional<SparseTensorType> tryGetSparseTensorType(Value v) {
+  if (isa<RankedTensorType>(v.getType()))
+    return getSparseTensorType(v);
+  return std::nullopt;
 }
 
 } // namespace sparse_tensor

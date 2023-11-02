@@ -205,7 +205,7 @@ void Prescanner::Statement() {
       Say(preprocessed->GetProvenanceRange(),
           "Preprocessed line resembles a preprocessor directive"_warn_en_US);
       preprocessed->ToLowerCase()
-          .CheckBadFortranCharacters(messages_)
+          .CheckBadFortranCharacters(messages_, *this)
           .CheckBadParentheses(messages_)
           .Emit(cooked_);
       break;
@@ -220,7 +220,7 @@ void Prescanner::Statement() {
       preprocessed->ToLowerCase();
       SourceFormChange(preprocessed->ToString());
       preprocessed->ClipComment(*this, true /* skip first ! */)
-          .CheckBadFortranCharacters(messages_)
+          .CheckBadFortranCharacters(messages_, *this)
           .CheckBadParentheses(messages_)
           .Emit(cooked_);
       break;
@@ -239,7 +239,7 @@ void Prescanner::Statement() {
       }
       preprocessed->ToLowerCase()
           .ClipComment(*this)
-          .CheckBadFortranCharacters(messages_)
+          .CheckBadFortranCharacters(messages_, *this)
           .CheckBadParentheses(messages_)
           .Emit(cooked_);
       break;
@@ -257,7 +257,7 @@ void Prescanner::Statement() {
         EnforceStupidEndStatementRules(tokens);
       }
     }
-    tokens.CheckBadFortranCharacters(messages_)
+    tokens.CheckBadFortranCharacters(messages_, *this)
         .CheckBadParentheses(messages_)
         .Emit(cooked_);
   }
@@ -1008,20 +1008,27 @@ const char *Prescanner::FixedFormContinuationLine(bool mightNeedSpace) {
   }
   tabInCurrentLine_ = false;
   char col1{*nextLine_};
-  if (InCompilerDirective()) {
-    // Must be a continued compiler directive.
-    if (!IsFixedFormCommentChar(col1)) {
-      return nullptr;
-    }
+  if (IsFixedFormCommentChar(col1)) {
     int j{1};
-    for (; j < 5; ++j) {
-      char ch{directiveSentinel_[j - 1]};
-      if (ch == '\0') {
-        break;
+    if (InCompilerDirective()) {
+      // Must be a continued compiler directive.
+      for (; j < 5; ++j) {
+        char ch{directiveSentinel_[j - 1]};
+        if (ch == '\0') {
+          break;
+        }
+        if (ch != ToLowerCaseLetter(nextLine_[j])) {
+          return nullptr;
+        }
       }
-      if (ch != ToLowerCaseLetter(nextLine_[j])) {
+    } else if (features_.IsEnabled(LanguageFeature::OpenMP)) {
+      // Fixed Source Form Conditional Compilation Sentinels.
+      if (nextLine_[1] != '$') {
         return nullptr;
       }
+      j++;
+    } else {
+      return nullptr;
     }
     for (; j < 5; ++j) {
       if (nextLine_[j] != ' ') {
@@ -1275,6 +1282,21 @@ const char *Prescanner::IsCompilerDirectiveSentinel(
   }
   const auto iter{compilerDirectiveSentinels_.find(std::string(sentinel, len))};
   return iter == compilerDirectiveSentinels_.end() ? nullptr : iter->c_str();
+}
+
+const char *Prescanner::IsCompilerDirectiveSentinel(CharBlock token) const {
+  const char *p{token.begin()};
+  const char *end{p + token.size()};
+  while (p < end && (*p == ' ' || *p == '\n')) {
+    ++p;
+  }
+  if (p < end && *p == '!') {
+    ++p;
+  }
+  while (end > p && (end[-1] == ' ' || end[-1] == '\t')) {
+    --end;
+  }
+  return end > p && IsCompilerDirectiveSentinel(p, end - p) ? p : nullptr;
 }
 
 constexpr bool IsDirective(const char *match, const char *dir) {

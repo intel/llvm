@@ -8025,8 +8025,8 @@ bool TypeSystemClang::AddObjCClassProperty(
     const bool isSynthesizedAccessorStub = false;
     const bool isImplicitlyDeclared = true;
     const bool isDefined = false;
-    const clang::ObjCMethodDecl::ImplementationControl impControl =
-        clang::ObjCMethodDecl::None;
+    const clang::ObjCImplementationControl impControl =
+        clang::ObjCImplementationControl::None;
     const bool HasRelatedResultType = false;
 
     getter = clang::ObjCMethodDecl::CreateDeserialized(clang_ast, 0);
@@ -8067,8 +8067,8 @@ bool TypeSystemClang::AddObjCClassProperty(
     const bool isSynthesizedAccessorStub = false;
     const bool isImplicitlyDeclared = true;
     const bool isDefined = false;
-    const clang::ObjCMethodDecl::ImplementationControl impControl =
-        clang::ObjCMethodDecl::None;
+    const clang::ObjCImplementationControl impControl =
+        clang::ObjCImplementationControl::None;
     const bool HasRelatedResultType = false;
 
     setter = clang::ObjCMethodDecl::CreateDeserialized(clang_ast, 0);
@@ -8189,8 +8189,8 @@ clang::ObjCMethodDecl *TypeSystemClang::AddMethodToObjCObjectType(
   /// Force this to true because we don't have source locations.
   const bool isImplicitlyDeclared = true;
   const bool isDefined = false;
-  const clang::ObjCMethodDecl::ImplementationControl impControl =
-      clang::ObjCMethodDecl::None;
+  const clang::ObjCImplementationControl impControl =
+      clang::ObjCImplementationControl::None;
   const bool HasRelatedResultType = false;
 
   const unsigned num_args = method_function_prototype->getNumParams();
