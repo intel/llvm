@@ -98,9 +98,9 @@ void test_build_and_run() {
   std::vector<std::string> flags{"-cl-fast-relaxed-math",
                                  "-cl-finite-math-only"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
-  exe_kb kbExe2 = syclex::build(kbSrc, devs,
-                                syclex::properties{syclex::build_options{flags},
-                                                   syclex::build_log{&log}});
+  exe_kb kbExe2 = syclex::build(
+      kbSrc, devs,
+      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log}});
 
   bool hasMyKernel = kbExe2.ext_oneapi_has_kernel("my_kernel");
   bool hasHerKernel = kbExe2.ext_oneapi_has_kernel("her_kernel");

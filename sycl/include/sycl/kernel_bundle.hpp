@@ -799,14 +799,13 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 }
 
 namespace ext::oneapi::experimental {
-namespace syclex = sycl::ext::oneapi::experimental;
 
 /////////////////////////
 // PropertyT syclex::build_options
 /////////////////////////
 struct build_options {
   std::vector<std::string> opts;
-  build_options(const std::string &name) : opts{name} {}
+  build_options(const std::string &optsArg) : opts{optsArg} {}
   build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
 };
 using build_options_key = build_options;
@@ -820,44 +819,51 @@ struct is_property_key_of<build_options_key,
 
 namespace detail {
 
-template <> struct PropertyToKind<syclex::build_options_key> {
+template <>
+struct PropertyToKind<sycl::ext::oneapi::experimental::build_options_key> {
   static constexpr PropKind Kind = PropKind::BuildOptions;
 };
 
 template <>
-struct IsRuntimeProperty<syclex::build_options_key> : std::true_type {};
+struct IsRuntimeProperty<sycl::ext::oneapi::experimental::build_options_key>
+    : std::true_type {};
 
 template <>
-struct IsCompileTimeProperty<syclex::build_options_key> : std::false_type {};
+struct IsCompileTimeProperty<sycl::ext::oneapi::experimental::build_options_key>
+    : std::false_type {};
 
 } // namespace detail
 
 /////////////////////////
-// PropertyT syclex::build_log
+// PropertyT syclex::save_log
 /////////////////////////
-struct build_log {
+struct save_log {
   std::string *log;
-  build_log(std::string *logArg) : log(logArg) {}
+  save_log(std::string *logArg) : log(logArg) {}
 };
-using build_log_key = build_log;
+using save_log_key = save_log;
 
-template <> struct is_property_key<build_log_key> : std::true_type {};
+template <> struct is_property_key<save_log_key> : std::true_type {};
 
 template <>
-struct is_property_key_of<build_log_key,
+struct is_property_key_of<save_log_key,
                           sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
     : std::true_type {};
 
 namespace detail {
 
-template <> struct PropertyToKind<syclex::build_log_key> {
+template <>
+struct PropertyToKind<sycl::ext::oneapi::experimental::save_log_key> {
   static constexpr PropKind Kind = PropKind::BuildLog;
 };
 
-template <> struct IsRuntimeProperty<syclex::build_log_key> : std::true_type {};
+template <>
+struct IsRuntimeProperty<sycl::ext::oneapi::experimental::save_log_key>
+    : std::true_type {};
 
 template <>
-struct IsCompileTimeProperty<syclex::build_log_key> : std::false_type {};
+struct IsCompileTimeProperty<sycl::ext::oneapi::experimental::save_log_key>
+    : std::false_type {};
 
 } // namespace detail
 
@@ -871,9 +877,10 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
-create_kernel_bundle_from_source(const context &SyclContext,
-                                 syclex::source_language Language,
-                                 const std::string &Source);
+create_kernel_bundle_from_source(
+    const context &SyclContext,
+    sycl::ext::oneapi::experimental::source_language Language,
+    const std::string &Source);
 
 /////////////////////////
 // syclex::build(source_kb) => exe_kb
@@ -898,8 +905,8 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
   if constexpr (props.template has_property<build_options>()) {
     BuildOptionsVec = props.template get_property<build_options>().opts;
   }
-  if constexpr (props.template has_property<build_log>()) {
-    LogPtr = props.template get_property<build_log>().log;
+  if constexpr (props.template has_property<save_log>()) {
+    LogPtr = props.template get_property<save_log>().log;
   }
   return detail::build_from_source(SourceKB, Devices, BuildOptionsVec, LogPtr);
 }
