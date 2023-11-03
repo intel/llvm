@@ -345,44 +345,24 @@ template <typename... Args> struct checkHasConduitAndRegisterMap {
   static constexpr bool value = !(has_Conduit && has_RegisterMap);
 };
 
+#define CHECK_INVALID_PROPERTY(property, list)                      \
+    static constexpr bool has_##property =                          \
+        ContainsProperty<property##_key, list>::value;              \
+    static_assert(!has_##property,                                  \
+                  "Property " #property " cannot be specified for " \
+                  "annotated_arg<T> when T is a non pointer type.");
+
 template <typename... Args>
 struct checkPropertiesForNonPointerType : std::true_type {
   using list = std::tuple<Args...>;
-  static constexpr bool has_BufferLocation =
-      ContainsProperty<buffer_location_key, list>::value;
-  static_assert(!has_BufferLocation,
-                "Property buffer location cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_awidth = ContainsProperty<awidth_key, list>::value;
-  static_assert(!has_awidth, "Property awidth cannot be specified for "
-                             "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_dwidth = ContainsProperty<dwidth_key, list>::value;
-  static_assert(!has_dwidth, "Property dwidth cannot be specified for "
-                             "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_latency =
-      ContainsProperty<latency_key, list>::value;
-  static_assert(!has_latency, "Property latency cannot be specified for "
-                              "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_read_write_mode =
-      ContainsProperty<read_write_mode_key, list>::value;
-  static_assert(!has_read_write_mode,
-                "Property read_write_mode cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_maxburst =
-      ContainsProperty<maxburst_key, list>::value;
-  static_assert(!has_maxburst,
-                "Property maxburst cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_wait_request =
-      ContainsProperty<wait_request_key, list>::value;
-  static_assert(!has_wait_request,
-                "Property wait_request cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
-  static constexpr bool has_alignment =
-      ContainsProperty<alignment_key, list>::value;
-  static_assert(!has_alignment,
-                "Property alignment cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
+  CHECK_INVALID_PROPERTY(buffer_location, list);
+  CHECK_INVALID_PROPERTY(awidth, list);
+  CHECK_INVALID_PROPERTY(dwidth, list);
+  CHECK_INVALID_PROPERTY(latency, list);
+  CHECK_INVALID_PROPERTY(read_write_mode, list);
+  CHECK_INVALID_PROPERTY(maxburst, list);
+  CHECK_INVALID_PROPERTY(wait_request, list);
+  CHECK_INVALID_PROPERTY(alignment, list);
 };
 } // namespace detail
 
