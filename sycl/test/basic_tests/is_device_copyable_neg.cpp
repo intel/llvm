@@ -70,17 +70,17 @@ void test() {
   Q.single_task<class TestC>(FB);
 }
 
-// CHECK: static assertion failed due to requirement 'is_device_copyable<A>
+// CHECK: static assertion failed due to requirement 'is_device_copyable_v<A>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static assertion failed due to requirement 'is_device_copyable<B>
+// CHECK: static assertion failed due to requirement 'is_device_copyable_v<B>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static assertion failed due to requirement 'is_device_copyable<sycl::marray<B, 2>>
+// CHECK: static assertion failed due to requirement 'is_device_copyable_v<sycl::marray<B, 2>>
 // CHECK: is_device_copyable_neg.cpp:60:5: note: in instantiation of function
 
-// CHECK: static assertion failed due to requirement 'is_device_copyable<C>
+// CHECK: static assertion failed due to requirement 'is_device_copyable_v<C>
 // CHECK: is_device_copyable_neg.cpp:67:5: note: in instantiation of function
 
-// CHECK: static assertion failed due to requirement 'is_device_copyable<D>
+// CHECK: static assertion failed due to requirement 'is_device_copyable_v<D>
 // CHECK: is_device_copyable_neg.cpp:70:5: note: in instantiation of function

@@ -222,7 +222,6 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       SyclIntHeader(nullptr), SyclIntFooter(nullptr) {
   assert(pp.TUKind == TUKind);
   TUScope = nullptr;
-  isConstantEvaluatedOverride = false;
 
   LoadedExternalKnownNamespaces = false;
   for (unsigned I = 0; I != NSAPI::NumNSNumberLiteralMethods; ++I)
@@ -619,7 +618,11 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E) {
 
   if (Kind != CK_NullToPointer && Kind != CK_NullToMemberPointer)
     return;
-  if (E->IgnoreParenImpCasts()->getType()->isNullPtrType())
+
+  const Expr *EStripped = E->IgnoreParenImpCasts();
+  if (EStripped->getType()->isNullPtrType())
+    return;
+  if (isa<GNUNullExpr>(EStripped))
     return;
 
   if (Diags.isIgnored(diag::warn_zero_as_null_pointer_constant,
@@ -641,6 +644,8 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E) {
 
   // If it is a macro from system header, and if the macro name is not "NULL",
   // do not warn.
+  // Note that uses of "NULL" will be ignored above on systems that define it
+  // as __null.
   SourceLocation MaybeMacroLoc = E->getBeginLoc();
   if (Diags.getSuppressSystemWarnings() &&
       SourceMgr.isInSystemMacro(MaybeMacroLoc) &&
@@ -1293,20 +1298,21 @@ void Sema::ActOnEndOfTranslationUnit() {
         CurrentModule && CurrentModule->isInterfaceOrPartition()) {
       auto DoesModNeedInit = [this](Module *M) {
         if (!getASTContext().getModuleInitializers(M).empty())
-          return false;
+          return true;
         for (auto [Exported, _] : M->Exports)
-          if (!Exported->isNamedModuleInterfaceHasNoInit())
-            return false;
+          if (Exported->isNamedModuleInterfaceHasInit())
+            return true;
         for (Module *I : M->Imports)
-          if (!I->isNamedModuleInterfaceHasNoInit())
-            return false;
+          if (I->isNamedModuleInterfaceHasInit())
+            return true;
 
-        return true;
+        return false;
       };
 
-      CurrentModule->NamedModuleHasNoInit = DoesModNeedInit(CurrentModule);
-      for (Module *SubModules : CurrentModule->submodules())
-        CurrentModule->NamedModuleHasNoInit &= DoesModNeedInit(SubModules);
+      CurrentModule->NamedModuleHasInit =
+          DoesModNeedInit(CurrentModule) ||
+          llvm::any_of(CurrentModule->submodules(),
+                       [&](auto *SubM) { return DoesModNeedInit(SubM); });
     }
 
     // Warnings emitted in ActOnEndOfTranslationUnit() should be emitted for
@@ -2169,7 +2175,7 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
         targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
     }
 
-    if (Ty->isRVVType())
+    if (TI.hasRISCVVTypes() && Ty->isRVVType())
       checkRVVTypeSupport(Ty, Loc, D);
 
     // Don't allow SVE types in functions without a SVE target.

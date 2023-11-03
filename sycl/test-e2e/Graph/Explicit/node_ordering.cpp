@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG
@@ -42,8 +42,9 @@ int main() {
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), X, N * sizeof(int)).wait();
 
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 8);
+  const int Expected = 8;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   sycl::free(X, Queue);
 

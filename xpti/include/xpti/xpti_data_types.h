@@ -769,6 +769,11 @@ constexpr uint16_t trace_offload_memory_object_event =
 constexpr uint16_t trace_offload_accessor_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
 
+constexpr uint16_t trace_queue_create =
+    static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+constexpr uint16_t trace_queue_destroy =
+    static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
+
 constexpr uint16_t trace_diagnostics =
     static_cast<uint16_t>(xpti::trace_point_type_t::diagnostics);
 } // namespace xpti

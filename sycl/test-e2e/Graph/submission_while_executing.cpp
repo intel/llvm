@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
@@ -115,9 +115,11 @@ int main() {
   calculate_reference_data(NumIterations + SuccessfulSubmissions, LargeSize,
                            ReferenceA, ReferenceB, ReferenceC);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+  }
 
   return 0;
 }

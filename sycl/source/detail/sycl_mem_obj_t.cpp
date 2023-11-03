@@ -233,6 +233,19 @@ void SYCLMemObjT::detachMemoryObject(
     Scheduler::getInstance().deferMemObjRelease(Self);
 }
 
+void SYCLMemObjT::handleWriteAccessorCreation() {
+  const auto InitialUserPtr = MUserPtr;
+  MCreateShadowCopy();
+  MCreateShadowCopy = []() -> void {};
+  if (MRecord != nullptr && MUserPtr != InitialUserPtr) {
+    for (auto &it : MRecord->MAllocaCommands) {
+      if (it->MMemAllocation == InitialUserPtr) {
+        it->MMemAllocation = MUserPtr;
+      }
+    }
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
