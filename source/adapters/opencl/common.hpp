@@ -12,7 +12,6 @@
 #include <climits>
 #include <map>
 #include <mutex>
-#include <regex>
 #include <ur/ur.hpp>
 
 /**
@@ -72,12 +71,25 @@ public:
      * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><vendor-specific
      * information>' for devices.
      */
-    std::regex Rx("OpenCL ([0-9]+)\\.([0-9]+)");
-    std::smatch Match;
+    std::string_view prefix = "OpenCL ";
+    size_t versionBegin = Version.find_first_of(" ");
+    size_t versionEnd = Version.find_first_of(" ", versionBegin + 1);
+    size_t versionSeparator = Version.find_first_of(".", versionBegin + 1);
 
-    if (std::regex_search(Version, Match, Rx) && (Match.size() == 3)) {
-      OCLMajor = strtoul(Match[1].str().c_str(), nullptr, 10);
-      OCLMinor = strtoul(Match[2].str().c_str(), nullptr, 10);
+    bool haveOCLPrefix =
+        std::equal(prefix.begin(), prefix.end(), Version.begin());
+
+    if (haveOCLPrefix && versionBegin != std::string::npos &&
+        versionEnd != std::string::npos &&
+        versionSeparator != std::string::npos) {
+
+      std::string versionMajor{Version.begin() + versionBegin + 1,
+                               Version.begin() + versionSeparator};
+      std::string versionMinor{Version.begin() + versionSeparator + 1,
+                               Version.begin() + versionEnd};
+
+      OCLMajor = strtoul(versionMajor.c_str(), nullptr, 10);
+      OCLMinor = strtoul(versionMinor.c_str(), nullptr, 10);
 
       if (!isValid()) {
         OCLMajor = OCLMinor = 0;
