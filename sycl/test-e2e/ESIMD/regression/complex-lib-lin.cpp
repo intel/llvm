@@ -6,8 +6,6 @@
 // More details can be found in intel/llvm#4927.
 //
 // REQUIRES: linux
-// UNSUPPORTED: esimd_emulator
-// TODO: running non-ESIMD kernels on esimd_emulator backend.
 //
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-sycl.cpp -c -o %t-lib-sycl.o
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-esimd.cpp -c -o %t-lib-esimd.o
