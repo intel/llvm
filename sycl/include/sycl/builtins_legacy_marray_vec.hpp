@@ -14,6 +14,7 @@
 
 #include <sycl/access/access.hpp>              // for address_space, decorated
 #include <sycl/aliases.hpp>                    // for half
+#include <sycl/builtins_legacy_scalar.hpp>     // for scalar builtin variants
 #include <sycl/builtins_utils_vec.hpp>         // for to_vec, to_marray...
 #include <sycl/detail/boolean.hpp>             // for Boolean
 #include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
@@ -25,7 +26,6 @@
 #include <sycl/marray.hpp>                     // for marray
 #include <sycl/multi_ptr.hpp>                  // for address_space_cast
 #include <sycl/types.hpp>                      // for vec
-#include <sycl/builtins_legacy_scalar.hpp>     // for scalar builtin variants
 
 namespace sycl {
 inline namespace _V1 {
