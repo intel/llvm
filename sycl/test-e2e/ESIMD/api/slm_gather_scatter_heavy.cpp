@@ -8,7 +8,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: esimd_emulator
 //
 // GPU driver had an error in handling of SLM aligned block_loads/stores,
 // which has been fixed only in "1.3.26816", and in win/opencl version going
