@@ -207,11 +207,6 @@ static std::enable_if_t<std::is_base_of_v<Attr, T>, SourceLocation>
 getAttrLoc(const T &AL) {
   return AL.getLocation();
 }
-template <typename T,
-          std::enable_if_t<std::is_same_v<AttributeCommonInfo, T>, bool> = true>
-static SourceLocation getAttrLoc(const T &AL) {
-  return AL.getScopeLoc();
-}
 static SourceLocation getAttrLoc(const ParsedAttr &AL) { return AL.getLoc(); }
 
 /// If Expr is a valid integer constant, get the value of the integer
@@ -4452,6 +4447,25 @@ void Sema::AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
   D->addAttr(::new (Context) SYCLIntelMaxGlobalWorkDimAttr(Context, CI, E));
 }
 
+// Check that the value is a non-negative integer constant that can fit in
+// 32-bits. Issue correct error message and return false on failure.
+bool static check32BitInt(const Expr *E, Sema &S, llvm::APSInt &I,
+                          const AttributeCommonInfo &CI) {
+  if (!I.isIntN(32)) {
+    S.Diag(E->getExprLoc(), diag::err_ice_too_large)
+        << llvm::toString(I, 10, false) << 32 << /* Unsigned */ 1;
+    return false;
+  }
+
+  if (I.isSigned() && I.isNegative()) {
+    S.Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+        << CI << /* Non-negative */ 1;
+    return false;
+  }
+
+  return true;
+}
+
 void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Decl *D, const AttributeCommonInfo &CI, Expr *E) {
   if (Context.getLangOpts().SYCLIsDevice &&
@@ -4461,11 +4475,6 @@ void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     return;
   }
   if (!E->isValueDependent()) {
-    uint32_t Val;
-    if (!checkUInt32Argument(*this, CI, E, Val, UINT_MAX /* Idx */,
-                             true /* StrictlyUnsigned */))
-      return;
-
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
     // don't have to evaluate it again later.
@@ -4473,8 +4482,8 @@ void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
     if (Res.isInvalid())
       return;
-    if (Val != ArgVal)
-      llvm_unreachable("Values must not differ.");
+    if (!check32BitInt(E, *this, ArgVal, CI))
+      return;
     E = Res.get();
 
     // Check to see if there's a duplicate attribute with different values
@@ -4526,11 +4535,6 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     }
   }
   if (!E->isValueDependent()) {
-    uint32_t Val;
-    if (!checkUInt32Argument(*this, CI, E, Val, UINT_MAX /* Idx */,
-                             true /* StrictlyUnsigned */))
-      return;
-
     // Validate that we have an integer constant expression and then store the
     // converted constant expression into the semantic attribute so that we
     // don't have to evaluate it again later.
@@ -4538,9 +4542,9 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
     if (Res.isInvalid())
       return;
+    if (!check32BitInt(E, *this, ArgVal, CI))
+      return;
     E = Res.get();
-    if (Val != ArgVal)
-      llvm_unreachable("Values must not differ.");
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.

@@ -26,14 +26,15 @@ int main() {
               intel::max_work_groups_per_mp(4)]] () { volatile int A = 42; });
 
     constexpr float A = 2.0;
-    // expected-error@+4 {{'min_work_groups_per_cu' attribute requires an integer constant}}
-    // expected-warning@+4 {{'maxclusterrank' requires sm_90 or higher, CUDA arch provided: sm_70, ignoring 'max_work_groups_per_mp' attribute}}
+    // expected-warning@+5{{'maxclusterrank' requires sm_90 or higher, CUDA arch provided: sm_70, ignoring 'max_work_groups_per_mp' attribute}}
+    // expected-error@+3 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
     cgh.single_task<class T2>(
         [=] [[intel::max_work_group_size(1, 1, 256),
               intel::min_work_groups_per_cu(A),
               intel::max_work_groups_per_mp(4)]] () { volatile int A = 42; });
 
-    // expected-error@+3 {{'min_work_groups_per_cu' attribute requires an integer constant}}
+    // expected-error@+4 {{expression is not an integral constant expression}}
+    // expected-note@+3 {{value 2147483648 is outside the range of representable values of type 'int'}}
     cgh.single_task<class T3>(
         [=] [[intel::max_work_group_size(1, 1, 256),
               intel::min_work_groups_per_cu(2147483647 + 1)]] () {
