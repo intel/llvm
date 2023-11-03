@@ -2403,7 +2403,6 @@ pi_int32 enqueueImpCommandBufferKernel(
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
-  std::mutex *KernelMutex = nullptr;
   pi_program PiProgram = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
@@ -2427,16 +2426,12 @@ pi_int32 enqueueImpCommandBufferKernel(
     PiKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     PiProgram = DeviceImageImpl->get_program_ref();
-    std::tie(PiKernel, KernelMutex, EliminatedArgMask) =
-        detail::ProgramManager::getInstance().getOrCreateKernel(
-            KernelBundleImplPtr->get_context(), KernelName,
-            /*PropList=*/{}, PiProgram);
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
     auto SyclProg = Kernel->getProgramImpl();
     PiProgram = SyclProg->getHandleRef();
   } else {
-    std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
+    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
