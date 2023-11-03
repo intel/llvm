@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG
@@ -31,20 +31,22 @@ int main() {
 
   std::vector<int> Output(N);
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 0);
+  int Expected = 0;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   auto ExecGraph = Graph.finalize();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 0);
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
   Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
-  for (int i = 0; i < N; i++)
-    assert(Output[i] == 3);
+  Expected = 3;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, Output[i], "Output"));
 
   sycl::free(Arr, Queue);
 

@@ -1079,8 +1079,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    const bool PrepareForThinOrUnifiedLTO =
-        PrepareForThinLTO || (PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
       MPM.addPass(PB.buildO0DefaultPipeline(OptimizationLevel::O0,
                                       PrepareForLTO || PrepareForThinLTO));

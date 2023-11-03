@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG
@@ -67,9 +67,11 @@ int main() {
   free(PtrB, Queue);
   free(PtrC, Queue);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+  }
 
   return 0;
 }

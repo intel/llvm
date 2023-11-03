@@ -40,7 +40,7 @@ namespace detail {
 class node_impl {
 public:
   /// List of successors to this node.
-  std::vector<std::shared_ptr<node_impl>> MSuccessors;
+  std::vector<std::weak_ptr<node_impl>> MSuccessors;
   /// List of predecessors to this node.
   ///
   /// Using weak_ptr here to prevent circular references between nodes.
@@ -61,8 +61,10 @@ public:
   /// use a raw \p this pointer, so the extra \Prev parameter is passed.
   void registerSuccessor(const std::shared_ptr<node_impl> &Node,
                          const std::shared_ptr<node_impl> &Prev) {
-    if (std::find(MSuccessors.begin(), MSuccessors.end(), Node) !=
-        MSuccessors.end()) {
+    if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
+                     [Node](const std::weak_ptr<node_impl> &Ptr) {
+                       return Ptr.lock() == Node;
+                     }) != MSuccessors.end()) {
       return;
     }
     MSuccessors.push_back(Node);
@@ -91,65 +93,6 @@ public:
   node_impl(sycl::detail::CG::CGTYPE CGType,
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
       : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
-
-  /// Tests if two nodes have the same content,
-  /// i.e. same command group
-  /// This function should only be used for internal purposes.
-  /// A true return from this operator is not a guarantee that the nodes are
-  /// equals according to the Common reference semantics. But this function is
-  /// an helper to verify that two nodes contain equivalent Command Groups.
-  /// @param Node node to compare with
-  /// @return true if two nodes have equivament command groups. false otherwise.
-  bool operator==(const node_impl &Node) {
-    if (MCGType != Node.MCGType)
-      return false;
-
-    switch (MCGType) {
-    case sycl::detail::CG::CGTYPE::Kernel: {
-      sycl::detail::CGExecKernel *ExecKernelA =
-          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      sycl::detail::CGExecKernel *ExecKernelB =
-          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
-    }
-    case sycl::detail::CG::CGTYPE::CopyUSM: {
-      sycl::detail::CGCopyUSM *CopyA =
-          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
-      sycl::detail::CGCopyUSM *CopyB =
-          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
-      return (CopyA->getSrc() == CopyB->getSrc()) &&
-             (CopyA->getDst() == CopyB->getDst()) &&
-             (CopyA->getLength() == CopyB->getLength());
-    }
-    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
-    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
-    case sycl::detail::CG::CGTYPE::CopyPtrToAcc: {
-      sycl::detail::CGCopy *CopyA =
-          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
-      sycl::detail::CGCopy *CopyB =
-          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
-      return (CopyA->getSrc() == CopyB->getSrc()) &&
-             (CopyA->getDst() == CopyB->getDst());
-    }
-    default:
-      assert(false && "Unexpected command group type!");
-      return false;
-    }
-  }
-
-  /// Recursively add nodes to execution stack.
-  /// @param NodeImpl Node to schedule.
-  /// @param Schedule Execution ordering to add node to.
-  void sortTopological(std::shared_ptr<node_impl> NodeImpl,
-                       std::list<std::shared_ptr<node_impl>> &Schedule) {
-    for (auto &Next : MSuccessors) {
-      // Check if we've already scheduled this node
-      if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
-        Next->sortTopological(Next, Schedule);
-    }
-
-    Schedule.push_front(NodeImpl);
-  }
 
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
@@ -235,50 +178,54 @@ public:
     return nullptr;
   }
 
-  /// Tests is the caller is similar to Node
+  /// Tests if the caller is similar to Node, this is only used for testing.
+  /// @param Node The node to check for similarity.
+  /// @param CompareContentOnly Skip comparisons related to graph structure,
+  /// compare only the type and command groups of the nodes
   /// @return True if the two nodes are similar
-  bool isSimilar(std::shared_ptr<node_impl> Node) {
-    if (MSuccessors.size() != Node->MSuccessors.size())
+  bool isSimilar(const std::shared_ptr<node_impl> &Node,
+                 bool CompareContentOnly = false) const {
+    if (!CompareContentOnly) {
+      if (MSuccessors.size() != Node->MSuccessors.size())
+        return false;
+
+      if (MPredecessors.size() != Node->MPredecessors.size())
+        return false;
+    }
+    if (MCGType != Node->MCGType)
       return false;
 
-    if (MPredecessors.size() != Node->MPredecessors.size())
+    switch (MCGType) {
+    case sycl::detail::CG::CGTYPE::Kernel: {
+      sycl::detail::CGExecKernel *ExecKernelA =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      sycl::detail::CGExecKernel *ExecKernelB =
+          static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+    }
+    case sycl::detail::CG::CGTYPE::CopyUSM: {
+      sycl::detail::CGCopyUSM *CopyA =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      sycl::detail::CGCopyUSM *CopyB =
+          static_cast<sycl::detail::CGCopyUSM *>(Node->MCommandGroup.get());
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst()) &&
+             (CopyA->getLength() == CopyB->getLength());
+    }
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc: {
+      sycl::detail::CGCopy *CopyA =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      sycl::detail::CGCopy *CopyB =
+          static_cast<sycl::detail::CGCopy *>(Node->MCommandGroup.get());
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst());
+    }
+    default:
+      assert(false && "Unexpected command group type!");
       return false;
-
-    if (*this == *Node.get())
-      return true;
-
-    return false;
-  }
-
-  /// Recursive traversal of successor nodes checking for
-  /// equivalent node successions in Node
-  /// @param Node pointer to the starting node for structure comparison
-  /// @return true is same structure found, false otherwise
-  bool checkNodeRecursive(std::shared_ptr<node_impl> Node) {
-    size_t FoundCnt = 0;
-    for (std::shared_ptr<node_impl> SuccA : MSuccessors) {
-      for (std::shared_ptr<node_impl> SuccB : Node->MSuccessors) {
-        if (isSimilar(Node) && SuccA->checkNodeRecursive(SuccB)) {
-          FoundCnt++;
-          break;
-        }
-      }
     }
-    if (FoundCnt != MSuccessors.size()) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /// Recusively computes the number of successor nodes
-  /// @return number of successor nodes
-  size_t depthSearchCount() const {
-    size_t NumberOfNodes = 1;
-    for (const auto &Succ : MSuccessors) {
-      NumberOfNodes += Succ->depthSearchCount();
-    }
-    return NumberOfNodes;
   }
 
 private:
@@ -432,7 +379,14 @@ public:
   sycl::device getDevice() const { return MDevice; }
 
   /// List of root nodes.
-  std::set<std::shared_ptr<node_impl>> MRoots;
+  std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
+      MRoots;
+
+  /// Storage for all nodes contained within a graph. Nodes are connected to
+  /// each other via weak_ptrs and so do not extend each other's lifetimes.
+  /// This storage allows easy iteration over all nodes in the graph, rather
+  /// than needing an expensive depth first search.
+  std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 
   /// Find the last node added to this graph from an in-order queue.
   /// @param Queue In-order queue to find the last node added to the graph from.
@@ -474,6 +428,29 @@ public:
                                 " cannot be called when a queue "
                                 "is currently recording commands to a graph.");
     }
+  }
+
+  /// Recursively check successors of NodeA and NodeB to check they are similar.
+  /// @param NodeA pointer to the first node for comparison
+  /// @param NodeB pointer to the second node for comparison
+  /// @return true is same structure found, false otherwise
+  static bool checkNodeRecursive(const std::shared_ptr<node_impl> &NodeA,
+                                 const std::shared_ptr<node_impl> &NodeB) {
+    size_t FoundCnt = 0;
+    for (std::weak_ptr<node_impl> &SuccA : NodeA->MSuccessors) {
+      for (std::weak_ptr<node_impl> &SuccB : NodeB->MSuccessors) {
+        if (NodeA->isSimilar(NodeB) &&
+            checkNodeRecursive(SuccA.lock(), SuccB.lock())) {
+          FoundCnt++;
+          break;
+        }
+      }
+    }
+    if (FoundCnt != NodeA->MSuccessors.size()) {
+      return false;
+    }
+
+    return true;
   }
 
   /// Checks if the graph_impl of Graph has a similar structure to
@@ -533,10 +510,13 @@ public:
     }
 
     size_t RootsFound = 0;
-    for (std::shared_ptr<node_impl> NodeA : MRoots) {
-      for (std::shared_ptr<node_impl> NodeB : Graph->MRoots) {
-        if (NodeA->isSimilar(NodeB)) {
-          if (NodeA->checkNodeRecursive(NodeB)) {
+    for (std::weak_ptr<node_impl> NodeA : MRoots) {
+      for (std::weak_ptr<node_impl> NodeB : Graph->MRoots) {
+        auto NodeALocked = NodeA.lock();
+        auto NodeBLocked = NodeB.lock();
+
+        if (NodeALocked->isSimilar(NodeBLocked)) {
+          if (checkNodeRecursive(NodeALocked, NodeBLocked)) {
             RootsFound++;
             break;
           }
@@ -555,15 +535,9 @@ public:
     return true;
   }
 
-  // Returns the number of nodes in the Graph
-  // @return Number of nodes in the Graph
-  size_t getNumberOfNodes() const {
-    size_t NumberOfNodes = 0;
-    for (const auto &Node : MRoots) {
-      NumberOfNodes += Node->depthSearchCount();
-    }
-    return NumberOfNodes;
-  }
+  /// Returns the number of nodes in the Graph
+  /// @return Number of nodes in the Graph
+  size_t getNumberOfNodes() const { return MNodeStorage.size(); }
 
   /// Traverse the graph recursively to get the events associated with the
   /// output nodes of this graph.
@@ -597,6 +571,22 @@ private:
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
   addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
+
+  /// Adds dependencies for a new node, if it has no deps it will be
+  /// added as a root node.
+  /// @param Node The node to add deps for
+  /// @param Deps List of dependent nodes
+  void addDepsToNode(std::shared_ptr<node_impl> Node,
+                     const std::vector<std::shared_ptr<node_impl>> &Deps) {
+    if (!Deps.empty()) {
+      for (auto &N : Deps) {
+        N->registerSuccessor(Node, N);
+        this->removeRoot(Node);
+      }
+    } else {
+      this->addRoot(Node);
+    }
+  }
 
   /// Context associated with this graph.
   sycl::context MContext;

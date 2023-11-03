@@ -5,9 +5,9 @@
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
-
-// https://github.com/intel/llvm/issues/11434
-// XFAIL: gpu-intel-dg2
+//
+// TODO enable cuda once buffer issue investigated and fixed
+// UNSUPPORTED: cuda
 
 #define GRAPH_E2E_RECORD_REPLAY
 

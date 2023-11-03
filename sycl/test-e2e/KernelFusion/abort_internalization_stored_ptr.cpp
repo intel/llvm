@@ -1,11 +1,15 @@
 // REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "Computation error" --implicit-check-not "Internalized"
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "Computation error" --implicit-check-not "Internalized" --check-prefix=CHECK %if ext_oneapi_hip %{ --check-prefix=CHECK-HIP %} %else %{ --check-prefix=CHECK-NON-HIP %}
 
 // Test pointers being stored are not internalized.
 
 // CHECK:      Unable to perform all promotions for function {{.*}}. Detailed information:
-// CHECK-NEXT: Failed to promote argument 0 of function {{.*}}: It is not safe to promote values being stored to another pointer
+// CHECK-NON-HIP-NEXT: Failed to promote argument 0 of function {{.*}}: It is not safe to promote values being stored to another pointer
+// COM: The libspirv for HIP adds an instruction prior to the store causing the
+// internalization failure. COM: The failure is still related to what we expect,
+// it just fails for a slightly different reason.
+// CHECK-HIP-NEXT: Failed to promote argument 0 of function {{.*}}: Do not know how to handle value to promote
 
 #include <sycl/sycl.hpp>
 

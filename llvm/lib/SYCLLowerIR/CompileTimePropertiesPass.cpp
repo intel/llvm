@@ -645,7 +645,15 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     // always valid, even if the decoration parameters are not strings.
     NewAnnotString += "{" + std::to_string(DecorCode);
     if (PropVal)
-      NewAnnotString += ":\"" + PropVal->str() + "\"";
+      NewAnnotString += ":\"" + PropVal->str();
+
+    if (PropName == "sycl-prefetch-hint")
+      NewAnnotString += ",1"; // CachedINTEL
+    if (PropName == "sycl-prefetch-hint-nt")
+      NewAnnotString += ",3"; // InvalidateAfterReadINTEL
+
+    if (PropVal)
+      NewAnnotString += "\"";
     NewAnnotString += "}";
   }
 
