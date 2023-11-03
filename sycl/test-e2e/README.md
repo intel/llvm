@@ -210,8 +210,7 @@ unavailable.
 
  * **windows**, **linux** - host OS;
  * **cpu**, **gpu**, **accelerator** - target device;
- * **cuda**, **hip**, **opencl**, **level_zero** - target
-     backend;
+ * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
  * **sycl-ls** - sycl-ls tool availability;
  * **cm-compiler** - C for Metal compiler availability;
  * **cl_options** - CL command line options recognized (or not) by compiler;
@@ -240,8 +239,7 @@ configure specific single test execution in the command line:
  * **dpcpp_compiler** - full path to dpcpp compiler;
  * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend`
     is one of `opencl`, `ext_oneapi_hip`, `ext_oneapi_cuda`,
-    `ext_oneapi_level_zero` and `device` is one of
-    `cpu`, `gpu` or `acc`.
+    `ext_oneapi_level_zero` and `device` is one of `cpu`, `gpu` or `acc`.
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **compatibility_testing** - forces LIT infra to skip the tests compilation
    to support compatibility testing (a SYCL application is built with one
