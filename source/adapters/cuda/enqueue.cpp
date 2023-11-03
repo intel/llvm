@@ -286,7 +286,7 @@ setKernelParams(const ur_context_handle_t Context,
 
     auto Device = Context->getDevice();
     if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
-      setErrorMessage("Too much local memory allocated for device",
+      setErrorMessage("Excessive allocation of local memory on the device",
                       UR_RESULT_ERROR_ADAPTER_SPECIFIC);
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
