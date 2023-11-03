@@ -843,7 +843,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
     return ((v + divisor - 1) / divisor) * divisor;
   };
   typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
-      x;
+      x = {};
   T carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
@@ -1034,7 +1034,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
     return ((v + divisor - 1) / divisor) * divisor;
   };
   typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
-      x;
+      x = {};
   T carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;

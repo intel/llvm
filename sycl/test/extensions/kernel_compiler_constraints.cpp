@@ -47,10 +47,10 @@ int main() {
   class TestKernel1;
   sycl::kernel_id TestKernel1ID = sycl::get_kernel_id<TestKernel1>();
 
-  // expected-error@../include/sycl/kernel_bundle.hpp:*  {{no matching member function for call to 'has_kernel'}}
+  // expected-error@+1  {{no matching member function for call to 'has_kernel'}}
   kbSrc.has_kernel<TestKernel1>();
 
-  // expected-error@../include/sycl/kernel_bundle.hpp:*  {{no matching member function for call to 'has_kernel'}}
+  // expected-error@+1  {{no matching member function for call to 'has_kernel'}}
   kbSrc.has_kernel<TestKernel1>(devices[0]);
 
   // expected-error@+1  {{no matching member function for call to 'has_kernel'}}

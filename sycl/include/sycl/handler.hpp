@@ -55,10 +55,6 @@
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
-#ifdef __SYCL_NATIVE_CPU__
-#include <sycl/detail/native_cpu.hpp>
-#endif
-
 #include <assert.h>
 #include <functional>
 #include <memory>
@@ -189,11 +185,15 @@ static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg));
 
-// template <typename RetType, typename Func>
-// static void member_ptr_helper(RetType (Func::*)() const);
+// Version with two arguments to handle the case when kernel_handler is passed
+// to a lambda
+template <typename RetType, typename Func, typename Arg1, typename Arg2>
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
-// template <typename RetType, typename Func>
-// static void member_ptr_helper(RetType (Func::*)());
+// Non-const version of the above template to match functors whose 'operator()'
+// is declared w/o the 'const' qualifier.
+template <typename RetType, typename Func, typename Arg1, typename Arg2>
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -349,12 +349,12 @@ public:
   id<Dims> getId() { return Id; }
 
   template <typename KernelType> auto getItem() {
-    if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
-                  std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
+    if constexpr (std::is_invocable_v<KernelType, item<Dims> &> ||
+                  std::is_invocable_v<KernelType, item<Dims> &, kernel_handler>)
       return detail::Builder::createItem<Dims, true>(UserRange, getId(), {});
     else {
-      static_assert(std::is_invocable_v<KernelType, item<Dims, false>> ||
-                        std::is_invocable_v<KernelType, item<Dims, false>,
+      static_assert(std::is_invocable_v<KernelType, item<Dims, false> &> ||
+                        std::is_invocable_v<KernelType, item<Dims, false> &,
                                             kernel_handler>,
                     "Kernel must be invocable with an item!");
       return detail::Builder::createItem<Dims, false>(UserRange, getId());
@@ -376,8 +376,10 @@ public:
   void operator()(item<Dims> It) const {
     auto RoundedRange = It.get_range();
     for (RoundedRangeIDGenerator Gen(It.get_id(), UserRange, RoundedRange); Gen;
-         Gen.updateId())
-      KernelFunc(Gen.template getItem<KernelType>());
+         Gen.updateId()) {
+      auto item = Gen.template getItem<KernelType>();
+      KernelFunc(item);
+    }
   }
 };
 
@@ -389,8 +391,10 @@ public:
   void operator()(item<Dims> It, kernel_handler KH) const {
     auto RoundedRange = It.get_range();
     for (RoundedRangeIDGenerator Gen(It.get_id(), UserRange, RoundedRange); Gen;
-         Gen.updateId())
-      KernelFunc(Gen.template getItem<KernelType>(), KH);
+         Gen.updateId()) {
+      auto item = Gen.template getItem<KernelType>();
+      KernelFunc(item, KH);
+    }
   }
 };
 
@@ -725,9 +729,9 @@ private:
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
-    auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
+    auto HostKernelPtr = new detail::HostKernel<decltype(NormalizedKernelFunc),
+                                                sycl::nd_item<Dims>, Dims>(
+        std::move(NormalizedKernelFunc));
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
@@ -1239,6 +1243,21 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
+                      std::is_convertible_v<item<Dims, false>, LambdaArgType>,
+                  "sycl::parallel_for(sycl::range) kernel must have the "
+                  "first argument of sycl::item type, or of a type which is "
+                  "implicitly convertible from sycl::item");
+
+    static_assert(
+        (std::is_invocable_v<KernelType, LambdaArgType> ||
+         std::is_invocable_v<KernelType, LambdaArgType, kernel_handler>),
+        "SYCL kernel lambda/functor has an unexpected signature, it should be "
+        "invocable with sycl::item and optionally sycl::kernel_handler");
+#endif
+
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1261,7 +1280,7 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
+      kernel_parallel_for_wrapper<KName, TransformedArgType, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       // We are executing over the rounded range, but there are still
@@ -1271,7 +1290,7 @@ private:
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
       MNDRDesc.set(*RoundedRange);
-      StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
+      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
 #endif
@@ -1320,7 +1339,8 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#ifdef SYCL2020_CONFORMANT_APIS
+#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
+    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "

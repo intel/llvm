@@ -351,7 +351,7 @@ of defined symbols. If this assumption is not correct, there can be two cases:
   device image is taken to use duplicated symbol
 - Same symbols have different definitions. In this case ODR violation takes
   place, such situation leads to undefined behaviour. For more details refer
-  to [ODR violations](#ODR-violations) section.
+  to [ODR violations](#odr-violations) section.
   - The situation when two device images of different formats define the same
     symbols with two different definitions is not considered as ODR violation.
     In this case the suitable device image will be picked.

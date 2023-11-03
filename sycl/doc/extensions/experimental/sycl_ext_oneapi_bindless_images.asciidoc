@@ -1013,6 +1013,12 @@ images may be read from and written back to within the same kernel, however,
 reading from that same image again will result in undefined behaviour. A new 
 kernel must be submitted for the written data to be accessible.
 
+[NOTE]
+====
+Attempting to read an image with `read_mipmap` or any other defined read 
+function will result in undefined behaviour.
+====
+
 == Mipmapped images
 
 So far, we have described how to create and operate on standard bindless images.
@@ -1102,31 +1108,37 @@ level of a given top-level descriptor.
 
 === Reading a mipmap
 
-Inside the kernel, it's possible to read a mipmap via `read_image`, passing the 
+Inside the kernel, it's possible to read a mipmap via `read_mipmap`, passing the 
 `sampled_image_handle`, the coordinates, and either the level or anisotropic 
 gradient values.
 
-The method of sampling a mipmap is different based on which `read_image` 
+The method of sampling a mipmap is different based on which `read_mipmap` 
 function is used, and the sampler attributes passed upon creation of the 
 mipmap.
 
 ```c++
 // Nearest/linear filtering between mip levels
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &ImageHandle,
-                 const CoordT &Coords,
-                 const float Level);
+DataT read_mipmap(const sampled_image_handle &ImageHandle,
+                  const CoordT &Coords,
+                  const float Level);
 
 // Anisotropic filtering
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &ImageHandle,
-                 const CoordT &Coords,
-                 const CoordT &Dx, const CoordT &Dy);
+DataT read_mipmap(const sampled_image_handle &ImageHandle,
+                  const CoordT &Coords,
+                  const CoordT &Dx, const CoordT &Dy);
 ```
 
 Reading a mipmap follows the same restrictions on what coordinate types may be 
 used as laid out in <<reading_writing_inside_kernel>>, and the viewing gradients 
 are bound to the same type as used for the coordinates.
+
+[NOTE]
+====
+Attempting to read a mipmap with `read_image` or any other defined read function 
+will result in undefined behaviour.
+====
 
 == Interoperability
 
@@ -1226,12 +1238,12 @@ interop_mem_handle import_external_memory(
     external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
-image_mem_handle map_external_memory_array(
+image_mem_handle map_external_image_memory(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
-image_mem_handle map_external_memory_array(
+image_mem_handle map_external_image_memory(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::queue &syclQueue);
@@ -1661,9 +1673,9 @@ try {
       float x = (static_cast<float>(id[0]) + 0.5f) / static_cast<float>(width);
       // Read mipmap level 0 with anisotropic filtering
       // and level 1 with level filtering
-      float px1 = sycl::ext::oneapi::experimental::read_image<float>(
+      float px1 = sycl::ext::oneapi::experimental::read_mipmap<float>(
           mipHandle, x, 0.0f, 0.0f);
-      float px2 = sycl::ext::oneapi::experimental::read_image<float>(
+      float px2 = sycl::ext::oneapi::experimental::read_mipmap<float>(
           mipHandle, x, 1.0f);
 
       sum = px1 + px2;
@@ -1772,10 +1784,10 @@ try {
 
   // Extension: map imported external memory to image memory
   sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
+      sycl::ext::oneapi::experimental::map_external_image_memory(
           input_interop_mem_handle, desc, queue);
   sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
+      sycl::ext::oneapi::experimental::map_external_image_memory(
           output_interop_mem_handle, desc, queue);
 
   // Extension: create images from mapped memory and return the handles
@@ -1981,4 +1993,8 @@ These features still need to be handled:
 |4.4|2023-09-12| - Added overload with `sycl::queue` to standalone functions
 |4.5|2023-09-14| - Update wording for allocating images + fix typo
 |4.6|2023-09-19| - Clarify restrictions on reading/writing coordinate types
+|4.7|2023-10-16| - Introduce `read_mipmap` for mipmap access and clarify reading 
+                   restrictions on image types
+|4.8|2023-10-25| - Change the name of `map_external_memory_array` to 
+                   `map_external_image_memory` to avoid CUDA terminology
 |======================
