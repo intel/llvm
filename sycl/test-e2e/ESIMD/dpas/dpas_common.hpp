@@ -425,18 +425,17 @@ bool tests(queue Q, bool Print) {
   auto Dev = Q.get_device();
 
   // Detect the execution size.
-  // The device trait is not implemented for esimd_emulator. Use both 8 and 16.
   int ExecSize;
-  bool IsEmulator = false;
   try {
     ExecSize = Dev.get_info<ext::intel::info::device::gpu_eu_simd_width>();
   } catch (sycl::exception e) {
-    IsEmulator = true;
+    std::cerr << "Could not determine ExecSize, FAIL" << std::endl;
+    return false;
   }
-  assert((IsEmulator || (ExecSize == 8 || ExecSize == 16)) &&
+  assert(((ExecSize == 8 || ExecSize == 16)) &&
          "Execution size must be 8 or 16");
 
-  if (ExecSize == 16 || IsEmulator) {
+  if (ExecSize == 16) {
     Passed &=
         test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 16, LetDeduceArgs>(
             Q, Print);
@@ -444,7 +443,7 @@ bool tests(queue Q, bool Print) {
         test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0, 16, LetDeduceArgs>(
             Q, Print);
   }
-  if (ExecSize == 8 || IsEmulator) {
+  if (ExecSize == 8) {
     if constexpr (!ExecSize16Only) {
       Passed &=
           test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 8, LetDeduceArgs>(
