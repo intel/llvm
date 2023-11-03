@@ -345,6 +345,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(URDeviceType);
   }
+  case UR_DEVICE_INFO_DEVICE_ID: {
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_pci_bus_info"},
+        Supported));
+
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+
+    cl_device_pci_bus_info_khr PciInfo = {};
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PCI_BUS_INFO_KHR,
+        sizeof(PciInfo), &PciInfo, nullptr));
+    return ReturnValue(PciInfo.pci_device);
+  }
+
   case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION: {
     oclv::OpenCLVersion Version;
     CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
@@ -760,6 +777,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(Supported);
   }
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {
+    bool Supported = false;
+    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_program_scope_host_pipe"}, Supported));
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
@@ -775,7 +802,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     /* CL type: cl_bitfield / enum
      * UR type: ur_flags_t (uint32_t) */
 
-    cl_bitfield CLValue;
+    cl_bitfield CLValue = 0;
     CL_RETURN_ON_FAILURE(
         clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
                         sizeof(cl_bitfield), &CLValue, nullptr));
@@ -898,13 +925,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    * sycl/doc/extensions/supported/sycl_ext_intel_device_info.md */
   case UR_DEVICE_INFO_UUID:
   /* This enums have no equivalent in OpenCL */
-  case UR_DEVICE_INFO_DEVICE_ID:
+  case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case UR_DEVICE_INFO_ASYNC_BARRIER:
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  case UR_DEVICE_INFO_ASYNC_BARRIER: {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

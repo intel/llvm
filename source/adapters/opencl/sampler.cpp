@@ -154,16 +154,22 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-
   cl_sampler_info SamplerInfo = ur2CLSamplerInfo(propName);
   static_assert(sizeof(cl_addressing_mode) ==
                 sizeof(ur_sampler_addressing_mode_t));
 
-  if (ur_result_t Err = mapCLErrorToUR(
-          clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), SamplerInfo,
-                           propSize, pPropValue, pPropSizeRet))) {
-    return Err;
+  size_t CheckPropSize = 0;
+  ur_result_t Err = mapCLErrorToUR(
+      clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), SamplerInfo,
+                       propSize, pPropValue, &CheckPropSize));
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
   }
+  CL_RETURN_ON_FAILURE(Err);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
+
   // Convert OpenCL returns to UR
   cl2URSamplerInfoValue(SamplerInfo, pPropValue);
 
