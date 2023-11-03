@@ -1,9 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Disabled for HIP (https://github.com/intel/llvm/issues/10358) and CUDA
-// (https://github.com/intel/llvm/issues/10360)
-// UNSUPPORTED: cuda || hip
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
 
 // Tests the size and iterator members of an empty zero-dimensional accessor.
 

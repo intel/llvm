@@ -1,5 +1,8 @@
 // REQUIRES: level_zero
 
+// https://github.com/intel/llvm/issues/11434
+// XFAIL: gpu-intel-dg2
+
 // RUN: %{build} -o %t.out
 
 // RUN: env ZE_DEBUG=4 %{run} %t.out u 2>&1 | FileCheck %s --check-prefix CHECK-USM

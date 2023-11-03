@@ -267,7 +267,7 @@ func.func @bad_concat(%arg0: !fir.ref<!fir.char<1,10>>, %arg1: !fir.ref<!fir.cha
 // -----
 func.func @bad_concat_2(%arg0: !fir.ref<!fir.array<100x!fir.char<1,10>>>, %arg1: !fir.ref<!fir.array<100x!fir.char<1,20>>>) {
   %c30 = arith.constant 30 : index
-  // expected-error@+1 {{'hlfir.concat' op operand #0 must be any character scalar type, but got '!fir.ref<!fir.array<100x!fir.char<1,10>>>'}}
+  // expected-error@+1 {{'hlfir.concat' op operand #0 must be variadic of any character scalar type, but got '!fir.ref<!fir.array<100x!fir.char<1,10>>>'}}
   %0 = hlfir.concat %arg0, %arg1 len %c30 : (!fir.ref<!fir.array<100x!fir.char<1,10>>>, !fir.ref<!fir.array<100x!fir.char<1,20>>>, index) -> (!hlfir.expr<100x!fir.char<1,30>>)
   return
 }
@@ -275,7 +275,7 @@ func.func @bad_concat_2(%arg0: !fir.ref<!fir.array<100x!fir.char<1,10>>>, %arg1:
 // -----
 func.func @bad_concat_3(%arg0: !fir.ref<!fir.char<1,10>>, %arg1: !fir.ref<i32>) {
   %c30 = arith.constant 30 : index
-  // expected-error@+1 {{'hlfir.concat' op operand #1 must be any character scalar type, but got '!fir.ref<i32>'}}
+  // expected-error@+1 {{'hlfir.concat' op operand #1 must be variadic of any character scalar type, but got '!fir.ref<i32>'}}
   %0 = hlfir.concat %arg0, %arg1 len %c30 : (!fir.ref<!fir.char<1,10>>, !fir.ref<i32>, index) -> (!hlfir.expr<!fir.char<1,30>>)
   return
 }
@@ -1163,5 +1163,21 @@ func.func @elemental_poly_4(%shape : index) {
     %6 = fir.undefined !hlfir.expr<!fir.type<_QMtypesTt>?>
     hlfir.yield_element %6 : !hlfir.expr<!fir.type<_QMtypesTt>?>
   }
+  return
+}
+
+// -----
+func.func @destroy_with_finalize(%expr: !hlfir.expr<?xi32>) {
+// expected-error@+1 {{'hlfir.destroy' op the element type must be finalizable, when 'finalize' is set}}
+  hlfir.destroy %expr finalize : !hlfir.expr<?xi32>
+  return
+}
+
+// -----
+
+func.func @end_associate_with_alloc_comp(%var: !hlfir.expr<?x!fir.type<_QMtypesTt{x:!fir.box<!fir.heap<f32>>}>>, %shape: !fir.shape<1>) {
+  %4:3 = hlfir.associate %var(%shape) {uniq_name = "adapt.valuebyref"} : (!hlfir.expr<?x!fir.type<_QMtypesTt{x:!fir.box<!fir.heap<f32>>}>>, !fir.shape<1>) -> (!fir.box<!fir.array<?x!fir.type<_QMtypesTt{x:!fir.box<!fir.heap<f32>>}>>>, !fir.ref<!fir.array<?x!fir.type<_QMtypesTt{x:!fir.box<!fir.heap<f32>>}>>>, i1)
+// expected-error@+1 {{'hlfir.end_associate' op that requires components deallocation must have var operand that is a Fortran entity}}
+  hlfir.end_associate %4#1, %4#2 : !fir.ref<!fir.array<?x!fir.type<_QMtypesTt{x:!fir.box<!fir.heap<f32>>}>>>, i1
   return
 }

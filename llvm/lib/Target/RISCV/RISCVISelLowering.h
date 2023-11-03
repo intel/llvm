@@ -55,9 +55,6 @@ enum NodeType : unsigned {
   // Selected as PseudoAddTPRel. Used to emit a TP-relative relocation.
   ADD_TPREL,
 
-  // Load address.
-  LA_TLS_GD,
-
   // Multiply high for signedxunsigned.
   MULHSU,
   // RV64I shifts, directly matching the semantics of the named RISC-V
@@ -309,6 +306,7 @@ enum NodeType : unsigned {
   VWADDU_W_VL,
   VWSUB_W_VL,
   VWSUBU_W_VL,
+  VWSLL_VL,
 
   VFWMUL_VL,
   VFWADD_VL,
@@ -417,12 +415,7 @@ enum NodeType : unsigned {
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
   // opcodes will be thought as target memory ops!
 
-  // Represents an AUIPC+L[WD] pair. Selected to PseudoLGA.
-  LGA = ISD::FIRST_TARGET_MEMORY_OPCODE,
-  // Load initial exec thread-local address.
-  LA_TLS_IE,
-
-  TH_LWD,
+  TH_LWD = ISD::FIRST_TARGET_MEMORY_OPCODE,
   TH_LWUD,
   TH_LDD,
   TH_SWD,
@@ -573,7 +566,7 @@ public:
   getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
                                StringRef Constraint, MVT VT) const override;
 
-  void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
+  void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
 
@@ -798,6 +791,8 @@ public:
   bool isLegalStridedLoadStore(EVT DataType, Align Alignment) const;
 
   unsigned getMaxSupportedInterleaveFactor() const override { return 8; }
+
+  bool fallBackToDAGISel(const Instruction &Inst) const override;
 
   bool lowerInterleavedLoad(LoadInst *LI,
                             ArrayRef<ShuffleVectorInst *> Shuffles,

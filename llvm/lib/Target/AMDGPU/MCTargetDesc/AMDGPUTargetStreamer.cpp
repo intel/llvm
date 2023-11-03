@@ -424,8 +424,6 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
   switch (CodeObjectVersion) {
   default:
     break;
-  case AMDGPU::AMDHSA_COV2:
-    break;
   case AMDGPU::AMDHSA_COV3:
   case AMDGPU::AMDHSA_COV4:
   case AMDGPU::AMDHSA_COV5:
@@ -455,7 +453,7 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
   if (IVersion.Major >= 9)
     PRINT_FIELD(OS, ".amdhsa_fp16_overflow", KD,
                 compute_pgm_rsrc1,
-                amdhsa::COMPUTE_PGM_RSRC1_FP16_OVFL);
+                amdhsa::COMPUTE_PGM_RSRC1_GFX9_PLUS_FP16_OVFL);
   if (AMDGPU::isGFX90A(STI))
     PRINT_FIELD(OS, ".amdhsa_tg_split", KD,
                 compute_pgm_rsrc3,
@@ -463,13 +461,13 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
   if (IVersion.Major >= 10) {
     PRINT_FIELD(OS, ".amdhsa_workgroup_processor_mode", KD,
                 compute_pgm_rsrc1,
-                amdhsa::COMPUTE_PGM_RSRC1_WGP_MODE);
+                amdhsa::COMPUTE_PGM_RSRC1_GFX10_PLUS_WGP_MODE);
     PRINT_FIELD(OS, ".amdhsa_memory_ordered", KD,
                 compute_pgm_rsrc1,
-                amdhsa::COMPUTE_PGM_RSRC1_MEM_ORDERED);
+                amdhsa::COMPUTE_PGM_RSRC1_GFX10_PLUS_MEM_ORDERED);
     PRINT_FIELD(OS, ".amdhsa_forward_progress", KD,
                 compute_pgm_rsrc1,
-                amdhsa::COMPUTE_PGM_RSRC1_FWD_PROGRESS);
+                amdhsa::COMPUTE_PGM_RSRC1_GFX10_PLUS_FWD_PROGRESS);
     PRINT_FIELD(OS, ".amdhsa_shared_vgpr_count", KD, compute_pgm_rsrc3,
                 amdhsa::COMPUTE_PGM_RSRC3_GFX10_PLUS_SHARED_VGPR_COUNT);
   }
@@ -545,7 +543,7 @@ void AMDGPUTargetELFStreamer::EmitNote(
   unsigned NoteFlags = 0;
   // TODO Apparently, this is currently needed for OpenCL as mentioned in
   // https://reviews.llvm.org/D74995
-  if (STI.getTargetTriple().getOS() == Triple::AMDHSA)
+  if (isHsaAbi(STI))
     NoteFlags = ELF::SHF_ALLOC;
 
   S.pushSection();
@@ -604,11 +602,10 @@ unsigned AMDGPUTargetELFStreamer::getEFlagsUnknownOS() {
 }
 
 unsigned AMDGPUTargetELFStreamer::getEFlagsAMDHSA() {
-  assert(STI.getTargetTriple().getOS() == Triple::AMDHSA);
+  assert(isHsaAbi(STI));
 
   if (std::optional<uint8_t> HsaAbiVer = getHsaAbiVersion(&STI)) {
     switch (*HsaAbiVer) {
-    case ELF::ELFABIVERSION_AMDGPU_HSA_V2:
     case ELF::ELFABIVERSION_AMDGPU_HSA_V3:
       return getEFlagsV3();
     case ELF::ELFABIVERSION_AMDGPU_HSA_V4:
@@ -830,6 +827,24 @@ bool AMDGPUTargetELFStreamer::EmitHSAMetadata(
              OS.emitBytes(HSAMetadataString);
              OS.emitLabel(DescEnd);
            });
+  return true;
+}
+
+bool AMDGPUTargetAsmStreamer::EmitKernargPreloadHeader(
+    const MCSubtargetInfo &STI) {
+  for (int i = 0; i < 64; ++i) {
+    OS << "\ts_nop 0\n";
+  }
+  return true;
+}
+
+bool AMDGPUTargetELFStreamer::EmitKernargPreloadHeader(
+    const MCSubtargetInfo &STI) {
+  const uint32_t Encoded_s_nop = 0xbf800000;
+  MCStreamer &OS = getStreamer();
+  for (int i = 0; i < 64; ++i) {
+    OS.emitInt32(Encoded_s_nop);
+  }
   return true;
 }
 

@@ -19,7 +19,6 @@
 #include "VPlan.h"
 #include "VPlanCFG.h"
 #include "VPlanDominatorTree.h"
-#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -716,15 +715,6 @@ VPlanPtr VPlan::createInitialVPlan(const SCEV *TripCount, ScalarEvolution &SE) {
   Plan->TripCount =
       vputils::getOrCreateVPValueForSCEVExpr(*Plan, TripCount, SE);
   return Plan;
-}
-
-VPActiveLaneMaskPHIRecipe *VPlan::getActiveLaneMaskPhi() {
-  VPBasicBlock *Header = getVectorLoopRegion()->getEntryBasicBlock();
-  for (VPRecipeBase &R : Header->phis()) {
-    if (isa<VPActiveLaneMaskPHIRecipe>(&R))
-      return cast<VPActiveLaneMaskPHIRecipe>(&R);
-  }
-  return nullptr;
 }
 
 void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,

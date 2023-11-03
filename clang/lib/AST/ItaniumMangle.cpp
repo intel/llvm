@@ -112,8 +112,8 @@ public:
   void mangleCXXRTTI(QualType T, raw_ostream &) override;
   void mangleCXXRTTIName(QualType T, raw_ostream &,
                          bool NormalizeIntegers) override;
-  void mangleTypeName(QualType T, raw_ostream &,
-                      bool NormalizeIntegers) override;
+  void mangleCanonicalTypeName(QualType T, raw_ostream &,
+                               bool NormalizeIntegers) override;
 
   void mangleCXXCtorComdat(const CXXConstructorDecl *D, raw_ostream &) override;
   void mangleCXXDtorComdat(const CXXDestructorDecl *D, raw_ostream &) override;
@@ -841,8 +841,17 @@ void CXXNameMangler::mangleFunctionEncoding(GlobalDecl GD) {
 
   AbiTagList ReturnTypeAbiTags = makeFunctionReturnTypeTags(FD);
   if (ReturnTypeAbiTags.empty()) {
-    // There are no tags for return type, the simplest case.
+    // There are no tags for return type, the simplest case. Enter the function
+    // parameter scope before mangling the name, because a template using
+    // constrained `auto` can have references to its parameters within its
+    // template argument list:
+    //
+    //   template<typename T> void f(T x, C<decltype(x)> auto)
+    // ... is mangled as ...
+    //   template<typename T, C<decltype(param 1)> U> void f(T, U)
+    FunctionTypeDepthState Saved = FunctionTypeDepth.push();
     mangleName(GD);
+    FunctionTypeDepth.pop(Saved);
     mangleFunctionEncodingBareType(FD);
     return;
   }
@@ -855,7 +864,10 @@ void CXXNameMangler::mangleFunctionEncoding(GlobalDecl GD) {
   CXXNameMangler FunctionEncodingMangler(*this, FunctionEncodingStream);
   // Output name of the function.
   FunctionEncodingMangler.disableDerivedAbiTags();
+
+  FunctionTypeDepthState Saved = FunctionTypeDepth.push();
   FunctionEncodingMangler.mangleNameWithAbiTags(FD, nullptr);
+  FunctionTypeDepth.pop(Saved);
 
   // Remember length of the function name in the buffer.
   size_t EncodingPositionStart = FunctionEncodingStream.str().size();
@@ -873,7 +885,9 @@ void CXXNameMangler::mangleFunctionEncoding(GlobalDecl GD) {
       AdditionalAbiTags.end());
 
   // Output name with implicit tags and function encoding from temporary buffer.
+  Saved = FunctionTypeDepth.push();
   mangleNameWithAbiTags(FD, &AdditionalAbiTags);
+  FunctionTypeDepth.pop(Saved);
   Out << FunctionEncodingStream.str().substr(EncodingPositionStart);
 
   // Function encoding could create new substitutions so we have to add
@@ -1707,7 +1721,7 @@ void CXXNameMangler::mangleUnqualifiedName(
 
       // If we have a member function, we need to include the 'this' pointer.
       if (const auto *MD = dyn_cast<CXXMethodDecl>(ND))
-        if (!MD->isStatic())
+        if (MD->isImplicitObjectMemberFunction())
           Arity++;
     }
     [[fallthrough]];
@@ -1767,6 +1781,8 @@ void CXXNameMangler::mangleNestedName(GlobalDecl GD,
     Qualifiers MethodQuals = Method->getMethodQualifiers();
     // We do not consider restrict a distinguishing attribute for overloading
     // purposes so we must not mangle it.
+    if (Method->isExplicitObjectMemberFunction())
+      Out << 'H';
     MethodQuals.removeRestrict();
     mangleQualifiers(MethodQuals);
     mangleRefQualifier(Method->getRefQualifier());
@@ -2873,6 +2889,10 @@ static bool isTypeSubstitutable(Qualifiers Quals, const Type *Ty,
     return true;
   if (Ty->isOpenCLSpecificType())
     return true;
+  // From Clang 18.0 we correctly treat SVE types as substitution candidates.
+  if (Ty->isSVESizelessBuiltinType() &&
+      Ctx.getLangOpts().getClangABICompat() > LangOptions::ClangABI::Ver17)
+    return true;
   if (Ty->isBuiltinType())
     return false;
   // Through to Clang 6.0, we accidentally treated undeduced auto types as
@@ -3030,7 +3050,8 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
   // UNSUPPORTED:    ::= De # IEEE 754r decimal floating point (128 bits)
   // UNSUPPORTED:    ::= Df # IEEE 754r decimal floating point (32 bits)
   //                 ::= Dh # IEEE 754r half-precision floating point (16 bits)
-  //                 ::= DF <number> _ # ISO/IEC TS 18661 binary floating point type _FloatN (N bits);
+  //                 ::= DF <number> _ # ISO/IEC TS 18661 binary floating point
+  //                 type _FloatN (N bits);
   //                 ::= Di # char32_t
   //                 ::= Ds # char16_t
   //                 ::= Dn # std::nullptr_t (i.e., decltype(nullptr))
@@ -3307,9 +3328,16 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
 #define SVE_VECTOR_TYPE(InternalName, MangledName, Id, SingletonId, NumEls,    \
                         ElBits, IsSigned, IsFP, IsBF)                          \
   case BuiltinType::Id:                                                        \
-    type_name = MangledName;                                                   \
-    Out << (type_name == InternalName ? "u" : "") << type_name.size()          \
-        << type_name;                                                          \
+    if (T->getKind() == BuiltinType::SveBFloat16 &&                            \
+        isCompatibleWith(LangOptions::ClangABI::Ver17)) {                      \
+      /* Prior to Clang 18.0 we used this incorrect mangled name */            \
+      type_name = "__SVBFloat16_t";                                            \
+      Out << "u" << type_name.size() << type_name;                             \
+    } else {                                                                   \
+      type_name = MangledName;                                                 \
+      Out << (type_name == InternalName ? "u" : "") << type_name.size()        \
+          << type_name;                                                        \
+    }                                                                          \
     break;
 #define SVE_PREDICATE_TYPE(InternalName, MangledName, Id, SingletonId, NumEls) \
   case BuiltinType::Id:                                                        \
@@ -3364,6 +3392,7 @@ StringRef CXXNameMangler::getCallingConvQualifierName(CallingConv CC) {
   case CC_OpenCLKernel:
   case CC_PreserveMost:
   case CC_PreserveAll:
+  case CC_M68kRTD:
     // FIXME: we should be mangling all of the above.
     return "";
 
@@ -5065,6 +5094,14 @@ recurse:
       Diags.Report(DiagID);
       return;
     }
+    case UETT_VectorElements: {
+      DiagnosticsEngine &Diags = Context.getDiags();
+      unsigned DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error,
+          "cannot yet mangle __builtin_vectorelements expression");
+      Diags.Report(DiagID);
+      return;
+    }
     }
     break;
   }
@@ -5809,13 +5846,14 @@ struct CXXNameMangler::TemplateArgManglingInfo {
              "no parameter for argument");
       Param = ResolvedTemplate->getTemplateParameters()->getParam(ParamIdx);
 
-      // If we reach an expanded parameter pack whose argument isn't in pack
-      // form, that means Sema couldn't figure out which arguments belonged to
-      // it, because it contains a pack expansion. Track the expanded pack for
-      // all further template arguments until we hit that pack expansion.
+      // If we reach a parameter pack whose argument isn't in pack form, that
+      // means Sema couldn't or didn't figure out which arguments belonged to
+      // it, because it contains a pack expansion or because Sema bailed out of
+      // computing parameter / argument correspondence before this point. Track
+      // the pack as the corresponding parameter for all further template
+      // arguments until we hit a pack expansion, at which point we don't know
+      // the correspondence between parameters and arguments at all.
       if (Param->isParameterPack() && Arg.getKind() != TemplateArgument::Pack) {
-        assert(getExpandedPackSize(Param) &&
-               "failed to form pack argument for parameter pack");
         UnresolvedExpandedPack = Param;
       }
     }
@@ -7079,8 +7117,8 @@ void ItaniumMangleContextImpl::mangleCXXRTTIName(
   Mangler.mangleType(Ty);
 }
 
-void ItaniumMangleContextImpl::mangleTypeName(QualType Ty, raw_ostream &Out,
-                                              bool NormalizeIntegers = false) {
+void ItaniumMangleContextImpl::mangleCanonicalTypeName(
+    QualType Ty, raw_ostream &Out, bool NormalizeIntegers = false) {
   mangleCXXRTTIName(Ty, Out, NormalizeIntegers);
 }
 

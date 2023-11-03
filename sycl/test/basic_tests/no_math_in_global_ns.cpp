@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=warning,note
+// RUN: %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=warning,note
 // expected-no-diagnostics
 
 // MSVC has the following includes:

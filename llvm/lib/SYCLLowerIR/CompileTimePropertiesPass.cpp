@@ -62,6 +62,21 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
+/// Builds a metadata node for a SPIR-V decoration (decoration code is
+/// \c uint32_t integers) with no value.
+///
+/// @param Ctx    [in] the LLVM Context.
+/// @param OpCode [in] the SPIR-V OpCode code.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode) {
+  auto *Ty = Type::getInt32Ty(Ctx);
+  SmallVector<Metadata *, 2> MD;
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
+  return MDNode::get(Ctx, MD);
+}
+
 /// Builds a metadata node for a SPIR-V decoration (both decoration code
 /// and value are \c uint32_t integers).
 ///
@@ -97,9 +112,7 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   SmallVector<Metadata *, 2> MD;
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, OpCode))));
-  MD.push_back(
-      ConstantAsMetadata::get(ConstantDataArray::getString(Ctx, Value,
-                                                           /*AddNull=*/true)));
+  MD.push_back(MDString::get(Ctx, Value));
   return MDNode::get(Ctx, MD);
 }
 
@@ -170,6 +183,8 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
     return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
   case DecorValueTy::string:
     return buildSpirvDecorMetadata(Ctx, DecorCode, Attr.getValueAsString());
+  case DecorValueTy::none:
+    return buildSpirvDecorMetadata(Ctx, DecorCode);
   default:
     llvm_unreachable("Unhandled decorator type.");
   }
@@ -613,13 +628,13 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Read the annotation values and create the new annotation string.
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
-  for (auto &Property : Properties) {
+  for (const auto &[PropName, PropVal] : Properties) {
     // sycl-alignment is converted to align on
     // previous parseAlignmentAndApply(), dropping here
-    if (*Property.first == "sycl-alignment")
+    if (PropName == "sycl-alignment")
       continue;
 
-    auto DecorIt = SpirvDecorMap.find(*Property.first);
+    auto DecorIt = SpirvDecorMap.find(*PropName);
     if (DecorIt == SpirvDecorMap.end())
       continue;
     uint32_t DecorCode = DecorIt->second.Code;
@@ -629,8 +644,16 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     // string values are handled correctly. Note that " around values are
     // always valid, even if the decoration parameters are not strings.
     NewAnnotString += "{" + std::to_string(DecorCode);
-    if (Property.second)
-      NewAnnotString += ":\"" + Property.second->str() + "\"";
+    if (PropVal)
+      NewAnnotString += ":\"" + PropVal->str();
+
+    if (PropName == "sycl-prefetch-hint")
+      NewAnnotString += ",1"; // CachedINTEL
+    if (PropName == "sycl-prefetch-hint-nt")
+      NewAnnotString += ",3"; // InvalidateAfterReadINTEL
+
+    if (PropVal)
+      NewAnnotString += "\"";
     NewAnnotString += "}";
   }
 

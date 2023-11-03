@@ -400,8 +400,7 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
-  // TODO: Support Auto GRF for ESIMD once vc supports it.
-  if (IsAutoGRF && !IsEsimdImage) {
+  if (IsAutoGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
@@ -495,6 +494,37 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       else
         CompileOpts.erase(Pos, OptLen);
     }
+    static const std::string TargetRegisterAllocMode =
+        "-ftarget-register-alloc-mode=";
+    auto OptPos = CompileOpts.find(TargetRegisterAllocMode);
+    while (OptPos != std::string::npos) {
+      auto EndOfOpt = CompileOpts.find(" ", OptPos);
+      // Extract everything after the equals until the end of the option
+      auto OptValue = CompileOpts.substr(
+          OptPos + TargetRegisterAllocMode.size(),
+          EndOfOpt - OptPos - TargetRegisterAllocMode.size());
+      auto ColonPos = OptValue.find(":");
+      auto Device = OptValue.substr(0, ColonPos);
+      std::string BackendStrToAdd;
+      bool IsPVC =
+          std::all_of(Devs.begin(), Devs.end(), [&](const device &Dev) {
+            return IsIntelGPU &&
+                   (Dev.get_info<ext::intel::info::device::device_id>() &
+                    0xFF00) == 0x0B00;
+          });
+      // Currently 'pvc' is the only supported device.
+      if (Device == "pvc" && IsPVC)
+        BackendStrToAdd = " " + OptValue.substr(ColonPos + 1) + " ";
+
+      // Extract everything before this option
+      std::string NewCompileOpts =
+          CompileOpts.substr(0, OptPos) + BackendStrToAdd;
+      // Extract everything after this option and add it to the above.
+      if (EndOfOpt != std::string::npos)
+        NewCompileOpts += CompileOpts.substr(EndOfOpt);
+      CompileOpts = NewCompileOpts;
+      OptPos = CompileOpts.find(TargetRegisterAllocMode);
+    }
   }
 }
 
@@ -572,21 +602,15 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
 
 sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const program_impl *Prg,
-    bool JITCompilationIsRequired) {
+    const std::string &KernelName, bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
   std::string LinkOpts;
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-  }
 
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
 
   SerializedObj SpecConsts;
-  if (Prg)
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
@@ -616,7 +640,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
 
-  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
@@ -625,8 +649,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
     if (!DeviceCodeWasInCache) {
-      if (Prg)
-        flushSpecConstants(*Prg, NativePrg, &Img);
       if (Img.supportsSpecConstants())
         enableITTAnnotationsIfNeeded(NativePrg, Plugin);
     }
@@ -669,8 +691,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -688,8 +709,7 @@ std::tuple<sycl::detail::pi::PiKernel, std::mutex *, const KernelArgMask *,
            sycl::detail::pi::PiProgram>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName,
-                                  const program_impl *Prg) {
+                                  const std::string &KernelName) {
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -701,10 +721,6 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
-  if (Prg) {
-    CompileOpts = Prg->get_build_options();
-    Prg->stableSerializeSpecConstRegistry(SpecConsts);
-  }
   applyOptionsFromEnvironment(CompileOpts, LinkOpts);
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
@@ -715,7 +731,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return ret_tuple;
 
   sycl::detail::pi::PiProgram Program =
-      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, Prg);
+      getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
 
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     sycl::detail::pi::PiKernel Kernel = nullptr;
@@ -1506,16 +1522,13 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   Prg.flush_spec_constants(*Img, NativePrg);
 }
 
-// If the kernel is loaded from spv file, it may not include DeviceLib require
-// mask, sycl runtime won't know which fallback device libraries are needed. In
-// such case, the safest way is to load all fallback device libraries.
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &DLMRange =
       Img.getDeviceLibReqMask();
   if (DLMRange.isAvailable())
     return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
   else
-    return 0xFFFFFFFF;
+    return 0x0;
 }
 
 const KernelArgMask *
@@ -2273,8 +2286,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
   auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOpts + LinkOpts));
+      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId), PiDevice);
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
@@ -2307,7 +2319,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         getRawSyclObjImpl(Devs[Idx])->getHandleRef();
 
     // Change device in the cache key to reduce copying of spec const data.
-    CacheKey.second.first = PiDeviceAdd;
+    CacheKey.second = PiDeviceAdd;
     getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
         Cache, GetCachedBuildF, CacheOtherDevices);
     // getOrBuild is not supposed to return nullptr

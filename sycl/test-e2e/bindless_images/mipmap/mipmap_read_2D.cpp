@@ -111,7 +111,7 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
             float fdim1 = float(dim1 + 0.5) / (float)height;
 
             // Extension: read mipmap level 1 with LOD
-            VecType px2 = sycl::ext::oneapi::experimental::read_image<VecType>(
+            VecType px2 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
                 mipHandle, sycl::float2(fdim0, fdim1), 1.0f);
 
             outAcc[sycl::id<2>{dim1, dim0}] = px2[0];

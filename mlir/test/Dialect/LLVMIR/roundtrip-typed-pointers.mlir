@@ -6,12 +6,12 @@ func.func @ops(%arg0: i32) {
 // Memory-related operations.
 //
 // CHECK-NEXT:  %[[ALLOCA:.*]] = llvm.alloca %[[I32]] x f64 : (i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:  %[[GEP:.*]] = llvm.getelementptr %[[ALLOCA]][%[[I32]], %[[I32]]] : (!llvm.ptr<f64>, i32, i32) -> !llvm.ptr<f64>
+// CHECK-NEXT:  %[[GEP:.*]] = llvm.getelementptr %[[ALLOCA]][%[[I32]]] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
 // CHECK-NEXT:  %[[VALUE:.*]] = llvm.load %[[GEP]] : !llvm.ptr<f64>
 // CHECK-NEXT:  llvm.store %[[VALUE]], %[[ALLOCA]] : !llvm.ptr<f64>
 // CHECK-NEXT:  %{{.*}} = llvm.bitcast %[[ALLOCA]] : !llvm.ptr<f64> to !llvm.ptr<i64>
   %13 = llvm.alloca %arg0 x f64 : (i32) -> !llvm.ptr<f64>
-  %14 = llvm.getelementptr %13[%arg0, %arg0] : (!llvm.ptr<f64>, i32, i32) -> !llvm.ptr<f64>
+  %14 = llvm.getelementptr %13[%arg0] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
   %15 = llvm.load %14 : !llvm.ptr<f64>
   llvm.store %15, %13 : !llvm.ptr<f64>
   %16 = llvm.bitcast %13 : !llvm.ptr<f64> to !llvm.ptr<i64>
@@ -39,10 +39,10 @@ func.func @alloca(%size : i64) {
 
 // CHECK-LABEL: @null
 func.func @null() {
-  // CHECK: llvm.mlir.null : !llvm.ptr<i8>
-  %0 = llvm.mlir.null : !llvm.ptr<i8>
-  // CHECK: llvm.mlir.null : !llvm.ptr<struct<(ptr<func<void (i32, ptr<func<void ()>>)>>, i64)>>
-  %1 = llvm.mlir.null : !llvm.ptr<struct<(ptr<func<void (i32, ptr<func<void ()>>)>>, i64)>>
+  // CHECK: llvm.mlir.zero : !llvm.ptr<i8>
+  %0 = llvm.mlir.zero : !llvm.ptr<i8>
+  // CHECK: llvm.mlir.zero : !llvm.ptr<struct<(ptr<func<void (i32, ptr<func<void ()>>)>>, i64)>>
+  %1 = llvm.mlir.zero : !llvm.ptr<struct<(ptr<func<void (i32, ptr<func<void ()>>)>>, i64)>>
   llvm.return
 }
 

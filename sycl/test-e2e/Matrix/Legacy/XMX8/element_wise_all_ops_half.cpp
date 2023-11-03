@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-fp16
 // REQUIRES: matrix-xmx8
+// REQUIRES: matrix-fp16
 
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
 // RUN: %{run} %t.out

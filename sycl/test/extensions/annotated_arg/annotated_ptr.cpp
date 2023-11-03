@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-// expected-no-diagnostics
 
 #include "sycl/sycl.hpp"
 #include <sycl/ext/intel/fpga_extensions.hpp>
@@ -17,8 +16,8 @@ using annotated_ptr_t1 =
                                            dwidth<32>))>;
 
 using annotated_ptr_t2 =
-    annotated_ptr<int, decltype(properties(buffer_location<0>, conduit,
-                                           register_map, alignment<8>))>;
+    annotated_ptr<int, decltype(properties(buffer_location<0>, register_map,
+                                           alignment<8>))>;
 
 using annotated_ptr_t3 =
     annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>))>;
@@ -110,7 +109,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
 
-  // Implicit conversion
+  // Removed
+  // Assignment / implicit conversion
+  // expected-error@+1 {{no viable overloaded '='}}
   a1 = raw;
 
   // Property merge
