@@ -318,9 +318,26 @@ bool SanitizerInterceptor::updateHostShadowMemory(ur_context_handle_t Context,
         auto ShadowPtr = (u8 *)MemToShadow(AllocInfo.UserEnd, ShadowOffset);
         *ShadowPtr = Value;
     }
-    auto ShadowByte = AllocInfo.Type == USMMemoryType::DEVICE
-                          ? kUsmDeviceRedzoneMagic
-                          : kUsmSharedRedzoneMagic;
+
+    u8 ShadowByte;
+    switch (AllocInfo.Type) {
+    case USMMemoryType::DEVICE:
+        ShadowByte = kUsmDeviceRedzoneMagic;
+        break;
+    case USMMemoryType::HOST:
+        ShadowByte = kUsmHostRedzoneMagic;
+        break;
+    case USMMemoryType::SHARE:
+        ShadowByte = kUsmSharedRedzoneMagic;
+        break;
+    case USMMemoryType::MEM_BUFFER:
+        ShadowByte = kMemBufferRedzoneMagic;
+        break;
+    default:
+        ShadowByte = 0xff;
+        assert(false && "Unknow AllocInfo.Type");
+    }
+
     std::memset((void *)MemToShadow(AllocInfo.AllocBegin, ShadowOffset),
                 ShadowByte, AllocInfo.UserBegin - AllocInfo.AllocBegin);
     std::memset((void *)MemToShadow(tail_beg, ShadowOffset), ShadowByte,
@@ -509,7 +526,7 @@ void SanitizerInterceptor::enqueueAllocInfo(ur_context_handle_t Context,
         assert(Res == UR_RESULT_SUCCESS);
     }
 
-    int ShadowByte = 0;
+    int ShadowByte;
     switch (AllocInfo.Type) {
     case USMMemoryType::HOST:
         ShadowByte = kUsmHostRedzoneMagic;
@@ -520,10 +537,12 @@ void SanitizerInterceptor::enqueueAllocInfo(ur_context_handle_t Context,
     case USMMemoryType::SHARE:
         ShadowByte = kUsmSharedRedzoneMagic;
         break;
-    default:
-        ShadowByte = 0xFF;
-        assert(false && "Unknow AllocInfo.Type");
+    case USMMemoryType::MEM_BUFFER:
+        ShadowByte = kMemBufferRedzoneMagic;
         break;
+    default:
+        ShadowByte = 0xff;
+        assert(false && "Unknow AllocInfo.Type");
     }
 
     // Left red zone
@@ -726,7 +745,7 @@ ur_result_t SanitizerInterceptor::createMemoryBuffer(
     assert(UserEnd <= AllocEnd);
 
     auto MemoryInfo = USMMemoryInfo{AllocBegin, UserBegin, UserEnd, NeededSize,
-                                    USMMemoryType::DEVICE};
+                                    USMMemoryType::MEM_BUFFER};
     MemoryInfo.Devices.emplace(Device);
 
     // Update Shadow Memory
