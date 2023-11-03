@@ -662,8 +662,8 @@ public:
     for (size_t I = 0; I < NumElements; ++I) {
       Result.setValue(
           I, vec_data<convertT>::get(
-                  detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                      vec_data<DataT>::get(getValue(I)))));
+                 detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
+                     vec_data<DataT>::get(getValue(I)))));
     }
     
     return Result;
