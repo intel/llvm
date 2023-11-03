@@ -84,7 +84,7 @@ int main() {
         *ptrs[i] = 1;
       }
     });
-  });
+  }).wait();
 
   size_t *res =
       (size_t *)aligned_alloc_shared(alignof(size_t), sizeof(size_t), q);
