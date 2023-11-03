@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: esimd_emulator
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // The test checks functionality of the gather_rgba/scatter_rgba local
 // accessor-based ESIMD intrinsics.

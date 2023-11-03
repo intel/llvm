@@ -1522,16 +1522,13 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
   Prg.flush_spec_constants(*Img, NativePrg);
 }
 
-// If the kernel is loaded from spv file, it may not include DeviceLib require
-// mask, sycl runtime won't know which fallback device libraries are needed. In
-// such case, the safest way is to load all fallback device libraries.
 uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &DLMRange =
       Img.getDeviceLibReqMask();
   if (DLMRange.isAvailable())
     return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
   else
-    return 0xFFFFFFFF;
+    return 0x0;
 }
 
 const KernelArgMask *
