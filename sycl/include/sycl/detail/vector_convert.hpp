@@ -208,8 +208,7 @@ To ConvertFToU(From Value) {
 
 // Added for unification, to be able to have single enable_if-like trait for all
 // cases regardless of whether rounding mode is actually applicable or not.
-template <rounding_mode Mode>
-using AnyRM = std::bool_constant<true>;
+template <rounding_mode Mode> using AnyRM = std::bool_constant<true>;
 
 template <rounding_mode Mode>
 using RteOrAutomatic = std::bool_constant<Mode == rounding_mode::automatic ||
@@ -224,8 +223,7 @@ using Rtp = std::bool_constant<Mode == rounding_mode::rtp>;
 template <rounding_mode Mode>
 using Rtn = std::bool_constant<Mode == rounding_mode::rtn>;
 
-template <int VecSize>
-using IsScalar = std::bool_constant<VecSize == 1>;
+template <int VecSize> using IsScalar = std::bool_constant<VecSize == 1>;
 
 template <int ExpectedVecSize, int ActualVecSize>
 using IsVectorOf = std::bool_constant<ActualVecSize == ExpectedVecSize>;
@@ -588,7 +586,7 @@ NativeToT convertImpl(NativeFromT Value) {
   else if constexpr (is_float_to_uint<FromT, ToT>::value)
     return ConvertFToU<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
-  else if constexpr (is_sint_to_uint<FromT, ToT>::value) 
+  else if constexpr (is_sint_to_uint<FromT, ToT>::value)
     return SatConvertSToU<NativeFromT, NativeToT, VecSize, ElemTy>(Value);
   else {
     static_assert(is_uint_to_sint<FromT, ToT>::value);
