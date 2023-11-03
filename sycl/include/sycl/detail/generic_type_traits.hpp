@@ -77,7 +77,7 @@ inline constexpr bool is_svgenfloat_v =
 
 template <typename T>
 inline constexpr bool is_mgenfloat_v =
-    is_marray_v<T> && is_svgenfloat_v<vector_marray_element_t<T>>;
+    is_marray_v<T> && is_svgenfloat_v<get_elem_type_t<T>>;
 
 template <typename T>
 inline constexpr bool is_gengeofloat_v = is_contained_v<T, gtl::geo_float_list>;
