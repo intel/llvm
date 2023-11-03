@@ -101,7 +101,7 @@ int main() {
        });
      }).wait();
   } // ~image
-
+  std::free(sourceData);
 #else
   std::cout << "Missing  Level-Zero backend. Test skipped." << std::endl;
 #endif

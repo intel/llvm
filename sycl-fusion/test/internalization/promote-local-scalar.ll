@@ -49,18 +49,18 @@ define spir_kernel void @fused_0(ptr addrspace(1) align 4 %KernelOne_accTmp, ptr
 ; CHECK:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds float, ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP0]]
 ; CHECK:    [[TMP1:%.*]] = call spir_func i64 @_Z13get_global_idj(i32 0) #[[ATTR1:[0-9]+]]
 ; CHECK:    [[ADD_I_I:%.*]] = fadd float
-; CHECK:    [[TMP9:%.*]] = add i64 [[TMP1]], [[TMP0]]
+; CHECK:    [[TMP9:%.*]] = add i64 [[TMP0]], [[TMP1]]
 ; CHECK:    [[TMP10:%.*]] = urem i64 [[TMP9]], 16
-; CHECK:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds float, ptr addrspace(3) [[ADD_PTR_I_I]], i64 [[TMP10]]
+; CHECK:    [[ARRAYIDX_I13_I_I:%.*]] = getelementptr inbounds float, ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP10]]
 ; CHECK:    store float [[ADD_I_I]], ptr addrspace(3) [[ARRAYIDX_I13_I_I]], align 4
 ; CHECK:    [[KERNELONE_ACCTMP35_SROA_0_0__SROA_IDX:%.*]] = getelementptr inbounds [[TYPE0]], ptr [[KERNELONE_ACCTMP3]], i64 0, i32 0, i32 0, i64 0
 ; CHECK:    [[KERNELONE_ACCTMP35_SROA_0_0_COPYLOAD:%.*]] = load i64, ptr [[KERNELONE_ACCTMP35_SROA_0_0__SROA_IDX]], align 1
 ; CHECK:    [[TMP11:%.*]] = urem i64 [[KERNELONE_ACCTMP35_SROA_0_0_COPYLOAD]], 16
 ; CHECK:    [[ADD_PTR_I39_I8:%.*]] = getelementptr inbounds float, ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP11]]
 ; CHECK:    [[TMP12:%.*]] = call spir_func i64 @_Z13get_global_idj(i32 0) #[[ATTR1]]
-; CHECK:    [[TMP18:%.*]] = add i64 [[TMP12]], [[TMP11]]
+; CHECK:    [[TMP18:%.*]] = add i64 [[TMP11]], [[TMP12]]
 ; CHECK:    [[TMP19:%.*]] = urem i64 [[TMP18]], 16
-; CHECK:    [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds float, ptr addrspace(3) [[ADD_PTR_I39_I8]], i64 [[TMP19]]
+; CHECK:    [[ARRAYIDX_I_I_I11:%.*]] = getelementptr inbounds float, ptr addrspace(3) [[KERNELONE_ACCTMP]], i64 [[TMP19]]
 ; CHECK:    [[TMP20:%.*]] = load float, ptr addrspace(3) [[ARRAYIDX_I_I_I11]], align 4
 ; CHECK:    [[MUL_I_I:%.*]] = fmul float [[TMP20]]
 ; CHECK:    store float [[MUL_I_I]],

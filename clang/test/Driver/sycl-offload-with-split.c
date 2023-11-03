@@ -197,7 +197,7 @@
 /// Ahead of Time compilation for fpga, gen, cpu - tool invocation
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fintelfpga -Xshardware %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fintelfpga -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-FPGA
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
@@ -226,7 +226,7 @@
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fintelfpga -Xshardware %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl-max-parallel-link-jobs=4 -fintelfpga -Xshardware %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=ocloc
@@ -326,17 +326,17 @@
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang    -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang    -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // RUN:   %clang    -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // CHK-ESIMD-SPLIT: sycl-post-link{{.*}} "-split-esimd"
 
 // Check lowering of ESIMD device code.
 // RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang_cl -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang    -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang    -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang    -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // CHK-ESIMD-LOWER: sycl-post-link{{.*}} "-lower-esimd"
 
 // Check -f[no]sycl-device-code-split-esimd option's effect on sycl-post-link invocation
