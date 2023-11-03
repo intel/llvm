@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#error "Legacy builtins must not be used in preview."
+#endif
+
 #pragma once
 
 #include <sycl/access/access.hpp>              // for address_space, decorated
