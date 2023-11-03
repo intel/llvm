@@ -148,6 +148,18 @@ template <class T> using vector_element_t = typename vector_element<T>::type;
 
 template <class T> using marray_element_t = typename T::value_type;
 
+template <typename T> struct vector_marray_element {
+  using type = T;
+};
+template <typename T, int N> struct vector_marray_element<vec<T, N>> {
+  using type = T;
+};
+template <typename T, size_t N> struct vector_marray_element<marray<T, N>> {
+  using type = T;
+};
+template <typename T>
+using vector_marray_element_t = typename vector_marray_element<T>::type;
+
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
   using type = B;
@@ -215,8 +227,8 @@ template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
 
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
-using is_gen_based_on_type_sizeof =
-    std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
+inline constexpr bool is_gen_based_on_type_sizeof_v =
+    S<T>::value && (sizeof(vector_element_t<T>) == N);
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
