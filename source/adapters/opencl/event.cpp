@@ -54,6 +54,62 @@ convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
   }
 }
 
+const ur_command_t
+convertCLCommandTypeToUR(const cl_command_type &CommandType) {
+  /* Note: the following enums don't have a CL equivalent:
+    UR_COMMAND_USM_FILL_2D
+    UR_COMMAND_USM_MEMCPY_2D
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ
+    UR_COMMAND_READ_HOST_PIPE
+    UR_COMMAND_WRITE_HOST_PIPE
+    UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP
+    UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP
+    UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP */
+  switch (CommandType) {
+  case CL_COMMAND_NDRANGE_KERNEL:
+    return UR_COMMAND_KERNEL_LAUNCH;
+  case CL_COMMAND_MARKER:
+    // CL can't distinguish between UR_COMMAND_EVENTS_WAIT_WITH_BARRIER and
+    // UR_COMMAND_EVENTS_WAIT.
+    return UR_COMMAND_EVENTS_WAIT;
+  case CL_COMMAND_READ_BUFFER:
+    return UR_COMMAND_MEM_BUFFER_READ;
+  case CL_COMMAND_WRITE_BUFFER:
+    return UR_COMMAND_MEM_BUFFER_WRITE;
+  case CL_COMMAND_READ_BUFFER_RECT:
+    return UR_COMMAND_MEM_BUFFER_READ_RECT;
+  case CL_COMMAND_WRITE_BUFFER_RECT:
+    return UR_COMMAND_MEM_BUFFER_WRITE_RECT;
+  case CL_COMMAND_COPY_BUFFER:
+    return UR_COMMAND_MEM_BUFFER_COPY;
+  case CL_COMMAND_COPY_BUFFER_RECT:
+    return UR_COMMAND_MEM_BUFFER_COPY_RECT;
+  case CL_COMMAND_FILL_BUFFER:
+    return UR_COMMAND_MEM_BUFFER_FILL;
+  case CL_COMMAND_READ_IMAGE:
+    return UR_COMMAND_MEM_IMAGE_READ;
+  case CL_COMMAND_WRITE_IMAGE:
+    return UR_COMMAND_MEM_IMAGE_WRITE;
+  case CL_COMMAND_COPY_IMAGE:
+    return UR_COMMAND_MEM_IMAGE_COPY;
+  case CL_COMMAND_MAP_BUFFER:
+    return UR_COMMAND_MEM_BUFFER_MAP;
+  case CL_COMMAND_UNMAP_MEM_OBJECT:
+    return UR_COMMAND_MEM_UNMAP;
+  case CL_COMMAND_MEMFILL_INTEL:
+    return UR_COMMAND_USM_FILL;
+  case CL_COMMAND_MEMCPY_INTEL:
+    return UR_COMMAND_USM_MEMCPY;
+  case CL_COMMAND_MIGRATEMEM_INTEL:
+    return UR_COMMAND_USM_PREFETCH;
+  case CL_COMMAND_MEMADVISE_INTEL:
+    return UR_COMMAND_USM_ADVISE;
+  default:
+    return UR_COMMAND_FORCE_UINT32;
+  }
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
                               [[maybe_unused]] ur_context_handle_t hContext,
@@ -97,24 +153,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(ur_event_handle_t hEvent,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
   cl_event_info CLEventInfo = convertUREventInfoToCL(propName);
+
+  size_t CheckPropSize = 0;
   cl_int RetErr =
       clGetEventInfo(cl_adapter::cast<cl_event>(hEvent), CLEventInfo, propSize,
-                     pPropValue, pPropSizeRet);
+                     pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
   CL_RETURN_ON_FAILURE(RetErr);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
 
-  if (RetErr == CL_SUCCESS &&
-      propName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-    /* If the CL_EVENT_COMMAND_EXECUTION_STATUS info value is CL_QUEUED, change
-     * it to CL_SUBMITTED. sycl::info::event::event_command_status has no
-     * equivalent to CL_QUEUED.
-     *
-     * FIXME UR Port: This should not be part of the UR adapter. Since PI_QUEUED
-     * exists, SYCL RT should be changed to handle this situation. In addition,
-     * SYCL RT is relying on PI_QUEUED status to make sure that the queues are
-     * flushed. */
-    const auto param_value_int = static_cast<ur_event_status_t *>(pPropValue);
-    if (*param_value_int == UR_EVENT_STATUS_QUEUED) {
-      *param_value_int = UR_EVENT_STATUS_SUBMITTED;
+  if (pPropValue) {
+    if (propName == UR_EVENT_INFO_COMMAND_TYPE) {
+      *reinterpret_cast<ur_command_t *>(pPropValue) = convertCLCommandTypeToUR(
+          *reinterpret_cast<cl_command_type *>(pPropValue));
+    } else if (propName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+      /* If the CL_EVENT_COMMAND_EXECUTION_STATUS info value is CL_QUEUED,
+       * change it to CL_SUBMITTED. sycl::info::event::event_command_status has
+       * no equivalent to CL_QUEUED.
+       *
+       * FIXME UR Port: This should not be part of the UR adapter. Since
+       * PI_QUEUED exists, SYCL RT should be changed to handle this situation.
+       * In addition, SYCL RT is relying on PI_QUEUED status to make sure that
+       * the queues are flushed. */
+      const auto param_value_int = static_cast<ur_event_status_t *>(pPropValue);
+      if (*param_value_int == UR_EVENT_STATUS_QUEUED) {
+        *param_value_int = UR_EVENT_STATUS_SUBMITTED;
+      }
     }
   }
 

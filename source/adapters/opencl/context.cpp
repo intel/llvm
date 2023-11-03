@@ -93,10 +93,17 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_NUM_DEVICES:
   case UR_CONTEXT_INFO_DEVICES:
   case UR_CONTEXT_INFO_REFERENCE_COUNT: {
-
-    CL_RETURN_ON_FAILURE(
+    size_t CheckPropSize = 0;
+    auto ClResult =
         clGetContextInfo(cl_adapter::cast<cl_context>(hContext), CLPropName,
-                         propSize, pPropValue, pPropSizeRet));
+                         propSize, pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
     return UR_RESULT_SUCCESS;
   }
   default:
