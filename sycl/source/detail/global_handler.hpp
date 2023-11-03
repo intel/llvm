@@ -80,7 +80,7 @@ public:
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();
-  void prepareSchedulerToRelease();
+  void prepareSchedulerToRelease(bool Blocking);
 
   void InitXPTI();
   void TraceEventXPTI(const char *Message);

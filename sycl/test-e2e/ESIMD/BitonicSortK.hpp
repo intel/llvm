@@ -13,13 +13,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-// Disable unrolling with the esmid emulator
-// due to huge stack size requirement
-#ifdef ESIMD_EMU
-#define ESIMD_UNROLL _Pragma("nounroll")
-#else
 #define ESIMD_UNROLL _Pragma("unroll")
-#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

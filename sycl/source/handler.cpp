@@ -242,10 +242,11 @@ event handler::finalize() {
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
           KernelBundleImpPtr, MArgs);
-#endif
-
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
+#else
+      auto EnqueueKernel = [&]() {
+#endif
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
