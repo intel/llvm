@@ -592,20 +592,6 @@ template <typename T> std::enable_if_t<detail::is_geninteger_v<T>, T> ctz(T x) {
   return __sycl_std::__invoke_ctz<T>(x);
 }
 
-// geninteger ctz (geninteger x) for calls with deprecated namespace
-namespace ext::intel {
-template <typename T>
-__SYCL_DEPRECATED(
-    "'sycl::ext::intel::ctz' is deprecated, use 'sycl::ctz' instead")
-std::enable_if_t<sycl::detail::is_geninteger_v<T>, T> ctz(T x) {
-  return sycl::ctz(x);
-}
-} // namespace ext::intel
-
-namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
-using namespace ext::intel;
-}
-
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
 template <typename T>
 std::enable_if_t<detail::is_igeninteger_v<T>, T> mad_hi(T x, T y, T z) {
