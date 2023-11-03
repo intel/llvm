@@ -2410,14 +2410,14 @@ pi_int32 enqueueImpCommandBufferKernel(
   auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
+  std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
+  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   // Use kernel_bundle if available unless it is interop.
   // Interop bundles can't be used in the first branch, because the kernels
   // in interop kernel bundles (if any) do not have kernel_id
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    std::shared_ptr<kernel_impl> SyclKernelImpl;
-    std::shared_ptr<device_image_impl> DeviceImageImpl;
     auto KernelName = CommandGroup.MKernelName;
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
@@ -2433,6 +2433,8 @@ pi_int32 enqueueImpCommandBufferKernel(
             /*PropList=*/{}, PiProgram);
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
+    auto SyclProg = Kernel->getProgramImpl();
+    PiProgram = SyclProg->getHandleRef();
   } else {
     std::tie(PiKernel, KernelMutex, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
@@ -2483,6 +2485,11 @@ pi_int32 enqueueImpCommandBufferKernel(
       CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
       SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint);
+
+  if (!SyclKernelImpl && !Kernel) {
+    Plugin->call<PiApiKind::piKernelRelease>(PiKernel);
+    Plugin->call<PiApiKind::piProgramRelease>(PiProgram);
+  }
 
   if (Res != pi_result::PI_SUCCESS) {
     throw sycl::exception(errc::invalid,
@@ -2581,9 +2588,11 @@ pi_int32 enqueueImpKernel(
 
   pi_result Error = PI_SUCCESS;
   {
-    using OptionalLockGuard = std::optional<std::lock_guard<std::mutex>>;
-    auto Lock =
-        KernelMutex ? OptionalLockGuard(*KernelMutex) : OptionalLockGuard();
+    struct OptionalLockGuard {
+      std::mutex *m;
+      OptionalLockGuard(std::mutex *m) : m(m) { if (m) m->lock(); }
+      ~OptionalLockGuard() { if (m) m->unlock(); }
+    } Lock(KernelMutex);
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.
