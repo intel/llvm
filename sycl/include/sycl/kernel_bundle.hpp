@@ -902,11 +902,23 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr);
+
+template <typename... PropTs> constexpr bool AllPropsSupported() {
+  constexpr bool KeyOf[] = {
+      is_property_key_of<kernel_bundle<bundle_state::executable>,
+                         PropTs>::value...};
+  for (size_t i = 0; i < sizeof...(PropTs); i++)
+    if (!KeyOf[i])
+      return false;
+  return true;
+}
+
 } // namespace detail
 
 template <typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t,
-          typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
+          typename = std::enable_if_t<is_property_list_v<PropertyListT> &&
+                                      detail::AllPropsSupported<PropertyListT>>>
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       const std::vector<device> &Devices, PropertyListT props = {}) {

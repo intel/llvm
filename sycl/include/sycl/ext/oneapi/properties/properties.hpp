@@ -241,6 +241,19 @@ struct ValueOrDefault<
   }
 };
 
+// CP - DELETE
+// template <typename T, typename Props>
+// struct all_are_property_keys_of;
+
+// template <typename T>
+// struct all_are_property_keys_of<T, properties<std::tuple<>>> : std::true_type
+// {};
+
+// template <typename T, typename PropT, typename... PropTs>
+// struct all_are_property_keys_of<T, properties<std::tuple<PropTs...>>>
+//  : std::bool_constant<PropT::template is_property_key_of<T, PropT>::value &&
+//  PropTs::template all_are_property_keys_of<T, PropTs...>::value>::value> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 

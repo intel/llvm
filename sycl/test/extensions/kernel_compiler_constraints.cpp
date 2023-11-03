@@ -71,6 +71,12 @@ int main() {
   std::string log;
   std::vector<std::string> flags{"-cl-fast-relaxed-math",
                                  "-cl-finite-math-only"};
+
+  syclex::build(kbSrc);
+
+  syclex::build(kbSrc,
+                syclex::properties{syclex::usm_kind<sycl::usm::alloc::host>});
+
   // syclex::usm_kind<sycl::usm::alloc::host>
   syclex::build(kbSrc, syclex::properties{
                            syclex::build_options{flags}, syclex::save_log{&log},
