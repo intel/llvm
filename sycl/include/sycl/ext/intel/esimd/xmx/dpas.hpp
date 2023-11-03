@@ -90,7 +90,7 @@ constexpr int verify_parameters_and_deduce_exec_size() {
   verify_repeat_count<RepeatCount, AElemBitSize, BElemBitSize, IsDPASW>();
 
   constexpr int OpsPerChannel =
-      std::max(std::min(32 / std::max(AElemBitSize, BElemBitSize), 8), 1);
+      (std::max)((std::min)(32 / (std::max)(AElemBitSize, BElemBitSize), 8), 1);
 
   // A(_Mx_K) * B(_Kx_N) + C(_Mx_N)
   // where:
