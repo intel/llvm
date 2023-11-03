@@ -228,7 +228,7 @@ kernel_bundle<bundle_state::executable> build(
   const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
   PropertyListT props = {})
 
-} // namespace sycl::ext::oneapi::experimental {
+} // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
@@ -300,7 +300,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct build_options {
   std::vector<std::string> opts;
-  build_options(const std::string &opt);               (1)
+  build_options(const std::string &opt);                (1)
   build_options(const std::vector<std::string> &opts);  (2)
 };
 using build_options_key = build_options;
@@ -308,7 +308,7 @@ using build_options_key = build_options;
 template<>
 struct is_property_key<build_options_key> : std::true_type {};
 
-} // namespace sycl::ext::oneapi::experimental {
+} // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
@@ -335,14 +335,14 @@ namespace sycl::ext::oneapi::experimental {
 
 struct save_log {
   std::string *log;
-  save_log(std::string *to);  (1)
+  save_log(std::string *to);
 };
 using save_log_key = save_log;
 
 template<>
 struct is_property_key<save_log_key> : std::true_type {};
 
-} // namespace sycl::ext::oneapi::experimental {
+} // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
@@ -361,8 +361,7 @@ provided in the log.
 In general, the log information is intended for human consumption, and the
 format may not be stable across implementations of this extension.
 
-_Effects (1):_ Constructs a `save_log` property with a pointer to a
-`std::string`.
+_Effects:_ Constructs a `save_log` property with a pointer to a `std::string`.
 When the `build` function completes successfully, this string will contain the
 log.
 
