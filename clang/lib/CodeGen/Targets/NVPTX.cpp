@@ -245,29 +245,47 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
     }
+    bool HasMaxWorkGroupSize = false;
+    bool HasMinWorkGroupPerCU = false;
     if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
       auto MaxThreads = (*MWGS->getZDimVal()).getExtValue() *
                         (*MWGS->getYDimVal()).getExtValue() *
                         (*MWGS->getXDimVal()).getExtValue();
-      if (MaxThreads > 0)
+      if (MaxThreads > 0) {
         addNVVMMetadata(F, "maxntidx", MaxThreads);
+        HasMaxWorkGroupSize = true;
+      }
+    }
 
-      auto attrValue = [&](Expr *E) {
-        const auto *CE = cast<ConstantExpr>(E);
-        std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
-        return Val->getZExtValue();
-      };
+    auto attrValue = [&](Expr *E) {
+      const auto *CE = cast<ConstantExpr>(E);
+      std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
+      return Val->getZExtValue();
+    };
 
-      if (const auto *MWGPCU =
-              FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+    if (const auto *MWGPCU =
+            FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      if (!HasMaxWorkGroupSize && FD->hasAttr<OpenCLKernelAttr>()) {
+        M.getDiags().Report(D->getLocation(),
+                            diag::warn_launch_bounds_missing_attr)
+            << MWGPCU << 0;
+      } else {
         // The value is guaranteed to be > 0, pass it to the metadata.
         addNVVMMetadata(F, "minnctapersm", attrValue(MWGPCU->getValue()));
+        HasMinWorkGroupPerCU = true;
+      }
+    }
 
-        if (const auto *MWGPMP =
-                FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-          // The value is guaranteed to be > 0, pass it to the metadata.
-          addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
-        }
+    if (const auto *MWGPMP =
+            FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+      if ((!HasMaxWorkGroupSize || !HasMinWorkGroupPerCU) &&
+          FD->hasAttr<OpenCLKernelAttr>()) {
+        M.getDiags().Report(D->getLocation(),
+                            diag::warn_launch_bounds_missing_attr)
+            << MWGPMP << 1;
+      } else {
+        // The value is guaranteed to be > 0, pass it to the metadata.
+        addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
       }
     }
   }
