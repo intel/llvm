@@ -203,6 +203,10 @@ jobs:
       run: LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
         cmake --build ${{github.workspace}}/build -j $(nproc)
 
+    - name: Test adapter specific
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
+
     # Temporarily disabling platform test for L0, because of hang
     # See issue: #824
     - name: Test L0 adapter
