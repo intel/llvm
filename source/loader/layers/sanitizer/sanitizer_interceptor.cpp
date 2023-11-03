@@ -8,24 +8,26 @@
 
 #include "sanitizer_interceptor.hpp"
 #include "device_sanitizer_report.hpp"
+#include "ur_sanitizer_layer.hpp"
 
-#include <cassert>
-#include <cinttypes>
 #include <cstdint>
 #include <cstring>
 #include <utility>
 
-#define ASAN_SHADOW_SCALE 3
-#define ASAN_SHADOW_GRANULARITY (1ULL << ASAN_SHADOW_SCALE)
+namespace ur_sanitizer_layer {
+
+namespace {
 
 // These magic values are written to shadow for better error
 // reporting.
 const int kUsmDeviceRedzoneMagic = 0x81;
 const int kUsmHostRedzoneMagic = 0x82;
 const int kUsmSharedRedzoneMagic = 0x83;
-const int kUsmDeviceDeallocatedMagic = 0x84;
-const int kUsmHostDeallocatedMagic = 0x85;
-const int kUsmSharedDeallocatedMagic = 0x86;
+const int kMemBufferRedzoneMagic = 0x84;
+
+const int kUsmDeviceDeallocatedMagic = 0x91;
+const int kUsmHostDeallocatedMagic = 0x92;
+const int kUsmSharedDeallocatedMagic = 0x93;
 
 // Same with Asan Stack
 const int kPrivateLeftRedzoneMagic = 0xf1;
@@ -56,232 +58,7 @@ const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
 
 const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
-namespace {
-
 DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
-
-inline constexpr bool IsPowerOfTwo(uptr x) {
-    return (x & (x - 1)) == 0 && x != 0;
-}
-
-inline constexpr uptr RoundUpTo(uptr Size, uptr boundary) {
-    assert(IsPowerOfTwo(boundary));
-    return (Size + boundary - 1) & ~(boundary - 1);
-}
-
-inline constexpr uptr RoundDownTo(uptr x, uptr boundary) {
-    assert(IsPowerOfTwo(boundary));
-    return x & ~(boundary - 1);
-}
-
-inline constexpr bool IsAligned(uptr a, uptr alignment) {
-    return (a & (alignment - 1)) == 0;
-}
-
-/*
-inline uptr LeastSignificantSetBitIndex(uptr x) {
-  // CHECK_NE(x, 0U);
-  unsigned long up;
-#if !SANITIZER_WINDOWS || defined(__clang__) || defined(__GNUC__)
-#ifdef _WIN64
-  up = __builtin_ctzll(x);
-#else
-  up = __builtin_ctzl(x);
-#endif
-#elif defined(_WIN64)
-  _BitScanForward64(&up, x);
-#else
-  _BitScanForward(&up, x);
-#endif
-  return up;
-}
-
-inline uptr Log2(uptr x) {
-  // CHECK(IsPowerOfTwo(x));
-  return LeastSignificantSetBitIndex(x);
-}
-*/
-
-// Valid redzone sizes are 16, 32, 64, ... 2048, so we encode them in 3 bits.
-// We use adaptive redzones: for larger allocation larger redzones are used.
-static u32 RZLog2Size(u32 rz_log) {
-    // CHECK_LT(rz_log, 8);
-    return 16 << rz_log;
-}
-
-/*
-static u32 RZSize2Log(u32 rz_size) {
-  // CHECK_GE(rz_size, 16);
-  // CHECK_LE(rz_size, 2048);
-  // CHECK(IsPowerOfTwo(rz_size));
-  u32 res = Log2(rz_size) - 4;
-  // CHECK_EQ(rz_size, RZLog2Size(res));
-  return res;
-}
-*/
-
-uptr ComputeRZLog(uptr user_requested_size) {
-    u32 rz_log = user_requested_size <= 64 - 16            ? 0
-                 : user_requested_size <= 128 - 32         ? 1
-                 : user_requested_size <= 512 - 64         ? 2
-                 : user_requested_size <= 4096 - 128       ? 3
-                 : user_requested_size <= (1 << 14) - 256  ? 4
-                 : user_requested_size <= (1 << 15) - 512  ? 5
-                 : user_requested_size <= (1 << 16) - 1024 ? 6
-                                                           : 7;
-    // u32 hdr_log = RZSize2Log(RoundUpToPowerOfTwo(sizeof(ChunkHeader)));
-    // u32 min_log = RZSize2Log(atomic_load(&min_redzone, memory_order_acquire));
-    // u32 max_log = RZSize2Log(atomic_load(&max_redzone, memory_order_acquire));
-    // return Min(Max(rz_log, Max(min_log, hdr_log)), Max(max_log, hdr_log));
-    return rz_log;
-}
-
-inline constexpr uptr MemToShadow(uptr Addr, uptr ShadowOffset) {
-    return ShadowOffset + ((Addr) >> ASAN_SHADOW_SCALE);
-}
-
-static auto getUrResultString = [](ur_result_t Result) {
-    switch (Result) {
-    case UR_RESULT_SUCCESS:
-        return "UR_RESULT_SUCCESS";
-    case UR_RESULT_ERROR_INVALID_OPERATION:
-        return "UR_RESULT_ERROR_INVALID_OPERATION";
-    case UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
-        return "UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES";
-    case UR_RESULT_ERROR_INVALID_QUEUE:
-        return "UR_RESULT_ERROR_INVALID_QUEUE";
-    case UR_RESULT_ERROR_INVALID_VALUE:
-        return "UR_RESULT_ERROR_INVALID_VALUE";
-    case UR_RESULT_ERROR_INVALID_CONTEXT:
-        return "UR_RESULT_ERROR_INVALID_CONTEXT";
-    case UR_RESULT_ERROR_INVALID_PLATFORM:
-        return "UR_RESULT_ERROR_INVALID_PLATFORM";
-    case UR_RESULT_ERROR_INVALID_BINARY:
-        return "UR_RESULT_ERROR_INVALID_BINARY";
-    case UR_RESULT_ERROR_INVALID_PROGRAM:
-        return "UR_RESULT_ERROR_INVALID_PROGRAM";
-    case UR_RESULT_ERROR_INVALID_SAMPLER:
-        return "UR_RESULT_ERROR_INVALID_SAMPLER";
-    case UR_RESULT_ERROR_INVALID_BUFFER_SIZE:
-        return "UR_RESULT_ERROR_INVALID_BUFFER_SIZE";
-    case UR_RESULT_ERROR_INVALID_MEM_OBJECT:
-        return "UR_RESULT_ERROR_INVALID_MEM_OBJECT";
-    case UR_RESULT_ERROR_INVALID_EVENT:
-        return "UR_RESULT_ERROR_INVALID_EVENT";
-    case UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
-        return "UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST";
-    case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
-        return "UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET";
-    case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
-        return "UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE";
-    case UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
-        return "UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE";
-    case UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
-        return "UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE";
-    case UR_RESULT_ERROR_DEVICE_NOT_FOUND:
-        return "UR_RESULT_ERROR_DEVICE_NOT_FOUND";
-    case UR_RESULT_ERROR_INVALID_DEVICE:
-        return "UR_RESULT_ERROR_INVALID_DEVICE";
-    case UR_RESULT_ERROR_DEVICE_LOST:
-        return "UR_RESULT_ERROR_DEVICE_LOST";
-    case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
-        return "UR_RESULT_ERROR_DEVICE_REQUIRES_RESET";
-    case UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE:
-        return "UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE";
-    case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
-        return "UR_RESULT_ERROR_DEVICE_PARTITION_FAILED";
-    case UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT:
-        return "UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT";
-    case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
-        return "UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE";
-    case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
-        return "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
-    case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-        return "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
-    case UR_RESULT_ERROR_INVALID_KERNEL:
-        return "UR_RESULT_ERROR_INVALID_KERNEL";
-    case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
-        return "UR_RESULT_ERROR_INVALID_KERNEL_NAME";
-    case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
-        return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX";
-    case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
-        return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE";
-    case UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
-        return "UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE";
-    case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
-        return "UR_RESULT_ERROR_INVALID_IMAGE_SIZE";
-    case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-        return "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-    case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-        return "UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED";
-    case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
-        return "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
-    case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
-        return "UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE";
-    case UR_RESULT_ERROR_UNINITIALIZED:
-        return "UR_RESULT_ERROR_UNINITIALIZED";
-    case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-        return "UR_RESULT_ERROR_OUT_OF_HOST_MEMORY";
-    case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
-        return "UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY";
-    case UR_RESULT_ERROR_OUT_OF_RESOURCES:
-        return "UR_RESULT_ERROR_OUT_OF_RESOURCES";
-    case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
-        return "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE";
-    case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
-        return "UR_RESULT_ERROR_PROGRAM_LINK_FAILURE";
-    case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
-        return "UR_RESULT_ERROR_UNSUPPORTED_VERSION";
-    case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
-        return "UR_RESULT_ERROR_UNSUPPORTED_FEATURE";
-    case UR_RESULT_ERROR_INVALID_ARGUMENT:
-        return "UR_RESULT_ERROR_INVALID_ARGUMENT";
-    case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
-        return "UR_RESULT_ERROR_INVALID_NULL_HANDLE";
-    case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
-        return "UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE";
-    case UR_RESULT_ERROR_INVALID_NULL_POINTER:
-        return "UR_RESULT_ERROR_INVALID_NULL_POINTER";
-    case UR_RESULT_ERROR_INVALID_SIZE:
-        return "UR_RESULT_ERROR_INVALID_SIZE";
-    case UR_RESULT_ERROR_UNSUPPORTED_SIZE:
-        return "UR_RESULT_ERROR_UNSUPPORTED_SIZE";
-    case UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
-        return "UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT";
-    case UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
-        return "UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT";
-    case UR_RESULT_ERROR_INVALID_ENUMERATION:
-        return "UR_RESULT_ERROR_INVALID_ENUMERATION";
-    case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
-        return "UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION";
-    case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-        return "UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
-    case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
-        return "UR_RESULT_ERROR_INVALID_NATIVE_BINARY";
-    case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
-        return "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
-    case UR_RESULT_ERROR_INVALID_FUNCTION_NAME:
-        return "UR_RESULT_ERROR_INVALID_FUNCTION_NAME";
-    case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
-        return "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
-    case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
-        return "UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION";
-    case UR_RESULT_ERROR_PROGRAM_UNLINKED:
-        return "UR_RESULT_ERROR_PROGRAM_UNLINKED";
-    case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
-        return "UR_RESULT_ERROR_OVERLAPPING_REGIONS";
-    case UR_RESULT_ERROR_INVALID_HOST_PTR:
-        return "UR_RESULT_ERROR_INVALID_HOST_PTR";
-    case UR_RESULT_ERROR_INVALID_USM_SIZE:
-        return "UR_RESULT_ERROR_INVALID_USM_SIZE";
-    case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
-        return "UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE";
-    case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
-        return "UR_RESULT_ERROR_ADAPTER_SPECIFIC";
-    default:
-        return "UR_RESULT_ERROR_UNKNOWN";
-    }
-};
 
 } // namespace
 
@@ -289,8 +66,6 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     ur_context_handle_t Context, ur_device_handle_t Device,
     const ur_usm_desc_t *Properties, ur_usm_pool_handle_t Pool, size_t Size,
     void **ResultPtr, USMMemoryType Type) {
-    (void)Context;
-
     auto Alignment = Properties->align;
     assert(Alignment == 0 || IsPowerOfTwo(Alignment));
 
@@ -315,15 +90,10 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     }
 
     // Calcuate Size + RZSize
-    uptr rz_log = ComputeRZLog(Size);
-    uptr rz_size = RZLog2Size(rz_log);
-    uptr rounded_size = RoundUpTo(Size, Alignment);
-    uptr NeededSize = rounded_size + rz_size * 2;
-
-    std::cerr << "allocateMemory:"
-              << "\n  user_size: " << Size << "\n  rz_size: " << rz_size
-              << "\n  rounded_size: " << rounded_size
-              << "\n  NeededSize: " << NeededSize << std::endl;
+    uptr RZLog = ComputeRZLog(Size);
+    uptr RZSize = RZLog2Size(RZLog);
+    uptr RoundedSize = RoundUpTo(Size, Alignment);
+    uptr NeededSize = RoundedSize + RZSize * 2;
 
     void *Allocated = nullptr;
     ur_result_t Result = UR_RESULT_SUCCESS;
@@ -346,7 +116,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     // Enqueue Shadow Memory Init
     uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
     uptr AllocEnd = AllocBegin + NeededSize;
-    uptr UserBegin = AllocBegin + rz_size;
+    uptr UserBegin = AllocBegin + RZSize;
     if (!IsAligned(UserBegin, Alignment)) {
         UserBegin = RoundUpTo(UserBegin, Alignment);
     }
@@ -356,7 +126,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     *ResultPtr = reinterpret_cast<void *>(UserBegin);
 
     auto MemoryInfo =
-        AllocatedMemoryInfo{AllocBegin, UserBegin, UserEnd, NeededSize, Type};
+        USMMemoryInfo{AllocBegin, UserBegin, UserEnd, NeededSize, Type};
     if (Device) {
         MemoryInfo.Devices.emplace(Device);
     }
@@ -375,12 +145,11 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     {
         std::lock_guard<std::mutex> Guard(ContextInfo.Mutex);
         ContextInfo.AllocatedAddressesMap[AllocBegin] = MemoryInfo;
-        std::cout << "AllocatedAddressesMap: " << (void *)AllocBegin << "\n";
     }
 
-    std::cout << "AllocInfos: " << (void *)AllocBegin << " "
-              << (void *)UserBegin << "-" << (void *)UserEnd << " "
-              << NeededSize << " " << (void *)Type << std::endl;
+    context.logger.info("AllocInfos:\n  AllocBegin: {}\n  User: {}-{}\n  "
+                        "NeededSize: {}\nType: {}",
+                        AllocBegin, UserBegin, UserEnd, NeededSize, Type);
 
     return UR_RESULT_SUCCESS;
 }
@@ -390,7 +159,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     auto &ContextInfo = getContextInfo(Context);
     assert(ContextInfo.Init);
 
-    std::cerr << "releaseMemory: " << Ptr << "\n";
+    context.logger.debug("ReleaseMemory: {}", Ptr);
 
     std::lock_guard<std::mutex> Guard(ContextInfo.Mutex);
     auto Addr = (uptr)Ptr;
@@ -398,8 +167,9 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     auto AddressInfoIt =
         ContextInfo.AllocatedAddressesMap.upper_bound((uptr)Addr);
     if (AddressInfoIt == ContextInfo.AllocatedAddressesMap.begin()) {
-        std::cerr << "ERROR: releaseMemory failed! AllocatedAddressesMap\n";
-        return UR_RESULT_SUCCESS;
+        context.logger.error(
+            "Can't find release pointer({}) in AllocatedAddressesMap", Ptr);
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     --AddressInfoIt;
     auto &AddressInfo = AddressInfoIt->second;
@@ -407,7 +177,9 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
               << AddressInfo.UserBegin << "\n";
     if (Addr != AddressInfo.UserBegin) {
         std::cerr << "ERROR: releaseMemory failed! UserBegin\n";
-        return UR_RESULT_SUCCESS;
+        context.logger.error("Release pointer({}) is not match to {}", Ptr,
+                             AddressInfo.UserBegin);
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     // TODO: Update shadow memory
@@ -532,8 +304,8 @@ void SanitizerInterceptor::checkSanitizerError(ur_kernel_handle_t Kernel) {
     checkSanitizerReport(KernelName.c_str());
 }
 
-bool SanitizerInterceptor::updateHostShadowMemory(
-    ur_context_handle_t Context, AllocatedMemoryInfo AllocInfo) {
+bool SanitizerInterceptor::updateHostShadowMemory(ur_context_handle_t Context,
+                                                  USMMemoryInfo AllocInfo) {
     auto &ContextInfo = getContextInfo(Context);
     auto ShadowOffset = ContextInfo.HostShadowOffset;
 
@@ -586,7 +358,7 @@ SanitizerInterceptor::piextMemAllocShadow(ur_context_handle_t Context,
         DeviceInfo.ShadowOffset = 0x00007fff7fffULL;
         DeviceInfo.ShadowOffsetEnd = 0x10007fff7fffULL;
     } else if (DeviceInfo.Type == UR_DEVICE_TYPE_GPU) {
-        /// SHADOW MAPPING (PVC, with CPU 47bit)
+        /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
         ///   Device USM      : 0x2000_0000_0000 ~ 0x3fff_ffff_ffff
@@ -596,9 +368,10 @@ SanitizerInterceptor::piextMemAllocShadow(ur_context_handle_t Context,
         auto URes = m_Dditable.VirtualMem.pfnReserve(
             Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo.ShadowOffset);
         if (URes != UR_RESULT_SUCCESS) {
-                printf("urVirtualMemReserve(): %s\n", getUrResultString(URes));
+            context.logger.error("urVirtualMemReserve: {}",
+                                 getUrResultString(URes));
+            return URes;
         }
-        assert(URes == UR_RESULT_SUCCESS);
 
         DeviceInfo.ShadowOffsetEnd = DeviceInfo.ShadowOffset + SHADOW_SIZE;
     } else {
@@ -644,22 +417,23 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
                     auto URes = m_Dditable.PhysicalMem.pfnCreate(
                         Context, Device, PageSize, &Desc, &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
-                        printf("    zePhysicalMemCreate(): %s\n",
-                               getUrResultString(URes));
+                        context.logger.error("zePhysicalMemCreate(): {}",
+                                             getUrResultString(URes));
+                        return URes;
                     }
-                    assert(URes == UR_RESULT_SUCCESS);
                 }
 
-                printf("  zeVirtualMemMap: %p ~ %p\n", (void *)MappedPtr,
-                       (void *)(MappedPtr + PageSize - 1));
+                context.logger.debug("zeVirtualMemMap: {} ~ {}",
+                                     (void *)MappedPtr,
+                                     (void *)(MappedPtr + PageSize - 1));
 
                 // FIXME: No flag to check the failed reason is VA is already mapped
                 auto URes = m_Dditable.VirtualMem.pfnMap(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    printf("    zeVirtualMemMap(): %s\n",
-                           getUrResultString(URes));
+                    context.logger.debug("    zeVirtualMemMap(): %s\n",
+                                         getUrResultString(URes));
                 }
 
                 // Initialize to zero
@@ -674,10 +448,10 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
                         NumEventsInWaitList, EventsWaitList, Event);
                     if (URes != UR_RESULT_SUCCESS) {
-                        printf("    urEnqueueUSMFill(): %s\n",
-                               getUrResultString(URes));
+                        context.logger.error("urEnqueueUSMFill(): {}",
+                                             getUrResultString(URes));
+                        return URes;
                     }
-                    assert(URes == UR_RESULT_SUCCESS);
 
                     NumEventsInWaitList = 1;
                     EventsWaitList = Event;
@@ -691,9 +465,10 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
             (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
             Event);
         if (URes != UR_RESULT_SUCCESS) {
-            printf("  urEnqueueUSMFill(): %s\n", getUrResultString(URes));
+            context.logger.error("urEnqueueUSMFill(): {}",
+                                 getUrResultString(URes));
+            return URes;
         }
-        assert(URes == UR_RESULT_SUCCESS);
     } else {
         assert(false && "Unsupport device type");
     }
@@ -713,7 +488,7 @@ ur_result_t SanitizerInterceptor::enqueuePoisonShadow(
 void SanitizerInterceptor::enqueueAllocInfo(ur_context_handle_t Context,
                                             ur_device_handle_t Device,
                                             ur_queue_handle_t Queue,
-                                            AllocatedMemoryInfo &AllocInfo,
+                                            USMMemoryInfo &AllocInfo,
                                             ur_event_handle_t &LastEvent) {
     // Init zero
     auto Res =
@@ -840,8 +615,9 @@ void SanitizerInterceptor::initDevice(ur_context_handle_t Context,
     Result = piextMemAllocShadow(Context, Device);
     assert(Result == UR_RESULT_SUCCESS);
 
-    std::cout << "Device ShadowOffset: " << (void *)DeviceInfo.ShadowOffset
-              << " - " << (void *)DeviceInfo.ShadowOffsetEnd << "\n";
+    context.logger.info("Device ShadowOffset: {} - {}",
+                        (void *)DeviceInfo.ShadowOffset,
+                        (void *)DeviceInfo.ShadowOffsetEnd);
 
     DeviceInfo.Init = true;
 }
@@ -876,7 +652,6 @@ bool SanitizerInterceptor::initKernel(ur_queue_handle_t Queue,
     std::lock_guard<std::mutex> QueueGuard(QueueInfo.Mutex);
     ur_event_handle_t LastEvent = QueueInfo.LastEvent;
 
-    bool Res = true;
     do {
         // Set global variable to program
         auto EnqueueWriteGlobal = [&](const char *Name, const void *Value) {
@@ -888,8 +663,8 @@ bool SanitizerInterceptor::initKernel(ur_queue_handle_t Queue,
                 Queue, Program, Name, false, sizeof(uptr), 0, Value, NumEvents,
                 EventsList, &NewEvent);
             if (Result != UR_RESULT_SUCCESS) {
-                std::cerr << "WARNING: Device Global Write Failed [" << Name
-                          << "] " << Result << std::endl;
+                context.logger.warning("Device Global Write Failed[{}]: {}",
+                                       Name, getUrResultString(Result));
                 return false;
             }
             LastEvent = NewEvent;
@@ -903,9 +678,80 @@ bool SanitizerInterceptor::initKernel(ur_queue_handle_t Queue,
                            &DeviceInfo.ShadowOffsetEnd);
     } while (false);
 
-    assert(Res && "Init Kernel Failed");
-
     QueueInfo.LastEvent = LastEvent;
 
-    return Res;
+    return true;
 }
+
+ur_result_t SanitizerInterceptor::createMemoryBuffer(
+    ur_context_handle_t Context, ur_mem_flags_t Flags, size_t Size,
+    const ur_buffer_properties_t *Properties, ur_mem_handle_t *Buffer) {
+    auto &ContextInfo = getContextInfo(Context);
+    if (!ContextInfo.Init) {
+        initContext(Context);
+    }
+
+    constexpr size_t Alignment = 8;
+
+    // Calcuate Size + RZSize
+    const uptr RZLog = ComputeRZLog(Size);
+    const uptr RZSize = RZLog2Size(RZLog);
+    const uptr RoundedSize = RoundUpTo(Size, Alignment);
+    const uptr NeededSize = RoundedSize + RZSize * 2;
+
+    auto Result = m_Dditable.Mem.pfnBufferCreate(Context, Flags, NeededSize,
+                                                 Properties, Buffer);
+    if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+    }
+
+    // Get Native Handle
+    ur_native_handle_t NativeHandle{};
+    Result = m_Dditable.Mem.pfnGetNativeHandle(*Buffer, &NativeHandle);
+    if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+    }
+    void *Allocated = (void *)NativeHandle;
+
+    ur_device_handle_t Device;
+    Result = m_Dditable.USM.pfnGetMemAllocInfo(Context, Allocated, UR_USM_ALLOC_INFO_DEVICE, sizeof(Device), &Device, nullptr);
+
+    uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
+    uptr AllocEnd = AllocBegin + NeededSize;
+    uptr UserBegin = AllocBegin + RZSize;
+    if (!IsAligned(UserBegin, Alignment)) {
+        UserBegin = RoundUpTo(UserBegin, Alignment);
+    }
+    uptr UserEnd = UserBegin + Size;
+    assert(UserEnd <= AllocEnd);
+
+    auto MemoryInfo = USMMemoryInfo{AllocBegin, UserBegin, UserEnd, NeededSize,
+                                    USMMemoryType::DEVICE};
+    MemoryInfo.Devices.emplace(Device);
+
+    // Update Shadow Memory
+    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    std::lock_guard<std::mutex> Guard(DeviceInfo.Mutex);
+    DeviceInfo.AllocInfos.emplace_back(MemoryInfo);
+
+    // Save into AllocatedAddressesMap for releasing
+    {
+        std::lock_guard<std::mutex> Guard(ContextInfo.Mutex);
+        ContextInfo.AllocatedAddressesMap[AllocBegin] = MemoryInfo;
+    }
+
+    // Create a subbuffer which is surrounded by red zone
+    ur_buffer_region_t BufferRegion{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, UserBegin - AllocBegin, Size};
+    ur_mem_handle_t SubBuffer;
+    Result = m_Dditable.Mem.pfnBufferPartition(*Buffer, Flags,
+                                               UR_BUFFER_CREATE_TYPE_REGION,
+                                               &BufferRegion, &SubBuffer);
+    if (Result != UR_RESULT_SUCCESS) {
+        return Result;
+    }
+
+    *Buffer = SubBuffer;
+    return UR_RESULT_SUCCESS;
+}
+
+} // namespace ur_sanitizer_layer
