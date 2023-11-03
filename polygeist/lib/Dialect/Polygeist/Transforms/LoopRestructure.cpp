@@ -410,7 +410,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               Block *blk = user->getBlock();
               while (blk->getParent() != &region)
                 blk = blk->getParentOp()->getBlock();
-              return !L->contains((Wrapper *)blk);
+              return !L->contains(reinterpret_cast<Wrapper *>(blk));
             })) {
           preservedVals.emplace_back(V, headerArgumentTypes.size());
           headerArgumentTypes.push_back(V.getType());
