@@ -8,10 +8,9 @@
 
 #pragma once
 
-#include "ur_ddi.h"
+#include "common.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -21,14 +20,13 @@
 #include <utility>
 #include <vector>
 
-typedef uintptr_t uptr;
-typedef unsigned char u8;
-typedef unsigned int u32;
+namespace ur_sanitizer_layer {
 
 enum USMMemoryType {
     DEVICE,
     SHARE,
     HOST,
+    MEM_BUFFER
 };
 
 class SanitizerInterceptor {
@@ -49,15 +47,20 @@ class SanitizerInterceptor {
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                           ur_event_handle_t *Event, bool SetCallback = true);
     void checkSanitizerError(ur_kernel_handle_t Kernel);
+    ur_result_t createMemoryBuffer(ur_context_handle_t Context,
+                                   ur_mem_flags_t Flags, size_t Size,
+                                   const ur_buffer_properties_t *Properties,
+                                   ur_mem_handle_t *Buffer);
 
   private:
-    struct AllocatedMemoryInfo {
+    struct USMMemoryInfo {
         uptr AllocBegin;
         uptr UserBegin;
         uptr UserEnd;
         size_t AllocSize;
         USMMemoryType Type;
-        std::unordered_set<ur_device_handle_t> Devices;
+        std::unordered_set<ur_device_handle_t>
+            Devices; // host USM have a lot of devices
     };
 
     struct DeviceInfo {
@@ -69,8 +72,15 @@ class SanitizerInterceptor {
         uptr ShadowOffset;
         uptr ShadowOffsetEnd;
 
-        std::vector<AllocatedMemoryInfo> AllocInfos;
+        std::vector<USMMemoryInfo> AllocInfos;
         std::mutex Mutex; // Lock Init & InitPool & AllocInfos
+    };
+
+    struct MemBufferInfo {
+        ur_mem_handle_t Buffer;
+        USMMemoryInfo AllocInfo;
+        size_t Size;
+        size_t RZSize;
     };
 
     enum class DeviceType { CPU, GPU_PVC, GPU_DG2 };
@@ -78,15 +88,18 @@ class SanitizerInterceptor {
     struct ContextInfo {
         bool Init = false;
 
-        /// AllocatedMemoryInfo.AllocBegin => AllocatedMemoryInfo
+        /// USMMemoryInfo.AllocBegin => USMMemoryInfo
         ///
         /// Use AllocBegin as key can help to detect underflow pointer
-        std::map<uptr, AllocatedMemoryInfo> AllocatedAddressesMap;
+        std::map<uptr, USMMemoryInfo> AllocatedAddressesMap;
 
-        std::vector<AllocatedMemoryInfo> AllocHostInfos;
+        std::vector<USMMemoryInfo> AllocHostInfos;
 
         /// Each context is able to contain multiple devices
         std::unordered_map<ur_device_handle_t, DeviceInfo> DeviceMap;
+
+        ///
+        std::unordered_map<ur_mem_handle_t, MemBufferInfo> MemBufferMap;
 
         std::mutex Mutex; // Lock Init and Maps
 
@@ -96,9 +109,13 @@ class SanitizerInterceptor {
             std::lock_guard<std::mutex> Guard(Mutex);
             return DeviceMap[Device];
         }
-        AllocatedMemoryInfo &getAllocatedMemoryInfo(uptr Address) {
+        USMMemoryInfo &getUSMMemoryInfo(uptr Address) {
             std::lock_guard<std::mutex> Guard(Mutex);
             return AllocatedAddressesMap[Address];
+        }
+        MemBufferInfo &getMemBufferInfo(ur_mem_handle_t MemBuffer) {
+            std::lock_guard<std::mutex> Guard(Mutex);
+            return MemBufferMap[MemBuffer];
         }
     };
 
@@ -119,10 +136,10 @@ class SanitizerInterceptor {
     bool updateShadowMemory(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel);
     void enqueueAllocInfo(ur_context_handle_t Context,
                           ur_device_handle_t Device, ur_queue_handle_t Queue,
-                          AllocatedMemoryInfo &AllocInfo,
+                          USMMemoryInfo &AllocInfo,
                           ur_event_handle_t &LastEvent);
     bool updateHostShadowMemory(ur_context_handle_t Context,
-                                AllocatedMemoryInfo AllocInfo);
+                                USMMemoryInfo AllocInfo);
     /// Initialize Global Variables & Kernel Name at first Launch
     bool initKernel(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel);
     /// Initialze USM Host Memory Pools
@@ -170,3 +187,5 @@ class SanitizerInterceptor {
 
     ur_dditable_t &m_Dditable;
 };
+
+} // namespace ur_sanitizer_layer

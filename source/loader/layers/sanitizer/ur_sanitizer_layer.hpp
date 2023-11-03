@@ -13,20 +13,23 @@
 #ifndef UR_SANITIZER_LAYER_H
 #define UR_SANITIZER_LAYER_H 1
 
+#include "logger/ur_logger.hpp"
 #include "ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
 
 #define SANITIZER_COMP_NAME "sanitizer layer"
 
+namespace ur_sanitizer_layer {
+
 class SanitizerInterceptor;
 
-namespace ur_sanitizer_layer {
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t {
   public:
     ur_dditable_t urDdiTable = {};
     SanitizerInterceptor *interceptor = {};
+    logger::Logger logger;
 
     context_t();
     ~context_t();
@@ -38,7 +41,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
                      const std::set<std::string> &enabledLayerNames) override;
 
   private:
-    const std::string name = "UR_LAYER_SANITIZER";
+    const std::string name = "UR_LAYER_ASAN";
 };
 
 extern context_t context;
