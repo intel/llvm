@@ -665,7 +665,6 @@ public:
                  detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
                      vec_data<DataT>::get(getValue(I)))));
     }
-    
     return Result;
   }
 
