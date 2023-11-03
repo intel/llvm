@@ -295,7 +295,7 @@ setKernelParams(const ur_context_handle_t Context,
       // Set up local memory requirements for kernel.
       if (Device->getMaxChosenLocalMem() < 0) {
         bool EnvVarHasURPrefix =
-            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
+            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
         setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
                                             "UR_CUDA_MAX_LOCAL_MEM_SIZE"
                                           : "Invalid value specified for "
@@ -305,7 +305,7 @@ setKernelParams(const ur_context_handle_t Context,
       }
       if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
         bool EnvVarHasURPrefix =
-            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
+            std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
         setErrorMessage(
             EnvVarHasURPrefix
                 ? "Local memory for kernel exceeds the amount requested using "
