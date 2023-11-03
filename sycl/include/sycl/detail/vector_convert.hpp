@@ -26,49 +26,47 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename T, typename R>
-using is_int_to_int = std::integral_constant<bool, std::is_integral_v<T> &&
-                                                       std::is_integral_v<R>>;
+using is_int_to_int =
+    std::bool_constant<std::is_integral_v<T> && std::is_integral_v<R>>;
 
 template <typename T, typename R>
 using is_sint_to_sint =
-    std::integral_constant<bool, is_sigeninteger_v<T> && is_sigeninteger_v<R>>;
+    std::bool_constant<is_sigeninteger_v<T> && is_sigeninteger_v<R>>;
 
 template <typename T, typename R>
 using is_uint_to_uint =
-    std::integral_constant<bool, is_sugeninteger_v<T> && is_sugeninteger_v<R>>;
+    std::bool_constant<is_sugeninteger_v<T> && is_sugeninteger_v<R>>;
 
 template <typename T, typename R>
 using is_sint_to_from_uint =
-    std::integral_constant<bool,
-                           (is_sugeninteger_v<T> && is_sigeninteger_v<R>) ||
-                               (is_sigeninteger_v<T> && is_sugeninteger_v<R>)>;
+    std::bool_constant<(is_sugeninteger_v<T> && is_sigeninteger_v<R>) ||
+                       (is_sigeninteger_v<T> && is_sugeninteger_v<R>)>;
 
 template <typename T, typename R>
-using is_sint_to_float = std::integral_constant<
-    bool, std::is_integral_v<T> &&
-              !(std::is_unsigned_v<T>)&&detail::is_floating_point<R>::value>;
+using is_sint_to_float =
+    std::bool_constant<std::is_integral_v<T> && !std::is_unsigned_v<T> &&
+                       detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_uint_to_float =
-    std::integral_constant<bool, std::is_unsigned_v<T> &&
-                                     detail::is_floating_point<R>::value>;
+    std::bool_constant<std::is_unsigned_v<T> &&
+                       detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
-using is_int_to_float =
-    std::integral_constant<bool, std::is_integral_v<T> &&
-                                     detail::is_floating_point<R>::value>;
+using is_int_to_float = std::bool_constant<std::is_integral_v<T> &&
+                                           detail::is_floating_point<R>::value>;
 
 template <typename T, typename R>
 using is_float_to_int =
-    std::integral_constant<bool, detail::is_floating_point<T>::value &&
-                                     std::is_integral_v<R>>;
+    std::bool_constant<detail::is_floating_point<T>::value &&
+                       std::is_integral_v<R>>;
 
 template <typename T, typename R>
 using is_float_to_float =
-    std::integral_constant<bool, detail::is_floating_point<T>::value &&
-                                     detail::is_floating_point<R>::value>;
+    std::bool_constant<detail::is_floating_point<T>::value &&
+                       detail::is_floating_point<R>::value>;
 template <typename T>
-using is_standard_type = std::integral_constant<bool, detail::is_sgentype_v<T>>;
+using is_standard_type = std::bool_constant<detail::is_sgentype_v<T>>;
 
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
           typename OpenCLR>

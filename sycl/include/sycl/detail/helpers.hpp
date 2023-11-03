@@ -21,7 +21,7 @@
 #include <cstddef>     // for size_t
 #include <memory>      // for shared_ptr
 #include <stdint.h>    // for uint32_t
-#include <type_traits> // for enable_if_t, integral_constant
+#include <type_traits> // for enable_if_t, bool_constant
 #include <utility>     // for forward, integer_sequence, mak...
 #include <vector>      // for vector
 
@@ -130,7 +130,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 
   template <int N>
-  using is_valid_dimensions = std::integral_constant<bool, (N > 0) && (N < 4)>;
+  using is_valid_dimensions = std::bool_constant<(N > 0) && (N < 4)>;
 
   template <int Dims> static const id<Dims> getElement(id<Dims> *) {
     static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
