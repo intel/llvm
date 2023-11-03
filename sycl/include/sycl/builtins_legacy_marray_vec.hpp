@@ -25,6 +25,7 @@
 #include <sycl/marray.hpp>                     // for marray
 #include <sycl/multi_ptr.hpp>                  // for address_space_cast
 #include <sycl/types.hpp>                      // for vec
+#include <sycl/builtins_legacy_scalar.hpp>     // for scalar builtin variants
 
 namespace sycl {
 inline namespace _V1 {
