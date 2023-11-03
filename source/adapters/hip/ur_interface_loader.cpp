@@ -310,13 +310,17 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
 // TODO: Implement
 UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     ur_api_version_t, ur_bindless_images_exp_dditable_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // This needs to return UR_RESULT_SUCCESS or else the platform can't be
+  // initialized
+  return UR_RESULT_SUCCESS;
 }
 
 // TODO: Implement
 UR_DLLEXPORT ur_result_t UR_APICALL
 urGetUSMExpProcAddrTable(ur_api_version_t, ur_usm_exp_dditable_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // This needs to return UR_RESULT_SUCCESS or else the platform can't be
+  // initialized
+  return UR_RESULT_SUCCESS;
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
