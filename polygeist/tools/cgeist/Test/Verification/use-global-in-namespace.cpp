@@ -3,6 +3,7 @@
 #include <sycl/sycl.hpp>
 
 namespace NS {
+// CHECK:         gpu.module @device_functions
 // CHECK-LABEL:     llvm.mlir.global internal @_ZN2NSL1CE() {addr_space = 0 : i32, sym_visibility = "private"} : f64 {
 // CHECK:             %[[VAL_0:.*]] = arith.constant 0.000000e+00 : f64
 // CHECK:             llvm.return %[[VAL_0]] : f64
