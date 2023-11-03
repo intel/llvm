@@ -14,9 +14,9 @@
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/builtins_scalar_gen.hpp> // for ceil, floor, rint, trunc
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
+#else                                   // __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/builtins_legacy_scalar.hpp> // for ceil, floor, rint, trunc
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#endif                                     // __INTEL_PREVIEW_BREAKING_CHANGES
 
 #include <cfenv> // for fesetround, fegetround
 #endif

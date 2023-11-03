@@ -19,8 +19,8 @@
 
 #else // __INTEL_PREVIEW_BREAKING_CHANGES
 
-#include <sycl/builtins_legacy_scalar.hpp>
 #include <sycl/builtins_legacy_marray_vec.hpp>
+#include <sycl/builtins_legacy_scalar.hpp>
 
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
