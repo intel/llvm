@@ -53,14 +53,12 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-
-  # commit be53fb3ba5bf1ac33051456d72c61b6a01d94a72
+  set(UNIFIED_RUNTIME_REPO "https://github.com/kbenzie/unified-runtime.git")
+  # commit 67abeff437cbd00b9c18e01cb3c7b64bfe23a0b3 (HEAD -> benie/hip-cts-fixes-combined, kbenzie/benie/hip-cts-fixes-combined)
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Oct 31 13:22:52 2023 +0000
-  # - Merge pull request #932 from Bensuo/cuda-cmd-buffers
-  # - [CUDA][EXP] CUDA adapter support for command buffers
-  set(UNIFIED_RUNTIME_TAG be53fb3ba5bf1ac33051456d72c61b6a01d94a72)
+  # Date:   Thu Nov 2 13:46:34 2023 +0000
+  #     [HIP] Update CTS match files
+  set(UNIFIED_RUNTIME_TAG 67abeff437cbd00b9c18e01cb3c7b64bfe23a0b3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
