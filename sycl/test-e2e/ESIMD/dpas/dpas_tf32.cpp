@@ -9,7 +9,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-
 // This test verifies DPAS support for tfloat32.
 
 #include "dpas_common.hpp"

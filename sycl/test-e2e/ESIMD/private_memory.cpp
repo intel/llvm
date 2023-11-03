@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: gpu-intel-pvc
 
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
