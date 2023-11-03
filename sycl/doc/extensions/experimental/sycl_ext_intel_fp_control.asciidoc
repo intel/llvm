@@ -115,8 +115,6 @@ The values that the property can be set to are a subset of the following that ca
 | denorm_f_allow | Denorm mode float allow
 | denorm_hf_allow | Denorm mode half allow
 | denorm_allow | Denorm mode double/float/half allow
-| float_mode_ieee | Single precision float IEEE mode
-| float_mode_alt | Single precision float ALT mode
 |===
 
 The compiler will not enforce using mutually exclusive values (for instance 2 rounding
@@ -137,10 +135,7 @@ enum class fp_mode : /* implementation defined */ {
   denorm_d_allow = /* implementation defined */,
   denorm_f_allow = /* implementation defined */,
   denorm_hf_allow = /* implementation defined */,
-  denorm_allow = /* implementation defined */,
-
-  float_mode_ieee = /* implementation defined */,
-  float_mode_alt = /* implementation defined */,
+  denorm_allow = /* implementation defined */
 };
 
 constexpr fp_mode operator|(const fp_mode &a, const fp_mode &b);
@@ -167,7 +162,7 @@ namespace intelex = sycl::ext::intel::experimental;
 {
   ...
   syclex::properties properties{
-     intelex::fp_control<intelex::fp_mode::denorm_allow | intelex::fp_mode::rtn | intelex::fp_mode::float_mode_alt>};
+     intelex::fp_control<intelex::fp_mode::denorm_allow | intelex::fp_mode::rtn>};
   q.submit([&](handler& h) {
     h.parallel_for<class EsimdKernel>(32, properties, [=](id<1> i) SYCL_ESIMD_KERNEL {
       });

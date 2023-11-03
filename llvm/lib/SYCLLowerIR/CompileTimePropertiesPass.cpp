@@ -71,15 +71,11 @@ enum FloatControl {
   DENORM_FTZ = 0,            // Denorm mode flush to zero
   DENORM_D_ALLOW = 1 << 6,   // Denorm mode double allow
   DENORM_F_ALLOW = 1 << 7,   // Denorm mode float allow
-  DENORM_HF_ALLOW = 1 << 10, // Denorm mode half allow
-
-  FLOAT_MODE_IEEE = 0, // Single precision float IEEE mode
-  FLOAT_MODE_ALT = 1   // Single precision float ALT mode
+  DENORM_HF_ALLOW = 1 << 10 // Denorm mode half allow
 };
 
 enum FloatControlMask {
   ROUND_MASK = (RTE | RTP | RTN | RTZ),
-  FLOAT_MASK = (FLOAT_MODE_IEEE | FLOAT_MODE_ALT),
   DENORM_MASK = (DENORM_D_ALLOW | DENORM_F_ALLOW | DENORM_HF_ALLOW)
 };
 
@@ -90,8 +86,6 @@ constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620;
 constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621;
 constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;
 constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;
-constexpr uint32_t SPIRV_FLOATING_POINT_MODE_ALT_INTEL = 5622;
-constexpr uint32_t SPIRV_FLOATING_POINT_MODE_IEEE_INTEL = 5623;
 
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
@@ -279,16 +273,6 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       break;
     default:
       llvm_unreachable("Unexpected rounding mode value");
-    }
-    switch (FPControl & FLOAT_MASK) {
-    case FLOAT_MODE_IEEE:
-      AddFPControlMetadata(SPIRV_FLOATING_POINT_MODE_IEEE_INTEL);
-      break;
-    case FLOAT_MODE_ALT:
-      AddFPControlMetadata(SPIRV_FLOATING_POINT_MODE_ALT_INTEL);
-      break;
-    default:
-      llvm_unreachable("Unexpected single precision fp mode value");
     }
     if (!(FPControl & DENORM_MASK)) {
       AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);

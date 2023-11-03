@@ -1,4 +1,3 @@
-// REQUIRES: gpu && (opencl || level_zero)
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -43,12 +42,6 @@ std::string fp_control_to_sring(intelex::fp_mode fp_control) {
     Modes += " denorm_hf_allow";
   } else if (isFlagSet(fp_control, intelex::fp_mode::denorm_ftz)) {
     Modes += " denorm_ftz";
-  }
-
-  if (isFlagSet(fp_control, intelex::fp_mode::float_mode_alt)) {
-    Modes += " float_mode_alt";
-  } else if (isFlagSet(fp_control, intelex::fp_mode::float_mode_ieee)) {
-    Modes += " float_mode_ieee";
   }
 
   return Modes;
@@ -164,28 +157,19 @@ void test_rounding_mode_and_denormals(queue &q, T Base, T Epsilon, T Denorm) {
     assert(res_add3 == result::eq && res_sub3 == result::eq);
   }
 
-  // Test the mode when denormals are allowed for type T and test the case when
-  // ieee mode (default) is specified explicitely.
+  // Test the mode when denormals are allowed for type T.
   {
     auto [res_add1, res_sub1] =
-        test_fp_control<intelex::fp_mode::rte | DenormMode |
-                            intelex::fp_mode::float_mode_ieee,
-                        T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::rte | DenormMode, T>(q, Base, Denorm);
     assert(res_add1 == result::eq && res_sub1 == result::eq);
     auto [res_add2, res_sub2] =
-        test_fp_control<intelex::fp_mode::rtp | DenormMode |
-                            intelex::fp_mode::float_mode_ieee,
-                        T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::rtp | DenormMode, T>(q, Base, Denorm);
     assert(res_add2 == result::gt && res_sub2 == result::eq);
     auto [res_add3, res_sub3] =
-        test_fp_control<intelex::fp_mode::rtn | DenormMode |
-                            intelex::fp_mode::float_mode_ieee,
-                        T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::rtn | DenormMode, T>(q, Base, Denorm);
     assert(res_add3 == result::eq && res_sub3 == result::lt);
     auto [res_add4, res_sub4] =
-        test_fp_control<intelex::fp_mode::rtz | DenormMode |
-                            intelex::fp_mode::float_mode_ieee,
-                        T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::rtz | DenormMode, T>(q, Base, Denorm);
     assert(res_add4 == result::eq && res_sub4 == result::lt);
   }
 }
@@ -210,31 +194,6 @@ int main(void) {
   if (dev.has(aspect::fp64))
     test_rounding_mode_and_denormals<double, intelex::fp_mode::denorm_d_allow>(
         q, 1.0, 1e-128, 1e-308);
-
-  // Test that in ALT floating-point mode denormals are always flushed to zero,
-  // i.e. denorm_f_allow is ignored.
-  {
-    auto [res_add1, res_sub1] =
-        test_fp_control<intelex::fp_mode::rte |
-                        intelex::fp_mode::denorm_f_allow |
-                        intelex::fp_mode::float_mode_alt>(q, 1.0f, 1e-38f);
-    assert(res_add1 == result::eq && res_sub1 == result::eq);
-    auto [res_add2, res_sub2] =
-        test_fp_control<intelex::fp_mode::rtp |
-                        intelex::fp_mode::denorm_f_allow |
-                        intelex::fp_mode::float_mode_alt>(q, 1.0f, 1e-38f);
-    assert(res_add2 == result::eq && res_sub2 == result::eq);
-    auto [res_add3, res_sub3] =
-        test_fp_control<intelex::fp_mode::rtn |
-                        intelex::fp_mode::denorm_f_allow |
-                        intelex::fp_mode::float_mode_alt>(q, 1.0f, 1e-38f);
-    assert(res_add3 == result::eq && res_sub3 == result::eq);
-    auto [res_add4, res_sub4] =
-        test_fp_control<intelex::fp_mode::rtz |
-                        intelex::fp_mode::denorm_f_allow |
-                        intelex::fp_mode::float_mode_alt>(q, 1.0f, 1e-38f);
-    assert(res_add4 == result::eq && res_sub4 == result::eq);
-  }
 
   return 0;
 }

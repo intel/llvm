@@ -31,10 +31,7 @@ enum class fp_mode : std::uint32_t {
   denorm_f_allow = 1 << 7,   // Denorm mode float allow
   denorm_hf_allow = 1 << 10, // Denorm mode half allow
   denorm_allow = denorm_d_allow | denorm_f_allow |
-                 denorm_hf_allow, // Denorm mode double/float/half allow
-
-  float_mode_ieee = 0, // Single precision float IEEE mode
-  float_mode_alt = 1   // Single precision float ALT mode
+                 denorm_hf_allow // Denorm mode double/float/half allow
 };
 
 constexpr fp_mode operator|(const fp_mode &a, const fp_mode &b) {
