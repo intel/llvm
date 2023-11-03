@@ -1635,7 +1635,7 @@ piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 /// Gets the max work group count for a cooperative kernel.
 ///
 /// \param kernel is the PI kernel being queried.
-/// \param totalGroupCount is a pointer to where the query result will be
+/// \param group_count_ret is a pointer to where the query result will be
 /// stored.
 __SYCL_EXPORT pi_result piextKernelSuggestMaxCooperativeGroupCount(
     pi_kernel kernel, pi_uint32 *group_count_ret);
