@@ -1557,7 +1557,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
   Type RT = getTypes().getMLIRType(FD->getType());
 
   OpBuilder Builder(Module->getContext());
-  Builder.setInsertionPointToStart(Module->getBody());
+  mlirclang::setInsertionPoint(Builder, FuncContext, *Module);
 
   auto Glob = Builder.create<LLVM::GlobalOp>(
       Module->getLoc(), RT, /*constant*/ false, Lnk, Name, Attribute());
