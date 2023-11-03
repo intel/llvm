@@ -68,5 +68,13 @@ int main() {
   // expected-error@+1  {{no matching member function for call to 'empty'}}
   kbSrc.empty();
 
+  std::string log;
+  std::vector<std::string> flags{"-cl-fast-relaxed-math",
+                                 "-cl-finite-math-only"};
+  // syclex::usm_kind<sycl::usm::alloc::host>
+  syclex::build(kbSrc, syclex::properties{
+                           syclex::build_options{flags}, syclex::save_log{&log},
+                           syclex::usm_kind<sycl::usm::alloc::host>});
+
 #endif
 }
