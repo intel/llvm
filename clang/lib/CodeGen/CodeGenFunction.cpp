@@ -761,7 +761,6 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   auto attrAsMDArg = [&](Expr *E) {
     const auto *CE = cast<ConstantExpr>(E);
     std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-    assert(ArgVal.has_value() && "Failed to obtain attribute value.");
     return llvm::ConstantAsMetadata::get(
         Builder.getInt32(ArgVal->getSExtValue()));
   };

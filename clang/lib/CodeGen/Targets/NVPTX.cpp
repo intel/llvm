@@ -255,7 +255,6 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       auto attrValue = [&](Expr *E) {
         const auto *CE = cast<ConstantExpr>(E);
         std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
-        assert(Val.has_value() && "Failed to get attribute value.");
         return Val->getZExtValue();
       };
 
