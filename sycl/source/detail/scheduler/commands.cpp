@@ -2590,8 +2590,14 @@ pi_int32 enqueueImpKernel(
   {
     struct OptionalLockGuard {
       std::mutex *m;
-      OptionalLockGuard(std::mutex *m) : m(m) { if (m) m->lock(); }
-      ~OptionalLockGuard() { if (m) m->unlock(); }
+      OptionalLockGuard(std::mutex *m) : m(m) {
+        if (m)
+          m->lock();
+      }
+      ~OptionalLockGuard() {
+        if (m)
+          m->unlock();
+      }
     } Lock(KernelMutex);
 
     // Set SLM/Cache configuration for the kernel if non-default value is
