@@ -120,6 +120,21 @@ struct is_property_key_of<intel::experimental::write_hint_key,
 
 namespace detail {
 
+// Values assigned to cache levels in a nibble.
+static constexpr int L1BIT = 1;
+static constexpr int L2BIT = 2;
+static constexpr int L3BIT = 4;
+static constexpr int L4BIT = 8;
+
+// Starting bit position for cache levels of a cache mode.
+static constexpr int UNCACHED = 0;
+static constexpr int CACHED = 4;
+static constexpr int STREAMING = 8;
+static constexpr int INVALIDATE = 12;
+static constexpr int CONSTANT = 16;
+static constexpr int WT = 20;
+static constexpr int WB = 24;
+
 static constexpr int countL(int levels, int mask) {
   return levels & mask ? 1 : 0;
 }
@@ -168,9 +183,10 @@ struct PropertyMetaInfo<intel::experimental::read_hint_key::value_t<Cs...>> {
   static constexpr const char *name = "sycl-cache-read-hint";
   static constexpr const int value =
       ((checkReadHint<Cs::mode>() + ...),
-       checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
-                   (countL(Cs::levels, 4) + ...),
-                   (countL(Cs::levels, 8) + ...)>(),
+       checkUnique<(countL(Cs::levels, L1BIT) + ...),
+                   (countL(Cs::levels, L2BIT) + ...),
+                   (countL(Cs::levels, L3BIT) + ...),
+                   (countL(Cs::levels, L4BIT) + ...)>(),
        ((Cs::encoding) | ...));
 };
 
@@ -186,9 +202,10 @@ struct PropertyMetaInfo<
   static constexpr const char *name = "sycl-cache-read-assertion";
   static constexpr const int value =
       ((checkReadAssertion<Cs::mode>() + ...),
-       checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
-                   (countL(Cs::levels, 4) + ...),
-                   (countL(Cs::levels, 8) + ...)>(),
+       checkUnique<(countL(Cs::levels, L1BIT) + ...),
+                   (countL(Cs::levels, L2BIT) + ...),
+                   (countL(Cs::levels, L3BIT) + ...),
+                   (countL(Cs::levels, L4BIT) + ...)>(),
        ((Cs::encoding) | ...));
 };
 
@@ -203,10 +220,59 @@ struct PropertyMetaInfo<intel::experimental::write_hint_key::value_t<Cs...>> {
   static constexpr const char *name = "sycl-cache-write-hint";
   static constexpr const int value =
       ((checkWriteHint<Cs::mode>() + ...),
-       checkUnique<(countL(Cs::levels, 1) + ...), (countL(Cs::levels, 2) + ...),
-                   (countL(Cs::levels, 4) + ...),
-                   (countL(Cs::levels, 8) + ...)>(),
+       checkUnique<(countL(Cs::levels, L1BIT) + ...),
+                   (countL(Cs::levels, L2BIT) + ...),
+                   (countL(Cs::levels, L3BIT) + ...),
+                   (countL(Cs::levels, L4BIT) + ...)>(),
        ((Cs::encoding) | ...));
+};
+
+// Check read_hint and read_assertion cache levels across all properties.
+
+class levelCounts {
+public:
+  int countL1;
+  int countL2;
+  int countL3;
+  int countL4;
+};
+
+static constexpr levelCounts operator+(levelCounts L1, levelCounts L2) {
+  return {L1.countL1 + L2.countL1, L1.countL2 + L2.countL2,
+          L1.countL3 + L2.countL3, L1.countL4 + L2.countL4};
+}
+
+// Gather all levels specified in a property into one 4-bit mask. Then, count
+// how many times each level is specified.
+template <int encoding> constexpr static levelCounts allLevels() {
+  constexpr const int levelUsed =
+      (encoding | (encoding >> CACHED) | (encoding >> STREAMING) |
+       (encoding >> INVALIDATE) | (encoding >> CONSTANT) | (encoding >> WT) |
+       (encoding >> WB));
+  return {(levelUsed & L1BIT) != 0, (levelUsed & L2BIT) != 0,
+          (levelUsed & L3BIT) != 0, (levelUsed & L4BIT) != 0};
+}
+
+// Compare strings at compile time
+constexpr bool compareStrs(const char *Str1, const char *Str2) {
+  return std::string_view(Str1) == Str2;
+}
+
+// Check that the number of times a particular cache level is specified in
+// read_hint and read_assertion properties is at most 1.
+template <typename... Cs> struct checkValidCacheControlProperties {
+  static constexpr const levelCounts allZeros{0, 0, 0, 0};
+  static constexpr levelCounts lCounts =
+      (((compareStrs(detail::PropertyMetaInfo<Cs>::name,
+                     "sycl-cache-read-assertion") ||
+         compareStrs(detail::PropertyMetaInfo<Cs>::name,
+                     "sycl-cache-read-hint"))
+            ? allLevels<detail::PropertyMetaInfo<Cs>::value>()
+            : allZeros) +
+       ...);
+  static constexpr bool value =
+      sizeof...(Cs) == 1 || (lCounts.countL1 < 2 && lCounts.countL2 < 2 &&
+                             lCounts.countL3 < 2 && lCounts.countL4 < 2);
 };
 
 } // namespace detail

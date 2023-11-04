@@ -29,6 +29,11 @@ using annotated_ptr_load5 = annotated_ptr<
     float,
     decltype(properties(
         write_hint<cache_control<cache_mode::invalidate, cache_level::L3>>))>;
+using annotated_ptr_load6 = annotated_ptr<
+    float,
+    decltype(properties(
+        read_hint<cache_control<cache_mode::cached, cache_level::L3>>,
+        read_assertion<cache_control<cache_mode::constant, cache_level::L3>>))>;
 
 void cache_control_read_func(queue q) {
   float *ArrayA = malloc_shared<float>(10, q);
@@ -48,6 +53,9 @@ void cache_control_read_func(queue q) {
 
       // expected-error@sycl/ext/intel/experimental/cache_control_properties.hpp:* {{write_hint must specify cache_mode uncached, write_through, write_back or streaming}}
       annotated_ptr_load5 src5{&ArrayA[0]};
+
+      // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{Specify either read_hint or read_assertion at a cache level, but not both}}
+      annotated_ptr_load6 src6{ &ArrayA[0] };
     });
   });
 }

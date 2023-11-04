@@ -725,9 +725,11 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       uint32_t CacheMode = 0;
       while (AttrVal) {
         // The attribute value encodes cache control and levels.
-        // Low-order to high-order nibbles represent the enumerated cache modes.
-        // In each nibble cache levels are encodes as L1->bit0, L2->bit1,
-        // L3->bit2 and L4->bit3. The SPIR-V encoding uses numbers 0..3.
+        // Low-order to high-order nibbles hold cache levels specified for the
+        // enumerated SYCL cache modes. Lowest order nibble for uncached, next
+        // for cached, and so on.
+        // In each nibble cache levels are encoded as L1=1, L2=2, L3=4 and L4=8.
+        // The SPIR-V encoding of cache levels L1..L4 uses values 0..3.
         uint32_t CacheLevel = 0;
         uint32_t LevelMask = AttrVal & 0xf;
         while (LevelMask) {

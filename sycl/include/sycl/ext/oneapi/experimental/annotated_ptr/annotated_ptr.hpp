@@ -222,6 +222,12 @@ public:
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
                 "can only be set with BufferLocation together.");
 
+  // Check that Read cache controls do not conflict at any cache level.
+  static_assert(
+      detail::checkValidCacheControlProperties<Props...>::value,
+      "Specify either read_hint or read_assertion at a cache level, but not "
+      "both");
+
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(const annotated_ptr &) = default;
