@@ -55,7 +55,7 @@ void cache_control_read_func(queue q) {
       annotated_ptr_load5 src5{&ArrayA[0]};
 
       // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{Specify either read_hint or read_assertion at a cache level, but not both}}
-      annotated_ptr_load6 src6{ &ArrayA[0] };
+      annotated_ptr_load6 src6{&ArrayA[0]};
     });
   });
 }
