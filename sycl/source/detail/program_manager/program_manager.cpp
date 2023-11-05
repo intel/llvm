@@ -2519,8 +2519,8 @@ checkDevSupportDeviceRequirements(const device &Dev,
   // TODO: remove checks for CUDA and HIP from if-statement below when runtime
   // query for them in matrix_combinations is implemented
   if (JointMatrixPropIt &&
-      (Device.get_backend() != sycl::backend::ext_oneapi_cuda) &&
-      (Device.get_backend() != sycl::backend::ext_oneapi_hip)) {
+      (Dev.get_backend() != sycl::backend::ext_oneapi_cuda) &&
+      (Dev.get_backend() != sycl::backend::ext_oneapi_hip)) {
     std::vector<ext::oneapi::experimental::matrix::combination> Combinations =
         Dev.get_info<
             ext::oneapi::experimental::info::device::matrix_combinations>();
@@ -2610,8 +2610,8 @@ checkDevSupportDeviceRequirements(const device &Dev,
   // TODO: remove checks for CUDA and HIP from if-statement below when runtime
   // query for them in matrix_combinations is implemented
   if (JointMatrixMadPropIt &&
-      (Device.get_backend() != sycl::backend::ext_oneapi_cuda) &&
-      (Device.get_backend() != sycl::backend::ext_oneapi_hip)) {
+      (Dev.get_backend() != sycl::backend::ext_oneapi_cuda) &&
+      (Dev.get_backend() != sycl::backend::ext_oneapi_hip)) {
     std::vector<ext::oneapi::experimental::matrix::combination> Combinations =
         Dev.get_info<
             ext::oneapi::experimental::info::device::matrix_combinations>();
