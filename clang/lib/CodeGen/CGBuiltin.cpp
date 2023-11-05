@@ -21765,25 +21765,32 @@ RValue CodeGenFunction::EmitBuiltinIsAligned(const CallExpr *E) {
 /// Generate (x & ~(y-1)) to align down or ((x+(y-1)) & ~(y-1)) to align up.
 /// Note: For pointer types we can avoid ptrtoint/inttoptr pairs by using the
 /// llvm.ptrmask intrinsic (with a GEP before in the align_up case).
-/// TODO: actually use ptrmask once most optimization passes know about it.
 RValue CodeGenFunction::EmitBuiltinAlignTo(const CallExpr *E, bool AlignUp) {
   BuiltinAlignArgs Args(E, *this);
-  llvm::Value *SrcAddr = Args.Src;
-  if (Args.Src->getType()->isPointerTy())
-    SrcAddr = Builder.CreatePtrToInt(Args.Src, Args.IntType, "intptr");
-  llvm::Value *SrcForMask = SrcAddr;
+  llvm::Value *SrcForMask = Args.Src;
   if (AlignUp) {
     // When aligning up we have to first add the mask to ensure we go over the
     // next alignment value and then align down to the next valid multiple.
     // By adding the mask, we ensure that align_up on an already aligned
     // value will not change the value.
-    SrcForMask = Builder.CreateAdd(SrcForMask, Args.Mask, "over_boundary");
+    if (Args.Src->getType()->isPointerTy()) {
+      if (getLangOpts().isSignedOverflowDefined())
+        SrcForMask =
+            Builder.CreateGEP(Int8Ty, SrcForMask, Args.Mask, "over_boundary");
+      else
+        SrcForMask = EmitCheckedInBoundsGEP(Int8Ty, SrcForMask, Args.Mask,
+                                            /*SignedIndices=*/true,
+                                            /*isSubtraction=*/false,
+                                            E->getExprLoc(), "over_boundary");
+    } else {
+      SrcForMask = Builder.CreateAdd(SrcForMask, Args.Mask, "over_boundary");
+    }
   }
   // Invert the mask to only clear the lower bits.
   llvm::Value *InvertedMask = Builder.CreateNot(Args.Mask, "inverted_mask");
-  llvm::Value *Result =
-      Builder.CreateAnd(SrcForMask, InvertedMask, "aligned_result");
+  llvm::Value *Result = nullptr;
   if (Args.Src->getType()->isPointerTy()) {
+<<<<<<< HEAD
     /// TODO: Use ptrmask instead of ptrtoint+gep once it is optimized well.
     // Result = Builder.CreateIntrinsic(
     //  Intrinsic::ptrmask, {Args.SrcType, SrcForMask->getType(), Args.IntType},
@@ -21800,10 +21807,17 @@ RValue CodeGenFunction::EmitBuiltinAlignTo(const CallExpr *E, bool AlignUp) {
                                       /*SignedIndices=*/true,
                                       /*isSubtraction=*/!AlignUp,
                                       E->getExprLoc(), "aligned_result");
+=======
+    Result = Builder.CreateIntrinsic(
+        Intrinsic::ptrmask, {Args.SrcType, Args.IntType},
+        {SrcForMask, InvertedMask}, nullptr, "aligned_result");
+>>>>>>> 71be514fa0af996745186816735d69fa8a26f3c9
 
     // Emit an alignment assumption to ensure that the new alignment is
     // propagated to loads/stores, etc.
     emitAlignmentAssumption(Result, E, E->getExprLoc(), Args.Alignment);
+  } else {
+    Result = Builder.CreateAnd(SrcForMask, InvertedMask, "aligned_result");
   }
   assert(Result->getType() == Args.SrcType);
   return RValue::get(Result);
