@@ -227,54 +227,6 @@ struct PropertyMetaInfo<intel::experimental::write_hint_key::value_t<Cs...>> {
        ((Cs::encoding) | ...));
 };
 
-// Check read_hint and read_assertion cache levels across all properties.
-
-class levelCounts {
-public:
-  int countL1;
-  int countL2;
-  int countL3;
-  int countL4;
-};
-
-static constexpr levelCounts operator+(levelCounts L1, levelCounts L2) {
-  return {L1.countL1 + L2.countL1, L1.countL2 + L2.countL2,
-          L1.countL3 + L2.countL3, L1.countL4 + L2.countL4};
-}
-
-// Gather all levels specified in a property into one 4-bit mask. Then, count
-// how many times each level is specified.
-template <int encoding> constexpr static levelCounts allLevels() {
-  constexpr const int levelUsed =
-      (encoding | (encoding >> CACHED) | (encoding >> STREAMING) |
-       (encoding >> INVALIDATE) | (encoding >> CONSTANT) | (encoding >> WT) |
-       (encoding >> WB));
-  return {(levelUsed & L1BIT) != 0, (levelUsed & L2BIT) != 0,
-          (levelUsed & L3BIT) != 0, (levelUsed & L4BIT) != 0};
-}
-
-// Compare strings at compile time
-constexpr bool compareStrs(const char *Str1, const char *Str2) {
-  return std::string_view(Str1) == Str2;
-}
-
-// Check that the number of times a particular cache level is specified in
-// read_hint and read_assertion properties is at most 1.
-template <typename... Cs> struct checkValidCacheControlProperties {
-  static constexpr const levelCounts allZeros{0, 0, 0, 0};
-  static constexpr levelCounts lCounts =
-      (((compareStrs(detail::PropertyMetaInfo<Cs>::name,
-                     "sycl-cache-read-assertion") ||
-         compareStrs(detail::PropertyMetaInfo<Cs>::name,
-                     "sycl-cache-read-hint"))
-            ? allLevels<detail::PropertyMetaInfo<Cs>::value>()
-            : allZeros) +
-       ...);
-  static constexpr bool value =
-      sizeof...(Cs) == 1 || (lCounts.countL1 < 2 && lCounts.countL2 < 2 &&
-                             lCounts.countL3 < 2 && lCounts.countL4 < 2);
-};
-
 } // namespace detail
 
 template <typename T, typename... Cs>
