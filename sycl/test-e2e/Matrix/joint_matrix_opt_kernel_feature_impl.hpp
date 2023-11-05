@@ -1,3 +1,6 @@
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental::matrix;
+
 static constexpr size_t M_MULTIPLIER = 16;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
@@ -68,7 +71,6 @@ void init_and_multiply() {
   matrix_rand(MATRIX_M, MATRIX_K, (Ta *)A, (Ta)50);
   matrix_rand(MATRIX_K, MATRIX_N, (Ta *)B, (Ta)50);
   matrix_fill(MATRIX_M, MATRIX_N, (Tc *)C, (Tc)1);
-  matrix_fill(MATRIX_M, MATRIX_N, (Tc *)D, (Tc)1);
 
   big_matrix<Tc, MATRIX_M, MATRIX_N> MC((Tc *)&C);
   big_matrix<Ta, MATRIX_M, MATRIX_K> MA((Ta *)&A);
