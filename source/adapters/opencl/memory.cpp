@@ -362,9 +362,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int CLPropName = mapURMemInfoToCL(propName);
 
-  CL_RETURN_ON_FAILURE(clGetMemObjectInfo(cl_adapter::cast<cl_mem>(hMemory),
-                                          CLPropName, propSize, pPropValue,
-                                          pPropSizeRet));
+  size_t CheckPropSize = 0;
+  auto ClResult =
+      clGetMemObjectInfo(cl_adapter::cast<cl_mem>(hMemory), CLPropName,
+                         propSize, pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClResult);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -377,9 +385,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int CLPropName = mapURMemImageInfoToCL(propName);
 
-  CL_RETURN_ON_FAILURE(clGetImageInfo(cl_adapter::cast<cl_mem>(hMemory),
-                                      CLPropName, propSize, pPropValue,
-                                      pPropSizeRet));
+  size_t CheckPropSize = 0;
+  auto ClResult = clGetImageInfo(cl_adapter::cast<cl_mem>(hMemory), CLPropName,
+                                 propSize, pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClResult);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
   return UR_RESULT_SUCCESS;
 }
 
