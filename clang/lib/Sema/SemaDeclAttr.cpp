@@ -200,11 +200,11 @@ static unsigned getNumAttributeArgs(const ParsedAttr &AL) {
   return AL.getNumArgs() + AL.hasParsedType();
 }
 
-/// Helper functions to provide Attribute Location for the Attr types,
-/// AttributeCommonInfo AND the ParsedAttr.
-template <typename T>
-static std::enable_if_t<std::is_base_of_v<Attr, T>, SourceLocation>
-getAttrLoc(const T &AL) {
+/// A helper function to provide Attribute Location for the Attr types
+/// AND the ParsedAttr.
+template <typename AttrInfo>
+static std::enable_if_t<std::is_base_of_v<Attr, AttrInfo>, SourceLocation>
+getAttrLoc(const AttrInfo &AL) {
   return AL.getLocation();
 }
 static SourceLocation getAttrLoc(const ParsedAttr &AL) { return AL.getLoc(); }
