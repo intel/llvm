@@ -38,12 +38,9 @@
 #include <sycl/memory_enums.hpp>
 #include <sycl/multi_ptr.hpp>
 
-namespace syclcompat {
+#include <syclcompat/traits.hpp>
 
-template <typename T> struct arith {
-  using type = std::conditional_t<std::is_pointer_v<T>, std::ptrdiff_t, T>;
-};
-template <typename T> using arith_t = typename arith<T>::type;
+namespace syclcompat {
 
 /// Atomically add the value operand to the value at the addr and assign the
 /// result to the value at addr.
