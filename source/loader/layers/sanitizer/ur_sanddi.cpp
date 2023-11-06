@@ -414,7 +414,7 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     // dditable.pfnCreate = pDdiTable->pfnCreate;
     pDdiTable->pfnCreate = ur_sanitizer_layer::urKernelCreate;
-    pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
+    // pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
     pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;
 
     return result;
