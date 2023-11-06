@@ -54,8 +54,7 @@ convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
   }
 }
 
-const ur_command_t
-convertCLCommandTypeToUR(const cl_command_type &CommandType) {
+ur_command_t convertCLCommandTypeToUR(const cl_command_type &CommandType) {
   /* Note: the following enums don't have a CL equivalent:
     UR_COMMAND_USM_FILL_2D
     UR_COMMAND_USM_MEMCPY_2D
