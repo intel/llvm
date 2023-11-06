@@ -271,8 +271,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-stubs", "internal"}};
 #if !defined(_WIN32)
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
-      {"libsycl-sanitizer", "internal"}
-  };
+      {"libsycl-sanitizer", "internal"}};
 #endif
 
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {

@@ -25,7 +25,7 @@
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 #define DEVICE_EXTERN_C_INLINE                                                 \
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
-#define DEVICE_EXTERN_C_NOINLINE                                                 \
+#define DEVICE_EXTERN_C_NOINLINE                                               \
   DEVICE_EXTERNAL EXTERN_C __attribute__((noinline))
 #endif // __SPIR__ || __NVPTX__
 
