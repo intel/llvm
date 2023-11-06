@@ -13,20 +13,21 @@
 namespace ur_sanitizer_layer {
 
 enum class DeviceSanitizerErrorType : int32_t {
+    UNKNOWN,
     OUT_OF_BOUND,
     MISALIGNED,
     USE_AFTER_FREE,
     OUT_OF_SHADOW_BOUND,
-    UNKNOWN
 };
 
 enum class DeviceSanitizerMemoryType : int32_t {
+    UNKNOWN,
     USM_DEVICE,
     USM_HOST,
     USM_SHARED,
     LOCAL,
     PRIVATE,
-    UNKNOWN
+    MEM_BUFFER,
 };
 
 // NOTE Layout of this structure should be aligned with the one in
@@ -67,6 +68,8 @@ const char *DeviceSanitizerFormat(DeviceSanitizerMemoryType MemoryType) {
         return "Local Memory";
     case DeviceSanitizerMemoryType::PRIVATE:
         return "Private Memory";
+    case DeviceSanitizerMemoryType::MEM_BUFFER:
+        return "Memory Buffer";
     default:
         return "Unknown Memory";
     }
