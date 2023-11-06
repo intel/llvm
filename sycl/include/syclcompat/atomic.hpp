@@ -148,7 +148,7 @@ template <typename T,
               sycl::access::address_space::global_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_and(T *addr, T operand) {
+inline T atomic_fetch_and(T *addr, type_identity_t<T> operand) {
   auto atm =
       sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(addr[0]);
   return atm.fetch_and(operand);
@@ -165,7 +165,7 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_and(T *addr, T operand, sycl::memory_order memoryOrder) {
+inline T atomic_fetch_and(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_fetch_and<T, addressSpace, sycl::memory_order::relaxed,
@@ -196,7 +196,7 @@ template <typename T,
               sycl::access::address_space::global_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_or(T *addr, T operand) {
+inline T atomic_fetch_or(T *addr, type_identity_t<T> operand) {
   auto atm =
       sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(addr[0]);
   return atm.fetch_or(operand);
@@ -213,7 +213,7 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_or(T *addr, T operand, sycl::memory_order memoryOrder) {
+inline T atomic_fetch_or(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_fetch_or<T, addressSpace, sycl::memory_order::relaxed,
@@ -244,7 +244,7 @@ template <typename T,
               sycl::access::address_space::global_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_xor(T *addr, T operand) {
+inline T atomic_fetch_xor(T *addr, type_identity_t<T> operand) {
   auto atm =
       sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(addr[0]);
   return atm.fetch_xor(operand);
@@ -261,7 +261,7 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_xor(T *addr, T operand, sycl::memory_order memoryOrder) {
+inline T atomic_fetch_xor(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_fetch_xor<T, addressSpace, sycl::memory_order::relaxed,
@@ -290,7 +290,7 @@ template <typename T,
               sycl::access::address_space::global_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_min(T *addr, T operand) {
+inline T atomic_fetch_min(T *addr, type_identity_t<T> operand) {
   auto atm =
       sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(addr[0]);
   return atm.fetch_min(operand);
@@ -306,7 +306,7 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_min(T *addr, T operand, sycl::memory_order memoryOrder) {
+inline T atomic_fetch_min(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_fetch_min<T, addressSpace, sycl::memory_order::relaxed,
@@ -336,7 +336,7 @@ template <typename T,
               sycl::access::address_space::global_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_max(T *addr, T operand) {
+inline T atomic_fetch_max(T *addr, type_identity_t<T> operand) {
   auto atm =
       sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(addr[0]);
   return atm.fetch_max(operand);
@@ -352,7 +352,7 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_fetch_max(T *addr, T operand, sycl::memory_order memoryOrder) {
+inline T atomic_fetch_max(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_fetch_max<T, addressSpace, sycl::memory_order::relaxed,
@@ -495,7 +495,7 @@ template <typename T,
               sycl::access::address_space::global_space,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_exchange(T *addr, T operand) {
+inline T atomic_exchange(T *addr, type_identity_t<T> operand) {
   auto atm =
       sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(addr[0]);
   return atm.exchange(operand);
@@ -510,7 +510,7 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_exchange(T *addr, T operand, sycl::memory_order memoryOrder) {
+inline T atomic_exchange(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_exchange<T, addressSpace, sycl::memory_order::relaxed,
@@ -546,7 +546,7 @@ template <typename T,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
 T atomic_compare_exchange_strong(
     sycl::multi_ptr<T, sycl::access::address_space::global_space> addr,
-    T expected, T desired,
+    type_identity_t<T> expected, type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed) {
   auto atm = sycl::atomic_ref<T, memoryOrder, memoryScope, addressSpace>(*addr);
@@ -571,7 +571,7 @@ template <typename T,
           sycl::memory_order memoryOrder = sycl::memory_order::relaxed,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
 T atomic_compare_exchange_strong(
-    T *addr, T expected, T desired,
+    T *addr, type_identity_t<T> expected, type_identity_t<T> desired,
     sycl::memory_order success = sycl::memory_order::relaxed,
     sycl::memory_order fail = sycl::memory_order::relaxed) {
   auto atm =
