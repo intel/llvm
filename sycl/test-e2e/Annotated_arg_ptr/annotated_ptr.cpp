@@ -29,9 +29,10 @@ int main() {
   auto *d = malloc_shared<int>(4, Q);
   auto d_ptr = annotated_ptr{d};
 
-  volatile int *e = malloc_shared<int>(1, Q);
-  *e = 0;
-  auto e_ptr = annotated_ptr{e};
+  auto *e = malloc_shared<int>(1, Q);
+  volatile int *e_vol = e;
+  *e_vol = 0;
+  auto e_ptr = annotated_ptr{e_vol};
 
   for (int i = 0; i < 4; i++)
     d_ptr[i] = i;
