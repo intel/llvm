@@ -486,16 +486,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   return UR_RESULT_SUCCESS;
 }
 
+const ur_usm_type_t
+mapCLUSMTypeToUR(const cl_unified_shared_memory_type_intel &Type) {
+  switch (Type) {
+  case CL_MEM_TYPE_HOST_INTEL:
+    return UR_USM_TYPE_HOST;
+  case CL_MEM_TYPE_DEVICE_INTEL:
+    return UR_USM_TYPE_DEVICE;
+  case CL_MEM_TYPE_SHARED_INTEL:
+    return UR_USM_TYPE_SHARED;
+  case CL_MEM_TYPE_UNKNOWN_INTEL:
+  default:
+    return UR_USM_TYPE_UNKNOWN;
+  }
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
                      ur_usm_alloc_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
 
-  clGetMemAllocInfoINTEL_fn FuncPtr = nullptr;
+  clGetMemAllocInfoINTEL_fn GetMemAllocInfo = nullptr;
   cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
-  ur_result_t RetVal = cl_ext::getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
       CLContext, cl_ext::ExtFuncPtrCache->clGetMemAllocInfoINTELCache,
-      cl_ext::GetMemAllocInfoName, &FuncPtr);
+      cl_ext::GetMemAllocInfoName, &GetMemAllocInfo));
 
   cl_mem_info_intel PropNameCL;
   switch (propName) {
@@ -515,41 +530,24 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  if (FuncPtr) {
-    size_t CheckPropSize = 0;
-    size_t *CheckPropSizeRet = pPropSizeRet ? pPropSizeRet : &CheckPropSize;
-    RetVal = mapCLErrorToUR(FuncPtr(cl_adapter::cast<cl_context>(hContext),
-                                    pMem, PropNameCL, propSize, pPropValue,
-                                    CheckPropSizeRet));
-    if (pPropValue && *CheckPropSizeRet != propSize) {
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    if (RetVal == UR_RESULT_SUCCESS && pPropValue &&
-        propName == UR_USM_ALLOC_INFO_TYPE) {
-      auto *AllocTypeCL =
-          static_cast<cl_unified_shared_memory_type_intel *>(pPropValue);
-      ur_usm_type_t AllocTypeUR;
-      switch (*AllocTypeCL) {
-      case CL_MEM_TYPE_HOST_INTEL:
-        AllocTypeUR = UR_USM_TYPE_HOST;
-        break;
-      case CL_MEM_TYPE_DEVICE_INTEL:
-        AllocTypeUR = UR_USM_TYPE_DEVICE;
-        break;
-      case CL_MEM_TYPE_SHARED_INTEL:
-        AllocTypeUR = UR_USM_TYPE_SHARED;
-        break;
-      case CL_MEM_TYPE_UNKNOWN_INTEL:
-      default:
-        AllocTypeUR = UR_USM_TYPE_UNKNOWN;
-        break;
-      }
-      auto *AllocTypeOut = static_cast<ur_usm_type_t *>(pPropValue);
-      *AllocTypeOut = AllocTypeUR;
-    }
+  size_t CheckPropSize = 0;
+  cl_int ClErr =
+      GetMemAllocInfo(cl_adapter::cast<cl_context>(hContext), pMem, PropNameCL,
+                      propSize, pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClErr);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
   }
 
-  return RetVal;
+  if (pPropValue && propName == UR_USM_ALLOC_INFO_TYPE) {
+    *static_cast<ur_usm_type_t *>(pPropValue) = mapCLUSMTypeToUR(
+        *static_cast<cl_unified_shared_memory_type_intel *>(pPropValue));
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL

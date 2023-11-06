@@ -190,6 +190,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnUSMMemcpy2D = urEnqueueUSMMemcpy2D;
   pDdiTable->pfnUSMMemcpy = urEnqueueUSMMemcpy;
   pDdiTable->pfnUSMPrefetch = urEnqueueUSMPrefetch;
+  pDdiTable->pfnReadHostPipe = urEnqueueReadHostPipe;
+  pDdiTable->pfnWriteHostPipe = urEnqueueWriteHostPipe;
   return UR_RESULT_SUCCESS;
 }
 
