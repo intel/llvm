@@ -285,12 +285,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_KERNEL_EXEC_INFO_CACHE_CONFIG: {
-    /* Setting the cache config is unsupported in OpenCL */
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    // Setting the cache config is unsupported in OpenCL, but this is just a
+    // hint.
+    return UR_RESULT_SUCCESS;
   }
   case UR_KERNEL_EXEC_INFO_USM_PTRS: {
     CL_RETURN_ON_FAILURE(clSetKernelExecInfo(
-        cl_adapter::cast<cl_kernel>(hKernel), propName, propSize, pPropValue));
+        cl_adapter::cast<cl_kernel>(hKernel),
+        CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL, propSize, pPropValue));
     return UR_RESULT_SUCCESS;
   }
   default: {
