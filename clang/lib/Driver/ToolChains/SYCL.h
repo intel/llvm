@@ -194,7 +194,8 @@ public:
     return false;
   }
   llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
-    if (this->IsSYCLNativeCPU)
+    if (this->IsSYCLNativeCPU ||
+        this->HostTC.getTriple().isWindowsMSVCEnvironment())
       return this->HostTC.getDefaultDebugFormat();
     return ToolChain::getDefaultDebugFormat();
   }

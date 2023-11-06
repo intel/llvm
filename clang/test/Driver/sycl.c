@@ -154,3 +154,12 @@
 // RUN: %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86 -c -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=MULTIPLE_TARGETS
 // MULTIPLE_TARGETS: offload, "device-sycl (nvptx64-nvidia-cuda:sm_86)"
 // MULTIPLE_TARGETS: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)"
+
+/// Verify debug format for spir target.
+// RUN: %clang -### -target x86_64-windows-msvc -fsycl -g -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
+// RUN: %clang_cl -### -fsycl -Zi -c %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
+// DEBUG-WIN: {{.*}}"-fsycl-is-device"{{.*}}"-gcodeview"
+// DEBUG-WIN: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
+// DEBUG-WIN-NOT: dwarf-version

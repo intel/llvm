@@ -10,11 +10,13 @@
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -S -emit-llvm %s -o %t_temp.ll
 // RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
 
-// check that we added the state struct as a function argument, and that we
-// inject the calls to our builtins. We disable index flipping for SYCL Native
-// CPU, so id.get_global_id(1) maps to dimension 1 for a 2-D kernel (as opposed
-// to dim 0), etc
+// Check that builtins are emitted as expected
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-BT
 
+// check that we added the state struct as a function argument, and that we
+// inject the calls to our builtins.
+
+// CHECK: %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64], [3 x i64] }
 #include "sycl.hpp"
 class Test1;
 class Test2;
@@ -92,6 +94,13 @@ int main() {
     });
   });
 }
+
+// check that builtins are generated as expected
+// CHECK-BT: define internal i64 @__dpcpp_nativecpu_get_global_id(i32 %[[DIMARG:.*]], ptr addrspace(1) %[[PTRARG:.*]]) {
+// CHECK-BT:   %[[GEP:.*]] = getelementptr %struct.__nativecpu_state, ptr addrspace(1) %[[PTRARG]], i64 0, i32 0, i32 %[[DIMARG]]
+// CHECK-BT:   %[[LOAD:.*]] = load i64, ptr addrspace(1) %[[GEP]], align 8
+// CHECK-BT:   ret i64 %[[LOAD]]
+// CHECK-BT: }
 
 // check that the generated module has the is-native-cpu module flag set
 // CHECK: !{{[0-9]*}} = !{i32 1, !"is-native-cpu", i32 1}

@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b
-  # Merge: 614e6d0 b4425bc
+  # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
+  # Merge: 2ab0734 86f96f0
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Oct 23 14:49:01 2023 +0100
-  #     Merge pull request #945 from npmiller/fix-priority
-  #     [CUDA] Fix queue creation with native handle
-  set(UNIFIED_RUNTIME_TAG 3a3aae387eaa8aa072ff310b94df83c9d1a33a0b)
+  # Date:   Fri Oct 27 16:36:23 2023 +0100
+  #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
+  #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
+  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -189,24 +189,19 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
       Threads::Threads
-      sycl
       OpenCL-Headers
   )
 
-  if(NOT DEFINED NATIVECPU_USE_OCK)
-    option(Native_CPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" On)
-  endif()
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" On)
 
-  if(Native_CPU_USE_OCK)
-    message("Compiling Native CPU adapter with OCK support.")
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
     target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
   else()
-    message("Compiling Native CPU adapter without OCK support.
+    message(WARNING "Compiling Native CPU adapter without OCK support.
     Some valid SYCL programs may not build or may have low performance.")
   endif()
 

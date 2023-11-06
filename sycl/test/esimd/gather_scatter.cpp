@@ -104,3 +104,23 @@ kernel5(accessor<int, 1, access::mode::read, access::target::device> &buf)
   // function for call to 'scatter'
   scatter_rgba(buf, offset, v);
 }
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel6(local_accessor<const int, 1> &buf) SYCL_ESIMD_FUNCTION {
+  simd<int, 32> v(0, 1);
+  simd<uint32_t, 32> offset(0, 1);
+  // CHECK: gather_scatter.cpp:115{{.*}}error: no matching function
+  // function for call to 'scatter'
+  scatter<int, 32>(buf, offset, v);
+}
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel7(local_accessor<const int, 1> &buf) SYCL_ESIMD_FUNCTION {
+  simd<int, 32 * 4> v(0, 1);
+  simd<uint32_t, 32> offset(0, sizeof(int) * 4);
+  // CHECK: gather_scatter.cpp:125{{.*}}error: no matching function
+  // function for call to 'scatter'
+  scatter_rgba(buf, offset, v);
+}

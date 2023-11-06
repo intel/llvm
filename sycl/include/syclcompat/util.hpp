@@ -35,7 +35,7 @@
 
 #include <cassert>
 #include <complex>
-#include <sycl/ext/oneapi/experimental/sycl_complex.hpp>
+#include <sycl/ext/oneapi/experimental/complex/complex.hpp>
 #include <sycl/sycl.hpp>
 #include <type_traits>
 

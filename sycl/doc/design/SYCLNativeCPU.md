@@ -38,7 +38,7 @@ python buildbot/configure.py \
 # other options here
 ```
 
-SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances, the OCK is fetched by default when Native CPU is enabled, and can optionally be disabled using the `NATIVE_CPU_USE_OCK` CMake variable (please note that disabling the OCK will result in limited functionalities and performances on the Native CPU backend):
+SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances, the OCK is fetched by default when Native CPU is enabled, and can optionally be disabled using the `NATIVECPU_USE_OCK` CMake variable (please note that disabling the OCK will result in limited functionalities and performances on the Native CPU backend):
 
 ```
 python3 buildbot/configure.py \
@@ -50,7 +50,7 @@ The Native CPU device needs to be selected at runtime by setting the environment
 
 # Supported features and current limitations
 
-The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barriers` are supported only when the oneAPI Construction Kit integration is enabled, several math builtins are not supported and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).
+The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barriers` are supported only when the oneAPI Construction Kit integration is enabled, several math builtins are not supported and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](https://github.com/intel/llvm/blob/sycl/sycl/test/native_cpu).
 
 
 To execute the `e2e` tests on the Native CPU, configure the test suite with:
@@ -122,13 +122,13 @@ entry:
 }
 ```
 
-For the Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
+For the Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
 The PrepareSYCLNativeCPUPass also emits a `subhandler` function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. 
 
 
 ## PrepareSYCLNativeCPU Pass
 
-This pass will add a pointer to a `nativecpu_state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `__nativecpu_state` struct. The `__nativecpu_state` struct and the builtin functions are defined in [native_cpu.hpp](sycl/include/sycl/detail/native_cpu.hpp).
+This pass will add a pointer to a `nativecpu_state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `__nativecpu_state` struct. The `__nativecpu_state` struct and the builtin functions are defined in [native_cpu.hpp](https://github.com/intel/llvm/blob/sycl/sycl/include/sycl/detail/native_cpu.hpp).
 
 
 The resulting IR is:
@@ -193,5 +193,5 @@ Each entry in the array contains the kernel name as a string, and a pointer to t
 
 ## Kernel lowering and execution
 
-The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is ran using the Native CPU PI Plug-in, defined in [pi_native_cpu.cpp](sycl/plugins/native_cpu/pi_native_cpu.cpp).
+The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is ran using the Native CPU PI Plug-in, defined in [pi_native_cpu.cpp](https://github.com/intel/llvm/blob/sycl/sycl/plugins/native_cpu/pi_native_cpu.cpp).
 
