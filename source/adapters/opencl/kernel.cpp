@@ -199,7 +199,8 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     }
   }
 
-  *(static_cast<uint32_t *>(pPropValue)) = static_cast<uint32_t>(RetVal);
+  if (pPropValue)
+    *(static_cast<uint32_t *>(pPropValue)) = static_cast<uint32_t>(RetVal);
   if (pPropSizeRet)
     *pPropSizeRet = sizeof(uint32_t);
 
