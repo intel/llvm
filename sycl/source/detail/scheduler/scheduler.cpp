@@ -518,8 +518,6 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
 
   std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
-    static size_t count = 0;
-
     // Lock is needed for checkLeavesCompletion - if walks through Record leaves
     ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
     if (Lock.owns_lock()) {
