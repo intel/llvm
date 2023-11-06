@@ -319,9 +319,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   *phMem = reinterpret_cast<ur_mem_handle_t>(clCreateSubBuffer(
       cl_adapter::cast<cl_mem>(hBuffer), static_cast<cl_mem_flags>(flags),
       BufferCreateType, &BufferRegion, cl_adapter::cast<cl_int *>(&RetErr)));
-  CL_RETURN_ON_FAILURE(RetErr);
 
-  return UR_RESULT_SUCCESS;
+  if (RetErr == CL_INVALID_VALUE) {
+    size_t BufferSize = 0;
+    CL_RETURN_ON_FAILURE(clGetMemObjectInfo(cl_adapter::cast<cl_mem>(hBuffer),
+                                            CL_MEM_SIZE, sizeof(BufferSize),
+                                            &BufferSize, nullptr));
+    if (BufferRegion.size + BufferRegion.origin > BufferSize)
+      return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
+  }
+  return mapCLErrorToUR(RetErr);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
