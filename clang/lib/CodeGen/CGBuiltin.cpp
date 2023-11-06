@@ -21790,28 +21790,9 @@ RValue CodeGenFunction::EmitBuiltinAlignTo(const CallExpr *E, bool AlignUp) {
   llvm::Value *InvertedMask = Builder.CreateNot(Args.Mask, "inverted_mask");
   llvm::Value *Result = nullptr;
   if (Args.Src->getType()->isPointerTy()) {
-<<<<<<< HEAD
-    /// TODO: Use ptrmask instead of ptrtoint+gep once it is optimized well.
-    // Result = Builder.CreateIntrinsic(
-    //  Intrinsic::ptrmask, {Args.SrcType, SrcForMask->getType(), Args.IntType},
-    //  {SrcForMask, NegatedMask}, nullptr, "aligned_result");
-    Result->setName("aligned_intptr");
-    llvm::Value *Difference = Builder.CreateSub(Result, SrcAddr, "diff");
-    // The result must point to the same underlying allocation. This means we
-    // can use an inbounds GEP to enable better optimization.
-    if (getLangOpts().isSignedOverflowDefined())
-      Result =
-          Builder.CreateGEP(Int8Ty, Args.Src, Difference, "aligned_result");
-    else
-      Result = EmitCheckedInBoundsGEP(Int8Ty, Args.Src, Difference,
-                                      /*SignedIndices=*/true,
-                                      /*isSubtraction=*/!AlignUp,
-                                      E->getExprLoc(), "aligned_result");
-=======
     Result = Builder.CreateIntrinsic(
         Intrinsic::ptrmask, {Args.SrcType, Args.IntType},
         {SrcForMask, InvertedMask}, nullptr, "aligned_result");
->>>>>>> 71be514fa0af996745186816735d69fa8a26f3c9
 
     // Emit an alignment assumption to ensure that the new alignment is
     // propagated to loads/stores, etc.
