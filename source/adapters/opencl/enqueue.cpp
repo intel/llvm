@@ -178,12 +178,55 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  // CL FillBuffer only allows pattern sizes up to the largest CL type:
+  // long16/double16
+  if (patternSize <= 128) {
+    CL_RETURN_ON_FAILURE(
+        clEnqueueFillBuffer(cl_adapter::cast<cl_command_queue>(hQueue),
+                            cl_adapter::cast<cl_mem>(hBuffer), pPattern,
+                            patternSize, offset, size, numEventsInWaitList,
+                            cl_adapter::cast<const cl_event *>(phEventWaitList),
+                            cl_adapter::cast<cl_event *>(phEvent)));
+    return UR_RESULT_SUCCESS;
+  }
 
-  CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
+  auto NumValues = size / sizeof(uint64_t);
+  auto HostBuffer = new uint64_t[NumValues];
+  auto NumChunks = patternSize / sizeof(uint64_t);
+  for (size_t i = 0; i < NumValues; i++) {
+    HostBuffer[i] = static_cast<const uint64_t *>(pPattern)[i % NumChunks];
+  }
+
+  cl_event WriteEvent = nullptr;
+  auto ClErr = clEnqueueWriteBuffer(
       cl_adapter::cast<cl_command_queue>(hQueue),
-      cl_adapter::cast<cl_mem>(hBuffer), pPattern, patternSize, offset, size,
+      cl_adapter::cast<cl_mem>(hBuffer), false, offset, size, HostBuffer,
       numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
-      cl_adapter::cast<cl_event *>(phEvent)));
+      &WriteEvent);
+  if (ClErr != CL_SUCCESS) {
+    delete[] HostBuffer;
+    CL_RETURN_ON_FAILURE(ClErr);
+  }
+
+  auto DeleteCallback = [](cl_event, cl_int, void *pUserData) {
+    delete[] static_cast<uint64_t *>(pUserData);
+  };
+  ClErr =
+      clSetEventCallback(WriteEvent, CL_COMPLETE, DeleteCallback, HostBuffer);
+  if (ClErr != CL_SUCCESS) {
+    // We can attempt to recover gracefully by attempting to wait for the write
+    // to finish and deleting the host buffer.
+    clWaitForEvents(1, &WriteEvent);
+    delete[] HostBuffer;
+    clReleaseEvent(WriteEvent);
+    CL_RETURN_ON_FAILURE(ClErr);
+  }
+
+  if (phEvent) {
+    *phEvent = cl_adapter::cast<ur_event_handle_t>(WriteEvent);
+  } else {
+    CL_RETURN_ON_FAILURE(clReleaseEvent(WriteEvent));
+  }
 
   return UR_RESULT_SUCCESS;
 }
