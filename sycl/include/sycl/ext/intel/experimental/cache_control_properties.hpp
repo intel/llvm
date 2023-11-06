@@ -57,6 +57,9 @@ template <cache_mode M, cache_level... Ls> struct cache_control {
   static constexpr const int countL3 = ((Ls == cache_level::L3 ? 1 : 0) + ...);
   static constexpr const int countL4 = ((Ls == cache_level::L4 ? 1 : 0) + ...);
   static constexpr const uint32_t levels = ((1 << static_cast<int>(Ls)) | ...);
+  // Starting bit position for cache levels of a cache mode are uncached=0,
+  // cached=4, streaming=8, invalidate=12, constant=16, write_through=20 and
+  // write_back=24. The shift value is computed as cache_mode * 4.
   static constexpr const uint32_t encoding =
       (countL1, countL2, countL3, countL4, detail::checkLevel1<countL1>(),
        detail::checkLevel2<countL2>(), detail::checkLevel3<countL3>(),
@@ -125,15 +128,6 @@ static constexpr int L1BIT = 1;
 static constexpr int L2BIT = 2;
 static constexpr int L3BIT = 4;
 static constexpr int L4BIT = 8;
-
-// Starting bit position for cache levels of a cache mode.
-static constexpr int UNCACHED = 0;
-static constexpr int CACHED = 4;
-static constexpr int STREAMING = 8;
-static constexpr int INVALIDATE = 12;
-static constexpr int CONSTANT = 16;
-static constexpr int WT = 20;
-static constexpr int WB = 24;
 
 static constexpr int countL(int levels, int mask) {
   return levels & mask ? 1 : 0;
