@@ -573,8 +573,6 @@ void ASTStmtWriter::VisitConstantExpr(ConstantExpr *E) {
   case ConstantResultStorageKind::APValue:
     Record.AddAPValue(E->APValueResult());
     break;
-  default:
-    llvm_unreachable("unexpected ResultKind!");
   }
 
   Record.AddStmt(E->getSubExpr());
@@ -700,7 +698,7 @@ void ASTStmtWriter::VisitStringLiteral(StringLiteral *E) {
   Record.push_back(E->getNumConcatenated());
   Record.push_back(E->getLength());
   Record.push_back(E->getCharByteWidth());
-  Record.push_back(E->getKind());
+  Record.push_back(llvm::to_underlying(E->getKind()));
   Record.push_back(E->isPascal());
 
   // Store the trailing array of SourceLocation.
