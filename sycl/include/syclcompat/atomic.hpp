@@ -235,35 +235,6 @@ inline T atomic_exchange(T *addr, type_identity_t<T> operand) {
   return atm.exchange(operand);
 }
 
-/// Atomically exchange the value at the address addr with the value operand.
-/// \param [in, out] addr The pointer to the data.
-/// \param operand The value to be exchanged with the value pointed by \p
-/// addr. \param memoryOrder The memory ordering used. \returns The value at
-/// the \p addr before the call.
-template <typename T,
-          sycl::access::address_space addressSpace =
-              sycl::access::address_space::global_space,
-          sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_exchange(T *addr, type_identity_t<T> operand,
-                         sycl::memory_order memoryOrder) {
-  switch (memoryOrder) {
-  case sycl::memory_order::relaxed:
-    return atomic_exchange<T, addressSpace, sycl::memory_order::relaxed,
-                           memoryScope>(addr, operand);
-  case sycl::memory_order::acq_rel:
-    return atomic_exchange<T, addressSpace, sycl::memory_order::acq_rel,
-                           memoryScope>(addr, operand);
-  case sycl::memory_order::seq_cst:
-    return atomic_exchange<T, addressSpace, sycl::memory_order::seq_cst,
-                           memoryScope>(addr, operand);
-  default:
-    assert(false &&
-           "Invalid memory_order for atomics. Valid memory_order for "
-           "atomics are: sycl::memory_order::relaxed, "
-           "sycl::memory_order::acq_rel, sycl::memory_order::seq_cst!");
-  }
-}
-
 /// Atomically compare the value at \p addr to the value expected and exchange
 /// with the value desired if the value at \p addr is equal to the value
 /// expected. Returns the value at the \p addr before the call.
