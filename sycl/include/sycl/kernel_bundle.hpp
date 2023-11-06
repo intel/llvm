@@ -905,12 +905,12 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 
 } // namespace detail
 
-template <
-    typename PropertyListT = detail::empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_ok<kernel_bundle<bundle_state::ext_oneapi_source>,
-                             PropertyListT>::value>>
+template <typename PropertyListT = detail::empty_properties_t,
+          typename = std::enable_if_t<
+              is_property_list_v<PropertyListT> &&
+              detail::all_props_are_keys_of<
+                  kernel_bundle<bundle_state::ext_oneapi_source>,
+                  PropertyListT>::value>>
 
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
