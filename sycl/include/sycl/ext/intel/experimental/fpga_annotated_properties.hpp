@@ -345,12 +345,12 @@ template <typename... Args> struct checkHasConduitAndRegisterMap {
   static constexpr bool value = !(has_Conduit && has_RegisterMap);
 };
 
-#define CHECK_INVALID_PROPERTY(property, list)                      \
-    static constexpr bool has_##property =                          \
-        ContainsProperty<property##_key, list>::value;              \
-    static_assert(!has_##property,                                  \
-                  "Property " #property " cannot be specified for " \
-                  "annotated_arg<T> when T is a non pointer type.");
+#define CHECK_INVALID_PROPERTY(property, list)                                 \
+  static constexpr bool has_##property =                                       \
+      ContainsProperty<property##_key, list>::value;                           \
+  static_assert(!has_##property,                                               \
+                "Property " #property " cannot be specified for "              \
+                "annotated_arg<T> when T is a non pointer type.");
 
 template <typename... Args>
 struct checkPropertiesForNonPointerType : std::true_type {
