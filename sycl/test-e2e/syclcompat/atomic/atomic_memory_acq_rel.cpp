@@ -116,35 +116,35 @@ template <memory_order order> void test_acquire_local() {
        auto error =
            error_buf.template get_access<access::mode::read_write>(cgh);
        local_accessor<int, 1> val(2, cgh);
-       cgh.parallel_for(
-           nd_range<1>(global_size, local_size), [=](nd_item<1> it) {
-             size_t lid = it.get_local_id(0);
-             val[0] = 0;
-             val[1] = 0;
-             it.barrier(access::fence_space::local_space);
-             volatile int *val_p = val.get_pointer();
-             auto atm0 =
-                 atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                            address_space::local_space>(val[0]);
-             auto atm1 =
-                 atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                            address_space::local_space>(val[1]);
-             for (int i = 0; i < N_iters; i++) {
-               if (it.get_local_id(0) == 0) {
-                 syclcompat::atomic_fetch_add<address_space::local_space,
-                                              order>(&val[0], 1);
-                 val_p[1]++;
-               } else {
-                 // syclcompat:: doesn't offer load/store so using
-                 // sycl::atomic_ref here
-                 int tmp1 = atm1.load(memory_order::acquire);
-                 int tmp0 = atm0.load(memory_order::relaxed);
-                 if (tmp0 < tmp1) {
-                   error[0] = 1;
-                 }
-               }
+       cgh.parallel_for(nd_range<1>(global_size, local_size), [=](nd_item<1>
+                                                                      it) {
+         size_t lid = it.get_local_id(0);
+         val[0] = 0;
+         val[1] = 0;
+         it.barrier(access::fence_space::local_space);
+         volatile int *val_p = val.get_pointer();
+         auto atm0 =
+             atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                        address_space::local_space>(val[0]);
+         auto atm1 =
+             atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                        address_space::local_space>(val[1]);
+         for (int i = 0; i < N_iters; i++) {
+           if (it.get_local_id(0) == 0) {
+             syclcompat::atomic_fetch_add<address_space::local_space, order>(
+                 &val[0], 1);
+             val_p[1]++;
+           } else {
+             // syclcompat:: doesn't offer load/store so using
+             // sycl::atomic_ref here
+             int tmp1 = atm1.load(memory_order::acquire);
+             int tmp0 = atm0.load(memory_order::relaxed);
+             if (tmp0 < tmp1) {
+               error[0] = 1;
              }
-           });
+           }
+         }
+       });
      }).wait_and_throw();
   }
   assert(error == 0);
@@ -217,35 +217,35 @@ template <memory_order order> void test_release_local() {
        auto error =
            error_buf.template get_access<access::mode::read_write>(cgh);
        local_accessor<int, 1> val(2, cgh);
-       cgh.parallel_for(
-           nd_range<1>(global_size, local_size), [=](nd_item<1> it) {
-             size_t lid = it.get_local_id(0);
-             val[0] = 0;
-             val[1] = 0;
-             it.barrier(access::fence_space::local_space);
-             volatile int *val_p = val.get_pointer();
-             auto atm0 =
-                 atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                            address_space::local_space>(val[0]);
-             auto atm1 =
-                 atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                            address_space::local_space>(val[1]);
-             for (int i = 0; i < N_iters; i++) {
-               if (it.get_local_id(0) == 0) {
-                 val_p[0]++;
-                 syclcompat::atomic_fetch_add<address_space::local_space,
-                                              order>(&val[1], 1);
-               } else {
-                 // syclcompat:: doesn't offer load/store so using
-                 // sycl::atomic_ref here
-                 int tmp1 = atm1.load(memory_order::acquire);
-                 int tmp0 = atm0.load(memory_order::relaxed);
-                 if (tmp0 < tmp1) {
-                   error[0] = 1;
-                 }
-               }
+       cgh.parallel_for(nd_range<1>(global_size, local_size), [=](nd_item<1>
+                                                                      it) {
+         size_t lid = it.get_local_id(0);
+         val[0] = 0;
+         val[1] = 0;
+         it.barrier(access::fence_space::local_space);
+         volatile int *val_p = val.get_pointer();
+         auto atm0 =
+             atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                        address_space::local_space>(val[0]);
+         auto atm1 =
+             atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                        address_space::local_space>(val[1]);
+         for (int i = 0; i < N_iters; i++) {
+           if (it.get_local_id(0) == 0) {
+             val_p[0]++;
+             syclcompat::atomic_fetch_add<address_space::local_space, order>(
+                 &val[1], 1);
+           } else {
+             // syclcompat:: doesn't offer load/store so using
+             // sycl::atomic_ref here
+             int tmp1 = atm1.load(memory_order::acquire);
+             int tmp0 = atm0.load(memory_order::relaxed);
+             if (tmp0 < tmp1) {
+               error[0] = 1;
              }
-           });
+           }
+         }
+       });
      }).wait_and_throw();
   }
   assert(error == 0);
