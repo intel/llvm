@@ -332,10 +332,11 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ur_native_handle_t hNativeMem,
     [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] const ur_mem_native_properties_t *pProperties,
-    ur_mem_handle_t *phMem) {
-
+    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
   *phMem = reinterpret_cast<ur_mem_handle_t>(hNativeMem);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urMemRetain(*phMem);
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -344,10 +345,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] const ur_mem_native_properties_t *pProperties,
-    ur_mem_handle_t *phMem) {
-
+    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
   *phMem = reinterpret_cast<ur_mem_handle_t>(hNativeMem);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urMemRetain(*phMem);
+  }
   return UR_RESULT_SUCCESS;
 }
 
