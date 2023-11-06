@@ -91,7 +91,7 @@ void test_usm_pointer_and_scalar() {
   exe_kb kbExe1 = syclex::build(kbSrc);
   sycl::kernel usm_kernel = kbExe1.ext_oneapi_get_kernel("usm_kernel");
 
-  size_t multiplier = 2, added = 100; // the scalars submitted to the kernel
+  int multiplier = 2, added = 100; // the scalars submitted to the kernel
   constexpr size_t N = 32;
   int *usmPtr = sycl::malloc_shared<int>(N, q);
 
