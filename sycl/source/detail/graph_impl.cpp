@@ -832,6 +832,12 @@ bool modifiable_command_graph::end_recording(
   return QueueStateChanged;
 }
 
+void modifiable_command_graph::print_dot_graph(std::string path,
+                                               bool verbose) const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  impl->printGraphAsDot(path, verbose);
+}
+
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
