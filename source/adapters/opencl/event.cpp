@@ -10,6 +10,10 @@
 
 #include "common.hpp"
 
+#include <mutex>
+#include <set>
+#include <unordered_map>
+
 cl_event_info convertUREventInfoToCL(const ur_event_info_t PropName) {
   switch (PropName) {
   case UR_EVENT_INFO_COMMAND_QUEUE:
@@ -128,9 +132,64 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    ur_event_callback_t pfnNotify, void *pUserData) {
-  std::ignore = hEvent;
-  std::ignore = execStatus;
-  std::ignore = pfnNotify;
-  std::ignore = pUserData;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  static std::unordered_map<ur_event_handle_t, std::set<ur_event_callback_t>>
+      EventCallbackMap;
+  static std::mutex EventCallbackMutex;
+
+  {
+    std::lock_guard<std::mutex> Lock(EventCallbackMutex);
+    // Callbacks can only be registered once and we need to avoid double
+    // allocating.
+    if (EventCallbackMap.count(hEvent) &&
+        EventCallbackMap[hEvent].count(pfnNotify)) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    EventCallbackMap[hEvent].insert(pfnNotify);
+  }
+
+  cl_int CallbackType = 0;
+  switch (execStatus) {
+  case UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED:
+    CallbackType = CL_SUBMITTED;
+    break;
+  case UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING:
+    CallbackType = CL_RUNNING;
+    break;
+  case UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE:
+    CallbackType = CL_COMPLETE;
+    break;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  struct EventCallback {
+    void execute() {
+      pfnNotify(hEvent, execStatus, pUserData);
+      {
+        std::lock_guard<std::mutex> Lock(*CallbackMutex);
+        (*CallbackMap)[hEvent].erase(pfnNotify);
+        if ((*CallbackMap)[hEvent].empty()) {
+          CallbackMap->erase(hEvent);
+        }
+      }
+      delete this;
+    }
+    ur_event_handle_t hEvent;
+    ur_execution_info_t execStatus;
+    ur_event_callback_t pfnNotify;
+    void *pUserData;
+    std::unordered_map<ur_event_handle_t, std::set<ur_event_callback_t>>
+        *CallbackMap;
+    std::mutex *CallbackMutex;
+  };
+  auto Callback = new EventCallback({hEvent, execStatus, pfnNotify, pUserData,
+                                     &EventCallbackMap, &EventCallbackMutex});
+  auto ClCallback = [](cl_event, cl_int, void *pUserData) {
+    auto *C = static_cast<EventCallback *>(pUserData);
+    C->execute();
+  };
+  CL_RETURN_ON_FAILURE(clSetEventCallback(cl_adapter::cast<cl_event>(hEvent),
+                                          CallbackType, ClCallback, Callback));
+  return UR_RESULT_SUCCESS;
 }
