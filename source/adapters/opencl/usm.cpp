@@ -486,7 +486,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   return UR_RESULT_SUCCESS;
 }
 
-const ur_usm_type_t
+ur_usm_type_t
 mapCLUSMTypeToUR(const cl_unified_shared_memory_type_intel &Type) {
   switch (Type) {
   case CL_MEM_TYPE_HOST_INTEL:

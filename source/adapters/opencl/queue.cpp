@@ -49,7 +49,7 @@ convertURQueuePropertiesToCL(const ur_queue_properties_t *URQueueProperties) {
   return CLCommandQueueProperties;
 }
 
-const ur_queue_flags_t
+ur_queue_flags_t
 mapCLQueuePropsToUR(const cl_command_queue_properties &Properties) {
   ur_queue_flags_t Flags = 0;
   if (Properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
