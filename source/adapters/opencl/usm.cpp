@@ -197,7 +197,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
   // Have to look up the context from the kernel
   cl_context CLContext;
   cl_int CLErr = clGetCommandQueueInfo(
@@ -207,20 +206,97 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     return mapCLErrorToUR(CLErr);
   }
 
-  clEnqueueMemFillINTEL_fn FuncPtr = nullptr;
-  ur_result_t RetVal = cl_ext::getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clEnqueueMemFillINTELCache,
-      cl_ext::EnqueueMemFillName, &FuncPtr);
+  if (patternSize <= 128) {
+    clEnqueueMemFillINTEL_fn EnqueueMemFill = nullptr;
+    UR_RETURN_ON_FAILURE(
+        cl_ext::getExtFuncFromContext<clEnqueueMemFillINTEL_fn>(
+            CLContext, cl_ext::ExtFuncPtrCache->clEnqueueMemFillINTELCache,
+            cl_ext::EnqueueMemFillName, &EnqueueMemFill));
 
-  if (FuncPtr) {
-    RetVal = mapCLErrorToUR(
-        FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue), ptr, pPattern,
-                patternSize, size, numEventsInWaitList,
-                cl_adapter::cast<const cl_event *>(phEventWaitList),
-                cl_adapter::cast<cl_event *>(phEvent)));
+    CL_RETURN_ON_FAILURE(
+        EnqueueMemFill(cl_adapter::cast<cl_command_queue>(hQueue), ptr,
+                       pPattern, patternSize, size, numEventsInWaitList,
+                       cl_adapter::cast<const cl_event *>(phEventWaitList),
+                       cl_adapter::cast<cl_event *>(phEvent)));
+    return UR_RESULT_SUCCESS;
   }
 
-  return RetVal;
+  // OpenCL only supports pattern sizes as large as the largest CL type
+  // (double16/long16 - 128 bytes), anything larger we need to do on the host
+  // side and copy it into the target allocation.
+  clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
+      cl_ext::HostMemAllocName, &HostMemAlloc));
+
+  clEnqueueMemcpyINTEL_fn USMMemcpy = nullptr;
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clEnqueueMemcpyINTELCache,
+      cl_ext::EnqueueMemcpyName, &USMMemcpy));
+
+  clMemBlockingFreeINTEL_fn USMFree = nullptr;
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clMemBlockingFreeINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clMemBlockingFreeINTELCache,
+      cl_ext::MemBlockingFreeName, &USMFree));
+
+  cl_int ClErr = CL_SUCCESS;
+  auto HostBuffer = static_cast<uint64_t *>(
+      HostMemAlloc(CLContext, nullptr, size, 0, &ClErr));
+  CL_RETURN_ON_FAILURE(ClErr);
+
+  auto NumValues = size / sizeof(uint64_t);
+  auto NumChunks = patternSize / sizeof(uint64_t);
+  for (size_t i = 0; i < NumValues; i++) {
+    HostBuffer[i] = static_cast<const uint64_t *>(pPattern)[i % NumChunks];
+  }
+
+  cl_event CopyEvent = nullptr;
+  CL_RETURN_ON_FAILURE(USMMemcpy(
+      cl_adapter::cast<cl_command_queue>(hQueue), false, ptr, HostBuffer, size,
+      numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
+      &CopyEvent));
+
+  struct DeleteCallbackInfo {
+    DeleteCallbackInfo(clMemBlockingFreeINTEL_fn USMFree, cl_context CLContext,
+                       void *HostBuffer)
+        : USMFree(USMFree), CLContext(CLContext), HostBuffer(HostBuffer) {
+      clRetainContext(CLContext);
+    }
+    ~DeleteCallbackInfo() {
+      USMFree(CLContext, HostBuffer);
+      clReleaseContext(CLContext);
+    }
+    DeleteCallbackInfo(const DeleteCallbackInfo &) = delete;
+    DeleteCallbackInfo &operator=(const DeleteCallbackInfo &) = delete;
+
+    clMemBlockingFreeINTEL_fn USMFree;
+    cl_context CLContext;
+    void *HostBuffer;
+  };
+
+  auto Info = new DeleteCallbackInfo(USMFree, CLContext, HostBuffer);
+
+  auto DeleteCallback = [](cl_event, cl_int, void *pUserData) {
+    auto Info = static_cast<DeleteCallbackInfo *>(pUserData);
+    delete Info;
+  };
+
+  ClErr = clSetEventCallback(CopyEvent, CL_COMPLETE, DeleteCallback, Info);
+  if (ClErr != CL_SUCCESS) {
+    // We can attempt to recover gracefully by attempting to wait for the copy
+    // to finish and deleting the info struct here.
+    clWaitForEvents(1, &CopyEvent);
+    delete Info;
+    clReleaseEvent(CopyEvent);
+    CL_RETURN_ON_FAILURE(ClErr);
+  }
+  if (phEvent) {
+    *phEvent = cl_adapter::cast<ur_event_handle_t>(CopyEvent);
+  } else {
+    CL_RETURN_ON_FAILURE(clReleaseEvent(CopyEvent));
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
@@ -343,18 +419,59 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {
-  return UR_RESULT_ERROR_INVALID_OPERATION;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
-    [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] bool blocking,
-    [[maybe_unused]] void *pDst, [[maybe_unused]] size_t dstPitch,
-    [[maybe_unused]] const void *pSrc, [[maybe_unused]] size_t srcPitch,
-    [[maybe_unused]] size_t width, [[maybe_unused]] size_t height,
-    [[maybe_unused]] uint32_t numEventsInWaitList,
-    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
-    [[maybe_unused]] ur_event_handle_t *phEvent) {
-  return UR_RESULT_ERROR_INVALID_OPERATION;
+    ur_queue_handle_t hQueue, bool blocking, void *pDst, size_t dstPitch,
+    const void *pSrc, size_t srcPitch, size_t width, size_t height,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  cl_context CLContext;
+  CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+      cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_CONTEXT,
+      sizeof(cl_context), &CLContext, nullptr));
+
+  clEnqueueMemcpyINTEL_fn FuncPtr = nullptr;
+  ur_result_t RetVal = cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clEnqueueMemcpyINTELCache,
+      cl_ext::EnqueueMemcpyName, &FuncPtr);
+
+  if (!FuncPtr) {
+    return RetVal;
+  }
+
+  std::vector<cl_event> Events(height);
+  for (size_t HeightIndex = 0; HeightIndex < height; HeightIndex++) {
+    cl_event Event = nullptr;
+    auto ClResult =
+        FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue), false,
+                static_cast<uint8_t *>(pDst) + dstPitch * HeightIndex,
+                static_cast<const uint8_t *>(pSrc) + srcPitch * HeightIndex,
+                width, numEventsInWaitList,
+                cl_adapter::cast<const cl_event *>(phEventWaitList), &Event);
+    Events[HeightIndex] = Event;
+    if (ClResult != CL_SUCCESS) {
+      for (const auto &E : Events) {
+        clReleaseEvent(E);
+      }
+      CL_RETURN_ON_FAILURE(ClResult);
+    }
+  }
+  cl_int ClResult = CL_SUCCESS;
+  if (blocking) {
+    ClResult = clWaitForEvents(Events.size(), Events.data());
+  }
+  if (phEvent && ClResult == CL_SUCCESS) {
+    ClResult = clEnqueueBarrierWithWaitList(
+        cl_adapter::cast<cl_command_queue>(hQueue), Events.size(),
+        Events.data(), cl_adapter::cast<cl_event *>(phEvent));
+  }
+  for (const auto &E : Events) {
+    CL_RETURN_ON_FAILURE(clReleaseEvent(E));
+  }
+  CL_RETURN_ON_FAILURE(ClResult)
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
