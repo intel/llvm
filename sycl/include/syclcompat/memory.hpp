@@ -576,10 +576,9 @@ static sycl::event memcpy_async(void *to_ptr, const void *from_ptr, size_t size,
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static sycl::event memcpy_async(type_identity_t<T> *to_ptr,
-                                const type_identity_t<T> *from_ptr,
-                                size_t count,
-                                sycl::queue q = get_default_queue()) {
+static sycl::event
+memcpy_async(type_identity_t<T> *to_ptr, const type_identity_t<T> *from_ptr,
+             size_t count, sycl::queue q = get_default_queue()) {
   return detail::memcpy(q, static_cast<void *>(to_ptr),
                         static_cast<const void *>(from_ptr), count * sizeof(T));
 }

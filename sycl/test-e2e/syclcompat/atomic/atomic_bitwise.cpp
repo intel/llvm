@@ -58,18 +58,18 @@
 // are *not* checking the memory_order semantics, just the API.
 template <typename T1, typename T2>
 void atomic_fetch_and_kernel(T1 *data, T2 operand, T2 operand0) {
-    syclcompat::atomic_fetch_and(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  syclcompat::atomic_fetch_and(
+      data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
 }
 template <typename T1, typename T2>
 void atomic_fetch_or_kernel(T1 *data, T2 operand, T2 operand0) {
-    syclcompat::atomic_fetch_or(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  syclcompat::atomic_fetch_or(
+      data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
 }
 template <typename T1, typename T2>
 void atomic_fetch_xor_kernel(T1 *data, T2 operand, T2 operand0) {
-    syclcompat::atomic_fetch_xor(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  syclcompat::atomic_fetch_xor(
+      data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
 }
 
 template <typename T> void test_atomic_and() {

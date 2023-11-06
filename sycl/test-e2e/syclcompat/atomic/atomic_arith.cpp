@@ -35,8 +35,8 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <type_traits>
 #include <cstddef>
+#include <type_traits>
 
 #include <sycl/sycl.hpp>
 
@@ -56,11 +56,11 @@
 // are *not* checking the memory_order semantics, just the API.
 template <typename T1, typename T2>
 inline void atomic_fetch_add_kernel(T1 *data, T2 operand) {
-    syclcompat::atomic_fetch_add(data, operand);
+  syclcompat::atomic_fetch_add(data, operand);
 }
 template <typename T1, typename T2>
 inline void atomic_fetch_sub_kernel(T1 *data, T2 operand) {
-    syclcompat::atomic_fetch_sub(data, operand);
+  syclcompat::atomic_fetch_sub(data, operand);
 }
 
 template <typename T> void test_atomic_arith() {
@@ -98,7 +98,6 @@ template <typename T> void test_atomic_ptr_arith() {
 
   syclcompat::free(init);
 }
-
 
 void test_atomic_arith_t1_t2() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;

@@ -55,13 +55,13 @@
 // are *not* checking the memory_order semantics, just the API.
 template <typename T1, typename T2>
 inline void atomic_fetch_min_kernel(T1 *data, T2 operand, T2 operand0) {
-    syclcompat::atomic_fetch_min(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  syclcompat::atomic_fetch_min(
+      data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
 }
 template <typename T1, typename T2>
 inline void atomic_fetch_max_kernel(T1 *data, T2 operand, T2 operand0) {
-    syclcompat::atomic_fetch_max(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
+  syclcompat::atomic_fetch_max(
+      data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
 }
 
 template <typename T> void test_atomic_minmax() {

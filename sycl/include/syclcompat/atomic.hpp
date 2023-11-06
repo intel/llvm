@@ -244,7 +244,8 @@ template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
           sycl::memory_scope memoryScope = sycl::memory_scope::device>
-inline T atomic_exchange(T *addr, type_identity_t<T> operand, sycl::memory_order memoryOrder) {
+inline T atomic_exchange(T *addr, type_identity_t<T> operand,
+                         sycl::memory_order memoryOrder) {
   switch (memoryOrder) {
   case sycl::memory_order::relaxed:
     return atomic_exchange<T, addressSpace, sycl::memory_order::relaxed,
