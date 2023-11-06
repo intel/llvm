@@ -77,8 +77,8 @@ template <memory_order order> void test_acquire_global() {
          for (int i = 0; i < N_iters; i++) {
            if (it.get_id(0) == 0) {
 
-             syclcompat::atomic_fetch_add<int, address_space::global_space,
-                                          order>(&val[0], 1);
+             syclcompat::atomic_fetch_add<address_space::global_space, order>(
+                 &val[0], 1);
              val_p[1]++;
            } else {
              // syclcompat:: doesn't offer load/store so using sycl::atomic_ref
@@ -131,7 +131,7 @@ template <memory_order order> void test_acquire_local() {
                             address_space::local_space>(val[1]);
              for (int i = 0; i < N_iters; i++) {
                if (it.get_local_id(0) == 0) {
-                 syclcompat::atomic_fetch_add<int, address_space::local_space,
+                 syclcompat::atomic_fetch_add<address_space::local_space,
                                               order>(&val[0], 1);
                  val_p[1]++;
                } else {
@@ -179,8 +179,8 @@ template <memory_order order> void test_release_global() {
          for (int i = 0; i < N_iters; i++) {
            if (it.get_id(0) == 0) {
              val_p[0]++;
-             syclcompat::atomic_fetch_add<int, address_space::global_space,
-                                          order>(&val[1], 1);
+             syclcompat::atomic_fetch_add<address_space::global_space, order>(
+                 &val[1], 1);
            } else {
              // syclcompat:: doesn't offer load/store so using sycl::atomic_ref
              // here
@@ -233,7 +233,7 @@ template <memory_order order> void test_release_local() {
              for (int i = 0; i < N_iters; i++) {
                if (it.get_local_id(0) == 0) {
                  val_p[0]++;
-                 syclcompat::atomic_fetch_add<int, address_space::local_space,
+                 syclcompat::atomic_fetch_add<address_space::local_space,
                                               order>(&val[1], 1);
                } else {
                  // syclcompat:: doesn't offer load/store so using
