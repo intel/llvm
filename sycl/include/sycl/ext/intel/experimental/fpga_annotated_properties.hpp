@@ -355,14 +355,15 @@ template <typename... Args> struct checkHasConduitAndRegisterMap {
 template <typename... Args>
 struct checkPropertiesForNonPointerType : std::true_type {
   using list = std::tuple<Args...>;
-  CHECK_INVALID_PROPERTY(buffer_location, list);
-  CHECK_INVALID_PROPERTY(awidth, list);
-  CHECK_INVALID_PROPERTY(dwidth, list);
-  CHECK_INVALID_PROPERTY(latency, list);
-  CHECK_INVALID_PROPERTY(read_write_mode, list);
-  CHECK_INVALID_PROPERTY(maxburst, list);
-  CHECK_INVALID_PROPERTY(wait_request, list);
-  CHECK_INVALID_PROPERTY(alignment, list);
+  CHECK_INVALID_PROPERTY(buffer_location, list)
+  CHECK_INVALID_PROPERTY(awidth, list)
+  CHECK_INVALID_PROPERTY(dwidth, list)
+  CHECK_INVALID_PROPERTY(latency, list)
+  CHECK_INVALID_PROPERTY(read_write_mode, list)
+  CHECK_INVALID_PROPERTY(maxburst, list)
+  CHECK_INVALID_PROPERTY(wait_request, list)
+  CHECK_INVALID_PROPERTY(alignment, list)
+  CHECK_INVALID_PROPERTY(usm_kind, list)
 };
 } // namespace detail
 

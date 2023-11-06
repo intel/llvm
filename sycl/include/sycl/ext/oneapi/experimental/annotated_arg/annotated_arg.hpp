@@ -87,6 +87,10 @@ public:
   static constexpr bool is_valid_property_list =
       is_property_list<property_list_t>::value;
   static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T *, Props...>::value;
+  static_assert(contains_valid_properties,
+                "The property list contains invalid property.");
   // check the set if FPGA specificed properties are used
   static constexpr bool hasValidFPGAProperties =
       detail::checkValidFPGAPropertySet<Props...>::value;
@@ -215,6 +219,10 @@ public:
   static constexpr bool is_valid_property_list =
       is_property_list<property_list_t>::value;
   static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T, Props...>::value;
+  static_assert(contains_valid_properties,
+                "The property list contains invalid property.");
   // check the set if FPGA specificed properties are used
   static constexpr bool hasValidFPGAProperties =
       detail::checkValidFPGAPropertySet<Props...>::value;

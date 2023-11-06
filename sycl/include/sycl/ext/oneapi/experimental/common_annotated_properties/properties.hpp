@@ -26,6 +26,9 @@ template <typename T, typename PropertyListT> class annotated_ptr;
 //===----------------------------------------------------------------------===//
 //   Utility type trait for annotated_arg/annotated_ptr deduction guide
 //===----------------------------------------------------------------------===//
+template <typename T, typename PropertyValueT>
+struct is_valid_property : std::false_type {};
+
 namespace detail {
 // Deduce a `properties<>` type from given variadic properties
 template <typename... Args> struct DeducedProperties {
@@ -39,6 +42,19 @@ struct DeducedProperties<detail::properties_t<Args...>> {
   using type = detail::properties_t<Args...>;
 };
 } // namespace detail
+
+template <typename T, typename... Props>
+struct check_property_list : std::true_type {};
+
+template <typename T, typename Prop, typename... Props>
+struct check_property_list<T, Prop, Props...>
+    : std::conditional_t<is_valid_property<T, Prop>::value,
+                         check_property_list<T, Props...>, std::false_type> {
+  static constexpr bool is_valid_property_for_given_type =
+      is_valid_property<T, Prop>::value;
+  static_assert(is_valid_property_for_given_type,
+                "Property is invalid for the given type.");
+};
 
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
