@@ -241,18 +241,29 @@ struct ValueOrDefault<
   }
 };
 
-// CP - DELETE
-// template <typename T, typename Props>
-// struct all_are_property_keys_of;
+template <typename SyclT, typename PropertiesT> struct all_props_ok;
 
-// template <typename T>
-// struct all_are_property_keys_of<T, properties<std::tuple<>>> : std::true_type
-// {};
+template <typename SyclT, typename PropertiesT>
+struct all_props_ok : std::true_type {};
 
-// template <typename T, typename PropT, typename... PropTs>
-// struct all_are_property_keys_of<T, properties<std::tuple<PropTs...>>>
-//  : std::bool_constant<PropT::template is_property_key_of<T, PropT>::value &&
-//  PropTs::template all_are_property_keys_of<T, PropTs...>::value>::value> {};
+template <typename SyclT>
+struct all_props_ok<SyclT,
+                    ext::oneapi::experimental::detail::empty_properties_t>
+    : std::true_type {};
+
+template <typename SyclT, typename PropT>
+struct all_props_ok<SyclT,
+                    ext::oneapi::experimental::properties<std::tuple<PropT>>>
+    : std::bool_constant<
+          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
+};
+
+template <typename SyclT, typename PropT, typename... PropTs>
+struct all_props_ok<
+    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
+    : std::bool_constant<
+          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
+          all_props_ok<SyclT, PropTs...>()> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

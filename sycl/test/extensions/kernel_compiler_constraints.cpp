@@ -74,10 +74,15 @@ int main() {
 
   syclex::build(kbSrc);
 
+  // expected-error@sycl/kernel_bundle.hpp:* {{no matching function for call to 'build'}}
   syclex::build(kbSrc,
                 syclex::properties{syclex::usm_kind<sycl::usm::alloc::host>});
 
-  // syclex::usm_kind<sycl::usm::alloc::host>
+  syclex::build(kbSrc, syclex::properties{syclex::build_options{flags},
+                                          syclex::save_log{&log}});
+
+  // expected-error@../include/sycl/ext/oneapi/properties/properties.hpp:* {{too many template arguments for class template 'all_props_ok'}}
+  // expected-error@sycl/kernel_bundle.hpp:* {{no matching function for call to 'build'}}
   syclex::build(kbSrc, syclex::properties{
                            syclex::build_options{flags}, syclex::save_log{&log},
                            syclex::usm_kind<sycl::usm::alloc::host>});
