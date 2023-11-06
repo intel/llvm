@@ -71,7 +71,7 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
   // host task
   {
     LimitedHandlerSimulation MockCGH;
-    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    EXPECT_CALL(MockCGH, depends_on).Times(0);
     Queue->finalizeHandler<LimitedHandlerSimulation>(
         MockCGH, detail::CG::CGTYPE::CodeplayHostTask, Event);
   }

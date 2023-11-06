@@ -419,8 +419,9 @@ void Scheduler::releaseResources(BlockingT Blocking) {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  while (!isDeferredMemObjectsEmpty())
+  do {
     cleanupDeferredMemObjects(Blocking);
+  } while (Blocking == BlockingT::BLOCKING && !isDeferredMemObjectsEmpty());
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -517,6 +518,8 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
 
   std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
   {
+    static size_t count = 0;
+
     // Lock is needed for checkLeavesCompletion - if walks through Record leaves
     ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
     if (Lock.owns_lock()) {

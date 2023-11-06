@@ -723,10 +723,11 @@ protected:
       //    - to prevent 2nd kernel enqueue when 1st kernel is blocked by host
       //    task. This dependency allows to build enqueue order in RT but will
       //    be not passed to backend. Look at getPIEvents in Command.
-      Handler.depends_on(MLastEvent);
+      if (MLastEventPtr)
+        Handler.depends_on(createSyclObjFromImpl<sycl::event>(MLastEventPtr));
 
       EventRet = Handler.finalize();
-      MLastEvent = EventRet;
+      MLastEventPtr = getSyclObjImpl(EventRet);
     } else
       EventRet = Handler.finalize();
   }
@@ -849,7 +850,7 @@ protected:
 
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
-  event MLastEvent;
+  EventImplPtr MLastEventPtr;
   mutable std::mutex MLastEventMtx;
 
   const bool MIsInorder;

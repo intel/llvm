@@ -30,25 +30,27 @@ std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 0;
 
 std::vector<sycl::detail::pi::PiEvent>
 getPIEvents(const std::vector<sycl::event> &DepEvents,
-            sycl::event const *const ExtraDepEvent) {
+            const EventImplPtr &ExtraDepEvent) {
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
-  auto AddEvent = [&RetPiEvents](const sycl::event &Event) {
-    auto EventImpl = detail::getSyclObjImpl(Event);
+  auto AddEvent = [&RetPiEvents](const EventImplPtr &EventImpl) {
     if (EventImpl->getHandleRef() == nullptr)
       return;
     RetPiEvents.push_back(EventImpl->getHandleRef());
   };
   if (ExtraDepEvent)
-    AddEvent(*ExtraDepEvent);
-  for_each(DepEvents.begin(), DepEvents.end(), AddEvent);
+    AddEvent(ExtraDepEvent);
+  for_each(DepEvents.begin(), DepEvents.end(),
+           [&RetPiEvents, &AddEvent](const sycl::event &Event) {
+             auto EventImpl = detail::getSyclObjImpl(Event);
+             return AddEvent(EventImpl);
+           });
   return RetPiEvents;
 }
 
 bool isEventsReady(const std::vector<sycl::event> &DepEvents,
-                   const sycl::event *const ExtraDepEventPtr,
+                   const EventImplPtr &ExtraDepEventPtr,
                    ContextImplPtr Context) {
-  auto CheckEvent = [&Context](const sycl::event &Event) {
-    auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
+  auto CheckEvent = [&Context](const EventImplPtr &SyclEventImplPtr) {
     // throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
@@ -56,10 +58,11 @@ bool isEventsReady(const std::vector<sycl::event> &DepEvents,
         !SyclEventImplPtr->is_host()) {
       return true;
     }
+    if (SyclEventImplPtr->is_host())
+      return SyclEventImplPtr->isCompleted();
     // The fusion command and its event are associated with a non-host context,
     // but still does not produce a PI event.
-    if (SyclEventImplPtr->is_host() ||
-        SyclEventImplPtr->getContextImpl() != Context ||
+    if (SyclEventImplPtr->getContextImpl() != Context ||
         !SyclEventImplPtr->producesPiEvent()) {
       return false;
     } else {
@@ -72,8 +75,12 @@ bool isEventsReady(const std::vector<sycl::event> &DepEvents,
     return true;
   };
 
-  return (!ExtraDepEventPtr || CheckEvent(*ExtraDepEventPtr)) &&
-         std::all_of(DepEvents.begin(), DepEvents.end(), CheckEvent);
+  return (!ExtraDepEventPtr || CheckEvent(ExtraDepEventPtr)) &&
+         std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context, &CheckEvent](const sycl::event &Event) {
+                       auto SyclEventImplPtr = detail::getSyclObjImpl(Event);
+                       return CheckEvent(SyclEventImplPtr);
+                     });
 }
 
 template <>
@@ -136,10 +143,10 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // have in-order queue.
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event *ExtraEventToWait = nullptr;
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       quard.lock();
-      ExtraEventToWait = &MLastEvent;
+      ExtraEventToWait = MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -157,7 +164,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEvent = ResEvent;
+        MLastEventPtr = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -231,10 +238,10 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event *ExtraEventToWait = nullptr;
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       quard.lock();
-      ExtraEventToWait = &MLastEvent;
+      ExtraEventToWait = MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -252,7 +259,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEvent = ResEvent;
+        MLastEventPtr = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -275,10 +282,10 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const std::vector<event> &DepEvents) {
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event *ExtraEventToWait = nullptr;
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       quard.lock();
-      ExtraEventToWait = &MLastEvent;
+      ExtraEventToWait = MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -296,7 +303,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEvent = ResEvent;
+        MLastEventPtr = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -319,10 +326,10 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::vector<event> &DepEvents) {
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event *ExtraEventToWait = nullptr;
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       quard.lock();
-      ExtraEventToWait = &MLastEvent;
+      ExtraEventToWait = MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -341,7 +348,7 @@ event queue_impl::memcpyToDeviceGlobal(
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEvent = ResEvent;
+        MLastEventPtr = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -365,10 +372,10 @@ event queue_impl::memcpyFromDeviceGlobal(
     size_t Offset, const std::vector<event> &DepEvents) {
   {
     std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
-    sycl::event *ExtraEventToWait = nullptr;
+    EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       quard.lock();
-      ExtraEventToWait = &MLastEvent;
+      ExtraEventToWait = MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -387,7 +394,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEvent = ResEvent;
+        MLastEventPtr = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -629,8 +636,9 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MLastEventMtx);
-    return MLastEvent.get_info<info::event::command_execution_status>() ==
-           info::event_command_status::complete;
+    return !MLastEventPtr ||
+           MLastEventPtr->get_info<info::event::command_execution_status>() ==
+               info::event_command_status::complete;
   }
 
   // Check the status of the backend queue if this is not a host queue.
