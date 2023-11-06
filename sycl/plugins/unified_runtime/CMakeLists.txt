@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cf26de283a1233e6c93feb085acc10c566888b59
-  # Merge: 3a3aae38 2fd9dea2
+  # commit 0e24ab8d136978d984be9e8cba34e23b4fbcf37c
+  # Merge: a62423d d5a4691
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Oct 25 10:36:48 2023 +0100
-  #     Merge pull request #940 from Naghasan/victor/kernel-fusion-amd
-  #     [UR][HIP] Enable kernel finalization using comgr
-  set(UNIFIED_RUNTIME_TAG cf26de283a1233e6c93feb085acc10c566888b59)
+  # Date:   Mon Nov 6 11:42:03 2023 +0000
+  #     Merge pull request #931 from konradkusiak97/konradkusiak/LocalMemSizeQuery
+  #     [UR] [CUDA] Changed the output of querying localMemSize
+  set(UNIFIED_RUNTIME_TAG 0e24ab8d136978d984be9e8cba34e23b4fbcf37c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -189,12 +189,9 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
       Threads::Threads
-      sycl
       OpenCL-Headers
   )
 

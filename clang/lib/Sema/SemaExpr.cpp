@@ -262,12 +262,32 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       // there are some exceptions from this rule - functions that start
       // with '__spirv_', '__sycl_', '__assert_fail', etc.
       const IdentifierInfo *Id = FDecl->getIdentifier();
+      auto isMsvcMathFn = [=](StringRef Name) {
+        auto *AuxInfo = Context.getAuxTargetInfo();
+        if (!AuxInfo)
+          return false;
+        if (!AuxInfo->getTriple().isWindowsMSVCEnvironment())
+          return false;
+        return llvm::StringSwitch<bool>(Name)
+            .Case("_FDtest", true)
+            .Case("_hypotf", true)
+            .Case("_fdpcomp", true)
+            .Case("_fdsign", true)
+            .Case("_fdtest", true)
+            .Case("_FDnorm", true)
+            .Case("_FDscale", true)
+            .Case("_FExp", true)
+            .Case("_FCosh", true)
+            .Case("_FSinh", true)
+            .Default(false);
+      };
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
           Id && !Id->getName().startswith("__spirv_") &&
           !Id->getName().startswith("__sycl_") &&
           !Id->getName().startswith("__devicelib_ConvertBF16ToFINTEL") &&
           !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL") &&
-          !Id->getName().startswith("__assert_fail")) {
+          !Id->getName().startswith("__assert_fail") &&
+          !isMsvcMathFn(Id->getName())) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);
@@ -12233,8 +12253,7 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
     auto FXSema = S.Context.getFixedPointSemantics(LHSExprType);
     LeftSize = FXSema.getWidth() - (unsigned)FXSema.hasUnsignedPadding();
   }
-  llvm::APInt LeftBits(Right.getBitWidth(), LeftSize);
-  if (Right.uge(LeftBits)) {
+  if (Right.uge(LeftSize)) {
     S.DiagRuntimeBehavior(Loc, RHS.get(),
                           S.PDiag(diag::warn_shift_gt_typewidth)
                             << RHS.get()->getSourceRange());
@@ -12276,7 +12295,7 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
 
   llvm::APInt ResultBits =
       static_cast<llvm::APInt &>(Right) + Left.getSignificantBits();
-  if (LeftBits.uge(ResultBits))
+  if (ResultBits.ule(LeftSize))
     return;
   llvm::APSInt Result = Left.extend(ResultBits.getLimitedValue());
   Result = Result.shl(Right);
@@ -12290,7 +12309,7 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
   // bugs -- if the result is cast back to an unsigned type, it will have the
   // expected value. Thus we place this behind a different warning that can be
   // turned off separately if needed.
-  if (LeftBits == ResultBits - 1) {
+  if (ResultBits - 1 == LeftSize) {
     S.Diag(Loc, diag::warn_shift_result_sets_sign_bit)
         << HexResult << LHSType
         << LHS.get()->getSourceRange() << RHS.get()->getSourceRange();
@@ -18393,7 +18412,7 @@ void Sema::CheckUnusedVolatileAssignment(Expr *E) {
   if (auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParenImpCasts())) {
     if (BO->getOpcode() == BO_Assign) {
       auto &LHSs = ExprEvalContexts.back().VolatileAssignmentLHSs;
-      llvm::erase_value(LHSs, BO->getLHS());
+      llvm::erase(LHSs, BO->getLHS());
     }
   }
 }

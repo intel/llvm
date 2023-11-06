@@ -247,7 +247,7 @@ block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -333,7 +333,7 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -431,7 +431,7 @@ __ESIMD_API
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -531,7 +531,7 @@ __ESIMD_API
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      std::max(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -574,6 +574,60 @@ __ESIMD_API
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 
+template <typename T, int NElts, cache_hint L1H = cache_hint::none,
+          cache_hint L2H = cache_hint::none, typename FlagsT>
+__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>>
+block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
+  detail::check_cache_hint<cache_action::store, L1H, L2H>();
+  constexpr auto Alignment =
+      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      sizeof(uint32_t) / sizeof(T) > static_cast<size_t>(1)
+          ? sizeof(uint32_t) / sizeof(T)
+          : static_cast<size_t>(1);
+  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed store");
+
+  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can store QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
+
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredNElts = NElts / SmallIntFactor;
+
+  check_lsc_vector_size<FactoredNElts>();
+
+  using StoreType = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size ActualDS =
+      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
+  constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
+  constexpr auto Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+  simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
+
+  __esimd_lsc_store_stateless<StoreType, L1H, L2H, AddressScale, ImmOffset,
+                              ActualDS, VS, Transposed, N>(
+      pred.data(), Addrs.data(),
+      sycl::bit_cast<__ESIMD_DNS::vector_type_t<StoreType, FactoredNElts>>(
+          vals.data()));
+}
+
 } // namespace detail
 
 /// Stores elements of the vector \p vals to a contiguous block of memory
@@ -593,7 +647,7 @@ __ESIMD_API
 template <typename Tx, int N,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>>
-block_store(Tx *addr, simd<Tx, N> vals, Flags = {}) {
+block_store(Tx *addr, simd<Tx, N> vals, Flags) {
   using T = typename detail::__raw_t<Tx>;
   using VecT = typename simd<T, N>::raw_vector_type;
   constexpr size_t Align = Flags::template alignment<simd<T, N>>;
@@ -1299,6 +1353,289 @@ __ESIMD_API std::enable_if_t<
 block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
   simd<T, N> PassThru; // Intentionally uninitialized.
   return block_load<T, N>(acc, 0, pred, PassThru, props);
+}
+
+/// Each of the following block store functions stores a contiguous memory block
+/// to the address referenced by the USM pointer 'ptr', or from 'ptr +
+/// offset', where 'offset' is the offset in bytes (not in elements!) with data
+/// specified by 'vals'.
+/// The parameter 'pred' is the one element predicate. If it is set to 1, then
+/// all 'N' elements are stored. Otherwise, the block store operation is a
+/// NO-OP. The parameter 'props' specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::cache_hint_L3, esimd::alignment.
+///
+/// void block_store(T* ptr, simd<T, N> vals, props={}); // (1)
+/// void block_store(T* ptr, size_t byte_offset,         // (2)
+///                          simd<T, N> vals, props={});
+
+/// void block_store(T* ptr, simd<T, N> vals,            // (3)
+///             simd_mask<1> pred, props={});
+
+/// void block_store(T* ptr, size_t byte_offset,         // (4)
+/// simd<T, N> vals, simd_mask<1> pred, props={});
+///
+/// void block_store(T* ptr, simd<T, N> vals, props={}); // (1)
+/// This function stores a contiguous memory block to USM pointer \p ptr
+/// with data specified by \p vals.
+///
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints, and the minimally required element-size
+/// alignment otherwise. Note that additional/temporary restrictions may apply
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, simd<T, N> vals, PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
+    detail::check_cache_hint<detail::cache_action::store, L1Hint, L2Hint>();
+    constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            DefaultAlignment);
+
+    simd_mask<1> Mask = 1;
+    detail::block_store_impl<T, N, L1Hint, L2Hint>(
+        ptr, vals, Mask, overaligned_tag<Alignment>{});
+  } else {
+    // If the alignment property is not passed, then assume the pointer
+    // is OWORD-aligned.
+    constexpr size_t Alignment =
+        detail::getPropertyValue<PropertyListT, alignment_key>(
+            detail::OperandSize::OWORD);
+    block_store<T, N>(ptr, vals, overaligned_tag<Alignment>{});
+  }
+}
+
+/// void block_store(T* ptr, size_t byte_offset,         // (2)
+///                          simd<T, N> vals, props={});
+/// This function stores a contiguous memory block to USM pointer \p ptr and
+/// byte-offset \p byte_offset with data specified by \p vals.
+///
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints, and the minimally required element-size
+/// alignment otherwise. Note that additional/temporary restrictions may apply
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint imposed - temporary:
+/// If L1 or L2 cache hint is passed, then:
+/// R1: The pointer plus byte offset must be at least 4-byte aligned for
+/// elements of 4-bytes or smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, size_t byte_offset, simd<T, N> vals,
+            PropertyListT props = {}) {
+  T *AdjustedPtr =
+      reinterpret_cast<T *>(reinterpret_cast<int8_t *>(ptr) + byte_offset);
+  block_store<T, N>(AdjustedPtr, vals, props);
+}
+
+/// void block_store(T* ptr, simd<T, N> vals,            // (3)
+///             simd_mask<1> pred, props={});
+/// This function stores a contiguous memory block to USM pointer \p ptr
+/// with data specified by \p vals. If the predicate \p pred is set to 0,
+/// then the store is omitted.
+///
+/// There are temporary restrictions.  See details in the 'Restrictions'
+/// section below. The restrictions will be relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is the minimally required element-size
+/// alignment. Note that additional/temporary restrictions apply (see
+/// Restrictions below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
+///     smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, simd<T, N> vals, simd_mask<1> pred,
+            PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+
+  detail::block_store_impl<T, N, L1Hint, L2Hint>(ptr, vals, pred,
+                                                 overaligned_tag<Alignment>{});
+}
+
+/// void block_store(T* ptr, size_t byte_offset,         // (4)
+/// simd<T, N> vals, simd_mask<1> pred, props={});
+/// This function stores a contiguous memory block to USM pointer \p ptr
+/// and byte-offset \p byte_offset with data specified by \p vals.
+/// If the predicate \p pred is set to 0, then the store is omitted.
+///
+/// There may be temporary restrictions depending on L1, L2 cache hints,
+/// See details in the 'Restrictions' section below. The restrictions will be
+/// relaxed in the future.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default assumed alignment is 16 bytes if \p props does not specify any
+/// L1 or L2 cache hints and \p pred is set to 1, and
+//  the minimally required element-size alignment otherwise.
+/// Note that additional/temporary restrictions may apply
+/// (see Restrictions below).
+///
+/// Restrictions - cache hint or predicate imposed - temporary:
+/// If a predicate, L1 or L2 cache hint is passed, then:
+/// R1: The pointer plus byte offset must be at least 4-byte aligned for
+/// elements of 4-bytes or smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, size_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
+            PropertyListT props = {}) {
+  T *AdjustedPtr =
+      reinterpret_cast<T *>(reinterpret_cast<int8_t *>(ptr) + byte_offset);
+  block_store<T, N>(AdjustedPtr, vals, pred, props);
+}
+
+template <typename T, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, simd_view<Toffset, RegionTy> vals,
+            PropertyListT props = {}) {
+  block_store<T, N>(ptr, vals.read(), props);
+}
+
+template <typename T, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
+            PropertyListT props = {}) {
+  block_store<T, N>(ptr, byte_offset, vals.read(), props);
+}
+
+template <typename T, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
+            PropertyListT props = {}) {
+  block_store<T, N>(ptr, vals.read(), pred, props);
+}
+
+template <typename T, int N, typename Toffset,
+          typename RegionTy = region1d_t<Toffset, N, 1>,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
+            simd_mask<1> pred, PropertyListT props = {}) {
+  block_store<T, N>(ptr, byte_offset, vals.read(), pred, props);
 }
 
 /// @} sycl_esimd_memory_block

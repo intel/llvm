@@ -94,5 +94,62 @@ int main(int, char **) {
     std::cout << "sycl::ext::intel::math::fmul_rz passes." << std::endl;
   }
 
+  {
+    std::initializer_list<float> input_vals1 = {0x1p-1, 0x1.8bd054p+6,
+                                                0x1.fcd686p+0, -0x1.7f9abp+3};
+    std::initializer_list<float> input_vals2 = {-0x1.a8p+2, -0x1.674a3cp+5,
+                                                0x1.f3d6aep+10, 0x1.d6bf48p+10};
+    std::initializer_list<unsigned> ref_vals_rd = {0xbd9a90e8, 0xc00d030d,
+                                                   0x3a824df9, 0xbbd09c3a};
+    std::initializer_list<unsigned> ref_vals_rn = {0xbd9a90e8, 0xc00d030c,
+                                                   0x3a824df9, 0xbbd09c39};
+    std::initializer_list<unsigned> ref_vals_ru = {0xbd9a90e7, 0xc00d030c,
+                                                   0x3a824dfa, 0xbbd09c39};
+    std::initializer_list<unsigned> ref_vals_rz = {0xbd9a90e7, 0xc00d030c,
+                                                   0x3a824df9, 0xbbd09c39};
+    test2(device_queue, input_vals1, input_vals2, ref_vals_rd,
+          F2T(unsigned, sycl::ext::intel::math::fdiv_rd));
+    std::cout << "sycl::ext::intel::math::fdiv_rd passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals_rn,
+          F2T(unsigned, sycl::ext::intel::math::fdiv_rn));
+    std::cout << "sycl::ext::intel::math::fdiv_rn passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals_ru,
+          F2T(unsigned, sycl::ext::intel::math::fdiv_ru));
+    std::cout << "sycl::ext::intel::math::fdiv_ru passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals_rz,
+          F2T(unsigned, sycl::ext::intel::math::fdiv_rz));
+    std::cout << "sycl::ext::intel::math::fdiv_rz passes." << std::endl;
+  }
+
+  {
+    std::initializer_list<float> input_vals = {
+        0x1.ba90e6p+1,  0x1.4p+1,        0x1.ea77e6p-2, 0x1.e8330ap+19,
+        -0x1.4ffd68p+5, -0x1.443084p-15, 0x1.605fb2p+6, -0x1.2eb718p-7};
+    std::initializer_list<unsigned> ref_vals_rd = {
+        0x3e9414f5, 0x3ecccccc, 0x40059e85, 0x35863d80,
+        0xbcc30db3, 0xc6ca2743, 0x3c39fbfb, 0xc2d87e72};
+    std::initializer_list<unsigned> ref_vals_rn = {
+        0x3e9414f5, 0x3ecccccd, 0x40059e85, 0x35863d80,
+        0xbcc30db2, 0xc6ca2743, 0x3c39fbfc, 0xc2d87e71};
+    std::initializer_list<unsigned> ref_vals_ru = {
+        0x3e9414f6, 0x3ecccccd, 0x40059e86, 0x35863d81,
+        0xbcc30db2, 0xc6ca2742, 0x3c39fbfc, 0xc2d87e71};
+    std::initializer_list<unsigned> ref_vals_rz = {
+        0x3e9414f5, 0x3ecccccc, 0x40059e85, 0x35863d80,
+        0xbcc30db2, 0xc6ca2742, 0x3c39fbfb, 0xc2d87e71};
+    test(device_queue, input_vals, ref_vals_rd,
+         FT(unsigned, sycl::ext::intel::math::frcp_rd));
+    std::cout << "sycl::ext::intel::math::frcp_rd passes." << std::endl;
+    test(device_queue, input_vals, ref_vals_rn,
+         FT(unsigned, sycl::ext::intel::math::frcp_rn));
+    std::cout << "sycl::ext::intel::math::frcp_rn passes." << std::endl;
+    test(device_queue, input_vals, ref_vals_ru,
+         FT(unsigned, sycl::ext::intel::math::frcp_ru));
+    std::cout << "sycl::ext::intel::math::frcp_ru passes." << std::endl;
+    test(device_queue, input_vals, ref_vals_rz,
+         FT(unsigned, sycl::ext::intel::math::frcp_rz));
+    std::cout << "sycl::ext::intel::math::frcp_rz passes." << std::endl;
+  }
+
   return 0;
 }
