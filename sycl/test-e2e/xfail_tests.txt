@@ -1,3 +1,4 @@
+Annotated_arg_ptr/annotated_arg.cpp
 Annotated_arg_ptr/annotated_ptr.cpp
 AtomicRef/accessor.cpp
 AtomicRef/assignment_atomic64.cpp
@@ -275,6 +276,7 @@ ESIMD/regression/globals.cpp
 ESIMD/regression/half_conversion_test.cpp
 ESIMD/regression/iselect.cpp
 ESIMD/regression/math_const_fix_test.cpp
+ESIMD/regression/minmax.cpp
 ESIMD/regression/operator_decrement.cpp
 ESIMD/regression/replicate_bug.cpp
 ESIMD/regression/sycl_esimd_mixed_unnamed.cpp
