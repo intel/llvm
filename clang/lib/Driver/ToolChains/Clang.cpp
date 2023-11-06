@@ -5443,6 +5443,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
     }
+
+    // At -O0, imply -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+      if (A->getOption().matches(options::OPT_O0))
+        CmdArgs.push_back("-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__");
+    }
+
     // Add any predefined macros associated with intel_gpu* type targets
     // passed in with -fsycl-targets
     // TODO: Macros are populated during device compilations and saved for

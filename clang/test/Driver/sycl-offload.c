@@ -421,6 +421,10 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O0 %s
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 -O0 -O2 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-O2 %s
+// CHK-TOOLS-IMPLIED-OPTS-O0: clang{{.*}} "-fsycl-is-device"
+// CHK-TOOLS-IMPLIED-OPTS-O0-SAME: "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"
+// CHK-TOOLS-IMPLIED-OPTS-O0: clang{{.*}} "-fsycl-is-host"
+// CHK-TOOLS-IMPLIED-OPTS-O0-SAME: "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"
 // CHK-TOOLS-IMPLIED-OPTS-O0-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-cl-opt-disable"
 // CHK-TOOLS-IMPLIED-OPTS-O2-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-cl-opt-disable"
 
