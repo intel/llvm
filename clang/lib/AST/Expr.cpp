@@ -659,10 +659,11 @@ std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
   return Context.getLangOpts().SYCLUniquePrefix + "___" + Out.str();
 }
 
-PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
-                               bool IsTransparent, StringLiteral *SL)
+PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy,
+                               PredefinedIdentKind IK, bool IsTransparent,
+                               StringLiteral *SL)
     : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary) {
-  PredefinedExprBits.Kind = IK;
+  PredefinedExprBits.Kind = llvm::to_underlying(IK);
   assert((getIdentKind() == IK) &&
          "IdentKind do not fit in PredefinedExprBitfields!");
   bool HasFunctionName = SL != nullptr;
@@ -680,7 +681,7 @@ PredefinedExpr::PredefinedExpr(EmptyShell Empty, bool HasFunctionName)
 }
 
 PredefinedExpr *PredefinedExpr::Create(const ASTContext &Ctx, SourceLocation L,
-                                       QualType FNTy, IdentKind IK,
+                                       QualType FNTy, PredefinedIdentKind IK,
                                        bool IsTransparent, StringLiteral *SL) {
   bool HasFunctionName = SL != nullptr;
   void *Mem = Ctx.Allocate(totalSizeToAlloc<Stmt *>(HasFunctionName),
@@ -695,23 +696,23 @@ PredefinedExpr *PredefinedExpr::CreateEmpty(const ASTContext &Ctx,
   return new (Mem) PredefinedExpr(EmptyShell(), HasFunctionName);
 }
 
-StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
+StringRef PredefinedExpr::getIdentKindName(PredefinedIdentKind IK) {
   switch (IK) {
-  case Func:
+  case PredefinedIdentKind::Func:
     return "__func__";
-  case Function:
+  case PredefinedIdentKind::Function:
     return "__FUNCTION__";
-  case FuncDName:
+  case PredefinedIdentKind::FuncDName:
     return "__FUNCDNAME__";
-  case LFunction:
+  case PredefinedIdentKind::LFunction:
     return "L__FUNCTION__";
-  case PrettyFunction:
+  case PredefinedIdentKind::PrettyFunction:
     return "__PRETTY_FUNCTION__";
-  case FuncSig:
+  case PredefinedIdentKind::FuncSig:
     return "__FUNCSIG__";
-  case LFuncSig:
+  case PredefinedIdentKind::LFuncSig:
     return "L__FUNCSIG__";
-  case PrettyFunctionNoVirtual:
+  case PredefinedIdentKind::PrettyFunctionNoVirtual:
     break;
   }
   llvm_unreachable("Unknown ident kind for PredefinedExpr");
@@ -719,10 +720,11 @@ StringRef PredefinedExpr::getIdentKindName(PredefinedExpr::IdentKind IK) {
 
 // FIXME: Maybe this should use DeclPrinter with a special "print predefined
 // expr" policy instead.
-std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
+std::string PredefinedExpr::ComputeName(PredefinedIdentKind IK,
+                                        const Decl *CurrentDecl) {
   ASTContext &Context = CurrentDecl->getASTContext();
 
-  if (IK == PredefinedExpr::FuncDName) {
+  if (IK == PredefinedIdentKind::FuncDName) {
     if (const NamedDecl *ND = dyn_cast<NamedDecl>(CurrentDecl)) {
       std::unique_ptr<MangleContext> MC;
       MC.reset(Context.createMangleContext());
@@ -767,15 +769,17 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
     return std::string(Out.str());
   }
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(CurrentDecl)) {
-    if (IK != PrettyFunction && IK != PrettyFunctionNoVirtual &&
-        IK != FuncSig && IK != LFuncSig)
+    if (IK != PredefinedIdentKind::PrettyFunction &&
+        IK != PredefinedIdentKind::PrettyFunctionNoVirtual &&
+        IK != PredefinedIdentKind::FuncSig &&
+        IK != PredefinedIdentKind::LFuncSig)
       return FD->getNameAsString();
 
     SmallString<256> Name;
     llvm::raw_svector_ostream Out(Name);
 
     if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD)) {
-      if (MD->isVirtual() && IK != PrettyFunctionNoVirtual)
+      if (MD->isVirtual() && IK != PredefinedIdentKind::PrettyFunctionNoVirtual)
         Out << "virtual ";
       if (MD->isStatic())
         Out << "static ";
@@ -807,7 +811,8 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
     if (FD->hasWrittenPrototype())
       FT = dyn_cast<FunctionProtoType>(AFT);
 
-    if (IK == FuncSig || IK == LFuncSig) {
+    if (IK == PredefinedIdentKind::FuncSig ||
+        IK == PredefinedIdentKind::LFuncSig) {
       switch (AFT->getCallConv()) {
       case CC_C: POut << "__cdecl "; break;
       case CC_X86StdCall: POut << "__stdcall "; break;
@@ -832,7 +837,8 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
       if (FT->isVariadic()) {
         if (FD->getNumParams()) POut << ", ";
         POut << "...";
-      } else if ((IK == FuncSig || IK == LFuncSig ||
+      } else if ((IK == PredefinedIdentKind::FuncSig ||
+                  IK == PredefinedIdentKind::LFuncSig ||
                   !Context.getLangOpts().CPlusPlus) &&
                  !Decl->getNumParams()) {
         POut << "void";
@@ -957,7 +963,8 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
 
     return std::string(Name);
   }
-  if (isa<TranslationUnitDecl>(CurrentDecl) && IK == PrettyFunction) {
+  if (isa<TranslationUnitDecl>(CurrentDecl) &&
+      IK == PredefinedIdentKind::PrettyFunction) {
     // __PRETTY_FUNCTION__ -> "top level", the others produce an empty string.
     return "top level";
   }
@@ -1037,21 +1044,21 @@ std::string FixedPointLiteral::getValueAsString(unsigned Radix) const {
   return std::string(S.str());
 }
 
-void CharacterLiteral::print(unsigned Val, CharacterKind Kind,
+void CharacterLiteral::print(unsigned Val, CharacterLiteralKind Kind,
                              raw_ostream &OS) {
   switch (Kind) {
-  case CharacterLiteral::Ascii:
+  case CharacterLiteralKind::Ascii:
     break; // no prefix.
-  case CharacterLiteral::Wide:
+  case CharacterLiteralKind::Wide:
     OS << 'L';
     break;
-  case CharacterLiteral::UTF8:
+  case CharacterLiteralKind::UTF8:
     OS << "u8";
     break;
-  case CharacterLiteral::UTF16:
+  case CharacterLiteralKind::UTF16:
     OS << 'u';
     break;
-  case CharacterLiteral::UTF32:
+  case CharacterLiteralKind::UTF32:
     OS << 'U';
     break;
   }
@@ -1064,7 +1071,7 @@ void CharacterLiteral::print(unsigned Val, CharacterKind Kind,
     // would result in an invalid \U escape sequence.
     // FIXME: multicharacter literals such as '\xFF\xFF\xFF\xFF'
     // are not correctly handled.
-    if ((Val & ~0xFFu) == ~0xFFu && Kind == CharacterLiteral::Ascii)
+    if ((Val & ~0xFFu) == ~0xFFu && Kind == CharacterLiteralKind::Ascii)
       Val &= 0xFFu;
     if (Val < 256 && isPrintable((unsigned char)Val))
       OS << "'" << (char)Val << "'";
@@ -2337,8 +2344,8 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   case SourceLocIdentKind::FuncSig: {
     const auto *CurDecl = dyn_cast<Decl>(Context);
     const auto Kind = getIdentKind() == SourceLocIdentKind::Function
-                          ? PredefinedExpr::Function
-                          : PredefinedExpr::FuncSig;
+                          ? PredefinedIdentKind::Function
+                          : PredefinedIdentKind::FuncSig;
     return MakeStringLiteral(
         CurDecl ? PredefinedExpr::ComputeName(Kind, CurDecl) : std::string(""));
   }
@@ -2372,7 +2379,7 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
         Value.getStructField(F->getFieldIndex()) = MakeStringLiteral(
             CurDecl && !isa<TranslationUnitDecl>(CurDecl)
                 ? StringRef(PredefinedExpr::ComputeName(
-                      PredefinedExpr::PrettyFunction, CurDecl))
+                      PredefinedIdentKind::PrettyFunction, CurDecl))
                 : "");
       } else if (Name == "_M_line") {
         llvm::APSInt IntVal = Ctx.MakeIntValue(PLoc.getLine(), F->getType());

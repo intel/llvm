@@ -606,7 +606,8 @@ void ASTStmtWriter::VisitPredefinedExpr(PredefinedExpr *E) {
 
   bool HasFunctionName = E->getFunctionName() != nullptr;
   Record.push_back(HasFunctionName);
-  Record.push_back(E->getIdentKind()); // FIXME: stable encoding
+  Record.push_back(
+      llvm::to_underlying(E->getIdentKind())); // FIXME: stable encoding
   Record.push_back(E->isTransparent());
   Record.AddSourceLocation(E->getLocation());
   if (HasFunctionName)
@@ -717,7 +718,7 @@ void ASTStmtWriter::VisitCharacterLiteral(CharacterLiteral *E) {
   VisitExpr(E);
   Record.push_back(E->getValue());
   Record.AddSourceLocation(E->getLocation());
-  Record.push_back(E->getKind());
+  Record.push_back(llvm::to_underlying(E->getKind()));
 
   AbbrevToUse = Writer.getCharacterLiteralAbbrev();
 

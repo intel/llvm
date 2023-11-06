@@ -1620,26 +1620,18 @@ class FixedPointLiteral : public Expr, public APIntStorage {
   }
 };
 
-class CharacterLiteral : public Expr {
-public:
-  enum CharacterKind {
-    Ascii,
-    Wide,
-    UTF8,
-    UTF16,
-    UTF32
-  };
+enum class CharacterLiteralKind { Ascii, Wide, UTF8, UTF16, UTF32 };
 
-private:
+class CharacterLiteral : public Expr {
   unsigned Value;
   SourceLocation Loc;
 public:
   // type should be IntTy
-  CharacterLiteral(unsigned value, CharacterKind kind, QualType type,
+  CharacterLiteral(unsigned value, CharacterLiteralKind kind, QualType type,
                    SourceLocation l)
       : Expr(CharacterLiteralClass, type, VK_PRValue, OK_Ordinary),
         Value(value), Loc(l) {
-    CharacterLiteralBits.Kind = kind;
+    CharacterLiteralBits.Kind = llvm::to_underlying(kind);
     setDependence(ExprDependence::None);
   }
 
@@ -1647,8 +1639,8 @@ public:
   CharacterLiteral(EmptyShell Empty) : Expr(CharacterLiteralClass, Empty) { }
 
   SourceLocation getLocation() const { return Loc; }
-  CharacterKind getKind() const {
-    return static_cast<CharacterKind>(CharacterLiteralBits.Kind);
+  CharacterLiteralKind getKind() const {
+    return static_cast<CharacterLiteralKind>(CharacterLiteralBits.Kind);
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return Loc; }
@@ -1657,14 +1649,16 @@ public:
   unsigned getValue() const { return Value; }
 
   void setLocation(SourceLocation Location) { Loc = Location; }
-  void setKind(CharacterKind kind) { CharacterLiteralBits.Kind = kind; }
+  void setKind(CharacterLiteralKind kind) {
+    CharacterLiteralBits.Kind = llvm::to_underlying(kind);
+  }
   void setValue(unsigned Val) { Value = Val; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CharacterLiteralClass;
   }
 
-  static void print(unsigned val, CharacterKind Kind, raw_ostream &OS);
+  static void print(unsigned val, CharacterLiteralKind Kind, raw_ostream &OS);
 
   // Iterators
   child_range children() {
@@ -2005,6 +1999,19 @@ public:
   }
 };
 
+enum class PredefinedIdentKind {
+  Func,
+  Function,
+  LFunction, // Same as Function, but as wide string.
+  FuncDName,
+  FuncSig,
+  LFuncSig, // Same as FuncSig, but as wide string
+  PrettyFunction,
+  /// The same as PrettyFunction, except that the
+  /// 'virtual' keyword is omitted for virtual member functions.
+  PrettyFunctionNoVirtual
+};
+
 /// [C99 6.4.2.2] - A predefined identifier such as __func__.
 class PredefinedExpr final
     : public Expr,
@@ -2016,22 +2023,7 @@ class PredefinedExpr final
   // "Stmt *" for the predefined identifier. It is present if and only if
   // hasFunctionName() is true and is always a "StringLiteral *".
 
-public:
-  enum IdentKind {
-    Func,
-    Function,
-    LFunction, // Same as Function, but as wide string.
-    FuncDName,
-    FuncSig,
-    LFuncSig, // Same as FuncSig, but as wide string
-    PrettyFunction,
-    /// The same as PrettyFunction, except that the
-    /// 'virtual' keyword is omitted for virtual member functions.
-    PrettyFunctionNoVirtual
-  };
-
-private:
-  PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
+  PredefinedExpr(SourceLocation L, QualType FNTy, PredefinedIdentKind IK,
                  bool IsTransparent, StringLiteral *SL);
 
   explicit PredefinedExpr(EmptyShell Empty, bool HasFunctionName);
@@ -2051,15 +2043,15 @@ public:
   /// If IsTransparent, the PredefinedExpr is transparently handled as a
   /// StringLiteral.
   static PredefinedExpr *Create(const ASTContext &Ctx, SourceLocation L,
-                                QualType FNTy, IdentKind IK, bool IsTransparent,
-                                StringLiteral *SL);
+                                QualType FNTy, PredefinedIdentKind IK,
+                                bool IsTransparent, StringLiteral *SL);
 
   /// Create an empty PredefinedExpr.
   static PredefinedExpr *CreateEmpty(const ASTContext &Ctx,
                                      bool HasFunctionName);
 
-  IdentKind getIdentKind() const {
-    return static_cast<IdentKind>(PredefinedExprBits.Kind);
+  PredefinedIdentKind getIdentKind() const {
+    return static_cast<PredefinedIdentKind>(PredefinedExprBits.Kind);
   }
 
   bool isTransparent() const { return PredefinedExprBits.IsTransparent; }
@@ -2079,12 +2071,13 @@ public:
                : nullptr;
   }
 
-  static StringRef getIdentKindName(IdentKind IK);
+  static StringRef getIdentKindName(PredefinedIdentKind IK);
   StringRef getIdentKindName() const {
     return getIdentKindName(getIdentKind());
   }
 
-  static std::string ComputeName(IdentKind IK, const Decl *CurrentDecl);
+  static std::string ComputeName(PredefinedIdentKind IK,
+                                 const Decl *CurrentDecl);
 
   SourceLocation getBeginLoc() const { return getLocation(); }
   SourceLocation getEndLoc() const { return getLocation(); }
