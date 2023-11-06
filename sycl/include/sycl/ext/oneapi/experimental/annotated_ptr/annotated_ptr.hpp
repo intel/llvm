@@ -71,6 +71,7 @@ class annotated_ref {
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+  using T_Stripped = std::remove_volatile<T>::type;
 
 private:
   T *m_Ptr;
@@ -89,7 +90,18 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  T operator=(const T_Stripped &Obj) const {
+#ifdef __SYCL_DEVICE_ONLY__
+    *__builtin_intel_sycl_ptr_annotation(
+        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
+        detail::PropertyMetaInfo<Props>::value...) = Obj;
+#else
+    *m_Ptr = Obj;
+#endif
+    return Obj;
+  }
+
+  T operator=(const volatile T_Stripped &Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
