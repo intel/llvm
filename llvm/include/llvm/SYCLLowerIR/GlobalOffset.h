@@ -81,13 +81,17 @@ private:
   /// keep it intact and create a clone of it with `_wit_offset` appended to
   /// the name.
   ///
-  /// \returns A pair of new function with the offset argument added and a
+  /// \param CI A pointer to a CallInstruction in the old function.
+  ///
+  /// \returns A tuple of new function with the offset argument added, a
   /// pointer to the implicit argument (either a func argument or a bitcast
-  /// turning it to the correct type).
-  std::pair<Function *, Value *>
+  /// turning it to the correct type) and a pointer to the copy of the provided
+  /// CallInst inside the new function.
+  std::tuple<Function *, Value *, CallInst *>
   addOffsetArgumentToFunction(Module &M, Function *Func,
                               Type *ImplicitArgumentType = nullptr,
-                              bool KeepOriginal = false);
+                              bool KeepOriginal = false,
+                              CallInst *CI = nullptr);
 
   /// Create a mapping of kernel entry points to their metadata nodes. While
   /// iterating over kernels make sure that a given kernel entry point has no
@@ -102,6 +106,9 @@ private:
                           SmallVectorImpl<KernelPayload> &KernelPayloads);
 
 private:
+  // Keep track of all non offset functions that have already been cloned
+  // to avoid processing them
+  llvm::SmallPtrSet<Function *, 8> ClonedNonOffsetFunctions;
   /// Keep track of which functions have been processed to avoid processing
   /// twice.
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;

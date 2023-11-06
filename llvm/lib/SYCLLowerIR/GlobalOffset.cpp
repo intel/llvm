@@ -83,34 +83,7 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty())
     return PreservedAnalyses::all();
 
-  if (!EnableGlobalOffset) {
-    SmallVector<CallInst *, 4> Worklist;
-    SmallVector<LoadInst *, 4> LI;
-    SmallVector<Instruction *, 4> PtrUses;
-
-    // Collect all GEPs and Loads from the intrinsic's CallInsts
-    for (Value *V : ImplicitOffsetIntrinsic->users()) {
-      Worklist.push_back(cast<CallInst>(V));
-      for (Value *V2 : V->users())
-        getLoads(cast<Instruction>(V2), PtrUses, LI);
-    }
-
-    // Replace each use of a collected Load with a Constant 0
-    for (LoadInst *L : LI)
-      L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
-
-    // Remove all collected Loads and GEPs from the kernel.
-    // PtrUses is returned by `getLoads` in topological order.
-    // Walk it backwards so we don't violate users.
-    for (auto *I : reverse(PtrUses))
-      I->eraseFromParent();
-
-    // Remove all collected CallInsts from the kernel.
-    for (CallInst *CI : Worklist) {
-      auto *I = cast<Instruction>(CI);
-      I->eraseFromParent();
-    }
-  } else {
+  if (EnableGlobalOffset) {
     // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
     // happy with ADDRESS_SPACE_GENERIC (0).
     TargetAS = AT == ArchType::Cuda ? 0 : 5;
@@ -132,6 +105,32 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
 
     // Add implicit parameters to all direct and indirect users of the offset
     addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
+  }
+  SmallVector<CallInst *, 4> Worklist;
+  SmallVector<LoadInst *, 4> LI;
+  SmallVector<Instruction *, 4> PtrUses;
+
+  // Collect all GEPs and Loads from the intrinsic's CallInsts
+  for (Value *V : ImplicitOffsetIntrinsic->users()) {
+    Worklist.push_back(cast<CallInst>(V));
+    for (Value *V2 : V->users())
+      getLoads(cast<Instruction>(V2), PtrUses, LI);
+  }
+
+  // Replace each use of a collected Load with a Constant 0
+  for (LoadInst *L : LI)
+    L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
+
+  // Remove all collected Loads and GEPs from the kernel.
+  // PtrUses is returned by `getLoads` in topological order.
+  // Walk it backwards so we don't violate users.
+  for (auto *I : reverse(PtrUses))
+    I->eraseFromParent();
+
+  // Remove all collected CallInsts from the kernel.
+  for (CallInst *CI : Worklist) {
+    auto *I = cast<Instruction>(CI);
+    I->eraseFromParent();
   }
 
   // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
@@ -164,6 +163,8 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
                       /*KeepOriginal=*/true)
                       .first;
   Argument *NewArgument = std::prev(NewFunc->arg_end());
+
+  ClonedNonOffsetFunctions.insert(Func);
   // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
   // byval args, use byref.
   auto Attr =
@@ -177,23 +178,6 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
                              FuncMetadata->getOperand(1),
                              FuncMetadata->getOperand(2)};
   KernelMetadata->addOperand(MDNode::get(Ctx, NewMetadata));
-
-  // Create alloca of zeros for the implicit offset in the original func.
-  BasicBlock *EntryBlock = &Func->getEntryBlock();
-  IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
-  Type *ImplicitOffsetType =
-      ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-  AllocaInst *ImplicitOffset =
-      Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
-  uint64_t AllocByteSize =
-      ImplicitOffset->getAllocationSizeInBits(M.getDataLayout()).value() / 8;
-  CallInst *MemsetCall =
-      Builder.CreateMemSet(ImplicitOffset, Builder.getInt8(0), AllocByteSize,
-                           ImplicitOffset->getAlign());
-  MemsetCall->addParamAttr(0, Attribute::NonNull);
-  MemsetCall->addDereferenceableParamAttr(0, AllocByteSize);
-  ProcessedFunctions[Func] = Builder.CreateConstInBoundsGEP2_32(
-      ImplicitOffsetType, ImplicitOffset, 0, 0);
 }
 
 void GlobalOffsetPass::addImplicitParameterToCallers(
@@ -221,16 +205,25 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
     auto *Caller = CallToOld->getFunction();
 
-    // Determine if `Caller` needs processed or if this is another callsite
-    // from an already-processed function.
-    Function *NewFunc;
+    // Ignore every already cloned non-offset function
+    if (ClonedNonOffsetFunctions.count(Caller) == 1)
+      continue;
+
+    // Determine if `Caller` needs to be processed or if this is
+    // another callsite from a non-offset function
+    // or an already-processed function.
     Value *ImplicitOffset = ProcessedFunctions[Caller];
     bool AlreadyProcessed = ImplicitOffset != nullptr;
+
+    Function *NewFunc;
     if (AlreadyProcessed) {
       NewFunc = Caller;
     } else {
-      std::tie(NewFunc, ImplicitOffset) =
-          addOffsetArgumentToFunction(M, Caller);
+      ClonedNonOffsetFunctions.insert(Caller);
+      std::tie(NewFunc, ImplicitOffset, CallToOld) =
+          addOffsetArgumentToFunction(
+              M, Caller, KernelImplicitArgumentType->getPointerTo(),
+              /*KeepOriginal=*/true, CallToOld);
     }
 
     if (!CalleeWithImplicitParam) {
@@ -269,15 +262,13 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
     // Process callers of the old function.
     addImplicitParameterToCallers(M, Caller, NewFunc);
-
-    // Now that the old function is dead, delete it.
-    Caller->dropAllReferences();
-    Caller->eraseFromParent();
   }
 }
 
-std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
-    Module &M, Function *Func, Type *ImplicitArgumentType, bool KeepOriginal) {
+std::tuple<Function *, Value *, CallInst *>
+GlobalOffsetPass::addOffsetArgumentToFunction(Module &M, Function *Func,
+                                              Type *ImplicitArgumentType,
+                                              bool KeepOriginal, CallInst *CI) {
   FunctionType *FuncTy = Func->getFunctionType();
   const AttributeList &FuncAttrs = Func->getAttributes();
   ImplicitArgumentType =
@@ -312,6 +303,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
 
   Value *ImplicitOffset = nullptr;
   bool ImplicitOffsetAllocaInserted = false;
+  CallInst *NewCallInst = nullptr;
   if (KeepOriginal) {
     // TODO: Are there better naming alternatives that allow for unmangling?
     NewFunc->setName(Func->getName() + "_with_offset");
@@ -327,6 +319,9 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     SmallVector<ReturnInst *, 8> Returns;
     CloneFunctionInto(NewFunc, Func, VMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
+    if (CI) {
+      NewCallInst = cast<CallInst>(VMap[CI]);
+    }
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
@@ -402,7 +397,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
   ProcessedFunctions[NewFunc] = ImplicitOffset;
 
   // Return the new function and the offset argument.
-  return {NewFunc, ImplicitOffset};
+  return {NewFunc, ImplicitOffset, NewCallInst};
 }
 
 DenseMap<Function *, MDNode *> GlobalOffsetPass::generateKernelMDNodeMap(
