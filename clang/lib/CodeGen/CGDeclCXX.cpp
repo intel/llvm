@@ -296,7 +296,7 @@ llvm::Function *CodeGenFunction::createTLSAtExitStub(
 
   FunctionArgList Args;
   ImplicitParamDecl IPD(CGM.getContext(), CGM.getContext().IntTy,
-                        ImplicitParamDecl::Other);
+                        ImplicitParamKind::Other);
   Args.push_back(&IPD);
   QualType ResTy = CGM.getContext().IntTy;
 
@@ -1142,7 +1142,7 @@ llvm::Function *CodeGenFunction::generateDestroyHelper(
     bool useEHCleanupForArray, const VarDecl *VD) {
   FunctionArgList args;
   ImplicitParamDecl Dst(getContext(), getContext().VoidPtrTy,
-                        ImplicitParamDecl::Other);
+                        ImplicitParamKind::Other);
   args.push_back(&Dst);
 
   const CGFunctionInfo &FI =

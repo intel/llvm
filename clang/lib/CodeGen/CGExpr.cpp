@@ -3503,9 +3503,9 @@ void CodeGenFunction::EmitCfiCheckFail() {
   SanitizerScope SanScope(this);
   FunctionArgList Args;
   ImplicitParamDecl ArgData(getContext(), getContext().VoidPtrTy,
-                            ImplicitParamDecl::Other);
+                            ImplicitParamKind::Other);
   ImplicitParamDecl ArgAddr(getContext(), getContext().VoidPtrTy,
-                            ImplicitParamDecl::Other);
+                            ImplicitParamKind::Other);
   Args.push_back(&ArgData);
   Args.push_back(&ArgAddr);
 
