@@ -54,21 +54,13 @@
 // In every case we test two API overloads, one taking an explicit runtime
 // memory_order argument. We use `relaxed` in every case because these tests
 // are *not* checking the memory_order semantics, just the API.
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 inline void atomic_fetch_add_kernel(T1 *data, T2 operand) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_add(data, operand, sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_add(data, operand);
-  }
 }
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 inline void atomic_fetch_sub_kernel(T1 *data, T2 operand) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_sub(data, operand, sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_sub(data, operand);
-  }
 }
 
 template <typename T> void test_atomic_arith() {
@@ -83,10 +75,6 @@ template <typename T> void test_atomic_arith() {
   AtomicLauncher<atomic_fetch_add_kernel<T, T>, T>(grid, threads)
       .launch_test(init, sum, operand);
   AtomicLauncher<atomic_fetch_sub_kernel<T, T>, T>(grid, threads)
-      .launch_test(sum, init, operand);
-  AtomicLauncher<atomic_fetch_add_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(init, sum, operand);
-  AtomicLauncher<atomic_fetch_sub_kernel<T, T, true>, T>(grid, threads)
       .launch_test(sum, init, operand);
 }
 
@@ -108,11 +96,6 @@ template <typename T> void test_atomic_ptr_arith() {
   AtomicLauncher<atomic_fetch_sub_kernel<T, std::ptrdiff_t>, T>(grid, threads)
       .launch_test(final, init, operand);
 
-  AtomicLauncher<atomic_fetch_add_kernel<T, std::ptrdiff_t, true>, T>(grid, threads)
-      .launch_test(init, final, operand);
-
-  AtomicLauncher<atomic_fetch_sub_kernel<T, std::ptrdiff_t, true>, T>(grid, threads)
-      .launch_test(final, init, operand);
   syclcompat::free(init);
 }
 
@@ -133,12 +116,6 @@ void test_atomic_arith_t1_t2() {
       .launch_test(init, sum, operand);
   AtomicLauncher<atomic_fetch_sub_kernel<data_t, operand_t>, data_t>(grid,
                                                                      threads)
-      .launch_test(sum, init, operand);
-  AtomicLauncher<atomic_fetch_add_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(init, sum, operand);
-  AtomicLauncher<atomic_fetch_sub_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
       .launch_test(sum, init, operand);
 }
 

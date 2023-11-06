@@ -53,27 +53,15 @@
 // In every case we test two API overloads, one taking an explicit runtime
 // memory_order argument. We use `relaxed` in every case because these tests
 // are *not* checking the memory_order semantics, just the API.
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 inline void atomic_fetch_min_kernel(T1 *data, T2 operand, T2 operand0) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_min(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
-        sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_min(
         data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
-  }
 }
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 inline void atomic_fetch_max_kernel(T1 *data, T2 operand, T2 operand0) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_max(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
-        sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_max(
         data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
-  }
 }
 
 template <typename T> void test_atomic_minmax() {
@@ -86,12 +74,6 @@ template <typename T> void test_atomic_minmax() {
       .launch_test(static_cast<T>(100), static_cast<T>(1), static_cast<T>(200),
                    static_cast<T>(1));
   AtomicLauncher<atomic_fetch_max_kernel<T, T>, T>(grid, threads)
-      .launch_test(static_cast<T>(100), static_cast<T>(200),
-                   static_cast<T>(200), static_cast<T>(1));
-  AtomicLauncher<atomic_fetch_min_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(100), static_cast<T>(1), static_cast<T>(200),
-                   static_cast<T>(1));
-  AtomicLauncher<atomic_fetch_max_kernel<T, T, true>, T>(grid, threads)
       .launch_test(static_cast<T>(100), static_cast<T>(200),
                    static_cast<T>(200), static_cast<T>(1));
 }
@@ -108,12 +90,6 @@ template <typename T> void test_signed_atomic_minmax() {
   AtomicLauncher<atomic_fetch_max_kernel<T, T>, T>(grid, threads)
       .launch_test(static_cast<T>(-40), static_cast<T>(-30),
                    static_cast<T>(-30), static_cast<T>(-100));
-  AtomicLauncher<atomic_fetch_min_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(-1), static_cast<T>(-4), static_cast<T>(-4),
-                   static_cast<T>(100));
-  AtomicLauncher<atomic_fetch_max_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(-40), static_cast<T>(-30),
-                   static_cast<T>(-30), static_cast<T>(-100));
 }
 
 void test_signed_atomic_minmax_t1_t2() {
@@ -126,14 +102,6 @@ void test_signed_atomic_minmax_t1_t2() {
       .launch_test(static_cast<float>(-1), static_cast<float>(-4),
                    static_cast<int>(-4), static_cast<int>(100));
   AtomicLauncher<atomic_fetch_max_kernel<float, int>, float>(grid, threads)
-      .launch_test(static_cast<float>(-40), static_cast<float>(-30),
-                   static_cast<int>(-30), static_cast<int>(-100));
-  AtomicLauncher<atomic_fetch_min_kernel<float, int, true>, float>(grid,
-                                                                   threads)
-      .launch_test(static_cast<float>(-1), static_cast<float>(-4),
-                   static_cast<int>(-4), static_cast<int>(100));
-  AtomicLauncher<atomic_fetch_max_kernel<float, int, true>, float>(grid,
-                                                                   threads)
       .launch_test(static_cast<float>(-40), static_cast<float>(-30),
                    static_cast<int>(-30), static_cast<int>(-100));
 }

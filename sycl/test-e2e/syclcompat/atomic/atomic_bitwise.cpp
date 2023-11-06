@@ -56,38 +56,20 @@
 // In every case we test two API overloads, one taking an explicit runtime
 // memory_order argument. We use `relaxed` in every case because these tests
 // are *not* checking the memory_order semantics, just the API.
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 void atomic_fetch_and_kernel(T1 *data, T2 operand, T2 operand0) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_and(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
-        sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_and(
         data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
-  }
 }
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 void atomic_fetch_or_kernel(T1 *data, T2 operand, T2 operand0) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_or(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
-        sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_or(
         data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
-  }
 }
-template <typename T1, typename T2, bool orderArg = false>
+template <typename T1, typename T2>
 void atomic_fetch_xor_kernel(T1 *data, T2 operand, T2 operand0) {
-  if constexpr (orderArg) {
-    syclcompat::atomic_fetch_xor(
-        data, (syclcompat::global_id::x() == 0 ? operand0 : operand),
-        sycl::memory_order::relaxed);
-  } else {
     syclcompat::atomic_fetch_xor(
         data, (syclcompat::global_id::x() == 0 ? operand0 : operand));
-  }
 }
 
 template <typename T> void test_atomic_and() {
@@ -107,20 +89,6 @@ template <typename T> void test_atomic_and() {
                    static_cast<T>(1));
   // Most 1, one 0 -> 0
   AtomicLauncher<atomic_fetch_and_kernel<T, T>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(0), static_cast<T>(1),
-                   static_cast<T>(0));
-
-  // All 0 -> 0
-  AtomicLauncher<atomic_fetch_and_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0),
-                   static_cast<T>(0));
-
-  // All 1 -> 1
-  AtomicLauncher<atomic_fetch_and_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(1), static_cast<T>(1),
-                   static_cast<T>(1));
-  // Most 1, one 0 -> 0
-  AtomicLauncher<atomic_fetch_and_kernel<T, T, true>, T>(grid, threads)
       .launch_test(static_cast<T>(1), static_cast<T>(0), static_cast<T>(1),
                    static_cast<T>(0));
 }
@@ -147,23 +115,6 @@ template <typename T> void test_atomic_or() {
   AtomicLauncher<atomic_fetch_or_kernel<T, T>, T>(grid, threads)
       .launch_test(static_cast<T>(1), static_cast<T>(1), static_cast<T>(0),
                    static_cast<T>(0));
-
-  // All 0 -> 0
-  AtomicLauncher<atomic_fetch_or_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0),
-                   static_cast<T>(0));
-  // All 1 -> 1
-  AtomicLauncher<atomic_fetch_or_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(1), static_cast<T>(1),
-                   static_cast<T>(1));
-  // Most 1, one 0 -> 1
-  AtomicLauncher<atomic_fetch_or_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(1), static_cast<T>(1),
-                   static_cast<T>(0));
-  // Init 1, all 0 -> 1
-  AtomicLauncher<atomic_fetch_or_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(1), static_cast<T>(0),
-                   static_cast<T>(0));
 }
 
 template <typename T> void test_atomic_xor() {
@@ -186,23 +137,6 @@ template <typename T> void test_atomic_xor() {
                    static_cast<T>(0));
   // 010 -> 1
   AtomicLauncher<atomic_fetch_xor_kernel<T, T>, T>(grid, threads)
-      .launch_test(static_cast<T>(0), static_cast<T>(1), static_cast<T>(1),
-                   static_cast<T>(0));
-
-  // 000 -> 0
-  AtomicLauncher<atomic_fetch_xor_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0),
-                   static_cast<T>(0));
-  // 111 -> 1
-  AtomicLauncher<atomic_fetch_xor_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(1), static_cast<T>(1),
-                   static_cast<T>(1));
-  // 110 -> 0
-  AtomicLauncher<atomic_fetch_xor_kernel<T, T, true>, T>(grid, threads)
-      .launch_test(static_cast<T>(1), static_cast<T>(0), static_cast<T>(1),
-                   static_cast<T>(0));
-  // 010 -> 1
-  AtomicLauncher<atomic_fetch_xor_kernel<T, T, true>, T>(grid, threads)
       .launch_test(static_cast<T>(0), static_cast<T>(1), static_cast<T>(1),
                    static_cast<T>(0));
 }
@@ -231,23 +165,6 @@ void test_atomic_and_t1_t2() {
   AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t>, data_t>(grid,
                                                                      threads)
       .launch_test(static_cast<data_t>(1), static_cast<data_t>(0),
-                   static_cast<operand_t>(1), static_cast<operand_t>(0));
-
-  // All 0 -> 0
-  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
-                   static_cast<operand_t>(0), static_cast<operand_t>(0));
-
-  // All 1 -> 1
-  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
-                   static_cast<operand_t>(1), static_cast<operand_t>(1));
-  // Most 1, one 0 -> 0
-  AtomicLauncher<atomic_fetch_and_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<operand_t>(0),
                    static_cast<operand_t>(1), static_cast<operand_t>(0));
 }
 
@@ -280,27 +197,6 @@ void test_atomic_or_t1_t2() {
                                                                     threads)
       .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
                    static_cast<operand_t>(0), static_cast<operand_t>(0));
-
-  // All 0 -> 0
-  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
-                   static_cast<operand_t>(0), static_cast<operand_t>(0));
-  // All 1 -> 1
-  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
-                   static_cast<operand_t>(1), static_cast<operand_t>(1));
-  // Most 1, one 0 -> 1
-  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
-                   static_cast<operand_t>(1), static_cast<operand_t>(0));
-  // Init 1, all 0 -> 1
-  AtomicLauncher<atomic_fetch_or_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
-                   static_cast<operand_t>(0), static_cast<operand_t>(0));
 }
 
 void test_atomic_xor_t1_t2() {
@@ -330,27 +226,6 @@ void test_atomic_xor_t1_t2() {
   // 010 -> 1
   AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t>, data_t>(grid,
                                                                      threads)
-      .launch_test(static_cast<data_t>(0), static_cast<data_t>(1),
-                   static_cast<operand_t>(1), static_cast<operand_t>(0));
-
-  // 000 -> 0
-  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(0), static_cast<data_t>(0),
-                   static_cast<operand_t>(0), static_cast<operand_t>(0));
-  // 111 -> 1
-  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<data_t>(1),
-                   static_cast<operand_t>(1), static_cast<operand_t>(1));
-  // 110 -> 0
-  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
-      .launch_test(static_cast<data_t>(1), static_cast<data_t>(0),
-                   static_cast<operand_t>(1), static_cast<operand_t>(0));
-  // 010 -> 1
-  AtomicLauncher<atomic_fetch_xor_kernel<data_t, operand_t, true>, data_t>(
-      grid, threads)
       .launch_test(static_cast<data_t>(0), static_cast<data_t>(1),
                    static_cast<operand_t>(1), static_cast<operand_t>(0));
 }
