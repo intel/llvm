@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ba994bb401aefad3631012d592be672f6ea0e23b
-  # Merge: be53fb3b f2a365ca
+  # commit 0e24ab8d136978d984be9e8cba34e23b4fbcf37c
+  # Merge: a62423d d5a4691
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Nov 3 11:09:52 2023 +0000
-  #     Merge pull request #968 from martygrant/martin/versionCheckSpecializationConstants
-  #     [OpenCL] Add version check for urProgramSetSpecializationConstants
-  set(UNIFIED_RUNTIME_TAG ba994bb401aefad3631012d592be672f6ea0e23b)
+  # Date:   Mon Nov 6 11:42:03 2023 +0000
+  #     Merge pull request #931 from konradkusiak97/konradkusiak/LocalMemSizeQuery
+  #     [UR] [CUDA] Changed the output of querying localMemSize
+  set(UNIFIED_RUNTIME_TAG 0e24ab8d136978d984be9e8cba34e23b4fbcf37c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
