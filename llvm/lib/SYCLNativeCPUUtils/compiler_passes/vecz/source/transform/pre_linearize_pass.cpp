@@ -120,7 +120,8 @@ unsigned calculateBoolReductionCost(LLVMContext &context, Module *module,
   auto *F = Function::Create(new_fty, Function::InternalLinkage, "tmp", module);
   auto *BB = BasicBlock::Create(context, "reduce", F);
   IRBuilder<> B(BB);
-  createSimpleTargetReduction(B, &TTI, &*F->arg_begin(), RecurKind::And);
+  multi_llvm::createSimpleTargetReduction(B, &TTI, &*F->arg_begin(),
+                                          RecurKind::And);
   unsigned cost = calculateBlockCost(*BB, TTI);
 
   // We don't really need that function in the module anymore because it's

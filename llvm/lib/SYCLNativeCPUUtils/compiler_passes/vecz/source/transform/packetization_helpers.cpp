@@ -255,7 +255,7 @@ Value *createMaybeVPTargetReduction(IRBuilderBase &B,
   assert(isa<VectorType>(Val->getType()) && "Must be vector type");
   // If VL is null, it's not a vector-predicated reduction.
   if (!VL) {
-    return createSimpleTargetReduction(B, &TTI, Val, Kind);
+    return multi_llvm::createSimpleTargetReduction(B, &TTI, Val, Kind);
   }
   auto IntrinsicOp = Intrinsic::not_intrinsic;
   switch (Kind) {

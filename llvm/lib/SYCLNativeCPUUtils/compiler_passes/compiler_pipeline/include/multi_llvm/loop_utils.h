@@ -13,13 +13,25 @@
 // under the License.
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#ifndef MULTI_LLVM_LOOP_UTILS_H_INCLUDED
+#define MULTI_LLVM_LOOP_UTILS_H_INCLUDED
 
-#ifndef MULTI_LLVM_MULTI_LLVM_H_INCLUDED
-#define MULTI_LLVM_MULTI_LLVM_H_INCLUDED
-
-#include <multi_llvm/enums.h>
+#include <llvm/Transforms/Utils/LoopUtils.h>
 #include <multi_llvm/llvm_version.h>
-#include <multi_llvm/loop_utils.h>
-#include <multi_llvm/triple.h>
 
-#endif  // MULTI_LLVM_MULTI_LLVM_H_INCLUDED
+namespace multi_llvm {
+
+inline llvm::Value *createSimpleTargetReduction(
+    llvm::IRBuilderBase &B, const llvm::TargetTransformInfo *TTI,
+    llvm::Value *Src, llvm::RecurKind RdxKind) {
+#if LLVM_VERSION_MAJOR >= 18
+  (void)TTI;
+  return llvm::createSimpleTargetReduction(B, Src, RdxKind);
+#else
+  return llvm::createSimpleTargetReduction(B, TTI, Src, RdxKind);
+#endif
+}
+
+}  // namespace multi_llvm
+
+#endif  // MULTI_LLVM_LOOP_UTILS_H_INCLUDED
