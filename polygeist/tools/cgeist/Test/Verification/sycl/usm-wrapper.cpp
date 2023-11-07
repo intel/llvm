@@ -1,5 +1,7 @@
 // RUN: clang++ -fsycl -fsycl-device-only -S -emit-llvm -o - -fsycl-targets=spir64-unknown-unknown-syclmlir -O3 %s | FileCheck %s
 
+// COM: Test `foo` is called with the right parameters. In order to do so, we need to add call-site attributes.
+
 #include <sycl/sycl.hpp>
 
 struct wrapper { std::size_t a; std::size_t b; float *c; };
