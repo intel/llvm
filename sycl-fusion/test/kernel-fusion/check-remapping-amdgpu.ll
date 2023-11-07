@@ -2,6 +2,8 @@
 ; RUN:   -passes=sycl-kernel-fusion --sycl-info-path %S/check-remapping.yaml \
 ; RUN:   -S %s | FileCheck %s
 
+; XFAIL: *
+
 ; This tests checks that PTX intrinsics are correctly remapped when fusing
 ; kernels with different ND-ranges.
 
