@@ -1566,7 +1566,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 #if HIP_VERSION_MAJOR >= 5
   // NOTE: The hipPointerGetAttribute API is marked as beta, meaning, while this
   // is feature complete, it is still open to changes and outstanding issues.
-  unsigned int PointerRangeSize = 0;
+  size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(
       &PointerRangeSize, HIP_POINTER_ATTRIBUTE_RANGE_SIZE,
       static_cast<hipDeviceptr_t>(HIPDevicePtr)));
