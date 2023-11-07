@@ -17,7 +17,7 @@ int main() {
   });
 
   Q.submit([&](sycl::handler &h) {
-    h.single_task<class valid_kernel>([=] [[sycl::reqd_sub_group_size(8)]] {}); // expected-warning {{attribute argument 8 is invalid and will be ignored; amdgcn requires sub_group size 32}}
+    h.single_task<class invalid_kernel_2>([=] [[sycl::reqd_sub_group_size(8)]] {}); // expected-warning {{attribute argument 8 is invalid and will be ignored; amdgcn requires sub_group size 32}}
   });
 
   return 0;
