@@ -21,9 +21,9 @@ namespace ext::intel::experimental {
 template <typename T, typename PropertyListT> class kernel_attribute;
 
 enum class fp_mode : std::uint32_t {
-  round_to_nearest = 0,      // Round to nearest or even
-  round_upward = 1 << 4, // Round towards +ve inf
-  round_downward = 2 << 4, // Round towards -ve inf
+  round_to_nearest = 0,       // Round to nearest or even
+  round_upward = 1 << 4,      // Round towards +ve inf
+  round_downward = 2 << 4,    // Round towards -ve inf
   round_toward_zero = 3 << 4, // Round towards zero
 
   denorm_ftz = 0,            // Denorm mode flush to zero

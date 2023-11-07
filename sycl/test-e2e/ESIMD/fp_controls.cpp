@@ -125,7 +125,8 @@ void test_rounding_mode_and_denormals(queue &q, T Base, T Epsilon, T Denorm) {
   // Test rounding modes.
   {
     auto [res_add1, res_sub1] =
-        test_fp_control<intelex::fp_mode::round_to_nearest, T>(q, Base, Epsilon);
+        test_fp_control<intelex::fp_mode::round_to_nearest, T>(q, Base,
+                                                               Epsilon);
     assert(res_add1 == result::eq && res_sub1 == result::eq);
     auto [res_add2, res_sub2] =
         test_fp_control<intelex::fp_mode::round_upward, T>(q, Base, Epsilon);
@@ -134,7 +135,8 @@ void test_rounding_mode_and_denormals(queue &q, T Base, T Epsilon, T Denorm) {
         test_fp_control<intelex::fp_mode::round_downward, T>(q, Base, Epsilon);
     assert(res_add3 == result::eq && res_sub3 == result::lt);
     auto [res_add4, res_sub4] =
-        test_fp_control<intelex::fp_mode::round_toward_zero, T>(q, Base, Epsilon);
+        test_fp_control<intelex::fp_mode::round_toward_zero, T>(q, Base,
+                                                                Epsilon);
     assert(res_add4 == result::eq && res_sub4 == result::lt);
   }
 
@@ -147,29 +149,33 @@ void test_rounding_mode_and_denormals(queue &q, T Base, T Epsilon, T Denorm) {
     auto [res_add2, res_sub2] =
         test_fp_control<intelex::fp_mode::round_upward, T>(q, Base, Denorm);
     assert(res_add2 == result::eq && res_sub2 == result::eq);
-    auto [res_add3, res_sub3] =
-        test_fp_control<intelex::fp_mode::round_downward | intelex::fp_mode::denorm_ftz,
-                        T>(q, Base, Denorm);
+    auto [res_add3, res_sub3] = test_fp_control<
+        intelex::fp_mode::round_downward | intelex::fp_mode::denorm_ftz, T>(
+        q, Base, Denorm);
     assert(res_add3 == result::eq && res_sub3 == result::eq);
-    auto [res_add4, res_sub4] =
-        test_fp_control<intelex::fp_mode::round_toward_zero | intelex::fp_mode::denorm_ftz,
-                        T>(q, Base, Denorm);
+    auto [res_add4, res_sub4] = test_fp_control<
+        intelex::fp_mode::round_toward_zero | intelex::fp_mode::denorm_ftz, T>(
+        q, Base, Denorm);
     assert(res_add3 == result::eq && res_sub3 == result::eq);
   }
 
   // Test the mode when denormals are allowed for type T.
   {
     auto [res_add1, res_sub1] =
-        test_fp_control<intelex::fp_mode::round_to_nearest | DenormMode, T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::round_to_nearest | DenormMode, T>(
+            q, Base, Denorm);
     assert(res_add1 == result::eq && res_sub1 == result::eq);
     auto [res_add2, res_sub2] =
-        test_fp_control<intelex::fp_mode::round_upward | DenormMode, T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::round_upward | DenormMode, T>(q, Base,
+                                                                        Denorm);
     assert(res_add2 == result::gt && res_sub2 == result::eq);
     auto [res_add3, res_sub3] =
-        test_fp_control<intelex::fp_mode::round_downward | DenormMode, T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::round_downward | DenormMode, T>(
+            q, Base, Denorm);
     assert(res_add3 == result::eq && res_sub3 == result::lt);
     auto [res_add4, res_sub4] =
-        test_fp_control<intelex::fp_mode::round_toward_zero | DenormMode, T>(q, Base, Denorm);
+        test_fp_control<intelex::fp_mode::round_toward_zero | DenormMode, T>(
+            q, Base, Denorm);
     assert(res_add4 == result::eq && res_sub4 == result::lt);
   }
 }
