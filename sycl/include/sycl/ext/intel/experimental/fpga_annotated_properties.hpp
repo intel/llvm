@@ -9,7 +9,6 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -315,6 +314,44 @@ struct PropertyMetaInfo<read_write_mode_key::value_t<Mode>> {
 };
 
 } // namespace detail
+
+// 'buffer_location' and mmhost properties are pointers-only
+template <typename T, int N>
+struct is_valid_property<T, buffer_location_key::value_t<N>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+template <typename T, int W>
+struct is_valid_property<T, awidth_key::value_t<W>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+template <typename T, int W>
+struct is_valid_property<T, dwidth_key::value_t<W>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+template <typename T, int N>
+struct is_valid_property<T, latency_key::value_t<N>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+template <typename T, read_write_mode_enum Mode>
+struct is_valid_property<T, read_write_mode_key::value_t<Mode>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+template <typename T, int N>
+struct is_valid_property<T, maxburst_key::value_t<N>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+template <typename T, int Enable>
+struct is_valid_property<T, wait_request_key::value_t<Enable>>
+    : std::bool_constant<std::is_pointer_v<T>> {};
+
+// 'register_map',  'conduit',  'stable' are common properties for pointers
+// and non pointers;
+template <typename T>
+struct is_valid_property<T, register_map_key::value_t> : std::true_type {};
+template <typename T>
+struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
+template <typename T>
+struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
 //===----------------------------------------------------------------------===//
 //   Utility for FPGA properties

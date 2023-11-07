@@ -68,6 +68,10 @@ template <int K> inline constexpr alignment_key::value_t<K> alignment;
 
 template <> struct is_property_key<alignment_key> : std::true_type {};
 
+template <typename T, int W>
+struct is_valid_property<T, alignment_key::value_t<W>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};

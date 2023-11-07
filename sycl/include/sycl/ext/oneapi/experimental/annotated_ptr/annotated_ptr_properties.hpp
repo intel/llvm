@@ -40,6 +40,10 @@ inline constexpr usm_kind_key::value_t<sycl::usm::alloc::shared>
 
 template <> struct is_property_key<usm_kind_key> : std::true_type {};
 
+template <typename T, sycl::usm::alloc Kind>
+struct is_valid_property<T, usm_kind_key::value_t<Kind>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
 template <typename T, typename PropertyListT>
 struct is_property_key_of<usm_kind_key, annotated_ptr<T, PropertyListT>>
     : std::true_type {};
