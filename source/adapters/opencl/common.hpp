@@ -260,7 +260,7 @@ struct ExtFuncPtrCacheT {
 // piTeardown to avoid issues with static destruction order (a user application
 // might have static objects that indirectly access this cache in their
 // destructor).
-inline ExtFuncPtrCacheT *ExtFuncPtrCache;
+inline std::unique_ptr<ExtFuncPtrCacheT> ExtFuncPtrCache;
 
 // USM helper function to get an extension function pointer
 template <typename T>
