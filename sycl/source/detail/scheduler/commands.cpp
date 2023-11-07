@@ -2426,10 +2426,12 @@ pi_int32 enqueueImpCommandBufferKernel(
     PiKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     PiProgram = DeviceImageImpl->get_program_ref();
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
     auto SyclProg = Kernel->getProgramImpl();
     PiProgram = SyclProg->getHandleRef();
+    EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
