@@ -408,7 +408,7 @@ bool isFileEndsWithGivenExtentionName(const std::string &FileName,
   std::size_t LastCharPosition = FileName.find_last_of('.');
   if (LastCharPosition == std::string::npos)
     return false;
-  return FileName.substr(FileName.find_last_of('.')) == Ext;
+  return FileName.substr(LastCharPosition) == Ext;
 }
 
 bool isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,
