@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include <llvm/IR/PassManager.h>
+#include <llvm/Support/MathExtras.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "analysis/stride_analysis.h"
@@ -170,14 +171,19 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
         // vector size is the same as the extended integer size. That is (for
         // little-endian systems):
         //
-        // zext i32(extract <4 x i8> data, i32 3)
+        //   zext i32(extract <4 x i8> data, i32 3)
         //
-        // becomes
+        // becomes:
         //
-        // and(lshr(bitcast i32 data), i32 24), 0xFF)
+        //   and(lshr(bitcast i32 data), i32 24), 0xFF)
         //
-        // this avoids creating shufflevectors during packetization
+        // this avoids creating shufflevectors during packetization.
         //
+        // We limit this optimization to vectors no larger than 64 bits in
+        // size. This is primarily because this optimization focuses on 'small'
+        // vectors but also, because LLVM's constants are limited to 64-bit
+        // integers, the masking logic would need to be done with extra
+        // instructions.
         auto *const srcOp = zext->getOperand(0);
         if (auto *const extract = dyn_cast<ExtractElementInst>(srcOp)) {
           auto *const vector = extract->getVectorOperand();
@@ -186,7 +192,8 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
           auto *const vecTy = vector->getType();
           if (vecTy->getPrimitiveSizeInBits() ==
                   intTy->getPrimitiveSizeInBits() &&
-              isa<ConstantInt>(indexOp)) {
+              zext->getSrcTy()->getPrimitiveSizeInBits() <= 32 &&
+              intTy->getScalarSizeInBits() <= 64 && isa<ConstantInt>(indexOp)) {
             IRBuilder<> B(zext);
             Value *element = getSquashed(vector, intTy, B);
 
@@ -209,9 +216,10 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
                   B.CreateLShr(element, ConstantInt::get(intTy, shift),
                                Twine(extract->getName(), ".squashExtract"));
             }
-            element =
-                B.CreateAnd(element, ConstantInt::get(intTy, (1 << bits) - 1),
-                            Twine(zext->getName(), ".squashZExt"));
+            element = B.CreateAnd(
+                element,
+                ConstantInt::get(intTy, maskTrailingOnes<uint64_t>(bits)),
+                Twine(zext->getName(), ".squashZExt"));
 
             zext->replaceAllUsesWith(element);
             toErase.push_back(zext);
