@@ -639,7 +639,8 @@ enum GPUDriverOS { Linux = 1, Windows = 2, LinuxAndWindows = 3 };
 /// for win/opencl see the link:
 /// https://www.intel.com/content/www/us/en/download/726609/intel-arc-iris-xe-graphics-whql-windows.html
 bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
-                   std::string WinOpenCLRequiredVersion = "") {
+                   std::string WinOpenCLRequiredVersion = "",
+                   bool VerifyFormat = true) {
   auto Dev = Q.get_device();
   if (!Dev.is_gpu())
     return false;
@@ -653,17 +654,16 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
 
   // A and B must have digits at the same positions.
   // Otherwise, A and B symbols must be equal, e.g. both be equal to '.'.
-  auto verifyDriverVersionFormat = [](const std::string &A,
-                                      const std::string &B) {
+  auto isExpectedDriverVersionFormat = [](const std::string &A,
+                                          const std::string &B) {
     if (A.size() != B.size())
-      throw std::runtime_error(
-          "Inconsistent expected & actual driver versions");
+      return false;
     for (int I = 0; I < A.size(); I++) {
       if ((A[I] >= '0' && A[I] <= '9' && !(B[I] >= '0' && B[I] <= '9')) &&
           A[I] != B[I])
-        throw std::runtime_error(
-            "Inconsistent expected & actual driver versions");
+        return false;
     }
+    return true;
   };
 
   auto BE = Q.get_backend();
@@ -684,8 +684,17 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
       !IsLinux && (OSCheck & GPUDriverOS::Windows)) {
     auto CurrentVersion = Dev.get_info<sycl::info::device::driver_version>();
     CurrentVersion = CurrentVersion.substr(Start, Length);
-    verifyDriverVersionFormat(CurrentVersion, RequiredVersion);
-    IsGE &= CurrentVersion >= RequiredVersion;
+    if (isExpectedDriverVersionFormat(CurrentVersion, RequiredVersion)) {
+      IsGE = CurrentVersion >= RequiredVersion;
+    } else if (VerifyFormat) {
+      std::string Msg =
+          std::string("Inconsistent expected & actual driver versions: ") +
+          CurrentVersion + " vs " + RequiredVersion;
+      throw std::runtime_error(
+          "Inconsistent expected & actual driver versions");
+    } else {
+      IsGE = false;
+    }
   }
   return IsGE;
 }
