@@ -196,6 +196,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
           moduleTranslation.lookupFunction(attr.getValue());
       call = builder.CreateCall(callee, operandsRef);
       call->setCallingConv(callee->getCallingConv());
+      call->setAttributes(callee->getAttributes());
     } else {
       llvm::FunctionType *calleeType = llvm::cast<llvm::FunctionType>(
           moduleTranslation.convertType(callOp.getCalleeFunctionType()));

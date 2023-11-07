@@ -60,11 +60,11 @@
 // CHECK-LLVM-NEXT:    call void @llvm.memcpy.p0.p4.i64(ptr %4, ptr addrspace(4) %13, i64 8, i1 false)
 // CHECK-LLVM-NEXT:    %14 = load { ptr addrspace(4) }, ptr %4, align 8
 // CHECK-LLVM-NEXT:    store { ptr addrspace(4) } %14, ptr %12, align 8
-// CHECK-LLVM-NEXT:    %15 = call spir_func ptr addrspace(4) @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v()
-// CHECK-LLVM-NEXT:    %16 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(ptr addrspace(4) %15)
+// CHECK-LLVM-NEXT:    %15 = call spir_func noundef ptr addrspace(4) @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v()
+// CHECK-LLVM-NEXT:    %16 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(ptr addrspace(4) noundef %15)
 // CHECK-LLVM-NEXT:    %17 = addrspacecast ptr %6 to ptr addrspace(4)
 // CHECK-LLVM-NEXT:    store %"class.sycl::_V1::item.1.true" %16, ptr %3, align 8
-// CHECK-LLVM-NEXT:    call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_(ptr addrspace(4) %17, ptr %3)
+// CHECK-LLVM-NEXT:    call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_(ptr addrspace(4) noundef align 8 dereferenceable_or_null(16) %17, ptr noundef byval(%"class.sycl::_V1::item.1.true") align 8 %3)
 // CHECK-LLVM-NEXT:    call spir_func void @__itt_offload_wi_finish_wrapper()
 // CHECK-LLVM-NEXT:    ret void
 
