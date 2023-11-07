@@ -1094,7 +1094,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
 
     if (SYCLNativeCPUBackend) {
-      addSYCLNativeCPUBackendPasses(MPM, MAM);
+      addSYCLNativeCPUBackendPasses(MPM, MAM, Level.getSpeedupLevel(), LangOpts.SYCLNativeCPUNoVecz);
     }
     if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());

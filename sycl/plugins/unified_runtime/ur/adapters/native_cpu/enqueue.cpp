@@ -35,6 +35,12 @@ struct NDRDescT {
       GlobalOffset[I] = 0;
     }
   }
+
+  void dump(std::ostream& os) const {
+    os << "GlobalSize: " << GlobalSize[0] << " " << GlobalSize[1] << " "<< GlobalSize[2] << "\n";
+    os << "LocalSize: " << LocalSize[0] << " " << LocalSize[1] << " "<< LocalSize[2] << "\n";
+    os << "GlobalOffset: " << GlobalOffset[0] << " " << GlobalOffset[1] << " "<< GlobalOffset[2] << "\n";
+  }
 };
 } // namespace native_cpu
 
@@ -49,16 +55,19 @@ static void runWorkGroupLoops(const native_cpu::NDRDescT &ndr,
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
-  const bool localSizeOne = ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
-  if(localSizeOne) {
-    // put everything in one work group, this is just an experiment
-    state.MWorkGroup_size[0] = numWG0;
-    state.MWorkGroup_size[1] = numWG1;
-    state.MWorkGroup_size[2] = numWG2;
-    numWG0 = 1;
-    numWG1 = 1;
-    numWG2 = 1;
-  }
+  //const bool localSizeOne = ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
+  //const bool onlyDim0 = ndr.GlobalSize[1] == 1 && ndr.GlobalSize[2] == 1;
+  //const bool noOffset = ndr.GlobalOffset[0] == 0 && ndr.GlobalOffset[1] == 0 && ndr.GlobalOffset[2] == 0;
+  //if(localSizeOne && onlyDim0 && noOffset) {
+  //  // put everything in one work group, this is just an experiment
+  //  // Todo: this is unsafe to do if the kernel calls get_global_range/get_local_range.
+  //  state.MWorkGroup_size[0] = numWG0;
+  //  state.MWorkGroup_size[1] = numWG1;
+  //  state.MWorkGroup_size[2] = numWG2;
+  //  numWG0 = 1;
+  //  numWG1 = 1;
+  //  numWG2 = 1;
+  //}
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
     for (unsigned g1 = 0; g1 < numWG1; g1++) {
       for (unsigned g0 = 0; g0 < numWG0; g0++) {

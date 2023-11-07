@@ -28,13 +28,14 @@
 #endif
 
 namespace llvm {
-cl::opt<bool> NativeCPUVecz("ncpu-vecz", cl::init(false), cl::desc("Run vectorizer on SYCL Native CPU"));
-cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(8), cl::desc("Vector width for SYCL Native CPU vectorizer"));
+cl::opt<unsigned> NativeCPUVeczWidth("ncpu-vecz-width", cl::init(8), cl::desc("Vector width for SYCL Native CPU vectorizer, defaults to 8"));
 void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
-                                   ModuleAnalysisManager &MAM) {
+                                   ModuleAnalysisManager &MAM, unsigned OptLevel, bool DisableVecz) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
-  if(NativeCPUVecz) {
+  // Always enable vectorizer, unless explictly disabled or -O0 is set.
+  llvm::errs() << "[ptrdbg] optl: " << OptLevel << " dis " << DisableVecz << "\n";
+  if(OptLevel != 0 && !DisableVecz) {
     MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
     MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
     auto queryFunc =
@@ -69,6 +70,23 @@ void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
   // Todo: maybe we could find a set of relevant passes instead of re-running the full 
   // optimization pipeline.
   PassBuilder PB;
-  MPM.addPass(PB.buildPerModuleDefaultPipeline(OptimizationLevel()));
+  OptimizationLevel Level;
+  switch(OptLevel) {
+  case 0:
+    Level = OptimizationLevel::O0;
+    break;
+  case 1:
+    Level = OptimizationLevel::O1;
+    break;
+  case 2:
+    Level = OptimizationLevel::O2;
+    break;
+  case 3:
+    Level = OptimizationLevel::O3;
+    break;
+  default:
+    llvm_unreachable("Unsupported opt level");
+  }
+  MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
 }
 } // namespace llvm

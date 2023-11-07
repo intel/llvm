@@ -13,7 +13,7 @@
 
 namespace llvm {
 void addSYCLNativeCPUBackendPasses(ModulePassManager &MPM,
-                                   ModuleAnalysisManager &MAM);
+                                   ModuleAnalysisManager &MAM, unsigned OptLevel, bool DisableVecz);
 namespace sycl {
 const constexpr char NativeCPUGlobalId[] = "__dpcpp_nativecpu_get_global_id";
 const constexpr char NativeCPUGlobaRange[] =

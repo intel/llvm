@@ -56,9 +56,10 @@ int test_all(int expect_val) {
 
 int main() {
   const size_t N = 4;
-  std::array<int, N> C{{0, 0, 0, 0}};
+  std::array<int, N> C{{-6, -6, -6, -6}};
   sycl::queue deviceQueue;
   sycl::range<1> numOfItems{N};
+  {
   sycl::buffer<int, 1> bufferC(C.data(), numOfItems);
 
   if (test_all(HOST_RET) != HOST_RET)
@@ -74,14 +75,19 @@ int main() {
         cgh.parallel_for<class SimpleVadd>(numOfItems, kern);
       })
       .wait();
+  }
 
+  bool pass = true;
   for (unsigned int i = 0; i < N; i++) {
     if (C[i] != DEVICE_RET) {
       std::cout << "The results are incorrect (element " << i << " is " << C[i]
                 << "!\n";
-      return 2;
+      pass = false;
     }
   }
+  if(pass) {
   std::cout << "The results are correct!\n";
   return 0;
+  }
+  return 2;
 }
