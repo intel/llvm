@@ -135,7 +135,7 @@ foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
   // not power-of-two because only svm/legacy block_load supports
   // non-power-of-two vector lengths now.
 
-  // CHECK: call <4 x float> @llvm.genx.oword.ld.unaligned.v4f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK: call <4 x float> @llvm.genx.oword.ld.v4f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
   auto z1 = block_load<float, 4>(acc, props_c);
 
   // CHECK: call <8 x i32> @llvm.genx.oword.ld.unaligned.v8i32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})

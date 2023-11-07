@@ -212,7 +212,7 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_merge_bti(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets, SurfIndAliasT surf_ind,
-    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru = 0)
+    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
