@@ -12020,9 +12020,12 @@ def warn_sycl_kernel_return_type : Warning<
 def err_sycl_special_type_num_init_method : Error<
   "types with 'sycl_special_class' attribute must have one and only one '__init' "
   "method defined">;
+def warn_launch_bounds_is_cuda_specific : Warning<
+  "%0 attribute ignored, only applicable when targeting Nvidia devices">,
+  InGroup<IgnoredAttributes>;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<
-  "maxclusterrank requires sm_90 or higher, CUDA arch provided: %0, ignoring "
+  "'maxclusterrank' requires sm_90 or higher, CUDA arch provided: %0, ignoring "
   "%1 attribute">, InGroup<IgnoredAttributes>;
 
 def err_bit_int_bad_size : Error<"%select{signed|unsigned}0 _BitInt must "

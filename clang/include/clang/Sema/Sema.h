@@ -11427,6 +11427,16 @@ public:
   SYCLIntelMaxGlobalWorkDimAttr *
   MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
                                      const SYCLIntelMaxGlobalWorkDimAttr &A);
+  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
+  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
+  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
+  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
   void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
                                  Expr *E);
   SYCLIntelBankWidthAttr *

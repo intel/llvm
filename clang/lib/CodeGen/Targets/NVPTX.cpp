@@ -245,6 +245,31 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
     }
+    if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      auto MaxThreads = (*MWGS->getZDimVal()).getExtValue() *
+                        (*MWGS->getYDimVal()).getExtValue() *
+                        (*MWGS->getXDimVal()).getExtValue();
+      if (MaxThreads > 0)
+        addNVVMMetadata(F, "maxntidx", MaxThreads);
+
+      auto attrValue = [&](Expr *E) {
+        const auto *CE = cast<ConstantExpr>(E);
+        std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
+        return Val->getZExtValue();
+      };
+
+      if (const auto *MWGPCU =
+              FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+        // The value is guaranteed to be > 0, pass it to the metadata.
+        addNVVMMetadata(F, "minnctapersm", attrValue(MWGPCU->getValue()));
+
+        if (const auto *MWGPMP =
+                FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+          // The value is guaranteed to be > 0, pass it to the metadata.
+          addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
+        }
+      }
+    }
   }
 
   // Perform special handling in CUDA mode.

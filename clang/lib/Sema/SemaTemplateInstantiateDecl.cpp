@@ -752,6 +752,28 @@ static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
     S.AddSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
+static void instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelMinWorkGroupsPerComputeUnitAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(New, *A,
+                                                  Result.getAs<Expr>());
+}
+
+static void instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *A, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
+  if (!Result.isInvalid())
+    S.AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(New, *A,
+                                                     Result.getAs<Expr>());
+}
+
 static void instantiateSYCLIntelMaxConcurrencyAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelMaxConcurrencyAttr *A, Decl *New) {
@@ -1141,6 +1163,18 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
             dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(TmplAttr)) {
       instantiateSYCLIntelMaxGlobalWorkDimAttr(*this, TemplateArgs,
                                                SYCLIntelMaxGlobalWorkDim, New);
+      continue;
+    }
+    if (const auto *SYCLIntelMinWorkGroupsPerComputeUnit =
+            dyn_cast<SYCLIntelMinWorkGroupsPerComputeUnitAttr>(TmplAttr)) {
+      instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+          *this, TemplateArgs, SYCLIntelMinWorkGroupsPerComputeUnit, New);
+      continue;
+    }
+    if (const auto *SYCLIntelMaxWorkGroupsPerMultiprocessor =
+            dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(TmplAttr)) {
+      instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+          *this, TemplateArgs, SYCLIntelMaxWorkGroupsPerMultiprocessor, New);
       continue;
     }
     if (const auto *SYCLIntelLoopFuse =

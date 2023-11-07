@@ -3007,6 +3007,12 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
     NewAttr = S.MergeSYCLWorkGroupSizeHintAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLIntelMinWorkGroupsPerComputeUnitAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
