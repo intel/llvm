@@ -22,6 +22,8 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
+// SYCL encodings of read/write control. Definition of cache_mode should match
+// definition in file CompileTimePropertiesPass.cpp.
 enum class cache_mode {
   uncached,
   cached,

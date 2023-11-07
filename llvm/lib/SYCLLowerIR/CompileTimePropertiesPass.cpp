@@ -130,7 +130,8 @@ MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
     write_back = 2,
     write_streaming = 3
   };
-  // SYCL encodings of read/write control
+  // SYCL encodings of read/write control. Definition of cache_mode should match
+  // definition in SYCL header file cache_control_properties.hpp.
   enum class cache_mode {
     uncached,
     cached,
