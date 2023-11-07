@@ -2438,7 +2438,7 @@ convertMatrixTypeStringMatrixTypeEnumValue(
   std::string Prefix("matrix_type::");
   assert((MatrixTypeStringView.substr(0, Prefix.size()) == Prefix) &&
          "MatrixTypeString has incorrect prefix, should be \"matrix_type::\".");
-  MatrixTypeStringView.remove_prefix(Prefix.size() + 1);
+  MatrixTypeStringView.remove_prefix(Prefix.size());
   std::cerr << ">>> MatrixTypeStringView "
             << (MatrixTypeStringView.substr(0, Prefix.size()) == Prefix) << " "
             << MatrixTypeStringView << "\n";
