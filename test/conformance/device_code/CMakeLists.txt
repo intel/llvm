@@ -7,13 +7,22 @@ macro(add_device_binary SOURCE_FILE)
     get_filename_component(KERNEL_NAME ${SOURCE_FILE} NAME_WE)
     set(DEVICE_BINARY_DIR "${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/${KERNEL_NAME}")
     file(MAKE_DIRECTORY ${DEVICE_BINARY_DIR})
+    if(UR_SYCL_LIBRARY_DIR)
+        if(CMAKE_SYSTEM_NAME STREQUAL Linux)
+            set(EXTRA_ENV LD_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR})
+        elseif(CMAKE_SYSTEM_NAME STREQUAL Windows)
+            set(EXTRA_ENV PATH=${UR_SYCL_LIBRARY_DIR};$ENV{PATH})
+        else()
+            set(EXTRA_ENV DYLD_FALLBACK_LIBRARY_PATH=${UR_SYCL_LIBRARY_DIR})
+        endif()
+    endif()
     foreach(TRIPLE ${TARGET_TRIPLES})
         set(EXE_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}_${TRIPLE}")
         add_custom_command(OUTPUT ${EXE_PATH}
             COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off
             ${SOURCE_FILE} -o ${EXE_PATH}
-            COMMAND ${CMAKE_COMMAND} -E env SYCL_DUMP_IMAGES=true
-            ${EXE_PATH} || (exit 0)
+            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
+            ${EXE_PATH} || exit 0
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
             DEPENDS ${SOURCE_FILE}
         )

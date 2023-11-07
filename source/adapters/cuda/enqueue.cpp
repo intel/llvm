@@ -284,9 +284,15 @@ setKernelParams(const ur_context_handle_t Context,
                                    CudaImplicitOffset);
     }
 
-    if (Context->getDevice()->maxLocalMemSizeChosen()) {
+    auto Device = Context->getDevice();
+    if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
+      setErrorMessage("Excessive allocation of local memory on the device",
+                      UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    }
+
+    if (Device->maxLocalMemSizeChosen()) {
       // Set up local memory requirements for kernel.
-      auto Device = Context->getDevice();
       if (Device->getMaxChosenLocalMem() < 0) {
         bool EnvVarHasURPrefix =
             std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr;
@@ -294,11 +300,6 @@ setKernelParams(const ur_context_handle_t Context,
                                             "UR_CUDA_MAX_LOCAL_MEM_SIZE"
                                           : "Invalid value specified for "
                                             "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
-                        UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-      }
-      if (LocalSize > static_cast<uint32_t>(Device->getMaxCapacityLocalMem())) {
-        setErrorMessage("Too much local memory allocated for device",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -319,6 +320,10 @@ setKernelParams(const ur_context_handle_t Context,
       UR_CHECK_ERROR(cuFuncSetAttribute(
           CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
           Device->getMaxChosenLocalMem()));
+
+    } else {
+      UR_CHECK_ERROR(cuFuncSetAttribute(
+          CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, LocalSize));
     }
 
   } catch (ur_result_t Err) {
