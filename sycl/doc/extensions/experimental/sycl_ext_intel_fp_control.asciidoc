@@ -106,10 +106,10 @@ The values that the property can be set to are a subset of the following that ca
 [%header,cols="1,5"]
 |===
 |Mode | Description
-| rte | Round to nearest or even
-| rtp | Round towards positive infinity
-  rtn | Round towards negative infinity
-  rtz | Round towards zero
+| round_to_nearest | Round to nearest or even
+| round_upward | Round towards positive infinity
+  round_downward | Round towards negative infinity
+  round_toward_zero | Round towards zero
 | denorm_ftz | Denorm mode flush to zero
 | denorm_d_allow | Denorm mode double allow
 | denorm_f_allow | Denorm mode float allow

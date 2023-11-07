@@ -21,10 +21,10 @@ namespace ext::intel::experimental {
 template <typename T, typename PropertyListT> class kernel_attribute;
 
 enum class fp_mode : std::uint32_t {
-  rte = 0,      // Round to nearest or even
-  rtp = 1 << 4, // Round towards +ve inf
-  rtn = 2 << 4, // Round towards -ve inf
-  rtz = 3 << 4, // Round towards zero
+  round_to_nearest = 0,      // Round to nearest or even
+  round_upward = 1 << 4, // Round towards +ve inf
+  round_downward = 2 << 4, // Round towards -ve inf
+  round_toward_zero = 3 << 4, // Round towards zero
 
   denorm_ftz = 0,            // Denorm mode flush to zero
   denorm_d_allow = 1 << 6,   // Denorm mode double allow
@@ -45,7 +45,7 @@ struct fp_control_key {
       fp_control_key, std::integral_constant<fp_mode, option>>;
 };
 
-template <fp_mode option = fp_mode::rte>
+template <fp_mode option = fp_mode::round_to_nearest>
 inline constexpr fp_control_key::value_t<option> fp_control;
 
 } // namespace ext::intel::experimental
