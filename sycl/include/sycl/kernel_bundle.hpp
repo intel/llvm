@@ -927,7 +927,11 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 }
 
 template <typename PropertyListT = detail::empty_properties_t,
-          typename = std::enable_if_t<is_property_list_v<PropertyListT>>>
+          typename = std::enable_if_t<
+              is_property_list_v<PropertyListT> &&
+              detail::all_props_are_keys_of<
+                  kernel_bundle<bundle_state::ext_oneapi_source>,
+                  PropertyListT>::value>>
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {

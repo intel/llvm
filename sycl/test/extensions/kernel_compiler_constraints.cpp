@@ -71,21 +71,39 @@ int main() {
   std::string log;
   std::vector<std::string> flags{"-cl-fast-relaxed-math",
                                  "-cl-finite-math-only"};
-
+  // OK
   syclex::build(kbSrc);
 
-  // expected-error@sycl/kernel_bundle.hpp:* {{no matching function for call to 'build'}}
+  // expected-error@+1 {{no matching function for call to 'build'}}
   syclex::build(kbSrc,
                 syclex::properties{syclex::usm_kind<sycl::usm::alloc::host>});
 
+  // OK
   syclex::build(kbSrc, syclex::properties{syclex::build_options{flags},
                                           syclex::save_log{&log}});
 
   // expected-error@../include/sycl/ext/oneapi/properties/properties.hpp:* {{too many template arguments for class template 'all_props_are_keys_of'}}
-  // expected-error@sycl/kernel_bundle.hpp:* {{no matching function for call to 'build'}}
+  // expected-error@+1 {{no matching function for call to 'build'}}
   syclex::build(kbSrc, syclex::properties{
                            syclex::build_options{flags}, syclex::save_log{&log},
                            syclex::usm_kind<sycl::usm::alloc::host>});
+  // OK
+  syclex::build(kbSrc, devices);
+
+  // expected-error@+1 {{no matching function for call to 'build'}}
+  syclex::build(kbSrc, devices,
+                syclex::properties{syclex::usm_kind<sycl::usm::alloc::host>});
+
+  // OK
+  syclex::build(
+      kbSrc, devices,
+      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log}});
+
+  // expected-error@+1 {{no matching function for call to 'build'}}
+  syclex::build(kbSrc, devices,
+                syclex::properties{syclex::build_options{flags},
+                                   syclex::save_log{&log},
+                                   syclex::usm_kind<sycl::usm::alloc::host>});
 
 #endif
 }
