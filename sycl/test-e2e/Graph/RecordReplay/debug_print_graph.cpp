@@ -5,7 +5,7 @@
 // Windows output format differs from linux format.
 // The filecheck-based output checking is suited to linux standards.
 // On Windows, we only test that printing takes place correctly and does not
-// trigger errors or throw execeptions. 
+// trigger errors or throw execeptions.
 //
 // CHECK: digraph dot {
 // CHECK-NEXT: "0x[[#%x,NODE1:]]"
