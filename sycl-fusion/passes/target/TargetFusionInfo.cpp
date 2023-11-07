@@ -541,9 +541,8 @@ public:
     F->setMemoryEffects(MemoryEffects::none());
   }
 
-  virtual void getLocalGridInfoIntrinsics(uint32_t Idx, unsigned &WorkGroupId,
-                                          unsigned &LocalSize,
-                                          unsigned &LocalId) const = 0;
+  virtual std::array<Value *, 3> getLocalGridInfo(IRBuilderBase &Builder,
+                                                  uint32_t Idx) const = 0;
 
   Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
                                   const NDRange &FusedNDRange,
@@ -564,17 +563,8 @@ public:
       auto *EntryBlock = BasicBlock::Create(Builder.getContext(), "entry", F);
       Builder.SetInsertPoint(EntryBlock);
 
-      unsigned WorkGroupIdIntrin;
-      unsigned LocalSizeIntrin;
-      unsigned LocalIdIntrin;
-
-      getLocalGridInfoIntrinsics(Idx, WorkGroupIdIntrin, LocalSizeIntrin,
-                                 LocalIdIntrin);
-
       // Compute `global_id.i = group_id.i * local_size.i + local_id.i`.
-      auto *WorkGroupId = Builder.CreateIntrinsic(I32Ty, WorkGroupIdIntrin, {});
-      auto *LocalSize = Builder.CreateIntrinsic(I32Ty, LocalSizeIntrin, {});
-      auto *LocalId = Builder.CreateIntrinsic(I32Ty, LocalIdIntrin, {});
+      auto [WorkGroupId, LocalSize, LocalId] = getLocalGridInfo(Builder, Idx);
 
       Builder.CreateRet(Builder.CreateAdd(
           Builder.CreateMul(WorkGroupId, LocalSize), LocalId));
@@ -691,6 +681,7 @@ public:
       return WrapValInFunc(
           [&](uint32_t Idx) { return Builder.getInt32(R.getDefaultValue(K)); });
     case BuiltinKind::LocalSizeRemapper:
+    case BuiltinKind::GlobalSizeRemapper: /* only AMDGCN */
       return WrapValInFunc([&](uint32_t Idx) {
         return R.remap(BuiltinKind::GlobalSizeRemapper, Builder, SrcNDRange,
                        FusedNDRange, Idx);
@@ -779,13 +770,16 @@ public:
     return F->getIntrinsicID() != Intrinsic::nvvm_read_ptx_sreg_laneid;
   }
 
-  void getLocalGridInfoIntrinsics(uint32_t Idx, unsigned &WorkGroupId,
-                                  unsigned &LocalSize,
-                                  unsigned &LocalId) const override {
-
-    WorkGroupId = Intrinsic::nvvm_read_ptx_sreg_ctaid_x + Idx;
-    LocalSize = Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx;
-    LocalId = Intrinsic::nvvm_read_ptx_sreg_tid_x + Idx;
+  std::array<Value *, 3> getLocalGridInfo(IRBuilderBase &Builder,
+                                          uint32_t Idx) const override {
+    auto *I32Ty = Builder.getInt32Ty();
+    auto *WorkGroupId =
+        Builder.CreateIntrinsic(I32Ty, nvvm_read_ptx_sreg_ctaid_x + Idx, {});
+    auto *LocalSize = Builder.CreateIntrinsic(
+        I32Ty, Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx, {});
+    auto *LocalId = Builder.CreateIntrinsic(
+        I32Ty, Intrinsic::nvvm_read_ptx_sreg_tid_x + Idx, {});
+    return {WorkGroupId, LocalSize, LocalId};
   }
 
   Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
@@ -853,6 +847,7 @@ public:
   // https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces
   unsigned getPrivateAddressSpace() const override { return 5; }
   unsigned getLocalAddressSpace() const override { return 3; }
+  unsigned getConstantAddressSpace() const { return 4; }
 
   std::optional<BuiltinKind> getBuiltinKind(Function *F) const override {
     if (!F->isIntrinsic())
@@ -875,7 +870,6 @@ public:
     default:
       return {};
     }
-    return {};
   }
 
   bool isSafeToNotRemapBuiltin(Function *F) const override {
@@ -887,13 +881,29 @@ public:
            F->getIntrinsicID() != Intrinsic::amdgcn_mbcnt_lo;
   }
 
-  void getLocalGridInfoIntrinsics(uint32_t Idx, unsigned &WorkGroupId,
-                                  unsigned &LocalSize,
-                                  unsigned &LocalId) const override {
+  std::array<Value *, 3> getLocalGridInfo(IRBuilderBase &Builder,
+                                          uint32_t Idx) const override {
+    constexpr auto LocalSizeXOffset = 2;
 
-    WorkGroupId = Intrinsic::nvvm_read_ptx_sreg_ctaid_x + Idx;
-    LocalSize = Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx;
-    LocalId = Intrinsic::nvvm_read_ptx_sreg_tid_x + Idx;
+    auto *I16Ty = Builder.getInt16Ty();
+    auto *I32Ty = Builder.getInt32Ty();
+    auto *CASPtrTy = Builder.getPtrTy(getConstantAddressSpace());
+
+    // The backend provides intrinsics for getting the IDs, ...
+    auto *WorkGroupId = Builder.CreateIntrinsic(
+        I32Ty, Intrinsic::amdgcn_workgroup_id_x + Idx, {});
+    auto *LocalId = Builder.CreateIntrinsic(
+        I32Ty, Intrinsic::amdgcn_workitem_id_x + Idx, {});
+
+    // ... but the local size must be queried via the dispatch pointer.
+    auto *DPtr =
+        Builder.CreateIntrinsic(CASPtrTy, Intrinsic::amdgcn_dispatch_ptr, {});
+    auto *GEP = Builder.CreateInBoundsGEP(
+        I16Ty, DPtr, Builder.getInt64(LocalSizeXOffset + Idx));
+    auto *LSLoad = Builder.CreateLoad(I16Ty, GEP);
+    auto *LocalSize = Builder.CreateZExt(LSLoad, I32Ty);
+
+    return {WorkGroupId, LocalSize, LocalId};
   }
 
   Function *createRemapperFunction(const Remapper &R, BuiltinKind K,
@@ -923,13 +933,22 @@ public:
       Instruction *Call,
       llvm::SmallMapVector<Instruction *, std::pair<BuiltinKind, uint32_t>, 16>
           &IdxAccess) const {
+    // Local- and global size can only be queried via the dispatch pointer. This
+    // method scans the users of a call to the dispatch pointer intrinsic for
+    // GEPs and subsequent loads.
+    //
+    // Unfortunately, the offsets are not documented in LLVM backend guide; the
+    // "best" reference is the libclc implementation in
+    // `libclc/amdgcn-amdhsa/libspirv/workitem/get_local_size.cl` and
+    // `get_global_size.cl`.
+
     llvm::SmallVector<std::pair<Instruction *, APInt>, 32> OffsetTracker;
     const DataLayout &DL = Call->getModule()->getDataLayout();
-    llvm::for_each(Call->users(), [&](User *U) {
-      if (Instruction *I = dyn_cast<Instruction>(U)) {
-        OffsetTracker.push_back({I, APInt{32, 0, /*isSigned=*/true}});
-      }
-    });
+    const unsigned IndexSizeInBits =
+        DL.getIndexSizeInBits(getConstantAddressSpace());
+
+    OffsetTracker.push_back(
+        {Call, APInt{IndexSizeInBits, 0, /*isSigned=*/true}});
 
     while (!OffsetTracker.empty()) {
       auto [I, Offset] = OffsetTracker.pop_back_val();
@@ -937,17 +956,22 @@ public:
         Instruction *InsnUser = dyn_cast<Instruction>(U);
         if (!InsnUser)
           continue;
+
         if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(U)) {
-          APInt GEPOffset{DL.getIndexSizeInBits(GEP->getPointerAddressSpace()),
-                          0, /*isSigned=*/true};
+          APInt GEPOffset{IndexSizeInBits, 0, /*isSigned=*/true};
           if (GEP->accumulateConstantOffset(DL, GEPOffset)) {
             OffsetTracker.push_back({GEP, Offset + GEPOffset});
+            continue;
           }
-        } else if (LoadInst *Load = dyn_cast<LoadInst>(U)) {
+          // Non-constant offset; give up.
+          return createStringError(inconvertibleErrorCode(),
+                                   "Cannot track dispatch ptr use");
+        }
+
+        if (LoadInst *Load = dyn_cast<LoadInst>(U)) {
           BuiltinKind BK;
           uint32_t Dim = 0;
           int64_t OffsetInt = Offset.getSExtValue();
-          // Offset are in byte
           switch (OffsetInt) {
           case 4:
             BK = BuiltinKind::LocalSizeRemapper;
@@ -978,13 +1002,16 @@ public:
               return createStringError(inconvertibleErrorCode(),
                                        "Internal error, invalid offset");
             }
-            // dispatch ptr is used for various usage, no remapping needed in
-            // those cases.
-            return Error::success();
+            // The dispatch pointer has other legitimate uses, no remapping
+            // needed in those cases.
+            continue;
           }
+
           IdxAccess.insert({Load, {BK, Dim}});
+          continue;
         }
 
+        // Unexpected user; give up.
         return createStringError(inconvertibleErrorCode(),
                                  "Cannot track dispatch ptr use");
       }
@@ -999,6 +1026,8 @@ public:
     llvm::SmallMapVector<Instruction *, std::pair<BuiltinKind, uint32_t>, 16>
         IdxAccess;
 
+    // Scan for calls, recursively remap (simple) built-ins, and populate the
+    // `IdxAccess` datastructure to capture loads from the dispatch pointer.
     for (auto &I : instructions(F)) {
       if (auto *Call = dyn_cast<CallBase>(&I)) {
         // Recursive call
@@ -1021,6 +1050,7 @@ public:
       }
     }
 
+    // Replace loads representing a builtin that needs to be remapped.
     llvm::SmallDenseMap<
         std::tuple<uint8_t, uint32_t, const NDRange *, const NDRange *>,
         Function *>
@@ -1041,10 +1071,13 @@ public:
         }
       }
       IRBuilder<> Builder(V);
-      auto *Call = Builder.CreateCall(F);
+      auto *Call = Builder.CreateCall(Cache);
       Call->setAttributes(F->getAttributes());
       Call->setCallingConv(F->getCallingConv());
-      V->replaceAllUsesWith(Call);
+      // Truncation is required for the local size load, which is only `i16`.
+      // The cast should be optimized away after inlining the remapper.
+      auto *Cast = Builder.CreateTrunc(Call, V->getType());
+      V->replaceAllUsesWith(Cast);
     }
 
     return Error::success();
