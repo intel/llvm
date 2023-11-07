@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: gpu-intel-pvc
 
-// TODO online_compiler check fails for esimd_emulator.
-// XFAIL: esimd_emulator
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 

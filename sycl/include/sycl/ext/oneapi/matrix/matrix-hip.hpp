@@ -344,15 +344,13 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
           *reinterpret_cast<const float16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 4; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x8f16(
           *reinterpret_cast<const float16x4 *>(&A.wi_marray),
           *reinterpret_cast<const float16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 16; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
   } else if constexpr (std::is_same_v<Tm, bfloat16>) {
     if constexpr (M == 16 && N == 16) {
@@ -360,23 +358,20 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
           *reinterpret_cast<const bfloat16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx4 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 4; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(float));
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
           *reinterpret_cast<const bfloat16x4 *>(&A.wi_marray),
           *reinterpret_cast<const bfloat16x4 *>(&B.wi_marray),
           *reinterpret_cast<const floatx16 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 16; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(float));
     }
   } else if constexpr (std::is_same_v<Tm, double>) {
     if constexpr (M == 16 && N == 16) {
       auto result = __builtin_amdgcn_mfma_f64_16x16x4f64(
           A.wi_marray[0], B.wi_marray[0],
           *reinterpret_cast<const doublex4 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 4; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(double));
     }
   } else if constexpr (std::is_same_v<Tm, int8_t>) {
     if constexpr (M == 16 && N == 16) {
@@ -384,15 +379,13 @@ void joint_matrix_mad_hip(
           *reinterpret_cast<const Tc *>(&A.wi_marray),
           *reinterpret_cast<const Tc *>(&B.wi_marray),
           *reinterpret_cast<const int32x4 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 4; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 4 * sizeof(int32_t));
     } else if constexpr (M == 32 && N == 32) {
       auto result = __builtin_amdgcn_mfma_i32_32x32x8i8(
           *reinterpret_cast<const Tc *>(&A.wi_marray),
           *reinterpret_cast<const Tc *>(&B.wi_marray),
           *reinterpret_cast<const int32x16 *>(&C.wi_marray), 0, 0, 0);
-      for (int i = 0; i < 16; ++i)
-        D.wi_marray[i] = result[i];
+      std::memcpy(&D.wi_marray, &result, 16 * sizeof(int32_t));
     }
   }
 }

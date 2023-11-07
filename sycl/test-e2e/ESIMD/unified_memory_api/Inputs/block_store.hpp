@@ -43,7 +43,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
          simd<uint32_t, N> PassThruInt(ElemOff, 1);
          simd<T, N> Vals = PassThruInt;
          if constexpr (UseMask) {
-           simd_mask<1> Mask = (GlobalID + 1) % 1;
+           simd_mask<1> Mask = (GlobalID + 1) & 0x1;
            block_store(Out + ElemOff, Vals, Mask, StorePropertiesT{});
            Vals = block_load<T, N>(Out + ElemOff);
            Vals += 1;
@@ -100,7 +100,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
   bool Passed = true;
 
   for (int i = 0; i < Size; i++) {
-    bool IsMaskSet = (i / N + 1) % 1;
+    bool IsMaskSet = (i / N + 1) & 0x1;
     Tuint Expected = sycl::bit_cast<Tuint>(Out_val);
     if (!UseMask || IsMaskSet)
       Expected = sycl::bit_cast<Tuint>((T)(i + 6));

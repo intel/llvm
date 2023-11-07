@@ -1,7 +1,7 @@
 # Command-Graph Extension
 
 This document describes the implementation design of the
-[SYCL Graph Extension](../extensions/proposed/sycl_ext_oneapi_graph.asciidoc).
+[SYCL Graph Extension](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc).
 
 A related presentation can be found
 [here](https://www.youtube.com/watch?v=aOTAmyr04rM).
@@ -114,6 +114,24 @@ the scheduler for adding to the UR command-buffer, otherwise the node can
 be appended directly as a command in the UR command-buffer. This is in-keeping
 with the existing behaviour of the handler with normal queue submissions.
 
+Scheduler commands for adding graph nodes differ from typical command-group
+submission in the scheduler, in that they do not launch any asynchronous work
+which relies on their dependencies, and are considered complete immediately
+after adding the command-group node to the graph.
+
+This presents problems with device allocations which create both an allocation
+command and a separate initial copy command of data to the new allocation.
+Since future command-graph execution submissions will only receive
+dependencies on the allocation command (since this is all the information
+available), this could lead to situations where the device execution of the
+initial copy command is delayed due to device occupancy, and the command-graph
+and initial copy could execute on the device in an incorrect order.
+
+To solve this issue, when the scheduler enqueues command-groups to add as nodes
+in a command-graph, it will perform a blocking wait on the dependencies of the
+command-group first. The user will experience this wait as part of graph
+finalization.
+
 ## Memory handling: Buffer and Accessor
 
 There is no extra support for graph-specific USM allocations in the current
@@ -121,18 +139,18 @@ proposal. Memory operations will be supported subsequently by the current
 implementation starting with `memcpy`.
 
 Buffers and accessors are supported in a command-graph. There are
-[spec restrictions](../extensions/proposed/sycl_ext_oneapi_graph.asciidoc#storage-lifetimes)
+[spec restrictions](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc#storage-lifetimes)
 on buffer usage in a graph so that their lifetime semantics are compatible with
 a lazy work execution model. However these changes to storage lifetimes have not
 yet been implemented.
 
 ## Backend Implementation
 
-Implementation of [UR command-buffers](#UR-command-buffer-experimental-feature)
+Implementation of UR command-buffers
 for each of the supported SYCL 2020 backends.
 
-This is currently only Level Zero but more sub-sections will be added here as
-other backends are implemented.
+Currently Level Zero and CUDA backends are implemented.
+More sub-sections will be added here as other backends are supported.
 
 ### Level Zero
 
@@ -203,3 +221,28 @@ Level Zero:
 
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
+
+### CUDA
+
+The SYCL Graph CUDA backend relies on the
+[CUDA Graphs feature](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-graphs),
+which is the CUDA public API for batching series of operations,
+such as kernel launches, connected by dependencies.
+
+UR commands (e.g. kernels) are mapped as graph nodes using the
+[CUDA Driver API](https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__GRAPH.html#group__CUDA__GRAPH).
+The CUDA Driver API is preferred over the CUDA Runtime API to implement
+the SYCL Graph backend to remain consistent with other UR functions.
+Synchronization between commands (UR sync-points) is implemented
+using graph dependencies.
+
+Executable CUDA Graphs can be submitted to a CUDA stream
+in the same way as regular kernels.
+The CUDA backend enables enqueuing events to wait for into a stream.
+It also allows signaling the completion of a submission with an event.
+Therefore, submitting a UR command-buffer consists only of submitting to a stream
+the executable CUDA Graph that represent this series of operations.
+
+An executable CUDA Graph, which contains all commands and synchronization
+information, is saved in the UR command-buffer to allow for efficient
+graph resubmission.
