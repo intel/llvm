@@ -117,6 +117,7 @@ to contain multiple `read_hint` properties. In order to specify multiple
 The same rule applies to `write_hint` and `read_assertion`.
 
 ==== Cache modes
+
 The `cache_control` structure is used by each of the three properties
 to specify a cache mode and a list of cache levels to which it applies.
 
