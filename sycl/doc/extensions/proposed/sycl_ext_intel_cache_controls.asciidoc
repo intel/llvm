@@ -310,8 +310,8 @@ via a `streaming` cache control.
 |====
 --
 
-
 ==== Read assertion property
+
 This property is an assertion by the application, promising that
 the application accesses memory in a certain way.
 Care must be taken when using this property because it can
