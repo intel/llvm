@@ -91,7 +91,7 @@ void llvm::getSYCLDeviceRequirements(
 
   auto ExtractStringFromMDNodeOperand =
       [=](const MDNode *N, unsigned OpNo) -> llvm::SmallString<256> {
-    MDString *S = dyn_cast<llvm::MDString>(N->getOperand(OpNo).get());
+    MDString *S = cast<llvm::MDString>(N->getOperand(OpNo).get());
     return S->getString();
   };
 

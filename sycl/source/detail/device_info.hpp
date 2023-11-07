@@ -763,7 +763,6 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
       };
-    std::cerr << ">>> Empty matrix_combinations\n";
     return {};
   }
 };

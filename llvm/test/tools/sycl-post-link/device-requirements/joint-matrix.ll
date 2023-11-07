@@ -1,5 +1,6 @@
 ; Original code:
 ;
+; // Compiled with clang++ -fsycl -fsycl-device-only -fno-sycl-instrument-device-code -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -O2 -S -emit-llvm -o - %s
 ; int main() {
 ;   sycl::queue q;
 ;   q.submit([&](sycl::handler &cgh) {
@@ -43,42 +44,36 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_EUlNS0_7nd_itemILi2EEEE_ = comdat 
 ; Function Attrs: convergent norecurse nounwind
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_7nd_itemILi2EEEE_() local_unnamed_addr #0 comdat !srcloc !5 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_joint_matrix !7 !sycl_joint_matrix_mad !8 !sycl_kernel_omit_args !6 {
 entry:
-  call spir_func void @__itt_offload_wi_start_wrapper()
   %call.i.i = tail call spir_func noundef target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) @_Z27__spirv_JointMatrixMadINTELIffLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS1_1ELS1_2ELNS0_12MatrixLayoutE0ELS2_0ELS2_3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNS5_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNS5_IS9_XT2_EXT3_EXT8_EXT10_EXT5_EEES8_S4_(target("spirv.JointMatrixINTEL", float, 8, 16, 0, 3, 0) noundef undef, target("spirv.JointMatrixINTEL", float, 16, 16, 0, 3, 1) noundef undef, target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) noundef undef, i32 noundef 3) #3
-  call spir_func void @__itt_offload_wi_finish_wrapper()
   ret void
 }
-
-declare spir_func void @__itt_offload_wi_start_wrapper()
 
 ; Function Attrs: convergent nounwind
 declare dso_local spir_func noundef target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) @_Z27__spirv_JointMatrixMadINTELIffLm8ELm16ELm16ELN5__spv9MatrixUseE0ELS1_1ELS1_2ELNS0_12MatrixLayoutE0ELS2_0ELS2_3ELNS0_5Scope4FlagE3EEPNS0_24__spirv_JointMatrixINTELIT0_XT1_EXT3_EXT9_EXT10_EXT6_EEEPNS5_IT_XT1_EXT2_EXT7_EXT10_EXT4_EEEPNS5_IS9_XT2_EXT3_EXT8_EXT10_EXT5_EEES8_S4_(target("spirv.JointMatrixINTEL", float, 8, 16, 0, 3, 0) noundef, target("spirv.JointMatrixINTEL", float, 16, 16, 0, 3, 1) noundef, target("spirv.JointMatrixINTEL", float, 8, 16, 3, 3, 2) noundef, i32 noundef) local_unnamed_addr #1
 
-declare spir_func void @__itt_offload_wi_finish_wrapper()
-
 ; Function Attrs: norecurse nounwind
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_EUlNS0_7nd_itemILi2EEEE_() local_unnamed_addr #2 comdat !srcloc !9 !kernel_arg_buffer_location !6 !sycl_fixed_targets !6 !sycl_joint_matrix !10 !sycl_kernel_omit_args !6 {
 entry:
-  call spir_func void @__itt_offload_wi_start_wrapper()
-  call spir_func void @__itt_offload_wi_finish_wrapper()
   ret void
 }
+
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfPU3AS2Kcz(ptr addrspace(2), ...)
 
 attributes #0 = { convergent norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="sss.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
 attributes #1 = { convergent nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="sss.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
 attributes #3 = { convergent nounwind }
 
-!opencl.spir.version = !{!0}
-!spirv.Source = !{!1}
-!llvm.ident = !{!2}
-!llvm.module.flags = !{!3, !4}
+!llvm.module.flags = !{!0, !1}
+!opencl.spir.version = !{!2}
+!spirv.Source = !{!3}
+!llvm.ident = !{!4}
 
-!0 = !{i32 1, i32 2}
-!1 = !{i32 4, i32 100000}
-!2 = !{!""}
-!3 = !{i32 1, !"wchar_size", i32 4}
-!4 = !{i32 7, !"frame-pointer", i32 2}
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{i32 7, !"frame-pointer", i32 2}
+!2 = !{i32 1, i32 2}
+!3 = !{i32 4, i32 100000}
+!4 = !{!""}
 !5 = !{i32 1091}
 !6 = !{}
 !7 = !{!"matrix_type::fp32,use::a,8,16;matrix_type::fp32,use::accumulator,8,16;matrix_type::fp32,use::b,16,16"}
