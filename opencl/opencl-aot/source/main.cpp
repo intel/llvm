@@ -323,6 +323,10 @@ int main(int Argc, char *Argv[]) {
   cl::alias OptIR("ir", cl::aliasopt(OptOutputElf), cl::desc("Output file"));
 
   enum ArchType : int8_t {
+    sse42 = 0,
+    avx,
+    avx2,
+    avx512,
     wsm,
     snb,
     ivyb,
@@ -339,19 +343,46 @@ int main(int Argc, char *Argv[]) {
   };
   cl::opt<ArchType> OptMArch(
       "march",
-      cl::desc("Set target CPU architecture according to specified CPU device "
+      cl::desc("Set target CPU architecture according to specified instruction "
+               "set or CPU device "
                "name (for --device=cpu or --device=fpga_fast_emu only):"),
       cl::values(
+          clEnumVal(
+              avx512,
+              "Enable support of Intel(R) Advanced Vector Extensions 512 "
+              "(Intel(R) AVX-512) Foundation Instructions, Intel(R) AVX-512 "
+              "Conflict Detection Instructions, Intel(R) AVX-512 Doubleword "
+              "and Quadword Instructions, Intel(R) AVX-512 Byte and Word "
+              "Instructions and Intel(R) AVX-512 Vector Length Extensions for "
+              "Intel(R) processors and the instructions enabled with "
+              "-march=avx2"),
+          clEnumVal(avx2,
+                    "Enable support of Intel(R) Advanced Vector Extensions 2 "
+                    "(Intel(R) AVX2), Intel(R) Advanced Vector Extensions "
+                    "(Intel(R) AVX), Intel(R) Streaming SIMD Extensions 4.2 "
+                    "(Intel(R) SSE4.2), Intel(R) SSE4.1, Intel(R) SSE3, "
+                    "Intel(R) SSE2, Intel(R) SSE, and Supplemental Streaming "
+                    "SIMD Extensions 3 (SSSE3) instructions"),
+          clEnumVal(avx, "Enable support of Intel(R) AVX, Intel(R) SSE4.2, "
+                         "Intel(R) SSE4.1, Intel(R) SSE3, Intel(R) SSE2, "
+                         "Intel(R) SSE, and SSSE3 instructions"),
+          clEnumValN(
+              sse42, "sse4.2",
+              "Enable support of Intel(R) SSE4.2 Efficient Accelerated String "
+              "and Text Processing Instructions, Intel(R) SSE4 Vectorizing "
+              "Compiler and Media Accelerator, Intel(R) SSE3, Intel(R) SSE2, "
+              "Intel(R) SSE, and SSSE3 instructions"),
           clEnumVal(wsm, "Intel® microarchitecture code name Westmere"),
           clEnumVal(snb, "Intel® microarchitecture code name Sandy Bridge"),
           clEnumVal(ivyb, "Intel® microarchitecture code name Ivy Bridge"),
           clEnumVal(bdw, "Intel® microarchitecture code name Broadwell"),
           clEnumVal(cfl, "Coffee Lake"), clEnumVal(adl, "Alder Lake"),
-          clEnumVal(skylake, "Intel® microarchitecture code name Skylake"),
-          clEnumVal(skx, "Intel® microarchitecture code name Skylake"),
-          clEnumVal(clk, "Cascade Lake"), clEnumVal(icl, "Ice Lake"),
-          clEnumVal(icx, "Ice Lake"), clEnumVal(spr, "Sapphire Rapids"),
-          clEnumVal(gnr, "Granite Rapids")));
+          clEnumVal(skylake,
+                    "Intel® microarchitecture code name Skylake (client)"),
+          clEnumVal(skx, "Intel® microarchitecture code name Skylake (server)"),
+          clEnumVal(clk, "Cascade Lake"), clEnumVal(icl, "Ice Lake (client)"),
+          clEnumVal(icx, "Ice Lake (server)"),
+          clEnumVal(spr, "Sapphire Rapids"), clEnumVal(gnr, "Granite Rapids")));
   cl::list<std::string> OptBuildOptions("bo", cl::ZeroOrMore,
                                         cl::desc("Set OpenCL build options"),
                                         cl::value_desc("build options"));
@@ -473,6 +504,10 @@ int main(int Argc, char *Argv[]) {
   if (OptMArch.getNumOccurrences()) {
     std::string CPUTargetArchEnvVarName = "CL_CONFIG_CPU_TARGET_ARCH";
     std::map<ArchType, std::string> ArchTypeToCPUTargetArchEnvVarValues{
+        {sse42, "corei7"},
+        {avx, "corei7-avx"},
+        {avx2, "core-avx2"},
+        {avx512, "skx"},
         {wsm, "corei7"},
         {snb, "corei7-avx"},
         {ivyb, "corei7-avx"},
