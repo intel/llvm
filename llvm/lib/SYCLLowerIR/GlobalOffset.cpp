@@ -158,10 +158,9 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   auto *KernelMetadata = M.getNamedMetadata(getAnnotationString(AT).c_str());
   assert(KernelMetadata && "IR compiled must have correct annotations");
 
-  auto *NewFunc = addOffsetArgumentToFunction(
+  auto *NewFunc = std::get<0>(addOffsetArgumentToFunction(
                       M, Func, KernelImplicitArgumentType->getPointerTo(),
-                      /*KeepOriginal=*/true)
-                      .first;
+                      /*KeepOriginal=*/true));
   Argument *NewArgument = std::prev(NewFunc->arg_end());
 
   ClonedNonOffsetFunctions.insert(Func);

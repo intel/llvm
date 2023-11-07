@@ -38,9 +38,6 @@ private:
   /// `Func` belongs, contains both the original function and its clone with the
   /// signature extended with the implicit offset parameter and `_with_offset`
   /// appended to the name.
-  /// An alloca of 3 zeros (corresponding to offsets in x, y and z) is added to
-  /// the original kernel, in order to keep the interface of kernel's call
-  /// graph unified, regardless of the fact if the global offset has been used.
   ///
   /// \param Func Kernel to be processed.
   void processKernelEntryPoint(Function *Func);
