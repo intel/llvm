@@ -504,22 +504,14 @@ int main(int Argc, char *Argv[]) {
   if (OptMArch.getNumOccurrences()) {
     std::string CPUTargetArchEnvVarName = "CL_CONFIG_CPU_TARGET_ARCH";
     std::map<ArchType, std::string> ArchTypeToCPUTargetArchEnvVarValues{
-        {sse42, "corei7"},
-        {avx, "corei7-avx"},
-        {avx2, "core-avx2"},
-        {avx512, "skx"},
-        {wsm, "corei7"},
-        {snb, "corei7-avx"},
-        {ivyb, "corei7-avx"},
-        {bdw, "core-avx2"},
-        {cfl, "core-avx2"},
-        {adl, "core-avx2"},
-        {skylake, "core-avx2"},
-        {skx, "skx"},
-        {clk, "skx"},
-        {icl, "icelake-client"},
-        {icx, "icelake-server"},
-        {spr, "sapphirerapids"},
+        {sse42, "corei7"},       {avx, "corei7-avx"},
+        {avx2, "core-avx2"},     {avx512, "skx"},
+        {wsm, "corei7"},         {snb, "corei7-avx"},
+        {ivyb, "corei7-avx"},    {bdw, "core-avx2"},
+        {cfl, "core-avx2"},      {adl, "core-avx2"},
+        {skylake, "core-avx2"},  {skx, "skx"},
+        {clk, "cascadelake"},    {icl, "icelake-client"},
+        {icx, "icelake-server"}, {spr, "sapphirerapids"},
         {gnr, "graniterapids"}};
     int EnvErr = 0;
 #ifdef _WIN32
