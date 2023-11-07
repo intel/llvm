@@ -68,9 +68,9 @@ enum FloatControl {
   RTN = 2 << 4, // Round towards -ve inf
   RTZ = 3 << 4, // Round towards zero
 
-  DENORM_FTZ = 0,            // Denorm mode flush to zero
-  DENORM_D_ALLOW = 1 << 6,   // Denorm mode double allow
-  DENORM_F_ALLOW = 1 << 7,   // Denorm mode float allow
+  DENORM_FTZ = 0,           // Denorm mode flush to zero
+  DENORM_D_ALLOW = 1 << 6,  // Denorm mode double allow
+  DENORM_F_ALLOW = 1 << 7,  // Denorm mode float allow
   DENORM_HF_ALLOW = 1 << 10 // Denorm mode half allow
 };
 
