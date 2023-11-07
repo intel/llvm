@@ -5398,16 +5398,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
-    // At any optimization leve below -O3, imply -fsycl-disable-range-rounding.
-    bool DisableRangeRounding = true;
+    // At -O0, imply -fsycl-disable-range-rounding.
+    bool DisableRangeRounding = false;
     if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-      bool IsO3 = false;
-      if (A->getOption().matches(options::OPT_O)) {
-        StringRef Val(A->getValue());
-        IsO3 = Val.equals("3");
-      }
-      if (IsO3 || A->getOption().matches(options::OPT_Ofast))
-        DisableRangeRounding = false;
+      if (A->getOption().matches(options::OPT_O0))
+        DisableRangeRounding = true;
     }
     if (DisableRangeRounding || HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
