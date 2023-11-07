@@ -133,6 +133,8 @@ List of options provided by CMake:
 | UR_BUILD_ADAPTER_HIP    | Fetch and use hip adapter from SYCL                    | ON/OFF     | OFF     |
 | UR_HIP_PLATFORM         | Build hip adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
+| UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
+| UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
 
 ### Additional make targets
 
