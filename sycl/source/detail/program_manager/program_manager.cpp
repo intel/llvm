@@ -2587,7 +2587,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrixMad(
       JointMatrixMadVec.push_back(Item);
     }
 
-    assert(JointMatrixMadVec.size() == 4 &&
+    assert(JointMatrixMadVec.size() == 7 &&
            "Property set is corrupted, it must have 7 elements.");
 
     const std::string &MatrixTypeAStrUser = JointMatrixMadVec[0];
