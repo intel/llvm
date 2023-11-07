@@ -172,6 +172,7 @@ write_hint<cache_control<cache_mode::streaming, cache_level::L1>>
 ```
 
 ==== Read hint property
+
 This property is a hint requesting specific cache behavior when
 loading from memory through an `annotated_ptr`. This property
 can affect the performance of device code, but it does not change
