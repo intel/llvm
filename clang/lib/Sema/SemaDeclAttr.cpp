@@ -4009,8 +4009,9 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
     }
     auto &TI = Context.getTargetInfo();
     if (TI.getTriple().isNVPTX() && ArgVal != 32) {
-      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_cuda_n_32)
-          << ArgVal.getSExtValue();
+      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+          << ArgVal.getSExtValue() << TI.getTriple().getArchName() << 32;
+      return;
     }
     if (TI.getTriple().isAMDGPU()) {
       const auto HasWaveFrontSize64 =
@@ -4024,8 +4025,10 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
       const auto SupportedWaveFrontSize =
           HasWaveFrontSize64 && !HasWaveFrontSize32 ? 64 : 32;
       if (ArgVal != SupportedWaveFrontSize) {
-        Diag(E->getExprLoc(), diag::warn_amd_reqd_sub_group_attribute_n)
-            << ArgVal.getSExtValue() << SupportedWaveFrontSize;
+        Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+            << ArgVal.getSExtValue() << TI.getTriple().getArchName()
+            << SupportedWaveFrontSize;
+        return;
       }
     }
 
