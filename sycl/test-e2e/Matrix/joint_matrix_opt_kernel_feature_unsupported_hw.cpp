@@ -1,10 +1,10 @@
-// REQUIRES: gpu-intel-gen9
+// REQUIRES: gpu-intel-gen12
 
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
 // Test checks that exception will be thrown in case object of joint_matrix type
-// is used on unsupported HW, in this case, on Gen9.
+// is used on unsupported HW, in this case, on Gen12.
 
 #include <sycl/sycl.hpp>
 
