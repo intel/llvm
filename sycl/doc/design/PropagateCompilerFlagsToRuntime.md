@@ -128,7 +128,7 @@ pi_result piPluginGetBackendOption(pi_platform platform,
 
 In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
 section is used as a guide to identify the appropriate backend option.
-The option is returned in `backend_option`. For other plugins (HIP, cuda, and
-ESIMD emulator), empty string is returned. This API returns `PI_SUCCESS` for
+The option is returned in `backend_option`. For other plugins (HIP, cuda),
+empty string is returned. This API returns `PI_SUCCESS` for
 valid inputs (frontend_option != ""). For invalid inputs, it returns
 `PI_ERROR_INVALID_VALUE`.
