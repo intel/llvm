@@ -177,11 +177,18 @@ together all components of a kernel's launch configuration, including:
 1. The range of execution.
 2. Any compile-time properties.
 
-[_Note:_ Any compile-time properties passed to a `launch_config` do not affect
-the type of the enqueued kernel, and are primarily intended to be used for
-properties with run-time values that may impact how a kernel is launched by an
-underlying backend.
-_{endnote}_]
+Any compile-time properties passed as part of a `launch_config` only affect the
+way in which the kernel is launched. They cannot be used to define information
+about the kernel itself. This extension does not define any properties for
+`launch_config`, but other extensions are expected to define such properties.
+
+[_Note:_ The properties defined in the
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+extension (e.g., `work_group_size`) cannot be used via `launch_config`. In
+order to use these properties with a kernel, the kernel must be a named
+functioned object which exposes the properties via
+`get(sycl::ext::oneapi::experimental::properties_tag)` as described in that
+extension. _{endnote}_]
 
 [source,c++]
 ----
