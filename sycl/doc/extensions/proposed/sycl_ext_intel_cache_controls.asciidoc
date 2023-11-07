@@ -117,6 +117,7 @@ to contain multiple `read_hint` properties. In order to specify multiple
 The same rule applies to `write_hint` and `read_assertion`.
 
 ==== Cache modes
+
 The `cache_control` structure is used by each of the three properties
 to specify a cache mode and a list of cache levels to which it applies.
 
@@ -235,6 +236,7 @@ property.
 --
 
 ==== Write hint property
+
 This property is a hint requesting specific cache behavior when
 storing to memory through an `annotated_ptr`.
 This property can affect the performance of device code, but it
@@ -308,8 +310,8 @@ via a `streaming` cache control.
 |====
 --
 
-
 ==== Read assertion property
+
 This property is an assertion by the application, promising that
 the application accesses memory in a certain way.
 Care must be taken when using this property because it can
