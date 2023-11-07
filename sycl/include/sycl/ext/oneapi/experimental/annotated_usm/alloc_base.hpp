@@ -108,9 +108,10 @@ aligned_alloc_annotated(size_t alignment, size_t count,
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unknown USM allocation kind was specified.");
 
-  void *rawPtr = sycl::aligned_alloc(
-      combine_align(alignment, alignFromPropList), count * sizeof(T),
-      syclDevice, syclContext, kind, usmPropList);
+  size_t combinedAlign = combine_align(alignment, alignFromPropList);
+  void *rawPtr =
+      sycl::aligned_alloc(std::max(sizeof(T), combinedAlign), count * sizeof(T),
+                          syclDevice, syclContext, kind, usmPropList);
   return annotated_ptr<T, propertyListB>(static_cast<T *>(rawPtr));
 }
 
