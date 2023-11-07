@@ -5398,8 +5398,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
-    if (HasFPGA) {
+    // At any optimization leve below -O3, imply -fsycl-disable-range-rounding.
+    bool DisableRangeRounding = true;
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+      bool IsO3 = false;
+      if (A->getOption().matches(options::OPT_O)) {
+        StringRef Val(A->getValue());
+        IsO3 = Val.equals("3");
+      }
+      if (IsO3 || A->getOption().matches(options::OPT_Ofast))
+        DisableRangeRounding = false;
+    }
+    if (DisableRangeRounding || HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
+
+    if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.
       CmdArgs.push_back("-fintelfpga");
     }
@@ -5442,12 +5455,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           CmdArgs.push_back("-D_DLL");
         }
       }
-    }
-
-    // At -O0, imply -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__
-    if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-      if (A->getOption().matches(options::OPT_O0))
-        CmdArgs.push_back("-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__");
     }
 
     // Add any predefined macros associated with intel_gpu* type targets
