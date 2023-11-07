@@ -232,8 +232,8 @@ using DeviceAccessorOffsetT = uint64_t;
 using DeviceAccessorOffsetT = uint32_t;
 #endif
 
-template <typename T, int NElts, cache_hint L1H = cache_hint::none,
-          cache_hint L2H = cache_hint::none, typename FlagsT>
+template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
+          typename FlagsT>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
 block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
   // Verify input template arguments.
@@ -317,8 +317,8 @@ block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
 /// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts.
 ///
-template <typename T, int NElts, cache_hint L1H = cache_hint::none,
-          cache_hint L2H = cache_hint::none, typename FlagsT>
+template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
+          typename FlagsT>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
 block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
                 FlagsT flags) {
@@ -406,9 +406,8 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 /// @return is a vector of type T and size NElts. The elements of the returned
 /// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
-template <typename T, int NElts, cache_hint L1H = cache_hint::none,
-          cache_hint L2H = cache_hint::none, typename AccessorT,
-          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
+          typename AccessorT, typename FlagsT>
 __ESIMD_API
     std::enable_if_t<detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_read> &&
@@ -506,9 +505,8 @@ __ESIMD_API
 /// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts
 ///
-template <typename T, int NElts, cache_hint L1H = cache_hint::none,
-          cache_hint L2H = cache_hint::none, typename AccessorT,
-          typename FlagsT = dqword_element_aligned_tag>
+template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
+          typename AccessorT, typename FlagsT>
 __ESIMD_API
     std::enable_if_t<detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_read> &&
@@ -574,8 +572,8 @@ __ESIMD_API
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 
-template <typename T, int NElts, cache_hint L1H = cache_hint::none,
-          cache_hint L2H = cache_hint::none, typename FlagsT>
+template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
+          typename FlagsT>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>>
 block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
   detail::check_cache_hint<cache_action::store, L1H, L2H>();
@@ -669,19 +667,22 @@ block_store(Tx *addr, simd<Tx, N> vals, Flags) {
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
 /// esimd::cache_hint_L2, esimd::cache_hint_L3, esimd::alignment.
 
-/// simd<T, N> block_load(const T* ptr, props={});                      // (1)
-/// simd<T, N> block_load(const T* ptr, size_t offset, props={});       // (2)
-
-/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred, props={});   // (3)
-/// simd<T, N> block_load(const T* ptr, size_t offset, simd_mask<1> pred,
-///                       props={});                                    // (4)
+/// simd<T, N> block_load(const T* ptr, props={});                 // (usm-bl-1)
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset,
+///                       props={});                               // (usm-bl-2)
 
 /// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
-///                       simd<T, N> pass_thru, props={});              // (5)
-/// simd<T, N> block_load(const T* ptr, size_t offset, simd_mask<1> pred,
-///                       simd<T, N> pass_thru, props={});              // (6)
+///                       props={});                               // (usm-bl-3)
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset,
+///                       simd_mask<1> pred, props={});            // (usm-bl-4)
 
-/// simd<T, N> block_load(const T* ptr, props={}); // (1)
+/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
+///                       simd<T, N> pass_thru, props={});         // (usm-bl-5)
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset,
+///                       simd_mask<1> pred, simd<T, N> pass_thru,
+///                       props={});                               // (usm-bl-6)
+
+/// simd<T, N> block_load(const T* ptr, props={});                 // (usm-bl-1)
 /// This function loads a contiguous memory block from USM pointer \p ptr.
 ///
 /// There may be temporary restrictions depending on L1, L2 cache hints,
@@ -730,7 +731,7 @@ block_load(const T *ptr, PropertyListT props = {}) {
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
     detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
-    constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+    constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
     constexpr size_t Alignment =
         detail::getPropertyValue<PropertyListT, alignment_key>(
             DefaultAlignment);
@@ -747,9 +748,10 @@ block_load(const T *ptr, PropertyListT props = {}) {
   }
 }
 
-/// simd<T, N> block_load(const T* ptr, size_t byte_offset, props={}); // (2)
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset,
+///                       props={});  // (usm-bl-2)
 /// This function loads a contiguous memory block from address referenced
-/// by USM pointer \p ptr and byte-offset \p byte_offset.
+/// by USM pointer \p ptr and the given \p byte_offset.
 ///
 /// There may be temporary restrictions depending on L1, L2 cache hints,
 /// See details in the 'Restrictions' section below. The restrictions will be
@@ -790,7 +792,8 @@ block_load(const T *ptr, size_t byte_offset, PropertyListT props = {}) {
   return block_load<T, N>(AdjustedPtr, props);
 }
 
-/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred, props={}); // (3)
+/// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
+///                       props={});                               // (usm-bl-3)
 /// This function loads a contiguous memory block from USM pointer \p ptr.
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// returned value is undefined.
@@ -846,10 +849,10 @@ block_load(const T *ptr, simd_mask<1> pred, PropertyListT props = {}) {
       ptr, pred, overaligned_tag<Alignment>{});
 }
 
-/// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
-///                       props={}); // (4)
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset,
+///                       simd_mask<1> pred, props={});            // (usm-bl-4)
 /// This function loads a contiguous memory block from address referenced
-/// by USM pointer \p ptr and byte-offset \p byte_offset.
+/// by USM pointer \p ptr and the given \p byte_offset.
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// returned value is undefined.
 ///
@@ -892,7 +895,7 @@ block_load(const T *ptr, size_t byte_offset, simd_mask<1> pred,
 }
 
 /// simd<T, N> block_load(const T* ptr, simd_mask<1> pred,
-///                       simd<T, N> pass_thru, props={}); // (5)
+///                       simd<T, N> pass_thru, props={});         // (usm-bl-5)
 /// This function loads a contiguous memory block from USM pointer \p ptr.
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// vector \p pass_thru is returned.
@@ -949,10 +952,11 @@ block_load(const T *ptr, simd_mask<1> pred, simd<T, N> pass_thru,
       ptr, pred, pass_thru, overaligned_tag<Alignment>{});
 }
 
-/// simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred,
-///                       simd<T, N> pass_thru, props={}); // (6)
+/// simd<T, N> block_load(const T* ptr, size_t byte_offset,
+///                       simd_mask<1> pred, simd<T, N> pass_thru,
+///                       props={});                               // (usm-bl-6)
 /// This function loads a contiguous memory block from address referenced
-/// by USM pointer \p ptr and byte-offset \p byte_offset.
+/// by USM pointer \p ptr and the given \p byte_offset.
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// vector \p pass_thru is returned.
 ///
@@ -1020,9 +1024,9 @@ block_load(const Tx *addr, Flags) {
       reinterpret_cast<const VecT *>(addr));
 }
 
-/// Loads a contiguous block of memory from given accessor and offset and
-/// returns the loaded data as a vector. Actual code generated depends on the
-/// alignment parameter.
+/// Loads a contiguous block of memory from the given accessor \p acc and
+/// \p byte_offset and returns the loaded data as a vector.
+/// Actual code generated depends on the alignment parameter.
 /// @tparam Tx Element type.
 /// @tparam N Number of elements to load, <code>N * sizeof(Tx)</code> must be
 ///    1, 2, 4 or 8 owords long.
@@ -1031,7 +1035,7 @@ block_load(const Tx *addr, Flags) {
 ///    \c Flags parameter. If it is less than \c 16, then slower unaligned
 ///    access is generated, otherwise the access is aligned.
 /// @param acc The accessor.
-/// @param offset The offset to load from in bytes.
+/// @param byte_offset The offset to load from in bytes.
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
@@ -1042,10 +1046,11 @@ template <typename Tx, int N, typename AccessorTy,
               detail::is_device_accessor_with_v<
                   AccessorTy, detail::accessor_mode_cap::can_read>>,
           class T = detail::__raw_t<Tx>>
-__ESIMD_API simd<Tx, N>
-block_load(AccessorTy acc, detail::DeviceAccessorOffsetT offset, Flags flags) {
+__ESIMD_API simd<Tx, N> block_load(AccessorTy acc,
+                                   detail::DeviceAccessorOffsetT byte_offset,
+                                   Flags flags) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset),
+  return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, byte_offset),
                            flags);
 #else
   std::ignore = flags;
@@ -1064,18 +1069,17 @@ block_load(AccessorTy acc, detail::DeviceAccessorOffsetT offset, Flags flags) {
 
   if constexpr (Flags::template alignment<simd<T, N>> >=
                 detail::OperandSize::OWORD) {
-    return __esimd_oword_ld<T, N>(surf_ind, offset >> 4);
+    return __esimd_oword_ld<T, N>(surf_ind, byte_offset >> 4);
   } else {
-    return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
+    return __esimd_oword_ld_unaligned<T, N>(surf_ind, byte_offset);
   }
 #endif
 }
 
 /// Each of the following block load functions loads a contiguous memory block
-/// from the address referenced by accessor 'acc', or from 'acc +
-/// offset', where 'offset' is the offset in bytes (not in elements!). The
-/// parameter 'pred' is the one element predicate. If it is set to 1, then all
-/// 'N' elements are loaded. Otherwise, the block load operation is a NO-OP.
+/// from the address referenced by accessor 'acc', or from 'acc + byte_offset',
+/// The parameter 'pred' is the one element predicate. If it is set to 1, then
+/// all 'N' elements are loaded. Otherwise, the block load operation is a NO-OP.
 /// The parameter 'pass_thru' specifies the values being copied to the returned
 /// result if 'pred' is set to 0.
 /// The parameter 'props' specifies the optional compile-time properties
@@ -1083,26 +1087,26 @@ block_load(AccessorTy acc, detail::DeviceAccessorOffsetT offset, Flags flags) {
 /// esimd::cache_hint_L2, esimd::cache_hint_L3, esimd::alignment.
 
 /// simd<T, N>
-/// block_load(AccessorT acc, OffsetT offset, props = {});         // (acc-1)
-/// simd<T, N> block_load(AccessorT acc, props);                   // (acc-2)
+/// block_load(AccessorT acc, OffsetT byte_offset, props = {});    // (acc-bl-1)
+/// simd<T, N> block_load(AccessorT acc, props = {});              // (acc-bl-2)
 
 /// simd<T, N>
-/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
-///            simd<T, N> pass_thru, flags = {});                  // (acc-3)
+/// block_load(AccessorT acc, OffsetT byte_offset, simd_mask<1> pred,
+///            simd<T, N> pass_thru, props = {});                  // (acc-bl-3)
 /// simd<T, N>
-/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
-///            flags = {});                                        // (acc-4)
+/// block_load(AccessorT acc, OffsetT byte_offset,
+///            simd_mask<1> pred, props = {});                     // (acc-bl-4)
 
 /// simd<T, N>
 /// block_load(AccessorT acc, simd_mask<1> pred,
-///            simd<T, N> pass_thru, flags = {});                  // (acc-5)
+///            simd<T, N> pass_thru, props = {});                  // (acc-bl-5)
 /// simd<T, N>
-/// block_load(AccessorT acc, simd_mask<1> pred, flags = {});      // (acc-6)
+/// block_load(AccessorT acc, simd_mask<1> pred, props = {});      // (acc-bl-6)
 
 /// simd<T, N>
-/// block_load(AccessorT acc, OffsetT offset, props = {});         // (acc-1)
+/// block_load(AccessorT acc, OffsetT byte_offset, props = {});    // (acc-bl-1)
 /// This function loads a contiguous memory block referenced
-/// by accessor \p acc and byte-offset \p offset.
+/// by accessor \p acc and \p byte_offset.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -1112,22 +1116,30 @@ block_load(AccessorTy acc, detail::DeviceAccessorOffsetT offset, Flags flags) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
+/// the \p byte_offset must be at least 4-byte aligned for elements of 4-bytes
+/// or smaller and 8-byte aligned for 8-byte elements.
+/// The alignment requirement may be less strict if stateless memory mode is ON,
+/// see block_load(usm_ptr, props) (aka usm-bl-01) for details/requirements.
 ///
-/// Restrictions - cache hint imposed - temporary:
-/// If L1 or L2 cache hint is passed, then:
-/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
-/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
-///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+/// Restrictions: there may be some extra restrictions depending on
+///    a) stateless memory mode enforcement is ON,
+///    b) cache hints are used,
+///    c) number of bytes loaded is either 16,32,64, or 128.
+/// If (b) || !(c), then the target device must be DG2 or PVC (not Gen12).
+/// If (a) && !(b), then there is no restriction on the number of elements
+/// to be loaded and \p byte_offset must be only element-aligned.
+///
+/// Gen12 requirements: !(b) && (c).
+///   It can load 16-, 32-, 64-, or 128-bytes only.
+/// DG2/PVC requirements:
+///   It can load such number of elements depending on the type 'T':
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
 ///                      or 128(only if alignment is 8-bytes or more);
-///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
 ///                      or 256(only if alignment is 8-bytes or more);
-///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
 ///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device must be DG2, PVC or newer GPU.
-/// (R1), (R2) and (R3) are not applied if there are no cache hints.
 template <typename T, int N, typename AccessorT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -1136,10 +1148,11 @@ __ESIMD_API std::enable_if_t<
         detail::is_device_accessor_with_v<AccessorT,
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
-block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
+block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
            PropertyListT props = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return block_load<T, N>(detail::accessorToPointer<T>(acc, offset), props);
+  return block_load<T, N>(detail::accessorToPointer<T>(acc, byte_offset),
+                          props);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
@@ -1166,41 +1179,42 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 !IsLegacySize) {
     return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-        acc, offset, simd_mask<1>(1), overaligned_tag<Alignment>{});
+        acc, byte_offset, simd_mask<1>(1), overaligned_tag<Alignment>{});
   } else {
-    return block_load<T, N>(acc, offset, overaligned_tag<Alignment>{});
+    return block_load<T, N>(acc, byte_offset, overaligned_tag<Alignment>{});
   }
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 
-/// simd<T, N> block_load(AccessorT acc, props);                   // (acc-2)
+/// simd<T, N> block_load(AccessorT acc, props = {});              // (acc-bl-2)
 /// This function loads a contiguous memory block referenced
-/// by accessor \p acc using implied offset=0.
+/// by accessor \p acc and implied offset=0.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
-/// esimd::cache_hint_L2, esimd::alignment. Other properties are ignored.
+/// esimd::cache_hint_L2. Other properties are ignored. If \p props specifies
+/// the alignment property, then it is ignored because this variant implies
+/// zero offset, which means the most favourable 16-byte alignment is used.
 ///
 /// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
 /// the cache_hint::none value is assumed by default.
 ///
-/// Alignment: If \p props does not specify the 'alignment' property, then
-/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
+/// Restrictions: there may be some extra restrictions depending on
+///    a) stateless memory mode enforcement is ON,
+///    b) cache hints are used,
+///    c) number of bytes loaded is either 16,32,64, or 128.
+/// If (b) || !(c), then the target device must be DG2 or PVC (not Gen12).
+/// If (a) && !(b), then there is no restriction on the number of elements
+/// to be loaded and \p byte_offset must be only element-aligned.
 ///
-/// Restrictions - cache hint imposed - temporary:
-/// If L1 or L2 cache hint is passed, then:
-/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
-/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
-///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
-///                      or 128(only if alignment is 8-bytes or more);
-///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
-///                      or 256(only if alignment is 8-bytes or more);
-///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
-///                      or 512(only if alignment is 8-bytes or more).
-/// R3: The target device must be DG2, PVC or newer GPU.
-/// (R1), (R2) and (R3) are not applied if there are no cache hints.
+/// Gen12 requirements: !(b) && (c).
+///   It can load 16-, 32-, 64-, or 128-bytes only.
+/// DG2/PVC requirements:
+///   It can load such number of elements depending on the type 'T':
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2), or 128;
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2), or 256;
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2), or 512.
 template <typename T, int N, typename AccessorT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -1209,17 +1223,29 @@ __ESIMD_API std::enable_if_t<
         detail::is_device_accessor_with_v<AccessorT,
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
-block_load(AccessorT acc, PropertyListT props = {}) {
-  return block_load<T, N>(acc, 0, props);
+block_load(AccessorT acc, PropertyListT /* props */ = {}) {
+  // Create new properties without the alignment property passed in 'props',
+  // and add alignment<16> as it is usable and most favourable in this case.
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
+  return block_load<T, N>(acc, 0, Props);
 }
 
 /// simd<T, N>
-/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
-///            simd<T, N> pass_thru, flags = {});                  // (acc-3)
+/// block_load(AccessorT acc, OffsetT byte_offset, simd_mask<1> pred,
+///            simd<T, N> pass_thru, props = {});                  // (acc-bl-3)
 /// This function loads a contiguous memory block referenced
-/// by accessor \p acc using the byte-offset \p offset.
+/// by accessor \p acc and the given \p byte_offset.
 /// If the predicate \p pred is set to 0, then the load is omitted and the
-/// returned \p pass_thru is returned.
+/// \p pass_thru value is returned.
 ///
 /// The parameter \p props specifies the optional compile-time properties
 /// of the type esimd::properties and may include esimd::cache_hint_L1,
@@ -1229,22 +1255,21 @@ block_load(AccessorT acc, PropertyListT props = {}) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
+/// the \p byte_offset must be at least 4-byte aligned for elements of 4-bytes
+/// or smaller and 8-byte aligned for 8-byte elements.
 ///
-/// Restrictions - cache hint imposed - temporary:
-/// If L1 or L2 cache hint is passed, then:
-/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
-/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
-///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+/// Restrictions - cache hint and predicate imposed - temporary:
+/// R1: \p byte_offset must be at least 4-byte aligned for elements of 4-bytes
+///     or  smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
 ///                      or 128(only if alignment is 8-bytes or more);
-///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
 ///                      or 256(only if alignment is 8-bytes or more);
-///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
 ///                      or 512(only if alignment is 8-bytes or more).
 /// R3: The target device must be DG2, PVC or newer GPU.
-/// (R1), (R2) and (R3) are not applied if there are no cache hints.
 template <typename T, int N, typename AccessorT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -1253,8 +1278,9 @@ __ESIMD_API std::enable_if_t<
         detail::is_device_accessor_with_v<AccessorT,
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
-block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
-           simd_mask<1> pred, simd<T, N> pass_thru, PropertyListT props = {}) {
+block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
+           simd_mask<1> pred, simd<T, N> pass_thru,
+           PropertyListT /* props */ = {}) {
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
           cache_hint::none);
@@ -1265,20 +1291,20 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
-  // If the alignment property is not passed, then assume the offset
+  // If the alignment property is not passed, then assume the byte_offset
   // is element-aligned and is at leat 4-bytes.
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
   constexpr size_t Alignment =
       detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
   return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-      acc, offset, pred, pass_thru, overaligned_tag<Alignment>{});
+      acc, byte_offset, pred, pass_thru, overaligned_tag<Alignment>{});
 }
 
 /// simd<T, N>
-/// block_load(AccessorT acc, OffsetT offset, simd_mask<1> pred,
-///            flags = {});                                        // (acc-4)
+/// block_load(AccessorT acc, OffsetT byte_offset, simd_mask<1> pred,
+///            props = {});                                        // (acc-bl-4)
 /// This function loads a contiguous memory block referenced
-/// by accessor \p acc using the byte-offset \p offset.
+/// by accessor \p acc and the given \p byte_offset.
 /// If the predicate \p pred is set to 0, then the load is omitted and the
 /// returned value is undefined.
 ///
@@ -1293,19 +1319,18 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
 /// the \p offset must be at least 4-byte aligned for elements of 4-bytes or
 ///     smaller and 8-byte aligned for 8-byte elements.
 ///
-/// Restrictions - cache hint imposed - temporary:
-/// If L1 or L2 cache hint is passed, then:
-/// R1: The pointer must be at least 4-byte aligned for elements of 4-bytes or
-///     smaller and 8-byte aligned for 8-byte elements.
-/// R2: The number of elements for 8-byte data: 1, 2, 3, 4, 8, 16, 32, 64;
-///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64,
+/// Restrictions - cache hint and predicate imposed - temporary:
+/// R1: \p byte_offset must be at least 4-byte aligned for elements of 4-bytes
+///     or  smaller and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
 ///                      or 128(only if alignment is 8-bytes or more);
-///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128,
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
 ///                      or 256(only if alignment is 8-bytes or more);
-///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256,
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
 ///                      or 512(only if alignment is 8-bytes or more).
 /// R3: The target device must be DG2, PVC or newer GPU.
-/// (R1), (R2) and (R3) are not applied if there are no cache hints.
 template <typename T, int N, typename AccessorT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -1314,17 +1339,39 @@ __ESIMD_API std::enable_if_t<
         detail::is_device_accessor_with_v<AccessorT,
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
-block_load(AccessorT acc, detail::DeviceAccessorOffsetT offset,
+block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
            simd_mask<1> pred, PropertyListT props = {}) {
   simd<T, N> PassThru; // Intentionally uninitialized.
-  return block_load<T, N>(acc, offset, pred, PassThru, props);
+  return block_load<T, N>(acc, byte_offset, pred, PassThru, props);
 }
 
 /// simd<T, N>
 /// block_load(AccessorT acc, simd_mask<1> pred,
-///            simd<T, N> pass_thru, flags = {});                // (acc-5)
-/// Same as (acc-3) variant except that the byte-offset is not passed
-/// and is implied to be 0.
+///            simd<T, N> pass_thru, props = {});                  // (acc-bl-5)
+/// This function loads a contiguous memory block referenced
+/// by accessor \p acc and implied offset=0.
+/// If the predicate \p pred is set to 0, then the load is omitted and the
+/// \p pass_thru value is returned.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2. Other properties are ignored. If \p props specifies
+/// the alignment property, then it is ignored because this variant implies
+/// zero offset, which means the most favourable 16-byte alignment is used.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Restrictions - cache hint and predicate imposed - temporary:
+/// R1: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R2: The target device must be DG2, PVC or newer GPU.
 template <typename T, int N, typename AccessorT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -1334,14 +1381,48 @@ __ESIMD_API std::enable_if_t<
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
 block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
-           PropertyListT props = {}) {
-  return block_load<T, N>(acc, 0, pred, pass_thru, props);
+           PropertyListT /* props */ = {}) {
+  // Create new properties without the alignment property passed in 'props',
+  // and add alignment<16> as it is usable and most favourable in this case.
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
+  return block_load<T, N>(acc, 0, pred, pass_thru, Props);
 }
 
 /// simd<T, N>
-/// block_load(AccessorT acc, simd_mask<1> pred, flags = {});    // (acc-6)
-/// Same as (acc-4) variant except that the byte-offset is not passed
-/// and is implied to be 0.
+/// block_load(AccessorT acc, simd_mask<1> pred, props = {});      // (acc-bl-6)
+/// This function loads a contiguous memory block referenced
+/// by accessor \p acc and implied offset=0.
+/// If the predicate \p pred is set to 0, then the load is omitted and some
+/// undefined value is returned.
+///
+/// The parameter \p props specifies the optional compile-time properties
+/// of the type esimd::properties and may include esimd::cache_hint_L1,
+/// esimd::cache_hint_L2. Other properties are ignored. If \p props specifies
+/// the alignment property, then it is ignored because this variant implies
+/// zero offset, which means the most favourable 16-byte alignment is used.
+///
+/// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
+/// the cache_hint::none value is assumed by default.
+///
+/// Restrictions - cache hint and predicate imposed - temporary:
+/// R1: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R2: The target device must be DG2, PVC or newer GPU.
 template <typename T, int N, typename AccessorT,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
@@ -1350,9 +1431,22 @@ __ESIMD_API std::enable_if_t<
         detail::is_device_accessor_with_v<AccessorT,
                                           detail::accessor_mode_cap::can_read>,
     simd<T, N>>
-block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
+block_load(AccessorT acc, simd_mask<1> pred, PropertyListT /* props */ = {}) {
+  // Create new properties without the alignment property passed in 'props',
+  // and add alignment<16> as it is usable and most favourable in this case.
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+  properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
+
   simd<T, N> PassThru; // Intentionally uninitialized.
-  return block_load<T, N>(acc, 0, pred, PassThru, props);
+  return block_load<T, N>(acc, 0, pred, PassThru, Props);
 }
 
 /// Each of the following block store functions stores a contiguous memory block
@@ -2404,16 +2498,16 @@ slm_scatter_rgba(simd<uint32_t, N> offsets,
 /// @tparam T Element type.
 /// @tparam N Number of elements to load.
 /// @tparam Flags The alignment specifier type tag.
-/// @param offset The byte-offset to load from.
+/// @param byte_offset The byte-offset to load from.
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
 template <typename T, int N,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>, simd<T, N>>
-slm_block_load(uint32_t offset, Flags = {}) {
+slm_block_load(uint32_t byte_offset, Flags = {}) {
   constexpr size_t Align = Flags::template alignment<simd<T, N>>;
-  return __esimd_slm_block_ld<detail::__raw_t<T>, N, Align>(offset);
+  return __esimd_slm_block_ld<detail::__raw_t<T>, N, Align>(byte_offset);
 }
 
 /// Stores elements of the vector \p vals to a contiguous block of SLM memory
@@ -3375,7 +3469,7 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 }
 
 /// Loads a contiguous block of SLM memory referenced by the given
-/// local-accessor \p acc and byte-offset \p offset, then returns the loaded
+/// local-accessor \p acc and \p byte_offset, then returns the loaded
 /// data as a simd object.
 /// The generated code depends on the combination {T, N, Flags}.
 /// Providing flags specifying the alignment of 16-bytes or more produces more
@@ -3383,25 +3477,25 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
 /// efficient gather is generated. If the loaded vector is too long
 /// for 1 flat-load GPU instruction, then a series of flat-loads and/or gathers
 /// may be generated.
-/// @tparam Tx Element type.
+/// @tparam T Element type.
 /// @tparam N Number of elements to load.
 /// @tparam AccessorTy Accessor type (auto-deduced).
 /// @tparam Flags The alignment specifier type tag.
 /// @param acc The local accessor.
-/// @param offset The offset to load from in bytes.
+/// @param byte_offset The offset to load from in bytes.
 /// @param Flags Specifies the alignment.
 /// @return A vector of loaded elements.
 ///
-template <typename Tx, int N, typename AccessorTy,
+template <typename T, int N, typename AccessorTy,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API
     std::enable_if_t<detail::is_local_accessor_with_v<
                          AccessorTy, detail::accessor_mode_cap::can_read> &&
                          is_simd_flag_type_v<Flags>,
-                     simd<Tx, N>>
-    block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
-  return slm_block_load<Tx, N, Flags>(offset +
-                                      __ESIMD_DNS::localAccessorToOffset(acc));
+                     simd<T, N>>
+    block_load(AccessorTy acc, uint32_t byte_offset, Flags flags = {}) {
+  return slm_block_load<T, N>(byte_offset + detail::localAccessorToOffset(acc),
+                              flags);
 }
 
 /// Variant of block_store that uses local accessor as a parameter.
