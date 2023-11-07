@@ -773,8 +773,8 @@ public:
   std::array<Value *, 3> getLocalGridInfo(IRBuilderBase &Builder,
                                           uint32_t Idx) const override {
     auto *I32Ty = Builder.getInt32Ty();
-    auto *WorkGroupId =
-        Builder.CreateIntrinsic(I32Ty, nvvm_read_ptx_sreg_ctaid_x + Idx, {});
+    auto *WorkGroupId = Builder.CreateIntrinsic(
+        I32Ty, Intrinsic::nvvm_read_ptx_sreg_ctaid_x + Idx, {});
     auto *LocalSize = Builder.CreateIntrinsic(
         I32Ty, Intrinsic::nvvm_read_ptx_sreg_ntid_x + Idx, {});
     auto *LocalId = Builder.CreateIntrinsic(
