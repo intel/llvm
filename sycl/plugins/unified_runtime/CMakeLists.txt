@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0e24ab8d136978d984be9e8cba34e23b4fbcf37c
-  # Merge: a62423d d5a4691
+  # commit 612a263613b235b0257fcaf2f128fc61b06e0c24
+  # Merge: 7db941d 55409e4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Nov 6 11:42:03 2023 +0000
-  #     Merge pull request #931 from konradkusiak97/konradkusiak/LocalMemSizeQuery
-  #     [UR] [CUDA] Changed the output of querying localMemSize
-  set(UNIFIED_RUNTIME_TAG 0e24ab8d136978d984be9e8cba34e23b4fbcf37c)
+  # Date:   Tue Nov 7 10:21:37 2023 +0000
+  #     Merge pull request #1011 from fabiomestre/fabio/fix_opencl_leak
+  #     [OpenCL] Fix memory leak
+  set(UNIFIED_RUNTIME_TAG 612a263613b235b0257fcaf2f128fc61b06e0c24)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
