@@ -236,6 +236,7 @@ property.
 --
 
 ==== Write hint property
+
 This property is a hint requesting specific cache behavior when
 storing to memory through an `annotated_ptr`.
 This property can affect the performance of device code, but it
