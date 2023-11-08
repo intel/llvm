@@ -57,6 +57,31 @@ int main() {
   }
   check_result(resVec, expected);
 
+  // Test negate (operator -)
+  bool res = true;
+  {
+    sycl::buffer<bool, 1> bufResVec(&res, 1);
+
+    q.submit([&](sycl::handler &cgh) {
+       sycl::accessor accRes(bufResVec, cgh, sycl::write_only);
+       cgh.single_task([=]() {
+         std::array<bool, size> arrTrue;
+         for (int i = 0; i < size; ++i) {
+           arrTrue[i] = -(static_cast<bool>(1));
+         }
+         auto vecTrue = sycl::vec<bool, size>(static_cast<bool>(1));
+         sycl::vec<bool, size> resVec = -vecTrue;
+         // Check that the vector matches the array.
+         for (int i = 0; i < size; ++i) {
+           if (resVec[i] != arrTrue[i]) {
+             accRes[0] = false;
+           }
+         }
+       });
+     }).wait_and_throw();
+  }
+  assert(res && "Incorrect result");
+
   // Test left shift (operator <<) 1
   {
     init_arr(expected, true);
