@@ -603,7 +603,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
       // TODO: Incoming file from the unbundling of the AOCX archive is
-      // represented as an object.
+      // represented as an object. The file should be considered as a filelist
+      // file to correspond with the '@' addition.
       bool IsAOCXFile = false;
       if (II.isFilename())
         IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
