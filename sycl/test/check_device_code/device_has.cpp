@@ -3,7 +3,9 @@
 // RUN: FileCheck %s --input-file %t.ll --check-prefix=CHECK-SRCLOC
 
 // Tests for IR of device_has(aspect, ...) attribute and
-// !sycl_used_aspects metadata
+// !sycl_used_aspects metadata.
+// We run FileCheck for 2 times to break metadata order dependency since
+// compiler has no guarantee for meta data order.
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
