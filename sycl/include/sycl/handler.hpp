@@ -1139,7 +1139,7 @@ private:
     // Range should be a multiple of this for improved performance.
     size_t GoodFactor = 32;
     // Range should be at least this to make rounding worthwhile.
-    size_t MinRangeX = 1024;
+    size_t MinRangeX = 32;
 
     // Check if rounding parameters have been set through environment:
     // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
