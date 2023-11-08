@@ -17,6 +17,14 @@ struct urEnqueueUSMMemcpy2DTestWithParam
             GTEST_SKIP() << "Device USM is not supported";
         }
 
+        bool memcpy2d_support = false;
+        ASSERT_SUCCESS(urContextGetInfo(
+            context, UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT,
+            sizeof(memcpy2d_support), &memcpy2d_support, nullptr));
+        if (!memcpy2d_support) {
+            GTEST_SKIP() << "2D USM memcpy is not supported";
+        }
+
         const auto [inPitch, inWidth, inHeight] = getParam();
         std::tie(pitch, width, height) =
             std::make_tuple(inPitch, inWidth, inHeight);
@@ -28,9 +36,9 @@ struct urEnqueueUSMMemcpy2DTestWithParam
                                         num_elements, &pDst));
         ur_event_handle_t memset_event = nullptr;
 
-        ASSERT_SUCCESS(urEnqueueUSMFill2D(
-            queue, pSrc, pitch, sizeof(memset_value), &memset_value, width,
-            height, 0, nullptr, &memset_event));
+        ASSERT_SUCCESS(urEnqueueUSMFill(queue, pSrc, sizeof(memset_value),
+                                        &memset_value, pitch * height, 0,
+                                        nullptr, &memset_event));
 
         ASSERT_SUCCESS(urQueueFlush(queue));
         ASSERT_SUCCESS(urEventWait(1, &memset_event));
@@ -171,9 +179,9 @@ TEST_P(urEnqueueUSMMemcpy2DNegativeTest, InvalidEventWaitList) {
     // enqueue something to get an event
     ur_event_handle_t event = nullptr;
     uint8_t fill_pattern = 14;
-    ASSERT_SUCCESS(urEnqueueUSMFill2D(queue, pDst, pitch, sizeof(fill_pattern),
-                                      &fill_pattern, width, height, 0, nullptr,
-                                      &event));
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, pDst, sizeof(fill_pattern),
+                                    &fill_pattern, pitch * height, 0, nullptr,
+                                    &event));
     ASSERT_NE(event, nullptr);
     ASSERT_SUCCESS(urQueueFinish(queue));
 
