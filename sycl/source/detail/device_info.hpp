@@ -759,7 +759,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 16, matrix_type::sint8, matrix_type::sint8,
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
