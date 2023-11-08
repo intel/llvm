@@ -102,4 +102,5 @@ add_mlir_dialect_library(MLIRGENXDialect
   MLIRSideEffectInterfaces
   MLIRVectorToLLVM
   MLIRLLVMDialect
-  )  
+  )
+
