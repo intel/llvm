@@ -196,6 +196,9 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
           moduleTranslation.lookupFunction(attr.getValue());
       call = builder.CreateCall(callee, operandsRef);
       call->setCallingConv(callee->getCallingConv());
+      // FIXME: This is just a temporary solution. Arguments should be attached
+      // to the operation and translated, not taken from callee.
+      call->setAttributes(callee->getAttributes());
     } else {
       llvm::FunctionType *calleeType = llvm::cast<llvm::FunctionType>(
           moduleTranslation.convertType(callOp.getCalleeFunctionType()));

@@ -2300,6 +2300,22 @@ llvm.func @streaming_func() attributes {arm_streaming} {
 
 // -----
 
+// CHECK: declare nonnull ptr @func_with_attrs(ptr noundef byval({ i64, i64, ptr }) align 8 dereferenceable_or_null(8), i8 noundef zeroext, i64)
+llvm.func external @func_with_attrs(%arg0: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef, llvm.byval = !llvm.struct<(i64, i64, !llvm.ptr)>}, %arg1: i8 {llvm.zeroext, llvm.noundef}, %arg2: i64) -> (!llvm.ptr {llvm.nonnull})
+
+// CHECK-LABEL: define void @caller(
+// CHECK-SAME:                      ptr noundef byval({ i64, i64, ptr }) align 8 dereferenceable_or_null(8) %[[#ARG0:]],
+// CHECK-SAME:                      i8 noundef %[[#ARG1:]],
+// CHECK-SAME:                      i64 noundef %[[#ARG2:]]
+// CHECK:         {{.*}} = call nonnull ptr @func_with_attrs(ptr noundef byval({ i64, i64, ptr }) align 8 dereferenceable_or_null(8) %[[#ARG0]], i8 noundef zeroext %[[#ARG1]], i64 %[[#ARG2]])
+// CHECK:         ret void
+llvm.func @caller(%arg0: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 8 : i64, llvm.noundef, llvm.byval = !llvm.struct<(i64, i64, !llvm.ptr)>}, %arg1: i8 {llvm.noundef}, %arg2: i64 {llvm.noundef}) {
+  %res = llvm.call @func_with_attrs(%arg0, %arg1, %arg2) : (!llvm.ptr, i8, i64) -> !llvm.ptr
+  llvm.return
+}
+
+// -----
+
 //
 // arm_locally_streaming attribute.
 //
