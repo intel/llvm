@@ -135,10 +135,15 @@ if lit_config.params.get('matrix-xmx8', False):
 if lit_config.params.get('matrix-fp16', False):
     config.available_features.add('matrix-fp16')
 
-#support for LIT parameter ze_debug<num>
-if lit_config.params.get('ze_debug'):
-    config.ze_debug = lit_config.params.get('ze_debug')
-    lit_config.note("ZE_DEBUG: "+config.ze_debug)
+#support for LIT parameter ur_l0_debug<num>
+if lit_config.params.get('ur_l0_debug'):
+    config.ur_l0_debug = lit_config.params.get('ur_l0_debug')
+    lit_config.note("UR_L0_DEBUG: "+config.ur_l0_debug)
+
+#support for LIT parameter ur_l0_leaks_debug
+if lit_config.params.get('ur_l0_leaks_debug'):
+    config.ur_l0_leaks_debug = lit_config.params.get('ur_l0_leaks_debug')
+    lit_config.note("UR_L0_LEAKS_DEBUG: "+config.ur_l0_leaks_debug)
 
 # Make sure that any dynamic checks below are done in the build directory and
 # not where the sources are located. This is important for the in-tree
