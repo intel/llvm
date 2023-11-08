@@ -1033,7 +1033,11 @@ public:
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec{-m_Data};
+    vec Ret{-m_Data};
+    if constexpr (std::is_same_v<Type, bool>) {
+      Ret.ConvertToDataT();
+    }
+    return Ret;
 #else
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)

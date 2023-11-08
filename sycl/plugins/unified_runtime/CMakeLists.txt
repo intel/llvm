@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ba994bb401aefad3631012d592be672f6ea0e23b
-  # Merge: be53fb3b f2a365ca
+  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
+  # Merge: 62e6d2f9 5fb82924
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Nov 3 11:09:52 2023 +0000
-  #     Merge pull request #968 from martygrant/martin/versionCheckSpecializationConstants
-  #     [OpenCL] Add version check for urProgramSetSpecializationConstants
-  set(UNIFIED_RUNTIME_TAG ba994bb401aefad3631012d592be672f6ea0e23b)
+  # Date:   Wed Nov 8 13:32:46 2023 +0000
+  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
+  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
+  set(UNIFIED_RUNTIME_TAG ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
