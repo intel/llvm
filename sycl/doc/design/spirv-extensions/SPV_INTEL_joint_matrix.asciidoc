@@ -66,8 +66,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2023-10-11
-| Revision           | 14
+| Last Modified Date | 2023-11-06
+| Revision           | 15
 |========================================
 
 == Dependencies
@@ -247,9 +247,9 @@ Note: To specify cache level for *OpCooperativeMatrixStoreKHR* one
 can use *CacheControlStoreINTEL* decoration from {cache_control_url}[SPV_INTEL_cache_controls extension]. +
  +
 
-[cols="1,1,6*3",width="100%"]
+[cols="1,1,8*3",width="100%"]
 |=====
-7+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
+9+|[[OpCooperativeMatrixPrefetchINTEL]]*OpCooperativeMatrixPrefetchINTEL* +
  +
 The instruction does not modify the behaviour of the program. The instruction
 prefetches 'Rows' X 'Columns' block of data. +
@@ -258,6 +258,14 @@ prefetches 'Rows' X 'Columns' block of data. +
 whose 'Type' operand is a scalar or vector type. If the *Shader* capability was
 declared, 'Pointer' must point into an array and any *ArrayStride* decoration on
 'Pointer' is ignored. +
+ +
+'X offset' must be a constant instruction with scalar 32-bit integer type.
+It specifies offset in bytes along X axis from the 'Pointer' where prefetched
+memory region starts from. +
+ +
+'Y offset' must be a constant instruction with scalar 32-bit integer type.
+It specifies offset in bytes along Y axis from the 'Pointer' where prefetched
+memory region starts from. +
  +
 'Rows' must be a constant instruction with scalar 32-bit integer type. +
  +
@@ -278,8 +286,10 @@ scalar 'integer type' and its exact semantics depend on 'MemoryLayout'. +
  +
 1+|Capability: +
 *{capability_prefetch_name}*
-1+| 6+variable | {OpCooperativeMatrixPrefetchINTEL_token} | '<id>' +
+1+| 8+variable | {OpCooperativeMatrixPrefetchINTEL_token} | '<id>' +
 'Pointer' | '<id>' +
+'X offset' | '<id>' +
+'Y offset' | '<id>' +
 'Rows' | '<id>' +
 'Columns' | Literal +
 'Cache Level' | '<id>' +
@@ -305,6 +315,8 @@ instructions (if the component types are appropriate): *OpRoundFToTF32INTEL*
 [cols="1,1,4*3",width="100%"]
 |=====
 5+|[[OpCooperativeMatrixGetElementCoordINTEL]]*OpCooperativeMatrixGetElementCoordINTEL* +
+ +
+*NOTE* the instruction is being deprecated. +
  +
 Returns (Row, Column) coordinate of dynamically selected element of a matrix.  +
  +
@@ -379,7 +391,10 @@ entire matrix. +
 
 === Issues
 
-None
+1. Should we keep *OpCooperativeMatrixGetElementCoordINTEL* once we have *OpCooperativeMatrixApplyFunctionINTEL*? +
+ +
+*RESOLVED*: No, *OpCooperativeMatrixGetElementCoordINTEL* will be removed, for now put deprecation note. +
+
 
 Revision History
 ----------------
@@ -403,4 +418,5 @@ Revision History
 |12|2023-09-25|Dmitry Sidorov|Add apply function instruction
 |13|2023-09-25|Dmitry Sidorov|Add convertion instructions for tf32 and bf16
 |14|2023-10-11|Dmitry Sidorov|Add matrix prefetch instruction
+|15|2023-11-06|Dmitry Sidorov|Put deprecation note on OpCooperativeMatrixGetElementCoordINTEL
 |========================================
