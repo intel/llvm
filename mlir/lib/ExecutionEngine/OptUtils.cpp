@@ -73,6 +73,13 @@ mlir::makeOptimizingTransformer(unsigned optLevel, unsigned sizeLevel,
     tuningOptions.LoopUnrolling = true;
     tuningOptions.LoopInterleaving = true;
     tuningOptions.LoopVectorization = true;
+
+    // SLPVectorizer generates LLVM intrinsic (e.g., `llvm.vector.reduce.*`)
+    // which may not be supported or correctly handled by llvm-spirv translator
+    // or IGC. The support of `llvm.vector.reduce.*` in llvm-spirv translator is
+    // tracked in https://jira.devtools.intel.com/browse/CMPLRLLVM-49720,
+    // planned for 2024.1. We can consider to reenable SLP vectorization when it
+    // is implemented in the translator.
     tuningOptions.SLPVectorization = false;
 
     PassBuilder pb(targetMachine, tuningOptions);
