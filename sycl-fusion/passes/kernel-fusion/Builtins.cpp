@@ -36,8 +36,6 @@ static raw_ostream &operator<<(raw_ostream &Os, const NDRange &ND) {
             << ND.getLocalSize();
 }
 
-/// Will generate a unique function name so that it can be reused in further
-/// stages.
 std::string Remapper::getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
                                       const NDRange &FusedNDRange,
                                       uint32_t Idx) {

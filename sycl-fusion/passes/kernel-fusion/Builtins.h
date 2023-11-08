@@ -47,15 +47,11 @@ public:
   explicit Remapper(const llvm::TargetFusionInfo &TargetInfo)
       : TargetInfo(TargetInfo) {}
 
+  ///
+  /// Generate a unique function name for a remapper function.
   static std::string getFunctionName(BuiltinKind K, const NDRange &SrcNDRange,
                                      const NDRange &FusedNDRange,
                                      uint32_t Idx = -1);
-
-  ///
-  /// Recursively remap index space getters builtins.
-  llvm::Expected<llvm::Function *> generateBuiltin(llvm::Function *F,
-                                                   const NDRange &SrcNDRange,
-                                                   const NDRange &FusedNDRange);
 
   ///
   /// Recursively remap index space getters builtins.
