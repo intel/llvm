@@ -49,11 +49,11 @@ This extension is written against the SYCL 2020 revision 6 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension also depends on the link:./sycl_ext_oneapi_properties.asciidoc[
+This extension depends on the link:./sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties] extension.
 
 This extension interacts with but does not depend upon the
-link:../sycl_ext_intel_fpga_kernel_interface_properties..asciidoc[
+link:../sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
   sycl_ext_intel_fpga_kernel_interface_properties]
 extension.
 
@@ -279,7 +279,7 @@ defined below.
 === `task_sequence` Scoping
 
 `task_sequence` objects should retire all outstanding `async` invocations before
-exiting scope.  This is performed by the `task_sequence` destructor unless the
+exiting scope. This is performed by the `task_sequence` destructor unless the
 `balanced` property was specified in which case it is the programmer's
 responsibility to ensure that `get` has been called for all invocations launched
 using `async` before the lifetime of the `task_sequence` object ends.
@@ -390,7 +390,7 @@ properties:
  - `pipelined`
  - `stall_enable_clusters`
 
-These are described in the link:../sycl_ext_oneapi_kernel_properties.asciidoc[
+These are described in the link:../sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
 sycl_ext_intel_fpga_kernel_interface_properties] document.
 
 Normally these properties are applicable only to kernels however this extension
