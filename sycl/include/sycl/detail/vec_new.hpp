@@ -691,6 +691,9 @@ public:
                        vec_data<DataT>::get(getValue(I)))));
       }
     }
+    if constexpr (std::is_same_v<convertT, bool>) {
+      Result.ConvertToDataT();
+    }
     return Result;
   }
 
