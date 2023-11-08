@@ -39,28 +39,22 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::common
         GTest::gtest_main)
 
-    if(USE_LOCAL_TEST_CONFIGURATION)
-	    add_test(NAME ${name}
-            COMMAND ${TEST_TARGET_NAME}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    else()
-        if(UR_BUILD_ADAPTER_CUDA)
-            add_test_adapter(${name} adapter_cuda)
-        endif()
-        if(UR_BUILD_ADAPTER_HIP)
-            add_test_adapter(${name} adapter_hip)
-        endif()
-        if(UR_BUILD_ADAPTER_L0)
-            add_test_adapter(${name} adapter_level_zero)
-        endif()
-        if(UR_BUILD_ADAPTER_OPENCL)
-            add_test_adapter(${name} adapter_opencl)
-        endif()
+    if(UR_BUILD_ADAPTER_CUDA)
+        add_test_adapter(${name} adapter_cuda)
+    endif()
+    if(UR_BUILD_ADAPTER_HIP)
+        add_test_adapter(${name} adapter_hip)
+    endif()
+    if(UR_BUILD_ADAPTER_L0)
+        add_test_adapter(${name} adapter_level_zero)
+    endif()
+    if(UR_BUILD_ADAPTER_OPENCL)
+        add_test_adapter(${name} adapter_opencl)
+    endif()
 
-        if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
-                OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL))
-            add_test_adapter(${name} adapter_null)
-        endif()
+    if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
+            OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL))
+        add_test_adapter(${name} adapter_null)
     endif()
 endfunction()
 
@@ -83,7 +77,6 @@ function(add_conformance_test_with_platform_environment name)
 endfunction()
 
 add_subdirectory(testing)
-add_subdirectory(adapters)
 
 add_subdirectory(runtime)
 add_subdirectory(platform)

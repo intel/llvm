@@ -316,20 +316,58 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
   CL_RETURN_ON_FAILURE(clGetProgramInfo(CLProg, CL_PROGRAM_CONTEXT, sizeof(Ctx),
                                         &Ctx, &RetSize));
 
-  cl_ext::clSetProgramSpecializationConstant_fn F = nullptr;
-  const ur_result_t URResult = cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, cl_ext::ExtFuncPtrCache->clSetProgramSpecializationConstantCache,
-      cl_ext::SetProgramSpecializationConstantName, &F);
+  std::unique_ptr<std::vector<cl_device_id>> DevicesInCtx;
+  cl_adapter::getDevicesFromContext(cl_adapter::cast<ur_context_handle_t>(Ctx),
+                                    DevicesInCtx);
 
-  if (URResult != UR_RESULT_SUCCESS) {
-    return URResult;
+  cl_platform_id CurPlatform;
+  clGetDeviceInfo((*DevicesInCtx)[0], CL_DEVICE_PLATFORM,
+                  sizeof(cl_platform_id), &CurPlatform, nullptr);
+
+  oclv::OpenCLVersion PlatVer;
+  cl_adapter::getPlatformVersion(CurPlatform, PlatVer);
+
+  bool UseExtensionLookup = false;
+  if (PlatVer < oclv::V2_2) {
+    UseExtensionLookup = true;
+  } else {
+    for (cl_device_id Dev : *DevicesInCtx) {
+      oclv::OpenCLVersion DevVer;
+
+      cl_adapter::getDeviceVersion(Dev, DevVer);
+
+      if (DevVer < oclv::V2_2) {
+        UseExtensionLookup = true;
+        break;
+      }
+    }
   }
 
-  for (uint32_t i = 0; i < count; ++i) {
-    CL_RETURN_ON_FAILURE(F(CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
-                           pSpecConstants[i].pValue));
-  }
+  if (UseExtensionLookup == false) {
+    for (uint32_t i = 0; i < count; ++i) {
+      CL_RETURN_ON_FAILURE(clSetProgramSpecializationConstant(
+          CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
+          pSpecConstants[i].pValue));
+    }
+  } else {
+    cl_ext::clSetProgramSpecializationConstant_fn
+        SetProgramSpecializationConstant = nullptr;
+    const ur_result_t URResult = cl_ext::getExtFuncFromContext<
+        decltype(SetProgramSpecializationConstant)>(
+        Ctx, cl_ext::ExtFuncPtrCache->clSetProgramSpecializationConstantCache,
+        cl_ext::SetProgramSpecializationConstantName,
+        &SetProgramSpecializationConstant);
 
+    if (URResult != UR_RESULT_SUCCESS) {
+      return URResult;
+    }
+
+    for (uint32_t i = 0; i < count; ++i) {
+      CL_RETURN_ON_FAILURE(SetProgramSpecializationConstant(
+          CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
+          pSpecConstants[i].pValue));
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 
