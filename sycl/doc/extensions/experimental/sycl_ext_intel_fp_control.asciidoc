@@ -108,8 +108,8 @@ The values that the property can be set to are a subset of the following that ca
 |Mode | Description
 | round_to_nearest | Round to nearest or even
 | round_upward | Round towards positive infinity
-  round_downward | Round towards negative infinity
-  round_toward_zero | Round towards zero
+| round_downward | Round towards negative infinity
+| round_toward_zero | Round towards zero
 | denorm_ftz | Denorm mode flush to zero
 | denorm_d_allow | Denorm mode double allow
 | denorm_f_allow | Denorm mode float allow
@@ -126,10 +126,10 @@ namespace sycl::ext::intel::experimental {
 
 
 enum class fp_mode : /* implementation defined */ {
-  rte = /* implementation defined */,
-  rtp = /* implementation defined */,
-  rtn = /* implementation defined */,
-  rtz = /* implementation defined */,
+  round_to_nearest = /* implementation defined */,
+  round_upward = /* implementation defined */,
+  round_downward = /* implementation defined */,
+  round_toward_zero = /* implementation defined */,
 
   denorm_ftz = /* implementation defined */,
   denorm_d_allow = /* implementation defined */,
@@ -146,7 +146,7 @@ struct fp_control_key {
       fp_control_key, std::integral_constant<fp_mode, option>>;
 };
 
-template <fp_mode option = fp_mode::rte>
+template <fp_mode option = fp_mode::round_to_nearest>
 inline constexpr fp_control_key::value_t<option> fp_control;
 
 } // namespace sycl::ext::intel::experimental
@@ -162,7 +162,7 @@ namespace intelex = sycl::ext::intel::experimental;
 {
   ...
   syclex::properties properties{
-     intelex::fp_control<intelex::fp_mode::denorm_allow | intelex::fp_mode::rtn>};
+     intelex::fp_control<intelex::fp_mode::denorm_allow | intelex::fp_mode::round_downward>};
   q.submit([&](handler& h) {
     h.parallel_for<class EsimdKernel>(32, properties, [=](id<1> i) SYCL_ESIMD_KERNEL {
       });
