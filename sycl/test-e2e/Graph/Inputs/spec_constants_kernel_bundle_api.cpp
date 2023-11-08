@@ -33,23 +33,24 @@ int main() {
   queue Queue{ExceptionHandler,
               {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  unsigned Errors = 0;
   if (!test_default_values(Queue)) {
     std::cout << "Test for default values of specialization constants failed!"
               << std::endl;
-    return 1;
+    Errors++;
   }
 
   if (!test_set_and_get_on_host(Queue)) {
     std::cout << "Test for set and get API on host failed!" << std::endl;
-    return 1;
+    Errors++;
   }
 
   if (!test_set_and_get_on_device(Queue)) {
     std::cout << "Test for set and get API on device failed!" << std::endl;
-    return 1;
+    Errors++;
   }
 
-  return 0;
+  return (Errors == 0) ? 0 : 1;
 };
 
 bool test_default_values(sycl::queue Queue) {
@@ -95,16 +96,17 @@ bool test_default_values(sycl::queue Queue) {
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
     Queue.wait_and_throw();
   }
+  unsigned Errors = 0;
 
   sycl::host_accessor IntAcc(IntBuffer, sycl::read_only);
   if (!check_value(2, IntAcc[0], "integer specialization constant"))
-    return false;
+    Errors++;
 
   sycl::host_accessor FloatAcc(FloatBuffer, sycl::read_only);
   if (!check_value(3.14f, FloatAcc[0], "float specialization constant"))
-    return false;
+    Errors++;
 
-  return true;
+  return Errors == 0;
 }
 
 bool test_set_and_get_on_host(sycl::queue Queue) {
@@ -174,7 +176,7 @@ bool test_set_and_get_on_host(sycl::queue Queue) {
   } catch (sycl::exception &e) {
   }
 
-  return 0 == Errors;
+  return Errors == 0;
 }
 
 bool test_set_and_get_on_device(sycl::queue Queue) {
@@ -217,13 +219,14 @@ bool test_set_and_get_on_device(sycl::queue Queue) {
     Queue.wait_and_throw();
   }
 
+  unsigned Errors = 0;
   sycl::host_accessor IntAcc(IntBuffer, sycl::read_only);
   if (!check_value(NewIntValue, IntAcc[0], "integer specialization constant"))
-    return false;
+    Errors++;
 
   sycl::host_accessor FloatAcc(FloatBuffer, sycl::read_only);
   if (!check_value(NewFloatValue, FloatAcc[0], "float specialization constant"))
-    return false;
+    Errors++;
 
-  return true;
+  return Errors == 0;
 }
