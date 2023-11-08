@@ -1,12 +1,11 @@
 LIBRARY @TARGET_LIBNAME@
 EXPORTS
+	urGetGlobalProcAddrTable
 	urGetBindlessImagesExpProcAddrTable
 	urGetCommandBufferExpProcAddrTable
 	urGetContextProcAddrTable
-	urGetDeviceProcAddrTable
 	urGetEnqueueProcAddrTable
 	urGetEventProcAddrTable
-	urGetGlobalProcAddrTable
 	urGetKernelProcAddrTable
 	urGetMemProcAddrTable
 	urGetPhysicalMemProcAddrTable
@@ -14,7 +13,8 @@ EXPORTS
 	urGetProgramProcAddrTable
 	urGetQueueProcAddrTable
 	urGetSamplerProcAddrTable
+	urGetUSMProcAddrTable
 	urGetUSMExpProcAddrTable
 	urGetUsmP2PExpProcAddrTable
-	urGetUSMProcAddrTable
 	urGetVirtualMemProcAddrTable
+	urGetDeviceProcAddrTable
