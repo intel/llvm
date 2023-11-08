@@ -930,8 +930,8 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     // Set-up to round-robin across allowed range of engines.
     uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
     uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines().second;
-    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
-                                FilterLowerIndex + ComputeQueues.size() - 1);
+    FilterUpperIndex = (std::min)((size_t)FilterUpperIndex,
+                                  FilterLowerIndex + ComputeQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       ComputeQueueGroup.LowerIndex = FilterLowerIndex;
       ComputeQueueGroup.UpperIndex = FilterUpperIndex;
@@ -959,8 +959,8 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   } else {
     uint32_t FilterLowerIndex = Range.first;
     uint32_t FilterUpperIndex = Range.second;
-    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
-                                FilterLowerIndex + CopyQueues.size() - 1);
+    FilterUpperIndex = (std::min)((size_t)FilterUpperIndex,
+                                  FilterLowerIndex + CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;

@@ -79,11 +79,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             UR_RESULT_ERROR_INVALID_VALUE);
   if (LocalWorkSize) {
     // L0
-    UR_ASSERT(LocalWorkSize[0] < std::numeric_limits<uint32_t>::max(),
+    UR_ASSERT(LocalWorkSize[0] < (std::numeric_limits<uint32_t>::max)(),
               UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(LocalWorkSize[1] < std::numeric_limits<uint32_t>::max(),
+    UR_ASSERT(LocalWorkSize[1] < (std::numeric_limits<uint32_t>::max)(),
               UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(LocalWorkSize[2] < std::numeric_limits<uint32_t>::max(),
+    UR_ASSERT(LocalWorkSize[2] < (std::numeric_limits<uint32_t>::max)(),
               UR_RESULT_ERROR_INVALID_VALUE);
     WG[0] = static_cast<uint32_t>(LocalWorkSize[0]);
     WG[1] = static_cast<uint32_t>(LocalWorkSize[1]);
@@ -110,7 +110,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
             Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
             Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = std::min(size_t(GroupSize[I]), GlobalWorkSize[I]);
+        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize[I]);
         while (GlobalWorkSize[I] % GroupSize[I]) {
           --GroupSize[I];
         }

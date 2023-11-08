@@ -121,7 +121,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     if (*NumPlatforms == 0)
       *NumPlatforms = URPlatformsCache->size();
     else
-      *NumPlatforms = std::min(URPlatformsCache->size(), (size_t)NumEntries);
+      *NumPlatforms = (std::min)(URPlatformsCache->size(), (size_t)NumEntries);
   }
 
   return UR_RESULT_SUCCESS;
