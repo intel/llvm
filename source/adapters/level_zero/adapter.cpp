@@ -175,17 +175,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
-    ur_adapter_handle_t Adapter, ///< [in] handle of the platform instance
+    [[maybe_unused]] ur_adapter_handle_t
+        AdapterHandle,    ///< [in] handle of the platform instance
     const char **Message, ///< [out] pointer to a C string where the adapter
                           ///< specific error message will be stored.
-    int32_t *Error ///< [out] pointer to an integer where the adapter specific
-                   ///< error code will be stored.
+    [[maybe_unused]] int32_t
+        *Error ///< [out] pointer to an integer where the adapter specific
+               ///< error code will be stored.
 ) {
-  std::ignore = Adapter;
-  std::ignore = Message;
-  std::ignore = Error;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  AdapterHandle = &Adapter;
+  *Message = ErrorMessage;
+  Error = &ErrorAdapterNativeCode;
+
+  return ErrorMessageCode;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
