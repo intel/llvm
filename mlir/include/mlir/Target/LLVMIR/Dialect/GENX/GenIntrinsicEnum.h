@@ -20,12 +20,7 @@ namespace llvm {
 namespace GenISAIntrinsic {
 
 enum ID : uint32_t {
-  // HACK: hard code the llvm::Intrinsic::num_intrinsics number to what was used
-  // to build the `libGenISAIntrisics.a` library. Need to rebuild the library
-  // with the same LLVM version as the one used to ship it.
-  //
-  // no_intrinsic = llvm::Intrinsic::num_intrinsics,
-  no_intrinsic = 11645,
+  no_intrinsic = llvm::Intrinsic::num_intrinsics,
   GenISA_2fto2bf,
   GenISA_assume_uniform,
   GenISA_bftof,
