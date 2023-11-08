@@ -71,25 +71,25 @@ public:
      * 'OpenCL<space><ocl_major_version.ocl_minor_version><space><vendor-specific
      * information>' for devices.
      */
-    std::string_view prefix = "OpenCL ";
-    size_t versionBegin = Version.find_first_of(" ");
-    size_t versionEnd = Version.find_first_of(" ", versionBegin + 1);
-    size_t versionSeparator = Version.find_first_of(".", versionBegin + 1);
+    std::string_view Prefix = "OpenCL ";
+    size_t VersionBegin = Version.find_first_of(" ");
+    size_t VersionEnd = Version.find_first_of(" ", VersionBegin + 1);
+    size_t VersionSeparator = Version.find_first_of(".", VersionBegin + 1);
 
-    bool haveOCLPrefix =
-        std::equal(prefix.begin(), prefix.end(), Version.begin());
+    bool HaveOCLPrefix =
+        std::equal(Prefix.begin(), Prefix.end(), Version.begin());
 
-    if (haveOCLPrefix && versionBegin != std::string::npos &&
-        versionEnd != std::string::npos &&
-        versionSeparator != std::string::npos) {
+    if (HaveOCLPrefix && VersionBegin != std::string::npos &&
+        VersionEnd != std::string::npos &&
+        VersionSeparator != std::string::npos) {
 
-      std::string versionMajor{Version.begin() + versionBegin + 1,
-                               Version.begin() + versionSeparator};
-      std::string versionMinor{Version.begin() + versionSeparator + 1,
-                               Version.begin() + versionEnd};
+      std::string VersionMajor{Version.begin() + VersionBegin + 1,
+                               Version.begin() + VersionSeparator};
+      std::string VersionMinor{Version.begin() + VersionSeparator + 1,
+                               Version.begin() + VersionEnd};
 
-      OCLMajor = strtoul(versionMajor.c_str(), nullptr, 10);
-      OCLMinor = strtoul(versionMinor.c_str(), nullptr, 10);
+      OCLMajor = strtoul(VersionMajor.c_str(), nullptr, 10);
+      OCLMinor = strtoul(VersionMinor.c_str(), nullptr, 10);
 
       if (!isValid()) {
         OCLMajor = OCLMinor = 0;
@@ -272,7 +272,7 @@ struct ExtFuncPtrCacheT {
 // piTeardown to avoid issues with static destruction order (a user application
 // might have static objects that indirectly access this cache in their
 // destructor).
-inline ExtFuncPtrCacheT *ExtFuncPtrCache;
+inline std::unique_ptr<ExtFuncPtrCacheT> ExtFuncPtrCache;
 
 // USM helper function to get an extension function pointer
 template <typename T>
