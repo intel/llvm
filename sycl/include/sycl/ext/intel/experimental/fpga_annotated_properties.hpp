@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -401,7 +402,7 @@ struct checkPropertiesForNonPointerType : std::true_type {
   CHECK_INVALID_PROPERTY(maxburst, list)
   CHECK_INVALID_PROPERTY(wait_request, list)
   CHECK_INVALID_PROPERTY(alignment, list)
-  // CHECK_INVALID_PROPERTY(usm_kind, list)
+  CHECK_INVALID_PROPERTY(usm_kind, list)
 };
 } // namespace detail
 

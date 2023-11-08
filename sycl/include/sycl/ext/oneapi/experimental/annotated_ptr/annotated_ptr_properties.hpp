@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp> // for properties_t
 #include <sycl/usm/usm_enums.hpp>
 
