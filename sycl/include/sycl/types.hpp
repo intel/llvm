@@ -676,10 +676,22 @@ public:
     using R = vec_data_t<convertT>;
     vec<convertT, NumElements> Result;
 
-    if constexpr (NativeVec && vec<convertT, NumElements>::NativeVec) {
+    // Whole vector conversion can only be done, if:
+    constexpr bool canUseNativeVectorConvert =
+        // - both vectors are represented using native vector types;
+        NativeVec && vec<convertT, NumElements>::NativeVec &&
+        // - it is not a signed to unsigned (or vice versa) conversion
+        //   see comments within 'convertImpl' for more details;
+        !detail::is_sint_to_from_uint<T, R>::value &&
+        // - destination type is not bool. bool is stored as integer under the
+        //   hood and therefore conversion to bool looks like conversion between
+        //   two integer types. Since bit pattern for true and false is not
+        //   defined, there is no guarantee that integer conversion yields
+        //   right results here;
+        !std::is_same_v<convertT, bool>;
+
+    if constexpr (canUseNativeVectorConvert) {
 #ifdef __SYCL_DEVICE_ONLY__
-      // If both vectors are representable as native vectors, then we can use
-      // a single vector-wide operation to do a conversion:
       Result.m_Data = detail::convertImpl<
           T, R, roundingMode, NumElements, VectorDataType,
           typename vec<convertT, NumElements>::VectorDataType>(m_Data);
