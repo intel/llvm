@@ -151,6 +151,9 @@ public:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
     case DecorationForcePow2DepthINTEL:
+    case DecorationStridesizeINTEL:
+    case DecorationWordsizeINTEL:
+    case DecorationTrueDualPortINTEL:
       return ExtensionID::SPV_INTEL_fpga_memory_attributes;
     case DecorationBurstCoalesceINTEL:
     case DecorationCacheSizeINTEL:
@@ -334,6 +337,9 @@ public:
     case DecorationMergeINTEL:
     case DecorationBankBitsINTEL:
     case DecorationForcePow2DepthINTEL:
+    case DecorationStridesizeINTEL:
+    case DecorationWordsizeINTEL:
+    case DecorationTrueDualPortINTEL:
       return ExtensionID::SPV_INTEL_fpga_memory_attributes;
     case DecorationBurstCoalesceINTEL:
     case DecorationCacheSizeINTEL:
