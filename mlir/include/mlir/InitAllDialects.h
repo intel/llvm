@@ -37,6 +37,7 @@
 #include "mlir/Dialect/GPU/TransformOps/GPUTransformOps.h"
 #include "mlir/Dialect/IRDL/IR/IRDL.h"
 #include "mlir/Dialect/Index/IR/IndexDialect.h"
+#include "mlir/Dialect/LLVMIR/GENXDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
@@ -117,6 +118,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   arm_sve::ArmSVEDialect,
                   vector::VectorDialect,
                   NVVM::NVVMDialect,
+                  GENX::GENXDialect,
                   ROCDL::ROCDLDialect,
                   shape::ShapeDialect,
                   sparse_tensor::SparseTensorDialect,
