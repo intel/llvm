@@ -525,6 +525,7 @@ class annotated_ref {
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
     T operator=(const T &) const;
+    T operator=(const volatile T &) const;
     T operator=(const annotated_ref&) const;
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
     T operatorOP(const T &) const;
@@ -560,6 +561,16 @@ T operator=(const T &);
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
+applying the annotations when the object is stored to memory.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operator=(const volatile T &);
+----
+|
+Writes an object of type `volatile T` to the location referenced by this wrapper,
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
