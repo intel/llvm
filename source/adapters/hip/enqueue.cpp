@@ -85,9 +85,17 @@ void simpleGuessLocalWorkSize(size_t *ThreadsPerBlock,
   }
 }
 
-ur_result_t setHipMemAdvise(const void *DevPtr, size_t Size,
+ur_result_t setHipMemAdvise(const void *DevPtr, const size_t Size,
                             ur_usm_advice_flags_t URAdviceFlags,
                             hipDevice_t Device) {
+  // Handle unmapped memory advice flags
+  if (URAdviceFlags &
+      (UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY |
+       UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY |
+       UR_USM_ADVICE_FLAG_BIAS_CACHED | UR_USM_ADVICE_FLAG_BIAS_UNCACHED)) {
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
   using ur_to_hip_advice_t = std::pair<ur_usm_advice_flags_t, hipMemoryAdvise>;
 
   static constexpr std::array<ur_to_hip_advice_t, 6>
@@ -127,14 +135,6 @@ ur_result_t setHipMemAdvise(const void *DevPtr, size_t Size,
       UR_CHECK_ERROR(
           hipMemAdvise(DevPtr, Size, FlagPair.second, hipCpuDeviceId));
     }
-  }
-
-  // Handle unmapped memory advice flags
-  if (URAdviceFlags &
-      (UR_USM_ADVICE_FLAG_SET_NON_ATOMIC_MOSTLY |
-       UR_USM_ADVICE_FLAG_CLEAR_NON_ATOMIC_MOSTLY |
-       UR_USM_ADVICE_FLAG_BIAS_CACHED | UR_USM_ADVICE_FLAG_BIAS_UNCACHED)) {
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;
