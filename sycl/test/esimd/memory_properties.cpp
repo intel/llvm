@@ -13,7 +13,10 @@ using namespace sycl::ext::intel::esimd;
 using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-foo(AccType &, float *, int byte_offset32, size_t byte_offset64);
+test_block_load(AccType &, float *, int byte_offset32, size_t byte_offset64);
+
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_atomic_update(AccType &, float *, int byte_offset32, size_t byte_offset64);
 
 class EsimdFunctor {
 public:
@@ -22,7 +25,8 @@ public:
   int byte_offset32;
   size_t byte_offset64;
   void operator()() __attribute__((sycl_explicit_simd)) {
-    foo(acc, ptr, byte_offset32, byte_offset64);
+    test_block_load(acc, ptr, byte_offset32, byte_offset64);
+    test_atomic_update(acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -36,8 +40,11 @@ void bar(AccType &acc, float *ptr, int byte_offset32, size_t byte_offset64) {
   kernel<class kernel_esimd>(esimdf);
 }
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
+// CHECK-LABEL: define {{.*}} @_Z15test_block_load{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(AccType &acc,
+                                                       float *ptrf,
+                                                       int byte_offset32,
+                                                       size_t byte_offset64) {
   properties props_a{cache_hint_L1<cache_hint::streaming>,
                      cache_hint_L2<cache_hint::cached>, alignment<16>};
   static_assert(props_a.has_property<cache_hint_L1_key>(), "Missing L1 hint");
@@ -143,4 +150,61 @@ foo(AccType &acc, float *ptrf, int byte_offset32, size_t byte_offset64) {
 
   // CHECK: call <16 x float> @llvm.genx.oword.ld.v16f32(i32 0, i32 {{[^)]+}}, i32 {{[^)]+}})
   auto z3 = block_load<float, 16>(acc, byte_offset64, props_c16);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z18test_atomic_update{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
+                   size_t byte_offset64) {
+  constexpr int VL = 4;
+  int *ptr = 0;
+  uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+
+  simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int);
+  auto offsets_view = offsets.select<VL, 1>();
+
+  auto add = simd<int, VL>(5);
+  auto compare = simd<int, VL>(VL, 1);
+  auto swap = compare * 2;
+  auto pred = simd_mask<VL>(1);
+
+  properties props_a{cache_hint_L1<cache_hint::uncached>,
+                     cache_hint_L2<cache_hint::write_back>};
+
+  properties props_b{cache_hint_L1<cache_hint::uncached>,
+                     cache_hint_L2<cache_hint::uncached>};
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
+  auto res_atomic_0 =
+      atomic_update<atomic_op::inc, int>(ptr, offsets, pred, props_a);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
+  auto res_atomic_1 =
+      atomic_update<atomic_op::inc, int>(ptr, offsets, pred, props_b);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
+  auto res_atomic_2 = atomic_update<atomic_op::inc, int>(ptr, offsets, props_a);
+
+  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
+  auto res_atomic_3 =
+      atomic_update<atomic_op::inc, int>(ptr, offsets_view, pred, props_a);
+
+  auto res_atomic_4 =
+      atomic_update<atomic_op::inc, int, VL>(ptr, offsets_view, props_a);
+
+  // atomic_upate without cache hints:
+  // CHECK: call <4 x i32> @llvm.genx.svm.atomic.inc.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
+  auto res_atomic_5 =
+      atomic_update<atomic_op::inc, int, VL>(ptr, offsets, pred);
+
+  // Try the atomic_update without cache hints, but with non-standart
+  // vector length to check that LSC atomic is generated.
+  // CHECK: call <5 x i32> @llvm.genx.lsc.xatomic.stateless.v5i32.v5i1.v5i64(<5 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <5 x i64> {{[^)]+}}, <5 x i32> undef, <5 x i32> undef, i32 0, <5 x i32> undef)
+  {
+    constexpr int VL = 5;
+    simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int);
+    auto pred = simd_mask<VL>(1);
+    auto atomic_res =
+        atomic_update<atomic_op::inc, int, VL>(ptr, offsets, pred);
+  }
 }

@@ -576,6 +576,21 @@ void check_cache_hint() {
   }
 }
 
+constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
+  if (DS == lsc_data_size::u8)
+    return lsc_data_size::u8u32;
+  if (DS == lsc_data_size::u16)
+    return lsc_data_size::u16u32;
+  return DS;
+}
+
+template <typename T> struct lsc_expand_type {
+  using type = std::conditional_t<
+      sizeof(T) <= 4,
+      std::conditional_t<std::is_signed_v<T>, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
+};
+
 } // namespace detail
 
 } // namespace ext::intel::esimd
