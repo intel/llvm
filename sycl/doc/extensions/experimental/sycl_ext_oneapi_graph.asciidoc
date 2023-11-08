@@ -745,7 +745,7 @@ such as kernel arguments, copy source, and destination addresses.
 Parameters:
 
 * `path` - The path to write the DOT file to.
-* `verbose` - if true, print additional information about the nodes such as kernel args
+* `verbose` - If true, print additional information about the nodes such as kernel args
 or memory access where applicable.
 
 Exceptions:

@@ -229,11 +229,11 @@ public:
     }
   }
 
-  /// Recursive Depth first traversal of linked nodes
-  /// to print node information and connection to Stream
-  /// @param Stream where to print node information
-  /// @Visited vector of the already visited nodes
-  /// @param Verbose if true, print additional information about the nodes such
+  /// Recursive Depth first traversal of linked nodes.
+  /// to print node information and connection to Stream.
+  /// @param Stream Where to print node information.
+  /// @param Visited Vector of the already visited nodes.
+  /// @param Verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void printDotRecursive(std::fstream &Stream,
                          std::vector<node_impl *> &Visited, bool Verbose) {
@@ -256,9 +256,9 @@ public:
   }
 
 private:
-  /// Prints Node information to Stream
-  /// @param Stream where to print the Node information
-  /// @param Verbose if true, print additional information about the nodes such
+  /// Prints Node information to Stream.
+  /// @param Stream Where to print the Node information
+  /// @param Verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void printDotCG(std::ostream &Stream, bool Verbose) {
     sycl::detail::CG::CGTYPE CGType = MCommandGroup->getType();
@@ -633,9 +633,9 @@ public:
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
 
-  /// Prints the contents of the graph to a text file in DOT format
-  /// @param FilePath is the path to the output file
-  /// @param Verbose if true, print additional information about the nodes such
+  /// Prints the contents of the graph to a text file in DOT format.
+  /// @param FilePath Path to the output file.
+  /// @param Verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void printGraphAsDot(const std::string FilePath, bool Verbose) const {
     /// Vector of nodes visited during the graph printing

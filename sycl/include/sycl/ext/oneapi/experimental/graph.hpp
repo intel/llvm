@@ -225,7 +225,7 @@ public:
   /// to the provided path. By default, this includes the graph topology, node
   /// types, node id and kernel names.
   /// @param path The path to write the DOT file to.
-  /// @param verbose if true, print additional information about the nodes such
+  /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void print_dot_graph(const std::string path, bool verbose = false) const;
 
