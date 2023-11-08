@@ -73,7 +73,7 @@ struct DevDescT {
 };
 
 static void addEscapeSymbolToSpecialCharacters(std::string &str) {
-  std::vector<std::string> specialCharacters{"(", ")", "[", "]", "."};
+  std::vector<std::string> specialCharacters{"(", ")", "[", "]", ".", "+", "-"};
   for (const auto &character : specialCharacters) {
     size_t pos = 0;
     while ((pos = str.find(character, pos)) != std::string::npos) {
