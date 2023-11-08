@@ -877,8 +877,13 @@ public:
     // Other subgroup-related builtins are computed from standard getters
     // (workgroup size, local ID etc.) and constants (subgroup max size := 32),
     // so we can't filter them out here.
-    return F->getIntrinsicID() != Intrinsic::amdgcn_mbcnt_hi ||
-           F->getIntrinsicID() != Intrinsic::amdgcn_mbcnt_lo;
+    switch (F->getIntrinsicID()) {
+    case Intrinsic::amdgcn_mbcnt_hi:
+    case Intrinsic::amdgcn_mbcnt_lo:
+      return false;
+    default:
+      return true;
+    }
   }
 
   std::array<Value *, 3> getLocalGridInfo(IRBuilderBase &Builder,
@@ -1072,8 +1077,8 @@ public:
       }
       IRBuilder<> Builder(V);
       auto *Call = Builder.CreateCall(Cache);
-      Call->setAttributes(F->getAttributes());
-      Call->setCallingConv(F->getCallingConv());
+      Call->setAttributes(Cache->getAttributes());
+      Call->setCallingConv(Cache->getCallingConv());
       // Truncation is required for the local size load, which is only `i16`.
       // The cast should be optimized away after inlining the remapper.
       auto *Cast = Builder.CreateTrunc(Call, V->getType());
