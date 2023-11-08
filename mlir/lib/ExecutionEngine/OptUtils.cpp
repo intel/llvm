@@ -73,7 +73,7 @@ mlir::makeOptimizingTransformer(unsigned optLevel, unsigned sizeLevel,
     tuningOptions.LoopUnrolling = true;
     tuningOptions.LoopInterleaving = true;
     tuningOptions.LoopVectorization = true;
-    tuningOptions.SLPVectorization = true;
+    tuningOptions.SLPVectorization = false;
 
     PassBuilder pb(targetMachine, tuningOptions);
 
