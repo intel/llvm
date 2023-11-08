@@ -2577,13 +2577,12 @@ slm_block_load(uint32_t byte_offset, PropertyListT props = {}) {
 /// The parameter \p pred is the one-element predicate. If it is set to 1,
 /// then all 'N' elements are loaded. Otherwise, the block load operation
 /// is a NO-OP.
+///
 /// The parameter 'props' specifies the optional compile-time properties
 /// list. Only esimd::alignment property is used. Other properties are ignored.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions are applied
-/// (see Restrictions below).
+/// the default expected alignment is the minimally required (see (R1) below).
 ///
 /// Restrictions - predicate imposed - temporary:
 /// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
@@ -2664,13 +2663,12 @@ slm_block_load(uint32_t byte_offset, simd_mask<1> pred,
 /// is a NO-OP.
 /// The parameter 'pass_thru' specifies the values being copied to the returned
 /// result if 'pred' is set to 0.
+///
 /// The parameter 'props' specifies the optional compile-time properties
 /// list. Only esimd::alignment property is used. Other properties are ignored.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions are applied
-/// (see Restrictions below).
+/// the default expected alignment is the minimally required (see (R1) below).
 ///
 /// Restrictions - predicate imposed - temporary:
 /// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
@@ -2822,13 +2820,12 @@ block_load(AccessorT lacc, PropertyListT props = {}) {
 /// The parameter \p pred is the one-element predicate. If it is set to 1,
 /// then all 'N' elements are loaded. Otherwise, the block load operation
 /// is a NO-OP, and some undefined value is returned.
+///
 /// The parameter 'props' specifies the optional compile-time properties
 /// list. Only esimd::alignment property is used. Other properties are ignored.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions are applied
-/// (see Restrictions below).
+/// the default expected alignment is the minimally required (see (R1) below).
 ///
 /// Restrictions - predicate imposed - temporary:
 /// R1: The \p lacc + \p byte_offset must be at least 4-byte aligned for 4-byte
@@ -2865,9 +2862,11 @@ block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
 /// then all 'N' elements are loaded. Otherwise, the block load operation
 /// is a NO-OP, and some undefined value is returned.
 ///
-/// The parameter 'props' may specify the optional compile-time properties.
-/// This function/variant currently ignores all of them. For example,
-/// the alignment property doesn't make sense with zero offset.
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
 ///
 /// Restrictions - predicate imposed - temporary:
 /// R1: The local accessor \p lacc must point to memory at least 4-byte aligned
@@ -2887,8 +2886,8 @@ __ESIMD_API std::enable_if_t<
                                      detail::accessor_mode_cap::can_read> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
-  return slm_block_load<T, N>(detail::localAccessorToOffset(acc), pred, props);
+block_load(AccessorT lacc, simd_mask<1> pred, PropertyListT props = {}) {
+  return slm_block_load<T, N>(detail::localAccessorToOffset(lacc), pred, props);
 }
 
 /// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
@@ -2904,9 +2903,7 @@ block_load(AccessorT acc, simd_mask<1> pred, PropertyListT props = {}) {
 /// list. Only esimd::alignment property is used. Other properties are ignored.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions are applied
-/// (see Restrictions below).
+/// the default expected alignment is the minimally required (see (R1) below).
 ///
 /// Restrictions - predicate imposed - temporary:
 /// R1: The \p lacc + \p byte_offset must be at least 4-byte aligned for 4-byte
@@ -2944,9 +2941,11 @@ block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
 /// then all 'N' elements are loaded. Otherwise, the block load operation
 /// is a NO-OP, and \p pass_thru value is returned.
 ///
-/// The parameter 'props' may specify the optional compile-time properties.
-/// This function/variant currently ignores all of them. For example,
-/// the alignment property doesn't make sense with zero offset.
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
 ///
 /// Restrictions - predicate imposed - temporary:
 /// R1: The local accessor \p lacc must point to memory at least 4-byte aligned
@@ -2966,12 +2965,10 @@ __ESIMD_API std::enable_if_t<
                                      detail::accessor_mode_cap::can_read> &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
     simd<T, N>>
-block_load(AccessorT acc, simd_mask<1> pred, simd<T, N> pass_thru,
-           PropertyListT /* props */ = {}) {
-  // Zero offset means we have the most favourable 16-byte alignment.
-  properties Props{alignment<16>};
-  return slm_block_load<T, N>(__ESIMD_DNS::localAccessorToOffset(acc), pred,
-                              pass_thru, Props);
+block_load(AccessorT lacc, simd_mask<1> pred, simd<T, N> pass_thru,
+           PropertyListT props = {}) {
+  return slm_block_load<T, N>(__ESIMD_DNS::localAccessorToOffset(lacc), pred,
+                              pass_thru, props);
 }
 
 /// Stores elements of the vector \p vals to a contiguous block of SLM memory

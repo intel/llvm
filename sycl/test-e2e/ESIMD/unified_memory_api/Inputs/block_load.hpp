@@ -78,14 +78,13 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
 
          simd<T, N> Vals;
          simd_mask<1> Mask = (GlobalID + 1) & 0x1;
+         // TODO: these 2 lines work-around the problem with scalar
+         // conversions to bfloat16. It could be just: "simd<T, N>
+         // PassThru(ElemOffset, 1);"
+         simd<uint32_t, N> PassThruInt(ElemOffset, 1);
+         simd<T, N> PassThru = PassThruInt;
          if constexpr (!CheckProperties) {
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(ElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(ElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              if (GlobalID & 0x1)
                Vals = block_load<T, N>(In + ElemOffset, Mask, PassThru);
              else
@@ -106,12 +105,6 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
            }
          } else { // if CheckProperties
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(ElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(ElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              if (GlobalID & 0x1)
                Vals = block_load<T, N>(In + ElemOffset, Mask, PassThru,
                                        LoadPropertiesT{});
@@ -295,14 +288,13 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
 
          simd<T, N> Vals;
          simd_mask<1> Mask = (GlobalID + 1) & 0x1;
+         // TODO: these 2 lines work-around the problem with scalar
+         // conversions to bfloat16. It could be just: "simd<T, N>
+         // PassThru(ElemOffset, 1);"
+         simd<uint32_t, N> PassThruInt(ElemOffset, 1);
+         simd<T, N> PassThru = PassThruInt;
          if constexpr (!CheckProperties) {
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(ElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(ElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              if (ElemOffset == 0) // try the variant without byte-offset
                Vals = block_load<T, N>(InAcc, Mask, PassThru);
              else
@@ -323,12 +315,6 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
            }
          } else { // if CheckProperties
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(ElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(ElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              if (ElemOffset == 0)
                Vals =
                    block_load<T, N>(InAcc, Mask, PassThru, LoadPropertiesT{});
@@ -491,14 +477,13 @@ bool testSLMAcc(queue Q, uint32_t Groups, uint32_t GroupSize,
 
          simd<T, N> Vals;
          simd_mask<1> Mask = (GlobalID + 1) & 0x1;
+         // TODO: these 2 lines work-around the problem with scalar
+         // conversions to bfloat16. It could be just: "simd<T, N>
+         // PassThru(GlobalElemOffset, 1);"
+         simd<uint32_t, N> PassThruInt(GlobalElemOffset, 1);
+         simd<T, N> PassThru = PassThruInt;
          if constexpr (!CheckProperties) {
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(GlobalElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(GlobalElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              if (LocalElemOffset == 0) // try the variant without byte-offset
                Vals = block_load<T, N>(LocalAcc, Mask, PassThru);
              else
@@ -520,12 +505,6 @@ bool testSLMAcc(queue Q, uint32_t Groups, uint32_t GroupSize,
            }
          } else { // if CheckProperties
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(GlobalElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(GlobalElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              if (LocalElemOffset == 0)
                Vals = block_load<T, N>(LocalAcc, Mask, PassThru,
                                        LoadPropertiesT{});
@@ -713,14 +692,13 @@ bool testSLM(queue Q, uint32_t Groups, LoadPropertiesT LoadProperties) {
 
          simd<T, N> Vals;
          simd_mask<1> Mask = (GlobalID + 1) & 0x1;
+         // TODO: these 2 lines work-around the problem with scalar
+         // conversions to bfloat16. It could be just: "simd<T, N>
+         // PassThru(GlobalElemOffset, 1);"
+         simd<uint32_t, N> PassThruInt(GlobalElemOffset, 1);
+         simd<T, N> PassThru = PassThruInt;
          if constexpr (!CheckProperties) {
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(GlobalElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(GlobalElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              Vals = slm_block_load<T, N>(LocalElemOffset * sizeof(T), Mask,
                                          PassThru);
            } else { // if !UsePassThruOperand
@@ -732,12 +710,6 @@ bool testSLM(queue Q, uint32_t Groups, LoadPropertiesT LoadProperties) {
            }
          } else { // if CheckProperties
            if constexpr (UsePassThruOperand) {
-             // TODO: these 2 lines work-around the problem with scalar
-             // conversions to bfloat16. It could be just: "simd<T, N>
-             // PassThru(GlobalElemOffset, 1);"
-             simd<uint32_t, N> PassThruInt(GlobalElemOffset, 1);
-             simd<T, N> PassThru = PassThruInt;
-
              Vals = slm_block_load<T, N>(LocalElemOffset * sizeof(T), Mask,
                                          PassThru, LoadPropertiesT{});
            } else { // if !UsePassThruOperand
