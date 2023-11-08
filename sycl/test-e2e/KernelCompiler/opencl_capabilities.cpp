@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: cm-compiler
+// REQUIRES: ocloc
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
