@@ -55,10 +55,6 @@
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
-#ifdef __SYCL_NATIVE_CPU__
-#include <sycl/detail/native_cpu.hpp>
-#endif
-
 #include <assert.h>
 #include <functional>
 #include <memory>

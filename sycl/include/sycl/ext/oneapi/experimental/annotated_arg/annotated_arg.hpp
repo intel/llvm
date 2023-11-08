@@ -54,8 +54,9 @@ annotated_arg(annotated_arg<T, old>, properties<std::tuple<ArgT...>>)
 template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   // This should always fail when instantiating the unspecialized version.
-  static_assert(is_property_list<PropertyListT>::value,
-                "Property list is invalid.");
+  static constexpr bool is_valid_property_list =
+      is_property_list<PropertyListT>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
 };
 
 // Partial specialization for pointer type
@@ -83,14 +84,25 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
 #endif
 
 public:
-  static_assert(is_property_list<property_list_t>::value,
-                "Property list is invalid.");
-  static_assert(check_property_list<T *, Props...>::value,
+  static constexpr bool is_valid_property_list =
+      is_property_list<property_list_t>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T *, Props...>::value;
+  static_assert(contains_valid_properties,
                 "The property list contains invalid property.");
   // check the set if FPGA specificed properties are used
-  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+  static constexpr bool hasValidFPGAProperties =
+      detail::checkValidFPGAPropertySet<Props...>::value;
+  static_assert(hasValidFPGAProperties,
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
                 "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -109,11 +121,12 @@ public:
   template <typename... PropertyValueTs>
   annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
       : obj(global_pointer_t(_ptr)) {
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t,
+                                    decltype(properties{props...})>>::value;
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value,
+        has_same_properties,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -125,16 +138,19 @@ public:
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
       : obj(other.obj) {
-    static_assert(std::is_convertible<T2, T *>::value,
+    static constexpr bool is_input_convertible =
+        std::is_convertible<T2, T *>::value;
+    static_assert(is_input_convertible,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value;
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-        "The constructed annotated_arg type must contain all the properties of "
-        "the input annotated_arg");
+        has_same_properties,
+        "The constructed annotated_arg type must contain all the properties "
+        "of the input annotated_arg");
   }
 
   // Constructs an annotated_arg object from another annotated_arg object and a
@@ -146,13 +162,17 @@ public:
                          const PropertyListV &proplist) noexcept
       : obj(other.obj) {
     (void)proplist;
-    static_assert(std::is_convertible<T2, T *>::value,
+    static constexpr bool is_input_convertible =
+        std::is_convertible<T2, T *>::value;
+    static_assert(is_input_convertible,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<PropertyListU, PropertyListV>>::value;
     static_assert(
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value,
+        has_same_properties,
         "The property list of constructed annotated_arg type must be the union "
         "of the input property lists");
   }
@@ -192,15 +212,27 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
 #endif
 
 public:
-  static_assert(is_device_copyable_v<T>, "Type T must be device copyable.");
-  static_assert(is_property_list<property_list_t>::value,
-                "Property list is invalid.");
-  static_assert(check_property_list<T, Props...>::value,
+  static constexpr bool is_device_copyable = is_device_copyable_v<T>;
+  static_assert(is_device_copyable, "Type T must be device copyable.");
+  static constexpr bool is_valid_property_list =
+      is_property_list<property_list_t>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T, Props...>::value;
+  static_assert(contains_valid_properties,
                 "The property list contains invalid property.");
   // check the set if FPGA specificed properties are used
-  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+  static constexpr bool hasValidFPGAProperties =
+      detail::checkValidFPGAPropertySet<Props...>::value;
+  static_assert(hasValidFPGAProperties,
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
                 "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -218,11 +250,12 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   annotated_arg(const T &_obj, PropertyValueTs... props) noexcept : obj(_obj) {
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t,
+                                    decltype(properties{props...})>>::value;
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t,
-                                        decltype(properties{props...})>>::value,
+        has_same_properties,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
@@ -234,16 +267,19 @@ public:
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
       : obj(other.obj) {
-    static_assert(std::is_convertible<T2, T>::value,
+    static constexpr bool is_input_convertible =
+        std::is_convertible<T2, T>::value;
+    static_assert(is_input_convertible,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<property_list_t, PropertyList2>>::value;
     static_assert(
-        std::is_same<
-            property_list_t,
-            detail::merged_properties_t<property_list_t, PropertyList2>>::value,
-        "The constructed annotated_arg type must contain all the properties of "
-        "the input annotated_arg");
+        has_same_properties,
+        "The constructed annotated_arg type must contain all the properties "
+        "of the input annotated_arg");
   }
 
   // Constructs an annotated_arg object from another annotated_arg object and a
@@ -255,13 +291,17 @@ public:
                          const PropertyListV &proplist) noexcept
       : obj(other.obj) {
     (void)proplist;
-    static_assert(std::is_convertible<T2, T>::value,
+    static constexpr bool is_input_convertible =
+        std::is_convertible<T2, T>::value;
+    static_assert(is_input_convertible,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
 
+    static constexpr bool has_same_properties = std::is_same<
+        property_list_t,
+        detail::merged_properties_t<PropertyListU, PropertyListV>>::value;
     static_assert(
-        std::is_same<property_list_t, detail::merged_properties_t<
-                                          PropertyListU, PropertyListV>>::value,
+        has_same_properties,
         "The property list of constructed annotated_arg type must be the union "
         "of the input property lists");
   }
