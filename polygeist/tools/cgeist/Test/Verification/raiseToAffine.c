@@ -19,9 +19,8 @@ void matmul(DATA_TYPE A[N][K], DATA_TYPE B[K][M], DATA_TYPE C[N][M]) {
       for (k = 0; k < K; k++)
         // GEMMSIGNED: {{.*}} = affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x400xf32>
         // GEMMSIGNED: {{.*}} = affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x300xf32>
-        // GEMMSIGNED: {{.*}} = arith.mulf
         // GEMMSIGNED: {{.*}} = affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x300xf32>
-        // GEMMSIGNED: {{.*}} = arith.addf
+        // GEMMSIGNED: {{.*}} = math.fma
         // GEMMSIGNED: affine.store {{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x300xf32>
         C[i][j] += A[i][k] * B[k][j];
 }
@@ -40,9 +39,8 @@ void matmul_unsigned_cmp(float A[100][200], float B[200][300], float C[100][300]
       for (k = 0; k < 200; k++) {
         // GEMMUNSIGNED: {{.*}} = affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x200xf32>
         // GEMMUNSIGNED: {{.*}} = affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x300xf32>
-        // GEMMUNSIGNED: {{.*}} = arith.mulf
         // GEMMUNSIGNED: {{.*}} = affine.load %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x300xf32>
-        // GEMMUNSIGNED: {{.*}} = arith.addf
+        // GEMMUNSIGNED: {{.*}} = math.fma
         // GEMMUNSIGNED: affine.store {{.*}}, %{{.*}}[%{{.*}}, %{{.*}}] : memref<?x300xf32>
         C[i][j] += A[i][k] * B[k][j];
       }

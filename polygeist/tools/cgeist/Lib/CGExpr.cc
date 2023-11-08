@@ -29,6 +29,10 @@ using namespace mlir;
 
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 
+static llvm::cl::opt<bool>
+    OmitFPContract("omit-fp-contract", llvm::cl::init(false),
+                   llvm::cl::desc("Do not contract FP operations"));
+
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *Expr) {
   auto Base = Visit(Expr->getBase());
@@ -2101,13 +2105,16 @@ ValueCategory MLIRScanner::VisitBinAssign(BinaryOperator *E) {
 class BinOpInfo {
 public:
   BinOpInfo(ValueCategory LHS, ValueCategory RHS, QualType Ty,
-            BinaryOperator::Opcode Opcode, const Expr *Expr)
-      : LHS(LHS), RHS(RHS), Ty(Ty), Opcode(Opcode), E(Expr) {}
+            BinaryOperator::Opcode Opcode, FPOptions FPFeatures,
+            const Expr *Expr)
+      : LHS(LHS), RHS(RHS), Ty(Ty), Opcode(Opcode), FPFeatures(FPFeatures),
+        E(Expr) {}
 
   ValueCategory getLHS() const { return LHS; }
   ValueCategory getRHS() const { return RHS; }
   constexpr QualType getType() const { return Ty; }
   constexpr BinaryOperator::Opcode getOpcode() const { return Opcode; }
+  FPOptions getFPFeatures() const { return FPFeatures; }
   constexpr const Expr *getExpr() const { return E; }
 
 private:
@@ -2115,8 +2122,65 @@ private:
   const ValueCategory RHS;
   const QualType Ty;                   // Computation Type.
   const BinaryOperator::Opcode Opcode; // Opcode of BinOp to perform
+  FPOptions FPFeatures;
   const Expr *E;
 };
+
+// Check whether it would be legal to emit a `math.fma` operation to represent
+// op and if so, build the fmuladd.
+//
+// Checks that (a) the operation is fusable, and (b) -ffp-contract=on.
+static std::optional<ValueCategory> tryEmitFMulAdd(const BinOpInfo &Op,
+                                                   OpBuilder &Builder,
+                                                   Location Loc,
+                                                   bool IsSub = false) {
+  const BinaryOperator::Opcode Opcode = Op.getOpcode();
+
+  assert((Opcode == BO_Add || Opcode == BO_AddAssign || Opcode == BO_Sub ||
+          Opcode == BO_SubAssign) &&
+         "Only fadd/fsub can be the root of an fmuladd.");
+
+  // Check whether this op is marked as fusable and fusion is allowed.
+  if (OmitFPContract || !Op.getFPFeatures().allowFPContractWithinStatement())
+    return {};
+
+  // Peek through fneg to look for fmul. Make sure fneg has no users, and that
+  // it is the only use of its operand.
+  constexpr auto isNegOperand =
+      [](ValueCategory Val) -> std::pair<ValueCategory, bool> {
+    auto Op = Val.val.getDefiningOp<arith::NegFOp>();
+    if (Op && Val.val.use_empty()) {
+      Value Operand = Op.getOperand();
+      if (Operand.hasOneUse())
+        return {ValueCategory(Operand, /*IsReference=*/false), true};
+    }
+    return {Val, false};
+  };
+  auto [LHS, NegLHS] = isNegOperand(Op.getLHS());
+  auto [RHS, NegRHS] = isNegOperand(Op.getRHS());
+
+  // We have a potentially fusable op. Look for a mul on one of the operands.
+  // Also, make sure that the mul result isn't used directly. In that case,
+  // there's no point creating a muladd operation.
+  constexpr auto tryEmit = [](OpBuilder &Builder, Location Loc,
+                              ValueCategory Original, ValueCategory LHS,
+                              ValueCategory RHS, bool NegLHS, bool NegMul,
+                              bool NegAdd) -> std::optional<ValueCategory> {
+    auto LHSOp = LHS.val.getDefiningOp<arith::MulFOp>();
+    if (LHSOp && (LHS.val.use_empty() || NegLHS)) {
+      // If we looked through fneg, erase it.
+      if (NegLHS)
+        Original.val.getDefiningOp()->erase();
+      return LHS.FMA(Builder, Loc, RHS, NegMul, NegAdd);
+    }
+    return {};
+  };
+  std::optional<ValueCategory> Res =
+      tryEmit(Builder, Loc, Op.getLHS(), LHS, RHS, NegLHS, NegLHS, IsSub);
+  return Res ? Res
+             : tryEmit(Builder, Loc, Op.getRHS(), RHS, LHS, NegRHS,
+                       IsSub ^ NegRHS, false);
+}
 
 ValueCategory MLIRScanner::EmitPromoted(Expr *E, QualType PromotionType) {
   assert(E && "Invalid input expression.");
@@ -2612,7 +2676,9 @@ std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
     LHS = EmitScalarConversion(LHS, LHSTy, E->getComputationLHSType(), Loc);
 
   // Expand the binary operator.
-  ValueCategory Result = (this->*Func)({LHS, RHS, Ty, OpCode, E});
+  ValueCategory Result =
+      (this->*Func)({LHS, RHS, Ty, OpCode,
+                     E->getFPFeaturesInEffect(Glob.getCGM().getLangOpts()), E});
   // Convert the result back to the LHS type,
   // potentially with Implicit Conversion sanitizer check.
   Result = EmitScalarConversion(Result, PromotionTypeCR, LHSTy, Loc);
@@ -2669,7 +2735,12 @@ BinOpInfo MLIRScanner::EmitBinOps(BinaryOperator *E, QualType PromotionType) {
   const ValueCategory RHS = EmitPromotedScalarExpr(E->getRHS(), PromotionType);
   const QualType Ty = !PromotionType.isNull() ? PromotionType : E->getType();
   const BinaryOperator::Opcode Opcode = E->getOpcode();
-  return {LHS, RHS, Ty, Opcode, E};
+  return {LHS,
+          RHS,
+          Ty,
+          Opcode,
+          E->getFPFeaturesInEffect(Glob.getCGM().getLangOpts()),
+          E};
 }
 
 static void informNoOverflowCheck(LangOptions::SignedOverflowBehaviorTy SOB,
@@ -2900,8 +2971,10 @@ ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
 
   assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
 
-  if (mlirclang::isFPOrFPVectorTy(LHS.val.getType()))
-    return LHS.FAdd(Builder, Loc, RHS.val);
+  if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
+    std::optional<ValueCategory> FMulAdd = tryEmitFMulAdd(Info, Builder, Loc);
+    return FMulAdd ? *FMulAdd : LHS.FAdd(Builder, Loc, RHS.val);
+  }
 
   return LHS.Add(Builder, Loc, RHS.val);
 }
@@ -2919,8 +2992,11 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
       return LHS.Sub(Builder, Loc, RHS.val);
     }
     assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
-    if (mlirclang::isFPOrFPVectorTy(LHS.val.getType()))
-      return LHS.FSub(Builder, Loc, RHS.val);
+    if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
+      std::optional<ValueCategory> FMulAdd =
+          tryEmitFMulAdd(Info, Builder, Loc, /*IsSub=*/true);
+      return FMulAdd ? *FMulAdd : LHS.FSub(Builder, Loc, RHS.val);
+    }
     return LHS.Sub(Builder, Loc, RHS.val);
   }
 
@@ -3103,7 +3179,8 @@ ValueCategory MLIRScanner::VisitMinus(UnaryOperator *E,
   const ValueCategory Zero =
       ValueCategory::getNullValue(Builder, Loc, Op.val.getType());
   return EmitBinSub(
-      BinOpInfo{Zero, Op, E->getType(), BinaryOperator::Opcode::BO_Sub, E});
+      BinOpInfo{Zero, Op, E->getType(), BinaryOperator::Opcode::BO_Sub,
+                E->getFPFeaturesInEffect(Glob.getCGM().getLangOpts()), E});
 }
 
 ValueCategory MLIRScanner::VisitImag(UnaryOperator *E, QualType PromotionType) {

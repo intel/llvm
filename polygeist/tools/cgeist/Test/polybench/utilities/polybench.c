@@ -1,4 +1,4 @@
-// RUN: cgeist %s polybench_alloc_data %stdinclude -S | FileCheck %s
+// RUN: cgeist -omit-fp-contract %s polybench_alloc_data %stdinclude -S | FileCheck %s
 // XFAIL: *
 /**
  * This version is stamped on May 10, 2016

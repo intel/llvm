@@ -1,5 +1,5 @@
-// RUN: cgeist %s %stdinclude -S | FileCheck %s
-// RUN: cgeist %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm | FileCheck %s --check-prefix EXEC
+// RUN: cgeist -omit-fp-contract %s %stdinclude -S | FileCheck %s
+// RUN: cgeist -omit-fp-contract %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm | FileCheck %s --check-prefix EXEC
 // requires loop restructure use after while fix
 // XFAIL: *
 /**
