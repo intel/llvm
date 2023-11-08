@@ -9,6 +9,9 @@
 //===----------------------------------------------------------------------===//
 #include "common.hpp"
 
+#include <algorithm>
+#include <memory>
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {

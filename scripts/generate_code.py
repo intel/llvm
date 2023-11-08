@@ -317,6 +317,25 @@ def _mako_info_hpp(path, namespace, tags, version, specs, meta):
 
 """
 Entry-point:
+    generates linker version scripts
+"""
+def _mako_linker_scripts(path, ext, namespace, tags, version, specs, meta):
+    name = "adapter"
+    filename = f"{name}.{ext}.in"
+    fin = os.path.join(templates_dir, f"{filename}.mako")
+    fout = os.path.join(path, filename)
+    print("Generating %s..." % fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
+"""
+Entry-point:
     generates lib code
 """
 def generate_lib(path, section, namespace, tags, version, specs, meta):
@@ -349,6 +368,8 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
 
     loc = 0
     loc += _mako_null_adapter_cpp(dstpath, namespace, tags, version, specs, meta)
+    loc += _mako_linker_scripts(dstpath, "map", namespace, tags, version, specs, meta)
+    loc += _mako_linker_scripts(dstpath, "def", namespace, tags, version, specs, meta)
     print("Generated %s lines of code.\n"%loc)
 
 """

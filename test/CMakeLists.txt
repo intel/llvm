@@ -16,6 +16,7 @@ enable_testing()
 
 add_subdirectory(python)
 add_subdirectory(loader)
+add_subdirectory(adapters)
 add_subdirectory(conformance)
 add_subdirectory(unified_malloc_framework)
 add_subdirectory(usm)
