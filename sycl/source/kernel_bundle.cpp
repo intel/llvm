@@ -360,7 +360,6 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
 /////////////////////////
 namespace ext::oneapi::experimental {
 
-namespace syclex = sycl::ext::oneapi::experimental;
 using source_kb = kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
 using exe_kb = kernel_bundle<bundle_state::executable>;
 using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
@@ -374,7 +373,7 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
   bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
                        (BE == sycl::backend::opencl);
   if ((Language == source_language::opencl) && BE_Acceptable) {
-    return syclex::detail::OpenCLC_Compilation_Available();
+    return detail::OpenCLC_Compilation_Available();
   }
 
   // otherwise
@@ -385,7 +384,7 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 source_kb create_kernel_bundle_from_source(const context &SyclContext,
-                                           syclex::source_language Language,
+                                           source_language Language,
                                            const std::string &Source) {
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in

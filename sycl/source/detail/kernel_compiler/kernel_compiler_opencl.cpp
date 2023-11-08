@@ -21,7 +21,6 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
-// copy/pasta from online_compiler.cpp
 // ensures the OclocLibrary has the right version, etc.
 void checkOclocLibrary(void *OclocLibrary) {
   void *OclocVersionHandle =

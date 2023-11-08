@@ -24,18 +24,18 @@ using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 //  local accessor
 // -----------------------
 auto constexpr LocalAccCLSource = R"===(
-    kernel void test_la(global int *a, local float *b, int n) {
+    kernel void test_la(global int *buf, local float *slm, int n) {
         if (get_local_id(0) == 0) {
           for (int i = 0; i < n; i++)
-              b[i] = i;
+              slm[i] = i + get_group_id(0);
         }
         barrier(CLK_LOCAL_MEM_FENCE);
 
         bool ok = true;
         for (int i = 0; i < n; i++)
-            ok &= (b[i] == i);
+            ok &= (slm[i] == i + get_group_id(0));
 
-        a[get_global_id(0)] = ok;
+        buf[get_global_id(0)] = ok;
     }
 )===";
 
@@ -76,7 +76,7 @@ void test_local_accessor() {
 //  USM pointer and scalars
 // -----------------------
 auto constexpr USMCLSource = R"===(
-__kernel void usm_kernel(__global int *usmPtr, int multiplier,  int added) {
+__kernel void usm_kernel(__global int *usmPtr, int multiplier,  float added) {
   size_t i = get_global_id(0);
   usmPtr[i] = (i * multiplier) + added;
 }
@@ -91,7 +91,9 @@ void test_usm_pointer_and_scalar() {
   exe_kb kbExe1 = syclex::build(kbSrc);
   sycl::kernel usm_kernel = kbExe1.ext_oneapi_get_kernel("usm_kernel");
 
-  int multiplier = 2, added = 100; // the scalars submitted to the kernel
+  // the scalars submitted to the kernel
+  int multiplier = 2;
+  float added = 100.f;
   constexpr size_t N = 32;
   int *usmPtr = sycl::malloc_shared<int>(N, q);
 
@@ -112,12 +114,15 @@ void test_usm_pointer_and_scalar() {
 
 // -----------------------
 //  structure passed by value
+//  Note that it is imperative that the struct defined in the OpenCL C string
+//  exactly match the one used for any kernel args. Overlooking their duality
+//  will lead to difficult to discover errors.
 // -----------------------
 
 auto constexpr StructSrc = R"===(
 struct pair {
     int multiplier;
-    int added;
+    float added;
 };
 __kernel void struct_kernel(__global int *usmPtr, struct pair adjuster) {
   size_t i = get_global_id(0);
@@ -127,7 +132,7 @@ __kernel void struct_kernel(__global int *usmPtr, struct pair adjuster) {
 
 struct pair {
   int multiplier;
-  int added;
+  float added;
 };
 
 void test_struct() {
@@ -140,7 +145,7 @@ void test_struct() {
   sycl::kernel struct_kernel = kbExe1.ext_oneapi_get_kernel("struct_kernel");
 
   pair adjuster;
-  adjuster.multiplier = 2, adjuster.added = 100;
+  adjuster.multiplier = 2, adjuster.added = 100.f;
   constexpr size_t N = 32;
   int *usmPtr = sycl::malloc_shared<int>(N, q);
 
