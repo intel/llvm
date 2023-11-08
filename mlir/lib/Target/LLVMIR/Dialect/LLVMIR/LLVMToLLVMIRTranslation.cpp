@@ -200,6 +200,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
       call = builder.CreateCall(calleeType, operandsRef.front(),
                                 operandsRef.drop_front());
     }
+    call->setCallingConv(convertCConvToLLVM(callOp.getCConv()));
     moduleTranslation.setAccessGroupsMetadata(callOp, call);
     moduleTranslation.setAliasScopeMetadata(callOp, call);
     moduleTranslation.setTBAAMetadata(callOp, call);
