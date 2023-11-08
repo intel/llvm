@@ -19,41 +19,49 @@ void check_conduit_and_register_map_properties() {
 
 void check_invalid_properties_on_non_pointer_types() {
   // check buffer location property specified on non pointer type
-  // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property buffer location cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property buffer_location cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   annotated_arg<int, decltype(properties{buffer_location<0>})> a;
 
   // check awidth property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property awidth cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_arg<int, decltype(properties{awidth<32>})> b;
 
   // check dwidth property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property dwidth cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_arg<int, decltype(properties{dwidth<32>})> c;
 
   // check latency property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property latency cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_arg<int, decltype(properties{latency<1>})> d;
 
   // check read_write_mode property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property read_write_mode cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_arg<int, decltype(properties{read_write_mode_readwrite})> e;
 
   // check maxburst property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property maxburst cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_arg<int, decltype(properties{maxburst<1>})> f;
 
   // check wait_request property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property wait_request cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   // expected-error@sycl/ext/oneapi/experimental/annotated_arg/annotated_arg.hpp:* {{FPGA Interface properties (i.e. awidth, dwidth, etc.) can only be set with BufferLocation together.}}
   annotated_arg<int, decltype(properties{wait_request_requested})> g;
 
   // check alignment property specified on non pointer type
   // expected-error@sycl/ext/intel/experimental/fpga_annotated_properties.hpp:* {{Property alignment cannot be specified for annotated_arg<T> when T is a non pointer type.}}
+  // expected-error@sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp:* {{Property is invalid for the given type.}}
   annotated_arg<int, decltype(properties{alignment<256>})> h;
 }
 
