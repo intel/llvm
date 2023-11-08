@@ -600,7 +600,8 @@ def LLVM_CallOp : LLVM_Op<"call",
                        Variadic<LLVM_Type>,
                        DefaultValuedAttr<LLVM_FastmathFlagsAttr,
                                          "{}">:$fastmathFlags,
-                       OptionalAttr<ElementsAttr>:$branch_weights);
+                       OptionalAttr<ElementsAttr>:$branch_weights,
+                       DefaultValuedAttr<CConv, "CConv::C">:$CConv);
   let results = (outs Optional<LLVM_Type>:$result);
 
   let builders = [
