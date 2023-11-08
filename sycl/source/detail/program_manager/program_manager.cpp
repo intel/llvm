@@ -2486,7 +2486,7 @@ bool isMatrixSupportedByHW(const std::string &MatrixTypeStrUser,
 }
 
 std::optional<sycl::exception> checkDevSupportJointMatrix(
-    const device &Dev, const std::string &JointMatrixProStr,
+    const std::string &JointMatrixProStr,
     const std::vector<ext::oneapi::experimental::matrix::combination>
         &SupportedMatrixCombinations) {
   std::istringstream JointMatrixStrStream(JointMatrixProStr);
@@ -2567,7 +2567,7 @@ std::optional<sycl::exception> checkDevSupportJointMatrix(
 }
 
 std::optional<sycl::exception> checkDevSupportJointMatrixMad(
-    const device &Dev, const std::string &JointMatrixProStr,
+    const std::string &JointMatrixProStr,
     const std::vector<ext::oneapi::experimental::matrix::combination>
         &SupportedMatrixCombinations) {
   std::istringstream JointMatrixMadStrStream(JointMatrixProStr);
@@ -2721,8 +2721,8 @@ checkDevSupportDeviceRequirements(const device &Dev,
     while (!JointMatrixByteArray.empty()) {
       JointMatrixByteArrayToStr += JointMatrixByteArray.consume<char>();
     }
-    std::optional<sycl::exception> Result = checkDevSupportJointMatrix(
-        Dev, JointMatrixByteArrayToStr, Combinations);
+    std::optional<sycl::exception> Result =
+        checkDevSupportJointMatrix(JointMatrixByteArrayToStr, Combinations);
     if (Result)
       return Result.value();
   }
@@ -2750,7 +2750,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
       JointMatrixMadByteArrayToStr += JointMatrixMadByteArray.consume<char>();
     }
     std::optional<sycl::exception> Result = checkDevSupportJointMatrixMad(
-        Dev, JointMatrixMadByteArrayToStr, Combinations);
+        JointMatrixMadByteArrayToStr, Combinations);
     if (Result)
       return Result.value();
   }
