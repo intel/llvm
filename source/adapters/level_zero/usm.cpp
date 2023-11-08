@@ -16,6 +16,7 @@
 #include "event.hpp"
 #include "usm.hpp"
 
+#include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
 #include <umf_helpers.hpp>
@@ -597,7 +598,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
       MemAllocaType = UR_USM_TYPE_SHARED;
       break;
     default:
-      urPrint("urUSMGetMemAllocInfo: unexpected usm memory type\n");
+      logger::error("urUSMGetMemAllocInfo: unexpected usm memory type");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return ReturnValue(MemAllocaType);
@@ -655,7 +656,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   default:
-    urPrint("urUSMGetMemAllocInfo: unsupported ParamName\n");
+    logger::error("urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -822,7 +823,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      urPrint("urUSMPoolCreate: unexpected chained stype\n");
+      logger::error("urUSMPoolCreate: unexpected chained stype");
       throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
     }
     }
