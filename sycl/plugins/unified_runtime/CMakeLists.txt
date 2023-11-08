@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
-  # Merge: 2ab0734 86f96f0
+  # commit 612a263613b235b0257fcaf2f128fc61b06e0c24
+  # Merge: 7db941d 55409e4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 27 16:36:23 2023 +0100
-  #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
-  #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
-  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
+  # Date:   Tue Nov 7 10:21:37 2023 +0000
+  #     Merge pull request #1011 from fabiomestre/fabio/fix_opencl_leak
+  #     [OpenCL] Fix memory leak
+  set(UNIFIED_RUNTIME_TAG 612a263613b235b0257fcaf2f128fc61b06e0c24)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

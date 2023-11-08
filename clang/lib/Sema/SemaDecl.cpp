@@ -266,7 +266,8 @@ static ParsedType recoverFromTypeInKnownDependentBase(Sema &S,
   ASTContext &Context = S.Context;
   auto *NNS = NestedNameSpecifier::Create(Context, nullptr, false,
                                           cast<Type>(Context.getRecordType(RD)));
-  QualType T = Context.getDependentNameType(ETK_Typename, NNS, &II);
+  QualType T =
+      Context.getDependentNameType(ElaboratedTypeKeyword::Typename, NNS, &II);
 
   CXXScopeSpec SS;
   SS.MakeTrivial(Context, NNS, SourceRange(NameLoc));
@@ -303,10 +304,10 @@ static ParsedType buildNamedType(Sema &S, const CXXScopeSpec *SS, QualType T,
   }
 
   if (!SS || SS->isEmpty())
-    return ParsedType::make(
-        S.Context.getElaboratedType(ETK_None, nullptr, T, nullptr));
+    return ParsedType::make(S.Context.getElaboratedType(
+        ElaboratedTypeKeyword::None, nullptr, T, nullptr));
 
-  QualType ElTy = S.getElaboratedType(ETK_None, *SS, T);
+  QualType ElTy = S.getElaboratedType(ElaboratedTypeKeyword::None, *SS, T);
   if (!WantNontrivialTypeSourceInfo)
     return ParsedType::make(ElTy);
 
@@ -383,9 +384,10 @@ ParsedType Sema::getTypeName(const IdentifierInfo &II, SourceLocation NameLoc,
               .get();
 
         NestedNameSpecifierLoc QualifierLoc = SS->getWithLocInContext(Context);
-        QualType T =
-            CheckTypenameType(IsImplicitTypename ? ETK_Typename : ETK_None,
-                              SourceLocation(), QualifierLoc, II, NameLoc);
+        QualType T = CheckTypenameType(
+            IsImplicitTypename ? ElaboratedTypeKeyword::Typename
+                               : ElaboratedTypeKeyword::None,
+            SourceLocation(), QualifierLoc, II, NameLoc);
         return ParsedType::make(T);
       }
 
@@ -648,7 +650,8 @@ ParsedType Sema::ActOnMSVCUnknownTypeName(const IdentifierInfo &II,
     return ParsedType();
   }
 
-  QualType T = Context.getDependentNameType(ETK_None, NNS, &II);
+  QualType T =
+      Context.getDependentNameType(ElaboratedTypeKeyword::None, NNS, &II);
 
   // Build type location information.  We synthesized the qualifier, so we have
   // to build a fake NestedNameSpecifierLoc.
@@ -2404,7 +2407,7 @@ FunctionDecl *Sema::CreateBuiltin(IdentifierInfo *II, QualType Type,
 
   if (getLangOpts().CPlusPlus) {
     LinkageSpecDecl *CLinkageDecl = LinkageSpecDecl::Create(
-        Context, Parent, Loc, Loc, LinkageSpecDecl::lang_c, false);
+        Context, Parent, Loc, Loc, LinkageSpecLanguageIDs::C, false);
     CLinkageDecl->setImplicit();
     Parent->addDecl(CLinkageDecl);
     Parent = CLinkageDecl;
@@ -2999,6 +3002,12 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
     NewAttr = S.MergeSYCLWorkGroupSizeHintAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLIntelMinWorkGroupsPerComputeUnitAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(D, *A);
+  else if (const auto *A =
+               dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
@@ -3441,7 +3450,7 @@ static bool EquivalentArrayTypes(QualType Old, QualType New,
     if (Ty->isIncompleteArrayType() || Ty->isPointerType())
       return true;
     if (const auto *VAT = Ctx.getAsVariableArrayType(Ty))
-      return VAT->getSizeModifier() == ArrayType::ArraySizeModifier::Star;
+      return VAT->getSizeModifier() == ArraySizeModifier::Star;
     return false;
   };
 
@@ -3453,8 +3462,8 @@ static bool EquivalentArrayTypes(QualType Old, QualType New,
   if (Old->isVariableArrayType() && New->isVariableArrayType()) {
     const auto *OldVAT = Ctx.getAsVariableArrayType(Old);
     const auto *NewVAT = Ctx.getAsVariableArrayType(New);
-    if ((OldVAT->getSizeModifier() == ArrayType::ArraySizeModifier::Star) ^
-        (NewVAT->getSizeModifier() == ArrayType::ArraySizeModifier::Star))
+    if ((OldVAT->getSizeModifier() == ArraySizeModifier::Star) ^
+        (NewVAT->getSizeModifier() == ArraySizeModifier::Star))
       return false;
     return true;
   }
@@ -6647,7 +6656,7 @@ static QualType TryToFixInvalidVariablyModifiedType(QualType T,
   }
 
   QualType FoldedArrayType = Context.getConstantArrayType(
-      ElemTy, Res, VLATy->getSizeExpr(), ArrayType::Normal, 0);
+      ElemTy, Res, VLATy->getSizeExpr(), ArraySizeModifier::Normal, 0);
   return Qs.apply(Context, FoldedArrayType);
 }
 
@@ -16733,11 +16742,10 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
   IdentifierInfo *Name = FD->getIdentifier();
   if (!Name)
     return;
-  if ((!getLangOpts().CPlusPlus &&
-       FD->getDeclContext()->isTranslationUnit()) ||
+  if ((!getLangOpts().CPlusPlus && FD->getDeclContext()->isTranslationUnit()) ||
       (isa<LinkageSpecDecl>(FD->getDeclContext()) &&
        cast<LinkageSpecDecl>(FD->getDeclContext())->getLanguage() ==
-       LinkageSpecDecl::lang_c)) {
+           LinkageSpecLanguageIDs::C)) {
     // Okay: this could be a libc/libm/Objective-C function we know
     // about.
   } else
@@ -19303,10 +19311,12 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
 
       if (const auto *RT = FT->getAs<RecordType>()) {
         if (RT->getDecl()->getArgPassingRestrictions() ==
-            RecordDecl::APK_CanNeverPassInRegs)
-          Record->setArgPassingRestrictions(RecordDecl::APK_CanNeverPassInRegs);
+            RecordArgPassingKind::CanNeverPassInRegs)
+          Record->setArgPassingRestrictions(
+              RecordArgPassingKind::CanNeverPassInRegs);
       } else if (FT.getQualifiers().getObjCLifetime() == Qualifiers::OCL_Weak)
-        Record->setArgPassingRestrictions(RecordDecl::APK_CanNeverPassInRegs);
+        Record->setArgPassingRestrictions(
+            RecordArgPassingKind::CanNeverPassInRegs);
     }
 
     if (Record && FD->getType().isVolatileQualified())
