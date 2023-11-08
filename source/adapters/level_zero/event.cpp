@@ -165,6 +165,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         // event signal because it is already guaranteed that previous commands
         // in this queue are completed when the signal is started.
         //
+        // Only consideration here is that when profiling is used, signalEvent
+        // cannot be used if EventWaitList.Lenght == 0. In those cases, we need
+        // to fallback directly to barrier to have correct timestamps. See here:
+        // https://spec.oneapi.io/level-zero/latest/core/api.html?highlight=appendsignalevent#_CPPv430zeCommandListAppendSignalEvent24ze_command_list_handle_t17ze_event_handle_t
+        //
         // TODO: this and other special handling of in-order queues to be
         // updated when/if Level Zero adds native support for in-order queues.
         //
