@@ -280,13 +280,16 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
+thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code) {
-  assert(strlen(message) <= MaxMessageSize);
-  strcpy(ErrorMessage, message);
-  ErrorMessageCode = error_code;
+[[maybe_unused]] void setErrorMessage(const char *pMessage,
+                                      ur_result_t ErrorCode,
+                                      int32_t AdapterErrorCode) {
+  assert(strlen(pMessage) <= MaxMessageSize);
+  strcpy(ErrorMessage, pMessage);
+  ErrorMessageCode = ErrorCode;
+  ErrorAdapterNativeCode = AdapterErrorCode;
 }
 
 ur_result_t zerPluginGetLastError(char **message) {

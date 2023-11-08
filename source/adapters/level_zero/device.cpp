@@ -631,7 +631,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
-                      UR_RESULT_SUCCESS);
+                      UR_RESULT_ERROR_UNINITIALIZED,
+                      static_cast<int32_t>(ZE_RESULT_ERROR_UNINITIALIZED));
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     // Only report device memory which zeMemAllocDevice can allocate from.

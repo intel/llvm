@@ -467,7 +467,9 @@ constexpr char ZE_SUPPORTED_EXTENSIONS[] =
 constexpr size_t MaxMessageSize = 256;
 extern thread_local ur_result_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
+extern thread_local int32_t ErrorAdapterNativeCode;
 
 // Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *message,
-                                      ur_result_t error_code);
+[[maybe_unused]] void setErrorMessage(const char *pMessage,
+                                      ur_result_t ErrorCode,
+                                      int32_t AdapterErrorCode);
