@@ -5,5 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-------------------------------------------------------------------------===//
+// REQUIRES: matrix
+
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{run} %t.out
 
 #include "joint_matrix_fill_store_impl.hpp"

@@ -91,7 +91,6 @@ template <size_t TM, size_t TN, size_t TK> bool run_test() {
   // TODO: uncomment these calls to verify other types of matrices
   // bool res = matrix_compare(TM, TK, (bfloat16 *)A, (bfloat16 *)A_ref);
   // res &= matrix_compare(TK / 2, TN * 2, (bfloat16 *)B, (bfloat16 *)B_ref);
-  // TODO later
   bool res = matrix_compare(TM, TN, (float *)C, (float *)C_ref);
 
   return res;
