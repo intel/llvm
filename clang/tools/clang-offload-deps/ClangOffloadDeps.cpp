@@ -186,7 +186,7 @@ int main(int argc, const char **argv) {
   }
 
   LLVMContext Context;
-  Type *Int8PtrTy = Type::getInt8PtrTy(Context);
+  Type *Int8PtrTy = PointerType::getUnqual(Context);
 
   // Create bitcode file with the symbol names for each target and write it to
   // the output file.

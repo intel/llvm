@@ -29,6 +29,12 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
+#include "llvm/Support/CommandLine.h"
+
+static llvm::cl::opt<bool> treatIndexAsSection(
+    "openmp-treat-index-as-section",
+    llvm::cl::desc("In the OpenMP data clauses treat `a(N)` as `a(N:N)`."),
+    llvm::cl::init(true));
 
 using DeclareTargetCapturePair =
     std::pair<mlir::omp::DeclareTargetCaptureClause,
@@ -1788,9 +1794,9 @@ bool ClauseProcessor::processMap(
           std::stringstream asFortran;
           mlir::Value baseAddr = Fortran::lower::gatherDataOperandAddrAndBounds<
               Fortran::parser::OmpObject, mlir::omp::DataBoundsType,
-              mlir::omp::DataBoundsOp>(converter, firOpBuilder,
-                                       semanticsContext, stmtCtx, ompObject,
-                                       clauseLocation, asFortran, bounds);
+              mlir::omp::DataBoundsOp>(
+              converter, firOpBuilder, semanticsContext, stmtCtx, ompObject,
+              clauseLocation, asFortran, bounds, treatIndexAsSection);
 
           // Explicit map captures are captured ByRef by default,
           // optimisation passes may alter this to ByCopy or other capture
@@ -2527,12 +2533,13 @@ static void genBodyOfTargetOp(
         [&](const fir::CharArrayBoxValue &v) {
           converter.bindSymbol(
               *sym,
-              fir::CharArrayBoxValue(arg, v.getLen(),
+              fir::CharArrayBoxValue(arg, extractBoundArgs(1).front(),
                                      extractBoundArgs(v.getExtents().size()),
                                      extractBoundArgs(v.getLBounds().size())));
         },
         [&](const fir::CharBoxValue &v) {
-          converter.bindSymbol(*sym, fir::CharBoxValue(arg, v.getLen()));
+          converter.bindSymbol(
+              *sym, fir::CharBoxValue(arg, extractBoundArgs(1).front()));
         },
         [&](const fir::UnboxedValue &v) { converter.bindSymbol(*sym, arg); },
         [&](const auto &) {
@@ -2696,8 +2703,16 @@ genTargetOp(Fortran::lower::AbstractConverter &converter,
           addMapInfoForBounds(v.getLBounds());
         },
         [&](const fir::CharArrayBoxValue &v) {
+          llvm::SmallVector<mlir::Value> len;
+          len.push_back(v.getLen());
+          addMapInfoForBounds(len);
           addMapInfoForBounds(v.getExtents());
           addMapInfoForBounds(v.getLBounds());
+        },
+        [&](const fir::CharBoxValue &v) {
+          llvm::SmallVector<mlir::Value> len;
+          len.push_back(v.getLen());
+          addMapInfoForBounds(len);
         },
         [&](const auto &) {
           // Nothing to do for non-box values.
@@ -3092,8 +3107,6 @@ genOMP(Fortran::lower::AbstractConverter &converter,
         !std::get_if<Fortran::parser::OmpClause::Allocate>(&clause.u) &&
         !std::get_if<Fortran::parser::OmpClause::Default>(&clause.u) &&
         !std::get_if<Fortran::parser::OmpClause::Final>(&clause.u) &&
-        !std::get_if<Fortran::parser::OmpClause::Untied>(&clause.u) &&
-        !std::get_if<Fortran::parser::OmpClause::Mergeable>(&clause.u) &&
         !std::get_if<Fortran::parser::OmpClause::Priority>(&clause.u) &&
         !std::get_if<Fortran::parser::OmpClause::Reduction>(&clause.u) &&
         !std::get_if<Fortran::parser::OmpClause::Depend>(&clause.u) &&

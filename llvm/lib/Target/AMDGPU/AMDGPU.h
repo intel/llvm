@@ -17,6 +17,7 @@
 namespace llvm {
 
 class AMDGPUTargetMachine;
+class GCNTargetMachine;
 class TargetMachine;
 
 // GlobalISel passes
@@ -89,8 +90,8 @@ extern char &AMDGPUMachineCFGStructurizerID;
 void initializeAMDGPUAlwaysInlinePass(PassRegistry&);
 
 Pass *createAMDGPUAnnotateKernelFeaturesPass();
-Pass *createAMDGPUAttributorPass();
-void initializeAMDGPUAttributorPass(PassRegistry &);
+Pass *createAMDGPUAttributorLegacyPass();
+void initializeAMDGPUAttributorLegacyPass(PassRegistry &);
 void initializeAMDGPUAnnotateKernelFeaturesPass(PassRegistry &);
 extern char &AMDGPUAnnotateKernelFeaturesID;
 
@@ -263,6 +264,15 @@ private:
 public:
   AMDGPULowerKernelArgumentsPass(TargetMachine &TM) : TM(TM){};
   PreservedAnalyses run(Function &, FunctionAnalysisManager &);
+};
+
+class AMDGPUAttributorPass : public PassInfoMixin<AMDGPUAttributorPass> {
+private:
+  TargetMachine &TM;
+
+public:
+  AMDGPUAttributorPass(TargetMachine &TM) : TM(TM){};
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 
 FunctionPass *createAMDGPUAnnotateUniformValues();

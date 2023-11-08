@@ -2076,7 +2076,7 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
   // to emit them correctly in the target (default) address space and avoid
   // emitting them in a private address space.
   if (getLangOpts().SYCLIsDevice)
-    TargetType = llvm::IntegerType::getInt8PtrTy(
+    TargetType = llvm::PointerType::get(
         getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
 
   // Get the type of a ctor entry, { i32, void ()*, i8* }.
@@ -3063,7 +3063,7 @@ static void emitUsed(CodeGenModule &CGM, StringRef Name,
   // valid.
   llvm::PointerType *TargetType = CGM.Int8PtrTy;
   if (CGM.getLangOpts().SYCLIsDevice)
-    TargetType = llvm::IntegerType::getInt8PtrTy(
+    TargetType = llvm::PointerType::get(
         CGM.getLLVMContext(),
         CGM.getContext().getTargetAddressSpace(LangAS::Default));
 
@@ -4283,8 +4283,17 @@ CodeGenModule::isTriviallyRecursive(const FunctionDecl *FD) {
 bool CodeGenModule::shouldEmitFunction(GlobalDecl GD) {
   if (getFunctionLinkage(GD) != llvm::Function::AvailableExternallyLinkage)
     return true;
+
   const auto *F = cast<FunctionDecl>(GD.getDecl());
   if (CodeGenOpts.OptimizationLevel == 0 && !F->hasAttr<AlwaysInlineAttr>())
+    return false;
+
+  // We don't import function bodies from other named module units since that
+  // behavior may break ABI compatibility of the current unit.
+  if (const Module *M = F->getOwningModule();
+      M && M->isModulePurview() &&
+      getContext().getCurrentNamedModule() != M->getTopLevelModule() &&
+      !F->hasAttr<AlwaysInlineAttr>())
     return false;
 
   if (F->hasAttr<NoInlineAttr>())

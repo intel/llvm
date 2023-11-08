@@ -164,7 +164,7 @@ void CodeGenFunction::EmitInvariantStart(llvm::Constant *Addr, CharUnits Size) {
   // Grab the llvm.invariant.start intrinsic.
   llvm::Intrinsic::ID InvStartID = llvm::Intrinsic::invariant_start;
   // Overloaded address space type.
-  llvm::Type *ResTy = llvm::PointerType::getInt8PtrTy(
+  llvm::Type *ResTy = llvm::PointerType::get(
       CGM.getLLVMContext(), Addr->getType()->getPointerAddressSpace());
   llvm::Type *ObjectPtr[1] = {ResTy};
   llvm::Function *InvariantStart = CGM.getIntrinsic(InvStartID, ObjectPtr);
