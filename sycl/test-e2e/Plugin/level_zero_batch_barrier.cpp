@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env SYCL_PI_TRACE=2 ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test that the wait with a barrier is fully batched, i.e. it doesn't cause
 // extra submissions.

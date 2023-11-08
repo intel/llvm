@@ -2,7 +2,7 @@
  * reported*/
 
 // RUN: %{build} -o %t.out
-// RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck  %s
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck  %s
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

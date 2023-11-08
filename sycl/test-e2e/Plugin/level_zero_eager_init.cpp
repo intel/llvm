@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env UR_L0_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // The test is to check that under SYCL_EAGER_INIT=1 there is no calls to
 // heavy L0 initialization in the hot reportable path.
