@@ -55,7 +55,7 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/jandres742/unified-runtime.git")
   # commit 534071e52f84bad1dd7fb210a360414507f3b3ae
   # Merge: 9fc82304 d164792b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
