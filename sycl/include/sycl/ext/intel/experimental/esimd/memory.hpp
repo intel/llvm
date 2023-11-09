@@ -3106,8 +3106,11 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
+    (__ESIMD_DNS::is_device_accessor_with_v<
+         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read> &&
+     Op == __ESIMD_NS::atomic_op::load) ||
+        __ESIMD_DNS::is_device_accessor_with_v<
+            AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
     __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
@@ -3159,11 +3162,12 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
-                  __ESIMD_NS::simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_local_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
+                     __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+                      __ESIMD_NS::simd_mask<N> pred) {
   return lsc_slm_atomic_update<Op, T, N, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), pred);
 }
@@ -3190,12 +3194,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
-                  __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
+                     __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+                      __ESIMD_NS::simd<T, N> src0,
+                      __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
@@ -3246,11 +3251,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
-                  __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_local_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
+                     __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+                      __ESIMD_NS::simd<T, N> src0,
+                      __ESIMD_NS::simd_mask<N> pred) {
   return lsc_slm_atomic_update<Op, T, N, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), src0, pred);
 }
@@ -3278,13 +3285,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy, typename Toffset>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
-        !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
-                  __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
-                  __ESIMD_NS::simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
+                     __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
+                      __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+                      __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
@@ -3336,12 +3343,13 @@ template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
           typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
-    __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
-                  __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
-                  __ESIMD_NS::simd_mask<N> pred) {
+__ESIMD_API
+    std::enable_if_t<__ESIMD_DNS::is_local_accessor_with_v<
+                         AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_write>,
+                     __ESIMD_NS::simd<T, N>>
+    lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
+                      __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+                      __ESIMD_NS::simd_mask<N> pred) {
   return lsc_slm_atomic_update<Op, T, N, DS>(
       offsets + __ESIMD_DNS::localAccessorToOffset(acc), src0, src1, pred);
 }
