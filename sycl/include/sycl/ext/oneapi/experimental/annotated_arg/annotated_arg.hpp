@@ -390,19 +390,16 @@ public:
                 "annotated_arg<T> when T is a non pointer type.");
 
   static constexpr bool has_awidth = has_property<awidth_key>();
-  static_assert(!has_awidth,
-                "Property awidth cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
+  static_assert(!has_awidth, "Property awidth cannot be specified for "
+                             "annotated_arg<T> when T is a non pointer type.");
 
   static constexpr bool has_dwidth = has_property<dwidth_key>();
-  static_assert(!has_dwidth,
-                "Property dwidth cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
+  static_assert(!has_dwidth, "Property dwidth cannot be specified for "
+                             "annotated_arg<T> when T is a non pointer type.");
 
   static constexpr bool has_latency = has_property<latency_key>();
-  static_assert(!has_latency,
-                "Property latency cannot be specified for "
-                "annotated_arg<T> when T is a non pointer type.");
+  static_assert(!has_latency, "Property latency cannot be specified for "
+                              "annotated_arg<T> when T is a non pointer type.");
 
   static constexpr bool has_read_write_mode =
       has_property<read_write_mode_key>();
