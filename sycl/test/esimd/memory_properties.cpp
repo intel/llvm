@@ -13,10 +13,10 @@ using namespace sycl::ext::intel::esimd;
 using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
 using LocalAccType = sycl::local_accessor<double, 1>;
 
-
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(AccType &, LocalAccType &, float *,
-                                           int byte_offset32,
-                                           size_t byte_offset64);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(AccType &,
+                                                       LocalAccType &, float *,
+                                                       int byte_offset32,
+                                                       size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_atomic_update(AccType &, float *, int byte_offset32, size_t byte_offset64);
 
@@ -45,10 +45,9 @@ void bar(AccType &acc, LocalAccType &local_acc, float *ptr, int byte_offset32,
 }
 
 // CHECK-LABEL: define {{.*}} @_Z15test_block_load{{.*}}
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(AccType &acc,
-                                           LocalAccType &local_acc, float *ptrf,
-                                           int byte_offset32,
-                                           size_t byte_offset64) {
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
+                int byte_offset32, size_t byte_offset64) {
   properties props_a{cache_hint_L1<cache_hint::streaming>,
                      cache_hint_L2<cache_hint::cached>, alignment<16>};
   static_assert(props_a.has_property<cache_hint_L1_key>(), "Missing L1 hint");
