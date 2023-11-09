@@ -1,10 +1,12 @@
 //===-------------- nativecpu_state.hpp - SYCL Native CPU state -------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Copyright (C) 2023 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 #include <cstdlib>
 namespace native_cpu {
@@ -20,8 +22,9 @@ struct state {
   state(size_t globalR0, size_t globalR1, size_t globalR2, size_t localR0,
         size_t localR1, size_t localR2, size_t globalO0, size_t globalO1,
         size_t globalO2)
-      : MGlobal_range{globalR0, globalR1, globalR2},
-        MWorkGroup_size{localR0, localR1, localR2},
+      : MGlobal_range{globalR0, globalR1, globalR2}, MWorkGroup_size{localR0,
+                                                                     localR1,
+                                                                     localR2},
         MNumGroups{globalR0 / localR0, globalR1 / localR1, globalR2 / localR2},
         MGlobalOffset{globalO0, globalO1, globalO2} {
     MGlobal_id[0] = 0;
