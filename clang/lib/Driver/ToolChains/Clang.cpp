@@ -5398,8 +5398,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         break;
       }
     }
-    if (HasFPGA) {
+    // At -O0, imply -fsycl-disable-range-rounding.
+    bool DisableRangeRounding = false;
+    if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+      if (A->getOption().matches(options::OPT_O0))
+        DisableRangeRounding = true;
+    }
+    if (DisableRangeRounding || HasFPGA)
       CmdArgs.push_back("-fsycl-disable-range-rounding");
+
+    if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.
       CmdArgs.push_back("-fintelfpga");
     }
