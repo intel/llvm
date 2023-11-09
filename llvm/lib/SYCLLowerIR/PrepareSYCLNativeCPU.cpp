@@ -236,7 +236,8 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   Type *DimTy = I32Ty;
   Type *ValTy = I64Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+  static FunctionType *FTy =
+      FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
@@ -246,15 +247,15 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
   auto *Zero = ConstantInt::get(I64Ty, 0);
   auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(NativeCPULocalId));
-  auto *GEP =
-      Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
+  auto *GEP = Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
   // store local id
   auto *Val = F->getArg(1);
   Builder.CreateStore(Val, GEP);
   // update global id
   auto loadHelper = [&](const char *BTName) {
     auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(BTName));
-    auto *Addr = Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
+    auto *Addr =
+        Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
     auto *Load = Builder.CreateLoad(I64Ty, Addr);
     return Load;
   };
@@ -264,7 +265,8 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   auto *Mul = Builder.CreateMul(WGId, WGSize);
   auto *GId = Builder.CreateAdd(Builder.CreateAdd(Mul, GlobalOffset), Val);
   auto *GIdOffset = ConstantInt::get(I32Ty, OffsetMap.at(NativeCPUGlobalId));
-  auto *GIdAddr = Builder.CreateGEP(StateType, StatePtr, {Zero, GIdOffset, IdxProm});
+  auto *GIdAddr =
+      Builder.CreateGEP(StateType, StatePtr, {Zero, GIdOffset, IdxProm});
   Builder.CreateStore(GId, GIdAddr);
   Builder.CreateRetVoid();
   return F;
@@ -293,14 +295,14 @@ static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
   return F;
 }
 
-static Function* addReplaceFunc(Module& M, StringRef Name, Type *StateType) {
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *Res;
-  if(Name.startswith("__dpcpp_nativecpu_get")) {
+  if (Name.startswith("__dpcpp_nativecpu_get")) {
     Res = addGetFunc(M, Name, StateType);
   } else if (Name == NativeCPUSetLocalId) {
     Res = addSetLocalIdFunc(M, Name, StateType);
   } else {
-    // the other __dpcpp_nativecpu_set* builtins are subgroup-related and 
+    // the other __dpcpp_nativecpu_set* builtins are subgroup-related and
     // not supported yet, emit empty functions for now.
     auto &Ctx = M.getContext();
     Type *I32Ty = Type::getInt32Ty(Ctx);
