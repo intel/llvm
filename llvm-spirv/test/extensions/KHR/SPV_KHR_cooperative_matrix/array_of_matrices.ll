@@ -1,5 +1,5 @@
 ;; Compiled from joint_matrix_bf16_fill_k_cache.cpp from https://github.com/intel/llvm
-;; command: clang++ -fsycl llvm/sycl/test-e2e/Matrix/joint_matrix_bf16_fill_k_cache.cpp -fsycl-device-only -o test.bc
+;; command: clang++ -fsycl -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 llvm/sycl/test-e2e/Matrix/joint_matrix_bf16_fill_k_cache.cpp -fsycl-device-only -o test.bc
 ;; and then JointMatrixINTEL target ext type was replaced with CooperativeMatrixKHR
 
 ; RUN: llvm-as < %s -o %t.bc
