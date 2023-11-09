@@ -201,8 +201,9 @@ the implicit `nd_range` `{7808, 32}`, which corresponds to a workgroup size of
 The parallel for range rounding will only be used in the X (outermost)
 dimension of a `sycl::range`, since if the inner dimensions are changed by the
 SYCL runtime this can change the stride offset of different dimensions. Range
-rounding will only be used if the SYCL runtime X dimension exceeds 32, which
-is a magic number chosen by the SYCL runtime.
+rounding will only be used if the SYCL runtime X dimension exceeds some minimum
+value, which can be configured using the
+`SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS` environment variable.
 
 Generation of range rounded kernels can be disabled by using the compiler flag
 `-fsycl-disable-range-rounding`.
