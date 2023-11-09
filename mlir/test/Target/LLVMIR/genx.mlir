@@ -1,33 +1,33 @@
 // RUN: mlir-translate -mlir-to-llvmir -split-input-file %s | FileCheck %s
 
-llvm.func @genx_special_regs() -> i64 {
+llvm.func @genx_special_regs() -> i32 {
   // CHECK-LABEL: genx_special_regs
-  // CHECK: call i64 @_Z12get_local_idj(i32 0)
-  %1 = genx.workitem.id.x : i64
+  // CHECK: [[CI:%.*]] = call i64 @_Z12get_local_idj(i32 0)
+  // CHECK-NEXT: trunc i64 [[CI]] to i32
+  %1 = genx.workitem.id.x : i32
   // CHECK: call i64 @_Z12get_local_idj(i32 1)
-  %2 = genx.workitem.id.y : i64
+  %2 = genx.workitem.id.y : i32
   // CHECK: call i64 @_Z12get_local_idj(i32 2)
-  %3 = genx.workitem.id.z : i64
+  %3 = genx.workitem.id.z : i32
   // CHECK: call i64 @_Z12get_group_idj(i32 0)
-  %4 = genx.workgroup.id.x : i64
+  %4 = genx.workgroup.id.x : i32
   // CHECK: call i64 @_Z12get_group_idj(i32 1)
-  %5 = genx.workgroup.id.y : i64
+  %5 = genx.workgroup.id.y : i32
   // CHECK: call i64 @_Z12get_group_idj(i32 2)
-  %6 = genx.workgroup.id.z : i64
+  %6 = genx.workgroup.id.z : i32
   // CHECK: call i64 @_Z12get_local_sizej(i32 0)
-  %7 = genx.workgroup.dim.x : i64
+  %7 = genx.workgroup.dim.x : i32
   // CHECK: call i64 @_Z12get_local_sizej(i32 1)
-  %8 = genx.workgroup.dim.y : i64
+  %8 = genx.workgroup.dim.y : i32
   // CHECK: call i64 @_Z12get_local_sizej(i32 2)
-  %9 = genx.workgroup.dim.z : i64
+  %9 = genx.workgroup.dim.z : i32
   // CHECK: call i64 @_Z12get_global_sizej(i32 0)
-  %10 = genx.grid.dim.x : i64
+  %10 = genx.grid.dim.x : i32
   // CHECK: call i64 @_Z12get_global_sizej(i32 1)
-  %11 = genx.grid.dim.y : i64
+  %11 = genx.grid.dim.y : i32
   // CHECK: call i64 @_Z12get_global_sizej(i32 2)
-  %12 = genx.grid.dim.z : i64
-
-  llvm.return %1 : i64
+  %12 = genx.grid.dim.z : i32
+  llvm.return %1 : i32
 }
 
 // -----

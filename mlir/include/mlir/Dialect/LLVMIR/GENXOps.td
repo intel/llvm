@@ -69,12 +69,21 @@ class GENX_DeviceFunctionOp<string mnemonic, string fnName,
                             int arg, list<Trait> traits = []> 
   : GENX_Op<mnemonic, !listconcat(traits, [Pure])>, 
     Results<(outs LLVM_Type:$res)>, Arguments<(ins)> {
-  string llvmBuilder = ""
-    # "  llvm::Type *retType = builder.getInt64Ty();\n"
-    # "  llvm::Type *argType = builder.getInt32Ty();\n"
-    # "  llvm::Value *arg = llvm::ConstantInt::get(argType, " # arg # ");\n"
-    # "  $res = createDeviceFunctionCall(builder, \"" # fnName # "\",\n"
-    # "                             retType, { argType }, { arg });";
+  string llvmBuilder = [{
+    llvm::Type *retType = builder.getInt64Ty();
+    llvm::Type *argType = builder.getInt32Ty();
+    llvm::Value *val = llvm::ConstantInt::get(argType, }] # arg # [{);
+    llvm::CallInst *ci = createDeviceFunctionCall(builder, "}] # fnName # [{", retType, { argType }, { val });
+    llvm::Type *opRetType = cast<llvm::IntegerType>(
+        moduleTranslation.convertType(op->getResultTypes()[0]));
+    if (opRetType == retType)
+      $res = ci;
+    else {
+      llvm::Instruction::CastOps opcode =
+          llvm::CastInst::getCastOpcode(ci, false, opRetType, false);
+      $res = builder.CreateCast(opcode, ci, opRetType);
+    }
+  }];
 
   let assemblyFormat = "attr-dict `:` type($res)";
 }
