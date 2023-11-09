@@ -40,3 +40,16 @@ extern thread_local char ErrorMessage[MaxMessageSize];
                 << std::endl;                                                  \
     }                                                                          \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+// Base class to store common data
+struct _ur_object {
+  ur_shared_mutex Mutex;
+};
+
+struct RefCounted {
+  std::atomic_uint32_t _refCount;
+  void incrementReferenceCount() { _refCount++; }
+  void decrementReferenceCount() { _refCount--; }
+  RefCounted() : _refCount{1} {}
+  uint32_t getReferenceCount() const { return _refCount; }
+};
