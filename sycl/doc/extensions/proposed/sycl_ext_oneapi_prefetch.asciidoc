@@ -227,6 +227,12 @@ void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlacehol
 } // namespace sycl::ext::oneapi::experimental
 ----
 
+[NOTE]
+====
+All these methods are available only if
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
+====
+
 [source,c++]
 ----
 template <typename Properties = empty_properties_t>
@@ -446,6 +452,12 @@ void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::dev
 
 } // namespace sycl::ext::oneapi::experimental
 ----
+
+[NOTE]
+====
+All these methods are available only if
+`sycl::ext::oneapi::is_property_list_v<std::decay_t<Properties>>` is true.
+====
 
 [source,c++]
 ----
