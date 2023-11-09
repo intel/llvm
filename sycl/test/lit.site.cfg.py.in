@@ -27,7 +27,6 @@ config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.sycl_use_libcxx = '@SYCL_USE_LIBCXX@'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 config.cuda_be = '@SYCL_BUILD_PI_CUDA@'
-config.esimd_emulator_be = '@SYCL_BUILD_PI_ESIMD_EMULATOR@'
 config.hip_be = '@SYCL_BUILD_PI_HIP@'
 config.opencl_be = '@SYCL_BUILD_PI_OPENCL@'
 config.level_zero_be = '@SYCL_BUILD_PI_LEVEL_ZERO@'
