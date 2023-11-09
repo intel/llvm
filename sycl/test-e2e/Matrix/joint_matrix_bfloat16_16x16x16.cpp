@@ -10,8 +10,6 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-// XFAIL: cpu
-
 #include "common.hpp"
 
 using namespace sycl;
