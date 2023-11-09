@@ -820,13 +820,9 @@ ValueCategory ValueCategory::FMA(OpBuilder &Builder, Location Loc,
   if (NegAdd)
     Addend = Addend.FNeg(Builder, Loc);
 
-  ValueCategory FMulAdd(
+  return ValueCategory(
       Builder.create<math::FmaOp>(Loc, MulOp0, MulOp1, Addend.val),
       /*IsReference=*/false);
-
-  MulOp.erase();
-
-  return FMulAdd;
 }
 
 ValueCategory ValueCategory::CAdd(OpBuilder &Builder, Location Loc,

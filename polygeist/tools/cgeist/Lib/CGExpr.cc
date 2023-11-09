@@ -2167,12 +2167,8 @@ static std::optional<ValueCategory> tryEmitFMulAdd(const BinOpInfo &Op,
                               ValueCategory RHS, bool NegLHS, bool NegMul,
                               bool NegAdd) -> std::optional<ValueCategory> {
     auto LHSOp = LHS.val.getDefiningOp<arith::MulFOp>();
-    if (LHSOp && (LHS.val.use_empty() || NegLHS)) {
-      // If we looked through fneg, erase it.
-      if (NegLHS)
-        Original.val.getDefiningOp()->erase();
+    if (LHSOp && (LHS.val.use_empty() || NegLHS))
       return LHS.FMA(Builder, Loc, RHS, NegMul, NegAdd);
-    }
     return {};
   };
   std::optional<ValueCategory> Res =
