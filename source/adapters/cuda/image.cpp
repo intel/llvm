@@ -628,15 +628,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ScopedContext Active(hQueue->getContext());
     CUstream Stream = hQueue->getNextTransferStream();
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+
     // We have to use a different copy function for each image dimensionality.
 
     if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        CUmemorytype memType;
+
+        // Check what type of memory is pDst. If cuPointerGetAttribute returns
+        // somthing different from CUDA_SUCCESS then we know that pDst memory
+        // type is a CuArray. Otherwise, it's CU_MEMORYTYPE_DEVICE.
+        bool isCudaArray =
+            cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                  (CUdeviceptr)pDst) != CUDA_SUCCESS;
+
         size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
         char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
-        UR_CHECK_ERROR(
-            cuMemcpyHtoAAsync((CUarray)pDst, dstOffset.x * PixelSizeBytes,
-                              (void *)SrcWithOffset, CopyExtentBytes, Stream));
+
+        if (isCudaArray) {
+          UR_CHECK_ERROR(cuMemcpyHtoAAsync(
+              (CUarray)pDst, dstOffset.x * PixelSizeBytes,
+              (void *)SrcWithOffset, CopyExtentBytes, Stream));
+        } else if (memType == CU_MEMORYTYPE_DEVICE) {
+          void *DstWithOffset =
+              (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
+          UR_CHECK_ERROR(cuMemcpyHtoDAsync((CUdeviceptr)DstWithOffset,
+                                           (void *)SrcWithOffset,
+                                           CopyExtentBytes, Stream));
+        } else {
+          // This should be unreachable.
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
@@ -679,13 +701,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
       }
     } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        CUmemorytype memType;
+        // Check what type of memory is pSrc. If cuPointerGetAttribute returns
+        // somthing different from CUDA_SUCCESS then we know that pSrc memory
+        // type is a CuArray. Otherwise, it's CU_MEMORYTYPE_DEVICE.
+        bool isCudaArray =
+            cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                  (CUdeviceptr)pSrc) != CUDA_SUCCESS;
+
         size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
-        size_t src_offset_bytes = PixelSizeBytes * srcOffset.x;
-        void *dst_with_offset =
+        void *DstWithOffset =
             (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
-        UR_CHECK_ERROR(cuMemcpyAtoHAsync(dst_with_offset, (CUarray)pSrc,
-                                         src_offset_bytes, CopyExtentBytes,
-                                         Stream));
+
+        if (isCudaArray) {
+          UR_CHECK_ERROR(cuMemcpyAtoHAsync(DstWithOffset, (CUarray)pSrc,
+                                           PixelSizeBytes * srcOffset.x,
+                                           CopyExtentBytes, Stream));
+        } else if (memType == CU_MEMORYTYPE_DEVICE) {
+          char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
+          UR_CHECK_ERROR(cuMemcpyDtoHAsync(DstWithOffset,
+                                           (CUdeviceptr)SrcWithOffset,
+                                           CopyExtentBytes, Stream));
+        } else {
+          // This should be unreachable.
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
         cpy_desc.srcXInBytes = srcOffset.x;
