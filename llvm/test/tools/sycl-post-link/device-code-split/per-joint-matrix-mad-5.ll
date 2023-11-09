@@ -1,4 +1,4 @@
-; This test has 3 kernels:
+; This test has 6 kernels:
 ; Kernel1 and Kernel2 have the same joint_matrix parameters
 ; Kernel3 and Kernel5 have the same joint_matrix and joint_matrix_mad parameters
 ; Kernel4 has the different joint_matrix parameters and same joint_matrix_mad parameters as Kernel3 and Kernel5
