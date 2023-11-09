@@ -54,8 +54,8 @@ not rely on APIs defined in this specification.*
 
 The APIs defined in this extension are only useful when using the Level Zero
 backend, and they are only useful when the Level Zero environment variable
-`ZE_FLAT_DEVICE_HIERARCHY=2` is set.  The APIs may be called even when using
-other backends, but they will return an empty list of composite devices.
+`ZE_FLAT_DEVICE_HIERARCHY=COMBINED` is set.  The APIs may be called even when
+using other backends, but they will return an empty list of composite devices.
 
 
 == Overview
