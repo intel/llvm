@@ -2405,6 +2405,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   pi_kernel PiKernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   pi_program PiProgram = nullptr;
+  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
   auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
@@ -2417,7 +2418,6 @@ pi_int32 enqueueImpCommandBufferKernel(
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
     std::shared_ptr<kernel_impl> SyclKernelImpl;
-    std::shared_ptr<device_image_impl> DeviceImageImpl;
     auto KernelName = CommandGroup.MKernelName;
     kernel_id KernelID =
         detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
@@ -2439,13 +2439,12 @@ pi_int32 enqueueImpCommandBufferKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
-  auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
-                     sycl::detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(
-        Plugin, PiKernel,
-        nullptr /* TODO: Handle spec constants and pass device image here */
-        ,
-        getMemAllocationFunc, Ctx, false, Arg, NextTrueIndex);
+  auto SetFunc = [&Plugin, &PiKernel, &DeviceImageImpl, &Ctx,
+                  &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
+                                         size_t NextTrueIndex) {
+    sycl::detail::SetArgBasedOnType(Plugin, PiKernel, DeviceImageImpl,
+                                    getMemAllocationFunc, Ctx, false, Arg,
+                                    NextTrueIndex);
   };
   // Copy args for modification
   auto Args = CommandGroup.MArgs;

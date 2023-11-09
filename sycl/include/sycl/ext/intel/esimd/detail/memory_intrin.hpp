@@ -182,6 +182,61 @@ __esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+/// SLM gather/block_load.
+/// Supported platforms: DG2, PVC
+///
+/// Collects elements located at slm and returns them
+/// as a single \ref simd object.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param pass_thru contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @return is a vector of type T and size N * to_int<VS>()
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_merge_slm(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// Similar to __esimd_lsc_load_merge_slm(), but the argument pass_thru is not
+/// explicitly specified, which results into random values in those elements of
+/// the returned result for which the corresponding element in \p pred is 0.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 /// Surface-based gather.
 /// Supported platforms: DG2, PVC
 ///
@@ -212,7 +267,7 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_merge_bti(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets, SurfIndAliasT surf_ind,
-    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru = 0)
+    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__

@@ -1,6 +1,7 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: %if ext_oneapi_cuda %{ %{run} %t.out %}
+// RUN: %if ext_oneapi_level_zero %{env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s %}
 
 // Checks the PI call trace to ensure that the bundle kernel of the single task
 // is used.

@@ -538,6 +538,8 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
+                 SYCLIntelMinWorkGroupsPerComputeUnitAttr,
+                 SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
                  SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
     });
   }
@@ -4489,6 +4491,8 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelNumSimdWorkItems:
   case attr::Kind::SYCLIntelSchedulerTargetFmaxMhz:
   case attr::Kind::SYCLIntelMaxGlobalWorkDim:
+  case attr::Kind::SYCLIntelMinWorkGroupsPerComputeUnit:
+  case attr::Kind::SYCLIntelMaxWorkGroupsPerMultiprocessor:
   case attr::Kind::SYCLIntelNoGlobalWorkOffset:
   case attr::Kind::SYCLIntelLoopFuse:
   case attr::Kind::SYCLIntelMaxConcurrency:
