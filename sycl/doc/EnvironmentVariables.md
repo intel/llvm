@@ -204,9 +204,8 @@ SYCL runtime this can change the stride offset of different dimensions. Range
 rounding will only be used if the SYCL runtime X dimension exceeds 32, which
 is a magic number chosen by the SYCL runtime.
 
-Generation of range rounded kernels can be disabled by defining the macro
-`__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__` at compile time. The macro must
-be defined before `#include <sycl/sycl.hpp>`.
+Generation of range rounded kernels can be disabled by using the compiler flag
+`-fsycl-disable-range-rounding`.
 
 ### Range Rounding Environment Variables
 
@@ -214,6 +213,9 @@ be defined before `#include <sycl/sycl.hpp>`.
 | -------------------- | ------ | ----------- |
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE`   | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS`  | `MinFactorX:GoodFactor:MinRangeX` | `MinFactorX`: The minimum range that the rounded range should be a multiple of (Default 16)  |
+|  |  | `GoodFactor`: The preferred range that the rounded range be a multiple of (Default 32)  |
+|  |  | `MinRangeX`: The minimum X dimension of the range such that range rounding is activated (Default 1024) |
 
 
 ## Controlling DPC++ Level Zero Plugin

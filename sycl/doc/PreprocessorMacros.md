@@ -48,13 +48,6 @@ This file describes macros that have effect on SYCL compiler and run-time.
   support for `assert()` via `aspect::ext_oneapi_native_assert`.
   This macro is undefined by default.
 
-- **__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__**
-
-  Defining this macro disables the automatic generation of a range rounded
-  kernel for `sycl::range` kernels. The macro must be defined before
-  `#include <sycl/sycl.hpp>`. Using this macro may reduce device binary size if
-  `sycl::range` kernels are used.
-
 - **SYCL2020_CONFORMANT_APIS (deprecated)**
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
   implementations may be widespread and not conform to it.
