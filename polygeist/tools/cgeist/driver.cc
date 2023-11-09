@@ -812,11 +812,8 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     });
 
     mlir::PassManager PM2(&Ctx);
-    if (SCFOpenMP) {
-      ConvertSCFToOpenMPPassOptions Options;
-      Options.useOpaquePointers = true;
-      PM2.addPass(createConvertSCFToOpenMPPass(Options));
-    }
+    if (SCFOpenMP)
+      PM2.addPass(createConvertSCFToOpenMPPass());
     PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (OpenMPOpt) {
       PM2.addPass(polygeist::createOpenMPOptPass());
