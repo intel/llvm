@@ -681,7 +681,7 @@ public:
 #ifdef __NVPTX__
         // - we are on CUDA, see intel/llvm#11840
         false &&
-#endif // __NVPTX__
+#endif
         // - both vectors are represented using native vector types;
         NativeVec && vec<convertT, NumElements>::NativeVec &&
         // - it is not a signed to unsigned (or vice versa) conversion
