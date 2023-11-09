@@ -249,8 +249,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     if (nullptr == pfnSetArgLocal) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
-    std::cout << "=== urKernelSetArgLocal " << argIndex << " " << argSize
-              << std::endl;
+
+    context.logger.debug("=== urKernelSetArgLocal");
 
     uptr rzLog = ComputeRZLog(argSize);
     uptr rzSize = RZLog2Size(rzLog);
@@ -279,7 +279,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    std::cout << "=== urKernelSetArgMemObj " << argIndex << std::endl;
+    context.logger.debug("=== urKernelSetArgMemObj");
 
     ur_result_t result =
         pfnSetArgMemObj(hKernel, argIndex, pProperties, hArgValue);
