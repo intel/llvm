@@ -73,7 +73,8 @@ class GENX_DeviceFunctionOp<string mnemonic, string fnName,
     llvm::Type *retType = builder.getInt64Ty();
     llvm::Type *argType = builder.getInt32Ty();
     llvm::Value *val = llvm::ConstantInt::get(argType, }] # arg # [{);
-    llvm::CallInst *ci = createDeviceFunctionCall(builder, "}] # fnName # [{", retType, { argType }, { val });
+    llvm::CallInst *ci = createDeviceFunctionCall(builder, "}] # fnName # [{",
+        retType, { argType }, { val });
     llvm::Type *opRetType = cast<llvm::IntegerType>(
         moduleTranslation.convertType(op->getResultTypes()[0]));
     if (opRetType == retType)
