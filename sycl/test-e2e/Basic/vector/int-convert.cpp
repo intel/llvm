@@ -14,11 +14,6 @@
 #include <string>
 #include <type_traits>
 
-// Debug prints are hidden under macro to reduce amount of output in CI runs
-// and thus speed up tests. However, they are useful when debugging the test
-// locally and can be quickly turned on in there.
-#ifdef ENABLE_DEBUG_OUTPUT
-
 template <typename T> std::string to_string() { return "unknown type"; }
 template <> std::string to_string<std::byte>() { return "std::byte"; }
 template <> std::string to_string<char>() { return "char"; }
@@ -36,33 +31,25 @@ template <> std::string to_string<unsigned long long>() {
 }
 template <> std::string to_string<bool>() { return "bool"; }
 
-#define DEBUG_PRINT(x) std::cout << x << std::endl;
-
-#else
-#define DEBUG_PRINT(x)
-#endif
-
 template <typename T>
-void check_vectors_equal(sycl::vec<T, 4> a, sycl::vec<T, 4> b) {
-  bool all_good =
+bool check_vectors_equal(sycl::vec<T, 4> a, sycl::vec<T, 4> b,
+                         const std::string &fail_message) {
+  bool result =
       a.x() == b.x() && a.y() == b.y() && a.z() == b.z() && a.w() == b.w();
-  if (!all_good) {
-    DEBUG_PRINT("host and device results mismatch:");
-    DEBUG_PRINT(
-        "\t{" << static_cast<int>(a.x()) << ", " << static_cast<int>(a.y())
-              << ", " << static_cast<int>(a.z()) << ", "
-              << static_cast<int>(a.w()) << "} vs {" << static_cast<int>(b.x())
-              << ", " << static_cast<int>(b.y()) << ", "
-              << static_cast<int>(b.z()) << ", " << static_cast<int>(b.w())
-              << "}");
+  if (!result) {
+    std::cout << fail_message << std::endl;
+    std::cout << "\t{" << static_cast<int>(a.x()) << ", "
+              << static_cast<int>(a.y()) << ", " << static_cast<int>(a.z())
+              << ", " << static_cast<int>(a.w()) << "} vs {"
+              << static_cast<int>(b.x()) << ", " << static_cast<int>(b.y())
+              << ", " << static_cast<int>(b.z()) << ", "
+              << static_cast<int>(b.w()) << "}" << std::endl;
   }
-  assert(all_good);
+
+  return result;
 }
 
-template <typename From, typename To> void check_convert() {
-  DEBUG_PRINT("checking vec<" << to_string<From>() << ", 4>::convert<"
-                              << to_string<To>() << ">()");
-
+template <typename From, typename To> bool check_convert() {
   sycl::vec<From, 4> input;
   if constexpr (std::is_signed_v<From>) {
     input = sycl::vec<From, 4>{static_cast<From>(37), static_cast<From>(0),
@@ -84,19 +71,28 @@ template <typename From, typename To> void check_convert() {
   auto acc = buf.get_host_access();
   auto deviceResult = acc[0];
 
-  // Host and device results must match.
-  check_vectors_equal(hostResult, deviceResult);
+  std::string test =
+      "(vec<" + to_string<From>() + ", 4>::convert<" + to_string<To>() + ">)";
 
+  // Host and device results must match.
+  bool host_and_device_match = check_vectors_equal(
+      hostResult, deviceResult, "host and device results do not match " + test);
   // And they should match with a reference, which is for integer conversions
   // can be computed with a simple static_cast.
   // Strictly speaking, integer conversions are underspecified in the SYCL 2020
   // spec, but `static_cast` implementation matches SYCL-CTS, so we will leave
   // it here for now as well.
   // See https://github.com/KhronosGroup/SYCL-Docs/issues/492
-  assert(deviceResult.x() == static_cast<To>(input.x()));
-  assert(deviceResult.y() == static_cast<To>(input.y()));
-  assert(deviceResult.z() == static_cast<To>(input.z()));
-  assert(deviceResult.w() == static_cast<To>(input.w()));
+  sycl::vec<To, 4> reference{
+      static_cast<To>(input.x()), static_cast<To>(input.y()),
+      static_cast<To>(input.z()), static_cast<To>(input.w())};
+  bool device_matches_reference = check_vectors_equal(
+      deviceResult, reference, "device results don't match reference " + test);
+  bool host_matches_reference = check_vectors_equal(
+      hostResult, reference, "host resutls don't match reference " + test);
+
+  return host_and_device_match && device_matches_reference &&
+         host_matches_reference;
 }
 
 template <class T>
@@ -104,46 +100,55 @@ constexpr auto has_unsigned_v =
     std::is_integral_v<T> && !std::is_same_v<T, bool> &&
     !std::is_same_v<T, sycl::byte> && !std::is_same_v<T, std::byte>;
 
-template <typename From, typename To> void check_signed_unsigned_convert_to() {
-  check_convert<From, To>();
+template <typename From, typename To> bool check_signed_unsigned_convert_to() {
+  bool pass = true;
+  pass &= check_convert<From, To>();
   if constexpr (has_unsigned_v<To>)
-    check_convert<From, std::make_unsigned_t<To>>();
+    pass &= check_convert<From, std::make_unsigned_t<To>>();
   if constexpr (has_unsigned_v<From>)
-    check_convert<std::make_unsigned_t<From>, To>();
+    pass &= check_convert<std::make_unsigned_t<From>, To>();
   if constexpr (has_unsigned_v<To> && has_unsigned_v<From>)
-    check_convert<std::make_unsigned_t<From>, std::make_unsigned_t<To>>();
+    pass &=
+        check_convert<std::make_unsigned_t<From>, std::make_unsigned_t<To>>();
+  return pass;
 }
 
-template <typename From> void check_convert_from() {
-  check_signed_unsigned_convert_to<From, sycl::byte>();
+template <typename From> bool check_convert_from() {
+  bool pass = true;
+  pass &= check_signed_unsigned_convert_to<From, sycl::byte>();
   // FIXME: enable test cases below once compilation issues for them are fixed
   // check_signed_unsigned_convert_to<From, std::byte>();
-  check_signed_unsigned_convert_to<From, std::int8_t>();
-  check_signed_unsigned_convert_to<From, std::int16_t>();
-  check_signed_unsigned_convert_to<From, std::int32_t>();
-  check_signed_unsigned_convert_to<From, std::int64_t>();
-  check_signed_unsigned_convert_to<From, bool>();
-  check_signed_unsigned_convert_to<From, char>();
-  check_signed_unsigned_convert_to<From, signed char>();
-  check_signed_unsigned_convert_to<From, short>();
-  check_signed_unsigned_convert_to<From, int>();
-  check_signed_unsigned_convert_to<From, long>();
-  check_signed_unsigned_convert_to<From, long long>();
+  pass &= check_signed_unsigned_convert_to<From, std::int8_t>();
+  pass &= check_signed_unsigned_convert_to<From, std::int16_t>();
+  pass &= check_signed_unsigned_convert_to<From, std::int32_t>();
+  pass &= check_signed_unsigned_convert_to<From, std::int64_t>();
+  pass &= check_signed_unsigned_convert_to<From, bool>();
+  pass &= check_signed_unsigned_convert_to<From, char>();
+  pass &= check_signed_unsigned_convert_to<From, signed char>();
+  pass &= check_signed_unsigned_convert_to<From, short>();
+  pass &= check_signed_unsigned_convert_to<From, int>();
+  pass &= check_signed_unsigned_convert_to<From, long>();
+  pass &= check_signed_unsigned_convert_to<From, long long>();
+
+  return pass;
 }
 
 int main() {
-  check_convert_from<sycl::byte>();
+  bool pass = true;
+  pass &= check_convert_from<sycl::byte>();
   // FIXME: enable test cases below once compilation issues for them are fixed
   // check_convert_from<std::byte>();
-  check_convert_from<std::int8_t>();
-  check_convert_from<std::int16_t>();
-  check_convert_from<std::int32_t>();
-  check_convert_from<std::int64_t>();
-  check_convert_from<char>();
-  check_convert_from<signed char>();
-  check_convert_from<short>();
-  check_convert_from<int>();
-  check_convert_from<long>();
-  check_convert_from<long long>();
-  check_convert_from<bool>();
+  pass &= check_convert_from<std::int8_t>();
+  pass &= check_convert_from<std::int16_t>();
+  pass &= check_convert_from<std::int32_t>();
+  pass &= check_convert_from<std::int64_t>();
+  pass &= check_convert_from<char>();
+  pass &= check_convert_from<signed char>();
+  pass &= check_convert_from<short>();
+  pass &= check_convert_from<int>();
+  pass &= check_convert_from<long>();
+  pass &= check_convert_from<long long>();
+  pass &= check_convert_from<bool>();
+
+  return static_cast<int>(!pass);
 }
