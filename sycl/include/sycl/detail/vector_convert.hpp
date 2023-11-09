@@ -541,7 +541,7 @@ NativeToT convertImpl(NativeFromT Value) {
     // what to do here. 'static_cast' implementation matches SYCL CTS and it
     // matches our old implementation. Unfortunately, OpSetConvertUToS and
     // OpSatConvertSToU behave differently and we can't use them here until the
-    // behavior of conversions is well-defined by the SYCL 2020 speficiation.
+    // behavior of conversions is well-defined by the SYCL 2020 specificiation.
     // See https://github.com/KhronosGroup/SYCL-Docs/issues/492
     return static_cast<NativeToT>(Value);
   }

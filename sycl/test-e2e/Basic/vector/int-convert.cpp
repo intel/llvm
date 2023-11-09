@@ -116,6 +116,7 @@ template <typename From, typename To> void check_signed_unsigned_convert_to() {
 
 template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, sycl::byte>();
+  // FIXME: enable test cases below once compilation issues for them are fixed
   // check_signed_unsigned_convert_to<From, std::byte>();
   check_signed_unsigned_convert_to<From, std::int8_t>();
   check_signed_unsigned_convert_to<From, std::int16_t>();
