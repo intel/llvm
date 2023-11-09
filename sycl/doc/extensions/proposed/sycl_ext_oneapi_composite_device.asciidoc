@@ -104,7 +104,8 @@ implementation supports.
 |Description
 
 |1
-|Initial version of this extension.
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
 |===
 
 === Enumerating composite devices
@@ -115,11 +116,11 @@ devices.  One is a free function and the other is a new member function of the
 
 ```
 namespace sycl {
-namespace ext::oneapi {
+namespace ext::oneapi::experimental {
 
 std::vector<device> get_composite_devices();
 
-} // namespace ext::oneapi
+} // namespace ext::oneapi::experimental
 
 class platform {
   std::vector<device> ext_oneapi_get_composite_devices();
@@ -143,12 +144,12 @@ and the order of those objects does not vary between calls.
 This extension adds two new device information descriptors:
 
 ```
-namespace sycl::ext::oneapi::device::info {
+namespace sycl::ext::oneapi::experimental::device::info {
 
 struct component_devices;
 struct composite_device;
 
-} // namespace sycl::ext::oneapi::device::info
+} // namespace sycl::ext::oneapi::experimental::device::info
 ```
 
 [width="100%",%header,cols="37%,19%,44%"]
