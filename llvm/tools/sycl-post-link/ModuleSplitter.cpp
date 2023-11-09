@@ -920,10 +920,8 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
         "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(
         sycl::utils::ATTR_SYCL_OPTLEVEL);
-    Categorizer.registerSimpleStringMetadataRule(
-        "sycl_joint_matrix");
-    Categorizer.registerSimpleStringMetadataRule(
-        "sycl_joint_matrix_mad");
+    Categorizer.registerSimpleStringMetadataRule("sycl_joint_matrix");
+    Categorizer.registerSimpleStringMetadataRule("sycl_joint_matrix_mad");
     break;
   }
 
