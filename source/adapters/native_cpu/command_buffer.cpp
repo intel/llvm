@@ -1,10 +1,12 @@
 //===--------- command_buffer.cpp - NativeCPU Adapter ---------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
+// Copyright (C) 2023 Intel Corporation
+//
+// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+// Exceptions. See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
 
@@ -12,6 +14,8 @@
 /// Taken almost unchanged from another adapter. Perhaps going forward
 /// these stubs could be defined in core UR as the default which would
 /// reduce code duplication. Adapters could then "override" these defaults.
+/// Issue raised for this comment in
+/// https://github.com/oneapi-src/unified-runtime/issues/1064
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t, ur_device_handle_t,
