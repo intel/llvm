@@ -1,4 +1,3 @@
-// UNSUPPORTED: esimd_emulator
 //
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out

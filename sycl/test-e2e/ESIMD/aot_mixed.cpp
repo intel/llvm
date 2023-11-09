@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: esimd_emulator
 // Temporary disable everywhere until "Unsupported required sub group size" is
 // fixed in some configurations.
 // UNSUPPORTED: windows

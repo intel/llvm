@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
-  # Merge: 2ab0734 86f96f0
+  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
+  # Merge: 62e6d2f9 5fb82924
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 27 16:36:23 2023 +0100
-  #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
-  #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
-  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
+  # Date:   Wed Nov 8 13:32:46 2023 +0000
+  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
+  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
+  set(UNIFIED_RUNTIME_TAG ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
