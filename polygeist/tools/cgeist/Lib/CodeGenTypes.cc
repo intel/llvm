@@ -1120,7 +1120,8 @@ void CodeGenTypes::constructAttributeList(
 
       auto *Decl = ParamType->getAsRecordDecl();
       if (CGM.getCodeGenOpts().PassByValueIsNoAlias && Decl &&
-          Decl->getArgPassingRestrictions() == RecordDecl::APK_CanPassInRegs)
+          Decl->getArgPassingRestrictions() ==
+              RecordArgPassingKind::CanPassInRegs)
         // When calling the function, the pointer passed in will be the only
         // reference to the underlying object. Mark it accordingly.
         ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
