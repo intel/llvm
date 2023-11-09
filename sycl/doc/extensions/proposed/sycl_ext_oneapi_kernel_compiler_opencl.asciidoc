@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -142,6 +143,48 @@ There is no mechanism to decorate an OpenCL C kernel with a type-name, so the
 forms of `kernel_bundle::has_kernel` or `kernel_bundle::get_kernel` that take a
 type-name are not useful for kernels defined in OpenCL C.
 
+=== Kernel argument restrictions
+
+When a kernel is defined in OpenCL C and invoked from SYCL via a `kernel`
+object, the arguments to the kernel are restricted to certain types.
+In general, the host application passes an argument value via
+`handler::set_arg` using one type and the kernel receives the argument value
+as a corresponding OpenCL C type.
+The following table lists the set of valid types for these kernel arguments:
+
+
+[%header,cols="1,1"]
+|===
+|Type in SYCL host code
+|Type in OpenCL C kernel
+
+|One of the OpenCL scalar types (e.g. `cl_int`, `cl_float`, etc.)
+|The corresponding OpenCL C type (e.g. `int`, `float`, etc.)
+
+|A USM pointer.
+|A `+__global+` pointer of the corresponding type.
+
+|A class (or struct) that is device copyable in SYCL whose elements are
+ composed of OpenCL scalar types or USM pointers.
+|A class (or struct) passed by value whose elements have the corresponding
+ OpenCL C types.
+
+|An `accessor` with `target::device` whose `DataT` is an OpenCL scalar type,
+ a USM pointer, or a device copyable class (or struct) whose elements are
+ composed of these types.
+|A `+__global+` pointer to the first element of the accessor's buffer.
+ The pointer has the corresponding OpenCL C type.
+
+[_Note:_ The accessor's size is not passed as a kernel argument, so the host
+code must pass a separate argument with the size if this is desired.
+_{endnote}_]
+
+|A `local_accessor` whose `DataT` is an OpenCL scalar type, a USM pointer, or a
+ device copyable class (or struct) whose elements are composed of these types.
+|A `+__local+` pointer to the first element of the accessor's local memory.
+ The pointer has the corresponding OpenCL C type.
+|===
+
 
 == Example
 
@@ -150,6 +193,7 @@ kernel as a string and then compiles and launches it.
 
 ```
 #include <sycl/sycl.hpp>
+#include <OpenCL/opencl.h>
 namespace syclex = sycl::ext::oneapi::experimental;
 
 int main() {
@@ -179,8 +223,8 @@ int main() {
   sycl::kernel k = kb_exe.ext_oneapi_get_kernel("my_kernel");
 
   constexpr int N = 4;
-  int input[N] = {0, 1, 2, 3};
-  int output[N] = {};
+  cl_int input[N] = {0, 1, 2, 3};
+  cl_int output[N] = {};
 
   sycl::buffer inputbuf(input, sycl::range{N});
   sycl::buffer outputbuf(output, sycl::range{N});
@@ -244,13 +288,6 @@ their source string.
   backend?
   Currently, the online_compiler does support this case (but it provides no way
   to query about optional features or extensions).
-
-* There should be a more formal definition of the kernel arguments that can be
-  passed.
-  For example, can the application pass a `local_accessor` as an argument to an
-  OpenCL C kernel?
-  We should have a complete list of allowed arguments and describe how each is
-  passed from the SYCL host code.
 
 * Do we need to document some restrictions on the OpenCL C
   https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_C.html#work-item-functions[
