@@ -45,13 +45,13 @@
   │  Prefix  │ Commands added to UR command-buffer by UR user │ Suffix  │
   └──────────┴────────────────────────────────────────────────┴─────────┘
 
-            ┌───────────────────┬──────────────────────────────┐
-  Prefix    │Reset signal event │ Barrier waiting on wait event│
-            └───────────────────┴──────────────────────────────┘
+            ┌───────────────────┬──────────────┐──────────────────────────────┐
+  Prefix    │Reset signal event │ Reset events │ Barrier waiting on wait event│
+            └───────────────────┴──────────────┘──────────────────────────────┘
 
             ┌─────────────────────────────────────────────┐──────────────┐
-  Suffix    │Barrier waiting on sync-point event,         │ Reset events │
-            │signalling the UR command-buffer signal event│              │
+  Suffix    │Barrier waiting on sync-point event,         │  Query CMD   │
+            │signalling the UR command-buffer signal event│  Timestamps  │
             └─────────────────────────────────────────────┘──────────────┘
 
   For a call to `urCommandBufferEnqueueExp` with an event_list `EL`,
@@ -433,6 +433,10 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
 
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
+  // Dependencies between commands are explicitly enforced by sync points when
+  // enqueuing. Consequently, relax the command ordering in the command list
+  // can enable the backend to further optimize the workload
+  ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
 
   ze_command_list_handle_t ZeCommandList;
   // TODO We could optimize this by pooling both Level Zero command-lists and UR
@@ -498,13 +502,6 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
              (CommandBuffer->ZeCommandList, CommandBuffer->WaitEvent->ZeEvent));
-
-  // Reset the L0 events we use for command-buffer internal sync-points to the
-  // non-signalled state
-  for (auto Event : WaitEventList) {
-    ZE2UR_CALL(zeCommandListAppendEventReset,
-               (CommandBuffer->ZeCommandList, Event));
-  }
 
   // Close the command list and have it ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
@@ -899,13 +896,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create command-list to execute before `CommandListPtr` and will signal
   // when `EventWaitList` dependencies are complete.
   ur_command_list_ptr_t WaitCommandList{};
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList, false,
+                                                  false));
+
+  // Create a list of events of all the events that compose the command buffer
+  // workload.
+  // This loop also resets the L0 events we use for command-buffer internal
+  // sync-points to the non-signalled state.
+  // This is required for multiple submissions.
+  const size_t NumEvents = CommandBuffer->SyncPoints.size();
+  std::vector<ze_event_handle_t> WaitEventList{NumEvents};
+  for (size_t i = 0; i < NumEvents; i++) {
+    auto ZeEvent = CommandBuffer->SyncPoints[i]->ZeEvent;
+    WaitEventList[i] = ZeEvent;
+    ZE2UR_CALL(zeCommandListAppendEventReset,
+               (WaitCommandList->first, ZeEvent));
+  }
+
   if (NumEventsInWaitList) {
     _ur_ze_event_list_t TmpWaitList;
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
-
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                    false, false))
 
     // Update the WaitList of the Wait Event
     // Events are appended to the WaitList if the WaitList is not empty
@@ -919,9 +930,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                 CommandBuffer->WaitEvent->WaitList.Length,
                 CommandBuffer->WaitEvent->WaitList.ZeEventList));
   } else {
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, WaitCommandList,
-                                                    false, false));
-
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
   }
@@ -943,22 +951,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                 &(CommandBuffer->SignalEvent->ZeEvent)));
 
     if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
-      // We create an additional signal specific to the current execution of the
-      // CommandBuffer. This signal is needed for profiling the execution time
-      // of the CommandBuffer. It waits for the WaitEvent to be signaled
-      // which indicates the start of the CommandBuffer actual execution.
-      // This event is embedded into the Event return to the user to allow
-      // the profiling engine to retrieve it.
-      ur_event_handle_t StartEvent{};
-      UR_CALL(createEventAndAssociateQueue(
-          Queue, &StartEvent, UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
-          WaitCommandList, false));
+      // Multiple submissions of a command buffer implies that we need to save
+      // the event timestamps before resubmiting the command buffer. We
+      // therefore copy the these timestamps in a dedicated USM memory section
+      // before completing the command buffer execution, and then attach this
+      // memory to the event returned to users to allow to allow the profiling
+      // engine to recover these timestamps.
+      ur_usm_desc_t USMDesc{};
+      ur_usm_device_desc_t UsmDeviceDesc{};
+      UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
+      ur_usm_host_desc_t UsmHostDesc{};
+      UsmHostDesc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+      UsmDeviceDesc.pNext = &UsmHostDesc;
+      USMDesc.pNext = &UsmDeviceDesc;
+      USMDesc.align = 4; // 4byte-aligned
 
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (WaitCommandList->first, StartEvent->ZeEvent, 1,
-                  &(CommandBuffer->WaitEvent->ZeEvent)));
+      size_t Size = WaitEventList.size() * sizeof(ze_kernel_timestamp_result_t);
 
-      RetEvent->CommandData = StartEvent;
+      struct command_buffer_profiling_t *Profiling =
+          new command_buffer_profiling_t();
+
+      Profiling->NumEvents = WaitEventList.size();
+
+      urUSMSharedAlloc(RetEvent->Context, CommandBuffer->Device, &USMDesc,
+                       nullptr, Size, (void **)&Profiling->Timestamps);
+
+      ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
+                 (SignalCommandList->first, WaitEventList.size(),
+                  WaitEventList.data(), Profiling->Timestamps, 0,
+                  RetEvent->ZeEvent, 1,
+                  &(CommandBuffer->SignalEvent->ZeEvent)));
+
+      RetEvent->CommandData = static_cast<void *>(Profiling);
     }
   }
 

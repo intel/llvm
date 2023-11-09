@@ -456,16 +456,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 ) {
   std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
 
-  // A Command-buffer consists of three command-lists.
-  // The start time should therefore be taken from an event associated
-  // to the first command-list.
-  if ((Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) &&
-      (PropName == UR_PROFILING_INFO_COMMAND_START) && (Event->CommandData)) {
-    auto StartEvent = static_cast<ur_event_handle_t>(Event->CommandData);
-    return urEventGetProfilingInfo(StartEvent, UR_PROFILING_INFO_COMMAND_END,
-                                   PropValueSize, PropValue, PropValueSizeRet);
-  }
-
   if (Event->UrQueue &&
       (Event->UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) == 0) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
@@ -481,6 +471,70 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
   ze_kernel_timestamp_result_t tsResult;
+
+  // A Command-buffer consists of three command-lists for which only a single
+  // event is returned to users. The actual profiling information related to the
+  // command-buffer should therefore be extrated from graph events themsleves.
+  // The timestamps of these events are saved in a memory region attached to
+  // event usning CommandData field. The timings must therefore be recovered
+  // from this memory.
+  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) {
+    if (Event->CommandData) {
+      struct command_buffer_profiling_t *ProfilingsPtr;
+      switch (PropName) {
+      case UR_PROFILING_INFO_COMMAND_START: {
+        ProfilingsPtr = static_cast<struct command_buffer_profiling_t *>(
+            Event->CommandData);
+        // Sync-point order does not necessarily match to the order of
+        // execution. We therefore look for the first command executed.
+        uint64_t MinStart = ProfilingsPtr->Timestamps->global.kernelStart;
+        for (uint64_t i = 1; i < ProfilingsPtr->NumEvents; i++) {
+          uint64_t Timestamp = ProfilingsPtr->Timestamps[i].global.kernelStart;
+          if (Timestamp < MinStart) {
+            MinStart = Timestamp;
+          }
+        }
+        uint64_t ContextStartTime =
+            (MinStart & TimestampMaxValue) * ZeTimerResolution;
+        return ReturnValue(ContextStartTime);
+      }
+      case UR_PROFILING_INFO_COMMAND_END: {
+        ProfilingsPtr = static_cast<struct command_buffer_profiling_t *>(
+            Event->CommandData);
+        // Sync-point order does not necessarily match to the order of
+        // execution. We therefore look for the last command executed.
+        uint64_t MaxEnd = ProfilingsPtr->Timestamps->global.kernelEnd;
+        uint64_t LastStart = ProfilingsPtr->Timestamps->global.kernelStart;
+        for (uint64_t i = 1; i < ProfilingsPtr->NumEvents; i++) {
+          uint64_t Timestamp = ProfilingsPtr->Timestamps[i].global.kernelEnd;
+          if (Timestamp > MaxEnd) {
+            MaxEnd = Timestamp;
+            LastStart = ProfilingsPtr->Timestamps[i].global.kernelStart;
+          }
+        }
+        uint64_t ContextStartTime = (LastStart & TimestampMaxValue);
+        uint64_t ContextEndTime = (MaxEnd & TimestampMaxValue);
+
+        //
+        // Handle a possible wrap-around (the underlying HW counter is <
+        // 64-bit). Note, it will not report correct time if there were multiple
+        // wrap arounds, and the longer term plan is to enlarge the capacity of
+        // the HW timestamps.
+        //
+        if (ContextEndTime <= ContextStartTime) {
+          ContextEndTime += TimestampMaxValue;
+        }
+        ContextEndTime *= ZeTimerResolution;
+        return ReturnValue(ContextEndTime);
+      }
+      default:
+        urPrint("urEventGetProfilingInfo: not supported ParamName\n");
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+    } else {
+      return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
+    }
+  }
 
   switch (PropName) {
   case UR_PROFILING_INFO_COMMAND_START: {
@@ -778,8 +832,10 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP &&
       Event->CommandData) {
     // Free the memory extra event allocated for profiling purposed.
-    auto AssociateEvent = static_cast<ur_event_handle_t>(Event->CommandData);
-    urEventRelease(AssociateEvent);
+    struct command_buffer_profiling_t *ProfilingPtr =
+        static_cast<struct command_buffer_profiling_t *>(Event->CommandData);
+    urUSMFree(Event->Context, (void *)ProfilingPtr->Timestamps);
+    delete ProfilingPtr;
     Event->CommandData = nullptr;
   }
   if (Event->OwnNativeHandle) {
