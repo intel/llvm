@@ -180,6 +180,8 @@ public:
                     bool HasNSW = false) const;
   ValueCategory FAdd(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
+  ValueCategory FMA(mlir::OpBuilder &Builder, mlir::Location Loc,
+                    ValueCategory Addend, bool NegMul, bool NegAdd) const;
   ValueCategory Sub(mlir::OpBuilder &Builder, mlir::Location Loc,
                     mlir::Value RHS, bool HasNUW = false,
                     bool HasNSW = false) const;

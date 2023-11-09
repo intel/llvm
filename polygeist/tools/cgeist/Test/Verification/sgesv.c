@@ -30,34 +30,32 @@ void kernel_correlation(int n, double alpha, double beta,
 
 }
 
-// CHECK:   func @{{.*}}kernel_correlation{{.*}}(%arg0: i32{{.*}}, %arg1: f64{{.*}}, %arg2: f64{{.*}}, %arg3: memref<?x28xf64>{{.*}}llvm.noalias{{.*}}, %arg4: memref<?x28xf64>{{.*}}llvm.noalias{{.*}}, %arg5: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg6: memref<?xf64>{{.*}}llvm.noalias{{.*}}, %arg7: memref<?xf64>{{.*}}llvm.noalias{{.*}})
-// CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:     %0 = arith.index_cast %arg0 : i32 to index
-// CHECK-NEXT:     affine.for %arg8 = 0 to %0 {
-// CHECK-NEXT:       affine.store %cst, %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:       affine.store %cst, %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %1 = affine.load %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %2 = affine.load %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %3:2 = affine.for %arg9 = 0 to %0 iter_args(%arg10 = %1, %arg11 = %2) -> (f64, f64) {
-// CHECK-NEXT:         %9 = affine.load %arg3[%arg8, %arg9] : memref<?x28xf64>
-// CHECK-NEXT:         %10 = affine.load %arg6[%arg9] : memref<?xf64>
-// CHECK-NEXT:         %11 = arith.mulf %9, %10 : f64
-// CHECK-NEXT:         %12 = arith.addf %11, %arg10 : f64
-// CHECK-NEXT:         %13 = affine.load %arg4[%arg8, %arg9] : memref<?x28xf64>
-// CHECK-NEXT:         %14 = arith.mulf %13, %10 : f64
-// CHECK-NEXT:         %15 = arith.addf %14, %arg11 : f64
-// CHECK-NEXT:         affine.yield %12, %15 : f64, f64
-// CHECK-NEXT:       }
-// CHECK-NEXT:       affine.store %3#1, %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       affine.store %3#0, %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %4 = affine.load %arg5[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %5 = arith.mulf %arg1, %4 : f64
-// CHECK-NEXT:       %6 = affine.load %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:       %7 = arith.mulf %arg2, %6 : f64
-// CHECK-NEXT:       %8 = arith.addf %5, %7 : f64
-// CHECK-NEXT:       affine.store %8, %arg7[%arg8] : memref<?xf64>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @kernel_correlation(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: i32 {llvm.noundef}, %[[VAL_1:.*]]: f64 {llvm.noundef}, %[[VAL_2:.*]]: f64 {llvm.noundef}, %[[VAL_3:.*]]: memref<?x28xf64> {llvm.noalias, llvm.noundef}, %[[VAL_4:.*]]: memref<?x28xf64> {llvm.noalias, llvm.noundef}, %[[VAL_5:.*]]: memref<?xf64> {llvm.noalias, llvm.noundef}, %[[VAL_6:.*]]: memref<?xf64> {llvm.noalias, llvm.noundef}, %[[VAL_7:.*]]: memref<?xf64> {llvm.noalias, llvm.noundef})
+// CHECK:           %[[VAL_8:.*]] = arith.constant 0.000000e+00 : f64
+// CHECK:           %[[VAL_9:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
+// CHECK:           affine.for %[[VAL_10:.*]] = 0 to %[[VAL_9]] {
+// CHECK:             affine.store %[[VAL_8]], %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             affine.store %[[VAL_8]], %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_11:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_12:.*]] = affine.load %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_13:.*]]:2 = affine.for %[[VAL_14:.*]] = 0 to %[[VAL_9]] iter_args(%[[VAL_15:.*]] = %[[VAL_11]], %[[VAL_16:.*]] = %[[VAL_12]]) -> (f64, f64) {
+// CHECK:               %[[VAL_17:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_10]], %[[VAL_14]]] : memref<?x28xf64>
+// CHECK:               %[[VAL_18:.*]] = affine.load %[[VAL_6]]{{\[}}%[[VAL_14]]] : memref<?xf64>
+// CHECK:               %[[VAL_19:.*]] = math.fma %[[VAL_17]], %[[VAL_18]], %[[VAL_15]] : f64
+// CHECK:               %[[VAL_20:.*]] = affine.load %[[VAL_4]]{{\[}}%[[VAL_10]], %[[VAL_14]]] : memref<?x28xf64>
+// CHECK:               %[[VAL_21:.*]] = math.fma %[[VAL_20]], %[[VAL_18]], %[[VAL_16]] : f64
+// CHECK:               affine.yield %[[VAL_19]], %[[VAL_21]] : f64, f64
+// CHECK:             }
+// CHECK:             affine.store %[[VAL_22:.*]]#1, %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             affine.store %[[VAL_22]]#0, %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_23:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_24:.*]] = affine.load %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_25:.*]] = arith.mulf %[[VAL_2]], %[[VAL_24]] : f64
+// CHECK:             %[[VAL_26:.*]] = math.fma %[[VAL_1]], %[[VAL_23]], %[[VAL_25]] : f64
+// CHECK:             affine.store %[[VAL_26]], %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
 
 // FULLRANK: func @kernel_correlation(%{{.*}}: i32, %{{.*}}: f64, %{{.*}}: f64, %{{.*}}: memref<28x28xf64>, %{{.*}}: memref<28x28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>)

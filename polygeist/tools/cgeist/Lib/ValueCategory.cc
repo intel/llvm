@@ -8,6 +8,7 @@
 
 #include "ValueCategory.h"
 #include "Lib/TypeUtils.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Support/LLVM.h"
@@ -802,6 +803,26 @@ ValueCategory ValueCategory::Add(OpBuilder &Builder, Location Loc, Value RHS,
 ValueCategory ValueCategory::FAdd(OpBuilder &Builder, Location Loc,
                                   Value RHS) const {
   return FPBinOp<arith::AddFOp>(Builder, Loc, val, RHS);
+}
+
+ValueCategory ValueCategory::FMA(OpBuilder &Builder, Location Loc,
+                                 ValueCategory Addend, bool NegMul,
+                                 bool NegAdd) const {
+  auto MulOp = val.getDefiningOp<arith::MulFOp>();
+
+  assert(MulOp && "Expecting arith.mul operation");
+
+  Value MulOp0 = MulOp.getLhs();
+  Value MulOp1 = MulOp.getRhs();
+  if (NegMul)
+    MulOp0 =
+        ValueCategory(MulOp0, /*IsReference=*/false).FNeg(Builder, Loc).val;
+  if (NegAdd)
+    Addend = Addend.FNeg(Builder, Loc);
+
+  return ValueCategory(
+      Builder.create<math::FmaOp>(Loc, MulOp0, MulOp1, Addend.val),
+      /*IsReference=*/false);
 }
 
 ValueCategory ValueCategory::CAdd(OpBuilder &Builder, Location Loc,
