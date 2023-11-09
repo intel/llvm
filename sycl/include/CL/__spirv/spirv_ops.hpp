@@ -24,7 +24,6 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 extern __DPCPP_SYCL_EXTERNAL float __spirv_RoundFToTF32INTEL(float a);
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
@@ -139,7 +138,6 @@ template <typename Ts, typename T, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
+// RUN: %clangxx -fsycl -O2 %s -o %t.out
 
 // Kernel B sum by col
 #include <cmath>
