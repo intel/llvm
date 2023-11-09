@@ -1,4 +1,4 @@
-// REQUIRES: gpu
+// REQUIRES: gpu && (level_zero || opencl)
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
