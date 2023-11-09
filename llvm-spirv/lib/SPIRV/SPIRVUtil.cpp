@@ -1040,7 +1040,7 @@ PointerType *getInt8PtrTy(PointerType *T) {
 
 Value *castToInt8Ptr(Value *V, Instruction *Pos) {
   return CastInst::CreatePointerCast(
-      V, PointerType::getUnqual(cast<PointerType>(V->getType())), "", Pos);
+      V, getInt8PtrTy(cast<PointerType>(V->getType())), "", Pos);
 }
 
 IntegerType *getSizetType(Module *M) {
