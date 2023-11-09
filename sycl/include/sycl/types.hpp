@@ -634,21 +634,66 @@ public:
   static constexpr size_t get_size() { return byte_size(); }
   static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
+  // convertImpl can't be called with the same From and To types and therefore
+  // we need this version of convert which is mostly no-op.
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
-  vec<convertT, NumElements> convert() const {
+  std::enable_if_t<
+      std::is_same_v<vec_data_t<DataT>, vec_data_t<convertT>> ||
+          std::is_same_v<detail::ConvertToOpenCLType_t<vec_data_t<DataT>>,
+                         detail::ConvertToOpenCLType_t<vec_data_t<convertT>>>,
+      vec<convertT, NumElements>>
+  convert() const {
     static_assert(std::is_integral_v<vec_data_t<convertT>> ||
                       detail::is_floating_point<convertT>::value,
                   "Unsupported convertT");
+    if constexpr (!std::is_same_v<DataT, convertT>) {
+      // Dummy conversion for cases like vec<signed char> -> vec<char>
+      vec<convertT, NumElements> Result;
+      for (size_t I = 0; I < NumElements; ++I) {
+        Result.setValue(I, vec_data<convertT>::get(static_cast<convertT>(
+                               vec_data<DataT>::get(getValue(I)))));
+      }
+      return Result;
+    } else {
+      // No conversion necessary
+      return *this;
+    }
+  }
+
+  template <typename convertT,
+            rounding_mode roundingMode = rounding_mode::automatic>
+  std::enable_if_t<
+      !std::is_same_v<vec_data_t<DataT>, vec_data_t<convertT>> &&
+          !std::is_same_v<detail::ConvertToOpenCLType_t<vec_data_t<DataT>>,
+                          detail::ConvertToOpenCLType_t<vec_data_t<convertT>>>,
+      vec<convertT, NumElements>>
+  convert() const {
+    static_assert(std::is_integral_v<vec_data_t<convertT>> ||
+                      detail::is_floating_point<convertT>::value,
+                  "Unsupported convertT");
+    using T = vec_data_t<DataT>;
+    using R = vec_data_t<convertT>;
     vec<convertT, NumElements> Result;
-    using OpenCLT = detail::ConvertToOpenCLType_t<vec_data_t<DataT>>;
-    using OpenCLR = detail::ConvertToOpenCLType_t<vec_data_t<convertT>>;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Result.setValue(
-          I, vec_data<convertT>::get(
-                 detail::convertImpl<vec_data_t<DataT>, vec_data_t<convertT>,
-                                     roundingMode, OpenCLT, OpenCLR>(
-                     vec_data<DataT>::get(getValue(I)))));
+
+    if constexpr (NativeVec && vec<convertT, NumElements>::NativeVec) {
+#ifdef __SYCL_DEVICE_ONLY__
+      // If both vectors are representable as native vectors, then we can use
+      // a single vector-wide operation to do a conversion:
+      Result.m_Data = detail::convertImpl<
+          T, R, roundingMode, NumElements, VectorDataType,
+          typename vec<convertT, NumElements>::VectorDataType>(m_Data);
+#endif
+    } else {
+      // Otherwise, we fallback to per-element conversion:
+      using OpenCLT = detail::ConvertToOpenCLType_t<vec_data_t<DataT>>;
+      using OpenCLR = detail::ConvertToOpenCLType_t<vec_data_t<convertT>>;
+      for (size_t I = 0; I < NumElements; ++I) {
+        Result.setValue(
+            I, vec_data<convertT>::get(
+                   detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
+                       vec_data<DataT>::get(getValue(I)))));
+      }
     }
     return Result;
   }

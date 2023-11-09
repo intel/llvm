@@ -10,6 +10,7 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
@@ -176,10 +177,20 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
       T, typename unpack<filtered_properties>::type>;
 
 #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __ENABLE_USM_ADDR_SPACE__
+  using global_pointer_t = std::conditional_t<
+      detail::IsUsmKindDevice<property_list_t>::value,
+      typename sycl::ext::intel::decorated_device_ptr<T>::pointer,
+      std::conditional_t<
+          detail::IsUsmKindHost<property_list_t>::value,
+          typename sycl::ext::intel::decorated_host_ptr<T>::pointer,
+          typename decorated_global_ptr<T>::pointer>>;
+#else
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
+#endif // __ENABLE_USM_ADDR_SPACE__
 #else
   using global_pointer_t = T *;
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 
   global_pointer_t m_Ptr;
 
@@ -207,6 +218,12 @@ public:
   static_assert(hasValidFPGAProperties,
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
                 "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
