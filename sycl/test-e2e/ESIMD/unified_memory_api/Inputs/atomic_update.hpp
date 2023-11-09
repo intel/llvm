@@ -1,4 +1,4 @@
-//==---------------- atomic_smoke.cpp  - DPC++ ESIMD on-device test --------==//
+//==---------------- atomic_update.hpp - DPC++ ESIMD on-device test --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,18 +28,19 @@ struct Config {
   int64_t threads_per_group;
   int64_t n_groups;
   int64_t start_ind;
+  int64_t use_mask;
   int64_t masked_lane;
   int64_t repeat;
   int64_t stride;
 };
 
-// ----------------- Helper functions
+// Helper functions
 
 std::ostream &operator<<(std::ostream &out, const Config &cfg) {
   out << "{ thr_per_group=" << cfg.threads_per_group
       << " n_groups=" << cfg.n_groups << " start_ind=" << cfg.start_ind
-      << " masked_lane=" << cfg.masked_lane << " repeat=" << cfg.repeat
-      << " stride=" << cfg.stride << " }";
+      << " use_mask= " << cfg.use_mask << " masked_lane=" << cfg.masked_lane
+      << " repeat=" << cfg.repeat << " stride=" << cfg.stride << " }";
   return out;
 }
 
@@ -98,15 +99,17 @@ template <int N> inline bool any(simd_mask<N> m, simd_mask<N> ignore_mask) {
 }
 
 // ----------------- The main test function
-template <class T, int N, template <class, int> class ImplF, bool UseProperties>
+template <class T, int N, template <class, int> class ImplF, bool UseMask,
+          bool UseProperties>
 bool test(queue q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
 
-  std::cout << "USM Testing " << "op=" << to_string(op) << "n_args=" << n_args
-            << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
-            << cfg << "...";
+  std::cout << "USM Testing " << "op=" << to_string(op) << " n_args=" << n_args
+            << " T=" << esimd_test::type_name<T>() << " N=" << N
+            << " UseMask=" << (UseMask ? "true" : "false") << "\n\t" << cfg
+            << "...";
 
   size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
   T *arr = malloc_shared<T>(size, q);
@@ -139,10 +142,17 @@ bool test(queue q, const Config &cfg) {
         // the atomic operation itself applied in a loop:
         for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
           if constexpr (n_args == 0) {
-            if constexpr (UseProperties)
-              atomic_update<op>(arr, offsets, m, props);
-            else
-              atomic_update<op>(arr, offsets, m);
+            if constexpr (UseMask) {
+              if constexpr (UseProperties)
+                atomic_update<op>(arr, offsets, m, props);
+              else
+                atomic_update<op>(arr, offsets, m);
+            } else {
+              if constexpr (UseProperties)
+                atomic_update<op>(arr, offsets, props);
+              else
+                atomic_update<op>(arr, offsets);
+            }
           } else if constexpr (n_args == 1) {
             simd<T, N> v0 = ImplF<T, N>::arg0(i);
             atomic_update<op>(arr, offsets, v0, m);
@@ -192,8 +202,7 @@ bool test(queue q, const Config &cfg) {
   return err_cnt == 0;
 }
 
-// ----------------- Functions providing input and golden values for atomic
-// ----------------- operations.
+// Functions providing input and golden values for atomic operations.
 
 static int dense_ind(int ind, int VL, const Config &cfg) {
   return (ind - cfg.start_ind) / cfg.stride;
@@ -204,11 +213,14 @@ static bool is_updated(int ind, int VL, const Config &cfg) {
     return false;
   }
   int ii = dense_ind(ind, VL, cfg);
-  bool res = (ii % VL) != cfg.masked_lane;
+
+  bool res = true;
+  if (cfg.use_mask)
+    res = (ii % VL) != cfg.masked_lane;
   return res;
 }
 
-// ----------------- Actual "traits" for each operation.
+// Actual "traits" for each operation.
 
 template <class T, int N, class C, C Op> struct ImplIncBase {
   static constexpr C atomic_op = Op;
@@ -239,7 +251,7 @@ template <class T, int N, class C, C Op> struct ImplDecBase {
   }
 };
 
-// The purpose of this is validate that floating point data is correctly
+// The purpose of this is to validate that floating point data is correctly
 // processed.
 constexpr float FPDELTA = 0.5f;
 
@@ -262,94 +274,94 @@ struct ImplInc : ImplIncBase<T, N, atomic_op, atomic_op::inc> {};
 template <class T, int N>
 struct ImplDec : ImplDecBase<T, N, atomic_op, atomic_op::dec> {};
 
-// ----------------- Main function and test combinations.
+// Main function and test combinations.
 
-template <int N, template <class, int> class Op, bool UseProperties,
-          int SignMask = (Signed | Unsigned)>
+template <int N, template <class, int> class Op, bool UseMask,
+          bool UsePVCFeatures, int SignMask = (Signed | Unsigned)>
 bool test_int_types(queue q, const Config &cfg) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
     // Supported by LSC atomic:
-    if constexpr (UseProperties)
-      passed &= test<int16_t, N, Op, UseProperties>(q, cfg);
+    if constexpr (UsePVCFeatures)
+      passed &= test<int16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
-    passed &= test<int32_t, N, Op, UseProperties>(q, cfg);
+    passed &= test<int32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
 
   if constexpr (SignMask & Unsigned) {
     // Supported by LSC atomic:
-    if constexpr (UseProperties)
-      passed &= test<uint16_t, N, Op, UseProperties>(q, cfg);
+    if constexpr (UsePVCFeatures)
+      passed &= test<uint16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
-    passed &= test<uint32_t, N, Op, UseProperties>(q, cfg);
+    passed &= test<uint32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
   return passed;
 }
 
-template <int N, template <class, int> class Op, bool UseProperties>
+template <int N, template <class, int> class Op, bool UseMask,
+          bool UsePVCFeatures>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
-  passed &= test<float, N, Op, UseProperties>(q, cfg);
+  passed &= test<float, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   if (q.get_device().has(sycl::aspect::atomic64) &&
       q.get_device().has(sycl::aspect::fp64)) {
-    // Disable double data type for fcmpxchg operation as D64 data is not
-    // supported for that operation.
-    passed &= test<double, N, Op, UseProperties>(q, cfg);
+    passed &= test<double, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
   return passed;
 }
 
-template <template <class, int> class Op, bool UseProperties,
+template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
           int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
 
-  passed &= test_int_types<1, Op, UseProperties, SignMask>(q, cfg);
-  passed &= test_int_types<2, Op, UseProperties, SignMask>(q, cfg);
-  passed &= test_int_types<4, Op, UseProperties, SignMask>(q, cfg);
+  passed &= test_int_types<1, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+  passed &= test_int_types<2, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+  passed &= test_int_types<4, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
 
-  passed &= test_int_types<8, Op, UseProperties, SignMask>(q, cfg);
+  passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
 
   // Supported by LSC atomic:
-  if constexpr (UseProperties) {
-    passed &= test_int_types<16, Op, UseProperties, SignMask>(q, cfg);
-    passed &= test_int_types<32, Op, UseProperties, SignMask>(q, cfg);
+  if constexpr (UsePVCFeatures) {
+    passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+    passed &= test_int_types<32, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
   }
 
   return passed;
 }
 
-template <template <class, int> class Op, bool UseProperties>
+template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures>
 bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
 
-  passed &= test_fp_types<1, Op, UseProperties>(q, cfg);
-  passed &= test_fp_types<2, Op, UseProperties>(q, cfg);
-  passed &= test_fp_types<4, Op, UseProperties>(q, cfg);
+  passed &= test_fp_types<1, Op, UseMask, UsePVCFeatures>(q, cfg);
+  passed &= test_fp_types<2, Op, UseMask, UsePVCFeatures>(q, cfg);
+  passed &= test_fp_types<4, Op, UseMask, UsePVCFeatures>(q, cfg);
 
-  passed &= test_fp_types<8, Op, UseProperties>(q, cfg);
+  passed &= test_fp_types<8, Op, UseMask, UsePVCFeatures>(q, cfg);
   // Supported by LSC atomic:
-  if constexpr (UseProperties) {
-    passed &= test_fp_types<16, Op, UseProperties>(q, cfg);
-    passed &= test_fp_types<32, Op, UseProperties>(q, cfg);
+  if constexpr (UsePVCFeatures) {
+    passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
   return passed;
 }
 
-template <bool UseProperties> bool test_main(queue q) {
+template <bool UseMask, bool UsePVCFeatures> bool test_with_mask(queue q) {
   bool passed = true;
 
   Config cfg{
-      11,  // int threads_per_group;
-      11,  // int n_groups;
-      5,   // int start_ind;
-      1,   // int masked_lane;
-      100, // int repeat;
-      111  // int stride;
+      11,      // int threads_per_group;
+      11,      // int n_groups;
+      5,       // int start_ind;
+      UseMask, // int use_mask;
+      1,       // int masked_lane;
+      100,     // int repeat;
+      111      // int stride;
   };
 
-  passed &= test_int_types_and_sizes<ImplInc, false>(q, cfg);
-  passed &= test_int_types_and_sizes<ImplDec, false>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplInc, UseMask, UsePVCFeatures>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplDec, UseMask, UsePVCFeatures>(q, cfg);
 
   // Can't easily reset input to initial state, so just 1 iteration for CAS.
   cfg.repeat = 1;
@@ -357,8 +369,19 @@ template <bool UseProperties> bool test_main(queue q) {
   cfg.n_groups = 7;
   cfg.threads_per_group = 3;
   // Check load/store operations
-  passed &= test_int_types_and_sizes<ImplLoad, false>(q, cfg);
-  passed &= test_fp_types_and_sizes<ImplLoad, false>(q, cfg);
+  passed &= test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
+
+  return passed;
+}
+
+template <bool UsePVCFeatures> bool test_main(queue q) {
+  bool passed = true;
+
+  constexpr const bool UseMask = true;
+
+  passed &= test_with_mask<UseMask, UsePVCFeatures>(q);
+  passed &= test_with_mask<!UseMask, UsePVCFeatures>(q);
 
   return passed;
 }

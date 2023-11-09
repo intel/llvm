@@ -2767,7 +2767,7 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam Op is operation type.
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
-/// @tparam DS is the data size (unused/obsolete).
+/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
@@ -2782,7 +2782,7 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0,
                              __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
-  return __ESIMD_DNS::atomic_update_impl<Op, T, N, L1H, L3H, Toffset>(
+  return __ESIMD_DNS::atomic_update_impl<Op, T, N, DS, L1H, L3H, Toffset>(
       p, offsets, pred);
 }
 
@@ -2805,7 +2805,7 @@ lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
 /// @tparam Op is operation type.
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
-/// @tparam DS is the data size (unused/obsolete).
+/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.

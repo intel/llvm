@@ -409,7 +409,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 /// @tparam Ty is element type.
 /// @tparam InternalOp is operation type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam AddressScale is the address scale.
 /// @tparam ImmOffset is the immediate offset added to each address.
 /// @tparam DS is the data size.
@@ -419,7 +419,7 @@ __esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
-          __ESIMD_NS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
           __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
           __ESIMD_DNS::lsc_data_order _Transposed, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>

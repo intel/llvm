@@ -231,6 +231,7 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
   auto res_atomic_3 =
       atomic_update<atomic_op::inc, int>(ptr, offsets_view, pred, props_a);
 
+  // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
   auto res_atomic_4 =
       atomic_update<atomic_op::inc, int, VL>(ptr, offsets_view, props_a);
 
@@ -239,7 +240,11 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
   auto res_atomic_5 =
       atomic_update<atomic_op::inc, int, VL>(ptr, offsets, pred);
 
-  // Try the atomic_update without cache hints, but with non-standart
+  // atomic_upate without cache hints and mask:
+  // CHECK: call <4 x i32> @llvm.genx.svm.atomic.inc.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
+  auto res_atomic_6 = atomic_update<atomic_op::inc, int, VL>(ptr, offsets);
+
+  // Try the atomic_update without cache hints, but with non-standard
   // vector length to check that LSC atomic is generated.
   // CHECK: call <5 x i32> @llvm.genx.lsc.xatomic.stateless.v5i32.v5i1.v5i64(<5 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <5 x i64> {{[^)]+}}, <5 x i32> undef, <5 x i32> undef, i32 0, <5 x i32> undef)
   {

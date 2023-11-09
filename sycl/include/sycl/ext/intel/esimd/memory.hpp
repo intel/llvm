@@ -3076,39 +3076,35 @@ namespace detail {
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <__ESIMD_NS::atomic_op Op, typename T, int N,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+template <atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           typename Toffset>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0,
-                             __ESIMD_NS::simd<T, N>>
-atomic_update_impl(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
-                   __ESIMD_NS::simd_mask<N> pred) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+__ESIMD_API std::enable_if_t<get_num_args<Op>() == 0, simd<T, N>>
+atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
-  detail::check_lsc_vector_size<1>();
-  __ESIMD_DNS::check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
-  detail::check_cache_hint<detail::cache_action::atomic, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::expand_data_size(
-      detail::finalize_data_size<T, detail::lsc_data_size::default_size>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  constexpr int IOp = detail::lsc_to_internal_atomic_op<T, Op>();
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
+  check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
+  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_0<MsgT, IOp, L1H, L3H, _AddressScale,
-                                      _ImmOffset, _DS, _VS, _Transposed, N>(
+  simd<MsgT, N> Tmp =
+      __esimd_lsc_xatomic_stateless_0<MsgT, IOp, L1H, L2H, AddressScale,
+                                      ImmOffset, EDS, VS, Transposed, N>(
           pred.data(), addrs.data());
-  return detail::lsc_format_ret<T>(Tmp);
+  return lsc_format_ret<T>(Tmp);
 }
 
 } // namespace detail
@@ -3118,8 +3114,6 @@ atomic_update_impl(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
 
 /// @anchor usm_atomic_update1
 /// @brief Single-argument variant of the atomic update operation.
-///
-/// TODO: Document the prototypes similar to other documentation.
 ///
 /// Atomically updates \c N memory locations represented by a USM pointer and
 /// a vector of offsets relative to the pointer, and returns a vector of old
@@ -3229,7 +3223,7 @@ atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask) {
 /// @anchor usm_atomic_update0
 /// @brief No-argument variant of the atomic update operation.
 ///
-/// Usage of cache hints or non-standart operation width N requires DG2 or PVC.
+/// Usage of cache hints or non-standard operation width N requires DG2 or PVC.
 ///
 /// Atomically updates \c N memory locations represented by a USM pointer and
 /// a vector of offsets relative to the pointer, and returns a vector of old
@@ -3241,11 +3235,12 @@ atomic_update(Tx *p, Toffset offset, simd<Tx, N> src0, simd_mask<N> mask) {
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
-/// @param offset The vector of 32-bit or 64-bit offsets in bytes (zero-based).
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes
+///  (zero-based).
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
 /// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties is used.
+///   properties list. Only L1/L2 properties are used.
 //    Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
@@ -3256,9 +3251,11 @@ template <atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    __ESIMD_NS::simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask,
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
               PropertyListT props = {}) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
           cache_hint::none);
@@ -3273,25 +3270,25 @@ atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask,
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
-    return detail::atomic_update_impl<Op, T, N, L1Hint, L2Hint, Toffset>(
-        p, offset, mask);
+    return detail::atomic_update_impl<
+        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+        p, byte_offset, mask);
   } else {
-    static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
     if constexpr (Op == atomic_op::load) {
       if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::bit_or, T, N>(p, offset, simd<T, N>(0),
-                                                      mask);
+        return atomic_update<atomic_op::bit_or, T, N>(p, byte_offset,
+                                                      simd<T, N>(0), mask);
       } else {
         using Tint = detail::uint_type_t<sizeof(T)>;
         simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
-            reinterpret_cast<Tint *>(p), offset, simd<Tint, N>(0), mask);
+            reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask);
         return Res.template bit_cast_view<T>();
       }
     } else {
       detail::check_atomic<Op, T, N, 0>();
 
       simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
+      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
       vAddr += offset_i1;
       using Tx = typename detail::__raw_t<T>;
       return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
@@ -3306,9 +3303,10 @@ atomic_update(T *p, simd<Toffset, N> offset, simd_mask<N> mask,
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
-/// @param offset The vector of 32-bit or 64-bit offsets in bytes (zero-based).
+/// @param byte_offset The vector of 32-bit or 64-bit offsets in bytes
+///  (zero-based).
 /// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties is used. Other properties are
+///   properties list. Only L1/L2 properties are used. Other properties are
 ///   ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
@@ -3318,10 +3316,10 @@ template <atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    __ESIMD_NS::simd<T, N>>
-atomic_update(T *p, simd<Toffset, N> offset, PropertyListT props = {}) {
+    simd<T, N>>
+atomic_update(T *p, simd<Toffset, N> byte_offset, PropertyListT props = {}) {
   simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, offset, mask, props);
+  return atomic_update<Op, T, N>(p, byte_offset, mask, props);
 }
 
 /// A variation of \c atomic_update API with \c offsets represented as
@@ -3332,11 +3330,11 @@ atomic_update(T *p, simd<Toffset, N> offset, PropertyListT props = {}) {
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
-/// @param offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
 /// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties is used.
+///   properties list. Only L1/L2 properties are used.
 ///   Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
@@ -3347,7 +3345,7 @@ template <atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    __ESIMD_NS::simd<T, N>>
+    simd<T, N>>
 atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
               PropertyListT props = {}) {
   return atomic_update<Op, T, N>(p, offsets.read(), mask, props);
@@ -3361,9 +3359,9 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update
 /// @param p The USM pointer.
-/// @param offset The simd_view of 32-bit or 64-bit offsets in bytes.
+/// @param byte_offset The simd_view of 32-bit or 64-bit offsets in bytes.
 /// @param props The parameter 'props' specifies the optional compile-time
-///   properties list. Only L1/L2 properties is used.
+///   properties list. Only L1/L2 properties are used.
 ///   Other properties are ignored.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
@@ -3374,11 +3372,11 @@ template <atomic_op Op, typename T, int N, typename Toffset,
 __ESIMD_API std::enable_if_t<
     __ESIMD_DNS::get_num_args<Op>() == 0 &&
         ext::oneapi::experimental::is_property_list_v<PropertyListT>,
-    __ESIMD_NS::simd<T, N>>
-atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
+    simd<T, N>>
+atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
               PropertyListT props = {}) {
   simd_mask<N> mask = 1;
-  return atomic_update<Op, T, N>(p, offsets.read(), mask, props);
+  return atomic_update<Op, T, N>(p, byte_offset.read(), mask, props);
 }
 
 /// A variation of \c atomic_update API with \c offset represented as
@@ -3386,19 +3384,19 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
 ///
 /// @tparam Op The atomic operation - can be \c atomic_op::inc or
 /// \c atomic_op::dec, \c atomic_op::load.
-/// @tparam Tx The vector element type.
+/// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
-/// @param offset The scalar 32-bit or 64-bit offset in bytes.
+/// @param byte_offset The scalar 32-bit or 64-bit offset in bytes.
 /// @param mask Operation mask, only locations with non-zero in the
 ///   corresponding mask element are updated.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
 ///
-template <atomic_op Op, typename Tx, int N, typename Toffset>
-__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<Tx, N>>
-atomic_update(Tx *p, Toffset offset, simd_mask<N> mask = 1) {
-  return atomic_update<Op, Tx, N>(p, simd<Toffset, N>(offset), mask);
+template <atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>, simd<T, N>>
+atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
+  return atomic_update<Op, T, N>(p, simd<Toffset, N>(byte_offset), mask);
 }
 
 /// @anchor usm_atomic_update2
