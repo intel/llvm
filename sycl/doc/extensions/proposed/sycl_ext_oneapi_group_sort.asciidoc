@@ -514,10 +514,10 @@ namespace sycl::ext::oneapi::experimental {
         void operator()(Group g, Ptr first, Ptr last); // (2)
 
         template<typename T>
-        static constexpr size_t
+        static size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (3)
         template<typename T>
-        static constexpr size_t
+        static size_t
         memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (4)
     };
 
@@ -537,9 +537,9 @@ namespace sycl::ext::oneapi::experimental {
                         sycl::span<T, ElementsPerWorkItem> values,
                         Properties properties); // (7)
 
-        static constexpr size_t
+        static size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (8)
-        static constexpr size_t
+        static size_t
         memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (9)
     };
 
@@ -562,9 +562,9 @@ namespace sycl::ext::oneapi::experimental {
                         sycl::span<U, ElementsPerWorkItem> values,
                         Properties property); // (12)
 
-        static constexpr std::size_t
+        static std::size_t
         memory_required(sycl::memory_scope scope, std::size_t range_size); // (13)
-        static constexpr std::size_t
+        static std::size_t
         memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (14)
     };
   }
