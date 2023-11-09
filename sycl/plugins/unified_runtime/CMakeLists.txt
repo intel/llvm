@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 612a263613b235b0257fcaf2f128fc61b06e0c24
-  # Merge: 7db941d 55409e4
+  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
+  # Merge: 62e6d2f9 5fb82924
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 7 10:21:37 2023 +0000
-  #     Merge pull request #1011 from fabiomestre/fabio/fix_opencl_leak
-  #     [OpenCL] Fix memory leak
-  set(UNIFIED_RUNTIME_TAG 612a263613b235b0257fcaf2f128fc61b06e0c24)
+  # Date:   Wed Nov 8 13:32:46 2023 +0000
+  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
+  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
+  set(UNIFIED_RUNTIME_TAG ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
