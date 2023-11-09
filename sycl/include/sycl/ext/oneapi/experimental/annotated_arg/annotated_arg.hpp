@@ -19,13 +19,6 @@
 #include <utility>
 #include <variant>
 
-#define CHECK_INVALID_PROPERTY(property, list)                                 \
-  static constexpr bool has_##property =                                       \
-      detail::ContainsProperty<property##_key, list>::value;                   \
-  static_assert(!has_##property,                                               \
-                "Property " #property " cannot be specified for "              \
-                "annotated_arg<T> when T is a non pointer type.");
-
 namespace sycl {
 
 // device_copyable trait
@@ -206,7 +199,6 @@ template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using property_tuple = std::tuple<Props...>;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
