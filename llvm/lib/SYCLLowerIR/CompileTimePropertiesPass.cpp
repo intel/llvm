@@ -62,16 +62,17 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
+// Masks defined here must be in sync with the SYCL header with fp control kernel property.
 enum FloatControl {
-  RTE = 0,      // Round to nearest or even
-  RTP = 1 << 4, // Round towards +ve inf
-  RTN = 2 << 4, // Round towards -ve inf
-  RTZ = 3 << 4, // Round towards zero
+  RTE = 1,      // Round to nearest or even
+  RTP = 1 << 1, // Round towards +ve inf
+  RTN = 1 << 2, // Round towards -ve inf
+  RTZ = 1 << 3, // Round towards zero
 
-  DENORM_FTZ = 0,           // Denorm mode flush to zero
-  DENORM_D_ALLOW = 1 << 6,  // Denorm mode double allow
-  DENORM_F_ALLOW = 1 << 7,  // Denorm mode float allow
-  DENORM_HF_ALLOW = 1 << 10 // Denorm mode half allow
+  DENORM_FTZ = 1 << 4,           // Denorm mode flush to zero
+  DENORM_D_ALLOW = 1 << 5,  // Denorm mode double allow
+  DENORM_F_ALLOW = 1 << 6,  // Denorm mode float allow
+  DENORM_HF_ALLOW = 1 << 7 // Denorm mode half allow
 };
 
 enum FloatControlMask {
@@ -261,34 +262,33 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-floating-point-control") {
     uint32_t FPControl = getAttributeAsInteger<uint32_t>(Attr);
-    switch (FPControl & ROUND_MASK) {
-    case RTE:
+    auto IsFPModeSet = [FPControl](FloatControl Flag) -> bool {
+      return (FPControl & Flag) == Flag;
+    };
+
+    if (IsFPModeSet(RTE))
       AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTE);
-      break;
-    case RTP:
+
+    if (IsFPModeSet(RTP))
       AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTP_INTEL);
-      break;
-    case RTN:
+
+    if (IsFPModeSet(RTN))
       AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTN_INTEL);
-      break;
-    case RTZ:
+
+    if (IsFPModeSet(RTZ))
       AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTZ);
-      break;
-    default:
-      llvm_unreachable("Unexpected rounding mode value");
-    }
-    if (!(FPControl & DENORM_MASK)) {
+
+    if (IsFPModeSet(DENORM_FTZ))
       AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);
-    } else {
-      if (FPControl & DENORM_HF_ALLOW)
-        AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
 
-      if (FPControl & DENORM_F_ALLOW)
-        AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+    if (IsFPModeSet(DENORM_HF_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
 
-      if (FPControl & DENORM_D_ALLOW)
-        AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
-    }
+    if (IsFPModeSet(DENORM_F_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+
+    if (IsFPModeSet(DENORM_D_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
   }
 
   if (AttrKindStr == "sycl-work-group-size" ||

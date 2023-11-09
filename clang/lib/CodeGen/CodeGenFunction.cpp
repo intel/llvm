@@ -1158,8 +1158,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         A->getFilteredAttributeNameValuePairs(CGM.getContext());
 
     llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
-    for (const auto &NameValuePair : NameValuePairs)
+    for (const auto &NameValuePair : NameValuePairs) {
+      if (NameValuePair.first == "sycl-floating-point-control" && !FD->hasAttr<SYCLSimdAttr>()) {
+        CGM.getDiags().Report(Loc, diag::err_sycl_fp_control_non_esimd);
+      }
       FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
+    }
     Fn->addFnAttrs(FnAttrBuilder);
   }
 

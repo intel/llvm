@@ -57,17 +57,12 @@ rely on APIs defined in this specification.**
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for Intel GPU devices and
-only when using the Level Zero backend or OpenCL backend. Also currently Intel GPU
-driver supports this extension only for Vector Backend, so feature is supported only
-for ESIMD.
-Attempting to use this extension in kernels that run on other devices or
-backends may result in undefined behavior.  Be aware that the compiler
-is not able to issue a diagnostic to warn you if this happens.
+This extension is currently implemented in {dpcpp} only for kernels marked with SYCL_ESIMD_KERNEL. 
+Error is emitted if property which is defined in this extension is applied to non-ESIMD kernel.
 
 == Overview
 
-Intel GPUs allow to control kernel behavior in floating point operations. This extension adds the kernel property `fp_control` which provides a way to specify the rounding mode, denorm mode and single precision floating point mode for floating point operations in a SYCL kernel.
+Intel GPUs allow to control kernel behavior in floating point operations. This extension adds the kernel property `fp_control` which provides a way to specify the rounding mode and denorm mode for floating point operations in a SYCL kernel.
 
 == Specification
 
@@ -110,15 +105,15 @@ The values that the property can be set to are a subset of the following that ca
 | round_upward | Round towards positive infinity
 | round_downward | Round towards negative infinity
 | round_toward_zero | Round towards zero
-| denorm_ftz | Denorm mode flush to zero
-| denorm_d_allow | Denorm mode double allow
-| denorm_f_allow | Denorm mode float allow
-| denorm_hf_allow | Denorm mode half allow
-| denorm_allow | Denorm mode double/float/half allow
+| denorm_ftz | Denormalized floating point values are flushed to zero in the kernel code
+| denorm_d_allow | Kernel code is allowed to use denormalized double precision floating point values
+| denorm_f_allow | Kernel code is allowed to use denormalized signle precision floating point values
+| denorm_hf_allow | Kernel code is allowed to use denormalized half precision floating point values
+| denorm_allow | Kernel code is allowed to use denormalized double/float/half precision floating point values
 |===
 
-The compiler will not enforce using mutually exclusive values (for instance 2 rounding
-modes) and the results in this case may be undefined. At most one `fp_control` property may be associated with a kernel. If a kernel is not associated with a `fp_control` property, the manner in which the fp mode is selected is implementation-defined.
+Rounding modes are mutually exclusive and `denorm_ftz` mode is mutually exclusive with `denorm_*allow` modes.
+At most one `fp_control` property may be associated with a kernel. If a kernel is not associated with a `fp_control` property, the manner in which the fp mode is selected is implementation-defined.
 
 The properties are defined as follows:
 ```c++
@@ -146,7 +141,7 @@ struct fp_control_key {
       fp_control_key, std::integral_constant<fp_mode, option>>;
 };
 
-template <fp_mode option = fp_mode::round_to_nearest>
+template <fp_mode option>
 inline constexpr fp_control_key::value_t<option> fp_control;
 
 } // namespace sycl::ext::intel::experimental

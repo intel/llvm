@@ -290,41 +290,40 @@ void processSubModuleNamedMetadata(Module *M) {
     return;
 
   bool ContainsNodesToRemove = false;
-  if (ExecutionModeMD) {
-    std::vector<MDNode *> ValueVec;
-    for (auto Op : ExecutionModeMD->operands()) {
-      assert(Op->getNumOperands() > 0);
-      if (!Op->getOperand(0)) {
-        ContainsNodesToRemove = true;
-        continue;
-      }
-
-      // If the first operand is not nullptr then it has to be a kernel
-      // function.
-      Value *Val = cast<ValueAsMetadata>(Op->getOperand(0))->getValue();
-      Function *F = cast<Function>(Val);
-      // If kernel function is just a prototype and unused then we can remove it
-      // and later remove corresponding spirv.ExecutionMode metadata node.
-      if (F->isDeclaration() && F->use_empty()) {
-        F->eraseFromParent();
-        ContainsNodesToRemove = true;
-        continue;
-      }
-
-      // Rememver nodes which we need to keep in the module.
-      ValueVec.push_back(Op);
+  std::vector<MDNode *> ValueVec;
+  for (auto Op : ExecutionModeMD->operands()) {
+    assert(Op->getNumOperands() > 0);
+    if (!Op->getOperand(0)) {
+      ContainsNodesToRemove = true;
+      continue;
     }
-    if (ContainsNodesToRemove) {
-      if (ValueVec.empty()) {
-        // If all nodes need to be removed then just remove named metadata
-        // completely.
-        ExecutionModeMD->eraseFromParent();
-      } else {
-        ExecutionModeMD->clearOperands();
-        for (auto MD : ValueVec)
-          ExecutionModeMD->addOperand(MD);
-      }
+
+    // If the first operand is not nullptr then it has to be a kernel
+    // function.
+    Value *Val = cast<ValueAsMetadata>(Op->getOperand(0))->getValue();
+    Function *F = cast<Function>(Val);
+    // If kernel function is just a prototype and unused then we can remove it
+    // and later remove corresponding spirv.ExecutionMode metadata node.
+    if (F->isDeclaration() && F->use_empty()) {
+      F->eraseFromParent();
+      ContainsNodesToRemove = true;
+      continue;
     }
+
+    // Rememver nodes which we need to keep in the module.
+    ValueVec.push_back(Op);
+  }
+  if (!ContainsNodesToRemove)
+    return;
+
+  if (ValueVec.empty()) {
+    // If all nodes need to be removed then just remove named metadata
+    // completely.
+    ExecutionModeMD->eraseFromParent();
+  } else {
+    ExecutionModeMD->clearOperands();
+    for (auto MD : ValueVec)
+      ExecutionModeMD->addOperand(MD);
   }
 }
 
@@ -338,14 +337,6 @@ ModuleDesc extractSubModule(const ModuleDesc &MD,
   // declarations and removed later.
   std::unique_ptr<Module> SubM = CloneModule(
       M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
-  // Original module may have named metadata (spirv.ExecutionMode) referencing
-  // kernels in the module. Some of the Metadata nodes may reference kernels
-  // which are not included into the extracted submodule, in such case
-  // CloneModule either leaves that metadata nodes as is but they will reference
-  // dead prototype of the kernel or operand will be replace with nullptr. So
-  // process all nodes in the named metadata and remove nodes which are
-  // referencing kernels which are not included into submodule.
-  processSubModuleNamedMetadata(SubM.get());
   // Replace entry points with cloned ones.
   EntryPointSet NewEPs;
   const EntryPointSet &EPs = ModuleEntryPoints.Functions;
@@ -632,6 +623,15 @@ void ModuleDesc::cleanup() {
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
   MPM.run(*M, MAM);
+
+  // Original module may have named metadata (spirv.ExecutionMode) referencing
+  // kernels in the module. Some of the Metadata nodes may reference kernels
+  // which are not included into the extracted submodule, in such case
+  // CloneModule either leaves that metadata nodes as is but they will reference
+  // dead prototype of the kernel or operand will be replace with nullptr. So
+  // process all nodes in the named metadata and remove nodes which are
+  // referencing kernels which are not included into submodule.
+  processSubModuleNamedMetadata(M.get());
 }
 
 bool ModuleDesc::isSpecConstantDefault() const {
