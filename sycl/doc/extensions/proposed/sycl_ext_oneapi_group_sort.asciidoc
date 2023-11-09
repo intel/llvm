@@ -1250,4 +1250,5 @@ Please, note that following is not inplemented yet for the open-source repo:
 |3|2021-12-16|Andrey Fedorov|Some refactoring, sections reordering,
 making the entire extension experimental
 |4|2022-11-14|Andrey Fedorov|Fixed size arrays, key-value sorting and properties
+|5|2023-11-09|Andrey Fedorov|Changed `memory_required` functions for default sorters
 |========================================
