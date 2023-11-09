@@ -173,6 +173,14 @@ public:
     return property_list_t::template get_property<PropertyT>();
   }
 
+  // *************************************************************************
+  // All static error checking is added here instead of placing inside neat
+  // functions to minimize the number lines printed out when an assert
+  // is triggered.
+  // static constexprs are used to ensure that the triggered assert prints
+  // a message that is very readable. Without these, the assert will
+  // print out long templated names
+  // *************************************************************************
   static constexpr bool is_valid_property_list =
       is_property_list<property_list_t>::value;
   static_assert(is_valid_property_list, "Property list is invalid.");
@@ -363,6 +371,14 @@ public:
     return obj << other.obj;
   }
 
+  // *************************************************************************
+  // All static error checking is added here instead of placing inside neat
+  // functions to minimize the number lines printed out when an assert
+  // is triggered.
+  // static constexprs are used to ensure that the triggered assert prints
+  // a message that is very readable. Without these, the assert will
+  // print out long templated names
+  // *************************************************************************
   static constexpr bool is_device_copyable = is_device_copyable_v<T>;
   static_assert(is_device_copyable, "Type T must be device copyable.");
 
