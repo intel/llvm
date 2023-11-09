@@ -695,14 +695,14 @@ public:
 
   // Creates a simple rule, which adds a value of a string attribute into a
   // resulting identifier.
-  void registerSimpleStringAttributeRule(StringRef MetadataName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, MetadataName);
+  void registerSimpleStringAttributeRule(StringRef AttrName) {
+    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, AttrName);
   }
 
   // Creates a simple rule, which adds a value of a string metadata into a
   // resulting identifier.
-  void registerSimpleStringMetadataRule(StringRef AttrName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringMetadata, AttrName);
+  void registerSimpleStringMetadataRule(StringRef MetadataName) {
+    Rules.emplace_back(Rule::RKind::K_SimpleStringMetadata, MetadataName);
   }
 
   // Creates a simple rule, which adds one or another value to a resulting
