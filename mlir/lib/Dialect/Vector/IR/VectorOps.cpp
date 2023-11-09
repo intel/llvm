@@ -346,24 +346,6 @@ struct BitmaskEnumStorage : public AttributeStorage {
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
-// VectorDialect Interfaces
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-struct VectorInlinerInterface : public DialectInlinerInterface {
-  using DialectInlinerInterface::DialectInlinerInterface;
-
-  /// All operations can be inlined.
-  bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
-                       IRMapping &) const final {
-    return true;
-  }
-};
-
-} // namespace
-
-//===----------------------------------------------------------------------===//
 // VectorDialect
 //===----------------------------------------------------------------------===//
 
