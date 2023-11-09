@@ -52,8 +52,8 @@ if(NATIVECPU_USE_OCK)
 
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
-   GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-   GIT_TAG        sycl_native_experimental
+   GIT_REPOSITORY https://github.com/PietroGhg/oneapi-construction-kit.git
+   GIT_TAG       pietro/nativecpu_update 
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
