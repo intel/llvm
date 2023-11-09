@@ -623,7 +623,7 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
+/// @tparam DS is the data size (unused/obsolete).
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param pred is the predicate; if it contains 0, then the actual load
 /// is not performed and the returned value is undefined.
@@ -632,21 +632,9 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t AddressScale = 1;
-  constexpr int ImmOffset = 0;
-  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
-                "Transposed load is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
-
-  constexpr auto Transposed = detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  return __esimd_lsc_load_slm<T, cache_hint::none, cache_hint::none,
-                              AddressScale, ImmOffset, FDS, VS, Transposed, N>(
-      pred.data(), offsets.data());
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+  return __ESIMD_NS::slm_block_load<T, NElts>(offset, pred, Props);
 }
 
 /// Transposed SLM gather with 1 channel.
@@ -658,7 +646,7 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
+/// @tparam DS is the data size (unused/obsolete).
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param pred is the predicate; if it contains 0, then the actual load
 /// is not performed and \p pass_thru is returned.
@@ -670,21 +658,9 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
                    __ESIMD_NS::simd<T, NElts> pass_thru) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  constexpr uint16_t AddressScale = 1;
-  constexpr int ImmOffset = 0;
-  constexpr lsc_data_size FDS = detail::finalize_data_size<T, DS>();
-  static_assert(FDS == lsc_data_size::u32 || FDS == lsc_data_size::u64,
-                "Transposed load is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size VS = detail::to_lsc_vector_size<NElts>();
-  constexpr auto Transposed = detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  return __esimd_lsc_load_merge_slm<T, cache_hint::none, cache_hint::none,
-                                    AddressScale, ImmOffset, FDS, VS,
-                                    Transposed, N>(pred.data(), offsets.data(),
-                                                   pass_thru.data());
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+  return __ESIMD_NS::slm_block_load<T, NElts>(offset, pred, pass_thru, Props);
 }
 
 /// USM pointer gather.
