@@ -10,8 +10,8 @@ EXPORTS
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
 	urBindlessImagesImageGetInfoExp
-	urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-	urBindlessImagesImportOpaqueFDExp
+	urBindlessImagesImportExternalMemoryExp
+	urBindlessImagesImportExternalSemaphoreExp
 	urBindlessImagesMapExternalArrayExp
 	urBindlessImagesMipmapFreeExp
 	urBindlessImagesMipmapGetLevelExp
@@ -177,8 +177,8 @@ EXPORTS
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams
 	urPrintBindlessImagesImageGetInfoExpParams
-	urPrintBindlessImagesImportExternalSemaphoreOpaqueFdExpParams
-	urPrintBindlessImagesImportOpaqueFdExpParams
+	urPrintBindlessImagesImportExternalMemoryExpParams
+	urPrintBindlessImagesImportExternalSemaphoreExpParams
 	urPrintBindlessImagesMapExternalArrayExpParams
 	urPrintBindlessImagesMipmapFreeExpParams
 	urPrintBindlessImagesMipmapGetLevelExpParams
@@ -300,6 +300,8 @@ EXPORTS
 	urPrintExpCommandBufferUpdateMemobjArgDesc
 	urPrintExpCommandBufferUpdatePointerArgDesc
 	urPrintExpCommandBufferUpdateValueArgDesc
+	urPrintExpExternalMemType
+	urPrintExpExternalSemaphoreType
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
 	urPrintExpInteropMemDesc

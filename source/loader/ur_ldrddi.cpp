@@ -6246,11 +6246,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
+/// @brief Intercept function for urBindlessImagesImportExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
+    ur_exp_external_mem_type_t
+        memHandleType, ///< [in] type of external memory handle
     ur_exp_interop_mem_desc_t
         *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
@@ -6260,9 +6262,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnImportOpaqueFDExp =
-        dditable->ur.BindlessImagesExp.pfnImportOpaqueFDExp;
-    if (nullptr == pfnImportOpaqueFDExp) {
+    auto pfnImportExternalMemoryExp =
+        dditable->ur.BindlessImagesExp.pfnImportExternalMemoryExp;
+    if (nullptr == pfnImportExternalMemoryExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6273,8 +6275,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // forward to device-platform
-    result = pfnImportOpaqueFDExp(hContext, hDevice, size, pInteropMemDesc,
-                                  phInteropMem);
+    result = pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
+                                        pInteropMemDesc, phInteropMem);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -6378,11 +6380,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-__urdlllocal ur_result_t UR_APICALL
-urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
+/// @brief Intercept function for urBindlessImagesImportExternalSemaphoreExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_external_semaphore_type_t
+        semHandleType, ///< [in] type of external memory handle
     ur_exp_interop_semaphore_desc_t
         *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
@@ -6392,9 +6395,9 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnImportExternalSemaphoreOpaqueFDExp =
-        dditable->ur.BindlessImagesExp.pfnImportExternalSemaphoreOpaqueFDExp;
-    if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
+    auto pfnImportExternalSemaphoreExp =
+        dditable->ur.BindlessImagesExp.pfnImportExternalSemaphoreExp;
+    if (nullptr == pfnImportExternalSemaphoreExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6405,8 +6408,9 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // forward to device-platform
-    result = pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
+    result = pfnImportExternalSemaphoreExp(hContext, hDevice, semHandleType,
+                                           pInteropSemaphoreDesc,
+                                           phInteropSemaphore);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -6466,7 +6470,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
+                      ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `waitValue` is ignored.
+    uint64_t waitValue,           ///< [in] the value to be waited on
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6505,9 +6515,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     }
 
     // forward to device-platform
-    result =
-        pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, numEventsInWaitList,
-                                    phEventWaitListLocal.data(), phEvent);
+    result = pfnWaitExternalSemaphoreExp(hQueue, hSemaphore, hasWaitValue,
+                                         waitValue, numEventsInWaitList,
+                                         phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -6531,7 +6541,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
     ur_exp_interop_semaphore_handle_t
-        hSemaphore,               ///< [in] interop semaphore handle
+        hSemaphore, ///< [in] interop semaphore handle
+    bool
+        hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
+                        ///< certain value.
+    ///< Otherwise the semaphore is treated like a binary state, and
+    ///< `signalValue` is ignored.
+    uint64_t signalValue,         ///< [in] the value to be signalled
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6570,9 +6586,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     }
 
     // forward to device-platform
-    result =
-        pfnSignalExternalSemaphoreExp(hQueue, hSemaphore, numEventsInWaitList,
-                                      phEventWaitListLocal.data(), phEvent);
+    result = pfnSignalExternalSemaphoreExp(
+        hQueue, hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
+        phEventWaitListLocal.data(), phEvent);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -8210,14 +8226,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
                 ur_loader::urBindlessImagesMipmapGetLevelExp;
             pDdiTable->pfnMipmapFreeExp =
                 ur_loader::urBindlessImagesMipmapFreeExp;
-            pDdiTable->pfnImportOpaqueFDExp =
-                ur_loader::urBindlessImagesImportOpaqueFDExp;
+            pDdiTable->pfnImportExternalMemoryExp =
+                ur_loader::urBindlessImagesImportExternalMemoryExp;
             pDdiTable->pfnMapExternalArrayExp =
                 ur_loader::urBindlessImagesMapExternalArrayExp;
             pDdiTable->pfnReleaseInteropExp =
                 ur_loader::urBindlessImagesReleaseInteropExp;
-            pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
-                ur_loader::urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+            pDdiTable->pfnImportExternalSemaphoreExp =
+                ur_loader::urBindlessImagesImportExternalSemaphoreExp;
             pDdiTable->pfnDestroyExternalSemaphoreExp =
                 ur_loader::urBindlessImagesDestroyExternalSemaphoreExp;
             pDdiTable->pfnWaitExternalSemaphoreExp =
