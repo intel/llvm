@@ -1,4 +1,9 @@
 // RUN: cgeist -w -o - -S --function=* %s | FileCheck %s
+// RUN: cgeist -omit-fp-contract -w -o - -S --function=* %s | FileCheck %s --check-prefix=CHECK-OMIT
+
+// COM: -omit-fp-contract should yield no 'math.fma' operations
+
+// CHECK-OMIT-NOT: math.fma
 
 using double2 = double __attribute__((ext_vector_type(2)));
 
