@@ -695,8 +695,14 @@ public:
 
   // Creates a simple rule, which adds a value of a string attribute into a
   // resulting identifier.
-  void registerSimpleStringAttributeRule(StringRef AttrName) {
-    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, AttrName);
+  void registerSimpleStringAttributeRule(StringRef MetadataName) {
+    Rules.emplace_back(Rule::RKind::K_SimpleStringAttribute, MetadataName);
+  }
+
+  // Creates a simple rule, which adds a value of a string metadata into a
+  // resulting identifier.
+  void registerSimpleStringMetadataRule(StringRef AttrName) {
+    Rules.emplace_back(Rule::RKind::K_SimpleStringMetadata, AttrName);
   }
 
   // Creates a simple rule, which adds one or another value to a resulting
@@ -747,6 +753,8 @@ private:
       K_Callback,
       // Copy value of the specified attribute, if present
       K_SimpleStringAttribute,
+      // Copy value of the specified metadata, if present
+      K_SimpleStringMetadata,
       // Use one or another string based on the specified metadata presence
       K_FlagMetadata,
       // Use one or another string based on the specified attribute presence
@@ -764,6 +772,7 @@ private:
       switch (K) {
       case RKind::K_SimpleStringAttribute:
       case RKind::K_IntegersListMetadata:
+      case RKind::K_SimpleStringMetadata:
       case RKind::K_SortedIntegersListMetadata:
         return 0;
       case RKind::K_Callback:
@@ -804,6 +813,18 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
       if (F->hasFnAttribute(AttrName)) {
         Attribute Attr = F->getFnAttribute(AttrName);
         Result += Attr.getValueAsString();
+      }
+    } break;
+
+    case Rule::RKind::K_SimpleStringMetadata: {
+      StringRef MetadataName =
+          R.getStorage<Rule::RKind::K_SimpleStringMetadata>();
+      if (F->hasMetadata(MetadataName)) {
+        auto *MDN = F->getMetadata(MetadataName);
+        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+          MDString *S = cast<llvm::MDString>(MDN->getOperand(I).get());
+          Result += "-" + S->getString().str();
+        }
       }
     } break;
 
@@ -899,6 +920,10 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
         "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(
         sycl::utils::ATTR_SYCL_OPTLEVEL);
+    Categorizer.registerSimpleStringMetadataRule(
+        "sycl_joint_matrix");
+    Categorizer.registerSimpleStringMetadataRule(
+        "sycl_joint_matrix_mad");
     break;
   }
 
