@@ -80,12 +80,15 @@ enum FloatControlMask {
 };
 
 // SPIRV execution modes for FP control.
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620;
-constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621;
-constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;
-constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;
+// These opcodes are specified in SPIRV specification (SPV_KHR_float_controls
+// and SPV_INTEL_float_controls2 extensions):
+// https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.pdf
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;       // RoundingModeRTE
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;       // RoundingModeRTZ
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620; // RoundingModeRTPINTEL
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621; // RoundingModeRTNINTEL
+constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;    // DenormFlushToZero
+constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;         // DenormPreserve
 
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
@@ -241,7 +244,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
   auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
                                           int32_t Width) {
     auto NamedMD = M.getOrInsertNamedMetadata("spirv.ExecutionMode");
-    std::vector<Metadata *> ValueVec;
+    SmallVector<Metadata *, 4> ValueVec;
     ValueVec.push_back(ConstantAsMetadata::get(&F));
     ValueVec.push_back(ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt32Ty(Ctx), SPIRVFPControl)));

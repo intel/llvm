@@ -285,8 +285,11 @@ void collectFunctionsAndGlobalVariablesToExtract(
 // that reference kernels that have dead prototypes or don't reference any
 // kernel at all (nullptr). Dead prototypes are removed as well.
 void processSubModuleNamedMetadata(Module *M) {
-  bool ContainsNodesToRemove = false;
   auto ExecutionModeMD = M->getNamedMetadata("spirv.ExecutionMode");
+  if (!ExecutionModeMD)
+    return;
+
+  bool ContainsNodesToRemove = false;
   if (ExecutionModeMD) {
     std::vector<MDNode *> ValueVec;
     for (auto Op : ExecutionModeMD->operands()) {
