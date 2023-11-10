@@ -26,10 +26,10 @@ int main(int argc, char *argv[]) {
     // Initialize the platform
     status = urLoaderInit(0, nullptr);
     if (status != UR_RESULT_SUCCESS) {
-        out.error("urInit failed with return code: {}", status);
+        out.error("urLoaderInit failed with return code: {}", status);
         return 1;
     }
-    out.info("urInit succeeded.");
+    out.info("urLoaderInit succeeded.");
 
     uint32_t adapterCount = 0;
     std::vector<ur_adapter_handle_t> adapters;
