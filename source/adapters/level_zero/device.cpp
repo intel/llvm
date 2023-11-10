@@ -74,7 +74,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 
   uint32_t ZeDeviceCount = MatchedDevices.size();
 
-  auto N = std::min(ZeDeviceCount, NumEntries);
+  auto N = (std::min)(ZeDeviceCount, NumEntries);
   if (Devices)
     std::copy_n(MatchedDevices.begin(), N, Devices);
 
@@ -631,7 +631,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
     if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
       setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
-                      UR_RESULT_SUCCESS);
+                      UR_RESULT_ERROR_UNINITIALIZED,
+                      static_cast<int32_t>(ZE_RESULT_ERROR_UNINITIALIZED));
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
     // Only report device memory which zeMemAllocDevice can allocate from.
@@ -1239,7 +1240,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   uint32_t *SelectedBinaryInd = SelectedBinary;
 
   // Find the appropriate device image, fallback to spirv if not found
-  constexpr uint32_t InvalidInd = std::numeric_limits<uint32_t>::max();
+  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
   uint32_t Spirv = InvalidInd;
 
   for (uint32_t i = 0; i < NumBinaries; ++i) {

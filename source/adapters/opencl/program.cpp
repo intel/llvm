@@ -176,11 +176,17 @@ static cl_int mapURProgramInfoToCL(ur_program_info_t URPropName) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        mapURProgramInfoToCL(propName),
-                                        propSize, pPropValue, pPropSizeRet));
-
+  size_t CheckPropSize = 0;
+  auto ClResult = clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
+                                   mapURProgramInfoToCL(propName), propSize,
+                                   pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClResult);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -249,30 +255,30 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
-
-  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-
-  switch (propName) {
-  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
-    cl_program_binary_type cl_value;
+  if (propName == UR_PROGRAM_BUILD_INFO_BINARY_TYPE) {
+    UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+    cl_program_binary_type BinaryType;
     CL_RETURN_ON_FAILURE(clGetProgramBuildInfo(
         cl_adapter::cast<cl_program>(hProgram),
         cl_adapter::cast<cl_device_id>(hDevice),
         mapURProgramBuildInfoToCL(propName), sizeof(cl_program_binary_type),
-        &cl_value, nullptr));
-    return ReturnValue(mapCLBinaryTypeToUR(cl_value));
-  case UR_PROGRAM_BUILD_INFO_LOG:
-  case UR_PROGRAM_BUILD_INFO_OPTIONS:
-  case UR_PROGRAM_BUILD_INFO_STATUS:
-    CL_RETURN_ON_FAILURE(
-        clGetProgramBuildInfo(cl_adapter::cast<cl_program>(hProgram),
-                              cl_adapter::cast<cl_device_id>(hDevice),
-                              mapURProgramBuildInfoToCL(propName), propSize,
-                              pPropValue, pPropSizeRet));
-    return UR_RESULT_SUCCESS;
-  default:
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        &BinaryType, nullptr));
+    return ReturnValue(mapCLBinaryTypeToUR(BinaryType));
   }
+  size_t CheckPropSize = 0;
+  cl_int ClErr = clGetProgramBuildInfo(cl_adapter::cast<cl_program>(hProgram),
+                                       cl_adapter::cast<cl_device_id>(hDevice),
+                                       mapURProgramBuildInfoToCL(propName),
+                                       propSize, pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClErr);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -299,9 +305,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t,
-    const ur_program_native_properties_t *, ur_program_handle_t *phProgram) {
-
+    const ur_program_native_properties_t *pProperties,
+    ur_program_handle_t *phProgram) {
   *phProgram = reinterpret_cast<ur_program_handle_t>(hNativeProgram);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urProgramRetain(*phProgram);
+  }
   return UR_RESULT_SUCCESS;
 }
 

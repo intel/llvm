@@ -89,7 +89,7 @@ add_subdirectory(queue)
 add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
 
-if(DEFINED UR_DPCXX)
+if(UR_DPCXX)
     add_custom_target(generate_device_binaries)
 
     set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
@@ -99,7 +99,9 @@ if(DEFINED UR_DPCXX)
     if(NOT "${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
         string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
     else()
-        message(WARNING "UR_CONFORMANCE_TARGET_TRIPLES wasn't set, defaulting to only generate spir64 device binaries")
+        message(WARNING
+            "UR_CONFORMANCE_TARGET_TRIPLES wasn't set, defaulting to only \
+            generate spir64 device binaries")
         list(APPEND TARGET_TRIPLES "spir64")
     endif()
 
@@ -107,4 +109,8 @@ if(DEFINED UR_DPCXX)
     add_subdirectory(kernel)
     add_subdirectory(program)
     add_subdirectory(enqueue)
+else()
+    message(WARNING
+        "UR_DPCXX is not defined, the following conformance test executables \
+        are disabled: test-program, test-kernel, test-enqueue")
 endif()

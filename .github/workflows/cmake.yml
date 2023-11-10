@@ -196,12 +196,12 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
         -DUR_CONFORMANCE_TARGET_TRIPLES=${{matrix.adapter.triplet}}
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
-        cmake --build ${{github.workspace}}/build -j $(nproc)
+      run: cmake --build ${{github.workspace}}/build -j $(nproc)
 
     - name: Test adapter specific
       working-directory: ${{github.workspace}}/build

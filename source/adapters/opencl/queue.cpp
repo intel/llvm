@@ -19,7 +19,7 @@ cl_command_queue_info mapURQueueInfoToCL(const ur_queue_info_t PropName) {
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
     return CL_QUEUE_DEVICE_DEFAULT;
   case UR_QUEUE_INFO_FLAGS:
-    return CL_QUEUE_PROPERTIES_ARRAY;
+    return CL_QUEUE_PROPERTIES;
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return CL_QUEUE_REFERENCE_COUNT;
   case UR_QUEUE_INFO_SIZE:
@@ -47,6 +47,24 @@ convertURQueuePropertiesToCL(const ur_queue_properties_t *URQueueProperties) {
   }
 
   return CLCommandQueueProperties;
+}
+
+ur_queue_flags_t
+mapCLQueuePropsToUR(const cl_command_queue_properties &Properties) {
+  ur_queue_flags_t Flags = 0;
+  if (Properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    Flags |= UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+  }
+  if (Properties & CL_QUEUE_PROFILING_ENABLE) {
+    Flags |= UR_QUEUE_FLAG_PROFILING_ENABLE;
+  }
+  if (Properties & CL_QUEUE_ON_DEVICE) {
+    Flags |= UR_QUEUE_FLAG_ON_DEVICE;
+  }
+  if (Properties & CL_QUEUE_ON_DEVICE_DEFAULT) {
+    Flags |= UR_QUEUE_FLAG_ON_DEVICE_DEFAULT;
+  }
+  return Flags;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
@@ -102,15 +120,35 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t *pPropSizeRet) {
   if (propName == UR_QUEUE_INFO_EMPTY) {
     // OpenCL doesn't provide API to check the status of the queue.
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
-
   cl_command_queue_info CLCommandQueueInfo = mapURQueueInfoToCL(propName);
 
-  cl_int RetErr = clGetCommandQueueInfo(
-      cl_adapter::cast<cl_command_queue>(hQueue), CLCommandQueueInfo, propSize,
-      pPropValue, pPropSizeRet);
-  CL_RETURN_ON_FAILURE(RetErr);
+  // Unfortunately the size of cl_bitfield (unsigned long) doesn't line up with
+  // our enums (forced to be sizeof(uint32_t)) so this needs special handling.
+  if (propName == UR_QUEUE_INFO_FLAGS) {
+    UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+    cl_command_queue_properties QueueProperties = 0;
+    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+        cl_adapter::cast<cl_command_queue>(hQueue), CLCommandQueueInfo,
+        sizeof(QueueProperties), &QueueProperties, nullptr));
+
+    return ReturnValue(mapCLQueuePropsToUR(QueueProperties));
+  } else {
+    size_t CheckPropSize = 0;
+    cl_int RetErr = clGetCommandQueueInfo(
+        cl_adapter::cast<cl_command_queue>(hQueue), CLCommandQueueInfo,
+        propSize, pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(RetErr);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
