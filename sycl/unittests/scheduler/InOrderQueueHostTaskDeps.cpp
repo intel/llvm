@@ -47,7 +47,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
       .wait();
 
-  EXPECT_EQ(GEventsWaitCounter, 1);
+  EXPECT_EQ(GEventsWaitCounter, 1u);
 }
 
 enum CommandType { KERNEL = 1, MEMSET = 2 };
