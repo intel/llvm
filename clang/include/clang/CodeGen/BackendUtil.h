@@ -30,7 +30,6 @@ namespace clang {
   class CodeGenOptions;
   class TargetOptions;
   class LangOptions;
-  class BackendConsumer;
 
   enum BackendAction {
     Backend_EmitAssembly,  ///< Emit native assembly files
@@ -46,8 +45,7 @@ namespace clang {
                          const TargetOptions &TOpts, const LangOptions &LOpts,
                          StringRef TDesc, llvm::Module *M, BackendAction Action,
                          llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,
-                         std::unique_ptr<raw_pwrite_stream> OS,
-                         BackendConsumer *BC = nullptr);
+                         std::unique_ptr<raw_pwrite_stream> OS);
 
   void EmbedBitcode(llvm::Module *M, const CodeGenOptions &CGOpts,
                     llvm::MemoryBufferRef Buf);
