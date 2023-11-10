@@ -33,6 +33,7 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
 }
 
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
+  GEventsWaitCounter = 0;
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
@@ -46,7 +47,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
       .wait();
 
-  EXPECT_TRUE(GEventsWaitCounter == 1);
+  EXPECT_EQ(GEventsWaitCounter, 1);
 }
 
 enum CommandType { KERNEL = 1, MEMSET = 2 };

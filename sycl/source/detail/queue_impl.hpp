@@ -385,12 +385,14 @@ public:
                const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
+    event ResEvent;
     try {
-      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
+      ResEvent = submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
-      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
-                                      PostProcess);
+      ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                          Loc, PostProcess);
     }
+    return discard_or_return(ResEvent);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -405,7 +407,8 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
+    auto ResEvent = submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
+    return discard_or_return(ResEvent);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -706,6 +709,7 @@ public:
   unsigned long long getQueueID() { return MQueueID; }
 
 protected:
+  event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
   void cleanup_fusion_cmd();
 

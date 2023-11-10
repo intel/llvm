@@ -58,8 +58,9 @@ bool isEventsReady(const std::vector<sycl::event> &DepEvents,
         !SyclEventImplPtr->is_host()) {
       return true;
     }
-    if (SyclEventImplPtr->is_host())
+    if (SyclEventImplPtr->is_host()) {
       return SyclEventImplPtr->isCompleted();
+    }
     // The fusion command and its event are associated with a non-host context,
     // but still does not produce a PI event.
     if (SyclEventImplPtr->getContextImpl() != Context ||
@@ -110,6 +111,7 @@ static event prepareSYCLEventAssociatedWithQueue(
 }
 
 static event createDiscardedEvent() {
+
   EventImplPtr EventImpl =
       std::make_shared<event_impl>(event_impl::HES_Discarded);
   return createSyclObjFromImpl<event>(EventImpl);
@@ -169,7 +171,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
-      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+      return discard_or_return(ResEvent);
     }
   }
 
@@ -264,7 +266,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
-      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+      return discard_or_return(ResEvent);
     }
   }
 
@@ -300,15 +302,17 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
       MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                                 getPIEvents(DepEvents, ExtraEventToWait),
                                 &EventImpl->getHandleRef(), EventImpl);
-      if (MContext->is_host())
+      if (MContext->is_host()) {
         return MDiscardEvents ? createDiscardedEvent() : event();
+      }
       if (isInOrder()) {
         MLastEventPtr = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
-      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+      return discard_or_return(ResEvent);
     }
   }
 
@@ -353,7 +357,7 @@ event queue_impl::memcpyToDeviceGlobal(
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
-      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+      return discard_or_return(ResEvent);
     }
   }
 
@@ -399,7 +403,7 @@ event queue_impl::memcpyFromDeviceGlobal(
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
-      return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+      return discard_or_return(ResEvent);
     }
   }
 
@@ -672,6 +676,12 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we didn't exit early above then it means that all events in the queue
   // are completed.
   return true;
+}
+
+event queue_impl::discard_or_return(const event &Event) {
+  if (!(MDiscardEvents))
+    return Event;
+  return createDiscardedEvent();
 }
 
 } // namespace detail
