@@ -109,10 +109,9 @@ aligned_alloc_annotated(size_t alignment, size_t count,
                           "Unknown USM allocation kind was specified.");
 
   size_t combinedAlign = combine_align(alignment, alignFromPropList);
-  void *rawPtr =
-      sycl::aligned_alloc(std::max(sizeof(T), combinedAlign), count * sizeof(T),
-                          syclDevice, syclContext, kind, usmPropList);
-  return annotated_ptr<T, propertyListB>(static_cast<T *>(rawPtr));
+  T *rawPtr = sycl::aligned_alloc<T>(combinedAlign, count, syclDevice,
+                                     syclContext, kind, usmPropList);
+  return annotated_ptr<T, propertyListB>(rawPtr);
 }
 
 template <typename propertyListA = detail::empty_properties_t,
