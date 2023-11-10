@@ -35,6 +35,7 @@ class __urdlllocal context_t : public proxy_layer_context_t {
     }
     ur_result_t init(ur_dditable_t *dditable,
                      const std::set<std::string> &enabledLayerNames) override;
+    ur_result_t tearDown() override;
 
   private:
     const std::string nameFullValidation = "UR_LAYER_FULL_VALIDATION";

@@ -245,10 +245,10 @@ class JsonWriter : public TraceWriter {
             "\"tid\": \"\", \"ts\": \"\"}}");
         out.info("]\n}}");
     }
-    void begin(uint64_t id, const char *fname, std::string args) override {}
+    void begin(uint64_t, const char *, std::string) override {}
 
-    void end(uint64_t id, const char *fname, std::string args, Timepoint tp,
-             Timepoint start_tp, const ur_result_t *resultp) override {
+    void end(uint64_t, const char *fname, std::string args, Timepoint tp,
+             Timepoint start_tp, const ur_result_t *) override {
         auto dur = tp - start_tp;
         auto ts_us = std::chrono::duration_cast<std::chrono::microseconds>(
                          tp.time_since_epoch())
@@ -314,10 +314,9 @@ std::optional<fn_context> pop_instance_data(uint64_t instance) {
     return data;
 }
 
-XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
-                                xpti::trace_event_data_t *parent,
-                                xpti::trace_event_data_t *event,
-                                uint64_t instance, const void *user_data) {
+XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
+                                xpti::trace_event_data_t *, uint64_t instance,
+                                const void *user_data) {
     // stop the the clock as the very first thing, only used for TRACE_FN_END
     auto time_for_end = Clock::now();
     auto *args = static_cast<const xpti::function_with_args_t *>(user_data);
@@ -366,8 +365,7 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
  * Called for every stream.
  */
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
-                                     unsigned int minor_version,
-                                     const char *version_str,
+                                     unsigned int minor_version, const char *,
                                      const char *stream_name) {
     if (stream_name == nullptr) {
         out.debug("Found stream with null name. Skipping...");

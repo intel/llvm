@@ -55,18 +55,6 @@ TEST_P(urEnqueueWriteHostPipeTest, InvalidNullPointerBuffer) {
                                             &phEventWaitList, phEvent));
 }
 
-TEST_P(urEnqueueWriteHostPipeTest, InvalidNullPointerEvent) {
-    uint32_t numEventsInWaitList = 0;
-    ur_event_handle_t phEventWaitList;
-    ur_event_handle_t *phEvent = nullptr;
-
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urEnqueueWriteHostPipe(queue, program, pipe_symbol,
-                                            /*blocking*/ true, &buffer, size,
-                                            numEventsInWaitList,
-                                            &phEventWaitList, phEvent));
-}
-
 TEST_P(urEnqueueWriteHostPipeTest, InvalidEventWaitList) {
     ur_event_handle_t phEventWaitList;
     ur_event_handle_t *phEvent = nullptr;

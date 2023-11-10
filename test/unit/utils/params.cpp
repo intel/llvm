@@ -17,30 +17,30 @@ template <typename T> class ParamsTest : public testing::Test {
     T params;
 };
 
-struct UrInitParams {
-    ur_init_params_t params;
+struct UrLoaderInitParams {
+    ur_loader_init_params_t params;
     ur_device_init_flags_t flags;
     ur_loader_config_handle_t config;
-    UrInitParams(ur_device_init_flags_t _flags)
+    UrLoaderInitParams(ur_device_init_flags_t _flags)
         : flags(_flags), config(nullptr) {
         params.pdevice_flags = &flags;
         params.phLoaderConfig = &config;
     }
 
-    ur_init_params_t *get_struct() { return &params; }
+    ur_loader_init_params_t *get_struct() { return &params; }
 };
 
-struct UrInitParamsNoFlags : UrInitParams {
-    UrInitParamsNoFlags() : UrInitParams(0) {}
+struct UrLoaderInitParamsNoFlags : UrLoaderInitParams {
+    UrLoaderInitParamsNoFlags() : UrLoaderInitParams(0) {}
     const char *get_expected() {
         return ".device_flags = 0, .hLoaderConfig = nullptr";
     };
 };
 
-struct UrInitParamsInvalidFlags : UrInitParams {
-    UrInitParamsInvalidFlags()
-        : UrInitParams(UR_DEVICE_INIT_FLAG_GPU | UR_DEVICE_INIT_FLAG_MCA |
-                       UR_BIT(25) | UR_BIT(30) | UR_BIT(31)) {}
+struct UrLoaderInitParamsInvalidFlags : UrLoaderInitParams {
+    UrLoaderInitParamsInvalidFlags()
+        : UrLoaderInitParams(UR_DEVICE_INIT_FLAG_GPU | UR_DEVICE_INIT_FLAG_MCA |
+                             UR_BIT(25) | UR_BIT(30) | UR_BIT(31)) {}
     const char *get_expected() {
         return ".device_flags = UR_DEVICE_INIT_FLAG_GPU \\| "
                "UR_DEVICE_INIT_FLAG_MCA \\| unknown bit flags "
@@ -367,15 +367,41 @@ struct UrDevicePartitionPropertyTest {
     ur_device_partition_property_t prop;
 };
 
+struct UrSamplerAddressModesTest {
+    UrSamplerAddressModesTest() {
+        prop.addrModes[0] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
+        prop.addrModes[1] = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+        prop.addrModes[2] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
+        prop.pNext = nullptr;
+        prop.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES;
+    }
+    ur_exp_sampler_addr_modes_t &get_struct() { return prop; }
+    const char *get_expected() {
+        return "\\(struct ur_exp_sampler_addr_modes_t\\)"
+               "\\{"
+               ".stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES, "
+               ".pNext = nullptr, "
+               ".addrModes = \\{"
+               "UR_SAMPLER_ADDRESSING_MODE_CLAMP, "
+               "UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT, "
+               "UR_SAMPLER_ADDRESSING_MODE_REPEAT"
+               "\\}"
+               "\\}";
+    }
+
+    ur_exp_sampler_addr_modes_t prop;
+};
+
 using testing::Types;
-typedef Types<
-    UrInitParamsNoFlags, UrInitParamsInvalidFlags, UrUsmHostAllocParamsEmpty,
-    UrPlatformGetEmptyArray, UrPlatformGetTwoPlatforms,
-    UrUsmHostAllocParamsUsmDesc, UrUsmHostAllocParamsHostDesc,
-    UrDeviceGetInfoParamsEmpty, UrDeviceGetInfoParamsName,
-    UrDeviceGetInfoParamsQueueFlag, UrDeviceGetInfoParamsPartitionArray,
-    UrContextGetInfoParamsDevicesArray, UrDeviceGetInfoParamsInvalidSize,
-    UrProgramMetadataTest, UrDevicePartitionPropertyTest>
+typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
+              UrUsmHostAllocParamsEmpty, UrPlatformGetEmptyArray,
+              UrPlatformGetTwoPlatforms, UrUsmHostAllocParamsUsmDesc,
+              UrUsmHostAllocParamsHostDesc, UrDeviceGetInfoParamsEmpty,
+              UrDeviceGetInfoParamsName, UrDeviceGetInfoParamsQueueFlag,
+              UrDeviceGetInfoParamsPartitionArray,
+              UrContextGetInfoParamsDevicesArray,
+              UrDeviceGetInfoParamsInvalidSize, UrProgramMetadataTest,
+              UrDevicePartitionPropertyTest, UrSamplerAddressModesTest>
     Implementations;
 
 using ::testing::MatchesRegex;

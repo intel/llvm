@@ -185,6 +185,8 @@ params:
       name: pPropSizeRet
       desc: "[out][optional] pointer to the actual size in bytes returned in propValue"
 returns:
+    - $X_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
+      - "If `hEvent`s associated queue was not created with `UR_QUEUE_FLAG_PROFILING_ENABLE`."
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "`pPropValue && propSize == 0`"
     - $X_RESULT_ERROR_INVALID_EVENT

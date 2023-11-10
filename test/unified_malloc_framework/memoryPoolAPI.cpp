@@ -187,9 +187,10 @@ TEST_P(poolInitializeTest, errorPropagation) {
     umf_memory_provider_handle_t providers[] = {nullProvider.get()};
 
     struct pool : public umf_test::pool_base {
-        umf_result_t initialize(umf_memory_provider_handle_t *providers,
-                                size_t numProviders,
-                                umf_result_t errorToReturn) noexcept {
+        umf_result_t
+        initialize([[maybe_unused]] umf_memory_provider_handle_t *providers,
+                   [[maybe_unused]] size_t numProviders,
+                   umf_result_t errorToReturn) noexcept {
             return errorToReturn;
         }
     };
@@ -232,7 +233,8 @@ TEST_F(test, getLastFailedMemoryProvider) {
             return allocResult;
         }
 
-        enum umf_result_t free(void *ptr, size_t size) noexcept {
+        enum umf_result_t free(void *ptr,
+                               [[maybe_unused]] size_t size) noexcept {
             ::free(ptr);
             return UMF_RESULT_SUCCESS;
         }

@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     ur_result_t status;
 
     // Initialize the platform
-    status = urInit(0, nullptr);
+    status = urLoaderInit(0, nullptr);
     if (status != UR_RESULT_SUCCESS) {
         out.error("urInit failed with return code: {}", status);
         return 1;
@@ -35,14 +35,14 @@ int main(int argc, char *argv[]) {
     std::vector<ur_adapter_handle_t> adapters;
     status = urAdapterGet(0, nullptr, &adapterCount);
     if (status != UR_RESULT_SUCCESS) {
-        error("urAdapterGet failed with return code: {}", status);
+        out.error("urAdapterGet failed with return code: {}", status);
         return 1;
     }
 
     adapters.resize(adapterCount);
     status = urAdapterGet(adapterCount, adapters.data(), nullptr);
     if (status != UR_RESULT_SUCCESS) {
-        error("urAdapterGet failed with return code: {}", status);
+        out.error("urAdapterGet failed with return code: {}", status);
         return 1;
     }
 
@@ -89,6 +89,6 @@ int main(int argc, char *argv[]) {
         free(name);
     }
 out:
-    urTearDown(nullptr);
+    urLoaderTearDown();
     return status == UR_RESULT_SUCCESS ? 0 : 1;
 }

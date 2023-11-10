@@ -84,6 +84,17 @@ def findMemberType(_item):
     %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
         os << ".${iname} = ";
         ${x}_params::serializeUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
+    %elif th.type_traits.is_array(item['type']):
+        os << ".${iname} = {";
+        for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
+            if(i != 0){
+                os << ", ";
+            }
+            <%call expr="member(iname, itype, True)">
+                ${deref}(params${access}${item['name']}[i])
+            </%call>
+        }
+        os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
         ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
@@ -144,7 +155,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
 %if re.match(r"enum", obj['type']):
     inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value);
 %elif re.match(r"struct", obj['type']):
-    inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
+    inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
 %endif
 %endfor # obj in spec['objects']
 %endfor
@@ -353,7 +364,7 @@ for item in obj['members']:
 %for tbl in th.get_pfncbtables(specs, meta, n, tags):
 %for obj in tbl['functions']:
 
-inline std::ostream &operator<<(std::ostream &os, const struct ${th.make_pfncb_param_type(n, tags, obj)} *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ${th.make_pfncb_param_type(n, tags, obj)} *params) {
     <%
         params_dict = dict()
         for item in obj['params']:

@@ -1,0 +1,85 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for Cooperative Kernels"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      The extension string which defines support for cooperative-kernels
+      which is returned when querying device extensions.
+name: $X_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
+value: "\"$x_exp_cooperative_kernels\""
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to execute a cooperative kernel"
+class: $xEnqueue
+name: CooperativeKernelLaunchExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: uint32_t
+      name: workDim
+      desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
+    - type: "const size_t*"
+      name: pGlobalWorkOffset
+      desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+    - type: "const size_t*"
+      name: pGlobalWorkSize      
+      desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
+    - type: "const size_t*"
+      name: pLocalWorkSize
+      desc: |
+            [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
+            If nullptr, the runtime implementation will choose the work-group size. 
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional] return an event object that identifies this particular kernel execution instance.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_KERNEL
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query the maximum number of work groups for a cooperative kernel"
+class: $xKernel
+name: SuggestMaxCooperativeGroupCountExp
+params:
+    - type: $x_kernel_handle_t
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "uint32_t*"
+      name: "pGroupCountRet"
+      desc: "[out] pointer to maximum number of groups"
+returns:      
+    - $X_RESULT_ERROR_INVALID_KERNEL

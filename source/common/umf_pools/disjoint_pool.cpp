@@ -381,6 +381,15 @@ Slab::~Slab() {
     } catch (MemoryProviderError &e) {
         std::cout << "DisjointPool: error from memory provider: " << e.code
                   << "\n";
+        if (e.code == UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC) {
+            const char *message = "";
+            int error = 0;
+
+            umfMemoryProviderGetLastNativeError(
+                umfGetLastFailedMemoryProvider(), &message, &error);
+            std::cout << "Native error msg: " << message
+                      << ", native error code: " << error << std::endl;
+        }
     }
 }
 

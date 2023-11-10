@@ -78,7 +78,7 @@ endfunction()
 
 add_subdirectory(testing)
 
-add_subdirectory(runtime)
+add_subdirectory(adapter)
 add_subdirectory(platform)
 add_subdirectory(device)
 add_subdirectory(context)
