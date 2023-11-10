@@ -65,7 +65,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] void *pDst, [[maybe_unused]] const void *pSrc,
     [[maybe_unused]] size_t size,
@@ -79,7 +79,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hSrcMem,
     [[maybe_unused]] ur_mem_handle_t hDstMem, [[maybe_unused]] size_t srcOffset,
@@ -94,7 +94,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hSrcMem,
     [[maybe_unused]] ur_mem_handle_t hDstMem,
@@ -114,7 +114,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] const void *pSrc,
@@ -129,7 +129,22 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
+    [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
+    [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
+    [[maybe_unused]] size_t size, [[maybe_unused]] const void *pSrc,
+    [[maybe_unused]] uint32_t numSyncPointsInWaitList,
+    [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
+        *pSyncPointWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+
+  cl_adapter::die("Experimental Command-buffer feature is not "
+                  "implemented for OpenCL adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer, [[maybe_unused]] size_t offset,
     [[maybe_unused]] size_t size, [[maybe_unused]] void *pDst,
@@ -144,7 +159,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
@@ -165,7 +180,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     [[maybe_unused]] ur_exp_command_buffer_handle_t hCommandBuffer,
     [[maybe_unused]] ur_mem_handle_t hBuffer,
     [[maybe_unused]] ur_rect_offset_t bufferOffset,
