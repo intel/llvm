@@ -695,9 +695,11 @@ block_store(Tx *addr, simd<Tx, N> vals, Flags) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
-/// (see Restrictions below).
+/// the default assumed alignment is 4-bytes for 4-byte or smaller elements
+/// and 8-bytes for 8-byte elements. The address may be element-size aligned
+/// even for byte- and word-elements, but in such case the smaller alignment
+/// property must explicitly passed to this function. Extra restrictions
+/// may be in place - see Restrictions/R1 below.
 ///
 /// Restrictions - cache hint imposed - temporary:
 /// If L1 or L2 cache hint is passed, then:
@@ -727,21 +729,16 @@ block_load(const T *ptr, PropertyListT props = {}) {
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
     detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
-    constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(
-            DefaultAlignment);
 
     simd_mask<1> Mask = 1;
     return detail::block_load_impl<T, N, L1Hint, L2Hint>(
         ptr, Mask, overaligned_tag<Alignment>{});
   } else {
-    // If the alignment property is not passed, then assume the pointer
-    // is element-aligned.
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
     return block_load<T, N>(ptr, overaligned_tag<Alignment>{});
   }
 }
@@ -763,9 +760,11 @@ block_load(const T *ptr, PropertyListT props = {}) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
-/// (see Restrictions below).
+/// the default assumed alignment is 4-bytes for 4-byte or smaller elements
+/// and 8-bytes for 8-byte elements. The address may be element-size aligned
+/// even for byte- and word-elements, but in such case the smaller alignment
+/// property must explicitly passed to this function. Extra restrictions
+/// may be in place - see Restrictions/R1 below.
 ///
 /// Restrictions - cache hint imposed - temporary:
 /// If L1 or L2 cache hint is passed, then:
