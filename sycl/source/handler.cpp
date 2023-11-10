@@ -820,11 +820,8 @@ void handler::extractArgsAndReqsFromLambda(
 // method inside the library and returns the result.
 // This is a test comment
 const char *handler::getKernelName() {
-  const std::string &kernelName =
-      MKernel->get_info<info::kernel::function_name>();
-  char *kernelNameCStr = new char[kernelName.length() + 1];
-  strcpy(kernelNameCStr, kernelName.c_str());
-  return kernelNameCStr;
+  static const std::string &KernelName=MKernel->get_info<info::kernel::function_name>();
+  return KernelName.c_str();
 }
 
 void handler::verifyUsedKernelBundle(const char *KernelName) {
