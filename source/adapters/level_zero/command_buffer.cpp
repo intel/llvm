@@ -939,16 +939,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
   if (Event) {
+    ur_event_handle_t SyncEvent = CommandBuffer->SignalEvent;
     UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
                                                     false, false));
 
     UR_CALL(createEventAndAssociateQueue(Queue, &RetEvent,
                                          UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
                                          SignalCommandList, false));
-
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (SignalCommandList->first, RetEvent->ZeEvent, 1,
-                &(CommandBuffer->SignalEvent->ZeEvent)));
 
     if ((Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE)) {
       // Multiple submissions of a command buffer implies that we need to save
@@ -957,33 +954,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       // before completing the command buffer execution, and then attach this
       // memory to the event returned to users to allow to allow the profiling
       // engine to recover these timestamps.
-      ur_usm_desc_t USMDesc{};
-      ur_usm_device_desc_t UsmDeviceDesc{};
-      UsmDeviceDesc.stype = UR_STRUCTURE_TYPE_USM_DEVICE_DESC;
-      ur_usm_host_desc_t UsmHostDesc{};
-      UsmHostDesc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
-      UsmDeviceDesc.pNext = &UsmHostDesc;
-      USMDesc.pNext = &UsmDeviceDesc;
-      USMDesc.align = 4; // 4byte-aligned
+      UR_CALL(createEventAndAssociateQueue(
+          Queue, &SyncEvent, UR_COMMAND_USM_MEMCPY, SignalCommandList, false));
 
-      size_t Size = WaitEventList.size() * sizeof(ze_kernel_timestamp_result_t);
-
-      struct command_buffer_profiling_t *Profiling =
-          new command_buffer_profiling_t();
+      command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
 
       Profiling->NumEvents = WaitEventList.size();
-
-      urUSMSharedAlloc(RetEvent->Context, CommandBuffer->Device, &USMDesc,
-                       nullptr, Size, (void **)&Profiling->Timestamps);
+      Profiling->Timestamps =
+          new ze_kernel_timestamp_result_t[Profiling->NumEvents];
 
       ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
                  (SignalCommandList->first, WaitEventList.size(),
-                  WaitEventList.data(), Profiling->Timestamps, 0,
-                  RetEvent->ZeEvent, 1,
+                  WaitEventList.data(), (void *)Profiling->Timestamps, 0,
+                  SyncEvent->ZeEvent, 1,
                   &(CommandBuffer->SignalEvent->ZeEvent)));
 
       RetEvent->CommandData = static_cast<void *>(Profiling);
     }
+
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (SignalCommandList->first, RetEvent->ZeEvent, 1,
+                &(SyncEvent->ZeEvent)));
   }
 
   // Execution our command-lists asynchronously
