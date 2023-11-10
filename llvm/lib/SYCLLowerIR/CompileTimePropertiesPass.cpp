@@ -42,6 +42,9 @@ constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
 constexpr uint32_t SPIRV_INITIATION_INTERVAL_DECOR = 5917;
 constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
 
+constexpr uint32_t SPIRV_CACHE_CONTROL_READ_DECOR = 6442;
+constexpr uint32_t SPIRV_CACHE_CONTROL_WRITE_DECOR = 6443;
+
 enum class DecorValueTy {
   uint32,
   boolean,
@@ -94,6 +97,72 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
       Constant::getIntegerValue(Ty, APInt(32, OpCode))));
   MD.push_back(
       ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
+  return MDNode::get(Ctx, MD);
+}
+
+/// Builds a metadata node for a SPIR-V decoration for cache controls
+/// where decoration code and value are both uint32_t integers.
+/// The value encodes a cache level and a cache control type.
+///
+/// @param Ctx        [in] the LLVM Context.
+/// @param Name       [in] the SPIR-V property string name.
+/// @param OpCode     [in] the SPIR-V opcode.
+/// @param CacheMode  [in] whether read or write.
+/// @param CacheLevel [in] the cache level.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+/// and its values.
+MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
+                                 uint32_t OpCode, uint32_t CacheMode,
+                                 uint32_t CacheLevel) {
+  // SPIR-V encodings of read control
+  enum cache_control_read_type {
+    read_uncached = 0,
+    read_cached = 1,
+    read_streaming = 2,
+    read_invalidate = 3,
+    read_const_cached = 4
+  };
+  // SPIR-V encodings of write control
+  enum cache_control_write_type {
+    write_uncached = 0,
+    write_through = 1,
+    write_back = 2,
+    write_streaming = 3
+  };
+  // SYCL encodings of read/write control. Definition of cache_mode should match
+  // definition in SYCL header file cache_control_properties.hpp.
+  enum class cache_mode {
+    uncached,
+    cached,
+    streaming,
+    invalidate,
+    constant,
+    write_through,
+    write_back
+  };
+  static uint32_t SPIRVReadControl[] = {read_uncached, read_cached,
+                                        read_streaming, read_invalidate,
+                                        read_const_cached};
+  static uint32_t SPIRVWriteControl[] = {
+      write_uncached, write_uncached, write_streaming, write_uncached,
+      write_uncached, write_through,  write_back};
+
+  // Map SYCL encoding to SPIR-V
+  uint32_t CacheProp;
+  if (Name.starts_with("sycl-cache-read"))
+    CacheProp = SPIRVReadControl[CacheMode];
+  else
+    CacheProp = SPIRVWriteControl[CacheMode];
+
+  auto *Ty = Type::getInt32Ty(Ctx);
+  SmallVector<Metadata *, 3> MD;
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, CacheLevel))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, CacheProp))));
   return MDNode::get(Ctx, MD);
 }
 
@@ -625,9 +694,12 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // check alignment annotation and apply it to load/store
   parseAlignmentAndApply(M, IntrInst);
 
-  // Read the annotation values and create the new annotation string.
+  // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
+  SmallVector<Metadata *, 8> MDOpsCacheProp;
+  bool CacheProp = false;
+  bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
     // sycl-alignment is converted to align on
     // previous parseAlignmentAndApply(), dropping here
@@ -639,59 +711,118 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       continue;
     uint32_t DecorCode = DecorIt->second.Code;
 
-    // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
-    // Y is the value if present. It encloses Y in " to ensure that
-    // string values are handled correctly. Note that " around values are
-    // always valid, even if the decoration parameters are not strings.
-    NewAnnotString += "{" + std::to_string(DecorCode);
-    if (PropVal)
-      NewAnnotString += ":\"" + PropVal->str();
+    // Handle cache control properties
+    if ((*PropName).starts_with("sycl-cache-")) {
+      CacheProp = true;
+      auto DecorValue = PropVal;
+      uint32_t AttrVal;
+      DecorValue->getAsInteger(0, AttrVal);
+      // Format is:
+      // !Annot = !{!CC1, !CC2, ...}
+      // !CC1 = !{i32 Load/Store, i32 Level, i32 Control}
+      // !CC2 = !{i32 Load/Store, i32 Level, i32 Control}
+      // ...
+      LLVMContext &Ctx = M.getContext();
+      uint32_t CacheMode = 0;
+      while (AttrVal) {
+        // The attribute value encodes cache control and levels.
+        // Low-order to high-order nibbles hold cache levels specified for the
+        // enumerated SYCL cache modes. Lowest order nibble for uncached, next
+        // for cached, and so on.
+        // In each nibble cache levels are encoded as L1=1, L2=2, L3=4 and L4=8.
+        // The SPIR-V encoding of cache levels L1..L4 uses values 0..3.
+        uint32_t CacheLevel = 0;
+        uint32_t LevelMask = AttrVal & 0xf;
+        while (LevelMask) {
+          if (LevelMask & 1)
+            MDOpsCacheProp.push_back(buildSpirvDecorCacheProp(
+                Ctx, *PropName, DecorCode, CacheMode, CacheLevel));
+          ++CacheLevel;
+          LevelMask >>= 1;
+        }
+        ++CacheMode;
+        AttrVal >>= 4;
+      }
+    } else {
+      FPGAProp = true;
+      // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
+      // Y is the value if present. It encloses Y in " to ensure that
+      // string values are handled correctly. Note that " around values are
+      // always valid, even if the decoration parameters are not strings.
+      NewAnnotString += "{" + std::to_string(DecorCode);
+      if (PropVal)
+        NewAnnotString += ":\"" + PropVal->str();
 
-    if (PropName == "sycl-prefetch-hint")
-      NewAnnotString += ",1"; // CachedINTEL
-    if (PropName == "sycl-prefetch-hint-nt")
-      NewAnnotString += ",3"; // InvalidateAfterReadINTEL
+      if (PropName == "sycl-prefetch-hint")
+        NewAnnotString += ",1"; // CachedINTEL
+      if (PropName == "sycl-prefetch-hint-nt")
+        NewAnnotString += ",3"; // InvalidateAfterReadINTEL
 
-    if (PropVal)
-      NewAnnotString += "\"";
-    NewAnnotString += "}";
+      if (PropVal)
+        NewAnnotString += "\"";
+      NewAnnotString += "}";
+    }
   }
 
-  // If the new annotation string is empty there is no reason to keep it, so
-  // replace it with the first operand and mark it for removal.
-  if (NewAnnotString.empty()) {
+  // If there are no other annotations (except "alignment") then there is no
+  // reason to keep the original intrinsic, so replace it with the first operand
+  // and mark it for removal.
+  if (!CacheProp && !FPGAProp) {
     IntrInst->replaceAllUsesWith(IntrInst->getOperand(0));
     RemovableAnnotations.push_back(IntrInst);
     return true;
   }
 
-  // Either reuse a previously generated one or create a new global variable
-  // with the new annotation string.
-  GlobalVariable *NewAnnotStringGV = nullptr;
-  auto ExistingNewAnnotStringIt = ReusableAnnotStrings.find(NewAnnotString);
-  if (ExistingNewAnnotStringIt != ReusableAnnotStrings.end()) {
-    NewAnnotStringGV = ExistingNewAnnotStringIt->second;
-  } else {
-    Constant *NewAnnotStringData =
-        ConstantDataArray::getString(M.getContext(), NewAnnotString);
-    NewAnnotStringGV = new GlobalVariable(
-        M, NewAnnotStringData->getType(), true, GlobalValue::PrivateLinkage,
-        NewAnnotStringData, ".str", nullptr, llvm::GlobalValue::NotThreadLocal,
-        IntrAnnotStringArg->getType()->getPointerAddressSpace());
-    NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
-    NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
+  if (FPGAProp) {
+    // Either reuse a previously generated one or create a new global variable
+    // with the new annotation string.
+    GlobalVariable *NewAnnotStringGV = nullptr;
+    auto ExistingNewAnnotStringIt = ReusableAnnotStrings.find(NewAnnotString);
+    if (ExistingNewAnnotStringIt != ReusableAnnotStrings.end()) {
+      NewAnnotStringGV = ExistingNewAnnotStringIt->second;
+    } else {
+      Constant *NewAnnotStringData =
+          ConstantDataArray::getString(M.getContext(), NewAnnotString);
+      NewAnnotStringGV = new GlobalVariable(
+          M, NewAnnotStringData->getType(), true, GlobalValue::PrivateLinkage,
+          NewAnnotStringData, ".str", nullptr,
+          llvm::GlobalValue::NotThreadLocal,
+          IntrAnnotStringArg->getType()->getPointerAddressSpace());
+      NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
+      NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+      ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
+    }
+
+    // Replace the annotation string with a bitcast of the new global variable.
+    IntrInst->setArgOperand(
+        1, ConstantExpr::getBitCast(NewAnnotStringGV,
+                                    IntrAnnotStringArg->getType()));
+
+    // The values are now in the annotation string, so we can remove the
+    // original annotation value.
+    PointerType *Arg4PtrTy =
+        cast<PointerType>(IntrInst->getArgOperand(4)->getType());
+    IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   }
 
-  // Replace the annotation string with a bitcast of the new global variable.
-  IntrInst->setArgOperand(
-      1, ConstantExpr::getBitCast(NewAnnotStringGV,
-                                  IntrAnnotStringArg->getType()));
+  if (CacheProp) {
+    LLVMContext &Ctx = M.getContext();
+    unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+    if (!FPGAProp) {
+      // If there are no annotations other than cache controls we can apply the
+      // controls to the pointer and remove the intrinsic.
+      auto PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
+      PtrInstr->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
+      // Replace all uses of IntrInst with first operand
+      IntrInst->replaceAllUsesWith(PtrInstr);
+      // Delete the original IntrInst
+      RemovableAnnotations.push_back(IntrInst);
+    } else {
+      // If there were FPGA annotations then we retain the original intrinsic
+      // and apply the cache control properties to its result.
+      IntrInst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
+    }
+  }
 
-  // The values are not in the annotation string, so we can remove the original
-  // annotation value.
-  PointerType *Arg4PtrTy =
-      cast<PointerType>(IntrInst->getArgOperand(4)->getType());
-  IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   return true;
 }

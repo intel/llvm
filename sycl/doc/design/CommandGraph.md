@@ -149,8 +149,8 @@ yet been implemented.
 Implementation of UR command-buffers
 for each of the supported SYCL 2020 backends.
 
-This is currently only Level Zero but more sub-sections will be added here as
-other backends are implemented.
+Currently Level Zero and CUDA backends are implemented.
+More sub-sections will be added here as other backends are supported.
 
 ### Level Zero
 
@@ -221,3 +221,28 @@ Level Zero:
 
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
+
+### CUDA
+
+The SYCL Graph CUDA backend relies on the
+[CUDA Graphs feature](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-graphs),
+which is the CUDA public API for batching series of operations,
+such as kernel launches, connected by dependencies.
+
+UR commands (e.g. kernels) are mapped as graph nodes using the
+[CUDA Driver API](https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__GRAPH.html#group__CUDA__GRAPH).
+The CUDA Driver API is preferred over the CUDA Runtime API to implement
+the SYCL Graph backend to remain consistent with other UR functions.
+Synchronization between commands (UR sync-points) is implemented
+using graph dependencies.
+
+Executable CUDA Graphs can be submitted to a CUDA stream
+in the same way as regular kernels.
+The CUDA backend enables enqueuing events to wait for into a stream.
+It also allows signaling the completion of a submission with an event.
+Therefore, submitting a UR command-buffer consists only of submitting to a stream
+the executable CUDA Graph that represent this series of operations.
+
+An executable CUDA Graph, which contains all commands and synchronization
+information, is saved in the UR command-buffer to allow for efficient
+graph resubmission.

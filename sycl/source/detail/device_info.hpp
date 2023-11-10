@@ -674,7 +674,10 @@ struct get_device_info_impl<
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           ResultSize, DeviceArch.get(), nullptr);
-      return MapArchIDToArchName(DeviceArch.get());
+      std::string DeviceArchCopy(DeviceArch.get());
+      std::string DeviceArchSubstr =
+          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       auto MapArchIDToArchName = [](const int arch) {
         INTEL_CPU_ARCHES(CMP_INTEL);
@@ -739,7 +742,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 16, matrix_type::sint8, matrix_type::sint8,
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
@@ -756,7 +759,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 16, matrix_type::sint8, matrix_type::sint8,
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},

@@ -4,7 +4,7 @@
 
 // UNSUPPORTED: system-windows
 
-// RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_61 -fgpu-rdc %s 2>&1 \
+// RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_61 -fgpu-rdc -nocudalib %s 2>&1 \
 // RUN: | FileCheck %s -check-prefix=CHECK-SYCL_RDC_NVPTX
 
 // Verify that ptxas does not pass "-c"
