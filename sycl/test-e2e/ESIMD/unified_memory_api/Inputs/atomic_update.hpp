@@ -326,14 +326,12 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
     passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
     passed &= test_int_types<32, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
     // non power of two values are supported only in newer driver.
-    // TODO: windows version with the fix is not known. Enable it eventually.
-    if (esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                  "27556", "win.just.skip.test", false)) {
-      passed &=
-          test_int_types<12, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
-      passed &=
-          test_int_types<33, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
-    }
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
+#if 0
+    passed &= test_int_types<12, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+    passed &= test_int_types<33, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+#endif
   }
 
   return passed;
@@ -350,15 +348,15 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   passed &= test_fp_types<8, Op, UseMask, UsePVCFeatures>(q, cfg);
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
-    passed &= test_fp_types<12, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures>(q, cfg);
     passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures>(q, cfg);
     // non power of two values are supported only in newer driver.
-    // TODO: windows version with the fix is not known. Enable it eventually.
-    if (esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                  "27556", "win.just.skip.test", false)) {
-      passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures>(q, cfg);
-      passed &= test_fp_types<35, Op, UseMask, UsePVCFeatures>(q, cfg);
-    }
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
+#if 0
+    passed &= test_fp_types<12, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test_fp_types<35, Op, UseMask, UsePVCFeatures>(q, cfg);
+#endif
   }
   return passed;
 }
