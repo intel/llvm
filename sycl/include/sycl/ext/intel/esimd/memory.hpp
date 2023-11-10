@@ -247,7 +247,7 @@ block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -333,7 +333,7 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -430,7 +430,7 @@ __ESIMD_API
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -529,7 +529,7 @@ __ESIMD_API
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      (std::max)(static_cast<size_t>(1), sizeof(uint32_t) / sizeof(T));
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed load");
 
@@ -586,9 +586,7 @@ block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
 
   constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
   constexpr int SmallIntFactor32Bit =
-      sizeof(uint32_t) / sizeof(T) > static_cast<size_t>(1)
-          ? sizeof(uint32_t) / sizeof(T)
-          : static_cast<size_t>(1);
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
   static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
                 "Number of elements is not supported by Transposed store");
 
@@ -697,9 +695,11 @@ block_store(Tx *addr, simd<Tx, N> vals, Flags) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
-/// (see Restrictions below).
+/// the default assumed alignment is 4-bytes for 4-byte or smaller elements
+/// and 8-bytes for 8-byte elements. The address may be element-size aligned
+/// even for byte- and word-elements, but in such case the smaller alignment
+/// property must explicitly passed to this function. Extra restrictions
+/// may be in place - see Restrictions/R1 below.
 ///
 /// Restrictions - cache hint imposed - temporary:
 /// If L1 or L2 cache hint is passed, then:
@@ -729,21 +729,16 @@ block_load(const T *ptr, PropertyListT props = {}) {
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
+  constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
     detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
-    constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(
-            DefaultAlignment);
 
     simd_mask<1> Mask = 1;
     return detail::block_load_impl<T, N, L1Hint, L2Hint>(
         ptr, Mask, overaligned_tag<Alignment>{});
   } else {
-    // If the alignment property is not passed, then assume the pointer
-    // is element-aligned.
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
     return block_load<T, N>(ptr, overaligned_tag<Alignment>{});
   }
 }
@@ -765,9 +760,11 @@ block_load(const T *ptr, PropertyListT props = {}) {
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the default assumed alignment is the minimally required element-size
-/// alignment. Note that additional/temporary restrictions may apply
-/// (see Restrictions below).
+/// the default assumed alignment is 4-bytes for 4-byte or smaller elements
+/// and 8-bytes for 8-byte elements. The address may be element-size aligned
+/// even for byte- and word-elements, but in such case the smaller alignment
+/// property must explicitly passed to this function. Extra restrictions
+/// may be in place - see Restrictions/R1 below.
 ///
 /// Restrictions - cache hint imposed - temporary:
 /// If L1 or L2 cache hint is passed, then:
@@ -2505,9 +2502,470 @@ slm_scatter_rgba(simd<uint32_t, N> offsets,
 template <typename T, int N,
           typename Flags = overaligned_tag<detail::OperandSize::OWORD>>
 __ESIMD_API std::enable_if_t<is_simd_flag_type_v<Flags>, simd<T, N>>
-slm_block_load(uint32_t byte_offset, Flags = {}) {
+slm_block_load(uint32_t byte_offset, Flags) {
   constexpr size_t Align = Flags::template alignment<simd<T, N>>;
   return __esimd_slm_block_ld<detail::__raw_t<T>, N, Align>(byte_offset);
+}
+
+/// Each of the following slm_block_load functions loads a contiguous memory
+/// block from SLM (Shared Local Memory) and the \p byte_offset.
+/// The parameter 'pred' is the one element predicate. If it is set to 1, then
+/// all 'N' elements are loaded. Otherwise, the block load operation is a NO-OP.
+/// The parameter 'pass_thru' specifies the values being copied to the returned
+/// result if 'pred' is set to 0.
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+
+/// simd<T, N> slm_block_load(uint32_t byte_offset, props={});     // (slm-bl-1)
+/// simd<T, N> slm_block_load(uint32_t byte_offset,
+///                           simd_mask<1> pred, props={});        // (slm-bl-2)
+/// simd<T, N> slm_block_load(uint32_t byte_offset,
+///                           simd_mask<1> pred,
+///                           simd<T, N> pass_thru, props={});     // (slm-bl-3)
+
+/// The following functions do the same work as slm_block_load(). They accept
+/// a local accessor \p lacc and the load is done from SLM associated
+/// with \p lacc plus \p byte_offset applied to it. If \p byte_offset
+/// is omitted, then zero offset is used.
+/// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
+///                       props={});                              // (lacc-bl-1)
+/// simd<T, N> block_load(local_accessor lacc, props={});         // (lacc-bl-2)
+/// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
+///                       simd_mask<1> pred, props={});           // (lacc-bl-3)
+/// simd<T, N> block_load(local_accessor lacc,
+///                       simd_mask<1> pred, props={});           // (lacc-bl-4)
+/// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
+///                       simd_mask<1> pred, simd<T, N> pass_thru,
+///                       props={});                              // (lacc-bl-5)
+/// simd<T, N> block_load(local_accessor lacc,
+///                       simd_mask<1> pred, simd<T, N> pass_thru,
+///                       props={});                              // (lacc-bl-6)
+
+/// simd<T, N> slm_block_load(uint32_t byte_offset, props = {});   // (slm-bl-1)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) at
+/// the given \p byte_offset. The parameter 'props' specifies the optional
+/// compile-time properties list. Only esimd::alignment property is used. Other
+/// properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is 16-bytes to generate block_load
+/// instruction on all known target devices (Gen12, DG2, PVC, etc).
+/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
+/// is valid, but requires JIT compiler generating a slower GATHER instead
+/// of faster BLOCK_LOAD.
+/// !!! Passing \p byte_offset not aligned by 16-bytes and not specifying
+/// the actual alignment in \p props produces incorrect load results on Gen12.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+slm_block_load(uint32_t byte_offset, PropertyListT props = {}) {
+  constexpr size_t DefaultAlignment = detail::OperandSize::OWORD;
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  return __esimd_slm_block_ld<detail::__raw_t<T>, N, Alignment>(byte_offset);
+}
+
+/// simd<T, N> slm_block_load(uint32_t byte_offset, simd_mask<N> pred,
+///                           props = {});                        // (slm-bl-2)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) at the
+/// given \p byte_offset.
+/// The parameter \p pred is the one-element predicate. If it is set to 1,
+/// then all 'N' elements are loaded. Otherwise, the block load operation
+/// is a NO-OP.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
+///     elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+slm_block_load(uint32_t byte_offset, simd_mask<1> pred,
+               PropertyListT props = {}) {
+  // Verify input template arguments.
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
+  static_assert(N > 0 && N % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (N * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (N * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || N * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredN = N / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredN>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr detail::lsc_data_size DS =
+      Use64BitData ? detail::lsc_data_size::u64 : detail::lsc_data_size::u32;
+  constexpr auto VS = detail::to_lsc_vector_size<FactoredN>();
+  constexpr auto Transposed = detail::lsc_data_order::transpose;
+  constexpr int NLanes = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uint32_t, NLanes> Offsets = byte_offset;
+  simd<LoadElemT, FactoredN> Result =
+      __esimd_lsc_load_slm<LoadElemT, cache_hint::none, cache_hint::none,
+                           AddressScale, ImmOffset, DS, VS, Transposed, NLanes>(
+          pred.data(), Offsets.data());
+  return Result.template bit_cast_view<T>();
+}
+
+/// simd<T, N> slm_block_load(uint32_t byte_offset,
+///                           simd_mask<1> pred,
+///                           simd<T, N> pass_thru, props={});     // (slm-bl-3)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) at the
+/// given \p byte_offset.
+/// The parameter \p pred is the one-element predicate. If it is set to 1,
+/// then all 'N' elements are loaded. Otherwise, the block load operation
+/// is a NO-OP.
+/// The parameter 'pass_thru' specifies the values being copied to the returned
+/// result if 'pred' is set to 0.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p byte_offset must be at least 4-byte aligned for 4-byte or smaller
+///     elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+slm_block_load(uint32_t offset, simd_mask<1> pred, simd<T, N> pass_thru,
+               PropertyListT props = {}) {
+  // Verify input template arguments.
+  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  static_assert(
+      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
+          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
+      "Incorrect alignment for the data type");
+
+  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
+  constexpr int SmallIntFactor32Bit =
+      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
+  static_assert(N > 0 && N % SmallIntFactor32Bit == 0,
+                "Number of elements is not supported by Transposed load");
+
+  // If alignment >= 8 and (N * sizeof(T)) % 8 == 0) we can load QWORDs.
+  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
+  // because it would require a bit-cast, which is supposed to be NO-OP, but
+  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
+  constexpr bool Use64BitData =
+      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
+      (N * sizeof(T)) % sizeof(uint64_t) == 0 &&
+      (sizeof(T) != sizeof(uint32_t) || N * sizeof(T) > 256);
+  constexpr int SmallIntFactor =
+      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
+  constexpr int FactoredN = N / SmallIntFactor;
+  detail::check_lsc_vector_size<FactoredN>();
+
+  // Prepare template arguments for the call of intrinsic.
+  using LoadElemT = __ESIMD_DNS::__raw_t<
+      std::conditional_t<SmallIntFactor == 1, T,
+                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr detail::lsc_data_size DS =
+      Use64BitData ? detail::lsc_data_size::u64 : detail::lsc_data_size::u32;
+  constexpr auto VS = detail::to_lsc_vector_size<FactoredN>();
+  constexpr auto Transposed = detail::lsc_data_order::transpose;
+  constexpr int NLanes = 1;
+
+  // Prepare non-template arguments and call the intrinsic.
+  simd<uint32_t, NLanes> Offsets = offset;
+  simd<LoadElemT, FactoredN> PassThru =
+      pass_thru.template bit_cast_view<LoadElemT>();
+  simd<LoadElemT, FactoredN> Result =
+      __esimd_lsc_load_merge_slm<LoadElemT, cache_hint::none, cache_hint::none,
+                                 AddressScale, ImmOffset, DS, VS, Transposed,
+                                 NLanes>(pred.data(), Offsets.data(),
+                                         PassThru.data());
+  return Result.template bit_cast_view<T>();
+}
+
+/// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
+///                       props={});                              // (lacc-bl-1)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) associated
+/// with the local accessor \p lacc at the given \p byte_offset.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is 16-bytes to generate block_load
+/// instruction on all known target devices (Gen12, DG2, PVC, etc).
+/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
+/// is valid, but requires JIT compiler generating a slower GATHER instead
+/// of faster BLOCK_LOAD.
+/// !!! Passing local accessor associated with SLM starting from offset that
+/// is NOT aligned by 16-bytes and NOT specifying the actual alignment in
+/// \p props produces incorrect load results on Gen12.
+///
+/// Note: if two or more local accessors are used in the same kernel, then
+/// 16-byte alignment is guaranteed only for one of them.
+/// Other local accessors may or may not get 16-byte alignment. N-th local
+/// accessor's alignment depends on N-1 local accessor sizes, and their
+/// element-alignment/padding. Only element-alignment is guaranteed for them.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_read> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+block_load(AccessorT lacc, uint32_t byte_offset, PropertyListT props = {}) {
+  byte_offset += detail::localAccessorToOffset(lacc);
+  return slm_block_load<T, N>(byte_offset, props);
+}
+
+/// simd<T, N> block_load(local_accessor lacc, props={});         // (lacc-bl-2)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) associated
+/// with the local accessor \p lacc at zero offset.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is 16-bytes to generate block_load
+/// instruction on all known target devices (Gen12, DG2, PVC, etc).
+/// On Gen12 (opposing to DG2 and PVC) the alignment smaller than 8-bytes
+/// is valid, but requires JIT compiler generating a slower GATHER instead
+/// of faster BLOCK_LOAD.
+/// !!! Passing local accessor associated with SLM starting from offset that
+/// is NOT aligned by 16-bytes and NOT specifying the actual alignment in
+/// \p props produces incorrect load results on Gen12.
+///
+/// Note: if two or more local accessors are used in the same kernel, then
+/// 16-byte alignment is guaranteed only for one of them.
+/// Other local accessors may or may not get 16-byte alignment. N-th local
+/// accessor's alignment depends on N-1 local accessor sizes, and their
+/// element-alignment/padding. Only element-alignment is guaranteed for them.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_read> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+block_load(AccessorT lacc, PropertyListT props = {}) {
+  return slm_block_load<T, N>(detail::localAccessorToOffset(lacc), props);
+}
+
+/// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
+///                       simd_mask<1> pred, props={});           // (lacc-bl-3)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) associated
+/// the local accessor \p lacc at the given \p byte_offset.
+///
+/// The parameter \p pred is the one-element predicate. If it is set to 1,
+/// then all 'N' elements are loaded. Otherwise, the block load operation
+/// is a NO-OP, and some undefined value is returned.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p lacc + \p byte_offset must be at least 4-byte aligned for 4-byte
+///     or smaller elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_read> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
+           PropertyListT props = {}) {
+  byte_offset += detail::localAccessorToOffset(lacc);
+  return slm_block_load<T, N>(byte_offset, pred, props);
+}
+
+/// simd<T, N> block_load(local_accessor lacc,
+///                       simd_mask<1> pred, props={});           // (lacc-bl-4)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) associated
+/// with the local accessor \p lacc at zero offset.
+///
+/// The parameter \p pred is the one-element predicate. If it is set to 1,
+/// then all 'N' elements are loaded. Otherwise, the block load operation
+/// is a NO-OP, and some undefined value is returned.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The local accessor \p lacc must point to memory at least 4-byte aligned
+///     for elements of 4-bytes or smaller and 8-byte aligned for 8-byte
+///     elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2), or 128;
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2), or 256;
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2), or 512.
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_read> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+block_load(AccessorT lacc, simd_mask<1> pred, PropertyListT props = {}) {
+  return slm_block_load<T, N>(detail::localAccessorToOffset(lacc), pred, props);
+}
+
+/// simd<T, N> block_load(local_accessor lacc, uint32_t byte_offset,
+///                       simd_mask<1> pred, simd<T, N> pass_thru,
+///                       props={});                              // (lacc-bl-5)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) associated
+/// the local accessor \p lacc at the given \p byte_offset.
+/// The parameter \p pred is the one-element predicate. If it is set to 1,
+/// then all 'N' elements are loaded. Otherwise, the block load operation
+/// is a NO-OP, and \p pass_thru value is returned.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The \p lacc + \p byte_offset must be at least 4-byte aligned for 4-byte
+///     or smaller elements and 8-byte aligned for 8-byte elements.
+/// R2: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
+///                      or 128(only if alignment is 8-bytes or more);
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2),
+///                      or 256(only if alignment is 8-bytes or more);
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2),
+///                      or 512(only if alignment is 8-bytes or more).
+/// R3: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_read> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
+           simd<T, N> pass_thru, PropertyListT props = {}) {
+  byte_offset += __ESIMD_DNS::localAccessorToOffset(lacc);
+  return slm_block_load<T, N>(byte_offset, pred, pass_thru, props);
+}
+
+/// simd<T, N> block_load(local_accessor lacc,
+///                       simd_mask<1> pred, simd<T, N> pass_thru,
+///                       props={});                              // (lacc-bl-6)
+/// Loads a contiguous memory block from SLM (Shared Local Memory) associated
+/// with the local accessor \p lacc at zero offset.
+///
+/// The parameter \p pred is the one-element predicate. If it is set to 1,
+/// then all 'N' elements are loaded. Otherwise, the block load operation
+/// is a NO-OP, and \p pass_thru value is returned.
+///
+/// The parameter 'props' specifies the optional compile-time properties
+/// list. Only esimd::alignment property is used. Other properties are ignored.
+///
+/// Alignment: If \p props does not specify the 'alignment' property, then
+/// the default expected alignment is the minimally required (see (R1) below).
+///
+/// Restrictions - predicate imposed - temporary:
+/// R1: The local accessor \p lacc must point to memory at least 4-byte aligned
+///     for elements of 4-bytes or smaller and 8-byte aligned for 8-byte
+///     elements.
+/// R1: The number of elements must be:
+///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
+///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2), or 128;
+///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2), or 256;
+///     for 1-byte data: 4, 8, 12, 16, 32, 64, 128, 256(max for DG2), or 512.
+/// R2: The target device must be DG2, PVC or newer GPU.
+template <typename T, int N, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_read> &&
+        ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+    simd<T, N>>
+block_load(AccessorT lacc, simd_mask<1> pred, simd<T, N> pass_thru,
+           PropertyListT props = {}) {
+  return slm_block_load<T, N>(__ESIMD_DNS::localAccessorToOffset(lacc), pred,
+                              pass_thru, props);
 }
 
 /// Stores elements of the vector \p vals to a contiguous block of SLM memory
@@ -3493,7 +3951,7 @@ __ESIMD_API
                          AccessorTy, detail::accessor_mode_cap::can_read> &&
                          is_simd_flag_type_v<Flags>,
                      simd<T, N>>
-    block_load(AccessorTy acc, uint32_t byte_offset, Flags flags = {}) {
+    block_load(AccessorTy acc, uint32_t byte_offset, Flags flags) {
   return slm_block_load<T, N>(byte_offset + detail::localAccessorToOffset(acc),
                               flags);
 }
