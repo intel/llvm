@@ -64,7 +64,22 @@ namespace ur_validation_layer
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
-        %if func_name in create_retain_release_funcs["create"]:
+        %if func_name == n + "AdapterRelease":
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.decrementRefCount(${object_param}, true);
+        }
+        %elif func_name == n + "AdapterRetain":
+        if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.decrementRefCount(${object_param}, true);
+        }
+        %elif func_name == n + "AdapterGet":
+        if( context.enableLeakChecking && phAdapters && result == UR_RESULT_SUCCESS )
+        {
+            refCountContext.createOrIncrementRefCount(*phAdapters, true);
+        }
+        %elif func_name in create_retain_release_funcs["create"]:
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
             refCountContext.createRefCount(*${object_param});
@@ -78,12 +93,6 @@ namespace ur_validation_layer
         if( context.enableLeakChecking && result == UR_RESULT_SUCCESS )
         {
             refCountContext.decrementRefCount(${object_param});
-        }
-        %elif func_name == n + "TearDown":
-        if ( context.enableLeakChecking )
-        {
-            refCountContext.logInvalidReferences();
-            refCountContext.clear();
         }
         %endif
 
@@ -167,6 +176,16 @@ namespace ur_validation_layer
         }
 
         %endfor
+        return result;
+    }
+
+    ${x}_result_t context_t::tearDown() {
+        ${x}_result_t result = ${X}_RESULT_SUCCESS;
+
+        if (enableLeakChecking) {
+            refCountContext.logInvalidReferences();
+            refCountContext.clear();
+        }
         return result;
     }
 

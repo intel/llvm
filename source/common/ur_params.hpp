@@ -224,14 +224,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_base_properties_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_base_desc_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_rect_offset_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_rect_region_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_base_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_base_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_rect_offset_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_rect_region_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -242,13 +246,14 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_platform_native_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_platform_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_backend_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_device_binary_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_binary_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -257,10 +262,10 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_partition_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_device_partition_property_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_device_partition_properties_t params);
+           [[maybe_unused]] const struct ur_device_partition_property_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_device_partition_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_fp_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -270,7 +275,8 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_exec_capability_flag_t value);
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_device_native_properties_t params);
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_order_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -278,12 +284,13 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_context_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_context_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_info_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_context_native_properties_t params);
+           [[maybe_unused]] const struct ur_context_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value);
@@ -292,34 +299,40 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_image_channel_type_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_image_format_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_image_desc_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_buffer_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_buffer_channel_properties_t params);
+           [[maybe_unused]] const struct ur_image_format_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_buffer_alloc_location_properties_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_buffer_region_t params);
+           [[maybe_unused]] const struct ur_image_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_buffer_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_buffer_channel_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_buffer_alloc_location_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_buffer_region_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_buffer_create_type_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_mem_native_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_mem_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_sampler_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_sampler_addressing_mode_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_info_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_sampler_desc_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_sampler_native_properties_t params);
+           [[maybe_unused]] const struct ur_sampler_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_sampler_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_host_mem_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -331,16 +344,21 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_alloc_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_advice_flag_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_usm_desc_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_usm_host_desc_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_usm_device_desc_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_usm_pool_desc_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_usm_pool_limits_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_host_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_device_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_limits_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_pool_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
@@ -352,13 +370,16 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_physical_mem_flag_t value);
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_physical_mem_properties_t params);
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_physical_mem_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_metadata_type_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_program_metadata_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_program_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_metadata_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_program_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_build_status_t value);
@@ -366,18 +387,18 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_binary_type_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_program_build_info_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_specialization_constant_info_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_specialization_constant_info_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_program_native_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_arg_value_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_arg_local_properties_t params);
+           [[maybe_unused]] const struct ur_program_native_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_arg_value_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_arg_local_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_group_info_t value);
@@ -387,37 +408,43 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_cache_config_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_kernel_exec_info_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_arg_pointer_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_exec_info_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_arg_sampler_properties_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_arg_mem_obj_properties_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_kernel_arg_pointer_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_exec_info_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_arg_sampler_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_arg_mem_obj_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_kernel_native_properties_t params);
+           [[maybe_unused]] const struct ur_kernel_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_queue_properties_t params);
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_queue_index_properties_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_queue_native_desc_t params);
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_properties_t params);
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_queue_native_properties_t params);
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_index_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_native_desc_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_profiling_info_t value);
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_event_native_properties_t params);
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_event_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_execution_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
@@ -425,20 +452,30 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_migration_flag_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_exp_file_descriptor_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_exp_win32_handle_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_exp_sampler_mip_properties_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_exp_interop_mem_desc_t params);
+           [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_exp_interop_semaphore_desc_t params);
+           [[maybe_unused]] const struct ur_exp_win32_handle_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_exp_command_buffer_desc_t params);
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_layered_image_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_command_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_peer_info_t value);
 
@@ -825,14 +862,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_QUEUE_FLUSH";
         break;
 
-    case UR_FUNCTION_INIT:
-        os << "UR_FUNCTION_INIT";
-        break;
-
-    case UR_FUNCTION_TEAR_DOWN:
-        os << "UR_FUNCTION_TEAR_DOWN";
-        break;
-
     case UR_FUNCTION_SAMPLER_CREATE:
         os << "UR_FUNCTION_SAMPLER_CREATE";
         break;
@@ -931,18 +960,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP";
         break;
 
     case UR_FUNCTION_USM_PITCHED_ALLOC_EXP:
@@ -1086,22 +1103,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP";
         break;
 
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP";
-        break;
-
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP";
-        break;
-
     case UR_FUNCTION_LOADER_CONFIG_CREATE:
         os << "UR_FUNCTION_LOADER_CONFIG_CREATE";
         break;
@@ -1140,6 +1141,66 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_ADAPTER_GET_INFO:
         os << "UR_FUNCTION_ADAPTER_GET_INFO";
+        break;
+
+    case UR_FUNCTION_LOADER_INIT:
+        os << "UR_FUNCTION_LOADER_INIT";
+        break;
+
+    case UR_FUNCTION_LOADER_TEAR_DOWN:
+        os << "UR_FUNCTION_LOADER_TEAR_DOWN";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP";
+        break;
+
+    case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP:
+        os << "UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP";
+        break;
+
+    case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
+        os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP";
+        break;
+
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -1309,6 +1370,14 @@ inline std::ostream &operator<<(std::ostream &os,
 
     case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE:
         os << "UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES";
+        break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
+        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
         break;
     default:
         os << "unknown enumerator";
@@ -1556,6 +1625,18 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE: {
         const ur_exp_win32_handle_t *pstruct =
             (const ur_exp_win32_handle_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES: {
+        const ur_exp_layered_image_properties_t *pstruct =
+            (const ur_exp_layered_image_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES: {
+        const ur_exp_sampler_addr_modes_t *pstruct =
+            (const ur_exp_sampler_addr_modes_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -9850,6 +9931,33 @@ operator<<(std::ostream &os,
     os << "}";
     return os;
 }
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params) {
+    os << "(struct ur_exp_sampler_addr_modes_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".addrModes = {";
+    for (auto i = 0; i < 3; i++) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << (params.addrModes[i]);
+    }
+    os << "}";
+
+    os << "}";
+    return os;
+}
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_exp_interop_mem_desc_t params) {
     os << "(struct ur_exp_interop_mem_desc_t){";
@@ -9879,6 +9987,28 @@ operator<<(std::ostream &os,
     os << ".pNext = ";
 
     ur_params::serializeStruct(os, (params.pNext));
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_layered_image_properties_t params) {
+    os << "(struct ur_exp_layered_image_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".numLayers = ";
+
+    os << (params.numLayers);
 
     os << "}";
     return os;
@@ -9961,34 +10091,9 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 }
 } // namespace ur_params
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_init_params_t *params) {
-
-    os << ".device_flags = ";
-
-    ur_params::serializeFlag<ur_device_init_flag_t>(os,
-                                                    *(params->pdevice_flags));
-
-    os << ", ";
-    os << ".hLoaderConfig = ";
-
-    ur_params::serializePtr(os, *(params->phLoaderConfig));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_tear_down_params_t *params) {
-
-    os << ".pParams = ";
-
-    ur_params::serializePtr(os, *(params->ppParams));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_adapter_get_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_get_params_t *params) {
 
     os << ".NumEntries = ";
 
@@ -10015,17 +10120,8 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_adapter_release_params_t *params) {
-
-    os << ".hAdapter = ";
-
-    ur_params::serializePtr(os, *(params->phAdapter));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_adapter_retain_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_release_params_t *params) {
 
     os << ".hAdapter = ";
 
@@ -10036,7 +10132,18 @@ operator<<(std::ostream &os, const struct ur_adapter_retain_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_adapter_get_last_error_params_t *params) {
+           [[maybe_unused]] const struct ur_adapter_retain_params_t *params) {
+
+    os << ".hAdapter = ";
+
+    ur_params::serializePtr(os, *(params->phAdapter));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_adapter_get_last_error_params_t *params) {
 
     os << ".hAdapter = ";
 
@@ -10057,7 +10164,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_adapter_get_info_params_t *params) {
+           [[maybe_unused]] const struct ur_adapter_get_info_params_t *params) {
 
     os << ".hAdapter = ";
 
@@ -10087,9 +10194,29 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t
-        *params) {
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
+    os << ".hImage = ";
+
+    ur_params::serializePtr(os, *(params->phImage));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_bindless_images_sampled_image_handle_destroy_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10110,29 +10237,8 @@ inline std::ostream &operator<<(
 
 inline std::ostream &operator<<(
     std::ostream &os,
-    const struct ur_bindless_images_sampled_image_handle_destroy_exp_params_t
+    [[maybe_unused]] const struct ur_bindless_images_image_allocate_exp_params_t
         *params) {
-
-    os << ".hContext = ";
-
-    ur_params::serializePtr(os, *(params->phContext));
-
-    os << ", ";
-    os << ".hDevice = ";
-
-    ur_params::serializePtr(os, *(params->phDevice));
-
-    os << ", ";
-    os << ".hImage = ";
-
-    ur_params::serializePtr(os, *(params->phImage));
-
-    return os;
-}
-
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_image_allocate_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10161,9 +10267,10 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_bindless_images_image_free_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_bindless_images_image_free_exp_params_t
+        *params) {
 
     os << ".hContext = ";
 
@@ -10183,9 +10290,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_bindless_images_unsampled_image_create_exp_params_t
-               *params) {
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_unsampled_image_create_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10224,9 +10330,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_sampled_image_create_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_sampled_image_create_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10270,9 +10376,10 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_bindless_images_image_copy_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_bindless_images_image_copy_exp_params_t
+        *params) {
 
     os << ".hQueue = ";
 
@@ -10352,7 +10459,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &operator<<(
     std::ostream &os,
-    const struct ur_bindless_images_image_get_info_exp_params_t *params) {
+    [[maybe_unused]] const struct ur_bindless_images_image_get_info_exp_params_t
+        *params) {
 
     os << ".hImageMem = ";
 
@@ -10376,9 +10484,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_mipmap_get_level_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_mipmap_get_level_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10407,9 +10515,10 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_bindless_images_mipmap_free_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_bindless_images_mipmap_free_exp_params_t
+        *params) {
 
     os << ".hContext = ";
 
@@ -10428,9 +10537,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_import_opaque_fd_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_import_opaque_fd_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10459,9 +10568,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_map_external_array_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_map_external_array_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10495,9 +10604,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_release_interop_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_release_interop_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10517,7 +10626,7 @@ inline std::ostream &operator<<(
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct
+operator<<(std::ostream &os, [[maybe_unused]] const struct
            ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t
                *params) {
 
@@ -10543,10 +10652,9 @@ operator<<(std::ostream &os, const struct
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_destroy_external_semaphore_exp_params_t
-        *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_destroy_external_semaphore_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -10566,9 +10674,8 @@ inline std::ostream &operator<<(
 }
 
 inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_bindless_images_wait_external_semaphore_exp_params_t
-               *params) {
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_wait_external_semaphore_exp_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -10605,10 +10712,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_bindless_images_signal_external_semaphore_exp_params_t
-        *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_bindless_images_signal_external_semaphore_exp_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -10647,7 +10753,8 @@ inline std::ostream &operator<<(
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_command_buffer_create_exp_params_t *params) {
+           [[maybe_unused]] const struct ur_command_buffer_create_exp_params_t
+               *params) {
 
     os << ".hContext = ";
 
@@ -10673,7 +10780,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_command_buffer_retain_exp_params_t *params) {
+           [[maybe_unused]] const struct ur_command_buffer_retain_exp_params_t
+               *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10684,7 +10792,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_command_buffer_release_exp_params_t *params) {
+           [[maybe_unused]] const struct ur_command_buffer_release_exp_params_t
+               *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10695,7 +10804,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_command_buffer_finalize_exp_params_t *params) {
+           [[maybe_unused]] const struct ur_command_buffer_finalize_exp_params_t
+               *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10704,9 +10814,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_command_buffer_append_kernel_launch_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_kernel_launch_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10755,9 +10865,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_command_buffer_append_memcpy_usm_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_usm_memcpy_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10798,7 +10908,54 @@ inline std::ostream &operator<<(
 
 inline std::ostream &operator<<(
     std::ostream &os,
-    const struct ur_command_buffer_append_membuffer_copy_exp_params_t *params) {
+    [[maybe_unused]] const struct ur_command_buffer_append_usm_fill_exp_params_t
+        *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".pMemory = ";
+
+    ur_params::serializePtr(os, *(params->ppMemory));
+
+    os << ", ";
+    os << ".pPattern = ";
+
+    ur_params::serializePtr(os, *(params->ppPattern));
+
+    os << ", ";
+    os << ".patternSize = ";
+
+    os << *(params->ppatternSize);
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_mem_buffer_copy_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10848,9 +11005,8 @@ inline std::ostream &operator<<(
 }
 
 inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_command_buffer_append_membuffer_write_exp_params_t
-               *params) {
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_mem_buffer_write_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10894,9 +11050,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_command_buffer_append_membuffer_read_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_mem_buffer_read_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -10940,10 +11096,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_command_buffer_append_membuffer_copy_rect_exp_params_t
-        *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -11013,9 +11168,8 @@ inline std::ostream &operator<<(
 }
 
 inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_command_buffer_append_membuffer_write_rect_exp_params_t
-        *params) {
+    std::ostream &os, [[maybe_unused]] const struct
+    ur_command_buffer_append_mem_buffer_write_rect_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -11084,10 +11238,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_command_buffer_append_membuffer_read_rect_exp_params_t
-        *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_mem_buffer_read_rect_exp_params_t *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -11157,8 +11310,142 @@ inline std::ostream &operator<<(
 }
 
 inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_mem_buffer_fill_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".hBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phBuffer));
+
+    os << ", ";
+    os << ".pPattern = ";
+
+    ur_params::serializePtr(os, *(params->ppPattern));
+
+    os << ", ";
+    os << ".patternSize = ";
+
+    os << *(params->ppatternSize);
+
+    os << ", ";
+    os << ".offset = ";
+
+    os << *(params->poffset);
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_usm_prefetch_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".pMemory = ";
+
+    ur_params::serializePtr(os, *(params->ppMemory));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".flags = ";
+
+    ur_params::serializeFlag<ur_usm_migration_flag_t>(os, *(params->pflags));
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_usm_advise_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur_params::serializePtr(os, *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".pMemory = ";
+
+    ur_params::serializePtr(os, *(params->ppMemory));
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".advice = ";
+
+    ur_params::serializeFlag<ur_usm_advice_flag_t>(os, *(params->padvice));
+
+    os << ", ";
+    os << ".numSyncPointsInWaitList = ";
+
+    os << *(params->pnumSyncPointsInWaitList);
+
+    os << ", ";
+    os << ".pSyncPointWaitList = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPointWaitList));
+
+    os << ", ";
+    os << ".pSyncPoint = ";
+
+    ur_params::serializePtr(os, *(params->ppSyncPoint));
+
+    return os;
+}
+
+inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_command_buffer_enqueue_exp_params_t *params) {
+           [[maybe_unused]] const struct ur_command_buffer_enqueue_exp_params_t
+               *params) {
 
     os << ".hCommandBuffer = ";
 
@@ -11196,7 +11483,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_context_create_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_context_create_params_t *params) {
 
     os << ".DeviceCount = ";
 
@@ -11228,17 +11516,8 @@ operator<<(std::ostream &os, const struct ur_context_create_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_context_retain_params_t *params) {
-
-    os << ".hContext = ";
-
-    ur_params::serializePtr(os, *(params->phContext));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_context_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_context_retain_params_t *params) {
 
     os << ".hContext = ";
 
@@ -11249,7 +11528,18 @@ operator<<(std::ostream &os, const struct ur_context_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_context_get_info_params_t *params) {
+           [[maybe_unused]] const struct ur_context_release_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_context_get_info_params_t *params) {
 
     os << ".hContext = ";
 
@@ -11280,7 +11570,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_context_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_context_get_native_handle_params_t
+               *params) {
 
     os << ".hContext = ";
 
@@ -11294,9 +11585,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_context_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_context_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeContext = ";
 
@@ -11332,9 +11624,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_context_set_extended_deleter_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_context_set_extended_deleter_params_t
+        *params) {
 
     os << ".hContext = ";
 
@@ -11353,9 +11646,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_kernel_launch_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_kernel_launch_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -11412,9 +11705,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_events_wait_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_events_wait_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -11446,9 +11739,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_events_wait_with_barrier_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_events_wait_with_barrier_params_t
+        *params) {
 
     os << ".hQueue = ";
 
@@ -11480,9 +11774,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_read_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_read_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -11541,7 +11835,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_write_params_t *params) {
+           [[maybe_unused]] const struct ur_enqueue_mem_buffer_write_params_t
+               *params) {
 
     os << ".hQueue = ";
 
@@ -11598,9 +11893,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_read_rect_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_read_rect_params_t
+        *params) {
 
     os << ".hQueue = ";
 
@@ -11682,9 +11978,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_write_rect_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_write_rect_params_t
+        *params) {
 
     os << ".hQueue = ";
 
@@ -11766,9 +12063,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_copy_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_copy_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -11825,9 +12122,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_copy_rect_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_copy_rect_params_t
+        *params) {
 
     os << ".hQueue = ";
 
@@ -11904,9 +12202,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_fill_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_fill_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -11963,9 +12261,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_image_read_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_image_read_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12032,9 +12330,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_image_write_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_image_write_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12101,9 +12399,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_image_copy_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_image_copy_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12160,9 +12458,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_buffer_map_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_buffer_map_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12224,9 +12522,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_mem_unmap_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_mem_unmap_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12270,7 +12568,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_fill_params_t *params) {
+           [[maybe_unused]] const struct ur_enqueue_usm_fill_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12322,9 +12620,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_memcpy_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_memcpy_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12376,9 +12674,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_prefetch_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_prefetch_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12425,9 +12723,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_advise_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_advise_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12456,9 +12754,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_fill_2d_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_fill_2d_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12520,9 +12818,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_usm_memcpy_2d_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_memcpy_2d_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12589,9 +12887,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_enqueue_device_global_variable_write_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_device_global_variable_write_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12653,9 +12951,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_enqueue_device_global_variable_read_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_device_global_variable_read_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12717,9 +13015,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_read_host_pipe_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_read_host_pipe_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12776,9 +13074,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_enqueue_write_host_pipe_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_write_host_pipe_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -12836,7 +13134,67 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_cooperative_kernel_launch_exp_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
+
+    os << ", ";
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    os << ", ";
+    os << ".workDim = ";
+
+    os << *(params->pworkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur_params::serializePtr(os, *(params->ppGlobalWorkOffset));
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur_params::serializePtr(os, *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pLocalWorkSize = ";
+
+    ur_params::serializePtr(os, *(params->ppLocalWorkSize));
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
+                       i < *params->pnumEventsInWaitList;
+         ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur_params::serializePtr(os, *(params->pphEvent));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_event_get_info_params_t *params) {
 
     os << ".hEvent = ";
 
@@ -12867,7 +13225,8 @@ operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_event_get_profiling_info_params_t *params) {
+           [[maybe_unused]] const struct ur_event_get_profiling_info_params_t
+               *params) {
 
     os << ".hEvent = ";
 
@@ -12896,8 +13255,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_event_wait_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_event_wait_params_t *params) {
 
     os << ".numEvents = ";
 
@@ -12918,18 +13278,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_event_retain_params_t *params) {
-
-    os << ".hEvent = ";
-
-    ur_params::serializePtr(os, *(params->phEvent));
-
-    return os;
-}
-
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_event_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_event_retain_params_t *params) {
 
     os << ".hEvent = ";
 
@@ -12940,7 +13291,18 @@ operator<<(std::ostream &os, const struct ur_event_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_event_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_event_release_params_t *params) {
+
+    os << ".hEvent = ";
+
+    ur_params::serializePtr(os, *(params->phEvent));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_event_get_native_handle_params_t *params) {
 
     os << ".hEvent = ";
 
@@ -12954,9 +13316,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_event_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_event_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeEvent = ";
 
@@ -12980,9 +13343,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_event_set_callback_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_event_set_callback_params_t *params) {
 
     os << ".hEvent = ";
 
@@ -13007,7 +13370,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_kernel_create_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_kernel_create_params_t *params) {
 
     os << ".hProgram = ";
 
@@ -13027,7 +13391,8 @@ operator<<(std::ostream &os, const struct ur_kernel_create_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_kernel_get_info_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_kernel_get_info_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13056,9 +13421,9 @@ operator<<(std::ostream &os, const struct ur_kernel_get_info_params_t *params) {
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_get_group_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_get_group_info_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13094,7 +13459,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_kernel_get_sub_group_info_params_t *params) {
+           [[maybe_unused]] const struct ur_kernel_get_sub_group_info_params_t
+               *params) {
 
     os << ".hKernel = ";
 
@@ -13129,17 +13495,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_kernel_retain_params_t *params) {
-
-    os << ".hKernel = ";
-
-    ur_params::serializePtr(os, *(params->phKernel));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_kernel_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_kernel_retain_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13150,7 +13507,19 @@ operator<<(std::ostream &os, const struct ur_kernel_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_kernel_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_kernel_release_params_t *params) {
+
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_kernel_get_native_handle_params_t
+               *params) {
 
     os << ".hKernel = ";
 
@@ -13164,9 +13533,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeKernel = ";
 
@@ -13195,9 +13565,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_set_arg_value_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_set_arg_value_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13226,9 +13596,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_set_arg_local_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_set_arg_local_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13252,9 +13622,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_set_arg_pointer_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_set_arg_pointer_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13278,9 +13648,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_set_exec_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_set_exec_info_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13309,35 +13679,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_set_arg_sampler_params_t *params) {
-
-    os << ".hKernel = ";
-
-    ur_params::serializePtr(os, *(params->phKernel));
-
-    os << ", ";
-    os << ".argIndex = ";
-
-    os << *(params->pargIndex);
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    ur_params::serializePtr(os, *(params->ppProperties));
-
-    os << ", ";
-    os << ".hArgValue = ";
-
-    ur_params::serializePtr(os, *(params->phArgValue));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_kernel_set_arg_mem_obj_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_kernel_set_arg_sampler_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13363,7 +13707,33 @@ operator<<(std::ostream &os,
 
 inline std::ostream &operator<<(
     std::ostream &os,
-    const struct ur_kernel_set_specialization_constants_params_t *params) {
+    [[maybe_unused]] const struct ur_kernel_set_arg_mem_obj_params_t *params) {
+
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    os << ", ";
+    os << ".argIndex = ";
+
+    os << *(params->pargIndex);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur_params::serializePtr(os, *(params->ppProperties));
+
+    os << ", ";
+    os << ".hArgValue = ";
+
+    ur_params::serializePtr(os, *(params->phArgValue));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_kernel_set_specialization_constants_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13383,8 +13753,48 @@ inline std::ostream &operator<<(
 }
 
 inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_kernel_suggest_max_cooperative_group_count_exp_params_t *params) {
+
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    os << ", ";
+    os << ".pGroupCountRet = ";
+
+    ur_params::serializePtr(os, *(params->ppGroupCountRet));
+
+    return os;
+}
+
+inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_loader_config_create_params_t *params) {
+           [[maybe_unused]] const struct ur_loader_init_params_t *params) {
+
+    os << ".device_flags = ";
+
+    ur_params::serializeFlag<ur_device_init_flag_t>(os,
+                                                    *(params->pdevice_flags));
+
+    os << ", ";
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_loader_tear_down_params_t *params) {
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_loader_config_create_params_t *params) {
 
     os << ".phLoaderConfig = ";
 
@@ -13393,9 +13803,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_loader_config_retain_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_loader_config_retain_params_t *params) {
 
     os << ".hLoaderConfig = ";
 
@@ -13404,9 +13814,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_loader_config_release_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_loader_config_release_params_t *params) {
 
     os << ".hLoaderConfig = ";
 
@@ -13415,9 +13825,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_loader_config_get_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_loader_config_get_info_params_t *params) {
 
     os << ".hLoaderConfig = ";
 
@@ -13448,7 +13858,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_loader_config_enable_layer_params_t *params) {
+           [[maybe_unused]] const struct ur_loader_config_enable_layer_params_t
+               *params) {
 
     os << ".hLoaderConfig = ";
 
@@ -13464,7 +13875,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_mem_image_create_params_t *params) {
+           [[maybe_unused]] const struct ur_mem_image_create_params_t *params) {
 
     os << ".hContext = ";
 
@@ -13498,9 +13909,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_mem_buffer_create_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_mem_buffer_create_params_t *params) {
 
     os << ".hContext = ";
 
@@ -13529,18 +13940,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_mem_retain_params_t *params) {
-
-    os << ".hMem = ";
-
-    ur_params::serializePtr(os, *(params->phMem));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_mem_release_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_mem_retain_params_t *params) {
 
     os << ".hMem = ";
 
@@ -13551,7 +13953,18 @@ inline std::ostream &operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_mem_buffer_partition_params_t *params) {
+           [[maybe_unused]] const struct ur_mem_release_params_t *params) {
+
+    os << ".hMem = ";
+
+    ur_params::serializePtr(os, *(params->phMem));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_mem_buffer_partition_params_t *params) {
 
     os << ".hBuffer = ";
 
@@ -13580,9 +13993,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_mem_get_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_mem_get_native_handle_params_t *params) {
 
     os << ".hMem = ";
 
@@ -13596,9 +14009,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_mem_buffer_create_with_native_handle_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_mem_buffer_create_with_native_handle_params_t *params) {
 
     os << ".hNativeMem = ";
 
@@ -13622,9 +14035,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_mem_image_create_with_native_handle_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_mem_image_create_with_native_handle_params_t *params) {
 
     os << ".hNativeMem = ";
 
@@ -13658,8 +14071,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_mem_get_info_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_mem_get_info_params_t *params) {
 
     os << ".hMemory = ";
 
@@ -13688,9 +14102,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_mem_image_get_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_mem_image_get_info_params_t *params) {
 
     os << ".hMemory = ";
 
@@ -13719,9 +14133,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_physical_mem_create_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_physical_mem_create_params_t *params) {
 
     os << ".hContext = ";
 
@@ -13750,9 +14164,20 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_physical_mem_retain_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_physical_mem_retain_params_t *params) {
+
+    os << ".hPhysicalMem = ";
+
+    ur_params::serializePtr(os, *(params->phPhysicalMem));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_physical_mem_release_params_t *params) {
 
     os << ".hPhysicalMem = ";
 
@@ -13763,17 +14188,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_physical_mem_release_params_t *params) {
-
-    os << ".hPhysicalMem = ";
-
-    ur_params::serializePtr(os, *(params->phPhysicalMem));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_platform_get_params_t *params) {
+           [[maybe_unused]] const struct ur_platform_get_params_t *params) {
 
     os << ".phAdapters = {";
     for (size_t i = 0;
@@ -13816,9 +14231,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_platform_get_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_platform_get_info_params_t *params) {
 
     os << ".hPlatform = ";
 
@@ -13849,7 +14264,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_platform_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_platform_get_native_handle_params_t
+               *params) {
 
     os << ".hPlatform = ";
 
@@ -13865,7 +14281,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &operator<<(
     std::ostream &os,
-    const struct ur_platform_create_with_native_handle_params_t *params) {
+    [[maybe_unused]] const struct ur_platform_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativePlatform = ";
 
@@ -13886,7 +14303,8 @@ inline std::ostream &operator<<(
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_platform_get_api_version_params_t *params) {
+           [[maybe_unused]] const struct ur_platform_get_api_version_params_t
+               *params) {
 
     os << ".hPlatform = ";
 
@@ -13902,7 +14320,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_platform_get_backend_option_params_t *params) {
+           [[maybe_unused]] const struct ur_platform_get_backend_option_params_t
+               *params) {
 
     os << ".hPlatform = ";
 
@@ -13921,9 +14340,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_program_create_with_il_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_program_create_with_il_params_t *params) {
 
     os << ".hContext = ";
 
@@ -13954,7 +14373,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_program_create_with_binary_params_t *params) {
+           [[maybe_unused]] const struct ur_program_create_with_binary_params_t
+               *params) {
 
     os << ".hContext = ";
 
@@ -13989,7 +14409,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_program_build_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_build_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14009,7 +14430,8 @@ operator<<(std::ostream &os, const struct ur_program_build_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_program_compile_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_compile_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14028,8 +14450,9 @@ operator<<(std::ostream &os, const struct ur_program_compile_params_t *params) {
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_program_link_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_link_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14066,17 +14489,8 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_program_retain_params_t *params) {
-
-    os << ".hProgram = ";
-
-    ur_params::serializePtr(os, *(params->phProgram));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_program_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_program_retain_params_t *params) {
 
     os << ".hProgram = ";
 
@@ -14087,7 +14501,19 @@ operator<<(std::ostream &os, const struct ur_program_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_program_get_function_pointer_params_t *params) {
+           [[maybe_unused]] const struct ur_program_release_params_t *params) {
+
+    os << ".hProgram = ";
+
+    ur_params::serializePtr(os, *(params->phProgram));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_program_get_function_pointer_params_t
+        *params) {
 
     os << ".hDevice = ";
 
@@ -14113,47 +14539,11 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_program_get_info_params_t *params) {
+           [[maybe_unused]] const struct ur_program_get_info_params_t *params) {
 
     os << ".hProgram = ";
 
     ur_params::serializePtr(os, *(params->phProgram));
-
-    os << ", ";
-    os << ".propName = ";
-
-    os << *(params->ppropName);
-
-    os << ", ";
-    os << ".propSize = ";
-
-    os << *(params->ppropSize);
-
-    os << ", ";
-    os << ".pPropValue = ";
-    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
-                               *(params->ppropSize));
-
-    os << ", ";
-    os << ".pPropSizeRet = ";
-
-    ur_params::serializePtr(os, *(params->ppPropSizeRet));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_program_get_build_info_params_t *params) {
-
-    os << ".hProgram = ";
-
-    ur_params::serializePtr(os, *(params->phProgram));
-
-    os << ", ";
-    os << ".hDevice = ";
-
-    ur_params::serializePtr(os, *(params->phDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -14180,7 +14570,43 @@ operator<<(std::ostream &os,
 
 inline std::ostream &operator<<(
     std::ostream &os,
-    const struct ur_program_set_specialization_constants_params_t *params) {
+    [[maybe_unused]] const struct ur_program_get_build_info_params_t *params) {
+
+    os << ".hProgram = ";
+
+    ur_params::serializePtr(os, *(params->phProgram));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_program_set_specialization_constants_params_t *params) {
 
     os << ".hProgram = ";
 
@@ -14208,7 +14634,8 @@ inline std::ostream &operator<<(
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_program_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_program_get_native_handle_params_t
+               *params) {
 
     os << ".hProgram = ";
 
@@ -14222,9 +14649,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_program_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_program_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeProgram = ";
 
@@ -14249,7 +14677,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_queue_get_info_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_get_info_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -14278,8 +14707,9 @@ operator<<(std::ostream &os, const struct ur_queue_get_info_params_t *params) {
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_queue_create_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_create_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14303,18 +14733,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_queue_retain_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur_params::serializePtr(os, *(params->phQueue));
-
-    return os;
-}
-
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_queue_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_retain_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -14325,7 +14746,18 @@ operator<<(std::ostream &os, const struct ur_queue_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_queue_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_queue_release_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_get_native_handle_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -14344,9 +14776,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_queue_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_queue_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeQueue = ";
 
@@ -14375,18 +14808,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_queue_finish_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur_params::serializePtr(os, *(params->phQueue));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_queue_flush_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_finish_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -14396,7 +14820,19 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_sampler_create_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_queue_flush_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_sampler_create_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14416,17 +14852,8 @@ operator<<(std::ostream &os, const struct ur_sampler_create_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_sampler_retain_params_t *params) {
-
-    os << ".hSampler = ";
-
-    ur_params::serializePtr(os, *(params->phSampler));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_sampler_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_sampler_retain_params_t *params) {
 
     os << ".hSampler = ";
 
@@ -14437,7 +14864,18 @@ operator<<(std::ostream &os, const struct ur_sampler_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_sampler_get_info_params_t *params) {
+           [[maybe_unused]] const struct ur_sampler_release_params_t *params) {
+
+    os << ".hSampler = ";
+
+    ur_params::serializePtr(os, *(params->phSampler));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_sampler_get_info_params_t *params) {
 
     os << ".hSampler = ";
 
@@ -14468,7 +14906,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_sampler_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_sampler_get_native_handle_params_t
+               *params) {
 
     os << ".hSampler = ";
 
@@ -14482,9 +14921,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_sampler_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_sampler_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeSampler = ";
 
@@ -14509,7 +14949,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_usm_host_alloc_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_host_alloc_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14540,7 +14981,7 @@ operator<<(std::ostream &os, const struct ur_usm_host_alloc_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_usm_device_alloc_params_t *params) {
+           [[maybe_unused]] const struct ur_usm_device_alloc_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14576,7 +15017,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_usm_shared_alloc_params_t *params) {
+           [[maybe_unused]] const struct ur_usm_shared_alloc_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14610,8 +15051,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_usm_free_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_free_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14625,9 +15067,9 @@ inline std::ostream &operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_get_mem_alloc_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_get_mem_alloc_info_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14662,7 +15104,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_usm_pool_create_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_create_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14682,7 +15125,8 @@ operator<<(std::ostream &os, const struct ur_usm_pool_create_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_usm_pool_retain_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_retain_params_t *params) {
 
     os << ".pPool = ";
 
@@ -14693,7 +15137,7 @@ operator<<(std::ostream &os, const struct ur_usm_pool_retain_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_usm_pool_release_params_t *params) {
+           [[maybe_unused]] const struct ur_usm_pool_release_params_t *params) {
 
     os << ".pPool = ";
 
@@ -14702,9 +15146,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_pool_get_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_get_info_params_t *params) {
 
     os << ".hPool = ";
 
@@ -14733,9 +15177,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_pitched_alloc_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pitched_alloc_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14785,7 +15229,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_usm_import_exp_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_import_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14805,7 +15250,8 @@ operator<<(std::ostream &os, const struct ur_usm_import_exp_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_usm_release_exp_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_release_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14819,9 +15265,10 @@ operator<<(std::ostream &os, const struct ur_usm_release_exp_params_t *params) {
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_p2p_enable_peer_access_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_p2p_enable_peer_access_exp_params_t
+        *params) {
 
     os << ".commandDevice = ";
 
@@ -14835,9 +15282,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_p2p_disable_peer_access_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_p2p_disable_peer_access_exp_params_t
+        *params) {
 
     os << ".commandDevice = ";
 
@@ -14851,9 +15299,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_usm_p2p_peer_access_get_info_exp_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_p2p_peer_access_get_info_exp_params_t
+        *params) {
 
     os << ".commandDevice = ";
 
@@ -14887,9 +15336,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_virtual_mem_granularity_get_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_virtual_mem_granularity_get_info_params_t
+        *params) {
 
     os << ".hContext = ";
 
@@ -14923,9 +15373,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_virtual_mem_reserve_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_virtual_mem_reserve_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14951,7 +15401,7 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_virtual_mem_free_params_t *params) {
+           [[maybe_unused]] const struct ur_virtual_mem_free_params_t *params) {
 
     os << ".hContext = ";
 
@@ -14971,7 +15421,8 @@ operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_virtual_mem_map_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_virtual_mem_map_params_t *params) {
 
     os << ".hContext = ";
 
@@ -15006,9 +15457,9 @@ operator<<(std::ostream &os, const struct ur_virtual_mem_map_params_t *params) {
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_virtual_mem_unmap_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_virtual_mem_unmap_params_t *params) {
 
     os << ".hContext = ";
 
@@ -15027,9 +15478,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_virtual_mem_set_access_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_virtual_mem_set_access_params_t *params) {
 
     os << ".hContext = ";
 
@@ -15054,9 +15505,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_virtual_mem_get_info_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_virtual_mem_get_info_params_t *params) {
 
     os << ".hContext = ";
 
@@ -15095,8 +15546,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_device_get_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_get_params_t *params) {
 
     os << ".hPlatform = ";
 
@@ -15133,7 +15585,8 @@ inline std::ostream &operator<<(std::ostream &os,
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_device_get_info_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_get_info_params_t *params) {
 
     os << ".hDevice = ";
 
@@ -15163,17 +15616,8 @@ operator<<(std::ostream &os, const struct ur_device_get_info_params_t *params) {
 }
 
 inline std::ostream &
-operator<<(std::ostream &os, const struct ur_device_retain_params_t *params) {
-
-    os << ".hDevice = ";
-
-    ur_params::serializePtr(os, *(params->phDevice));
-
-    return os;
-}
-
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_device_release_params_t *params) {
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_retain_params_t *params) {
 
     os << ".hDevice = ";
 
@@ -15184,7 +15628,18 @@ operator<<(std::ostream &os, const struct ur_device_release_params_t *params) {
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_device_partition_params_t *params) {
+           [[maybe_unused]] const struct ur_device_release_params_t *params) {
+
+    os << ".hDevice = ";
+
+    ur_params::serializePtr(os, *(params->phDevice));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_device_partition_params_t *params) {
 
     os << ".hDevice = ";
 
@@ -15220,9 +15675,9 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_device_select_binary_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_device_select_binary_params_t *params) {
 
     os << ".hDevice = ";
 
@@ -15248,7 +15703,8 @@ operator<<(std::ostream &os,
 
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_device_get_native_handle_params_t *params) {
+           [[maybe_unused]] const struct ur_device_get_native_handle_params_t
+               *params) {
 
     os << ".hDevice = ";
 
@@ -15262,9 +15718,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_device_create_with_native_handle_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_device_create_with_native_handle_params_t
+        *params) {
 
     os << ".hNativeDevice = ";
 
@@ -15288,9 +15745,10 @@ operator<<(std::ostream &os,
     return os;
 }
 
-inline std::ostream &
-operator<<(std::ostream &os,
-           const struct ur_device_get_global_timestamps_params_t *params) {
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_device_get_global_timestamps_params_t
+        *params) {
 
     os << ".hDevice = ";
 
@@ -15334,12 +15792,6 @@ template <typename T> inline void serializePtr(std::ostream &os, const T *ptr) {
 inline int serializeFunctionParams(std::ostream &os, uint32_t function,
                                    const void *params) {
     switch ((enum ur_function_t)function) {
-    case UR_FUNCTION_INIT: {
-        os << (const struct ur_init_params_t *)params;
-    } break;
-    case UR_FUNCTION_TEAR_DOWN: {
-        os << (const struct ur_tear_down_params_t *)params;
-    } break;
     case UR_FUNCTION_ADAPTER_GET: {
         os << (const struct ur_adapter_get_params_t *)params;
     } break;
@@ -15442,35 +15894,51 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
         os << (const struct ur_command_buffer_append_kernel_launch_exp_params_t
                    *)params;
     } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP: {
-        os << (const struct ur_command_buffer_append_memcpy_usm_exp_params_t *)
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP: {
+        os << (const struct ur_command_buffer_append_usm_memcpy_exp_params_t *)
                 params;
     } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP: {
-        os << (const struct ur_command_buffer_append_membuffer_copy_exp_params_t
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP: {
+        os << (const struct ur_command_buffer_append_usm_fill_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_copy_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_write_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_read_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_write_rect_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_read_rect_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP: {
+        os << (const struct
+               ur_command_buffer_append_mem_buffer_fill_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP: {
+        os << (const struct ur_command_buffer_append_usm_prefetch_exp_params_t
                    *)params;
     } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP: {
-        os << (const struct
-               ur_command_buffer_append_membuffer_write_exp_params_t *)params;
-    } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP: {
-        os << (const struct ur_command_buffer_append_membuffer_read_exp_params_t
-                   *)params;
-    } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP: {
-        os << (const struct
-               ur_command_buffer_append_membuffer_copy_rect_exp_params_t *)
-                params;
-    } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP: {
-        os << (const struct
-               ur_command_buffer_append_membuffer_write_rect_exp_params_t *)
-                params;
-    } break;
-    case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP: {
-        os << (const struct
-               ur_command_buffer_append_membuffer_read_rect_exp_params_t *)
+    case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP: {
+        os << (const struct ur_command_buffer_append_usm_advise_exp_params_t *)
                 params;
     } break;
     case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP: {
@@ -15576,6 +16044,10 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE: {
         os << (const struct ur_enqueue_write_host_pipe_params_t *)params;
     } break;
+    case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
+        os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)
+                params;
+    } break;
     case UR_FUNCTION_EVENT_GET_INFO: {
         os << (const struct ur_event_get_info_params_t *)params;
     } break;
@@ -15647,6 +16119,17 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
         os << (const struct ur_kernel_set_specialization_constants_params_t *)
                 params;
+    } break;
+    case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP: {
+        os << (const struct
+               ur_kernel_suggest_max_cooperative_group_count_exp_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_LOADER_INIT: {
+        os << (const struct ur_loader_init_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_TEAR_DOWN: {
+        os << (const struct ur_loader_tear_down_params_t *)params;
     } break;
     case UR_FUNCTION_LOADER_CONFIG_CREATE: {
         os << (const struct ur_loader_config_create_params_t *)params;

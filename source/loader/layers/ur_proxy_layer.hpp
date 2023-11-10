@@ -27,6 +27,7 @@ class __urdlllocal proxy_layer_context_t {
     virtual ur_result_t
     init(ur_dditable_t *dditable,
          const std::set<std::string> &enabledLayerNames) = 0;
+    virtual ur_result_t tearDown() = 0;
 };
 
 #endif /* UR_PROXY_LAYER_H */

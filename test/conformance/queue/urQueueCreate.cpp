@@ -72,7 +72,7 @@ TEST_P(urQueueCreateTest, InvalidValueProperties) {
         /*.pNext =*/nullptr,
         /*.flags =*/UR_QUEUE_FLAG_FORCE_UINT32,
     };
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urQueueCreate(context, device, &props, &queue));
 }
 

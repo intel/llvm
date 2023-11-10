@@ -15,13 +15,14 @@
 #include "ur_api.h"
 
 //////////////////////////////////////////////////////////////////////////
-int main(int argc, char *argv[]) {
+int main(int, char *[]) {
     ur_result_t status;
 
     // Initialize the platform
-    status = urInit(0, nullptr);
+    status = urLoaderInit(0, nullptr);
     if (status != UR_RESULT_SUCCESS) {
-        std::cout << "urInit failed with return code: " << status << std::endl;
+        std::cout << "urLoaderInit failed with return code: " << status
+                  << std::endl;
         return 1;
     }
     std::cout << "Platform initialized.\n";
@@ -119,6 +120,6 @@ out:
     for (auto adapter : adapters) {
         urAdapterRelease(adapter);
     }
-    urTearDown(nullptr);
+    urLoaderTearDown();
     return status == UR_RESULT_SUCCESS ? 0 : 1;
 }

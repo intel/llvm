@@ -38,21 +38,20 @@ context_t::context_t() {
         return UR_RESULT_SUCCESS;
     };
     //////////////////////////////////////////////////////////////////////////
-    urDdiTable.Platform.pfnGet = [](ur_adapter_handle_t *phAdapters,
-                                    uint32_t NumAdapters, uint32_t NumEntries,
-                                    ur_platform_handle_t *phPlatforms,
-                                    uint32_t *pNumPlatforms) {
-        if (phPlatforms != nullptr && NumEntries != 1) {
-            return UR_RESULT_ERROR_INVALID_SIZE;
-        }
-        if (pNumPlatforms != nullptr) {
-            *pNumPlatforms = 1;
-        }
-        if (nullptr != phPlatforms) {
-            *reinterpret_cast<void **>(phPlatforms) = d_context.get();
-        }
-        return UR_RESULT_SUCCESS;
-    };
+    urDdiTable.Platform.pfnGet =
+        [](ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+           ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
+            if (phPlatforms != nullptr && NumEntries != 1) {
+                return UR_RESULT_ERROR_INVALID_SIZE;
+            }
+            if (pNumPlatforms != nullptr) {
+                *pNumPlatforms = 1;
+            }
+            if (nullptr != phPlatforms) {
+                *reinterpret_cast<void **>(phPlatforms) = d_context.get();
+            }
+            return UR_RESULT_SUCCESS;
+        };
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Platform.pfnGetApiVersion = [](ur_platform_handle_t,
@@ -122,8 +121,8 @@ context_t::context_t() {
 
     //////////////////////////////////////////////////////////////////////////
     urDdiTable.Device.pfnGetInfo =
-        [](ur_device_handle_t hDevice, ur_device_info_t infoType,
-           size_t propSize, void *pDeviceInfo, size_t *pPropSizeRet) {
+        [](ur_device_handle_t, ur_device_info_t infoType, size_t propSize,
+           void *pDeviceInfo, size_t *pPropSizeRet) {
             switch (infoType) {
             case UR_DEVICE_INFO_TYPE:
                 if (pDeviceInfo && propSize != sizeof(ur_device_type_t)) {

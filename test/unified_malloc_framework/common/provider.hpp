@@ -30,21 +30,27 @@ struct provider_base {
     enum umf_result_t alloc(size_t, size_t, void **) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t free(void *ptr, size_t size) noexcept {
+    enum umf_result_t free([[maybe_unused]] void *ptr,
+                           [[maybe_unused]] size_t size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
     void get_last_native_error(const char **, int32_t *) noexcept {}
-    enum umf_result_t get_recommended_page_size(size_t size,
-                                                size_t *pageSize) noexcept {
+    enum umf_result_t
+    get_recommended_page_size([[maybe_unused]] size_t size,
+                              [[maybe_unused]] size_t *pageSize) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t get_min_page_size(void *ptr, size_t *pageSize) noexcept {
+    enum umf_result_t
+    get_min_page_size([[maybe_unused]] void *ptr,
+                      [[maybe_unused]] size_t *pageSize) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t purge_lazy(void *ptr, size_t size) noexcept {
+    enum umf_result_t purge_lazy([[maybe_unused]] void *ptr,
+                                 [[maybe_unused]] size_t size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    enum umf_result_t purge_force(void *ptr, size_t size) noexcept {
+    enum umf_result_t purge_force([[maybe_unused]] void *ptr,
+                                  [[maybe_unused]] size_t size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
     const char *get_name() noexcept { return "base"; }

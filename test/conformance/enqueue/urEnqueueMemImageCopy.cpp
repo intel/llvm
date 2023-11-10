@@ -62,7 +62,7 @@ struct urEnqueueMemImageCopyTest
 
     void TearDown() override {
         if (srcImage) {
-            EXPECT_SUCCESS(urMemRelease(dstImage));
+            EXPECT_SUCCESS(urMemRelease(srcImage));
         }
         if (dstImage) {
             EXPECT_SUCCESS(urMemRelease(dstImage));

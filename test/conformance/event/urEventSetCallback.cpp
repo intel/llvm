@@ -14,8 +14,9 @@ using urEventSetCallbackTest = uur::event::urEventReferenceTest;
 TEST_P(urEventSetCallbackTest, Success) {
 
     struct Callback {
-        static void callback(ur_event_handle_t hEvent,
-                             ur_execution_info_t execStatus, void *pUserData) {
+        static void callback([[maybe_unused]] ur_event_handle_t hEvent,
+                             [[maybe_unused]] ur_execution_info_t execStatus,
+                             void *pUserData) {
 
             auto status = reinterpret_cast<bool *>(pUserData);
             *status = true;
@@ -78,7 +79,7 @@ TEST_P(urEventSetCallbackTest, AllStates) {
     };
 
     struct Callback {
-        static void callback(ur_event_handle_t hEvent,
+        static void callback([[maybe_unused]] ur_event_handle_t hEvent,
                              ur_execution_info_t execStatus, void *pUserData) {
 
             auto status = reinterpret_cast<CallbackStatus *>(pUserData);
@@ -142,8 +143,9 @@ TEST_P(urEventSetCallbackTest, EventAlreadyCompleted) {
     ASSERT_SUCCESS(urEventWait(1, &event));
 
     struct Callback {
-        static void callback(ur_event_handle_t hEvent,
-                             ur_execution_info_t execStatus, void *pUserData) {
+        static void callback([[maybe_unused]] ur_event_handle_t hEvent,
+                             [[maybe_unused]] ur_execution_info_t execStatus,
+                             void *pUserData) {
 
             auto status = reinterpret_cast<bool *>(pUserData);
             *status = true;
@@ -165,23 +167,23 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventSetCallbackTest);
 /* Negative tests */
 using urEventSetCallbackNegativeTest = uur::event::urEventTest;
 
-void emptyCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
-                   void *pUserData) {}
+void emptyCallback(ur_event_handle_t, ur_execution_info_t, void *) {}
 
-TEST_P(urEventSetCallbackNegativeTest, InvalidNullHandle) {
-
+TEST_P(urEventSetCallbackNegativeTest, InvalidNullHandleEvent) {
     ASSERT_EQ_RESULT(
         urEventSetCallback(
             nullptr,
             ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED,
             emptyCallback, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+}
 
+TEST_P(urEventSetCallbackNegativeTest, InvalidNullPointerCallback) {
     ASSERT_EQ_RESULT(
         urEventSetCallback(
             event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED,
             nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urEventSetCallbackNegativeTest, InvalidEnumeration) {

@@ -36,17 +36,21 @@ TEST_P(urProgramGetBuildInfoTest, Success) {
 TEST_P(urProgramGetBuildInfoTest, InvalidNullHandleProgram) {
     ur_program_build_status_t programBuildStatus =
         UR_PROGRAM_BUILD_STATUS_ERROR;
-    ASSERT_SUCCESS(urProgramGetBuildInfo(
-        nullptr, device, UR_PROGRAM_BUILD_INFO_STATUS,
-        sizeof(programBuildStatus), &programBuildStatus, nullptr));
+    ASSERT_EQ_RESULT(urProgramGetBuildInfo(nullptr, device,
+                                           UR_PROGRAM_BUILD_INFO_STATUS,
+                                           sizeof(programBuildStatus),
+                                           &programBuildStatus, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidNullHandleDevice) {
     ur_program_build_status_t programBuildStatus =
         UR_PROGRAM_BUILD_STATUS_ERROR;
-    ASSERT_SUCCESS(urProgramGetBuildInfo(
-        program, nullptr, UR_PROGRAM_BUILD_INFO_STATUS,
-        sizeof(programBuildStatus), &programBuildStatus, nullptr));
+    ASSERT_EQ_RESULT(urProgramGetBuildInfo(program, nullptr,
+                                           UR_PROGRAM_BUILD_INFO_STATUS,
+                                           sizeof(programBuildStatus),
+                                           &programBuildStatus, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urProgramGetBuildInfoTest, InvalidEnumeration) {

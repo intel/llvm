@@ -151,6 +151,7 @@ typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name']
 #endif
 %for tbl in th.get_pfncbtables(specs, meta, n, tags):
 %for obj in tbl['functions']:
+%if obj['params']:
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for ${th.make_func_name(n, tags, obj)} 
 /// @details Each entry is a pointer to the parameter passed to the function;
@@ -166,6 +167,7 @@ typedef struct ${th.make_pfncb_param_type(n, tags, obj)}
 } ${th.make_pfncb_param_type(n, tags, obj)};
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}
+%endif
 %endif
 
 %endfor

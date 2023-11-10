@@ -60,7 +60,7 @@ class __urdlllocal context_t {
     ur_result_t Init(ur_device_init_flags_t dflags,
                      ur_loader_config_handle_t hLoaderConfig);
 
-    ur_result_t urInit();
+    ur_result_t urLoaderInit();
     ur_dditable_t urDdiTable = {};
 
     const std::vector<proxy_layer_context_t *> layers = {
@@ -75,6 +75,7 @@ class __urdlllocal context_t {
     bool layerExists(const std::string &layerName) const;
     void parseEnvEnabledLayers();
     void initLayers() const;
+    void tearDownLayers() const;
 };
 
 extern context_t *context;
@@ -87,5 +88,6 @@ ur_result_t urLoaderConfigGetInfo(ur_loader_config_handle_t hLoaderConfig,
                                   size_t *pPropSizeRet);
 ur_result_t urLoaderConfigEnableLayer(ur_loader_config_handle_t hLoaderConfig,
                                       const char *pLayerName);
+ur_result_t urLoaderTearDown();
 } // namespace ur_lib
 #endif /* UR_LOADER_LIB_H */

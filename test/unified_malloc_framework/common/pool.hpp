@@ -76,7 +76,7 @@ struct pool_base {
     umf_result_t initialize(umf_memory_provider_handle_t *, size_t) noexcept {
         return UMF_RESULT_SUCCESS;
     };
-    void *malloc(size_t size) noexcept { return nullptr; }
+    void *malloc([[maybe_unused]] size_t size) noexcept { return nullptr; }
     void *calloc(size_t, size_t) noexcept { return nullptr; }
     void *realloc(void *, size_t) noexcept { return nullptr; }
     void *aligned_malloc(size_t, size_t) noexcept { return nullptr; }
@@ -120,7 +120,7 @@ struct malloc_pool : public pool_base {
 
 struct proxy_pool : public pool_base {
     umf_result_t initialize(umf_memory_provider_handle_t *providers,
-                            size_t numProviders) noexcept {
+                            [[maybe_unused]] size_t numProviders) noexcept {
         this->provider = providers[0];
         return UMF_RESULT_SUCCESS;
     }
@@ -136,7 +136,8 @@ struct proxy_pool : public pool_base {
         }
         return ptr;
     }
-    void *realloc(void *ptr, size_t size) noexcept {
+    void *realloc([[maybe_unused]] void *ptr,
+                  [[maybe_unused]] size_t size) noexcept {
         // TODO: not supported
         umf::getPoolLastStatusRef<proxy_pool>() =
             UMF_RESULT_ERROR_NOT_SUPPORTED;
@@ -150,7 +151,7 @@ struct proxy_pool : public pool_base {
         }
         return ptr;
     }
-    size_t malloc_usable_size(void *ptr) noexcept {
+    size_t malloc_usable_size([[maybe_unused]] void *ptr) noexcept {
         // TODO: not supported
         return 0;
     }
