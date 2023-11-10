@@ -60,7 +60,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Fri Oct 27 16:36:23 2023 +0100
   #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
   #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
-  set(UNIFIED_RUNTIME_TAG 68e1d242a27ec68162c6d94d3834e724466e5bbf)
+  set(UNIFIED_RUNTIME_TAG b5e19bdc1224a9fe729d1ceccffa374cf71921e6)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
