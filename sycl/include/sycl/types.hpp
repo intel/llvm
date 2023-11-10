@@ -1232,126 +1232,6 @@ public:
       Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
     return Ret;
   }
-
-  // CP ---------------
-
-  // OP is: &&, ||
-  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
-  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
-
-  // OP is: ==, !=, <, >, <=, >=
-  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
-  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
-private:
-  // Generic method that execute "Operation" on underlying values.
-
-#ifdef __SYCL_DEVICE_ONLY__
-  template <template <typename> class Operation,
-            typename Ty = vec<DataT, NumElements>>
-  vec<DataT, NumElements>
-  operatorHelper(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {
-    vec<DataT, NumElements> Result;
-    Operation<DataType> Op;
-    Result.m_Data = Op(m_Data, Rhs.m_Data);
-    return Result;
-  }
-
-  template <template <typename> class Operation,
-            typename Ty = vec<DataT, NumElements>>
-  vec<DataT, NumElements>
-  operatorHelper(const EnableIfUsingArrayOnDevice<Ty> &Rhs) const {
-    vec<DataT, NumElements> Result;
-    Operation<DataT> Op;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Result.setValue(I, Op(Rhs.getValue(I), getValue(I)));
-    }
-    return Result;
-  }
-#else  // __SYCL_DEVICE_ONLY__
-  template <template <typename> class Operation>
-  vec<DataT, NumElements>
-  operatorHelper(const vec<DataT, NumElements> &Rhs) const {
-    vec<DataT, NumElements> Result;
-    Operation<DataT> Op;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Result.setValue(I, Op(Rhs.getValue(I), getValue(I)));
-    }
-    return Result;
-  }
-#endif // __SYCL_DEVICE_ONLY
-
-  // setValue and getValue should be able to operate on different underlying
-  // types: enum cl_float#N , builtin vector float#N, builtin type float.
-
-#ifdef __SYCL_DEVICE_ONLY__
-  template <int Num = NumElements, typename Ty = int,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfNotHostHalf<Ty> Index, const DataT &Value,
-                          int) {
-    m_Data[Index] = vec_data<DataT>::get(Value);
-  }
-
-  template <int Num = NumElements, typename Ty = int,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfNotHostHalf<Ty> Index, int) const {
-    return vec_data<DataT>::get(m_Data[Index]);
-  }
-
-  template <int Num = NumElements, typename Ty = int,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(EnableIfHostHalf<Ty> Index, const DataT &Value, int) {
-    m_Data.s[Index] = vec_data<DataT>::get(Value);
-  }
-
-  template <int Num = NumElements, typename Ty = int,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
-    return vec_data<DataT>::get(m_Data.s[Index]);
-  }
-#else  // __SYCL_DEVICE_ONLY__
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr void setValue(int Index, const DataT &Value, int) {
-    m_Data[Index] = vec_data<DataT>::get(Value);
-  }
-
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 != Num>>
-  constexpr DataT getValue(int Index, int) const {
-    return vec_data<DataT>::get(m_Data[Index]);
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 == Num>>
-  constexpr void setValue(int, const DataT &Value, float) {
-    m_Data = vec_data<DataT>::get(Value);
-  }
-
-  template <int Num = NumElements,
-            typename = typename std::enable_if_t<1 == Num>>
-  DataT getValue(int, float) const {
-    return vec_data<DataT>::get(m_Data);
-  }
-
-  // Special proxies as specialization is not allowed in class scope.
-  constexpr void setValue(int Index, const DataT &Value) {
-    if (NumElements == 1)
-      setValue(Index, Value, 0);
-    else
-      setValue(Index, Value, 0.f);
-  }
-
-  DataT getValue(int Index) const {
-    return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
-  }
-
-  // fields
-
-  // Alignment is the same as size, to a maximum size of 64.
-  // detail::vector_alignment will return that value.
-  alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
-
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -1455,6 +1335,10 @@ private:
 #endif
   }
 
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+  // CP ---------------
+
   // OP is: &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
   // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
@@ -1469,7 +1353,7 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfNotHostHalf<Ty> &Rhs) const {
+  operatorHelper(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataType> Op;
     Result.m_Data = Op(m_Data, Rhs.m_Data);
@@ -1479,7 +1363,7 @@ private:
   template <template <typename> class Operation,
             typename Ty = vec<DataT, NumElements>>
   vec<DataT, NumElements>
-  operatorHelper(const EnableIfHostHalf<Ty> &Rhs) const {
+  operatorHelper(const EnableIfUsingArrayOnDevice<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataT> Op;
     for (size_t I = 0; I < NumElements; ++I) {
@@ -1532,13 +1416,21 @@ private:
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    m_Data[Index] = vec_data<DataT>::get(Value);
+#else
     m_Data.s[Index] = vec_data<DataT>::get(Value);
+#endif
   }
 
   template <int Num = NumElements,
             typename = typename std::enable_if_t<1 != Num>>
   constexpr DataT getValue(int Index, int) const {
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return vec_data<DataT>::get(m_Data[Index]);
+#else
     return vec_data<DataT>::get(m_Data.s[Index]);
+#endif
   }
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
@@ -1565,6 +1457,18 @@ private:
   DataT getValue(int Index) const {
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
+
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+  // fields
+
+  // Alignment is the same as size, to a maximum size of 64.
+  // detail::vector_alignment will return that value.
+  alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
+
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   // fields
 
@@ -2374,29 +2278,7 @@ template <typename T, int N> struct VecStorageImpl;
     using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
     using VectorDataType = ::cl_##cl_type##num;                                \
   };
-
-#define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 2)                              \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 3)                              \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 4)                              \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 8)                              \
-  __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 16)
-
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::int8_t, char)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::int16_t, short)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::int32_t, int)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::int64_t, long)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint8_t, uchar)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint16_t, ushort)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint32_t, uint)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint64_t, ulong)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(float, float)
-__SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
-
-#undef __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE
-#undef __SYCL_DEFINE_VECSTORAGE_IMPL
-#endif // __SYCL_DEVICE_ONLY__
-
+#endif // SYCL_DEVICE_ONLY
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -2413,6 +2295,10 @@ template <typename T, int N> struct VecStorageImpl;
   template <> struct VecStorageImpl<type, num> {                               \
     using DataType = ::cl_##cl_type##num;                                      \
   };
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
   __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 2)                              \
   __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, 3)                              \
@@ -2430,11 +2316,10 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint32_t, uint)
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(std::uint64_t, ulong)
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(float, float)
 __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
+
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
-#endif // __SYCL_USE_EXT_VECTOR_TYPE__
-
-#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // ndef __SYCL_USE_EXT_VECTOR_TYPE__
 
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
