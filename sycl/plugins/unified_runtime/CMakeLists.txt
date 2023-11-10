@@ -94,14 +94,35 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112
-  # Merge: fc9bb61b c893a3c4
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon May 20 15:50:02 2024 +0100
-  #     Merge pull request #954 from jchlanda/jakub/rqwgs_hip
-  #     [HIP] Handle required wg size attribute in HIP
-  set(UNIFIED_RUNTIME_TAG 8cdd099ae3d1a34d3bcd7cbed7f5745c3dc8e112)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
+  # commit 81aef9a80371e420d86c6afa83314a8aea3f77a4
+  # Author: Przemek Malon <przemek.malon@codeplay.com>
+  # Date:   Tue Feb 20 10:04:48 2024 +0000
+  #   [Bindless][Exp] Windows & DX12 interop. Semaphores can take values.
+  #
+  #     The interop import API has been adapted to cater to multiple external
+  #     memory and semaphore handle types.
+  #
+  #     This enables memory and semaphores to be imported by single functions
+  #     irregardless of what the underlying handle type is.
+  #
+  #     The following APIs have been removed:
+  #      - `ImportExternalOpaqueFDExp`
+  #      - `ImportExternalSemaphoreOpaqueFDExp`
+  #
+  #     The following APIs have been added:
+  #      - `ImportExternalMemoryExp`
+  #      - `ImportExternalSemaphoreExp`
+  #
+  #     The following enums have been added:
+  #      - `exp_external_mem_type_t`
+  #      - `exp_external_semaphore_type_t`
+  #
+  #     Support has also been added to import DirectX 12 memory and fences.
+  #
+  #     Semaphore operations (wait/signal) can now take values which set the
+  #     semaphore state to the value passed by the user.
+  set(UNIFIED_RUNTIME_TAG 81aef9a80371e420d86c6afa83314a8aea3f77a4)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}

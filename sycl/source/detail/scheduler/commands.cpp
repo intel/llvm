@@ -3251,8 +3251,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
-        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(), 0,
-        nullptr, nullptr);
+        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+        SemWait->getHasWaitValue(), SemWait->getWaitValue(), 0, nullptr,
+        nullptr);
 
     return PI_SUCCESS;
   }
@@ -3265,8 +3266,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
-        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(), 0,
-        nullptr, nullptr);
+        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+        SemSignal->getHasSignalValue(), SemSignal->getSignalValue(), 0, nullptr,
+        nullptr);
 
     return PI_SUCCESS;
   }
