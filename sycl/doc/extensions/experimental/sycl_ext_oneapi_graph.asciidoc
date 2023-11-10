@@ -336,6 +336,11 @@ class depends_on {
     depends_on(NodeTN... nodes);
 };
 
+class depends_on_all_leaves {
+public:
+  depends_on_all_leaves() = default;
+};
+
 } // namespace node
 } // namespace property
 
@@ -477,6 +482,20 @@ class depends_on {
     depends_on(NodeTN... nodes);
 };
 }
+----
+
+==== Depends-On-All-Leaves Property 
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on_all_leaves` 
+property to be passed here. `depends_on_all_leaves` provides a shortcut for 
+adding all the current leaves of a graph as dependencies.
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node {
+class depends_on_all_leaves {
+public:
+  depends_on_all_leaves();
+};
 ----
 
 === Graph
