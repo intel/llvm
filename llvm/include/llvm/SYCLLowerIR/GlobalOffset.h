@@ -12,6 +12,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
+#include "llvm/Transforms/Utils/Cloning.h"  
 
 namespace llvm {
 
@@ -84,11 +85,10 @@ private:
   /// pointer to the implicit argument (either a func argument or a bitcast
   /// turning it to the correct type) and a pointer to the copy of the provided
   /// CallInst inside the new function.
-  std::tuple<Function *, Value *, CallInst *>
+  std::pair<Function *, Value *>
   addOffsetArgumentToFunction(Module &M, Function *Func,
                               Type *ImplicitArgumentType = nullptr,
-                              bool KeepOriginal = false,
-                              CallInst *CI = nullptr);
+                              bool KeepOriginal = false);
 
   /// Create a mapping of kernel entry points to their metadata nodes. While
   /// iterating over kernels make sure that a given kernel entry point has no
@@ -105,7 +105,9 @@ private:
 private:
   // Keep track of all non offset functions that have already been cloned
   // to avoid processing them
-  llvm::SmallPtrSet<Function *, 8> ClonedNonOffsetFunctions;
+  llvm::SmallPtrSet<Function *, 8> Clones;
+
+  llvm::ValueToValueMapTy GlobalVMap;
   /// Keep track of which functions have been processed to avoid processing
   /// twice.
   llvm::DenseMap<Function *, Value *> ProcessedFunctions;

@@ -150,7 +150,7 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   MDNode *FuncMetadata = EntryPointMetadata[Func];
 
   // Already processed.
-  if (ProcessedFunctions.count(Func) == 1)
+  if (ProcessedFunctions[Func] != nullptr)
     return;
 
   // Add the new argument to all other kernel entry points, despite not
@@ -159,11 +159,9 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   assert(KernelMetadata && "IR compiled must have correct annotations");
 
   auto *NewFunc = std::get<0>(addOffsetArgumentToFunction(
-                      M, Func, KernelImplicitArgumentType->getPointerTo(),
-                      /*KeepOriginal=*/true));
+      M, Func, KernelImplicitArgumentType->getPointerTo(),
+      /*KeepOriginal=*/true));
   Argument *NewArgument = std::prev(NewFunc->arg_end());
-
-  ClonedNonOffsetFunctions.insert(Func);
   // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
   // byval args, use byref.
   auto Attr =
@@ -205,8 +203,9 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     auto *Caller = CallToOld->getFunction();
 
     // Ignore every already cloned non-offset function
-    if (ClonedNonOffsetFunctions.count(Caller) == 1)
+    if (Clones.contains(Caller)) {
       continue;
+    }
 
     // Determine if `Caller` needs to be processed or if this is
     // another callsite from a non-offset function
@@ -218,13 +217,12 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     if (AlreadyProcessed) {
       NewFunc = Caller;
     } else {
-      ClonedNonOffsetFunctions.insert(Caller);
-      std::tie(NewFunc, ImplicitOffset, CallToOld) =
+      std::tie(NewFunc, ImplicitOffset) =
           addOffsetArgumentToFunction(
               M, Caller, KernelImplicitArgumentType->getPointerTo(),
-              /*KeepOriginal=*/true, CallToOld);
+              /*KeepOriginal=*/true);
     }
-
+    CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
     if (!CalleeWithImplicitParam) {
       // Replace intrinsic call with parameter.
       CallToOld->replaceAllUsesWith(ImplicitOffset);
@@ -264,10 +262,8 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
   }
 }
 
-std::tuple<Function *, Value *, CallInst *>
-GlobalOffsetPass::addOffsetArgumentToFunction(Module &M, Function *Func,
-                                              Type *ImplicitArgumentType,
-                                              bool KeepOriginal, CallInst *CI) {
+std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
+    Module &M, Function *Func, Type *ImplicitArgumentType, bool KeepOriginal) {
   FunctionType *FuncTy = Func->getFunctionType();
   const AttributeList &FuncAttrs = Func->getAttributes();
   ImplicitArgumentType =
@@ -302,25 +298,21 @@ GlobalOffsetPass::addOffsetArgumentToFunction(Module &M, Function *Func,
 
   Value *ImplicitOffset = nullptr;
   bool ImplicitOffsetAllocaInserted = false;
-  CallInst *NewCallInst = nullptr;
   if (KeepOriginal) {
     // TODO: Are there better naming alternatives that allow for unmangling?
     NewFunc->setName(Func->getName() + "_with_offset");
 
-    ValueToValueMapTy VMap;
     for (Function::arg_iterator FuncArg = Func->arg_begin(),
                                 FuncEnd = Func->arg_end(),
                                 NewFuncArg = NewFunc->arg_begin();
          FuncArg != FuncEnd; ++FuncArg, ++NewFuncArg) {
-      VMap[FuncArg] = NewFuncArg;
+      GlobalVMap[FuncArg] = NewFuncArg;
     }
 
     SmallVector<ReturnInst *, 8> Returns;
-    CloneFunctionInto(NewFunc, Func, VMap,
+    CloneFunctionInto(NewFunc, Func, GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
-    if (CI) {
-      NewCallInst = cast<CallInst>(VMap[CI]);
-    }
+
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
@@ -393,10 +385,10 @@ GlobalOffsetPass::addOffsetArgumentToFunction(Module &M, Function *Func,
         Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS));
   }
 
-  ProcessedFunctions[NewFunc] = ImplicitOffset;
-
+  ProcessedFunctions[Func] = ImplicitOffset;
+  Clones.insert(NewFunc);
   // Return the new function and the offset argument.
-  return {NewFunc, ImplicitOffset, NewCallInst};
+  return {NewFunc, ImplicitOffset};
 }
 
 DenseMap<Function *, MDNode *> GlobalOffsetPass::generateKernelMDNodeMap(
