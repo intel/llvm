@@ -48,7 +48,7 @@ int main() {
 
     add_node(Graph, Queue, [&](handler &CGH) { /* empty node */ });
 
-    Graph.print_dot_graph("graph_verbose.dot", true);
+    Graph.print_graph("graph_verbose.dot", true);
   }
 
   return 0;

@@ -832,10 +832,16 @@ bool modifiable_command_graph::end_recording(
   return QueueStateChanged;
 }
 
-void modifiable_command_graph::print_dot_graph(std::string path,
-                                               bool verbose) const {
+void modifiable_command_graph::print_graph(std::string path,
+                                           bool verbose) const {
   graph_impl::ReadLock Lock(impl->MMutex);
-  impl->printGraphAsDot(path, verbose);
+  if (path.substr(path.find_last_of(".") + 1) == "dot") {
+    impl->printGraphAsDot(path, verbose);
+  } else {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "DOT graph is the only format supported at the moment.");
+  }
 }
 
 executable_command_graph::executable_command_graph(

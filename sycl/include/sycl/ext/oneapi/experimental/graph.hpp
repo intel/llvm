@@ -227,7 +227,7 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
-  void print_dot_graph(const std::string path, bool verbose = false) const;
+  void print_graph(const std::string path, bool verbose = false) const;
 
 protected:
   /// Constructor used internally by the runtime.

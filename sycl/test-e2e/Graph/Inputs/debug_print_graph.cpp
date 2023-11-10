@@ -48,7 +48,15 @@ int main() {
 
     add_node(Graph, Queue, [&](handler &CGH) { /* empty node */ });
 
-    Graph.print_dot_graph("graph.dot");
+    Graph.print_graph("graph.dot");
+
+    std::error_code ErrorCode = make_error_code(sycl::errc::success);
+    try {
+      Graph.print_graph("graphInvalid.txt");
+    } catch (const sycl::exception &e) {
+      ErrorCode = e.code();
+    }
+    assert(ErrorCode == sycl::errc::invalid);
   }
 
   return 0;
