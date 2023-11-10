@@ -36,6 +36,10 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
 
+#if defined(__SYCL_DEVICE_ONLY__)
+#define __SYCL_USE_EXT_VECTOR_TYPE__
+#endif
+
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -303,6 +307,11 @@ template <typename Type, int NumElements> class vec {
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
+  static constexpr bool IsHostHalf =
+      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
+      std::is_same_v<sycl::detail::half_impl::StorageT,
+                     sycl::detail::host_half_impl::half>;
+
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   // This represents HOW  we will approach the underlying value, so as to
@@ -323,11 +332,6 @@ template <typename Type, int NumElements> class vec {
   static constexpr bool IsSizeGreaterThanMaxAlign =
       (Sz > detail::MaxVecAlignment);
 
-  static constexpr bool IsHostHalf =
-      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
-      std::is_same_v<sycl::detail::half_impl::StorageT,
-                     sycl::detail::host_half_impl::half>;
-
   // TODO: There is no support for vector half type on host yet.
   // Also, when Sz is greater than alignment, we use std::array instead of
   // vector extension. This is for MSVC compatibility, which has a max alignment
@@ -345,6 +349,10 @@ template <typename Type, int NumElements> class vec {
 #endif
 
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  static constexpr bool IsUsingArrayOnDevice = IsHostHalf;
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   static constexpr int getNumElements() { return NumElements; }
 
@@ -547,18 +555,7 @@ public:
     return *this;
   }
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-  template <typename T = void>
-  using EnableIfUsingArray =
-      typename std::enable_if_t<IsUsingArrayOnDevice || IsUsingArrayOnHost, T>;
-
-  template <typename T = void>
-  using EnableIfNotUsingArray =
-      typename std::enable_if_t<!IsUsingArrayOnDevice && !IsUsingArrayOnHost,
-                                T>;
-
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   template <typename T = void>
   using EnableIfNotHostHalf = typename std::enable_if_t<!IsHostHalf, T>;
 
@@ -572,6 +569,21 @@ public:
   template <typename T = void>
   using EnableIfNotUsingArrayOnDevice =
       typename std::enable_if_t<!IsUsingArrayOnDevice, T>;
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
+
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+  template <typename T = void>
+  using EnableIfUsingArray =
+      typename std::enable_if_t<IsUsingArrayOnDevice || IsUsingArrayOnHost, T>;
+
+  template <typename T = void>
+  using EnableIfNotUsingArray =
+      typename std::enable_if_t<!IsUsingArrayOnDevice && !IsUsingArrayOnHost,
+                                T>;
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 
   template <typename Ty = DataT>
   explicit constexpr vec(const EnableIfNotUsingArrayOnDevice<Ty> &arg)
@@ -604,7 +616,7 @@ public:
     }
     return *this;
   }
-#else  // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   explicit constexpr vec(const DataT &arg)
       : vec{detail::RepeatValue<NumElements>(
                 static_cast<vec_data_t<DataT>>(arg)),
@@ -621,9 +633,9 @@ public:
     }
     return *this;
   }
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
   // Optimized naive constructors with NumElements of DataT values.
   // We don't expect compilers to optimize vararg recursive functions well.
 
@@ -672,7 +684,7 @@ public:
                vec_data<Ty>::get(ArgA), vec_data<Ty>::get(ArgB),
                vec_data<Ty>::get(ArgC), vec_data<Ty>::get(ArgD),
                vec_data<Ty>::get(ArgE), vec_data<Ty>::get(ArgF)} {}
-#endif // __SYCL_DEVICE_ONLY__
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lengths of args.
@@ -681,6 +693,8 @@ public:
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
+
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,
@@ -708,129 +722,6 @@ public:
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-  template <typename T = void>
-  using EnableIfNotHostHalf = typename std::enable_if_t<
-      !std::is_same_v<DataT, sycl::detail::half_impl::half> ||
-          !std::is_same_v<sycl::detail::half_impl::StorageT,
-                          sycl::detail::host_half_impl::half>,
-      T>;
-  template <typename T = void>
-  using EnableIfHostHalf = typename std::enable_if_t<
-      std::is_same_v<DataT, sycl::detail::half_impl::half> &&
-          std::is_same_v<sycl::detail::half_impl::StorageT,
-                         sycl::detail::host_half_impl::half>,
-      T>;
-
-  template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfNotHostHalf<Ty> &arg)
-      : m_Data{DataType(vec_data<Ty>::get(arg))} {}
-
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<vec_data_t<Ty>> ||
-          std::is_same_v<typename std::remove_const_t<Ty>, half>,
-      vec &>
-  operator=(const EnableIfNotHostHalf<Ty> &Rhs) {
-    m_Data = (DataType)vec_data<Ty>::get(Rhs);
-    return *this;
-  }
-
-  template <typename Ty = DataT>
-  explicit constexpr vec(const EnableIfHostHalf<Ty> &arg)
-      : vec{detail::RepeatValue<NumElements>(
-                static_cast<vec_data_t<DataT>>(arg)),
-            std::make_index_sequence<NumElements>()} {}
-
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<vec_data_t<Ty>> ||
-          std::is_same_v<typename std::remove_const_t<Ty>, half>,
-      vec &>
-  operator=(const EnableIfHostHalf<Ty> &Rhs) {
-    for (int i = 0; i < NumElements; ++i) {
-      setValue(i, Rhs);
-    }
-    return *this;
-  }
-#else
-  explicit constexpr vec(const DataT &arg)
-      : vec{detail::RepeatValue<NumElements>(
-                static_cast<vec_data_t<DataT>>(arg)),
-            std::make_index_sequence<NumElements>()} {}
-
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<vec_data_t<Ty>> ||
-          std::is_same_v<typename std::remove_const_t<Ty>, half>,
-      vec &>
-  operator=(const DataT &Rhs) {
-    for (int i = 0; i < NumElements; ++i) {
-      setValue(i, Rhs);
-    }
-    return *this;
-  }
-#endif
-
-#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-  // Optimized naive constructors with NumElements of DataT values.
-  // We don't expect compilers to optimize vararg recursive functions well.
-
-  // Helper type to make specific constructors available only for specific
-  // number of elements.
-  template <int IdxNum, typename T = void>
-  using EnableIfMultipleElems = typename std::enable_if_t<
-      std::is_convertible_v<T, DataT> && NumElements == IdxNum, DataT>;
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<2, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<3, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<4, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
-                const Ty Arg3)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<8, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
-                const DataT Arg3, const DataT Arg4, const DataT Arg5,
-                const DataT Arg6, const DataT Arg7)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
-               vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
-               vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7)} {}
-  template <typename Ty = DataT>
-  constexpr vec(const EnableIfMultipleElems<16, Ty> Arg0,
-                const EnableIfNotHostHalf<Ty> Arg1, const DataT Arg2,
-                const DataT Arg3, const DataT Arg4, const DataT Arg5,
-                const DataT Arg6, const DataT Arg7, const DataT Arg8,
-                const DataT Arg9, const DataT ArgA, const DataT ArgB,
-                const DataT ArgC, const DataT ArgD, const DataT ArgE,
-                const DataT ArgF)
-      : m_Data{vec_data<Ty>::get(Arg0), vec_data<Ty>::get(Arg1),
-               vec_data<Ty>::get(Arg2), vec_data<Ty>::get(Arg3),
-               vec_data<Ty>::get(Arg4), vec_data<Ty>::get(Arg5),
-               vec_data<Ty>::get(Arg6), vec_data<Ty>::get(Arg7),
-               vec_data<Ty>::get(Arg8), vec_data<Ty>::get(Arg9),
-               vec_data<Ty>::get(ArgA), vec_data<Ty>::get(ArgB),
-               vec_data<Ty>::get(ArgC), vec_data<Ty>::get(ArgD),
-               vec_data<Ty>::get(ArgE), vec_data<Ty>::get(ArgF)} {}
-#endif
-
-  // Constructor from values of base type or vec of base type. Checks that
-  // base types are match and that the NumElements == sum of lengths of args.
-  template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
-            typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &...args)
-      : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
-            std::make_index_sequence<NumElements>()} {}
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,
@@ -884,8 +775,6 @@ public:
     }
   }
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
   std::enable_if_t<
@@ -900,7 +789,7 @@ public:
     using T = vec_data_t<DataT>;
     using R = vec_data_t<convertT>;
     vec<convertT, NumElements> Result;
-
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     if constexpr (NativeVec && vec<convertT, NumElements>::NativeVec) {
 #ifdef __SYCL_DEVICE_ONLY__
       // If both vectors are representable as native vectors, then we can use
@@ -908,8 +797,10 @@ public:
       Result.m_Data = detail::convertImpl<
           T, R, roundingMode, NumElements, VectorDataType,
           typename vec<convertT, NumElements>::VectorDataType>(m_Data);
-#endif
+#endif // __SYCL_DEVICE_ONLY
     } else {
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
       // Otherwise, we fallback to per-element conversion:
       using OpenCLT = detail::ConvertToOpenCLType_t<vec_data_t<DataT>>;
       using OpenCLR = detail::ConvertToOpenCLType_t<vec_data_t<convertT>>;
@@ -919,46 +810,16 @@ public:
                    detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
                        vec_data<DataT>::get(getValue(I)))));
       }
-    }
-    if constexpr (std::is_same_v<convertT, bool>) {
-      Result.ConvertToDataT();
-    }
-    return Result;
-  }
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    }
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-  template <typename convertT,
-            rounding_mode roundingMode = rounding_mode::automatic>
-  std::enable_if_t<
-      !std::is_same_v<vec_data_t<DataT>, vec_data_t<convertT>> &&
-          !std::is_same_v<detail::ConvertToOpenCLType_t<vec_data_t<DataT>>,
-                          detail::ConvertToOpenCLType_t<vec_data_t<convertT>>>,
-      vec<convertT, NumElements>>
-  convert() const {
-    static_assert(std::is_integral_v<vec_data_t<convertT>> ||
-                      detail::is_floating_point<convertT>::value,
-                  "Unsupported convertT");
-    using T = vec_data_t<DataT>;
-    using R = vec_data_t<convertT>;
-    vec<convertT, NumElements> Result;
-    using OpenCLT = detail::ConvertToOpenCLType_t<vec_data_t<DataT>>;
-    using OpenCLR = detail::ConvertToOpenCLType_t<vec_data_t<convertT>>;
-    for (size_t I = 0; I < NumElements; ++I) {
-      Result.setValue(
-          I, vec_data<convertT>::get(
-                 detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                     vec_data<DataT>::get(getValue(I)))));
-    }
     if constexpr (std::is_same_v<convertT, bool>) {
       Result.ConvertToDataT();
     }
     return Result;
   }
-
-#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   template <typename asT> asT as() const {
     static_assert((sizeof(*this) == sizeof(asT)),
@@ -1076,9 +937,7 @@ public:
 #error "Undefine __SYCL_BINOP macro"
 #endif
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-#ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
   vec operator BINOP(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {     \
@@ -1116,7 +975,9 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#else // __SYCL_DEVICE_ONLY__
+#else // __SYCL_USE_EXT_VECTOR_TYPE__
+
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret{};                                                                 \
@@ -1147,51 +1008,9 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#endif // __SYCL_DEVICE_ONLY__
-
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-#ifdef __SYCL_USE_EXT_VECTOR_TYPE__
-#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
-  template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfNotHostHalf<Ty> &Rhs) const {               \
-    vec Ret;                                                                   \
-    Ret.m_Data = m_Data BINOP Rhs.m_Data;                                      \
-    if constexpr (std::is_same_v<Type, bool> && CONVERT) {                     \
-      Ret.ConvertToDataT();                                                    \
-    }                                                                          \
-    return Ret;                                                                \
-  }                                                                            \
-  template <typename Ty = vec>                                                 \
-  vec operator BINOP(const EnableIfHostHalf<Ty> &Rhs) const {                  \
-    vec Ret;                                                                   \
-    for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, (getValue(I) BINOP Rhs.getValue(I)));                    \
-    }                                                                          \
-    return Ret;                                                                \
-  }                                                                            \
-  template <typename T>                                                        \
-  typename std::enable_if_t<                                                   \
-      std::is_convertible_v<DataT, T> &&                                       \
-          (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           std::is_same_v<typename std::remove_const_t<T>, half>),             \
-      vec>                                                                     \
-  operator BINOP(const T & Rhs) const {                                        \
-    return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
-  }                                                                            \
-  vec &operator OPASSIGN(const vec & Rhs) {                                    \
-    *this = *this BINOP Rhs;                                                   \
-    return *this;                                                              \
-  }                                                                            \
-  template <int Num = NumElements>                                             \
-  typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(                \
-      const DataT & Rhs) {                                                     \
-    *this = *this BINOP vec(Rhs);                                              \
-    return *this;                                                              \
-  }
-#else // __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret;                                                                   \
@@ -1219,9 +1038,9 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#endif // __SYCL_USE_EXT_VECTOR_TYPE__
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
-#endif //! defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
   __SYCL_BINOP(+, +=, true)
   __SYCL_BINOP(-, -=, true)
@@ -1413,6 +1232,8 @@ public:
       Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
     return Ret;
   }
+
+  // CP ---------------
 
   // OP is: &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
