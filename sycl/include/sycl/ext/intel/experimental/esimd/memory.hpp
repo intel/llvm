@@ -479,26 +479,6 @@ lsc_format_ret(__ESIMD_NS::simd<T1, N> Vals) {
   }
 }
 
-/// Check the legality of lsc atomic call in terms of size and type.
-template <__ESIMD_NS::native::lsc::atomic_op Op, typename T, int N,
-          unsigned NumSrc>
-constexpr void check_lsc_atomic() {
-  if constexpr (!__ESIMD_DNS::isPowerOf2(N, 32)) {
-    static_assert((__ESIMD_DNS::isPowerOf2(N, 32)),
-                  "Execution size 1, 2, 4, 8, 16, 32 are supported");
-  }
-  if constexpr (NumSrc != __ESIMD_DNS::get_num_args<Op>()) {
-    static_assert(NumSrc == __ESIMD_DNS::get_num_args<Op>(),
-                  "wrong number of operands");
-  }
-  if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    static_assert(__ESIMD_DNS::is_type<T, float, sycl::half, double>(),
-                  "float, double or sycl::half type is expected");
-  } else {
-    __ESIMD_DNS::check_atomic<__ESIMD_DNS::to_atomic_op<Op>(), T, N, NumSrc>();
-  }
-}
-
 template <cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 constexpr uint32_t get_lsc_load_cache_mask() {
   if constexpr (L1H == cache_hint::read_invalidate &&
@@ -2802,40 +2782,8 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0,
                              __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  static_assert(sizeof(T) > 1, "Unsupported data type");
-  detail::check_lsc_vector_size<1>();
-  detail::check_lsc_data_size<T, DS>();
-  __ESIMD_DNS::check_atomic<Op, T, N, 0>();
-  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  constexpr int IOp = detail::lsc_to_internal_atomic_op<T, Op>();
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_0<MsgT, IOp, L1H, L3H, _AddressScale,
-                                      _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data());
-  return detail::lsc_format_ret<T>(Tmp);
-}
-
-template <__ESIMD_NS::atomic_op Op, typename T, int N,
-          lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          typename Toffset,
-          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 0,
-                             __ESIMD_NS::simd<T, N>>
-lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
-                  __ESIMD_NS::simd_mask<N> pred = 1) {
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(p, offsets.read(), pred);
+  return __ESIMD_DNS::atomic_update_impl<Op, T, N, DS, L1H, L3H, Toffset>(
+      p, offsets, pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
