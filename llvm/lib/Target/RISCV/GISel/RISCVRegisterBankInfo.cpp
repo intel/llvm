@@ -133,6 +133,9 @@ RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const ValueMapping *OperandsMapping = GPRValueMapping;
 
   switch (Opc) {
+  case TargetOpcode::G_INVOKE_REGION_START:
+    OperandsMapping = getOperandsMapping({});
+    break;
   case TargetOpcode::G_ADD:
   case TargetOpcode::G_SUB:
   case TargetOpcode::G_SHL:
@@ -230,6 +233,17 @@ RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     LLT Ty = MRI.getType(MI.getOperand(0).getReg());
     OperandsMapping =
         getOperandsMapping({getFPValueMapping(Ty.getSizeInBits()), nullptr});
+    break;
+  }
+  case TargetOpcode::G_FCMP: {
+    LLT Ty = MRI.getType(MI.getOperand(2).getReg());
+
+    unsigned Size = Ty.getSizeInBits();
+    assert((Size == 32 || Size == 64) && "Unsupported size for G_FCMP");
+
+    auto *FPRValueMapping = getFPValueMapping(Size);
+    OperandsMapping = getOperandsMapping(
+        {GPRValueMapping, nullptr, FPRValueMapping, FPRValueMapping});
     break;
   }
   default:
