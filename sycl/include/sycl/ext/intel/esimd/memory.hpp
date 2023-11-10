@@ -3115,6 +3115,8 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
 /// @anchor usm_atomic_update1
 /// @brief Single-argument variant of the atomic update operation.
 ///
+/// TODO: Document the prototypes similar to block load/store.
+///
 /// Atomically updates \c N memory locations represented by a USM pointer and
 /// a vector of offsets relative to the pointer, and returns a vector of old
 /// values found at the memory locations before update. The update operation
