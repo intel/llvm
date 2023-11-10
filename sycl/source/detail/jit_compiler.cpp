@@ -820,11 +820,11 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
   JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
- 
+
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
-      FusedKernelName.str().c_str(), ParamIdentities, BarrierFlags, InternalizeParams,
-      JITConstants);
+      FusedKernelName.str().c_str(), ParamIdentities, BarrierFlags,
+      InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {

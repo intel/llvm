@@ -1643,7 +1643,7 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
   return AllKernelIDs;
 }
 
-kernel_id ProgramManager::getBuiltInKernelID(const std::string& KernelName) {
+kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
 
   auto KernelID = m_BuiltInKernelIDs.find(KernelName);

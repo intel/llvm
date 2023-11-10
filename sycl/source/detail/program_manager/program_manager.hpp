@@ -193,7 +193,7 @@ public:
 
   // The function returns the unique SYCL kernel identifier associated with a
   // built-in kernel name.
-  kernel_id getBuiltInKernelID(const std::string& KernelName);
+  kernel_id getBuiltInKernelID(const std::string &KernelName);
 
   // The function inserts or initializes a device_global entry into the
   // device_global map.
