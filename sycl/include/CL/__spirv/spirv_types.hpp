@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines.hpp> // for __has_builtin
 #include <sycl/half_type.hpp>      // for half
 
 #include <cstddef> // for size_t
