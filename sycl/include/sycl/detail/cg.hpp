@@ -187,7 +187,10 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName((KernelName != nullptr) ? std::strcpy(new char[strlen(KernelName) + 1], KernelName) : nullptr),
+        MKernelName(
+            (KernelName != nullptr)
+                ? std::strcpy(new char[strlen(KernelName) + 1], KernelName)
+                : nullptr),
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
