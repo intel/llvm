@@ -64,6 +64,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc,
   simd<float, N> pass_thru = 1;
   simd<int, N> pass_thrui = 1;
   const int *ptri = reinterpret_cast<const int *>(ptrf);
+  const int8_t *ptrb = reinterpret_cast<const int8_t *>(ptrf);
 
   // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   auto d1 = block_load<float, N>(ptrf, props_a);
@@ -187,4 +188,12 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc,
   simd<double, 4> pass_thrud4 = 2.0;
   auto lacc_bl6 = block_load<double, 4>(local_acc, byte_offset32, mask,
                                         pass_thrud4, props_a);
+
+  // Check the default/assumed alignment when the alignment property is
+  // not specified explicitly.
+  // TODO: Extend this kind of tests:
+  //   {usm, acc, local_acc, slm} x {byte, word, dword, qword}.
+
+  // CHECK: load <16 x i8>, ptr addrspace(4) {{[^)]+}}, align 4
+  auto align_check1 = block_load<int8_t, 16>(ptrb);
 }
