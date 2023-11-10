@@ -92,8 +92,8 @@ void test_usm_pointer_and_scalar() {
   sycl::kernel usm_kernel = kbExe1.ext_oneapi_get_kernel("usm_kernel");
 
   // the scalars submitted to the kernel
-  int multiplier = 2;
-  float added = 100.f;
+  sycl::cl_int multiplier = 2;
+  sycl::cl_float added = 100.f;
   constexpr size_t N = 32;
   int *usmPtr = sycl::malloc_shared<int>(N, q);
 
@@ -131,8 +131,8 @@ __kernel void struct_kernel(__global int *usmPtr, struct pair adjuster) {
 )===";
 
 struct pair {
-  int multiplier;
-  float added;
+  sycl::cl_int multiplier;
+  sycl::cl_float added;
 };
 
 void test_struct() {
@@ -147,7 +147,7 @@ void test_struct() {
   pair adjuster;
   adjuster.multiplier = 2, adjuster.added = 100.f;
   constexpr size_t N = 32;
-  int *usmPtr = sycl::malloc_shared<int>(N, q);
+  sycl::cl_int *usmPtr = sycl::malloc_shared<sycl::cl_int>(N, q);
 
   q.submit([&](sycl::handler &cgh) {
     cgh.set_arg(0, usmPtr);

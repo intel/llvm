@@ -54,8 +54,8 @@ Build failed with error code: -11
 void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
                     int added) {
   constexpr int N = 4;
-  int InputArray[N] = {0, 1, 2, 3};
-  int OutputArray[N] = {};
+  sycl::cl_int InputArray[N] = {0, 1, 2, 3};
+  sycl::cl_int OutputArray[N] = {};
 
   sycl::buffer<int, 1> InputBuf(InputArray, sycl::range<1>(N));
   sycl::buffer<int, 1> OutputBuf(OutputArray, sycl::range<1>(N));
