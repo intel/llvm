@@ -656,7 +656,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
     auto KernelName = KernelCG->MKernelName;
-    if (KernelName == NULL) {
+    if (KernelName == nullptr) {
       printPerformanceWarning(
           "Cannot fuse kernel with invalid kernel function name");
       return nullptr;
@@ -820,11 +820,10 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
   JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
-  const std::string tmp = FusedKernelName.str();
-  const char *FusedKernelNametmp = tmp.c_str();
+ 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
-      FusedKernelNametmp, ParamIdentities, BarrierFlags, InternalizeParams,
+      FusedKernelName.str().c_str(), ParamIdentities, BarrierFlags, InternalizeParams,
       JITConstants);
 
   if (FusionResult.failed()) {

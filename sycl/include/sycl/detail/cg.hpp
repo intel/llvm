@@ -168,7 +168,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  const char *MKernelName = nullptr;
+  char *MKernelName=nullptr;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
@@ -187,7 +187,7 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName((KernelName != nullptr) ? strdup(KernelName) : nullptr),
+        MKernelName((KernelName!=nullptr)?std::strcpy(MKernelName,KernelName):nullptr),
         MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
