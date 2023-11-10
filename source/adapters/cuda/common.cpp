@@ -111,7 +111,7 @@ void detail::ur::assertion(bool Condition, const char *Message) {
 }
 
 void detail::ur::cuPrint(const char *Message) {
-  std::fprintf(stderr, "ur_print: %s\n", Message);
+  std::cerr << "ur_print: " << Message << std::endl;
 }
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR

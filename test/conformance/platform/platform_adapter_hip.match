@@ -1,4 +1,3 @@
-urPlatformGetTest.InvalidNumEntries
 urPlatformGetNativeHandleTest.Success
 urPlatformGetNativeHandleTest.InvalidNullHandlePlatform
 urPlatformGetNativeHandleTest.InvalidNullPointerNativePlatform

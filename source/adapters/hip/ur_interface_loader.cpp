@@ -202,9 +202,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-
-  pDdiTable->pfnInit = urInit;
-  pDdiTable->pfnTearDown = urTearDown;
   pDdiTable->pfnAdapterGet = urAdapterGet;
   pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
   pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
@@ -278,17 +275,17 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
   pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
-  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
-  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
-  pDdiTable->pfnAppendMembufferCopyRectExp =
-      urCommandBufferAppendMembufferCopyRectExp;
-  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
-  pDdiTable->pfnAppendMembufferReadRectExp =
-      urCommandBufferAppendMembufferReadRectExp;
-  pDdiTable->pfnAppendMembufferWriteExp =
-      urCommandBufferAppendMembufferWriteExp;
-  pDdiTable->pfnAppendMembufferWriteRectExp =
-      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnAppendUSMMemcpyExp = urCommandBufferAppendUSMMemcpyExp;
+  pDdiTable->pfnAppendMemBufferCopyExp = urCommandBufferAppendMemBufferCopyExp;
+  pDdiTable->pfnAppendMemBufferCopyRectExp =
+      urCommandBufferAppendMemBufferCopyRectExp;
+  pDdiTable->pfnAppendMemBufferReadExp = urCommandBufferAppendMemBufferReadExp;
+  pDdiTable->pfnAppendMemBufferReadRectExp =
+      urCommandBufferAppendMemBufferReadRectExp;
+  pDdiTable->pfnAppendMemBufferWriteExp =
+      urCommandBufferAppendMemBufferWriteExp;
+  pDdiTable->pfnAppendMemBufferWriteRectExp =
+      urCommandBufferAppendMemBufferWriteRectExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
 
   return retVal;
@@ -352,6 +349,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -361,6 +360,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
+
+  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
 
   return UR_RESULT_SUCCESS;
 }

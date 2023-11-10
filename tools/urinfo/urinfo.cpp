@@ -26,7 +26,7 @@ struct app {
         UR_CHECK(urLoaderConfigCreate(&loaderConfig));
         UR_CHECK(urLoaderConfigEnableLayer(loaderConfig,
                                            "UR_LAYER_FULL_VALIDATION"));
-        UR_CHECK(urInit(0, loaderConfig));
+        UR_CHECK(urLoaderInit(0, loaderConfig));
         enumerateDevices();
     }
 
@@ -174,7 +174,7 @@ options:
 
     ~app() {
         urLoaderConfigRelease(loaderConfig);
-        urTearDown(nullptr);
+        urLoaderTearDown();
     }
 };
 } // namespace urinfo
