@@ -71,14 +71,11 @@ TEST_P(urQueueCreateTest, InvalidQueueProperties) {
         /*.pNext =*/nullptr,
         /*.flags =*/UR_QUEUE_FLAG_FORCE_UINT32,
     };
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
-                     urQueueCreate(context, device, &props, &queue));
-}
 
     // Initial value is just not a valid enum
     {
         ur_queue_handle_t queue = nullptr;
-        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                          urQueueCreate(context, device, &props, &queue));
     }
     // It should be an error to specify both low/high priorities

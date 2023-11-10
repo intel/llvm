@@ -1,6 +1,6 @@
 # Corpora for fuzz tests with fixed API calls scenarios
 Corpora in 'corpus' directory contain UR API calls in a predefined order described below.
-All such scenarios begin with single calls to urInit() and urAdapterGet().
+All such scenarios begin with single calls to urLoaderInit() and urAdapterGet().
 Corpus files are binary files containing ASCII characters which are interpreted by the test
 backwards, meaning that bytes are read from the end of the file to the beginning of the file.
 
