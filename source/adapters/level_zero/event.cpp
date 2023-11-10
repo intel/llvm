@@ -480,14 +480,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   // from this memory.
   if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) {
     if (Event->CommandData) {
-      struct command_buffer_profiling_t *ProfilingsPtr;
+      command_buffer_profiling_t *ProfilingsPtr;
       switch (PropName) {
       case UR_PROFILING_INFO_COMMAND_START: {
-        ProfilingsPtr = static_cast<struct command_buffer_profiling_t *>(
-            Event->CommandData);
+        ProfilingsPtr =
+            static_cast<command_buffer_profiling_t *>(Event->CommandData);
         // Sync-point order does not necessarily match to the order of
         // execution. We therefore look for the first command executed.
-        uint64_t MinStart = ProfilingsPtr->Timestamps->global.kernelStart;
+        uint64_t MinStart = ProfilingsPtr->Timestamps[0].global.kernelStart;
         for (uint64_t i = 1; i < ProfilingsPtr->NumEvents; i++) {
           uint64_t Timestamp = ProfilingsPtr->Timestamps[i].global.kernelStart;
           if (Timestamp < MinStart) {
@@ -499,12 +499,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
         return ReturnValue(ContextStartTime);
       }
       case UR_PROFILING_INFO_COMMAND_END: {
-        ProfilingsPtr = static_cast<struct command_buffer_profiling_t *>(
-            Event->CommandData);
+        ProfilingsPtr =
+            static_cast<command_buffer_profiling_t *>(Event->CommandData);
         // Sync-point order does not necessarily match to the order of
         // execution. We therefore look for the last command executed.
-        uint64_t MaxEnd = ProfilingsPtr->Timestamps->global.kernelEnd;
-        uint64_t LastStart = ProfilingsPtr->Timestamps->global.kernelStart;
+        uint64_t MaxEnd = ProfilingsPtr->Timestamps[0].global.kernelEnd;
+        uint64_t LastStart = ProfilingsPtr->Timestamps[0].global.kernelStart;
         for (uint64_t i = 1; i < ProfilingsPtr->NumEvents; i++) {
           uint64_t Timestamp = ProfilingsPtr->Timestamps[i].global.kernelEnd;
           if (Timestamp > MaxEnd) {
@@ -832,9 +832,9 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP &&
       Event->CommandData) {
     // Free the memory extra event allocated for profiling purposed.
-    struct command_buffer_profiling_t *ProfilingPtr =
-        static_cast<struct command_buffer_profiling_t *>(Event->CommandData);
-    urUSMFree(Event->Context, (void *)ProfilingPtr->Timestamps);
+    command_buffer_profiling_t *ProfilingPtr =
+        static_cast<command_buffer_profiling_t *>(Event->CommandData);
+    delete[] ProfilingPtr->Timestamps;
     delete ProfilingPtr;
     Event->CommandData = nullptr;
   }
