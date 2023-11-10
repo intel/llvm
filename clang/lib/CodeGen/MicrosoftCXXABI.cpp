@@ -4450,7 +4450,7 @@ void MicrosoftCXXABI::emitThrow(CodeGenFunction &CGF, const CXXThrowExpr *E) {
 
   // Call into the runtime to throw the exception.
   llvm::Value *Args[] = {
-    CGF.Builder.CreateBitCast(AI.getPointer(), CGM.Int8PtrTy),
+    AI.getPointer(),
     TI
   };
   CGF.EmitNoreturnRuntimeCallOrInvoke(getThrowFn(), Args);
