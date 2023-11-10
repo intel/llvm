@@ -1204,6 +1204,14 @@ defm gpu_rdc : BoolFOption<"gpu-rdc",
           "Generate relocatable device code, also known as separate compilation mode">,
   NegFlag<SetFalse, [], [ClangOption, CC1Option]>>;
 
+defm offload_implicit_host_device_templates :
+  BoolFOption<"offload-implicit-host-device-templates",
+  LangOpts<"OffloadImplicitHostDeviceTemplates">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Template functions or specializations without host, device and "
+          "global attributes have implicit host device attributes (CUDA/HIP only)">,
+  NegFlag<SetFalse>>;
+
 def fgpu_default_stream_EQ : Joined<["-"], "fgpu-default-stream=">,
   HelpText<"Specify default stream. The default value is 'legacy'. (CUDA/HIP only)">,
   Visibility<[ClangOption, CC1Option]>,
@@ -7258,9 +7266,6 @@ let Visibility = [CC1Option] in {
 def sys_header_deps : Flag<["-"], "sys-header-deps">,
   HelpText<"Include system headers in dependency output">,
   MarshallingInfoFlag<DependencyOutputOpts<"IncludeSystemHeaders">>;
-def canonical_system_headers : Flag<["-"], "canonical-system-headers">,
-  HelpText<"Canonicalize system headers in dependency output">,
-  MarshallingInfoFlag<DependencyOutputOpts<"CanonicalSystemHeaders">>;
 def module_file_deps : Flag<["-"], "module-file-deps">,
   HelpText<"Include module files in dependency output">,
   MarshallingInfoFlag<DependencyOutputOpts<"IncludeModuleFiles">>;

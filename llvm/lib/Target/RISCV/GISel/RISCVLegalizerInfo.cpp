@@ -76,7 +76,9 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST) {
         .clampScalar(BigTyIdx, sXLen, sXLen);
   }
 
-  getActionDefinitionsBuilder(G_BSWAP).maxScalar(0, sXLen).lower();
+  getActionDefinitionsBuilder({G_BSWAP, G_BITREVERSE})
+      .maxScalar(0, sXLen)
+      .lower();
 
   getActionDefinitionsBuilder({G_CONSTANT, G_IMPLICIT_DEF})
       .legalFor({s32, sXLen, p0})
@@ -236,6 +238,11 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST) {
       })
       .widenScalarToNextPow2(1)
       .clampScalar(1, s32, sXLen);
+
+  // FIXME: We can do custom inline expansion like SelectionDAG.
+  // FIXME: Legal with Zfa.
+  getActionDefinitionsBuilder({G_FCEIL, G_FFLOOR})
+      .libcallFor({s32, s64});
 
   getLegacyLegalizerInfo().computeTables();
 }
