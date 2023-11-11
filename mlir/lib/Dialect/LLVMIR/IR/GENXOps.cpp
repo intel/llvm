@@ -161,34 +161,34 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
     return this->emitOpError(
         "4th operand (base pitch) should be >= 2nd operand (base width)");
 
-  uint32_t tile_width = getTileWidth();
+  uint32_t TileWidth = getTileWidth();
   Type InputElemType = getPtr().getType().getElementType();
   switch (getElemSizeInBits()) {
     case 32:
     if (!InputElemType.isF32()) // || !InputElemType.isBFloat32Type();
       return this->emitOpError(
          "element of size 32 should be of type bf32 or f32");
-    if (tile_width != 8)
+    if (TileWidth != 8)
       return this->emitOpError("tile_width for 32 bit elements should be equal "
-                               "to systolic depth, i.e., 8 bits");
+                               "to systolic depth, i.e., 8 elements");
       break;
 
     case 16:
-    if (!InputElemType.isF16() || !InputElemType.isBF16())
+    if (!InputElemType.isF16() && !InputElemType.isBF16())
       return this->emitOpError(
           "element of size 16 should be of type bf16 or f16");
-    if (tile_width != 16)
+    if (TileWidth != 16)
       return this->emitOpError("tile_width for 16 bit elements should be equal "
-                               "to systolic depth times 2, i.e., 16 bits");
+                               "to systolic depth times 2, i.e., 16 elements");
       break;
 
     case 8:
     if (!InputElemType.isInteger(8))
       return this->emitOpError(
           "element of size 8 should be of type int8 or uint8");
-    if (tile_width != 32)
+    if (TileWidth != 32)
       return this->emitOpError("tile_width for 8 bit elements should be equal "
-                               "to systolic depth times 4, i.e., 32 bits");
+                               "to systolic depth times 4, i.e., 32 elements");
       break;
 
     default:
@@ -217,34 +217,34 @@ LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
     return this->emitOpError(
         "4th operand (base pitch) should be >= 2nd operand (base width)");
 
-  uint32_t tile_width = getTileWidth();
+  uint32_t TileWidth = getTileWidth();
   Type InputElemType = getPtr().getType().getElementType();
   switch (getElemSizeInBits()) {
     case 32:
     if (!InputElemType.isF32()) // || !InputElemType.isBFloat32Type();
       return this->emitOpError(
          "element of size 32 should be of type bf32 or f32");
-    if (tile_width != 8)
+    if (TileWidth != 8)
       return this->emitOpError("tile_width for 32 bit elements should be equal "
-                               "to systolic depth, i.e., 8 bits");
+                               "to systolic depth, i.e., 8 elements");
       break;
 
     case 16:
-    if (!InputElemType.isF16() || !InputElemType.isBF16())
+    if (!InputElemType.isF16() && !InputElemType.isBF16())
       return this->emitOpError(
           "element of size 16 should be of type bf16 or f16");
-    if (tile_width != 16)
+    if (TileWidth != 16)
       return this->emitOpError("tile_width for 16 bit elements should be equal "
-                               "to systolic depth times 2, i.e., 16 bits");
+                               "to systolic depth times 2, i.e., 16 elements");
       break;
 
     case 8:
     if (!InputElemType.isInteger(8))
       return this->emitOpError(
           "element of size 8 should be of type int8 or uint8");
-    if (tile_width != 32)
+    if (TileWidth != 32)
       return this->emitOpError("tile_width for 8 bit elements should be equal "
-                               "to systolic depth times 4, i.e., 32 bits");
+                               "to systolic depth times 4, i.e., 32 elements");
       break;
 
     default:
