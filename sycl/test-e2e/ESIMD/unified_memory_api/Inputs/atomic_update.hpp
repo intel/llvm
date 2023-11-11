@@ -172,11 +172,39 @@ bool test(queue q, const Config &cfg) {
             // do compare-and-swap in a loop until we get expected value;
             // arg0 and arg1 must provide values which guarantee the loop
             // is not endless:
-            for (simd<T, N> old_val =
-                     atomic_update<op>(arr, offsets, new_val, exp_val, m);
-                 any(old_val < exp_val, !m);
-                 old_val = atomic_update<op>(arr, offsets, new_val, exp_val, m))
-              ;
+            if constexpr (UseMask) {
+              if constexpr (UseProperties) {
+                for (simd<T, N> old_val = atomic_update<op>(
+                         arr, offsets, new_val, exp_val, m, props);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op>(arr, offsets, new_val, exp_val,
+                                                 m, props))
+                  ;
+              } else {
+                for (simd<T, N> old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val, m);
+                     any(old_val < exp_val, !m);
+                     old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val, m))
+                  ;
+              }
+            } else {
+              if constexpr (UseProperties) {
+                for (simd<T, N> old_val = atomic_update<op>(
+                         arr, offsets, new_val, exp_val, props);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op>(arr, offsets, new_val, exp_val,
+                                                 props))
+                  ;
+              } else {
+                for (simd<T, N> old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val);
+                     any(old_val < exp_val, !m);
+                     old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val))
+                  ;
+              }
+            }
           }
         }
       });
@@ -408,6 +436,41 @@ struct ImplFmax : ImplMax<T, N, atomic_op, atomic_op::fmax> {};
 template <class T, int N>
 struct ImplStore : ImplStoreBase<T, N, atomic_op, atomic_op::store> {};
 
+template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 2;
+
+  static T init(int i, const Config &cfg) {
+    T base = (T)(1 + FPDELTA);
+    return base;
+  }
+
+  static T gold(int i, const Config &cfg) {
+    T base = (T)(2 + FPDELTA);
+    T gold = is_updated(i, N, cfg)
+                 ? (T)(cfg.threads_per_group * cfg.n_groups - 1 + base)
+                 : init(i, cfg);
+    return gold;
+  }
+
+  // "Replacement value" argument in CAS
+  static inline T arg0(int i) {
+    T base = (T)(i + 2 + FPDELTA);
+    return base;
+  }
+
+  // "Expected value" argument in CAS
+  static inline T arg1(int i) {
+    T base = (T)(i + 1 + FPDELTA);
+    return base;
+  }
+};
+
+template <class T, int N>
+struct ImplCmpxchg : ImplCmpxchgBase<T, N, atomic_op, atomic_op::cmpxchg> {};
+template <class T, int N>
+struct ImplFcmpwr : ImplCmpxchgBase<T, N, atomic_op, atomic_op::fcmpxchg> {};
+
 // Main function and test combinations.
 
 template <int N, template <class, int> class Op, bool UseMask,
@@ -420,6 +483,16 @@ bool test_int_types(queue q, const Config &cfg) {
       passed &= test<int16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
     passed &= test<int32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test<int64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+
+    if constexpr (!std::is_same_v<signed long, int64_t> &&
+                  !std::is_same_v<signed long, int32_t>) {
+      passed &= test<signed long, N, Op>(q, cfg);
+      if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
+                    !std::is_same_v<unsigned long, uint32_t>) {
+        passed &= test<unsigned long, N, Op>(q, cfg);
+      }
+    }
   }
 
   if constexpr (SignMask & Unsigned) {
@@ -438,10 +511,9 @@ bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
   if constexpr (UsePVCFeatures) {
     if constexpr (std::is_same_v<Op<sycl::half, N>, ImplFmin<sycl::half, N>> ||
-                  // TODO: Uncomment when three operands are supported.
-                  std::is_same_v<Op<sycl::half, N>, ImplFmax<sycl::half, N>>/* ||
+                  std::is_same_v<Op<sycl::half, N>, ImplFmax<sycl::half, N>> ||
                   std::is_same_v<Op<sycl::half, N>,
-                                ImplLSCFcmpwr<sycl::half, N>>*/) {
+                                 ImplFcmpwr<sycl::half, N>>) {
       auto dev = q.get_device();
       if (dev.has(sycl::aspect::fp16)) {
         passed &= test<sycl::half, N, Op, UseMask, UsePVCFeatures>(q, cfg);
@@ -449,10 +521,12 @@ bool test_fp_types(queue q, const Config &cfg) {
     }
   }
   passed &= test<float, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+#ifndef CMPXCHG_TEST
   if (q.get_device().has(sycl::aspect::atomic64) &&
       q.get_device().has(sycl::aspect::fp64)) {
     passed &= test<double, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
+#endif // CMPXCHG_TEST
   return passed;
 }
 
@@ -520,6 +594,8 @@ template <bool UseMask, bool UsePVCFeatures> bool test_with_mask(queue q) {
       111      // int stride;
   };
 
+#ifndef CMPXCHG_TEST
+
   passed &= test_int_types_and_sizes<ImplInc, UseMask, UsePVCFeatures>(q, cfg);
   passed &= test_int_types_and_sizes<ImplDec, UseMask, UsePVCFeatures>(q, cfg);
 
@@ -552,11 +628,6 @@ template <bool UseMask, bool UsePVCFeatures> bool test_with_mask(queue q) {
         test_fp_types_and_sizes<ImplFmin, UseMask, UsePVCFeatures>(q, cfg);
   }
 
-  // Can't easily reset input to initial state, so just 1 iteration for CAS.
-  cfg.repeat = 1;
-  // Decrease number of threads to reduce risk of halting kernel by the driver.
-  cfg.n_groups = 7;
-  cfg.threads_per_group = 3;
   // Check load/store operations
   passed &= test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
   passed &= test_fp_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
@@ -564,6 +635,21 @@ template <bool UseMask, bool UsePVCFeatures> bool test_with_mask(queue q) {
   passed &=
       test_int_types_and_sizes<ImplStore, UseMask, UsePVCFeatures>(q, cfg);
   passed &= test_fp_types_and_sizes<ImplStore, UseMask, UsePVCFeatures>(q, cfg);
+
+#else  // CMPXCHG_TEST
+  // Can't easily reset input to initial state, so just 1 iteration for CAS.
+  cfg.repeat = 1;
+  // Decrease number of threads to reduce risk of halting kernel by the driver.
+  cfg.n_groups = 7;
+  cfg.threads_per_group = 3;
+
+  passed &=
+      test_int_types_and_sizes<ImplCmpxchg, UseMask, UsePVCFeatures>(q, cfg);
+  if constexpr (UsePVCFeatures) {
+    passed &=
+        test_fp_types_and_sizes<ImplFcmpwr, UseMask, UsePVCFeatures>(q, cfg);
+  }
+#endif // CMPXCHG_TEST
 
   return passed;
 }

@@ -2846,6 +2846,7 @@ lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
   return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
       p, __ESIMD_NS::simd<Toffset, N>(offset), src0, pred);
 }
+
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
@@ -2871,30 +2872,8 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::get_num_args<Op>() == 2,
 lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  static_assert(sizeof(T) > 1, "Unsupported data type");
-  detail::check_lsc_vector_size<1>();
-  detail::check_lsc_data_size<T, DS>();
-  __ESIMD_DNS::check_atomic<Op, T, N, 2>();
-  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  constexpr int IOp = detail::lsc_to_internal_atomic_op<T, Op>();
-  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
-  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  addrs += convert<uintptr_t>(offsets);
-  __ESIMD_NS::simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_2<MsgT, IOp, L1H, L3H, _AddressScale,
-                                      _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(), Msg_data0.data(), Msg_data1.data());
-  return detail::lsc_format_ret<T>(Tmp);
+  return __ESIMD_DNS::atomic_update_impl<Op, T, N, DS, L1H, L3H, Toffset>(
+      p, offsets, src0, src1, pred);
 }
 
 template <__ESIMD_NS::atomic_op Op, typename T, int N,

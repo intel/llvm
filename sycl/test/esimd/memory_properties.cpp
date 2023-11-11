@@ -216,7 +216,9 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
   auto add = simd<int, VL>(5);
   auto add_view = add.select<VL, 1>();
   auto compare = simd<int, VL>(VL, 1);
+  auto compare_view = compare.select<VL, 1>();
   auto swap = compare * 2;
+  auto swap_view = swap.select<VL, 1>();
   auto pred = simd_mask<VL>(1);
 
   properties props_a{cache_hint_L1<cache_hint::uncached>,
@@ -306,5 +308,77 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
     // CHECK: call <4 x i32> @llvm.genx.svm.atomic.add.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
     auto res_atomic_8 =
         atomic_update<atomic_op::add, int>(ptr, offsets, add, pred);
+  }
+
+  // Test atomic update with one operand.
+  {
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_1 = atomic_update<atomic_op::cmpxchg, int>(
+        ptr, offsets, compare, swap, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_2 = atomic_update<atomic_op::cmpxchg, int>(
+        ptr, offsets, compare, swap, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_3 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare, swap_view, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_4 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare, swap_view, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_5 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare_view, swap, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_6 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare_view, swap, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_7 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare_view, swap_view, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_8 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare_view, swap_view, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_9 = atomic_update<atomic_op::cmpxchg, int>(
+        ptr, offsets_view, compare, swap, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_10 = atomic_update<atomic_op::cmpxchg, int>(
+        ptr, offsets_view, compare, swap, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_11 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets_view, compare, swap_view, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_12 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets_view, compare, swap_view, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_13 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets_view, compare_view, swap, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_14 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets_view, compare_view, swap, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_15 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets_view, compare_view, swap_view, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, i8 18, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0, <4 x i32> undef)
+    auto res_atomic_16 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets_view, compare_view, swap_view, props_a);
+
+    // atomic_update without cache hints
+    // CHECK: call <4 x i32> @llvm.genx.svm.atomic.cmpxchg.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}}, <4 x i64> {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_100 = atomic_update<atomic_op::cmpxchg, int, VL>(
+        ptr, offsets, compare, swap, pred);
   }
 }

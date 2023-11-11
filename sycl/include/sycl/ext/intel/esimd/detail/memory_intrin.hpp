@@ -467,6 +467,41 @@ __esimd_lsc_xatomic_stateless_1(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+/// USM pointer atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the prefetch addresses.
+/// @param src0 is the first atomic operand.
+/// @param src1 is the second atomic operand.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_stateless_2(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> Addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 __ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
