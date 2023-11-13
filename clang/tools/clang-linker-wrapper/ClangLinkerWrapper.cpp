@@ -1015,7 +1015,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
         return SPVFile.takeError();
       // TODO(NOM6): Add AOT support if needed
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-auto OutputFile = sycl::runWrapperAndCompile(*SPVFile, Args);
+      auto OutputFile = sycl::runWrapperAndCompile(*SPVFile, Args);
       if (!OutputFile)
         return OutputFile.takeError();
       return *OutputFile;
