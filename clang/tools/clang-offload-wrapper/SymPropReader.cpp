@@ -73,8 +73,8 @@ auto getInitializerNumElements(const Constant *Initializer) {
 //  };
 //
 
-constexpr int EntriesBeginIndexInTDI{10};
-constexpr int PropertySetBeginIndexInTDI{12};
+constexpr unsigned int EntriesBeginIndexInTDI{10};
+constexpr unsigned int PropertySetBeginIndexInTDI{12};
 
 // struct __tgt_offload_entry {
 //   void *addr;
@@ -92,8 +92,8 @@ constexpr int nameIndexInTOE{1};
 //   _pi_device_binary_property_struct* PropertiesEnd;
 // };
 
-constexpr int NameIndexInPIDBPSS{0};
-constexpr int PropertiesBeginIndexInPIDBPSS{1};
+constexpr unsigned int NameIndexInPIDBPSS{0};
+constexpr unsigned int PropertiesBeginIndexInPIDBPSS{1};
 
 // struct _pi_device_binary_property_struct {
 //   char *Name;
@@ -102,10 +102,10 @@ constexpr int PropertiesBeginIndexInPIDBPSS{1};
 //   uint64_t ValSize;
 // };
 
-constexpr int NameIndexInPIDBPS{0};
-constexpr int ValAddrIndexInPIDBPS{1};
-constexpr int TypeIndexInPIDBPS{2};
-constexpr int ValSizeIndexInPIDBPS{3};
+constexpr unsigned int NameIndexInPIDBPS{0};
+constexpr unsigned int ValAddrIndexInPIDBPS{1};
+constexpr unsigned int TypeIndexInPIDBPS{2};
+constexpr unsigned int ValSizeIndexInPIDBPS{3};
 
 } // namespace
 

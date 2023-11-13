@@ -125,8 +125,6 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see
-  [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries

@@ -38,7 +38,7 @@ smmap==5.0.0
     # via gitdb
 types-cryptography==3.3.23.2
     # via pyjwt
-urllib3==1.26.12
+urllib3==1.26.18
     # via requests
 wrapt==1.14.1
     # via deprecated

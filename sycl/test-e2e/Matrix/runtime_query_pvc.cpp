@@ -1,5 +1,5 @@
 // REQUIRES: gpu-intel-pvc
-// RUN: %{build} -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>

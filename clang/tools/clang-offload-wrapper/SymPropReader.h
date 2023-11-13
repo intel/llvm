@@ -29,7 +29,7 @@ private:
   // Initializer for all device images.  Size is ImageCnt
   Constant *DeviceImagesInitializer{nullptr};
   // Initializer for the ImageIndex-th image in DeviceImagesInitializer
-  Constant *CurrentDeviceImageInitializer;
+  Constant *CurrentDeviceImageInitializer{nullptr};
 
   LLVMContext SymPropsC;
   ExitOnError SymPropsExitOnErr;

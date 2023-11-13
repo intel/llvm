@@ -560,6 +560,8 @@ public:
       }
     }
 #endif
+    // If reader-writer locks were emplyed, this is where the writer lock can be
+    // used
     std::lock_guard<std::mutex> Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
@@ -602,6 +604,9 @@ public:
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
+    // Since we do not remove the callback function when they are unregistered
+    // and only reset the flag, the writer lock is not held for very long; use
+    // writer lock here.
     std::lock_guard<std::mutex> Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
@@ -632,7 +637,8 @@ public:
 
   xpti::result_t unregisterStream(uint8_t StreamID) {
     // If there are no callbacks registered for the requested stream ID, we
-    // return not found
+    // return not found; use reader lock here if the implementation moves to
+    // reaer-writer locks.
     std::lock_guard<std::mutex> Lock(MCBsLock);
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
@@ -652,6 +658,8 @@ public:
     if (StreamID == 0)
       return false;
 
+    // If the notification framework moves to reader-writer locks, use reader
+    // lock here
     std::lock_guard<std::mutex> Lock(MCBsLock);
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
@@ -671,17 +679,31 @@ public:
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
     {
-      std::lock_guard<std::mutex> Lock(MCBsLock);
-      cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
-      auto Acc = Stream.find(TraceType);
-      bool Success = (Acc != Stream.end());
-
-      if (Success) {
-        // Go through all registered callbacks and invoke them
-        for (auto &Ele : Acc->second) {
-          if (Ele.first)
-            (Ele.second)(TraceType, Parent, Object, InstanceNo, UserData);
+      bool Success = false;
+      xpti::Notifications::cb_t::iterator Acc;
+      std::vector<xpti::tracepoint_callback_api_t> LocalCBs;
+      {
+        // Addresses bug reported against XPTI where the lock was held for the
+        // entire duration of the notification calls; now the logic will grab
+        // the notification functions when the lock is held and then releases
+        // the lock before calling the notification functions. When using
+        // reader-writer locks, use reader lock here.
+        std::lock_guard<std::mutex> Lock(MCBsLock);
+        cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
+        Acc = Stream.find(TraceType);
+        Success = (Acc != Stream.end());
+        if (Success) {
+          // Go through all registered callbacks and copy them
+          for (auto &Ele : Acc->second) {
+            if (Ele.first)
+              LocalCBs.push_back(Ele.second);
+          }
         }
+      }
+
+      // Go through all local copies of the callbacks and invoke them
+      for (auto &CB : LocalCBs) {
+        (CB)(TraceType, Parent, Object, InstanceNo, UserData);
       }
     }
 #ifdef XPTI_STATISTICS
