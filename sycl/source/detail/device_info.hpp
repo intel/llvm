@@ -622,8 +622,9 @@ struct get_device_info_impl<range<Dimensions>,
 // This macro is only for Intel CPU architectures
 // TODO: extend the macro with other CPU architectures when they will be added
 // to ext_oneapi_device_architecture
-#define INTEL_CPU_ARCHES(X) X(8, oneapi_exp_arch::intel_cpu_spr)
-#define INTEL_CPU_ARCHES(X) X(9, oneapi_exp_arch::intel_cpu_gnr)
+#define INTEL_CPU_ARCHES(X)                                                    \
+  X(8, oneapi_exp_arch::intel_cpu_spr)                                         \
+  X(9, oneapi_exp_arch::intel_cpu_gnr)
 
 #define CMP_NVIDIA_AMD(s, i)                                                   \
   if (strcmp(s, arch) == 0)                                                    \
