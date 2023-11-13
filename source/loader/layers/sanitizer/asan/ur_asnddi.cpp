@@ -12,12 +12,12 @@
 
 #include "common.h"
 #include "sanitizer_interceptor.hpp"
-#include "ur_sanitizer_layer.hpp"
+#include "ur_asan_layer.hpp"
 
 #include <iostream>
 #include <stdio.h>
 
-namespace ur_sanitizer_layer {
+namespace ur_asan_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
@@ -126,9 +126,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     // context.logger.debug("=== urKernelCreate");
 
     ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
-    if (result == UR_RESULT_SUCCESS) {
-        context.interceptor->addKernel(hProgram, *phKernel);
-    }
+    // if (result == UR_RESULT_SUCCESS) {
+    //     context.interceptor->addKernel(hProgram, *phKernel);
+    // }
 
     return result;
 }
@@ -151,9 +151,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     // context.logger.debug("=== urQueueCreate");
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
-    if (result == UR_RESULT_SUCCESS) {
-        context.interceptor->addQueue(hContext, hDevice, *phQueue);
-    }
+    // if (result == UR_RESULT_SUCCESS) {
+    //     context.interceptor->addQueue(hContext, hDevice, *phQueue);
+    // }
 
     return result;
 }
@@ -288,6 +288,136 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urContextCreate
+__urdlllocal ur_result_t UR_APICALL urContextCreate(
+    uint32_t numDevices, ///< [in] the number of devices given in phDevices
+    const ur_device_handle_t
+        *phDevices, ///< [in][range(0, numDevices)] array of handle of devices.
+    const ur_context_properties_t *
+        pProperties, ///< [in][optional] pointer to context creation properties.
+    ur_context_handle_t
+        *phContext ///< [out] pointer to handle of context object created
+) {
+    auto pfnCreate = context.urDdiTable.Context.pfnCreate;
+
+    if (nullptr == pfnCreate) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_result_t result =
+        pfnCreate(numDevices, phDevices, pProperties, phContext);
+
+    if (result == UR_RESULT_SUCCESS) {
+        auto Context = *phContext;
+        result = context.interceptor->addContext(Context);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+        for (uint32_t i = 0; i < numDevices; ++i) {
+            result = context.interceptor->addDevice(Context, phDevices[i]);
+            if (result != UR_RESULT_SUCCESS) {
+                return result;
+            }
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urContextCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
+    ur_native_handle_t
+        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+    uint32_t numDevices, ///< [in] number of devices associated with the context
+    const ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+    const ur_context_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native context properties struct
+    ur_context_handle_t *
+        phContext ///< [out] pointer to the handle of the context object created.
+) {
+    auto pfnCreateWithNativeHandle =
+        context.urDdiTable.Context.pfnCreateWithNativeHandle;
+
+    if (nullptr == pfnCreateWithNativeHandle) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_result_t result = pfnCreateWithNativeHandle(
+        hNativeContext, numDevices, phDevices, pProperties, phContext);
+
+    if (result == UR_RESULT_SUCCESS) {
+        auto Context = *phContext;
+        result = context.interceptor->addContext(Context);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+        for (uint32_t i = 0; i < numDevices; ++i) {
+            result = context.interceptor->addDevice(Context, phDevices[i]);
+            if (result != UR_RESULT_SUCCESS) {
+                return result;
+            }
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Context table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_context_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_asan_layer::context.urDdiTable.Context;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnCreate = pDdiTable->pfnCreate;
+    pDdiTable->pfnCreate = ur_asan_layer::urContextCreate;
+
+    // dditable.pfnRetain = pDdiTable->pfnRetain;
+    // pDdiTable->pfnRetain = ur_asan_layer::urContextRetain;
+
+    // dditable.pfnRelease = pDdiTable->pfnRelease;
+    // pDdiTable->pfnRelease = ur_asan_layer::urContextRelease;
+
+    // dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+    // pDdiTable->pfnGetInfo = ur_asan_layer::urContextGetInfo;
+
+    // dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
+    // pDdiTable->pfnGetNativeHandle = ur_asan_layer::urContextGetNativeHandle;
+
+    dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
+    pDdiTable->pfnCreateWithNativeHandle =
+        ur_asan_layer::urContextCreateWithNativeHandle;
+
+    // dditable.pfnSetExtendedDeleter = pDdiTable->pfnSetExtendedDeleter;
+    // pDdiTable->pfnSetExtendedDeleter =
+    //     ur_asan_layer::urContextSetExtendedDeleter;
+
+    return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Mem table
 ///        with current process' addresses
 ///
@@ -300,15 +430,15 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_mem_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    // auto &dditable = ur_sanitizer_layer::context.urDdiTable.Mem;
+    // auto &dditable = ur_asan_layer::context.urDdiTable.Mem;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -316,38 +446,38 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // dditable.pfnImageCreate = pDdiTable->pfnImageCreate;
-    // pDdiTable->pfnImageCreate = ur_sanitizer_layer::urMemImageCreate;
+    // pDdiTable->pfnImageCreate = ur_asan_layer::urMemImageCreate;
 
     // dditable.pfnBufferCreate = pDdiTable->pfnBufferCreate;
-    pDdiTable->pfnBufferCreate = ur_sanitizer_layer::urMemBufferCreate;
+    pDdiTable->pfnBufferCreate = ur_asan_layer::urMemBufferCreate;
 
     // dditable.pfnRetain = pDdiTable->pfnRetain;
-    // pDdiTable->pfnRetain = ur_sanitizer_layer::urMemRetain;
+    // pDdiTable->pfnRetain = ur_asan_layer::urMemRetain;
 
     // dditable.pfnRelease = pDdiTable->pfnRelease;
-    // pDdiTable->pfnRelease = ur_sanitizer_layer::urMemRelease;
+    // pDdiTable->pfnRelease = ur_asan_layer::urMemRelease;
 
     // dditable.pfnBufferPartition = pDdiTable->pfnBufferPartition;
-    // pDdiTable->pfnBufferPartition = ur_sanitizer_layer::urMemBufferPartition;
+    // pDdiTable->pfnBufferPartition = ur_asan_layer::urMemBufferPartition;
 
     // dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
-    // pDdiTable->pfnGetNativeHandle = ur_sanitizer_layer::urMemGetNativeHandle;
+    // pDdiTable->pfnGetNativeHandle = ur_asan_layer::urMemGetNativeHandle;
 
     // dditable.pfnBufferCreateWithNativeHandle =
     //     pDdiTable->pfnBufferCreateWithNativeHandle;
     // pDdiTable->pfnBufferCreateWithNativeHandle =
-    //     ur_sanitizer_layer::urMemBufferCreateWithNativeHandle;
+    //     ur_asan_layer::urMemBufferCreateWithNativeHandle;
 
     // dditable.pfnImageCreateWithNativeHandle =
     //     pDdiTable->pfnImageCreateWithNativeHandle;
     // pDdiTable->pfnImageCreateWithNativeHandle =
-    //     ur_sanitizer_layer::urMemImageCreateWithNativeHandle;
+    //     ur_asan_layer::urMemImageCreateWithNativeHandle;
 
     // dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
-    // pDdiTable->pfnGetInfo = ur_sanitizer_layer::urMemGetInfo;
+    // pDdiTable->pfnGetInfo = ur_asan_layer::urMemGetInfo;
 
     // dditable.pfnImageGetInfo = pDdiTable->pfnImageGetInfo;
-    // pDdiTable->pfnImageGetInfo = ur_sanitizer_layer::urMemImageGetInfo;
+    // pDdiTable->pfnImageGetInfo = ur_asan_layer::urMemImageGetInfo;
 
     return result;
 }
@@ -364,15 +494,15 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_enqueue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    // auto &dditable = ur_sanitizer_layer::context.urDdiTable.Enqueue;
+    // auto &dditable = ur_asan_layer::context.urDdiTable.Enqueue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -380,7 +510,7 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // dditable.pfnKernelLaunch = pDdiTable->pfnKernelLaunch;
-    pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::urEnqueueKernelLaunch;
+    pDdiTable->pfnKernelLaunch = ur_asan_layer::urEnqueueKernelLaunch;
 
     return result;
 }
@@ -397,15 +527,15 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_kernel_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    // auto &dditable = ur_sanitizer_layer::context.urDdiTable.Kernel;
+    // auto &dditable = ur_asan_layer::context.urDdiTable.Kernel;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -413,9 +543,9 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = ur_sanitizer_layer::urKernelCreate;
-    // pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
-    pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;
+    pDdiTable->pfnCreate = ur_asan_layer::urKernelCreate;
+    // pDdiTable->pfnSetArgLocal = ur_asan_layer::urKernelSetArgLocal;
+    pDdiTable->pfnSetArgMemObj = ur_asan_layer::urKernelSetArgMemObj;
 
     return result;
 }
@@ -432,15 +562,15 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_queue_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    // auto &dditable = ur_sanitizer_layer::context.urDdiTable.Queue;
+    // auto &dditable = ur_asan_layer::context.urDdiTable.Queue;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -448,7 +578,7 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // dditable.pfnCreate = pDdiTable->pfnCreate;
-    pDdiTable->pfnCreate = ur_sanitizer_layer::urQueueCreate;
+    pDdiTable->pfnCreate = ur_asan_layer::urQueueCreate;
 
     return result;
 }
@@ -465,15 +595,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_usm_dditable_t
         *pDdiTable ///< [in,out] pointer to table of DDI function pointers
 ) {
-    // auto &dditable = ur_sanitizer_layer::context.urDdiTable.USM;
+    // auto &dditable = ur_asan_layer::context.urDdiTable.USM;
 
     if (nullptr == pDdiTable) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
@@ -481,16 +611,75 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // dditable.pfnHostAlloc = pDdiTable->pfnHostAlloc;
-    // pDdiTable->pfnHostAlloc = ur_sanitizer_layer::urUSMHostAlloc;
+    // pDdiTable->pfnHostAlloc = ur_asan_layer::urUSMHostAlloc;
 
     // dditable.pfnDeviceAlloc = pDdiTable->pfnDeviceAlloc;
-    pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::urUSMDeviceAlloc;
+    pDdiTable->pfnDeviceAlloc = ur_asan_layer::urUSMDeviceAlloc;
 
     // dditable.pfnSharedAlloc = pDdiTable->pfnSharedAlloc;
-    // pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::urUSMSharedAlloc;
+    // pDdiTable->pfnSharedAlloc = ur_asan_layer::urUSMSharedAlloc;
 
     // dditable.pfnFree = pDdiTable->pfnFree;
-    // pDdiTable->pfnFree = ur_sanitizer_layer::urUSMFree;
+    // pDdiTable->pfnFree = ur_asan_layer::urUSMFree;
+
+    return result;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Device table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_device_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    // auto &dditable = ur_asan_layer::context.urDdiTable.Device;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_asan_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // dditable.pfnGet = pDdiTable->pfnGet;
+    // pDdiTable->pfnGet = ur_asan_layer::urDeviceGet;
+
+    // dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
+    // pDdiTable->pfnGetInfo = ur_asan_layer::urDeviceGetInfo;
+
+    // dditable.pfnRetain = pDdiTable->pfnRetain;
+    // pDdiTable->pfnRetain = ur_asan_layer::urDeviceRetain;
+
+    // dditable.pfnRelease = pDdiTable->pfnRelease;
+    // pDdiTable->pfnRelease = ur_asan_layer::urDeviceRelease;
+
+    // dditable.pfnPartition = pDdiTable->pfnPartition;
+    // pDdiTable->pfnPartition = ur_asan_layer::urDevicePartition;
+
+    // dditable.pfnSelectBinary = pDdiTable->pfnSelectBinary;
+    // pDdiTable->pfnSelectBinary = ur_asan_layer::urDeviceSelectBinary;
+
+    // dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
+    // pDdiTable->pfnGetNativeHandle = ur_asan_layer::urDeviceGetNativeHandle;
+
+    // dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
+    // pDdiTable->pfnCreateWithNativeHandle =
+    //     ur_asan_layer::urDeviceCreateWithNativeHandle;
+
+    // dditable.pfnGetGlobalTimestamps = pDdiTable->pfnGetGlobalTimestamps;
+    // pDdiTable->pfnGetGlobalTimestamps =
+    //     ur_asan_layer::urDeviceGetGlobalTimestamps;
 
     return result;
 }
@@ -499,7 +688,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    context.logger.info("ur_sanitizer_layer init");
+    context.logger.info("ur_asan_layer init");
 
     // if (!enabledLayerNames.count(name)) {
     //     return result;
@@ -509,22 +698,22 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         // FIXME: Just copy needed APIs?
         urDdiTable = *dditable;
 
-        result = ur_sanitizer_layer::urGetEnqueueProcAddrTable(
+        result = ur_asan_layer::urGetEnqueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Enqueue);
 
-        result = ur_sanitizer_layer::urGetKernelProcAddrTable(
-            UR_API_VERSION_CURRENT, &dditable->Kernel);
+        result = ur_asan_layer::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &dditable->Kernel);
 
-        result = ur_sanitizer_layer::urGetQueueProcAddrTable(
-            UR_API_VERSION_CURRENT, &dditable->Queue);
+        result = ur_asan_layer::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                        &dditable->Queue);
 
-        result = ur_sanitizer_layer::urGetUSMProcAddrTable(
-            UR_API_VERSION_CURRENT, &dditable->USM);
+        result = ur_asan_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
+                                                      &dditable->USM);
 
-        result = ur_sanitizer_layer::urGetMemProcAddrTable(
-            UR_API_VERSION_CURRENT, &dditable->Mem);
+        result = ur_asan_layer::urGetMemProcAddrTable(UR_API_VERSION_CURRENT,
+                                                      &dditable->Mem);
     }
 
     return result;
 }
-} // namespace ur_sanitizer_layer
+} // namespace ur_asan_layer

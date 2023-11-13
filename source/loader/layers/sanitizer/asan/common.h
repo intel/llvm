@@ -12,8 +12,9 @@
 #include <cstdint>
 
 #include "ur_ddi.h"
+#include <ur/ur.hpp>
 
-namespace ur_sanitizer_layer {
+namespace ur_asan_layer {
 
 typedef uintptr_t uptr;
 typedef unsigned char u8;
@@ -245,4 +246,17 @@ static auto getUrResultString = [](ur_result_t Result) {
     }
 };
 
-} // namespace ur_sanitizer_layer
+// Trace an internal PI call; returns in case of an error.
+#define UR_CALL(Call)                                                          \
+    {                                                                          \
+        if (PrintTrace)                                                        \
+            fprintf(stderr, "UR ---> %s\n", #Call);                            \
+        ur_result_t Result = (Call);                                           \
+        if (PrintTrace)                                                        \
+            fprintf(stderr, "UR <--- %s(%s)\n", #Call,                         \
+                    getUrResultString(Result));                                \
+        if (Result != UR_RESULT_SUCCESS)                                       \
+            return Result;                                                     \
+    }
+
+} // namespace ur_asan_layer

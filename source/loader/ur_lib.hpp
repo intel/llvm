@@ -23,7 +23,7 @@
 #include "tracing/ur_tracing_layer.hpp"
 #endif
 #if UR_ENABLE_SANITIZER
-#include "sanitizer/ur_sanitizer_layer.hpp"
+#include "sanitizer/asan/ur_asan_layer.hpp"
 #endif
 
 #include <atomic>
@@ -72,7 +72,7 @@ class __urdlllocal context_t {
         &ur_tracing_layer::context,
 #endif
 #if UR_ENABLE_SANITIZER
-        &ur_sanitizer_layer::context
+        &ur_asan_layer::context
 #endif
     };
     std::string availableLayers;
