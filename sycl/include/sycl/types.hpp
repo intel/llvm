@@ -1497,19 +1497,6 @@ template <class T, class... U,
 vec(T, U...) -> vec<T, sizeof...(U) + 1>;
 #endif
 
-//==---------------- vec_gen_common.hpp ------------------------------------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
-// This file generates swizzles, binops and rellogops for sycl::vec.
-// It is used by injection ( direct #include into body ) from both vec_new.hpp
-// or vec_old.hpp and should not be used by anything else.
-//
-
 namespace detail {
 
 // SwizzleOP represents expression templates that operate on vec.
@@ -2319,7 +2306,7 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
-#endif // ndef __SYCL_USE_EXT_VECTOR_TYPE__
+#endif // ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
