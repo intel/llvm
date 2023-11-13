@@ -939,7 +939,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
   if (Event) {
-    ur_event_handle_t SyncEvent = CommandBuffer->SignalEvent;
     UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
                                                     false, false));
 
@@ -954,9 +953,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       // before completing the command buffer execution, and then attach this
       // memory to the event returned to users to allow to allow the profiling
       // engine to recover these timestamps.
-      UR_CALL(createEventAndAssociateQueue(
-          Queue, &SyncEvent, UR_COMMAND_USM_MEMCPY, SignalCommandList, false));
-
       command_buffer_profiling_t *Profiling = new command_buffer_profiling_t();
 
       Profiling->NumEvents = WaitEventList.size();
@@ -966,15 +962,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       ZE2UR_CALL(zeCommandListAppendQueryKernelTimestamps,
                  (SignalCommandList->first, WaitEventList.size(),
                   WaitEventList.data(), (void *)Profiling->Timestamps, 0,
-                  SyncEvent->ZeEvent, 1,
+                  RetEvent->ZeEvent, 1,
                   &(CommandBuffer->SignalEvent->ZeEvent)));
 
       RetEvent->CommandData = static_cast<void *>(Profiling);
+    } else {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+		 (SignalCommandList->first, RetEvent->ZeEvent, 1,
+		  &(CommandBuffer->SignalEvent->ZeEvent)));
     }
-
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (SignalCommandList->first, RetEvent->ZeEvent, 1,
-                &(SyncEvent->ZeEvent)));
   }
 
   // Execution our command-lists asynchronously
