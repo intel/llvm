@@ -14,8 +14,15 @@
 // Here we are testing some of the various args that SYCL can and cannot
 // pass to an OpenCL kernel that is compiled with the kernel_compiler.
 
-#include <sycl/sycl.hpp>
+// IMPORTANT: LevelZero YES!
+// Even though this test is covering which OpenCL capabilities
+// are covered by the kernel_compiler, this is not a test of only
+// the OpenCL devices. The LevelZero backend works with the kernel_compiler
+// so long as ocloc is installed and should be able to
+// successfully run and pass these tests.
 
+#include <sycl/sycl.hpp>
+using namespace sycl;
 namespace syclex = sycl::ext::oneapi::experimental;
 using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
 using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
@@ -40,7 +47,6 @@ auto constexpr LocalAccCLSource = R"===(
 )===";
 
 void test_local_accessor() {
-  using namespace sycl;
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
@@ -92,10 +98,10 @@ void test_usm_pointer_and_scalar() {
   sycl::kernel usm_kernel = kbExe1.ext_oneapi_get_kernel("usm_kernel");
 
   // the scalars submitted to the kernel
-  sycl::cl_int multiplier = 2;
-  sycl::cl_float added = 100.f;
+  cl_int multiplier = 2;
+  cl_float added = 100.f;
   constexpr size_t N = 32;
-  int *usmPtr = sycl::malloc_shared<int>(N, q);
+  cl_int *usmPtr = sycl::malloc_shared<cl_int>(N, q);
 
   q.submit([&](sycl::handler &cgh) {
     cgh.set_arg(0, usmPtr);
@@ -131,8 +137,8 @@ __kernel void struct_kernel(__global int *usmPtr, struct pair adjuster) {
 )===";
 
 struct pair {
-  sycl::cl_int multiplier;
-  sycl::cl_float added;
+  cl_int multiplier;
+  cl_float added;
 };
 
 void test_struct() {
@@ -147,7 +153,7 @@ void test_struct() {
   pair adjuster;
   adjuster.multiplier = 2, adjuster.added = 100.f;
   constexpr size_t N = 32;
-  sycl::cl_int *usmPtr = sycl::malloc_shared<sycl::cl_int>(N, q);
+  cl_int *usmPtr = sycl::malloc_shared<cl_int>(N, q);
 
   q.submit([&](sycl::handler &cgh) {
     cgh.set_arg(0, usmPtr);

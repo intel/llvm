@@ -51,14 +51,16 @@ Build failed with error code: -11
 
 */
 
+using namespace sycl;
+
 void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel, int multiplier,
                     int added) {
   constexpr int N = 4;
-  sycl::cl_int InputArray[N] = {0, 1, 2, 3};
-  sycl::cl_int OutputArray[N] = {};
+  cl_int InputArray[N] = {0, 1, 2, 3};
+  cl_int OutputArray[N] = {};
 
-  sycl::buffer<int, 1> InputBuf(InputArray, sycl::range<1>(N));
-  sycl::buffer<int, 1> OutputBuf(OutputArray, sycl::range<1>(N));
+  sycl::buffer InputBuf(InputArray, sycl::range<1>(N));
+  sycl::buffer OutputBuf(OutputArray, sycl::range<1>(N));
 
   Q.submit([&](sycl::handler &CGH) {
     CGH.set_arg(0, InputBuf.get_access<sycl::access::mode::read>(CGH));
