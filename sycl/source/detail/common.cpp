@@ -74,18 +74,14 @@ const char *stringifyErrorCode(pi_int32 error) {
 std::vector<std::string> split_string(const std::string &str, char delimeter) {
   std::vector<std::string> result;
   size_t beg = 0;
-  size_t length = 0;
-  for (const auto &x : str) {
-    if (x == delimeter) {
-      result.push_back(str.substr(beg, length));
-      beg += length + 1;
-      length = 0;
-      continue;
-    }
-    length++;
+  size_t end = 0;
+  while ((end = str.find(delimeter, beg)) != std::string::npos) {
+    result.push_back(str.substr(beg, end - beg));
+    beg = end + 1;
   }
-  if (length != 0) {
-    result.push_back(str.substr(beg, length));
+  end = str.find('\0');
+  if (beg < end) {
+    result.push_back(str.substr(beg, end - beg));
   }
   return result;
 }
