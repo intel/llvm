@@ -202,6 +202,10 @@ class ur_function_v(IntEnum):
     KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 194## Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
     COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 195    ## Enumerator for ::urCommandBufferAppendUSMPrefetchExp
     COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 196      ## Enumerator for ::urCommandBufferAppendUSMAdviseExp
+    PROGRAM_BUILD_EXP = 197                         ## Enumerator for ::urProgramBuildExp
+    PROGRAM_COMPILE_EXP = 198                       ## Enumerator for ::urProgramCompileExp
+    PROGRAM_LINK_EXP = 199                          ## Enumerator for ::urProgramLinkExp
+    LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK = 200  ## Enumerator for ::urLoaderConfigSetCodeLocationCallback
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -517,6 +521,24 @@ class ur_loader_config_info_t(c_int):
     def __str__(self):
         return str(ur_loader_config_info_v(self.value))
 
+
+###############################################################################
+## @brief Code location data
+class ur_code_location_t(Structure):
+    _fields_ = [
+        ("functionName", c_char_p),                                     ## [in][out] Function name.
+        ("sourceFile", c_char_p),                                       ## [in][out] Source code file.
+        ("lineNumber", c_ulong),                                        ## [in][out] Source code line number.
+        ("columnNumber", c_ulong)                                       ## [in][out] Source code column number.
+    ]
+
+###############################################################################
+## @brief Code location callback with user data.
+def ur_code_location_callback_t(user_defined_callback):
+    @CFUNCTYPE(ur_code_location_t, c_void_p)
+    def ur_code_location_callback_t_wrapper(pUserData):
+        return user_defined_callback(pUserData)
+    return ur_code_location_callback_t_wrapper
 
 ###############################################################################
 ## @brief Supported adapter info
@@ -2106,10 +2128,10 @@ class ur_event_native_properties_t(Structure):
 ###############################################################################
 ## @brief Event states for all events.
 class ur_execution_info_v(IntEnum):
-    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed.
-    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event.
-    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device.
-    EXECUTION_INFO_QUEUED = 3                       ## Indicates that the event has been queued, this is the initial state of
+    COMPLETE = 0                                    ## Indicates that the event has completed.
+    RUNNING = 1                                     ## Indicates that the device has started processing this event.
+    SUBMITTED = 2                                   ## Indicates that the event has been submitted by the host to the device.
+    QUEUED = 3                                      ## Indicates that the event has been queued, this is the initial state of
                                                     ## events.
 
 class ur_execution_info_t(c_int):
@@ -2295,6 +2317,11 @@ class ur_exp_command_buffer_handle_t(c_void_p):
 ## @brief The extension string which defines support for cooperative-kernels
 ##        which is returned when querying device extensions.
 UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP = "ur_exp_cooperative_kernels"
+
+###############################################################################
+## @brief The extension string which defines support for test
+##        which is returned when querying device extensions.
+UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP = "ur_exp_multi_device_compile"
 
 ###############################################################################
 ## @brief Supported peer info
@@ -2610,6 +2637,37 @@ class ur_program_dditable_t(Structure):
         ("pfnSetSpecializationConstants", c_void_p),                    ## _urProgramSetSpecializationConstants_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urProgramGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p)                         ## _urProgramCreateWithNativeHandle_t
+    ]
+
+###############################################################################
+## @brief Function-pointer for urProgramBuildExp
+if __use_win_types:
+    _urProgramBuildExp_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+else:
+    _urProgramBuildExp_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+
+###############################################################################
+## @brief Function-pointer for urProgramCompileExp
+if __use_win_types:
+    _urProgramCompileExp_t = WINFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+else:
+    _urProgramCompileExp_t = CFUNCTYPE( ur_result_t, ur_program_handle_t, c_ulong, POINTER(ur_device_handle_t), c_char_p )
+
+###############################################################################
+## @brief Function-pointer for urProgramLinkExp
+if __use_win_types:
+    _urProgramLinkExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_device_handle_t), c_ulong, POINTER(ur_program_handle_t), c_char_p, POINTER(ur_program_handle_t) )
+else:
+    _urProgramLinkExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_device_handle_t), c_ulong, POINTER(ur_program_handle_t), c_char_p, POINTER(ur_program_handle_t) )
+
+
+###############################################################################
+## @brief Table of ProgramExp functions pointers
+class ur_program_exp_dditable_t(Structure):
+    _fields_ = [
+        ("pfnBuildExp", c_void_p),                                      ## _urProgramBuildExp_t
+        ("pfnCompileExp", c_void_p),                                    ## _urProgramCompileExp_t
+        ("pfnLinkExp", c_void_p)                                        ## _urProgramLinkExp_t
     ]
 
 ###############################################################################
@@ -3843,6 +3901,7 @@ class ur_dditable_t(Structure):
         ("Context", ur_context_dditable_t),
         ("Event", ur_event_dditable_t),
         ("Program", ur_program_dditable_t),
+        ("ProgramExp", ur_program_exp_dditable_t),
         ("Kernel", ur_kernel_dditable_t),
         ("KernelExp", ur_kernel_exp_dditable_t),
         ("Sampler", ur_sampler_dditable_t),
@@ -3946,6 +4005,18 @@ class UR_DDI:
         self.urProgramSetSpecializationConstants = _urProgramSetSpecializationConstants_t(self.__dditable.Program.pfnSetSpecializationConstants)
         self.urProgramGetNativeHandle = _urProgramGetNativeHandle_t(self.__dditable.Program.pfnGetNativeHandle)
         self.urProgramCreateWithNativeHandle = _urProgramCreateWithNativeHandle_t(self.__dditable.Program.pfnCreateWithNativeHandle)
+
+        # call driver to get function pointers
+        ProgramExp = ur_program_exp_dditable_t()
+        r = ur_result_v(self.__dll.urGetProgramExpProcAddrTable(version, byref(ProgramExp)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.ProgramExp = ProgramExp
+
+        # attach function interface to function address
+        self.urProgramBuildExp = _urProgramBuildExp_t(self.__dditable.ProgramExp.pfnBuildExp)
+        self.urProgramCompileExp = _urProgramCompileExp_t(self.__dditable.ProgramExp.pfnCompileExp)
+        self.urProgramLinkExp = _urProgramLinkExp_t(self.__dditable.ProgramExp.pfnLinkExp)
 
         # call driver to get function pointers
         Kernel = ur_kernel_dditable_t()

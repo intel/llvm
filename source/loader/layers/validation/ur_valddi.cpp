@@ -3888,8 +3888,12 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus) {
+        if (UR_EXECUTION_INFO_QUEUED < execStatus) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (execStatus == UR_EXECUTION_INFO_QUEUED) {
+            return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
         }
     }
 
@@ -3960,6 +3964,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnKernelLaunch(
@@ -4002,6 +4014,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -4043,6 +4063,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4096,6 +4124,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4152,6 +4188,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4258,6 +4302,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                     (hostRowPitch != 0 ? hostRowPitch : region.width) !=
                 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4370,6 +4422,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
                 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnMemBufferWriteRect(
@@ -4424,6 +4484,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4524,6 +4592,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
                 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnMemBufferCopyRect(
@@ -4599,6 +4675,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
         if (offset % patternSize != 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -4661,6 +4745,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
 
         if (region.width == 0 || region.height == 0 || region.depth == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4726,6 +4818,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
         if (region.width == 0 || region.height == 0 || region.depth == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnMemImageWrite(
@@ -4790,6 +4890,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
         if (region.width == 0 || region.height == 0 || region.depth == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -4850,6 +4958,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags,
@@ -4901,6 +5017,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -4975,6 +5099,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -5032,6 +5164,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -5087,6 +5227,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -5221,6 +5369,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -5299,6 +5455,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -5362,6 +5526,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnDeviceGlobalVariableWrite(
@@ -5424,6 +5596,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -5491,6 +5671,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result =
@@ -5556,6 +5744,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -5978,6 +6174,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnImageCopyExp(
@@ -6344,6 +6548,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         if (NULL == hSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnWaitExternalSemaphoreExp(
@@ -6383,6 +6595,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 
         if (NULL == hSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -7103,9 +7323,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 /// @brief Intercept function for urCommandBufferAppendUSMPrefetchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    void *pMemory,      ///< [in] pointer to USM allocated memory to prefetch.
-    size_t size,        ///< [in] size in bytes to be fetched.
+        hCommandBuffer,  ///< [in] handle of the command-buffer object.
+    const void *pMemory, ///< [in] pointer to USM allocated memory to prefetch.
+    size_t size,         ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags, ///< [in] USM prefetch flags
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
@@ -7159,7 +7379,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    void *pMemory,                ///< [in] pointer to the USM memory object.
+    const void *pMemory,          ///< [in] pointer to the USM memory object.
     size_t size,                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     uint32_t
@@ -7187,6 +7407,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
         if (UR_USM_ADVICE_FLAGS_MASK & advice) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+        }
+
+        if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
         }
 
         if (size == 0) {
@@ -7239,6 +7467,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
         }
     }
 
@@ -7310,6 +7546,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
     }
 
     ur_result_t result = pfnCooperativeKernelLaunchExp(
@@ -7344,6 +7588,119 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
     ur_result_t result =
         pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnBuildExp = context.urDdiTable.ProgramExp.pfnBuildExp;
+
+    if (nullptr == pfnBuildExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompileExp
+__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
+    ur_program_handle_t
+        hProgram,        ///< [in][out] handle of the program to compile.
+    uint32_t numDevices, ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnCompileExp = context.urDdiTable.ProgramExp.pfnCompileExp;
+
+    if (nullptr == pfnCompileExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+) {
+    auto pfnLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
+
+    if (nullptr == pfnLinkExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phPrograms) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (count == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
+                                    phPrograms, pOptions, phProgram);
 
     return result;
 }
@@ -8385,6 +8742,46 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_program_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.ProgramExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnBuildExp = pDdiTable->pfnBuildExp;
+    pDdiTable->pfnBuildExp = ur_validation_layer::urProgramBuildExp;
+
+    dditable.pfnCompileExp = pDdiTable->pfnCompileExp;
+    pDdiTable->pfnCompileExp = ur_validation_layer::urProgramCompileExp;
+
+    dditable.pfnLinkExp = pDdiTable->pfnLinkExp;
+    pDdiTable->pfnLinkExp = ur_validation_layer::urProgramLinkExp;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Queue table
 ///        with current process' addresses
 ///
@@ -8747,7 +9144,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 }
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
-                            const std::set<std::string> &enabledLayerNames) {
+                            const std::set<std::string> &enabledLayerNames,
+                            codeloc_data) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (enabledLayerNames.count(nameFullValidation)) {
@@ -8829,6 +9227,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetProgramProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Program);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetProgramExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->ProgramExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {

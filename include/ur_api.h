@@ -211,6 +211,10 @@ typedef enum ur_function_t {
     UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 194,          ///< Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 195,                  ///< Enumerator for ::urCommandBufferAppendUSMPrefetchExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 196,                    ///< Enumerator for ::urCommandBufferAppendUSMAdviseExp
+    UR_FUNCTION_PROGRAM_BUILD_EXP = 197,                                       ///< Enumerator for ::urProgramBuildExp
+    UR_FUNCTION_PROGRAM_COMPILE_EXP = 198,                                     ///< Enumerator for ::urProgramCompileExp
+    UR_FUNCTION_PROGRAM_LINK_EXP = 199,                                        ///< Enumerator for ::urProgramLinkExp
+    UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK = 200,                ///< Enumerator for ::urLoaderConfigSetCodeLocationCallback
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -673,6 +677,49 @@ urLoaderConfigEnableLayer(
     ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
     const char *pLayerName                   ///< [in] Null terminated string containing the name of the layer to
                                              ///< enable.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Code location data
+typedef struct ur_code_location_t {
+    const char *functionName; ///< [in][out] Function name.
+    const char *sourceFile;   ///< [in][out] Source code file.
+    uint32_t lineNumber;      ///< [in][out] Source code line number.
+    uint32_t columnNumber;    ///< [in][out] Source code column number.
+
+} ur_code_location_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Code location callback with user data.
+typedef ur_code_location_t (*ur_code_location_callback_t)(
+    void *pUserData ///< [in][out] pointer to data to be passed to callback
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a function callback for use by the loader to retrieve code
+///        location information.
+///
+/// @details
+///     - The code location callback is optional and provides additional
+///       information to the tracing layer about the entry point of the current
+///       execution flow.
+///     - This functionality can be used to match traced unified runtime
+///       function calls with higher-level user calls.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCodeloc`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigSetCodeLocationCallback(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    ur_code_location_callback_t pfnCodeloc,  ///< [in] Function pointer to code location callback.
+    void *pUserData                          ///< [in][out][optional] pointer to data to be passed to callback.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5687,11 +5734,11 @@ urEventCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Event states for all events.
 typedef enum ur_execution_info_t {
-    UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 0,  ///< Indicates that the event has completed.
-    UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event.
-    UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 2, ///< Indicates that the event has been submitted by the host to the device.
-    UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED = 3,    ///< Indicates that the event has been queued, this is the initial state of
-                                                    ///< events.
+    UR_EXECUTION_INFO_COMPLETE = 0,  ///< Indicates that the event has completed.
+    UR_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event.
+    UR_EXECUTION_INFO_SUBMITTED = 2, ///< Indicates that the event has been submitted by the host to the device.
+    UR_EXECUTION_INFO_QUEUED = 3,    ///< Indicates that the event has been queued, this is the initial state of
+                                     ///< events.
     /// @cond
     UR_EXECUTION_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5714,6 +5761,8 @@ typedef void (*ur_event_callback_t)(
 ///     - The registered callback function will be called when the execution
 ///       status of command associated with event changes to an execution status
 ///       equal to or past the status specified by command_exec_status.
+///     - `execStatus` must not be `UR_EXECUTION_INFO_QUEUED` as this is the
+///       initial state of all events.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -5726,9 +5775,11 @@ typedef void (*ur_event_callback_t)(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus`
+///         + `::UR_EXECUTION_INFO_QUEUED < execStatus`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNotify`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + `execStatus == UR_EXECUTION_INFO_QUEUED`
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventSetCallback(
     ur_event_handle_t hEvent,       ///< [in] handle of the event object
@@ -8194,7 +8245,7 @@ urCommandBufferAppendMemBufferFillExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    void *pMemory,                                                ///< [in] pointer to USM allocated memory to prefetch.
+    const void *pMemory,                                          ///< [in] pointer to USM allocated memory to prefetch.
     size_t size,                                                  ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags,                               ///< [in] USM prefetch flags
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
@@ -8223,6 +8274,9 @@ urCommandBufferAppendUSMPrefetchExp(
 ///         + `::UR_USM_ADVICE_FLAGS_MASK & advice`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `size == 0`
@@ -8232,7 +8286,7 @@ urCommandBufferAppendUSMPrefetchExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    void *pMemory,                                                ///< [in] pointer to the USM memory object.
+    const void *pMemory,                                          ///< [in] pointer to the USM memory object.
     size_t size,                                                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice,                                 ///< [in] USM memory advice
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
@@ -8355,6 +8409,131 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for multi-device compile
+#if !defined(__GNUC__)
+#pragma region multi device compile(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
+/// @brief The extension string which defines support for test
+///        which is returned when querying device extensions.
+#define UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP "ur_exp_multi_device_compile"
+#endif // UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one program, negates need for the
+///        linking step.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point, the program passed
+///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
+///       for each device in `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clBuildProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred when building `hProgram`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuildExp(
+    ur_program_handle_t hProgram,  ///< [in] Handle of the program to build.
+    uint32_t numDevices,           ///< [in] number of devices
+    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *pOptions           ///< [in][optional] pointer to build options null-terminated string.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clCompileProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred while compiling `hProgram`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramCompileExp(
+    ur_program_handle_t hProgram,  ///< [in][out] handle of the program to compile.
+    uint32_t numDevices,           ///< [in] number of devices
+    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *pOptions           ///< [in][optional] pointer to build options null-terminated string.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
+///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
+///       `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clLinkProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///         + `NULL == phPrograms`
+///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramLinkExp(
+    ur_context_handle_t hContext,          ///< [in] handle of the context instance.
+    uint32_t numDevices,                   ///< [in] number of devices
+    ur_device_handle_t *phDevices,         ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count,                        ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *pOptions,                  ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t *phProgram         ///< [out] pointer to handle of program object created.
 );
 
 #if !defined(__GNUC__)
@@ -8612,6 +8791,16 @@ typedef struct ur_loader_config_enable_layer_params_t {
 } ur_loader_config_enable_layer_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigSetCodeLocationCallback
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_set_code_location_callback_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    ur_code_location_callback_t *ppfnCodeloc;
+    void **ppUserData;
+} ur_loader_config_set_code_location_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -8859,6 +9048,17 @@ typedef struct ur_program_build_params_t {
 } ur_program_build_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramBuildExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_build_exp_params_t {
+    ur_program_handle_t *phProgram;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    const char **ppOptions;
+} ur_program_build_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramCompile
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -8867,6 +9067,17 @@ typedef struct ur_program_compile_params_t {
     ur_program_handle_t *phProgram;
     const char **ppOptions;
 } ur_program_compile_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramCompileExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_compile_exp_params_t {
+    ur_program_handle_t *phProgram;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    const char **ppOptions;
+} ur_program_compile_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramLink
@@ -8879,6 +9090,20 @@ typedef struct ur_program_link_params_t {
     const char **ppOptions;
     ur_program_handle_t **pphProgram;
 } ur_program_link_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramLinkExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_link_exp_params_t {
+    ur_context_handle_t *phContext;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    uint32_t *pcount;
+    const ur_program_handle_t **pphPrograms;
+    const char **ppOptions;
+    ur_program_handle_t **pphProgram;
+} ur_program_link_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramRetain
@@ -10419,7 +10644,7 @@ typedef struct ur_command_buffer_append_mem_buffer_fill_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_append_usm_prefetch_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
-    void **ppMemory;
+    const void **ppMemory;
     size_t *psize;
     ur_usm_migration_flags_t *pflags;
     uint32_t *pnumSyncPointsInWaitList;
@@ -10433,7 +10658,7 @@ typedef struct ur_command_buffer_append_usm_prefetch_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
-    void **ppMemory;
+    const void **ppMemory;
     size_t *psize;
     ur_usm_advice_flags_t *padvice;
     uint32_t *pnumSyncPointsInWaitList;

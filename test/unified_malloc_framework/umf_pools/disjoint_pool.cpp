@@ -11,6 +11,7 @@
 #include "disjoint_pool.hpp"
 
 #include "memoryPool.hpp"
+#include "pool.hpp"
 #include "provider.h"
 #include "provider.hpp"
 
@@ -72,6 +73,15 @@ TEST_F(test, freeErrorPropagation) {
 
 INSTANTIATE_TEST_SUITE_P(disjointPoolTests, umfPoolTest,
                          ::testing::Values(makePool));
+
+INSTANTIATE_TEST_SUITE_P(
+    disjointPoolTests, umfMemTest,
+    ::testing::Values(std::make_tuple(
+        [] {
+            return umf_test::makePoolWithOOMProvider<usm::DisjointPool>(
+                static_cast<int>(poolConfig().Capacity), poolConfig());
+        },
+        static_cast<int>(poolConfig().Capacity) / 2)));
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfMultiPoolTest);
 INSTANTIATE_TEST_SUITE_P(disjointMultiPoolTests, umfMultiPoolTest,

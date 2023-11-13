@@ -149,6 +149,38 @@ ur_result_t UR_APICALL urLoaderConfigEnableLayer(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a function callback for use by the loader to retrieve code
+///        location information.
+///
+/// @details
+///     - The code location callback is optional and provides additional
+///       information to the tracing layer about the entry point of the current
+///       execution flow.
+///     - This functionality can be used to match traced unified runtime
+///       function calls with higher-level user calls.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnCodeloc`
+ur_result_t UR_APICALL urLoaderConfigSetCodeLocationCallback(
+    ur_loader_config_handle_t
+        hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    ur_code_location_callback_t
+        pfnCodeloc, ///< [in] Function pointer to code location callback.
+    void *
+        pUserData ///< [in][out][optional] pointer to data to be passed to callback.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' loader
 ///
 /// @details
@@ -3841,6 +3873,8 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 ///     - The registered callback function will be called when the execution
 ///       status of command associated with event changes to an execution status
 ///       equal to or past the status specified by command_exec_status.
+///     - `execStatus` must not be `UR_EXECUTION_INFO_QUEUED` as this is the
+///       initial state of all events.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -3853,9 +3887,11 @@ ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED < execStatus`
+///         + `::UR_EXECUTION_INFO_QUEUED < execStatus`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnNotify`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + `execStatus == UR_EXECUTION_INFO_QUEUED`
 ur_result_t UR_APICALL urEventSetCallback(
     ur_event_handle_t hEvent,       ///< [in] handle of the event object
     ur_execution_info_t execStatus, ///< [in] execution status of the event
@@ -6456,9 +6492,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    void *pMemory,      ///< [in] pointer to USM allocated memory to prefetch.
-    size_t size,        ///< [in] size in bytes to be fetched.
+        hCommandBuffer,  ///< [in] handle of the command-buffer object.
+    const void *pMemory, ///< [in] pointer to USM allocated memory to prefetch.
+    size_t size,         ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags, ///< [in] USM prefetch flags
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
@@ -6492,6 +6528,9 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 ///         + `::UR_USM_ADVICE_FLAGS_MASK & advice`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `size == 0`
@@ -6501,7 +6540,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    void *pMemory,                ///< [in] pointer to the USM memory object.
+    const void *pMemory,          ///< [in] pointer to the USM memory object.
     size_t size,                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     uint32_t
@@ -6629,6 +6668,132 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one program, negates need for the
+///        linking step.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point, the program passed
+///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
+///       for each device in `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clBuildProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred when building `hProgram`.
+ur_result_t UR_APICALL urProgramBuildExp(
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clCompileProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If `hProgram` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+///         + If an error occurred while compiling `hProgram`.
+ur_result_t UR_APICALL urProgramCompileExp(
+    ur_program_handle_t
+        hProgram,        ///< [in][out] handle of the program to compile.
+    uint32_t numDevices, ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Produces an executable program from one or more programs.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
+///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
+///       `phDevices`.
+///
+/// @remarks
+///   _Analogues_
+///     - **clLinkProgram**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phDevices`
+///         + `NULL == phPrograms`
+///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_INVALID_PROGRAM
+///         + If one of the programs in `phPrograms` isn't a valid program object.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `count == 0`
+///     - ::UR_RESULT_ERROR_PROGRAM_LINK_FAILURE
+///         + If an error occurred while linking `phPrograms`.
+ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

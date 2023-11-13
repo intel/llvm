@@ -4897,9 +4897,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
 /// @brief Intercept function for urCommandBufferAppendUSMPrefetchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
-    void *pMemory,      ///< [in] pointer to USM allocated memory to prefetch.
-    size_t size,        ///< [in] size in bytes to be fetched.
+        hCommandBuffer,  ///< [in] handle of the command-buffer object.
+    const void *pMemory, ///< [in] pointer to USM allocated memory to prefetch.
+    size_t size,         ///< [in] size in bytes to be fetched.
     ur_usm_migration_flags_t flags, ///< [in] USM prefetch flags
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
@@ -4931,7 +4931,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,           ///< [in] handle of the command-buffer object.
-    void *pMemory,                ///< [in] pointer to the USM memory object.
+    const void *pMemory,          ///< [in] pointer to the USM memory object.
     size_t size,                  ///< [in] size in bytes to be advised.
     ur_usm_advice_flags_t advice, ///< [in] USM memory advice
     uint32_t
@@ -5062,6 +5062,89 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
         result = pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
     } else {
         // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnBuildExp = d_context.urDdiTable.ProgramExp.pfnBuildExp;
+    if (nullptr != pfnBuildExp) {
+        result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompileExp
+__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
+    ur_program_handle_t
+        hProgram,        ///< [in][out] handle of the program to compile.
+    uint32_t numDevices, ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnCompileExp = d_context.urDdiTable.ProgramExp.pfnCompileExp;
+    if (nullptr != pfnCompileExp) {
+        result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnLinkExp = d_context.urDdiTable.ProgramExp.pfnLinkExp;
+    if (nullptr != pfnLinkExp) {
+        result = pfnLinkExp(hContext, numDevices, phDevices, count, phPrograms,
+                            pOptions, phProgram);
+    } else {
+        // generic implementation
+        *phProgram = reinterpret_cast<ur_program_handle_t>(d_context.get());
     }
 
     return result;
@@ -5847,6 +5930,40 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urProgramCreateWithNativeHandle;
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_program_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+    ) try {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (driver::d_context.version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    pDdiTable->pfnBuildExp = driver::urProgramBuildExp;
+
+    pDdiTable->pfnCompileExp = driver::urProgramCompileExp;
+
+    pDdiTable->pfnLinkExp = driver::urProgramLinkExp;
 
     return result;
 } catch (...) {

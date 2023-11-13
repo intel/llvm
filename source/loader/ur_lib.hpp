@@ -14,6 +14,7 @@
 #define UR_LOADER_LIB_H 1
 
 #include "ur_api.h"
+#include "ur_codeloc.hpp"
 #include "ur_ddi.h"
 #include "ur_proxy_layer.hpp"
 #include "ur_util.hpp"
@@ -42,6 +43,8 @@ struct ur_loader_config_handle_t_ {
         return refCount.load(std::memory_order_acquire);
     }
     std::set<std::string> &getEnabledLayerNames() { return enabledLayers; }
+
+    codeloc_data codelocData;
 };
 
 namespace ur_lib {
@@ -72,6 +75,8 @@ class __urdlllocal context_t {
     std::string availableLayers;
     std::set<std::string> enabledLayerNames;
 
+    codeloc_data codelocData;
+
     bool layerExists(const std::string &layerName) const;
     void parseEnvEnabledLayers();
     void initLayers() const;
@@ -89,5 +94,10 @@ ur_result_t urLoaderConfigGetInfo(ur_loader_config_handle_t hLoaderConfig,
 ur_result_t urLoaderConfigEnableLayer(ur_loader_config_handle_t hLoaderConfig,
                                       const char *pLayerName);
 ur_result_t urLoaderTearDown();
+ur_result_t
+urLoaderConfigSetCodeLocationCallback(ur_loader_config_handle_t hLoaderConfig,
+                                      ur_code_location_callback_t pfnCodeloc,
+                                      void *pUserData);
+
 } // namespace ur_lib
 #endif /* UR_LOADER_LIB_H */

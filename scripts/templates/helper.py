@@ -1328,3 +1328,14 @@ def get_create_retain_release_functions(specs, namespace, tags):
     )
 
     return {"create": create_funcs, "retain": retain_funcs, "release": release_funcs}
+
+
+def get_event_wait_list_functions(specs, namespace, tags):
+    funcs = []
+    for s in specs:
+        for obj in s['objects']:
+            if re.match(r"function", obj['type']):
+                if any(x['name'] == 'phEventWaitList' for x in obj['params']) and any(
+                        x['name'] == 'numEventsInWaitList' for x in obj['params']):
+                    funcs.append(make_func_name(namespace, tags, obj))
+    return funcs

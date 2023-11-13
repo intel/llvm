@@ -23,12 +23,24 @@
 #include <stdlib.h>
 
 #include "base.hpp"
+#include "provider.hpp"
 #include "umf_helpers.hpp"
 
 namespace umf_test {
 
 auto wrapPoolUnique(umf_memory_pool_handle_t hPool) {
     return umf::pool_unique_handle_t(hPool, &umfPoolDestroy);
+}
+
+template <typename T, typename... Args>
+auto makePoolWithOOMProvider(int allocNum, Args &&...args) {
+    auto [ret, provider] =
+        umf::memoryProviderMakeUnique<provider_mock_out_of_mem>(allocNum);
+    EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+    auto [retp, pool] = umf::poolMakeUnique<T, 1, Args...>(
+        {std::move(provider)}, std::forward<Args>(args)...);
+    EXPECT_EQ(retp, UMF_RESULT_SUCCESS);
+    return std::move(pool);
 }
 
 bool isReallocSupported(umf_memory_pool_handle_t hPool) {
@@ -128,12 +140,13 @@ struct proxy_pool : public pool_base {
     void *calloc(size_t num, size_t size) noexcept {
         void *ptr;
         auto ret = umfMemoryProviderAlloc(provider, num * size, 0, &ptr);
+        umf::getPoolLastStatusRef<proxy_pool>() = ret;
+
+        if (!ptr) {
+            return ptr;
+        }
 
         memset(ptr, 0, num * size);
-
-        if (ptr) {
-            EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
-        }
         return ptr;
     }
     void *realloc([[maybe_unused]] void *ptr,
@@ -146,9 +159,7 @@ struct proxy_pool : public pool_base {
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
         void *ptr;
         auto ret = umfMemoryProviderAlloc(provider, size, alignment, &ptr);
-        if (ptr) {
-            EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
-        }
+        umf::getPoolLastStatusRef<proxy_pool>() = ret;
         return ptr;
     }
     size_t malloc_usable_size([[maybe_unused]] void *ptr) noexcept {
@@ -157,7 +168,6 @@ struct proxy_pool : public pool_base {
     }
     enum umf_result_t free(void *ptr) noexcept {
         auto ret = umfMemoryProviderFree(provider, ptr, 0);
-        EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
         return ret;
     }
     enum umf_result_t get_last_allocation_error() {
