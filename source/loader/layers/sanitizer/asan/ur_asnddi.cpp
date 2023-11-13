@@ -151,9 +151,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     // context.logger.debug("=== urQueueCreate");
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
-    // if (result == UR_RESULT_SUCCESS) {
-    //     context.interceptor->addQueue(hContext, hDevice, *phQueue);
-    // }
+    if (result == UR_RESULT_SUCCESS) {
+        result = context.interceptor->addQueue(hContext, *phQueue);
+    }
 
     return result;
 }
@@ -697,6 +697,12 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         // FIXME: Just copy needed APIs?
         urDdiTable = *dditable;
+
+        result = ur_asan_layer::urGetContextProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Context);
+
+        // result = ur_asan_layer::urGetDeviceProcAddrTable(
+        //     UR_API_VERSION_CURRENT, &dditable->Device);
 
         result = ur_asan_layer::urGetEnqueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Enqueue);

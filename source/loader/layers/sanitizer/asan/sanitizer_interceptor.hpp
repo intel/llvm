@@ -44,6 +44,11 @@ struct DeviceInfo {
     std::vector<USMAllocInfo> AllocInfos;
 };
 
+struct QueueInfo {
+    ur_mutex Mutex;
+    ur_event_handle_t LastEvent;
+};
+
 struct ContextInfo {
 
     DeviceInfo &getDeviceInfo(ur_device_handle_t Device) {
@@ -52,18 +57,23 @@ struct ContextInfo {
         return *DeviceMap[Device].get();
     }
 
+    QueueInfo &getQueueInfo(ur_queue_handle_t Queue) {
+        std::shared_lock<ur_shared_mutex> Guard(Mutex);
+        assert(QueueMap.find(Queue) != QueueMap.end());
+        return *QueueMap[Queue].get();
+    }
+
     USMAllocInfo &getUSMAllocInfo(uptr Address) {
         std::shared_lock<ur_shared_mutex> Guard(Mutex);
         assert(AllocatedUSMMap.find(Address) != AllocatedUSMMap.end());
         return AllocatedUSMMap[Address];
     }
 
-    ur_mutex LastEventMapMutex;
-    std::unordered_map<ur_queue_handle_t, ur_event_handle_t> LastEventMap;
-
     ur_shared_mutex Mutex;
     // Note: nullptr is host device
-    std::unordered_map<ur_device_handle_t, std::unique_ptr<DeviceInfo>> DeviceMap;
+    std::unordered_map<ur_device_handle_t, std::unique_ptr<DeviceInfo>>
+        DeviceMap;
+    std::unordered_map<ur_queue_handle_t, std::unique_ptr<QueueInfo>> QueueMap;
 
     /// key: USMAllocInfo.AllocBegin
     /// value: USMAllocInfo
@@ -96,6 +106,7 @@ class SanitizerInterceptor {
     ur_result_t addContext(ur_context_handle_t Context);
     ur_result_t addDevice(ur_context_handle_t Context,
                           ur_device_handle_t Device);
+    ur_result_t addQueue(ur_context_handle_t Context, ur_queue_handle_t Queue);
 
   private:
     ur_result_t updateShadowMemory(ur_queue_handle_t Queue);
@@ -124,6 +135,7 @@ class SanitizerInterceptor {
                                     uptr Size, u8 Value,
                                     ur_event_handle_t DepEvent,
                                     ur_event_handle_t *OutEvent);
+
     ContextInfo &getContextInfo(ur_context_handle_t Context) {
         std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
         assert(m_ContextMap.find(Context) != m_ContextMap.end());
