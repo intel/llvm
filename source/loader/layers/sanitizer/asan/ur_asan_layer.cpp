@@ -6,17 +6,17 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_sanitizer_layer.cpp
+ * @file ur_asan_layer.cpp
  *
  */
-#include "ur_sanitizer_layer.hpp"
+#include "ur_asan_layer.hpp"
 #include "sanitizer_interceptor.hpp"
 #include "ur_api.h"
 #include "ur_util.hpp"
 
 #include <sstream>
 
-namespace ur_sanitizer_layer {
+namespace ur_asan_layer {
 context_t context;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,4 +28,4 @@ bool context_t::isAvailable() const { return true; }
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::~context_t() {}
-} // namespace ur_sanitizer_layer
+} // namespace ur_asan_layer
