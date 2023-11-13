@@ -494,9 +494,28 @@ instead of the property.
   enough to also do the decomposition, passing multiple arguments when the
   argument type requires decomposition.
   If this is too difficult to implement, we could restrict the arguments to
-  only those types that do not require decomposition.
+  only those types that do not require decomposition, however this would be a
+  big limitation because `accessor` and `local_accessor` would both be
+  prohibited.
   If we add this restriction, the front-end should diagnose an error if a
   raw kernel is defined to take such an argument.
+
+* There is a similar problem with kernel arguments that have been optimized.
+  Consider a kernel that uses an `accessor`.
+  Each member variable is passed as a separate kernel argument, but any members
+  that are unused in the kernel are optimized away, thus they have no
+  corresponding kernel argument.
+  Again, we can handle this by making `handler::set_arg` smart enough to know
+  which member variables have been optimized away.
+  Alternatively, we can disable these optimizations for raw kernels.
+  We also have to consider the behavior when a raw kernel has a formal
+  parameter that is unused (or optimized away) inside the kernel.
+  Can the compiler optimize away such an argument?
+  If so, `handler::set_arg` would need to be smart enough to treat an attempt
+  to set the value of such an argument as a no-op.
+  The `handler::set_arg` function would also need to account for this when
+  interpreting the argument index of arguments that follow an optimized-away
+  argument.
 
 * We currently say it is UB if there is a mismatch between a raw kernel's type
   or dimensionality and the call to `parallel_for` or `single_task`.
