@@ -1095,7 +1095,8 @@ recording state are:
 - A host-side wait on the event will throw synchronously with error
 code `invalid`.
 
-- the event cannot be used outside of the recording scope.
+- Using the event outside of the recording scope will throw synchronously with error code
+`invalid`.
 
 ==== Queue Limitations
 
