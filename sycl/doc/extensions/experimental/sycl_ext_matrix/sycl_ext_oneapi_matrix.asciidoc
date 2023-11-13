@@ -863,21 +863,21 @@ shown in a single column in the table below.
 [frame="none",options="header"]
 |======================
 | A type | B type | C and D type | M | N | K | device
-.2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 16 .2+|  +<=+ 16 .2+|  +<=+ 64
-|`architecture::intel_gpu_spr`|`architecture::intel_gpu_gnr`
-.2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 16 .2+|  +<=+ 16 .2+|  +<=+ 64
-|`architecture::intel_gpu_spr`|`architecture::intel_gpu_gnr`
-.2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 16 .2+|  +<=+ 16 .2+|  +<=+ 64
-|`architecture::intel_gpu_spr`|`architecture::intel_gpu_gnr`
-.2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 16 .2+|  +<=+ 16 .2+|  +<=+ 64
-|`architecture::intel_gpu_spr`|`architecture::intel_gpu_gnr`
-.2+|  `matrix_type::bf16`       .2+|  `matrix_type::bf16`   .2+|
-`matrix_type::fp32`   .2+|  +<=+ 16 .2+|  +<=+ 16   .2+|  +<=+ 32
-|`architecture::intel_gpu_spr`|`architecture::intel_gpu_gnr`
+| `matrix_type::uint8`  | `matrix_type::uint8` |
+`matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
+| `matrix_type::uint8`  | `matrix_type::sint8` |
+`matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
+| `matrix_type::sint8`  | `matrix_type::uint8` |
+`matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
+| `matrix_type::sint8`  | `matrix_type::sint8` |
+`matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
+|  `matrix_type::bf16`       |  `matrix_type::bf16`   |
+`matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
 |  `matrix_type::fp16`       |  `matrix_type::fp16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
 |`architecture::intel_gpu_gnr`
