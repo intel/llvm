@@ -1890,9 +1890,10 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr int DefaultLSCAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
   constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+      detail::getPropertyValue<PropertyListT, alignment_key>(
+          DefaultLSCAlignment);
   constexpr bool AlignmentRequiresLSC =
       PropertyListT::template has_property<alignment_key>() && Alignment < 16;
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
@@ -1993,15 +1994,10 @@ block_store(AccessorT acc, simd<T, N> vals, PropertyListT props = {}) {
 /// The alignment requirement may be less strict if stateless memory mode is ON,
 /// see block_store(usm_ptr, props) (aka usm-bs-01) for details/requirements.
 ///
-/// Restrictions: there may be some extra restrictions depending on
-///    a) stateless memory mode enforcement is ON,
-///    b) cache hints are used,
-///    c) number of bytes stored is either 16,32,64, or 128.
-/// The target device must be DG2 or PVC (not Gen12).
-/// If (a) && !(b), then there is no restriction on the number of elements
-/// to be stored and \p byte_offset must be only element-aligned.
+/// Restrictions:
+/// R1: The target device must be DG2 or PVC (not Gen12).
 ///
-/// DG2/PVC requirements:
+/// R2:
 ///   It can store such number of elements depending on the type 'T':
 ///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
 ///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2),
@@ -2053,15 +2049,10 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 /// Cache hints: If \p props does not specify any L1 or L2 cache hints, then
 /// the cache_hint::none value is assumed by default.
 ///
-/// Restrictions: there may be some extra restrictions depending on
-///    a) stateless memory mode enforcement is ON,
-///    b) cache hints are used,
-///    c) number of bytes stored is either 16,32,64, or 128.
-/// The target device must be DG2 or PVC (not Gen12).
-/// If (a) && !(b), then there is no restriction on the number of elements
-/// to be stored.
+/// Restrictions:
+/// R1: The target device must be DG2 or PVC (not Gen12).
 ///
-/// DG2/PVC requirements:
+/// R2:
 ///   It can store such number of elements depending on the type 'T':
 ///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
 ///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2), or 128;
