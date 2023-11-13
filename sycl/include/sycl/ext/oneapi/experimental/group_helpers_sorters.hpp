@@ -326,7 +326,6 @@ public:
                    std::is_same<ValT, sycl::half>::value ||
                    std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
                   "radix sort is not supported for the given type");
-
     first_bit = 0;
     while (first_bit < mask.size() && !mask[first_bit])
       ++first_bit;
@@ -385,7 +384,6 @@ public:
                    std::is_same<ValT, sycl::half>::value ||
                    std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
                   "radix sort is not usable");
-
     first_bit = 0;
     while (first_bit < mask.size() && !mask[first_bit])
       ++first_bit;
@@ -486,11 +484,12 @@ public:
 
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
-                  sycl::span<U, ElementsPerWorkItem> vals) {
-    // Properties property) {
+                  sycl::span<U, ElementsPerWorkItem> vals,
+                  Properties property) {
     (void)g;
     (void)keys;
     (void)vals;
+    (void)property;
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::detail::privateStaticSort<
         /*is_key_value=*/true, std::is_same_v<Properties, detail::is_blocked>,
@@ -499,8 +498,9 @@ public:
 #endif
   }
 
-  // static constexpr std::size_t memory_required(sycl::memory_scope scope,
-  static constexpr std::size_t memory_required(std::size_t range_size) {
+  static constexpr std::size_t memory_required(sycl::memory_scope scope,
+                                               std::size_t range_size) {
+    (void)scope;
     return std::max(range_size * ElementsPerWorkItem * (sizeof(T) + sizeof(U)) +
                         2 * alignof(uint32_t),
                     range_size * (1 << bits) * sizeof(uint32_t) + alignof(T));
