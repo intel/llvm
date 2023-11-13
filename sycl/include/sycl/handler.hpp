@@ -1779,10 +1779,6 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_specialization_constants>();
-
     setStateSpecConstSet();
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
@@ -1796,10 +1792,6 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_specialization_constants>();
 
     if (isStateExplicitKernelBundle())
       throw sycl::exception(make_error_code(errc::invalid),

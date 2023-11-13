@@ -695,6 +695,9 @@ public:
                        vec_data<DataT>::get(getValue(I)))));
       }
     }
+    if constexpr (std::is_same_v<convertT, bool>) {
+      Result.ConvertToDataT();
+    }
     return Result;
   }
 
@@ -1060,7 +1063,11 @@ public:
 
   // operator -
   template <typename T = vec> EnableIfNotUsingArray<T> operator-() const {
-    return vec{-m_Data};
+    vec Ret{-m_Data};
+    if constexpr (std::is_same_v<Type, bool>) {
+      Ret.ConvertToDataT();
+    }
+    return Ret;
   }
 
   template <typename T = vec> EnableIfUsingArray<T> operator-() const {

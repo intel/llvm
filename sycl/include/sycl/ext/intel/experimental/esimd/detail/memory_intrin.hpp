@@ -88,63 +88,6 @@ __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// SLM gather.
-/// Supported platforms: DG2, PVC
-///
-/// Collects elements located at slm and returns them
-/// as a single \ref simd object.
-///
-/// @tparam Ty is element type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param offsets is the zero-based offsets for SLM buffer in bytes.
-/// @param OldValues contains the vector which elements are copied
-/// to the returned result when the corresponding element of \p pred is 0.
-/// @return is a vector of type T and size N * to_int<VS>()
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
-          __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_load_merge_slm(
-    __ESIMD_DNS::simd_mask_storage_t<N> pred,
-    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> OldValues =
-        0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-/// Similar to __esimd_lsc_load_merge_slm(), but the argument OldValues is not
-/// explicitly specified, which results into random values in those elements of
-/// the returned result for which the corresponding element in \p pred is 0.
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
-          __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  return __esimd_lsc_load_merge_slm<Ty, L1H, L3H, AddressScale, ImmOffset, DS,
-                                    VS, _Transposed, N>(pred, offsets);
-}
-#endif // __SYCL_DEVICE_ONLY__
-
 /// Surface-based prefetch gather.
 /// Supported platforms: DG2, PVC
 ///
@@ -612,36 +555,6 @@ __esimd_lsc_xatomic_bti_2(
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1,
     SurfIndAliasTy surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-/// USM pointer atomic.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Ty is element type.
-/// @tparam InternalOp is operation type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param addrs is the prefetch addresses.
-template <typename Ty, int InternalOp, __ESIMD_ENS::cache_hint L1H,
-          __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                                __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
