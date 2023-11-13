@@ -198,11 +198,15 @@ bool SanitizerInterceptor::launchKernel(ur_kernel_handle_t Kernel,
 
     updateShadowMemory(Queue);
 
+    // Return LastEvent in QueueInfo
     auto Context = getContext(Queue, m_Dditable);
     auto &ContextInfo = getContextInfo(Context);
-    std::lock_guard<ur_mutex> Guard(ContextInfo.LastEventMapMutex);
-    Event = ContextInfo.LastEventMap[Queue];
-    ContextInfo.LastEventMap[Queue] = nullptr;
+    auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
+
+    std::scoped_lock<ur_mutex> Guard(QueueInfo.Mutex);
+    Event = QueueInfo.LastEvent;
+    QueueInfo.LastEvent = nullptr;
+
     return true;
 }
 
@@ -505,6 +509,7 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
 
     auto &HostInfo = ContextInfo.getDeviceInfo(nullptr);
     auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
 
     std::shared_lock<ur_shared_mutex> HostGuard(HostInfo.Mutex,
                                                 std::defer_lock);
@@ -512,9 +517,9 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
                                                   std::defer_lock);
     std::scoped_lock<std::shared_lock<ur_shared_mutex>,
                      std::unique_lock<ur_shared_mutex>, ur_mutex>
-        Guard(HostGuard, DeviceGuard, ContextInfo.LastEventMapMutex);
+        Guard(HostGuard, DeviceGuard, QueueInfo.Mutex);
 
-    ur_event_handle_t LastEvent = ContextInfo.LastEventMap[Queue];
+    ur_event_handle_t LastEvent = QueueInfo.LastEvent;
 
     // FIXME: Always update host USM, but it'd be better to update host USM
     // selectively, or each devices once
@@ -527,7 +532,7 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
     }
     DeviceInfo.AllocInfos.clear();
 
-    ContextInfo.LastEventMap[Queue] = LastEvent;
+    QueueInfo.LastEvent = LastEvent;
 
     return UR_RESULT_SUCCESS;
 }
@@ -576,6 +581,18 @@ ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
 }
 
+ur_result_t SanitizerInterceptor::addQueue(ur_context_handle_t Context,
+                                           ur_queue_handle_t Queue) {
+    auto QueueInfoPtr = std::make_unique<QueueInfo>();
+    QueueInfoPtr->LastEvent = nullptr;
+
+    auto &ContextInfo = getContextInfo(Context);
+    std::scoped_lock<ur_shared_mutex> Guard(ContextInfo.Mutex);
+    ContextInfo.QueueMap.emplace(Queue, std::move(QueueInfoPtr));
+
+    return UR_RESULT_SUCCESS;
+}
+
 void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                                          ur_kernel_handle_t Kernel) {
     auto Context = getContext(Queue, m_Dditable);
@@ -584,9 +601,10 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
 
     auto &ContextInfo = getContextInfo(Context);
     auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
 
-    std::scoped_lock<ur_mutex> Guard(ContextInfo.LastEventMapMutex);
-    ur_event_handle_t LastEvent = ContextInfo.LastEventMap[Queue];
+    std::scoped_lock<ur_mutex> Guard(QueueInfo.Mutex);
+    ur_event_handle_t LastEvent = QueueInfo.LastEvent;
 
     do {
         // Set global variable to program
@@ -614,7 +632,7 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                            &DeviceInfo.ShadowOffsetEnd);
     } while (false);
 
-    ContextInfo.LastEventMap[Queue] = LastEvent;
+    QueueInfo.LastEvent = LastEvent;
 }
 
 ur_result_t SanitizerInterceptor::createMemoryBuffer(
