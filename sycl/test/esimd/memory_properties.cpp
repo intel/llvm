@@ -350,5 +350,5 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_store(AccType &acc,
   block_store(acc, vals, store_props_b);
 
   // CHECK: call void @llvm.genx.oword.st.v4i32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
-  block_store(acc, byte_offset32, valsi, store_props_d);
+  block_store(acc, byte_offset32, valsi, store_props_b);
 }

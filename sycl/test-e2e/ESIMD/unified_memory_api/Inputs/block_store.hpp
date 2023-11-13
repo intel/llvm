@@ -13,13 +13,13 @@ using namespace sycl::ext::intel::esimd;
 
 // Returns true iff verification is passed.
 template <typename T>
-bool verify(T Out_val, const T *Out, size_t Size, int N, bool UseMask) {
+bool verify(T OutVal, const T *Out, size_t Size, int N, bool UseMask) {
   bool Passed = true;
   using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
 
   for (int i = 0; i < Size; i++) {
     bool IsMaskSet = (i / N + 1) & 0x1;
-    Tuint Expected = sycl::bit_cast<Tuint>(Out_val);
+    Tuint Expected = sycl::bit_cast<Tuint>(OutVal);
     if (!UseMask || IsMaskSet)
       Expected = sycl::bit_cast<Tuint>((T)(i + 6));
     Tuint Computed = sycl::bit_cast<Tuint>(Out[i]);
@@ -153,15 +153,14 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          uint16_t GlobalID = ndi.get_global_id(0);
          uint32_t ElemOff = GlobalID * N;
-         //  TODO: these 2 lines work-around the problem with scalar
-         //  conversions to bfloat16. It could be just: "simd<T, N>
-         //  PassThru(ElemOffset, 1);"
-         simd<uint32_t, N> PassThruInt(ElemOff, 1);
-         simd<T, N> Vals = PassThruInt;
+         simd<T, N> Vals(ElemOff, 1);
          if constexpr (UseMask) {
            simd_mask<1> Mask = (GlobalID + 1) & 0x1;
-           block_store(OutAcc, ElemOff * sizeof(T), Vals, Mask,
-                       StorePropertiesT{});
+           if (ElemOff == 0)
+             block_store(OutAcc, Vals, Mask, StorePropertiesT{});
+           else
+             block_store(OutAcc, ElemOff * sizeof(T), Vals, Mask,
+                         StorePropertiesT{});
            Vals = block_load<T, N>(OutAcc, ElemOff * sizeof(T));
            Vals += 1;
            block_store(OutAcc, ElemOff * sizeof(T), Vals, Mask,
@@ -313,11 +312,9 @@ template <typename T, bool TestPVCFeatures> bool test_block_store_acc(queue Q) {
   // Test block_store() that is available on Gen12 and PVC.
 
   if constexpr (sizeof(T) >= 4)
-    Passed &=
-        testACC<T, 4, !CheckMask, CheckProperties>(Q, 2, 4, AlignElemProps);
+    Passed &= testACC<T, 4, !CheckMask, CheckProperties>(Q, 2, 4, Align16Props);
   if constexpr (sizeof(T) >= 2)
-    Passed &=
-        testACC<T, 8, !CheckMask, CheckProperties>(Q, 2, 4, AlignElemProps);
+    Passed &= testACC<T, 8, !CheckMask, CheckProperties>(Q, 2, 4, Align16Props);
   Passed &= testACC<T, 16, !CheckMask, CheckProperties>(Q, 2, 4, Align16Props);
   if constexpr (sizeof(T) <= 4)
     Passed &=
@@ -326,7 +323,7 @@ template <typename T, bool TestPVCFeatures> bool test_block_store_acc(queue Q) {
   // Intentionally check big simd size - it must work.
   if constexpr (sizeof(T) == 1)
     Passed &=
-        testACC<T, 128, !CheckMask, CheckProperties>(Q, 2, 4, AlignElemProps);
+        testACC<T, 128, !CheckMask, CheckProperties>(Q, 2, 4, Align16Props);
 
   // Test block_store() without passing compile-time properties argument.
   Passed &= testACC<T, 16, !CheckMask, !CheckProperties>(Q, 2, 4, Align16Props);

@@ -625,8 +625,7 @@ block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
 }
 
 template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename AccessorT,
-          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
+          typename AccessorT, typename FlagsT>
 __ESIMD_API
     std::enable_if_t<detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_write> &&
@@ -1754,6 +1753,8 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals, simd_mask<1> pred,
   block_store<T, N>(AdjustedPtr, vals, pred, props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (usm-bs-1) defined above.
 template <typename T, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -1765,6 +1766,8 @@ block_store(T *ptr, simd_view<Toffset, RegionTy> vals,
   block_store<T, N>(ptr, vals.read(), props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (usm-bs-2) defined above.
 template <typename T, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -1776,6 +1779,8 @@ block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
   block_store<T, N>(ptr, byte_offset, vals.read(), props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (usm-bs-3) defined above.
 template <typename T, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -1787,6 +1792,8 @@ block_store(T *ptr, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
   block_store<T, N>(ptr, vals.read(), pred, props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (usm-bs-4) defined above.
 template <typename T, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -1798,13 +1805,14 @@ block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
   block_store<T, N>(ptr, byte_offset, vals.read(), pred, props);
 }
 
-/// Each of the following block store functions stores a contiguous memory block
-/// from the address referenced by accessor 'acc', or from 'acc + byte_offset',
-/// The parameter 'pred' is the one element predicate. If it is set to 1, then
-/// all 'N' elements are stored. Otherwise, the block store operation is a
-/// NO-OP. The parameter 'props' specifies the optional compile-time properties
-/// of the type esimd::properties and may include esimd::cache_hint_L1,
-/// esimd::cache_hint_L2, esimd::cache_hint_L3, esimd::alignment.
+/// Each of the following block_store functions stores the vector 'vals' to a
+/// contiguous memory block at the address referenced by accessor 'acc', or from
+/// 'acc + byte_offset', The parameter 'pred' is the one element predicate. If
+/// it is set to 1, then all 'N' elements are stored. Otherwise, the block store
+/// operation is a NO-OP. The parameter 'props' specifies the optional
+/// compile-time properties of the type esimd::properties and may include
+/// esimd::cache_hint_L1, esimd::cache_hint_L2, esimd::cache_hint_L3,
+/// esimd::alignment.
 
 /// void block_store(AccessorT acc, OffsetT byte_offset,          // (acc-bs-1)
 ///                   simd<T, N> vals, props = {});
@@ -1829,20 +1837,26 @@ block_store(T *ptr, size_t byte_offset, simd_view<Toffset, RegionTy> vals,
 /// the cache_hint::none value is assumed by default.
 ///
 /// Alignment: If \p props does not specify the 'alignment' property, then
-/// the \p byte_offset must be at least 4-byte aligned for elements of 4-bytes
-/// or smaller and 8-byte aligned for 8-byte elements.
-/// The alignment requirement may be less strict if stateless memory mode is ON,
-/// see block_store(usm_ptr, props) (aka usm-bs-01) for details/requirements.
+/// the \p byte_offset must be at least 16-byte aligned if (!(b) && (c))
+/// from the below restrictions, and must be at least 4-byte aligned for
+/// elements of 4-bytes or smaller and 8-byte aligned for 8-byte elements
+/// otherwise. If the 'alignment' property is specified as less than 16 bytes,
+/// then the target device must be DG2 or PVC (not Gen12). The alignment
+/// requirement may be less strict if stateless memory mode is ON, see
+/// block_store(usm_ptr, props) (aka usm-bs-01) for details/requirements.
 ///
 /// Restrictions: there may be some extra restrictions depending on
 ///    a) stateless memory mode enforcement is ON,
 ///    b) cache hints are used,
 ///    c) number of bytes stored is either 16,32,64, or 128.
-/// If (b) || !(c), then the target device must be DG2 or PVC (not Gen12).
-/// If (a) && !(b), then there is no restriction on the number of elements
-/// to be stored and \p byte_offset must be only element-aligned.
+///    d) the 'alignment' property is specified as less than 16 bytes.
 ///
-/// Gen12 requirements: !(b) && (c).
+/// If (b) || !(c) || (d), then the target device must be DG2 or PVC (not
+/// Gen12).
+/// If (a) && !(b), then there is no restriction on the number of
+/// elements to be stored and \p byte_offset must be only element-aligned.
+///
+/// Gen12 requirements: !(b) && (c) && !(d).
 ///   It can store 16-, 32-, 64-, or 128-bytes only.
 /// DG2/PVC requirements:
 ///   It can store such number of elements depending on the type 'T':
@@ -1876,13 +1890,14 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
+  constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
+  constexpr bool AlignmentRequiresLSC =
+      PropertyListT::template has_property<alignment_key>() && Alignment < 16;
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+                AlignmentRequiresLSC) {
     detail::check_cache_hint<detail::cache_action::store, L1Hint, L2Hint>();
-    constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(
-            DefaultAlignment);
-
     simd_mask<1> Mask = 1;
     detail::block_store_impl<T, N, L1Hint, L2Hint>(
         acc, byte_offset, vals, Mask, overaligned_tag<Alignment>{});
@@ -1924,7 +1939,7 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 ///    c) number of bytes stored is either 16,32,64, or 128.
 /// If (b) || !(c), then the target device must be DG2 or PVC (not Gen12).
 /// If (a) && !(b), then there is no restriction on the number of elements
-/// to be stored and \p byte_offset must be only element-aligned.
+/// to be stored.
 ///
 /// Gen12 requirements: !(b) && (c).
 ///   It can store 16-, 32-, 64-, or 128-bytes only.
@@ -1982,12 +1997,10 @@ block_store(AccessorT acc, simd<T, N> vals, PropertyListT props = {}) {
 ///    a) stateless memory mode enforcement is ON,
 ///    b) cache hints are used,
 ///    c) number of bytes stored is either 16,32,64, or 128.
-/// If (b) || !(c), then the target device must be DG2 or PVC (not Gen12).
+/// The target device must be DG2 or PVC (not Gen12).
 /// If (a) && !(b), then there is no restriction on the number of elements
 /// to be stored and \p byte_offset must be only element-aligned.
 ///
-/// Gen12 requirements: !(b) && (c).
-///   It can store 16-, 32-, 64-, or 128-bytes only.
 /// DG2/PVC requirements:
 ///   It can store such number of elements depending on the type 'T':
 ///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
@@ -2044,12 +2057,10 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
 ///    a) stateless memory mode enforcement is ON,
 ///    b) cache hints are used,
 ///    c) number of bytes stored is either 16,32,64, or 128.
-/// If (b) || !(c), then the target device must be DG2 or PVC (not Gen12).
+/// The target device must be DG2 or PVC (not Gen12).
 /// If (a) && !(b), then there is no restriction on the number of elements
-/// to be stored and \p byte_offset must be only element-aligned.
+/// to be stored.
 ///
-/// Gen12 requirements: !(b) && (c).
-///   It can store 16-, 32-, 64-, or 128-bytes only.
 /// DG2/PVC requirements:
 ///   It can store such number of elements depending on the type 'T':
 ///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
@@ -2081,6 +2092,8 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
   block_store<T, N>(acc, 0, vals, pred, Props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (acc-bs-2) defined above.
 template <typename AccessorT, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -2095,6 +2108,8 @@ block_store(AccessorT acc, simd_view<Toffset, RegionTy> vals,
   block_store<Toffset, N>(acc, vals.read(), props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (acc-bs-1) defined above.
 template <typename AccessorT, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -2109,6 +2124,8 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   block_store<Toffset, N>(acc, byte_offset, vals.read(), props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (acc-bs-4) defined above.
 template <typename AccessorT, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -2123,6 +2140,8 @@ block_store(AccessorT acc, simd_view<Toffset, RegionTy> vals, simd_mask<1> pred,
   block_store<Toffset, N>(acc, vals.read(), pred, props);
 }
 
+/// The semantics, assumptions and restrictions are identical to
+/// (acc-bs-3) defined above.
 template <typename AccessorT, int N, typename Toffset,
           typename RegionTy = region1d_t<Toffset, N, 1>,
           typename PropertyListT =
@@ -3326,7 +3345,7 @@ block_load(AccessorT lacc, uint32_t byte_offset, simd_mask<1> pred,
 /// R1: The local accessor \p lacc must point to memory at least 4-byte aligned
 ///     for elements of 4-bytes or smaller and 8-byte aligned for 8-byte
 ///     elements.
-/// R1: The number of elements must be:
+/// R2: The number of elements must be:
 ///     for 8-byte data: 1, 2, 3, 4, 8, 16, 32(max for DG2), 64;
 ///     for 4-byte data: 1, 2, 3, 4, 8, 16, 32, 64(max for DG2), or 128;
 ///     for 2-byte data: 2, 4, 6, 8, 16, 32, 64, 128(max for DG2), or 256;
