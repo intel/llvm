@@ -233,6 +233,9 @@ public:
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
                   sycl::span<U, ElementsPerWorkItem> values) {
     // Properties property) {
+    (void)g;
+    (void)keys;
+    (void)values;
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_linear_range();
     if (scratch_size >=
@@ -485,6 +488,9 @@ public:
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
                   sycl::span<U, ElementsPerWorkItem> vals) {
     // Properties property) {
+    (void)g;
+    (void)keys;
+    (void)vals;
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::detail::privateStaticSort<
         /*is_key_value=*/true, std::is_same_v<Properties, detail::is_blocked>,
