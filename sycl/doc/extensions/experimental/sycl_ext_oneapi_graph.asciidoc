@@ -337,8 +337,8 @@ class depends_on {
 };
 
 class depends_on_all_leaves {
-public:
-  depends_on_all_leaves() = default;
+  public:
+    depends_on_all_leaves() = default;
 };
 
 } // namespace node
@@ -493,9 +493,10 @@ adding all the current leaves of a graph as dependencies.
 ----
 namespace sycl::ext::oneapi::experimental::property::node {
 class depends_on_all_leaves {
-public:
-  depends_on_all_leaves();
+  public:
+    depends_on_all_leaves();
 };
+}
 ----
 
 === Graph

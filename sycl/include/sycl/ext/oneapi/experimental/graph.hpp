@@ -264,8 +264,8 @@ protected:
   node addImpl(const std::vector<node> &Dep);
 
   /// Adds all graph leaves as dependencies
-  /// @param Node destination node to which the leaves of the graph will be
-  /// added as dependencies
+  /// @param Node Destination node to which the leaves of the graph will be
+  /// added as dependencies.
   void addGraphLeafDependencies(node Node);
 
   template <class Obj>
