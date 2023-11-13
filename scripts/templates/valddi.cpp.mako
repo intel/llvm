@@ -60,6 +60,16 @@ namespace ur_validation_layer
 
             %endfor
             %endfor
+            %if func_name in th.get_event_wait_list_functions(specs, n, tags):
+            if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+                for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                    if (phEventWaitList[i] == NULL) {
+                        return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                    }
+                }
+            }
+            %endif
+
         }
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
@@ -150,9 +160,10 @@ namespace ur_validation_layer
     %endfor
     ${x}_result_t
     context_t::init(ur_dditable_t *dditable,
-                    const std::set<std::string> &enabledLayerNames) {
+                    const std::set<std::string> &enabledLayerNames,
+                    codeloc_data) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
-        
+
         if (enabledLayerNames.count(nameFullValidation)) {
             enableParameterValidation = true;
             enableLeakChecking = true;

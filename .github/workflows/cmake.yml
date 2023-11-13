@@ -292,6 +292,13 @@ jobs:
     - name: Install prerequisites
       run: python3 -m pip install -r third_party/requirements.txt
 
+    - name: Install doxygen
+      run: |
+        $WorkingDir = $PWD.Path
+        Invoke-WebRequest -Uri https://github.com/doxygen/doxygen/releases/download/Release_1_9_8/doxygen-1.9.8.windows.x64.bin.zip -OutFile "$WorkingDir\doxygen.zip"
+        Expand-Archive -Path "$WorkingDir\doxygen.zip"
+        Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
+
     - name: Configure CMake
       run: >
         cmake

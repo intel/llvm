@@ -598,7 +598,7 @@ params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
       desc: "[in] handle of the command-buffer object."
-    - type: "void*"
+    - type: "const void*"
       name: pMemory
       desc: "[in] pointer to USM allocated memory to prefetch."
     - type: "size_t"
@@ -640,7 +640,7 @@ params:
     - type: $x_exp_command_buffer_handle_t
       name: hCommandBuffer
       desc: "[in] handle of the command-buffer object."
-    - type: "void*"
+    - type: "const void*"
       name: pMemory
       desc: "[in] pointer to the USM memory object."
     - type: "size_t"
@@ -661,6 +661,9 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
+        - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
+        - "`pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`"
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`size == 0`"

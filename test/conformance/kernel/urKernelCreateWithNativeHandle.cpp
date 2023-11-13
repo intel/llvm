@@ -25,7 +25,7 @@ struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
     ur_kernel_native_properties_t properties = {
         UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES, /*sType*/
         nullptr,                                    /*pNext*/
-        true                                        /*isNativeHandleOwned*/
+        false                                       /*isNativeHandleOwned*/
     };
 };
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelCreateWithNativeHandleTest);
