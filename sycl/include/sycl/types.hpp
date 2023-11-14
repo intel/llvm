@@ -272,30 +272,6 @@ template <typename T> using vec_data = detail::vec_helper<T>;
 template <typename T>
 using vec_data_t = typename detail::vec_helper<T>::RetType;
 
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-#if defined(_WIN32) && (_MSC_VER)
-// MSVC Compiler doesn't allow using of function arguments with alignment
-// requirements. MSVC Compiler Error C2719: 'parameter': formal parameter with
-// __declspec(align('#')) won't be aligned. The align __declspec modifier
-// is not permitted on function parameters. Function parameter alignment
-// is controlled by the calling convention used.
-// For more information, see Calling Conventions
-// (https://docs.microsoft.com/en-us/cpp/cpp/calling-conventions).
-// For information on calling conventions for x64 processors, see
-// Calling Convention
-// (https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention).
-#pragma message("Alignment of class vec is not in accordance with SYCL \
-specification requirements, a limitation of the MSVC compiler(Error C2719).\
-Requested alignment applied, limited at 64.")
-#define __SYCL_ALIGNED_VAR(type, x, var)                                       \
-  type __declspec(align((x < 64) ? x : 64)) var
-#else
-#define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
-#endif
-
-#endif //! defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
 /// Provides a cross-patform vector class template that works efficiently on
 /// SYCL devices as well as in host C++ code.
 ///
@@ -1458,30 +1434,11 @@ private:
     return (NumElements == 1) ? getValue(Index, 0) : getValue(Index, 0.f);
   }
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
   // fields
 
-  // Alignment is the same as size, to a maximum size of 64.
-  // detail::vector_alignment will return that value.
+  // Alignment is the same as size, to a maximum size of 64 (with some
+  // exceptions, see detail::vector_alignment).
   alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
-
-#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-
-  // fields
-
-  // Used "__SYCL_ALIGNED_VAR" instead "alignas" to handle MSVC compiler.
-  // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
-  // alignment of 128 and MSVC compiler cann't align a parameter with requested
-  // alignment of 128. For alignment request larger than 64, 64-alignment
-  // is applied
-  __SYCL_ALIGNED_VAR(DataType,
-                     (detail::vector_alignment<DataT, NumElements>::value),
-                     m_Data);
-
-#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2554,7 +2511,3 @@ struct CheckDeviceCopyable<
 
 } // namespace _V1
 } // namespace sycl
-
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#undef __SYCL_ALIGNED_VAR
-#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
