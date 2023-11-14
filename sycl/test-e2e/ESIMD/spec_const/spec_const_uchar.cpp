@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -I%S/.. -o %t.out
 // RUN: %{run} %t.out
-// TODO online_compiler check fails for esimd_emulator
-// XFAIL: esimd_emulator
 
 #include <cstdint>
 

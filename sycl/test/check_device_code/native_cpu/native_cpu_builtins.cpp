@@ -88,7 +88,6 @@ int main() {
 
 // check that builtins are generated as expected
 // CHECK: define weak i64 @__dpcpp_nativecpu_global_id(i32 %[[DIMARG:.*]], ptr addrspace(1) %[[PTRARG:.*]]) {
-// CHECK: entry:
 // CHECK:   %[[GEP:.*]] = getelementptr %struct.__nativecpu_state, ptr addrspace(1) %[[PTRARG]], i64 0, i32 0, i32 %[[DIMARG]]
 // CHECK:   %[[LOAD:.*]] = load i64, ptr addrspace(1) %[[GEP]], align 8
 // CHECK:   ret i64 %[[LOAD]]

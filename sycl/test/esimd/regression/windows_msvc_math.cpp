@@ -11,11 +11,12 @@
 
 // The tests validates an ability to build ESIMD code on windows platform.
 
-#include <cmath>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+
+extern __DPCPP_SYCL_EXTERNAL short _FDtest(float *px);
 
 int main() {
   queue q;
