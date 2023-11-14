@@ -800,7 +800,7 @@ public:
     // Whole vector conversion can only be done, if:
     constexpr bool canUseNativeVectorConvert =
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-        // - we are in preview breaking changes mode
+    // - we are in preview breaking changes mode
 #ifdef __NVPTX__
         // - we are not on CUDA, see intel/llvm#11840
         false &&
