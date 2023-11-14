@@ -32,8 +32,8 @@ macro(add_device_binary SOURCE_FILE)
             ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
             ${SOURCE_FILE} -o ${EXE_PATH}
 
-            COMMAND ${CMAKE_COMMAND} -E env SYCL_DUMP_IMAGES=true
-            ${EXE_PATH} || (exit 0)
+            COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
+            ${EXE_PATH} || exit 0
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
             DEPENDS ${SOURCE_FILE}
         )
