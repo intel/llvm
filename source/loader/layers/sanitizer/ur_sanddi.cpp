@@ -11,9 +11,9 @@
  */
 
 #include "asan_interceptor.hpp"
-#include "ur_san_layer.hpp"
+#include "ur_sanitizer_layer.hpp"
 
-namespace ur_san_layer {
+namespace ur_sanitizer_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
@@ -276,19 +276,19 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_san_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_san_layer::urContextCreate;
+    pDdiTable->pfnCreate = ur_sanitizer_layer::urContextCreate;
 
     pDdiTable->pfnCreateWithNativeHandle =
-        ur_san_layer::urContextCreateWithNativeHandle;
+        ur_sanitizer_layer::urContextCreateWithNativeHandle;
 
     return result;
 }
@@ -309,16 +309,16 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_san_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnKernelLaunch = ur_san_layer::urEnqueueKernelLaunch;
+    pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::urEnqueueKernelLaunch;
 
     return result;
 }
@@ -339,16 +339,16 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_san_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_san_layer::urQueueCreate;
+    pDdiTable->pfnCreate = ur_sanitizer_layer::urQueueCreate;
 
     return result;
 }
@@ -369,16 +369,16 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_san_layer::context.version) >
+        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnDeviceAlloc = ur_san_layer::urUSMDeviceAlloc;
+    pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::urUSMDeviceAlloc;
 
     return result;
 }
@@ -404,25 +404,25 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     urDdiTable = *dditable;
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_san_layer::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Context);
+        result = ur_sanitizer_layer::urGetContextProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_san_layer::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Enqueue);
+        result = ur_sanitizer_layer::urGetEnqueueProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_san_layer::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                       &dditable->Queue);
+        result = ur_sanitizer_layer::urGetQueueProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_san_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
-                                                     &dditable->USM);
+        result = ur_sanitizer_layer::urGetUSMProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->USM);
     }
 
     return result;
 }
-} // namespace ur_san_layer
+} // namespace ur_sanitizer_layer

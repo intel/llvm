@@ -18,7 +18,7 @@
 #include <cassert>
 #include <cstdint>
 
-namespace ur_san_layer {
+namespace ur_sanitizer_layer {
 
 // ================================================================
 // Copy from LLVM compiler-rt/lib/asan
@@ -225,4 +225,4 @@ static auto getUrResultString = [](ur_result_t Result) {
             return Result;                                                     \
     }
 
-} // namespace ur_san_layer
+} // namespace ur_sanitizer_layer

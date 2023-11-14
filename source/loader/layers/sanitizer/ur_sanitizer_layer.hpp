@@ -6,7 +6,7 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_san_layer.hpp
+ * @file ur_sanitizer_layer.hpp
  *
  */
 
@@ -17,7 +17,7 @@
 
 #define SANITIZER_COMP_NAME "sanitizer layer"
 
-namespace ur_san_layer {
+namespace ur_sanitizer_layer {
 
 class SanitizerInterceptor;
 
@@ -49,4 +49,4 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 };
 
 extern context_t context;
-} // namespace ur_san_layer
+} // namespace ur_sanitizer_layer
