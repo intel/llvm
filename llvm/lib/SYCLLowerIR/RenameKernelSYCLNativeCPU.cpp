@@ -32,6 +32,22 @@ RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // Add NativeCPU suffix to module exports (kernels) and make other
   // function definitions private
   for (auto &F : M) {
+
+    // Update call sites that still have SPIR calling conventions
+    const llvm::CallingConv::ID conv = F.getCallingConv();
+    assert(conv != llvm::CallingConv::SPIR_FUNC &&
+           conv != llvm::CallingConv::SPIR_KERNEL);
+    for (const auto &Use : F.uses()) {
+      if (auto I = dyn_cast<CallInst>(Use.getUser())) {
+        if (I->getCallingConv() == llvm::CallingConv::SPIR_FUNC ||
+            I->getCallingConv() == llvm::CallingConv::SPIR_KERNEL) {
+          I->setCallingConv(conv);
+          ModuleChanged = true;
+        }
+        assert(I->getCallingConv() == conv);
+      }
+    }
+
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
       ModuleChanged = true;
