@@ -1438,7 +1438,29 @@ private:
 
   // Alignment is the same as size, to a maximum size of 64 (with some
   // exceptions, see detail::vector_alignment).
-  alignas(detail::vector_alignment<DataT, NumElements>::value) DataType m_Data;
+#if defined(_WIN32) && (_MSC_VER)
+#define __SYCL_ALIGNED_VAR(type, x, var)                                       \
+  type __declspec(align((x < MaxVecAlignment) ? x : MaxVecAlignment)) var
+#else
+#define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
+#endif
+  // Used "__SYCL_ALIGNED_VAR" instead of "alignas" to handle MSVC compiler.
+  //
+  // SYCL 2020 spec allows us to have at most 64-byte alignment for vec, but
+  // alignas requires that passed alignment is greater or equal to a minumum
+  // required alignment for a type. That is 128 bytes for types like
+  // vec<double, 16> and MSVC is not able to support that, which makes it
+  // impossible to use alignas directly.
+  //
+  // We have prepared a vec refactoring which changes underlying storage data
+  // type so we are able to use alignas directly, but it is hidden under preview
+  // breaking changes macro for now.
+  // FIXME: we should be able to drop the macro and directly use alignas once
+  // functionality under preview breaking changes macro is promoted.
+  __SYCL_ALIGNED_VAR(DataType,
+                     (detail::vector_alignment<DataT, NumElements>::value),
+                     m_Data);
+#undef __SYCL_ALIGNED_VAR
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
