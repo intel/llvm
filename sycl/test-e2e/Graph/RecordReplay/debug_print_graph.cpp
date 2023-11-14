@@ -1,4 +1,3 @@
-// REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
 // RUN: %if linux %{ %{run} %t.out ; FileCheck %s --input-file graph.dot %}
 // RUN: %if windows %{ %{run} %t.out %}

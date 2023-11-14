@@ -1,4 +1,3 @@
-// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG
@@ -7,7 +6,7 @@
 // CHECK-NOT: LEAK
 
 // Fail that needs investigation
-// XFAIL: *
+// UNSUPPORTED: *
 
 // This test creates a temporary buffer which is used in kernels, but
 // destroyed before finalization and execution of the graph.
@@ -16,6 +15,10 @@
 
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
