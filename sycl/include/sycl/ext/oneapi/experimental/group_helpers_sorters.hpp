@@ -320,7 +320,7 @@ public:
   joint_sorter(sycl::span<std::byte, Extent> scratch_,
                const std::bitset<sizeof(ValT) * CHAR_BIT> mask =
                    std::bitset<sizeof(ValT) * CHAR_BIT>(
-                       std::numeric_limits<unsigned long long>::max()))
+                       (std::numeric_limits<unsigned long long>::max)()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
     static_assert((std::is_arithmetic<ValT>::value ||
                    std::is_same<ValT, sycl::half>::value ||
@@ -378,7 +378,7 @@ public:
   group_sorter(sycl::span<std::byte, Extent> scratch_,
                const std::bitset<sizeof(ValT) * CHAR_BIT> mask =
                    std::bitset<sizeof(ValT) * CHAR_BIT>(
-                       std::numeric_limits<unsigned long long>::max()))
+                       (std::numeric_limits<unsigned long long>::max)()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
     static_assert((std::is_arithmetic<ValT>::value ||
                    std::is_same<ValT, sycl::half>::value ||
@@ -446,7 +446,7 @@ public:
       sycl::span<std::byte, Extent> scratch_,
       const std::bitset<sizeof(T) * CHAR_BIT> mask =
           std::bitset<sizeof(T) * CHAR_BIT>(
-              std::numeric_limits<unsigned long long>::max()))
+              (std::numeric_limits<unsigned long long>::max)()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
     static_assert(
         (std::is_arithmetic<T>::value || std::is_same<T, sycl::half>::value),
