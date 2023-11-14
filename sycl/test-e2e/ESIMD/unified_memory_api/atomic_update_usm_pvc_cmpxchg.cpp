@@ -8,7 +8,6 @@
 
 // REQUIRES: gpu-intel-pvc
 
-// TODO: understand why the test is hanging.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
