@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 2>&1
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
@@ -82,7 +82,9 @@ bool compareProfiling(event Event1, event Event2) {
 // event to complete execution.
 int main() {
   device Dev;
-  queue Queue{Dev, sycl::property::queue::enable_profiling()};
+  queue Queue{Dev,
+              {sycl::ext::intel::property::queue::no_immediate_command_list{},
+               sycl::property::queue::enable_profiling()}};
 
   const size_t Size = 1000000;
   int Data[Size] = {0};
