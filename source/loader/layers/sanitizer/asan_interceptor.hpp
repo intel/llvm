@@ -83,7 +83,7 @@ struct ContextInfo {
 
 class SanitizerInterceptor {
   public:
-    SanitizerInterceptor(ur_dditable_t &dditable) : m_Dditable(dditable) {}
+    SanitizerInterceptor() {}
 
     ur_result_t allocateMemory(ur_context_handle_t Context,
                                ur_device_handle_t Device,
@@ -116,14 +116,7 @@ class SanitizerInterceptor {
     std::string getKernelName(ur_kernel_handle_t Kernel);
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   DeviceInfo &DeviceInfo);
-    ur_result_t piextEnqueueMemSetShadow(ur_context_handle_t Context,
-                                         ur_device_handle_t Device,
-                                         ur_queue_handle_t Queue, void *Addr,
-                                         size_t Size, uint8_t Value,
-                                         size_t NumEvents,
-                                         const ur_event_handle_t *EventsList,
-                                         ur_event_handle_t *OutEvent);
-    ur_result_t enqueuePoisonShadow(ur_context_handle_t Context,
+    ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                                     ur_device_handle_t Device,
                                     ur_queue_handle_t Queue, uptr Addr,
                                     uptr Size, u8 Value,
@@ -140,8 +133,6 @@ class SanitizerInterceptor {
     std::unordered_map<ur_context_handle_t, std::unique_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
-
-    ur_dditable_t &m_Dditable;
 };
 
 } // namespace ur_san_layer
