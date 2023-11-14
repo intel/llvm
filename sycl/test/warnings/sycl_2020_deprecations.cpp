@@ -118,6 +118,11 @@ int main() {
   ex.get_cl_code();
   (void)ex;
 
+  // expected-warning@+1{{'online_compiler<sycl::ext::intel::experimental::source_language::opencl_c>' is deprecated}}
+  sycl::ext::intel::experimental::online_compiler<
+      sycl::ext::intel::experimental::source_language::opencl_c>
+      oc(Device);
+
   Queue.submit([](sycl::handler &CGH) {
     // expected-warning@+3{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
     // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}

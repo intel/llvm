@@ -6,6 +6,9 @@
 //
 // RUN: %{build} -o %t.out -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
 // RUN: %{run} %t.out
+//
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -DSYCL2020_DISABLE_DEPRECATION_WARNINGS %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
 
 #include <sycl/sycl.hpp>
 
@@ -116,8 +119,7 @@ template <typename From, typename To> bool check_signed_unsigned_convert_to() {
 template <typename From> bool check_convert_from() {
   bool pass = true;
   pass &= check_signed_unsigned_convert_to<From, sycl::byte>();
-  // FIXME: enable test cases below once compilation issues for them are fixed
-  // check_signed_unsigned_convert_to<From, std::byte>();
+  pass &= check_signed_unsigned_convert_to<From, std::byte>();
   pass &= check_signed_unsigned_convert_to<From, std::int8_t>();
   pass &= check_signed_unsigned_convert_to<From, std::int16_t>();
   pass &= check_signed_unsigned_convert_to<From, std::int32_t>();
@@ -136,8 +138,7 @@ template <typename From> bool check_convert_from() {
 int main() {
   bool pass = true;
   pass &= check_convert_from<sycl::byte>();
-  // FIXME: enable test cases below once compilation issues for them are fixed
-  // check_convert_from<std::byte>();
+  pass &= check_convert_from<std::byte>();
   pass &= check_convert_from<std::int8_t>();
   pass &= check_convert_from<std::int16_t>();
   pass &= check_convert_from<std::int32_t>();
