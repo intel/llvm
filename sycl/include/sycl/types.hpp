@@ -1284,12 +1284,12 @@ public:
 #error "Undefine __SYCL_OPASSIGN macro."
 #endif
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
-  SwizzleOp &operator OPASSIGN(const DataT &Rhs) {                             \
+  SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
     operatorHelper<OP>(vec_t(Rhs));                                            \
     return *this;                                                              \
   }                                                                            \
   template <typename RhsOperation>                                             \
-  SwizzleOp &operator OPASSIGN(const RhsOperation &Rhs) {                      \
+  SwizzleOp &operator OPASSIGN(const RhsOperation & Rhs) {                     \
     operatorHelper<OP>(Rhs);                                                   \
     return *this;                                                              \
   }
