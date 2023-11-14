@@ -149,10 +149,9 @@ oneapi::device_global<
   decltype(oneapi::properties(oneapi::host_access_none))> dg;
 ```
 
-The device compiler front-end ignores the
-`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute when it is
-not applied to the object definition, or a variable of a type decorated with 
-this attribute is not declared at namespace scope. 
+If an object of a type that is decorated with 
+`[[__sycl_detail__::add_ir_annotations_global_variable()]]` attribute is not 
+declared at namespace scope, the decoration is ignored for that object. 
 
 Note that the front-end does not need to understand any of the properties in
 order to do this translation.
@@ -654,24 +653,28 @@ oneapi::device_global<
   decltype(oneapi::properties(oneapi::host_access_none))> dg;
 ```
 
-Below is what the LLVM IR will look like for the SYCL code above.
+Below is what the LLVM IR will look like for the SYCL code above. Note there are
+three annotations, one on the `@dg` and two on it's member variable of type 
+`%"fpga_mem"`. The `sycl-resource:DEFAULT` annotation is implicitly added by the 
+header implementation of fpga_mem, as seen in the code examples earlier. 
 
 ```llvm
 %"fpga_mem" = type { [4 x i32] }
 %"device_global" = type { %"fpga_mem" }
 
-@.str = private unnamed_addr addrspace(1) constant [25 x i8] c"{sycl-resource:DEFAULT}{5884:2}\00"
+@.str = private unnamed_addr addrspace(1) constant [25 x i8] c"{sycl-resource:DEFAULT}\00"
 @.str.1 = private unnamed_addr addrspace(1) constant [14 x i8] c"example.cpp\00"
 @.str.2 = private unnamed_addr addrspace(1) constant [11 x i8] c"{sycl-word-size:2}\00"
+@.str.3 = private unnamed_addr addrspace(1) constant [11 x i8] c"{sycl-host-access:4}\00"
 
 @dg = dso_local local_unnamed_addr addrspace(1) global { %"device_global" } zeroinitializer
 @llvm.global.annotations = appending global 
-  [2 x { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }]
+  [3 x { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }]
   [
     { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }
     {
        ptr addrspace(1) @dg,
-       ptr addrspace(1) @.str.2,
+       ptr addrspace(1) @.str.3,
        ptr addrspace(1) @.str.1,
        i32 24,
        ptr addrspace(1) null
@@ -684,6 +687,14 @@ Below is what the LLVM IR will look like for the SYCL code above.
        i32 16,
        ptr addrspace(1) null
     }, 
+    { ptr addrspace(1), ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1) }
+    {
+       ptr addrspace(1) getelementptr inbounds (%"device_global", ptr addrspace(1) @dg, i64 0, i64 0),
+       ptr addrspace(1) @.str.2,
+       ptr addrspace(1) @.str.1,
+       i32 16,
+       ptr addrspace(1) null
+    }
   ]
 ```
 
