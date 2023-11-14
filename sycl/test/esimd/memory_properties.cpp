@@ -384,12 +384,12 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
       auto pred = simd_mask<VL>(1);
       // Do not pass the properties.
       // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
-      auto atomic_res0 =
-          atomic_update<atomic_op::fcmpxchg, float, VL>(ptrf, offsets, swap, compare, pred);
+      auto atomic_res0 = atomic_update<atomic_op::fcmpxchg, float, VL>(
+          ptrf, offsets, swap, compare, pred);
       // Now with cache hints.
       // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
-      auto atomic_res1 =
-          atomic_update<atomic_op::fcmpxchg, float, VL>(ptrf, offsets, swap, compare, pred, props_a);
+      auto atomic_res1 = atomic_update<atomic_op::fcmpxchg, float, VL>(
+          ptrf, offsets, swap, compare, pred, props_a);
     }
 
     // atomic_update without cache hints
