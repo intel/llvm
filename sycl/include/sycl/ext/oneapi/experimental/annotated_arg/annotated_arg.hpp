@@ -73,7 +73,7 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   void __init([[__sycl_detail__::add_ir_attributes_kernel_parameter(
       detail::PropertyMetaInfo<Props>::name...,
       detail::PropertyMetaInfo<
-          Props>::value...)]] decorated_global_ptr<T>::pointer _obj) {
+          Props>::value...)]] typename decorated_global_ptr<T>::pointer _obj) {
     obj = _obj;
   }
 #endif
