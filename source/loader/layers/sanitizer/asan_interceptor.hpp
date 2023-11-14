@@ -14,7 +14,6 @@
 
 #include "common.hpp"
 
-#include <cstddef>
 #include <map>
 #include <memory>
 #include <unordered_map>

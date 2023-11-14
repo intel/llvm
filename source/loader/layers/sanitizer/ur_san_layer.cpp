@@ -12,8 +12,6 @@
 
 #include "ur_san_layer.hpp"
 #include "asan_interceptor.hpp"
-#include "ur_api.h"
-#include "ur_util.hpp"
 
 namespace ur_san_layer {
 context_t context;

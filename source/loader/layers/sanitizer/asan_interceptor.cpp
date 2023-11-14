@@ -15,10 +15,6 @@
 #include "device_sanitizer_report.hpp"
 #include "ur_san_layer.hpp"
 
-#include <cstdint>
-#include <cstring>
-#include <utility>
-
 namespace ur_san_layer {
 
 namespace {
