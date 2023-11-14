@@ -43,9 +43,9 @@ const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
 DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
-uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
-    return USM_SHADOW_BASE + (UPtr >> 3);
-}
+// uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
+//     return USM_SHADOW_BASE + (UPtr >> 3);
+// }
 
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     if (UPtr & 0xFF00000000000000ULL) { // Device USM
@@ -56,13 +56,13 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     }
 }
 
-uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
-    if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
-        return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
-    } else {
-        return USM_SHADOW_BASE + (UPtr >> 3);
-    }
-}
+// uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
+//     if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
+//         return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
+//     } else {
+//         return USM_SHADOW_BASE + (UPtr >> 3);
+//     }
+// }
 
 ur_context_handle_t getContext(ur_queue_handle_t Queue,
                                ur_dditable_t &Dditable) {
