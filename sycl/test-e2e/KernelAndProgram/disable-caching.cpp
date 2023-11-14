@@ -2,7 +2,7 @@
 // if and only if caching is disabled.
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 SYCL_CACHE_DISABLE=1 %{run} %t.out \
+// RUN: env SYCL_PI_TRACE=-1 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
 // RUN: | FileCheck %s
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE

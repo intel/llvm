@@ -2535,7 +2535,10 @@ pi_int32 enqueueImpKernel(
     Program = DeviceImageImpl->get_program_ref();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    if (!SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get()) {
+    // When caching is enabled, kernel objects can be shared,
+    // so we need to retrieve the mutex associated to it via
+    // getOrCreateKernel
+    if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
       auto [CachedKernel, CachedKernelMutex, CachedEliminatedArgMask] =
           detail::ProgramManager::getInstance().getOrCreateKernel(
               KernelBundleImplPtr->get_context(), KernelName,
