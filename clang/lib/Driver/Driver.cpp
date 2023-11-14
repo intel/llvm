@@ -5070,17 +5070,9 @@ class OffloadingActionBuilder final {
                 ExtractIRFilesAction, types::TY_Tempfilelist);
 
             ActionList TformInputs{PostLinkAction, TranslateAction};
-            FileTableTformJobAction *ReplaceFilesAction;
-            // Device code files(.spv files) have TY_Filetable type when
-            // -fsycl-dump-device-code option is passed, otherwise
-            // TY_Tempfiletable.
-            if (C.getDriver().isDumpDeviceCodeEnabled())
-              ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                  TformInputs, types::TY_Filetable, types::TY_Filetable);
-            else
-              ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                  TformInputs, types::TY_Tempfiletable,
-                  types::TY_Tempfiletable);
+            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
+                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
@@ -5687,9 +5679,17 @@ class OffloadingActionBuilder final {
                   FileTableTformJobAction::COL_ZERO);
               PostLinkAction = MergeAllTablesIntoOne;
             }
+            // Device code files(.spv files) from FileTableTformJobAction will
+            // have TY_Filetable type when -fsycl-dump-device-code option is
+            // passed, otherwise TY_Tempfiletable.
+            bool IsDumpDeviceCodeEnabled =
+                C.getDriver().isDumpDeviceCodeEnabled();
+            types::ID FileTableTformType = IsDumpDeviceCodeEnabled
+                                               ? types::TY_Filetable
+                                               : types::TY_Tempfiletable;
             ActionList TformInputs{PostLinkAction, BuildCodeAction};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
+                TformInputs, FileTableTformType, FileTableTformType);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);

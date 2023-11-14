@@ -128,20 +128,6 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
-  // If -fsycl-dump-device-code option is enabled, filter .spv files
-  // from the list of temporary files and save them in the user provided
-  // directory.
-  std::string FileNameExt;
-  std::string FileName = File;
-  if (TheDriver.isDumpDeviceCodeEnabled()) {
-    size_t PositionOfDot = FileName.rfind('.', FileName.length());
-    if (PositionOfDot != std::string::npos)
-      FileNameExt =
-          FileName.substr(PositionOfDot + 1, FileName.length() - PositionOfDot);
-  }
-  if (FileNameExt == "spv")
-    return false;
-
   if (!llvm::sys::fs::can_write(File) || !llvm::sys::fs::is_regular_file(File))
     return true;
 
@@ -191,12 +177,11 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
             if (Res)
               Success = false;
           }
-
           std::vector<std::string> TmpFileNames;
           Table.linearize(TmpFileNames);
 
           for (const auto &TmpFileName : TmpFileNames) {
-            if (!TmpFileName.empty())
+            if (!TmpFileName.empty() && File.second != types::TY_Filetable)
               Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
           }
         }
