@@ -36,34 +36,6 @@ const int kUsmHostRedzoneMagic = 0x82;
 const int kUsmSharedRedzoneMagic = 0x83;
 const int kMemBufferRedzoneMagic = 0x84;
 
-const int kUsmDeviceDeallocatedMagic = 0x91;
-const int kUsmHostDeallocatedMagic = 0x92;
-const int kUsmSharedDeallocatedMagic = 0x93;
-
-// Same with Asan Stack
-const int kPrivateLeftRedzoneMagic = 0xf1;
-const int kPrivateMidRedzoneMagic = 0xf2;
-const int kPrivateRightRedzoneMagic = 0xf3;
-
-// These magic values are written to shadow for better error
-// reporting.
-// const int kAsanHeapLeftRedzoneMagic = 0xfa;
-// const int kAsanHeapFreeMagic = 0xfd;
-// const int kAsanStackLeftRedzoneMagic = 0xf1;
-// const int kAsanStackMidRedzoneMagic = 0xf2;
-// const int kAsanStackRightRedzoneMagic = 0xf3;
-// const int kAsanStackAfterReturnMagic = 0xf5;
-// const int kAsanInitializationOrderMagic = 0xf6;
-// const int kAsanUserPoisonedMemoryMagic = 0xf7;
-// const int kAsanContiguousContainerOOBMagic = 0xfc;
-// const int kAsanStackUseAfterScopeMagic = 0xf8;
-// const int kAsanGlobalRedzoneMagic = 0xf9;
-// const int kAsanInternalHeapMagic = 0xfe;
-// const int kAsanArrayCookieMagic = 0xac;
-// const int kAsanIntraObjectRedzone = 0xbb;
-// const int kAsanAllocaLeftMagic = 0xca;
-// const int kAsanAllocaRightMagic = 0xcb;
-
 const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
 const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
 
