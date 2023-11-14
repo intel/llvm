@@ -1,19 +1,13 @@
-//===--------- context.hpp - Native CPU Adapter ---------------------------===//
+//==------- atomic_update_usm_cmpxchg.cpp - DPC++ ESIMD on-device test  ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-#pragma once
+#define CMPXCHG_TEST
 
-#include <ur_api.h>
-
-#include "device.hpp"
-
-struct ur_context_handle_t_ {
-  ur_context_handle_t_(ur_device_handle_t_ *phDevices) : _device{phDevices} {}
-
-  ur_device_handle_t _device;
-};
+#include "atomic_update_usm.cpp"

@@ -133,8 +133,10 @@ bool test(queue q, const Config &cfg) {
         simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                  cfg.stride * sizeof(T));
         simd_mask<N> m = 1;
-        if (cfg.masked_lane < N)
-          m[cfg.masked_lane] = 0;
+        if constexpr (UseMask) {
+          if (cfg.masked_lane < N)
+            m[cfg.masked_lane] = 0;
+        }
         // barrier to achieve better contention:
         // Intra-work group barrier.
         barrier();
@@ -155,18 +157,56 @@ bool test(queue q, const Config &cfg) {
             }
           } else if constexpr (n_args == 1) {
             simd<T, N> v0 = ImplF<T, N>::arg0(i);
-            atomic_update<op>(arr, offsets, v0, m);
+            if constexpr (UseMask) {
+              if constexpr (UseProperties)
+                atomic_update<op>(arr, offsets, v0, m, props);
+              else
+                atomic_update<op>(arr, offsets, v0, m);
+            } else {
+              if constexpr (UseProperties)
+                atomic_update<op>(arr, offsets, v0, props);
+              else
+                atomic_update<op>(arr, offsets, v0);
+            }
           } else if constexpr (n_args == 2) {
             simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
             simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
             // do compare-and-swap in a loop until we get expected value;
             // arg0 and arg1 must provide values which guarantee the loop
             // is not endless:
-            for (simd<T, N> old_val =
-                     atomic_update<op>(arr, offsets, new_val, exp_val, m);
-                 any(old_val < exp_val, !m);
-                 old_val = atomic_update<op>(arr, offsets, new_val, exp_val, m))
-              ;
+            if constexpr (UseMask) {
+              if constexpr (UseProperties) {
+                for (simd<T, N> old_val = atomic_update<op>(
+                         arr, offsets, new_val, exp_val, m, props);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op>(arr, offsets, new_val, exp_val,
+                                                 m, props))
+                  ;
+              } else {
+                for (simd<T, N> old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val, m);
+                     any(old_val < exp_val, !m);
+                     old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val, m))
+                  ;
+              }
+            } else {
+              if constexpr (UseProperties) {
+                for (simd<T, N> old_val = atomic_update<op>(
+                         arr, offsets, new_val, exp_val, props);
+                     any(old_val < exp_val, !m);
+                     old_val = atomic_update<op>(arr, offsets, new_val, exp_val,
+                                                 props))
+                  ;
+              } else {
+                for (simd<T, N> old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val);
+                     any(old_val < exp_val, !m);
+                     old_val =
+                         atomic_update<op>(arr, offsets, new_val, exp_val))
+                  ;
+              }
+            }
           }
         }
       });
@@ -267,12 +307,171 @@ template <class T, int N, class C, C Op> struct ImplLoadBase {
   }
 };
 
+template <class T, int N, class C, C Op> struct ImplAdd {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 1;
+
+  static T init(int i, const Config &cfg) { return 0; }
+
+  static T gold(int i, const Config &cfg) {
+    T gold = is_updated(i, N, cfg) ? (T)(cfg.repeat * cfg.threads_per_group *
+                                         cfg.n_groups * (T)(1 + FPDELTA))
+                                   : init(i, cfg);
+    return gold;
+  }
+
+  static T arg0(int i) { return (T)(1 + FPDELTA); }
+};
+
+template <class T, int N, class C, C Op> struct ImplSub {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 1;
+
+  static T init(int i, const Config &cfg) {
+    T base = (T)(5 + FPDELTA);
+    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups *
+                   (T)(1 + FPDELTA) +
+               base);
+  }
+
+  static T gold(int i, const Config &cfg) {
+    T base = (T)(5 + FPDELTA);
+    T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
+    return gold;
+  }
+
+  static T arg0(int i) { return (T)(1 + FPDELTA); }
+};
+
+template <class T, int N, class C, C Op> struct ImplMin {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 1;
+
+  static T init(int i, const Config &cfg) {
+    return std::numeric_limits<T>::max();
+  }
+
+  static T gold(int i, const Config &cfg) {
+    T ExpectedFoundMin;
+    if constexpr (std::is_signed_v<T>)
+      ExpectedFoundMin = FPDELTA - (cfg.threads_per_group * cfg.n_groups - 1);
+    else
+      ExpectedFoundMin = FPDELTA;
+    T gold = is_updated(i, N, cfg) ? ExpectedFoundMin : init(i, cfg);
+    return gold;
+  }
+
+  static T arg0(int i) {
+    int64_t sign = std::is_signed_v<T> ? -1 : 1;
+    return sign * i + FPDELTA;
+  }
+};
+
+template <class T, int N, class C, C Op> struct ImplMax {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 1;
+
+  static T init(int i, const Config &cfg) {
+    return std::numeric_limits<T>::lowest();
+  }
+
+  static T gold(int i, const Config &cfg) {
+    T ExpectedFoundMax = FPDELTA;
+    if constexpr (!std::is_signed_v<T>)
+      ExpectedFoundMax += cfg.threads_per_group * cfg.n_groups - 1;
+
+    T gold = is_updated(i, N, cfg) ? ExpectedFoundMax : init(i, cfg);
+    return gold;
+  }
+
+  static T arg0(int i) {
+    int64_t sign = std::is_signed_v<T> ? -1 : 1;
+    return sign * i + FPDELTA;
+  }
+};
+
+template <class T, int N, class C, C Op> struct ImplStoreBase {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 1;
+
+  static T init(int i, const Config &cfg) { return 0; }
+
+  static T gold(int i, const Config &cfg) {
+    T base = (T)(2 + FPDELTA);
+    T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
+    return gold;
+  }
+
+  static T arg0(int i) {
+    T base = (T)(2 + FPDELTA);
+    return base;
+  }
+};
+
 template <class T, int N>
 struct ImplLoad : ImplLoadBase<T, N, atomic_op, atomic_op::load> {};
 template <class T, int N>
 struct ImplInc : ImplIncBase<T, N, atomic_op, atomic_op::inc> {};
 template <class T, int N>
 struct ImplDec : ImplDecBase<T, N, atomic_op, atomic_op::dec> {};
+
+template <class T, int N>
+struct ImplIntAdd : ImplAdd<T, N, atomic_op, atomic_op::add> {};
+template <class T, int N>
+struct ImplIntSub : ImplSub<T, N, atomic_op, atomic_op::sub> {};
+template <class T, int N>
+struct ImplSMin : ImplMin<T, N, atomic_op, atomic_op::smin> {};
+template <class T, int N>
+struct ImplUMin : ImplMin<T, N, atomic_op, atomic_op::umin> {};
+template <class T, int N>
+struct ImplSMax : ImplMax<T, N, atomic_op, atomic_op::smax> {};
+template <class T, int N>
+struct ImplUMax : ImplMax<T, N, atomic_op, atomic_op::umax> {};
+template <class T, int N>
+struct ImplFadd : ImplAdd<T, N, atomic_op, atomic_op::fadd> {};
+template <class T, int N>
+struct ImplFsub : ImplSub<T, N, atomic_op, atomic_op::fsub> {};
+template <class T, int N>
+struct ImplFmin : ImplMin<T, N, atomic_op, atomic_op::fmin> {};
+template <class T, int N>
+struct ImplFmax : ImplMax<T, N, atomic_op, atomic_op::fmax> {};
+template <class T, int N>
+struct ImplStore : ImplStoreBase<T, N, atomic_op, atomic_op::store> {};
+
+template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
+  static constexpr C atomic_op = Op;
+  static constexpr int n_args = 2;
+
+  static T init(int i, const Config &cfg) {
+    T base = (T)(1 + FPDELTA);
+    return base;
+  }
+
+  static T gold(int i, const Config &cfg) {
+    T base = (T)(2 + FPDELTA);
+    T gold = is_updated(i, N, cfg)
+                 ? (T)(cfg.threads_per_group * cfg.n_groups - 1 + base)
+                 : init(i, cfg);
+    return gold;
+  }
+
+  // "Replacement value" argument in CAS
+  static inline T arg0(int i) {
+    T base = (T)(i + 2 + FPDELTA);
+    return base;
+  }
+
+  // "Expected value" argument in CAS
+  static inline T arg1(int i) {
+    T base = (T)(i + 1 + FPDELTA);
+    return base;
+  }
+};
+
+template <class T, int N>
+struct ImplCmpxchg : ImplCmpxchgBase<T, N, atomic_op, atomic_op::cmpxchg> {};
+template <class T, int N>
+struct ImplFcmpwr : ImplCmpxchgBase<T, N, atomic_op, atomic_op::fcmpxchg> {};
 
 // Main function and test combinations.
 
@@ -286,6 +485,11 @@ bool test_int_types(queue q, const Config &cfg) {
       passed &= test<int16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
     passed &= test<int32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test<int64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    if constexpr (!std::is_same_v<signed long, int64_t> &&
+                  !std::is_same_v<signed long, int32_t>) {
+      passed &= test<signed long, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    }
   }
 
   if constexpr (SignMask & Unsigned) {
@@ -294,6 +498,11 @@ bool test_int_types(queue q, const Config &cfg) {
       passed &= test<uint16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
     passed &= test<uint32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test<uint64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
+                  !std::is_same_v<unsigned long, uint32_t>) {
+      passed &= test<unsigned long, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    }
   }
   return passed;
 }
@@ -302,11 +511,24 @@ template <int N, template <class, int> class Op, bool UseMask,
           bool UsePVCFeatures>
 bool test_fp_types(queue q, const Config &cfg) {
   bool passed = true;
+  if constexpr (UsePVCFeatures) {
+    if constexpr (std::is_same_v<Op<sycl::half, N>, ImplFmin<sycl::half, N>> ||
+                  std::is_same_v<Op<sycl::half, N>, ImplFmax<sycl::half, N>> ||
+                  std::is_same_v<Op<sycl::half, N>,
+                                 ImplFcmpwr<sycl::half, N>>) {
+      auto dev = q.get_device();
+      if (dev.has(sycl::aspect::fp16)) {
+        passed &= test<sycl::half, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+      }
+    }
+  }
   passed &= test<float, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+#ifndef CMPXCHG_TEST
   if (q.get_device().has(sycl::aspect::atomic64) &&
       q.get_device().has(sycl::aspect::fp64)) {
     passed &= test<double, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
+#endif // CMPXCHG_TEST
   return passed;
 }
 
@@ -325,6 +547,7 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
   if constexpr (UsePVCFeatures) {
     passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
     passed &= test_int_types<32, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+    passed &= test_int_types<64, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
     // non power of two values are supported only in newer driver.
     // TODO: Enable this when the new driver reaches test infrastructure
     // (v27556).
@@ -350,6 +573,7 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   if constexpr (UsePVCFeatures) {
     passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures>(q, cfg);
     passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures>(q, cfg);
     // non power of two values are supported only in newer driver.
     // TODO: Enable this when the new driver reaches test infrastructure
     // (v27556).
@@ -374,17 +598,62 @@ template <bool UseMask, bool UsePVCFeatures> bool test_with_mask(queue q) {
       111      // int stride;
   };
 
+#ifndef CMPXCHG_TEST
+
   passed &= test_int_types_and_sizes<ImplInc, UseMask, UsePVCFeatures>(q, cfg);
   passed &= test_int_types_and_sizes<ImplDec, UseMask, UsePVCFeatures>(q, cfg);
 
+  passed &=
+      test_int_types_and_sizes<ImplIntAdd, UseMask, UsePVCFeatures>(q, cfg);
+  passed &=
+      test_int_types_and_sizes<ImplIntSub, UseMask, UsePVCFeatures>(q, cfg);
+
+  passed &= test_int_types_and_sizes<ImplSMax, UseMask, UsePVCFeatures, Signed>(
+      q, cfg);
+  passed &= test_int_types_and_sizes<ImplSMin, UseMask, UsePVCFeatures, Signed>(
+      q, cfg);
+
+  passed &=
+      test_int_types_and_sizes<ImplUMax, UseMask, UsePVCFeatures, Unsigned>(
+          q, cfg);
+  passed &=
+      test_int_types_and_sizes<ImplUMin, UseMask, UsePVCFeatures, Unsigned>(
+          q, cfg);
+
+  if constexpr (UsePVCFeatures) {
+    passed &=
+        test_fp_types_and_sizes<ImplFadd, UseMask, UsePVCFeatures>(q, cfg);
+    passed &=
+        test_fp_types_and_sizes<ImplFsub, UseMask, UsePVCFeatures>(q, cfg);
+
+    passed &=
+        test_fp_types_and_sizes<ImplFmax, UseMask, UsePVCFeatures>(q, cfg);
+    passed &=
+        test_fp_types_and_sizes<ImplFmin, UseMask, UsePVCFeatures>(q, cfg);
+  }
+
+  // Check load/store operations
+  passed &= test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
+
+  passed &=
+      test_int_types_and_sizes<ImplStore, UseMask, UsePVCFeatures>(q, cfg);
+  passed &= test_fp_types_and_sizes<ImplStore, UseMask, UsePVCFeatures>(q, cfg);
+
+#else  // CMPXCHG_TEST
   // Can't easily reset input to initial state, so just 1 iteration for CAS.
   cfg.repeat = 1;
   // Decrease number of threads to reduce risk of halting kernel by the driver.
   cfg.n_groups = 7;
   cfg.threads_per_group = 3;
-  // Check load/store operations
-  passed &= test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
-  passed &= test_fp_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q, cfg);
+
+  passed &=
+      test_int_types_and_sizes<ImplCmpxchg, UseMask, UsePVCFeatures>(q, cfg);
+  if constexpr (UsePVCFeatures) {
+    passed &=
+        test_fp_types_and_sizes<ImplFcmpwr, UseMask, UsePVCFeatures>(q, cfg);
+  }
+#endif // CMPXCHG_TEST
 
   return passed;
 }

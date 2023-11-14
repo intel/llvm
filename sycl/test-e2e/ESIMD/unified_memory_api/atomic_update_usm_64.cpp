@@ -1,18 +1,13 @@
-//===--------- platform.hpp - Native CPU Adapter --------------------------===//
+//==------- atomic_update_usm_64.cpp - DPC++ ESIMD on-device test ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-#pragma once
+#define USE_64_BIT_OFFSET
 
-#include <ur/ur.hpp>
-
-#include "common.hpp"
-#include "device.hpp"
-
-struct ur_platform_handle_t_ {
-  ur_device_handle_t_ TheDevice{this};
-};
+#include "atomic_update_usm.cpp"
