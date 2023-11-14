@@ -5,16 +5,27 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+/*
+ *
+ * Copyright (C) 2023 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ * @file ur_san_layer.cpp
+ *
+ */
 
-#include "sanitizer_interceptor.hpp"
+#include "asan_interceptor.hpp"
 #include "device_sanitizer_report.hpp"
-#include "ur_asan_layer.hpp"
+#include "ur_san_layer.hpp"
 
 #include <cstdint>
 #include <cstring>
 #include <utility>
 
-namespace ur_asan_layer {
+namespace ur_san_layer {
 
 namespace {
 
@@ -616,4 +627,4 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
     QueueInfo.LastEvent = LastEvent;
 }
 
-} // namespace ur_asan_layer
+} // namespace ur_san_layer

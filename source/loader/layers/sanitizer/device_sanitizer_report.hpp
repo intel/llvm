@@ -1,16 +1,15 @@
-//==---------- sanitizer_interceptor.hpp - Sanitizer interceptor -----------==//
+//==---------- device_sanitizer_report.hpp - Device Sanitizer -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #pragma once
 
 #include <cinttypes>
 
-namespace ur_asan_layer {
+namespace ur_san_layer {
 
 enum class DeviceSanitizerErrorType : int32_t {
     UNKNOWN,
@@ -90,4 +89,4 @@ const char *DeviceSanitizerFormat(DeviceSanitizerErrorType ErrorType) {
     }
 }
 
-} // namespace ur_asan_layer
+} // namespace ur_san_layer

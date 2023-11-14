@@ -1,11 +1,21 @@
-//==---------- sanitizer_interceptor.hpp - Sanitizer interceptor -----------==//
+//==---------- common.hpp - Device Sanitizer -----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+/*
+ *
+ * Copyright (C) 2023 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ * @file common.hpp
+ *
+ */
 #pragma once
 
 #include <cassert>
@@ -14,7 +24,7 @@
 #include "ur_ddi.h"
 #include <ur/ur.hpp>
 
-namespace ur_asan_layer {
+namespace ur_san_layer {
 
 typedef uintptr_t uptr;
 typedef unsigned char u8;
@@ -41,47 +51,12 @@ inline constexpr bool IsAligned(uptr a, uptr alignment) {
     return (a & (alignment - 1)) == 0;
 }
 
-/*
-inline uptr LeastSignificantSetBitIndex(uptr x) {
-  // CHECK_NE(x, 0U);
-  unsigned long up;
-#if !SANITIZER_WINDOWS || defined(__clang__) || defined(__GNUC__)
-#ifdef _WIN64
-  up = __builtin_ctzll(x);
-#else
-  up = __builtin_ctzl(x);
-#endif
-#elif defined(_WIN64)
-  _BitScanForward64(&up, x);
-#else
-  _BitScanForward(&up, x);
-#endif
-  return up;
-}
-
-inline uptr Log2(uptr x) {
-  // CHECK(IsPowerOfTwo(x));
-  return LeastSignificantSetBitIndex(x);
-}
-*/
-
 // Valid redzone sizes are 16, 32, 64, ... 2048, so we encode them in 3 bits.
 // We use adaptive redzones: for larger allocation larger redzones are used.
 inline constexpr u32 RZLog2Size(u32 rz_log) {
     // CHECK_LT(rz_log, 8);
     return 16 << rz_log;
 }
-
-/*
-static u32 RZSize2Log(u32 rz_size) {
-  // CHECK_GE(rz_size, 16);
-  // CHECK_LE(rz_size, 2048);
-  // CHECK(IsPowerOfTwo(rz_size));
-  u32 res = Log2(rz_size) - 4;
-  // CHECK_EQ(rz_size, RZLog2Size(res));
-  return res;
-}
-*/
 
 inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
     u32 rz_log = user_requested_size <= 64 - 16            ? 0
@@ -92,10 +67,6 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
                  : user_requested_size <= (1 << 15) - 512  ? 5
                  : user_requested_size <= (1 << 16) - 1024 ? 6
                                                            : 7;
-    // u32 hdr_log = RZSize2Log(RoundUpToPowerOfTwo(sizeof(ChunkHeader)));
-    // u32 min_log = RZSize2Log(atomic_load(&min_redzone, memory_order_acquire));
-    // u32 max_log = RZSize2Log(atomic_load(&max_redzone, memory_order_acquire));
-    // return Min(Max(rz_log, Max(min_log, hdr_log)), Max(max_log, hdr_log));
     return rz_log;
 }
 
@@ -259,4 +230,4 @@ static auto getUrResultString = [](ur_result_t Result) {
             return Result;                                                     \
     }
 
-} // namespace ur_asan_layer
+} // namespace ur_san_layer
