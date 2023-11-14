@@ -32,7 +32,9 @@ if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
   set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
 endif()
-# TODO: Set UR_BUILD_ADAPTER_NATIVE_CPU once adapter moved
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
 
 # Disable errors from warnings while building the UR.
 # And remember origin flags before doing that.
@@ -54,13 +56,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 192e9404392c38ac43d09116d6c97e153c66f46b
-  # Merge: 2f44433c f65473d9
+  # commit 659d3f469faa99a886fa680a3d6d20449b109578
+  # Merge: 192e9404 f94550b4
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Nov 10 13:25:42 2023 +0000
-  #     Merge pull request #1044 from aarongreig/aaron/clCTSFixMegaBranch
-  #     [OpenCL] Combined CTS fixes
-  set(UNIFIED_RUNTIME_TAG 192e9404392c38ac43d09116d6c97e153c66f46b)
+  # Date:   Tue Nov 14 16:45:24 2023 +0000
+  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
+  #     [NATIVECPU] Move Native CPU adapter to UR.
+  set(UNIFIED_RUNTIME_TAG 659d3f469faa99a886fa680a3d6d20449b109578)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -159,49 +161,6 @@ endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library("ur_adapter_native_cpu" SHARED
-    SOURCES
-      "ur/ur.cpp"
-      "ur/ur.hpp"
-      "ur/adapters/native_cpu/adapter.cpp"
-      "ur/adapters/native_cpu/command_buffer.cpp"
-      "ur/adapters/native_cpu/common.cpp"
-      "ur/adapters/native_cpu/common.hpp"
-      "ur/adapters/native_cpu/context.cpp"
-      "ur/adapters/native_cpu/context.hpp"
-      "ur/adapters/native_cpu/device.cpp"
-      "ur/adapters/native_cpu/device.hpp"
-      "ur/adapters/native_cpu/enqueue.cpp"
-      "ur/adapters/native_cpu/event.cpp"
-      "ur/adapters/native_cpu/image.cpp"
-      "ur/adapters/native_cpu/kernel.cpp"
-      "ur/adapters/native_cpu/kernel.hpp"
-      "ur/adapters/native_cpu/memory.cpp"
-      "ur/adapters/native_cpu/memory.hpp"
-      "ur/adapters/native_cpu/platform.cpp"
-      "ur/adapters/native_cpu/platform.hpp"
-      "ur/adapters/native_cpu/program.cpp"
-      "ur/adapters/native_cpu/program.hpp"
-      "ur/adapters/native_cpu/queue.cpp"
-      "ur/adapters/native_cpu/queue.hpp"
-      "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/ur_interface_loader.cpp"
-      "ur/adapters/native_cpu/usm.cpp"
-      "ur/adapters/native_cpu/usm_p2p.cpp"
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      OpenCL-Headers
-  )
-
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
-
 if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.
@@ -237,4 +196,8 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 endif()
