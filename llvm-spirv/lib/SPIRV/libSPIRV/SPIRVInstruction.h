@@ -2746,16 +2746,22 @@ public:
 class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
 public:
   std::optional<ExtensionID> getRequiredExtension() const override {
+    assert(hasType());
+    if (getType()->isTypeFloat(16))
+      return ExtensionID::SPV_EXT_shader_atomic_float16_add;
     return ExtensionID::SPV_EXT_shader_atomic_float_add;
   }
 
   SPIRVCapVec getRequiredCapability() const override {
     assert(hasType());
+    if (getType()->isTypeFloat(16))
+      return {CapabilityAtomicFloat16AddEXT};
     if (getType()->isTypeFloat(32))
       return {CapabilityAtomicFloat32AddEXT};
-    assert(getType()->isTypeFloat(64) &&
-           "AtomicFAddEXT can only be generated for f32 or f64 types");
-    return {CapabilityAtomicFloat64AddEXT};
+    if (getType()->isTypeFloat(64))
+      return {CapabilityAtomicFloat64AddEXT};
+    llvm_unreachable(
+        "AtomicFAddEXT can only be generated for f16, f32, f64 types");
   }
 };
 
