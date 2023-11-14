@@ -18,9 +18,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 4)
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
-#endif
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -742,7 +740,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 16, matrix_type::sint8, matrix_type::sint8,
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},

@@ -576,36 +576,6 @@ __esimd_lsc_xatomic_bti_2(
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param addrs is the prefetch addresses.
-template <typename Ty, int InternalOp, __ESIMD_ENS::cache_hint L1H,
-          __ESIMD_ENS::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
-__esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                                __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-/// USM pointer atomic.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Ty is element type.
-/// @tparam InternalOp is operation type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
 
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
