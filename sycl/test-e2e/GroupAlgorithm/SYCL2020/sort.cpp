@@ -36,6 +36,7 @@
 namespace oneapi_exp = sycl::ext::oneapi::experimental;
 
 template <typename...> class KernelNameOverGroup;
+template <typename...> class KernelNameKeyValueOVerGroup;
 template <typename...> class KernelNameJoint;
 
 enum class UseGroupT { SubGroup = true, WorkGroup = false };
@@ -57,27 +58,19 @@ private:
   size_t MVal = 0;
 };
 
-template <class CompT, class T> struct RadixSorterType;
-
-template <class T> struct RadixSorterType<std::greater<T>, T> {
-  using Type =
-      oneapi_exp::radix_sorter<T, oneapi_exp::sorting_order::descending>;
-};
-
-template <class T> struct RadixSorterType<std::less<T>, T> {
-  using Type =
-      oneapi_exp::radix_sorter<T, oneapi_exp::sorting_order::ascending>;
-};
+template <class T> struct ConvertToSimpleType { using Type = T; };
 
 // Dummy overloads for CustomType which is not supported by radix sorter
-template <> struct RadixSorterType<std::less<CustomType>, CustomType> {
-  using Type =
-      oneapi_exp::radix_sorter<int, oneapi_exp::sorting_order::ascending>;
+template <> struct ConvertToSimpleType<CustomType> { using Type = int; };
+
+template <class SorterT> struct ConvertToSortingOrder;
+
+template <class T> struct ConvertToSortingOrder<std::greater<T>> {
+  static const auto Type = oneapi_exp::sorting_order::descending;
 };
 
-template <> struct RadixSorterType<std::greater<CustomType>, CustomType> {
-  using Type =
-      oneapi_exp::radix_sorter<int, oneapi_exp::sorting_order::descending>;
+template <class T> struct ConvertToSortingOrder<std::less<T>> {
+  static const auto Type = oneapi_exp::sorting_order::ascending;
 };
 
 constexpr size_t ReqSubGroupSize = 8;
@@ -93,22 +86,24 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
 
   constexpr size_t NumSubGroups = WGSize / ReqSubGroupSize;
 
-  using RadixSorterT = typename RadixSorterType<Compare, T>::Type;
+  using RadixSorterT = oneapi_exp::radix_sorters::joint_sorter<
+      typename ConvertToSimpleType<T>::Type,
+      ConvertToSortingOrder<Compare>::Type>;
 
   std::size_t LocalMemorySizeDefault = 0;
   std::size_t LocalMemorySizeRadix = 0;
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::sub_group, ReqSubGroupSize * ElemsPerWI);
+    LocalMemorySizeDefault = oneapi_exp::default_sorters::joint_sorter<
+        Compare>::template memory_required<T>(sycl::memory_scope::sub_group,
+                                              ReqSubGroupSize * ElemsPerWI);
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, ReqSubGroupSize * ElemsPerWI);
   } else {
     // A single chunk of memory for each work-group
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::work_group, WGSize * ElemsPerWI);
+    LocalMemorySizeDefault = oneapi_exp::default_sorters::joint_sorter<
+        Compare>::template memory_required<T>(sycl::memory_scope::work_group,
+                                              WGSize * ElemsPerWI);
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, WGSize * ElemsPerWI);
   }
@@ -189,18 +184,19 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
                    oneapi_exp::group_with_scratchpad(
                        Group, sycl::span{&ScratchDefault[LocalPartID],
                                          LocalMemorySizeDefault}),
-                   &AccToSort0[StartIdx], &AccToSort0[EndIdx]);
+                   &AccToSort0[StartIdx], &AccToSort0[EndIdx]); // (1)
 
              oneapi_exp::joint_sort(
                  oneapi_exp::group_with_scratchpad(
                      Group, sycl::span{&ScratchDefault[LocalPartID],
                                        LocalMemorySizeDefault}),
-                 &AccToSort1[StartIdx], &AccToSort1[EndIdx], Comp);
+                 &AccToSort1[StartIdx], &AccToSort1[EndIdx], Comp); // (2)
 
              oneapi_exp::joint_sort(
                  Group, &AccToSort2[StartIdx], &AccToSort2[EndIdx],
-                 oneapi_exp::default_sorter<Compare>(sycl::span{
-                     &ScratchDefault[LocalPartID], LocalMemorySizeDefault}));
+                 oneapi_exp::default_sorters::joint_sorter<Compare>(
+                     sycl::span{&ScratchDefault[LocalPartID],
+                                LocalMemorySizeDefault})); // (3) default
 
              const size_t LocalPartIDRadix =
                  UseGroup == UseGroupT::SubGroup
@@ -212,7 +208,7 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
                oneapi_exp::joint_sort(
                    Group, &AccToSort3[StartIdx], &AccToSort3[EndIdx],
                    RadixSorterT(sycl::span{&ScratchRadix[LocalPartIDRadix],
-                                           LocalMemorySizeRadix}));
+                                           LocalMemorySizeRadix})); // (3) radix
            });
      }).wait_and_throw();
   }
@@ -243,6 +239,240 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
   }
 }
 
+template <UseGroupT UseGroup, int Dims, class T, class U, class Compare>
+void RunSortKeyValueOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
+                              const std::vector<U> &KeysToSort,
+                              const Compare &Comp) {
+
+  const size_t NumOfElements = DataToSort.size();
+  const size_t NumSubGroups = NumOfElements / ReqSubGroupSize + 1;
+
+  const sycl::nd_range<Dims> NDRange = [&]() {
+    if constexpr (Dims == 1)
+      return sycl::nd_range<1>{{NumOfElements}, {NumOfElements}};
+    else
+      return sycl::nd_range<2>{{1, NumOfElements}, {1, NumOfElements}};
+    static_assert(Dims < 3,
+                  "Only one and two dimensional kernels are supported");
+  }();
+
+  using RadixSorterT = oneapi_exp::radix_sorters::group_key_value_sorter<
+      typename ConvertToSimpleType<T>::Type, U,
+      ConvertToSortingOrder<Compare>::Type>;
+
+  std::size_t LocalMemorySizeDefault = 0;
+  std::size_t LocalMemorySizeRadix = 0;
+  if (UseGroup == UseGroupT::SubGroup) {
+    // Each sub-group needs a piece of memory for sorting
+    LocalMemorySizeDefault =
+        oneapi_exp::default_sorters::group_key_value_sorter<
+            T, U, Compare>::memory_required(sycl::memory_scope::sub_group,
+                                            ReqSubGroupSize);
+
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
+        sycl::memory_scope::sub_group, ReqSubGroupSize);
+  } else {
+    // A single chunk of memory for each work-group
+    LocalMemorySizeDefault =
+        oneapi_exp::default_sorters::group_key_value_sorter<
+            T, U, Compare>::memory_required(sycl::memory_scope::work_group,
+                                            NumOfElements);
+
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
+        sycl::memory_scope::work_group, NumOfElements);
+  }
+
+  std::vector<T> DataToSortCase0 = DataToSort;
+  std::vector<U> KeysToSortCase0 = KeysToSort;
+
+  std::vector<T> DataToSortCase1 = DataToSort;
+  std::vector<T> KeysToSortCase1 = KeysToSort;
+
+  std::vector<T> DataToSortCase2 = DataToSort;
+  std::vector<T> KeysToSortCase2 = KeysToSort;
+
+  std::vector<T> DataToSortCase3 = DataToSort;
+  std::vector<T> KeysToSortCase3 = KeysToSort;
+
+  // Sort data using 3 different versions of sort_over_group API
+  {
+    sycl::buffer<T> BufDataToSort0(DataToSortCase0.data(),
+                                   DataToSortCase0.size());
+    sycl::buffer<U> BufKeysToSort0(KeysToSortCase0.data(),
+                                   KeysToSortCase0.size());
+
+    sycl::buffer<T> BufDataToSort1(DataToSortCase1.data(),
+                                   DataToSortCase1.size());
+    sycl::buffer<T> BufKeysToSort1(KeysToSortCase1.data(),
+                                   KeysToSortCase1.size());
+
+    sycl::buffer<T> BufDataToSort2(DataToSortCase2.data(),
+                                   DataToSortCase2.size());
+    sycl::buffer<T> BufKeysToSort2(KeysToSortCase2.data(),
+                                   KeysToSortCase2.size());
+
+    sycl::buffer<T> BufDataToSort3(DataToSortCase3.data(),
+                                   DataToSortCase3.size());
+    sycl::buffer<T> BufKeysToSort3(KeysToSortCase3.data(),
+                                   KeysToSortCase3.size());
+
+    Q.submit([&](sycl::handler &CGH) {
+       auto AccDataToSort0 = sycl::accessor(BufDataToSort0, CGH);
+       auto AccKeysToSort0 = sycl::accessor(BufKeysToSort0, CGH);
+
+       auto AccDataToSort1 = sycl::accessor(BufDataToSort1, CGH);
+       auto AccKeysToSort1 = sycl::accessor(BufKeysToSort1, CGH);
+
+       auto AccDataToSort2 = sycl::accessor(BufDataToSort2, CGH);
+       auto AccKeysToSort2 = sycl::accessor(BufKeysToSort2, CGH);
+
+       auto AccDataToSort3 = sycl::accessor(BufDataToSort3, CGH);
+       auto AccKeysToSort3 = sycl::accessor(BufKeysToSort3, CGH);
+
+       // Allocate local memory for all sub-groups in a work-group
+       const size_t TotalLocalMemSizeDefault =
+           UseGroup == UseGroupT::SubGroup
+               ? LocalMemorySizeDefault * NumSubGroups
+               : LocalMemorySizeDefault;
+       sycl::local_accessor<std::byte, 1> ScratchDefault(
+           {TotalLocalMemSizeDefault}, CGH);
+
+       const size_t TotalLocalMemSizeRadix =
+           UseGroup == UseGroupT::SubGroup ? LocalMemorySizeRadix * NumSubGroups
+                                           : LocalMemorySizeRadix;
+
+       sycl::local_accessor<std::byte, 1> ScratchRadix({TotalLocalMemSizeRadix},
+                                                       CGH);
+
+       CGH.parallel_for<KernelNameKeyValueOVerGroup<
+           IntWrapper<Dims>, UseGroupWrapper<UseGroup>, T, Compare>>(
+           NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+                        ReqSubGroupSize)]] {
+             const size_t GlobalLinearID = id.get_global_linear_id();
+
+             auto Group = [&]() {
+               if constexpr (UseGroup == UseGroupT::SubGroup)
+                 return id.get_sub_group();
+               else
+                 return id.get_group();
+             }();
+
+             // Each sub-group should use it's own part of the scratch pad
+             const size_t ScratchShiftDefault =
+                 UseGroup == UseGroupT::SubGroup
+                     ? id.get_sub_group().get_group_linear_id() *
+                           LocalMemorySizeDefault
+                     : 0;
+             std::byte *ScratchPtrDefault =
+                 &ScratchDefault[0] + ScratchShiftDefault;
+
+             // TODO: Remove spans?
+             if constexpr (std::is_same_v<Compare, std::less<T>>)
+               oneapi_exp::sort_key_value_over_group(
+                   oneapi_exp::group_with_scratchpad(
+                       Group,
+                       sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                   sycl::span<U, /*ElementsPerWorkItem*/ 1>{
+                       &AccKeysToSort0[GlobalLinearID],
+                       &AccKeysToSort0[GlobalLinearID] + 1},
+                   sycl::span<T, /*ElementsPerWorkItem*/ 1>{
+                       &AccDataToSort0[GlobalLinearID],
+                       &AccDataToSort0[GlobalLinearID] + 1}); // (4)
+
+             oneapi_exp::sort_key_value_over_group(
+                 oneapi_exp::group_with_scratchpad(
+                     Group,
+                     sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
+                 sycl::span<U, /*ElementsPerWorkItem*/ 1>{
+                     &AccKeysToSort1[GlobalLinearID],
+                     &AccKeysToSort1[GlobalLinearID] + 1},
+                 sycl::span<T, /*ElementsPerWorkItem*/ 1>{
+                     &AccDataToSort1[GlobalLinearID],
+                     &AccDataToSort1[GlobalLinearID] + 1},
+                 Comp, {}); // (5)
+
+             oneapi_exp::sort_key_value_over_group(
+                 Group,
+                 sycl::span<U, /*ElementsPerWorkItem*/ 1>{
+                     &AccKeysToSort2[GlobalLinearID],
+                     &AccKeysToSort2[GlobalLinearID] + 1},
+                 sycl::span<T, /*ElementsPerWorkItem*/ 1>{
+                     &AccDataToSort2[GlobalLinearID],
+                     &AccDataToSort2[GlobalLinearID] + 1},
+                 oneapi_exp::default_sorters::group_key_value_sorter<
+                     T, U, Compare, /*ElementsPerWorkItem*/ 1>(sycl::span{
+                     ScratchPtrDefault, LocalMemorySizeDefault})); // (6)
+
+             // Each sub-group should use it's own part of the scratch pad
+             const size_t ScratchShiftRadix =
+                 UseGroup == UseGroupT::SubGroup
+                     ? id.get_sub_group().get_group_linear_id() *
+                           LocalMemorySizeRadix
+                     : 0;
+             std::byte *ScratchPtrRadix = &ScratchRadix[0] + ScratchShiftRadix;
+
+             /* // Radix doesn't support custom types */
+             if constexpr (!std::is_same_v<CustomType, T>)
+               oneapi_exp::sort_key_value_over_group(
+                   Group,
+                   sycl::span<U, /*ElementsPerWorkItem*/ 1>{
+                       &AccKeysToSort3[GlobalLinearID],
+                       &AccKeysToSort3[GlobalLinearID] + 1},
+                   sycl::span<T, /*ElementsPerWorkItem*/ 1>{
+                       &AccDataToSort3[GlobalLinearID],
+                       &AccDataToSort3[GlobalLinearID] + 1},
+                   RadixSorterT(sycl::span{ScratchPtrRadix,
+                                           LocalMemorySizeRadix})); // (6) radix
+           });
+     }).wait_and_throw();
+  }
+
+  // Verification
+  {
+    // Emulate independent sorting of each work-group/sub-group
+    const size_t ChunkSize = UseGroup == UseGroupT::SubGroup
+                                 ? ReqSubGroupSize
+                                 : NDRange.get_local_range().size();
+    std::vector<T> KeysSorted = KeysToSort;
+    auto It = KeysSorted.begin();
+    for (; (It + ChunkSize) < KeysSorted.end(); It += ChunkSize)
+      std::sort(It, It + ChunkSize, Comp);
+
+    // Sort reminder
+    std::sort(It, KeysSorted.end(), Comp);
+
+    // TODO: Check data as well
+
+    /* std::cout << "Reference data: " << std::endl; */
+    /* for(auto &El: KeysSorted) */
+    /*     std::cout << El << " "; */
+    /* std::cout << std::endl; */
+
+    /* std::cout << "DataToSortCase0 data: " << std::endl; */
+    /* for(auto &El: DataToSortCase0) */
+    /*     std::cout << El << " "; */
+    /* std::cout << std::endl; */
+
+    /* std::cout << "KeysToSortCase0 data: " << std::endl; */
+    /* for(auto &El: KeysToSortCase0) */
+    /*     std::cout << El << " "; */
+    /* std::cout << std::endl; */
+
+    /* std::cout << "InputData data: " << std::endl; */
+    /* for(auto &El: DataToSort) */
+    /*     std::cout << El << " "; */
+    /* std::cout << std::endl; */
+
+    if constexpr (std::is_same_v<Compare, std::less<T>>)
+      assert(KeysToSortCase0 == KeysSorted);
+
+    assert(KeysToSortCase1 == KeysSorted);
+    assert(KeysToSortCase2 == KeysSorted);
+    if constexpr (!std::is_same_v<CustomType, T>)
+      assert(KeysToSortCase3 == KeysSorted);
+  }
+}
+
 template <UseGroupT UseGroup, int Dims, class T, class Compare>
 void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
                       const Compare &Comp) {
@@ -259,26 +489,28 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
                   "Only one and two dimensional kernels are supported");
   }();
 
-  using RadixSorterT = typename RadixSorterType<Compare, T>::Type;
+  using RadixSorterT = oneapi_exp::radix_sorters::group_sorter<
+      typename ConvertToSimpleType<T>::Type,
+      ConvertToSortingOrder<Compare>::Type>;
 
   std::size_t LocalMemorySizeDefault = 0;
   std::size_t LocalMemorySizeRadix = 0;
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::sub_group, sycl::range<1>{ReqSubGroupSize});
+    LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
+        T, 1, Compare>::memory_required(sycl::memory_scope::sub_group,
+                                        ReqSubGroupSize);
 
-    LocalMemorySizeRadix = RadixSorterT::template memory_required(
-        sycl::memory_scope::sub_group, sycl::range<1>{ReqSubGroupSize});
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
+        sycl::memory_scope::sub_group, ReqSubGroupSize);
   } else {
     // A single chunk of memory for each work-group
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::work_group, sycl::range<1>{NumOfElements});
+    LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
+        T, 1, Compare>::memory_required(sycl::memory_scope::work_group,
+                                        NumOfElements);
 
-    LocalMemorySizeRadix = RadixSorterT::template memory_required(
-        sycl::memory_scope::work_group, sycl::range<1>{NumOfElements});
+    LocalMemorySizeRadix = RadixSorterT::memory_required(
+        sycl::memory_scope::work_group, NumOfElements);
   }
 
   std::vector<T> DataToSortCase0 = DataToSort;
@@ -341,18 +573,19 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
                    oneapi_exp::group_with_scratchpad(
                        Group,
                        sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                   AccToSort0[GlobalLinearID]);
+                   AccToSort0[GlobalLinearID]); // (4)
 
              AccToSort1[GlobalLinearID] = oneapi_exp::sort_over_group(
                  oneapi_exp::group_with_scratchpad(
                      Group,
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}),
-                 AccToSort1[GlobalLinearID], Comp);
+                 AccToSort1[GlobalLinearID], Comp); // (5)
 
              AccToSort2[GlobalLinearID] = oneapi_exp::sort_over_group(
                  Group, AccToSort2[GlobalLinearID],
-                 oneapi_exp::default_sorter<Compare>(
-                     sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}));
+                 oneapi_exp::default_sorters::group_sorter<T, 1, Compare>(
+                     sycl::span{ScratchPtrDefault,
+                                LocalMemorySizeDefault})); // (6) default
 
              // Each sub-group should use it's own part of the scratch pad
              const size_t ScratchShiftRadix =
@@ -366,8 +599,8 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
              if constexpr (!std::is_same_v<CustomType, T>)
                AccToSort3[GlobalLinearID] = oneapi_exp::sort_over_group(
                    Group, AccToSort3[GlobalLinearID],
-                   RadixSorterT(
-                       sycl::span{ScratchPtrRadix, LocalMemorySizeRadix}));
+                   RadixSorterT(sycl::span{ScratchPtrRadix,
+                                           LocalMemorySizeRadix})); // (6) radix
            });
      }).wait_and_throw();
   }
@@ -399,9 +632,13 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
 template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
   std::vector<T> DataReversed(DataSize);
+  std::vector<T> KeysReversed(DataSize);
+
   std::vector<T> DataRandom(DataSize);
+  std::vector<T> KeysRandom(DataSize);
 
   std::iota(DataReversed.rbegin(), DataReversed.rend(), (size_t)0);
+  KeysReversed = DataReversed;
 
   // Fill using random numbers
   {
@@ -409,15 +646,24 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     std::normal_distribution<float> distribution((10.0), (2.0));
     for (T &Elem : DataRandom)
       Elem = T(distribution(generator));
+
+    for (T &Elem : KeysRandom)
+      Elem = T(distribution(generator));
   }
 
   auto RunOnDataAndComp = [&](const std::vector<T> &Data,
+                              const std::vector<T> &Keys,
                               const auto &Comparator) {
     RunSortOVerGroup<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
     RunSortOVerGroup<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
 
     RunJointSort<UseGroupT::WorkGroup, 1>(Q, Data, Comparator);
     RunJointSort<UseGroupT::WorkGroup, 2>(Q, Data, Comparator);
+
+    RunSortKeyValueOVerGroup<UseGroupT::WorkGroup, 1>(Q, Data, Keys,
+                                                      Comparator);
+    RunSortKeyValueOVerGroup<UseGroupT::WorkGroup, 2>(Q, Data, Keys,
+                                                      Comparator);
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
@@ -432,13 +678,15 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
     RunJointSort<UseGroupT::SubGroup, 2>(Q, Data, Comparator);
   };
 
-  RunOnDataAndComp(DataReversed, std::greater<T>{});
-  RunOnDataAndComp(DataReversed, std::less<T>{});
-  RunOnDataAndComp(DataRandom, std::less<T>{});
-  RunOnDataAndComp(DataRandom, std::greater<T>{});
+  RunOnDataAndComp(DataReversed, KeysReversed, std::greater<T>{});
+  RunOnDataAndComp(DataReversed, KeysReversed, std::less<T>{});
+  RunOnDataAndComp(DataRandom, KeysRandom, std::less<T>{});
+  RunOnDataAndComp(DataRandom, KeysRandom, std::greater<T>{});
 }
 
 int main() {
+  static_assert(SYCL_EXT_ONEAPI_GROUP_SORT == 2,
+                "Unexpected extension version");
   try {
     sycl::queue Q;
 
@@ -455,10 +703,8 @@ int main() {
     }
 
     std::cout << "Test passed." << std::endl;
-    return 0;
   } catch (std::exception &E) {
     std::cout << "Test failed" << std::endl;
     std::cout << E.what() << std::endl;
-    return 1;
   }
 }
