@@ -2535,7 +2535,7 @@ pi_int32 enqueueImpKernel(
     Program = DeviceImageImpl->get_program_ref();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
-    if (!std::getenv("SYCL_CACHE_DISABLE")) {
+    if (!SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get()) {
       auto [CachedKernel, CachedKernelMutex, CachedEliminatedArgMask] =
           detail::ProgramManager::getInstance().getOrCreateKernel(
               KernelBundleImplPtr->get_context(), KernelName,
@@ -2584,17 +2584,11 @@ pi_int32 enqueueImpKernel(
 
   pi_result Error = PI_SUCCESS;
   {
-    struct OptionalLockGuard {
-      std::mutex *m;
-      OptionalLockGuard(std::mutex *m) : m(m) {
-        if (m)
-          m->lock();
-      }
-      ~OptionalLockGuard() {
-        if (m)
-          m->unlock();
-      }
-    } Lock(KernelMutex);
+    // When KernelMutex is null, this means that in-memory caching is 
+    // disabled, which means that kernel object is not shared, so no locking 
+    // is necessary.
+    using LockT = std::unique_lock<std::mutex>;
+    auto Lock = KernelMutex ? LockT(*KernelMutex) : LockT();
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.

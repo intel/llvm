@@ -614,6 +614,15 @@ private:
   }
 };
 
+template <> class SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_DISABLE_IN_MEM>;
+public:
+  static bool get() {
+    static bool Val = BaseT::getRawValue();
+    return Val;
+  };
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail

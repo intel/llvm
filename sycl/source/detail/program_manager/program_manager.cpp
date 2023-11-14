@@ -699,7 +699,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     return Cache.getOrInsertProgram(CacheKey);
   };
 
-  if (std::getenv("SYCL_CACHE_DISABLE"))
+  if (SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get())
     return BuildF();
 
   auto BuildResult =
@@ -738,7 +738,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
                              CompileOpts + LinkOpts, KernelName);
-  if (!std::getenv("SYCL_CACHE_DISABLE")) {
+  if (!SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
     if (std::get<0>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
@@ -776,7 +776,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
-  if (std::getenv("SYCL_CACHE_DISABLE")) {
+  if (SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get()) {
     // The built kernel cannot be shared between multiple
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
@@ -2330,7 +2330,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
-  if (std::getenv("SYCL_CACHE_DISABLE")) {
+  if (SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get()) {
     auto ResProgram = BuildF();
     DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
         InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
@@ -2433,7 +2433,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
-  if (std::getenv("SYCL_CACHE_DISABLE")) {
+  if (SYCLConfig<SYCL_CACHE_DISABLE_IN_MEM>::get()) {
     // The built kernel cannot be shared between multiple
     // threads when caching is disabled, so we can return
     // nullptr for the mutex.
