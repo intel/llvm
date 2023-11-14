@@ -547,6 +547,7 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
   if constexpr (UsePVCFeatures) {
     passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
     passed &= test_int_types<32, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
+    passed &= test_int_types<64, Op, UseMask, UsePVCFeatures, SignMask>(q, cfg);
     // non power of two values are supported only in newer driver.
     // TODO: Enable this when the new driver reaches test infrastructure
     // (v27556).
@@ -572,6 +573,7 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   if constexpr (UsePVCFeatures) {
     passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures>(q, cfg);
     passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures>(q, cfg);
     // non power of two values are supported only in newer driver.
     // TODO: Enable this when the new driver reaches test infrastructure
     // (v27556).
