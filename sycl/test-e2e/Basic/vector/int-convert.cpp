@@ -5,6 +5,7 @@
 // Macro is passed to silence warnings about sycl::byte
 //
 // RUN: %{build} -o %t.out -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
+// dummy
 // RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
