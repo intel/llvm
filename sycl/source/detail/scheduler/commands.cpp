@@ -2404,13 +2404,13 @@ pi_int32 enqueueImpCommandBufferKernel(
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
   pi_program PiProgram = nullptr;
+  std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
+  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
   auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
-  std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   // Use kernel_bundle if available unless it is interop.
   // Interop bundles can't be used in the first branch, because the kernels
   // in interop kernel bundles (if any) do not have kernel_id
@@ -2438,13 +2438,12 @@ pi_int32 enqueueImpCommandBufferKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
-  auto SetFunc = [&Plugin, &PiKernel, &Ctx, &getMemAllocationFunc](
-                     sycl::detail::ArgDesc &Arg, size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(
-        Plugin, PiKernel,
-        nullptr /* TODO: Handle spec constants and pass device image here */
-        ,
-        getMemAllocationFunc, Ctx, false, Arg, NextTrueIndex);
+  auto SetFunc = [&Plugin, &PiKernel, &DeviceImageImpl, &Ctx,
+                  &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
+                                         size_t NextTrueIndex) {
+    sycl::detail::SetArgBasedOnType(Plugin, PiKernel, DeviceImageImpl,
+                                    getMemAllocationFunc, Ctx, false, Arg,
+                                    NextTrueIndex);
   };
   // Copy args for modification
   auto Args = CommandGroup.MArgs;
@@ -2682,14 +2681,19 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
-  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  // Wait on host command dependencies
+  waitForPreparedHostEvents();
 
-  // Any non-allocation dependencies need to be waited on here since subsequent
+  // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  if (!RawEvents.empty()) {
+    const PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+  }
 
   sycl::detail::pi::PiEvent *Event =
       (MQueue->has_discard_events_support() &&
@@ -2761,7 +2765,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Req->MDims, Req->MAccessRange,
         /*DstOffset=*/{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
-
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyPtrToAcc: {
@@ -2775,7 +2779,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
-
+    MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
   default:

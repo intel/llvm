@@ -484,7 +484,7 @@ list coming either from `llvm-spirv` or from the AOT backend.
 Targeting PTX currently only accepts a single input file for processing, so
 `file-table-tform` is used to extract the code file from the file table, which
 is then processed by the
-["PTX target processing" step](#device-code-post-link-step-for-CUDA).
+["PTX target processing" step](#device-code-post-link-step-for-cuda).
 The resulting device binary is inserted back into the file table in place of the
 extracted code file using `file-table-tform`. If `-fno-sycl-rdc` is specified,
 all shown tools are invoked multiple times, once per translation unit rather than
@@ -556,7 +556,7 @@ TBD
 
 ##### Specialization constants lowering
 
-See [corresponding documentation](SpecializationConstants.md)
+See corresponding documentation
 
 #### CUDA support
 
@@ -1011,4 +1011,4 @@ with any other address space (including default).
 
 ## DPC++ Language extensions to SYCL
 
-List of language extensions can be found at [extensions](../extensions)
+List of language extensions can be found at [extensions](https://github.com/intel/llvm/blob/sycl/doc/extensions/)

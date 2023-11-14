@@ -44,6 +44,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_long_constant_composite
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_arithmetic_fence
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_cache_controls
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_buffer_location
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_argument_interfaces
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes

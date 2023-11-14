@@ -14,6 +14,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "SymPropReader.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -122,6 +123,13 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::desc("Output filename"),
                                    cl::value_desc("filename"),
                                    cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<std::string>
+    SymPropBCFiles("sym-prop-bc-files", cl::Optional,
+                   cl::desc("File with list of wrapped BC input files that "
+                            "will be used to supply symbols and properties."),
+                   cl::value_desc("filename"),
+                   cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
@@ -346,6 +354,8 @@ public:
   std::vector<std::string> TempFiles;
 
 private:
+  std::unique_ptr<SymPropReader> MySymPropReader;
+
   IntegerType *getSizeTTy() {
     switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
     case 4u:
@@ -744,7 +754,7 @@ private:
   // specified.
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
-    if (EntriesFile.empty()) {
+    if (EntriesFile.empty() && !MySymPropReader) {
       auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
@@ -753,19 +763,28 @@ private:
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
     auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
 
-    Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
-    if (!MBOrErr)
-      return MBOrErr.takeError();
-    MemoryBuffer *MB = *MBOrErr;
-
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
     // compatibility and new SYCL features
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
-      EntriesInits.push_back(ConstantStruct::get(
-          getEntryTy(), NullPtr,
-          addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
-          i32Zero));
+    if (MySymPropReader) {
+      for (uint64_t i = 0; i < MySymPropReader->getNumEntries(); i++)
+        EntriesInits.push_back(ConstantStruct::get(
+            getEntryTy(), NullPtr,
+            addStringToModule(MySymPropReader->getEntryName(i),
+                              "__sycl_offload_entry_name"),
+            Zero, i32Zero, i32Zero));
+    } else {
+      Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
+      if (!MBOrErr)
+        return MBOrErr.takeError();
+      MemoryBuffer *MB = *MBOrErr;
+
+      for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
+        EntriesInits.push_back(ConstantStruct::get(
+            getEntryTy(), NullPtr,
+            addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
+            i32Zero));
+    }
 
     auto *Arr = ConstantArray::get(
         ArrayType::get(getEntryTy(), EntriesInits.size()), EntriesInits);
@@ -856,21 +875,31 @@ private:
   // array, or a pair of nullptrs in case the properties file wasn't specified.
   Expected<std::pair<Constant *, Constant *>>
   tformSYCLPropertySetRegistryFileToIR(StringRef PropRegistryFile) {
-    if (PropRegistryFile.empty()) {
-      auto *NullPtr =
-          Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
-      return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+
+    std::unique_ptr<llvm::util::PropertySetRegistry> PropRegistry;
+
+    if (MySymPropReader) {
+      PropRegistry = MySymPropReader->getPropRegistry();
+    } else {
+      if (PropRegistryFile.empty()) {
+        auto *NullPtr =
+            Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
+        return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+      }
+      // load the property registry file
+      Expected<MemoryBuffer *> MBOrErr = loadFile(PropRegistryFile);
+      if (!MBOrErr)
+        return MBOrErr.takeError();
+      MemoryBuffer *MB = *MBOrErr;
+      Expected<std::unique_ptr<llvm::util::PropertySetRegistry>> PropRegistryE =
+          llvm::util::PropertySetRegistry::read(MB);
+      if (!PropRegistryE)
+        return PropRegistryE.takeError();
+      std::unique_ptr<llvm::util::PropertySetRegistry> &PropRegistryFromFile =
+          PropRegistryE.get();
+      PropRegistry = std::move(PropRegistryFromFile);
     }
-    // load the property registry file
-    Expected<MemoryBuffer *> MBOrErr = loadFile(PropRegistryFile);
-    if (!MBOrErr)
-      return MBOrErr.takeError();
-    MemoryBuffer *MB = *MBOrErr;
-    Expected<std::unique_ptr<llvm::util::PropertySetRegistry>> PropRegistryE =
-        llvm::util::PropertySetRegistry::read(MB);
-    if (!PropRegistryE)
-      return PropRegistryE.takeError();
-    auto &PropRegistry = PropRegistryE.get();
+
     std::vector<Constant *> PropSetsInits;
 
     // transform all property sets to IR and get the middle column image into
@@ -1003,6 +1032,9 @@ private:
                                                            Twine("opts.link.") +
                                                            Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
+
+      if (MySymPropReader)
+        MySymPropReader->getNextDeviceImageInitializer();
 
       if (Img.Manif.empty()) {
         // no manifest - zero out the fields
@@ -1195,8 +1227,14 @@ private:
   }
 
 public:
-  BinaryWrapper(StringRef Target, StringRef ToolName)
+  BinaryWrapper(StringRef Target, StringRef ToolName,
+                StringRef SymPropBCFiles = "")
       : M("offload.wrapper.object", C), ToolName(ToolName) {
+
+    if (!SymPropBCFiles.empty())
+      MySymPropReader =
+          std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
+
     M.setTargetTriple(Target);
     // Look for llvm-objcopy in the same directory, from which
     // clang-offload-wrapper is invoked. This helps OpenMP offload
@@ -1707,11 +1745,23 @@ int main(int argc, const char **argv) {
         errc::invalid_argument, "'" + Target + "': unsupported target triple"));
     return 1;
   }
+  if (!SymPropBCFiles.empty() && Entries.size()) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "Entry points cannot be provided by both "
+                                  "-sym-prop-bc-files and -entries"));
+    return 1;
+  }
+  if (!SymPropBCFiles.empty() && Properties.size()) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "Properties cannot be provided by both "
+                                  "-sym-prop-bc-files and -properties"));
+    return 1;
+  }
 
   // Construct BinaryWrapper::Image instances based on command line args and
   // add them to the wrapper
 
-  BinaryWrapper Wr(Target, argv[0]);
+  BinaryWrapper Wr(Target, argv[0], SymPropBCFiles);
   OffloadKind Knd = OffloadKind::Unknown;
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;

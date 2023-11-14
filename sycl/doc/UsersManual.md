@@ -452,6 +452,15 @@ and not recommended to use in production environment.
     Currently the only supported Device is "pvc". The supported modes are
     "default","small","large", and "auto".
 
+**`-fpreview-breaking-changes`**
+
+    When specified, it informs the compiler driver and compilation phases
+    that it is allowed to break backward compatibility. When this option is
+    specified the compiler will also set the macro
+    __INTEL_PREVIEW_BREAKING_CHANGES.
+    When this option is used in conjunction with -fsycl, the driver will link
+    against an alternate form of libsycl, libsycl-preview.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

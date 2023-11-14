@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit: 7c8617b3710736db642585fe310a64e19e059d2e
-  # Merge:  20d4f49  9a13af
+  # commit ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc
+  # Merge: 62e6d2f9 5fb82924
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Oct 26 10:20:03 2023 +0100
-  #         Merge pull request #965 from Bensuo/ewan/L0_internal_event_fix
-  #         [Command-buffer][L0] Reset sync-point events
-  set(UNIFIED_RUNTIME_TAG 7c8617b3710736db642585fe310a64e19e059d2e)
+  # Date:   Wed Nov 8 13:32:46 2023 +0000
+  #     Merge pull request #1022 from 0x12CC/l0_usm_error_checking_2
+  #     [UR][L0] Propagate OOM errors from `USMAllocationMakeResident`
+  set(UNIFIED_RUNTIME_TAG ec7982bac6cb3a6b9ed610cd6b7cb41fcbc780dc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -189,12 +189,9 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/ur_interface_loader.cpp"
       "ur/adapters/native_cpu/usm.cpp"
       "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
       Threads::Threads
-      sycl
       OpenCL-Headers
   )
 

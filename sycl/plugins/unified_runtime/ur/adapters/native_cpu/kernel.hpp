@@ -9,11 +9,21 @@
 #pragma once
 
 #include "common.hpp"
-#include <sycl/detail/native_cpu.hpp>
+#include "nativecpu_state.hpp"
 #include <ur_api.h>
 
-using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
-                                __nativecpu_state *);
+namespace native_cpu {
+
+struct NativeCPUArgDesc {
+  void *MPtr;
+
+  NativeCPUArgDesc(void *Ptr) : MPtr(Ptr){};
+};
+
+} // namespace native_cpu
+
+using nativecpu_kernel_t = void(const native_cpu::NativeCPUArgDesc *,
+                                native_cpu::state *);
 using nativecpu_ptr_t = nativecpu_kernel_t *;
 using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 
@@ -31,7 +41,7 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   const char *_name;
   nativecpu_task_t _subhandler;
-  std::vector<sycl::detail::NativeCPUArgDesc> _args;
+  std::vector<native_cpu::NativeCPUArgDesc> _args;
   std::vector<local_arg_info_t> _localArgInfo;
 
   // To be called before enqueing the kernel.
