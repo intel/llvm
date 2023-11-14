@@ -424,7 +424,7 @@ public:
                                           size_t range_size) {
     (void)scope;
     return (std::max)(range_size * sizeof(ValT),
-                    range_size * (1 << bits) * sizeof(uint32_t));
+                      range_size * (1 << bits) * sizeof(uint32_t));
   }
 };
 
@@ -501,9 +501,10 @@ public:
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                std::size_t range_size) {
     (void)scope;
-    return (std::max)(range_size * ElementsPerWorkItem * (sizeof(T) + sizeof(U)) +
-                        2 * alignof(uint32_t),
-                    range_size * (1 << bits) * sizeof(uint32_t) + alignof(T));
+    return (std::max)(range_size * ElementsPerWorkItem *
+                              (sizeof(T) + sizeof(U)) +
+                          2 * alignof(uint32_t),
+                      range_size * (1 << bits) * sizeof(uint32_t) + alignof(T));
   }
 };
 
