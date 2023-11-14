@@ -7,15 +7,15 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_san_layer.cpp
+ * @file ur_sanitizer_layer.cpp
  *
  */
 
 #include "asan_interceptor.hpp"
 #include "device_sanitizer_report.hpp"
-#include "ur_san_layer.hpp"
+#include "ur_sanitizer_layer.hpp"
 
-namespace ur_san_layer {
+namespace ur_sanitizer_layer {
 
 namespace {
 
@@ -579,4 +579,4 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
     QueueInfo.LastEvent = LastEvent;
 }
 
-} // namespace ur_san_layer
+} // namespace ur_sanitizer_layer
