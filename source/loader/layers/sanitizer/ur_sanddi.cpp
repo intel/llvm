@@ -6,18 +6,14 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_trcddi.cpp
+ * @file ur_sanddi.cpp
  *
  */
 
-#include "common.h"
-#include "sanitizer_interceptor.hpp"
-#include "ur_asan_layer.hpp"
+#include "asan_interceptor.hpp"
+#include "ur_san_layer.hpp"
 
-#include <iostream>
-#include <stdio.h>
-
-namespace ur_asan_layer {
+namespace ur_san_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMHostAlloc
@@ -36,8 +32,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     if (nullptr == pfnHostAlloc) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
-
-    context.logger.debug("=== urUSMHostAlloc");
 
     return context.interceptor->allocateMemory(
         hContext, nullptr, pUSMDesc, pool, size, ppMem, USMMemoryType::HOST);
@@ -62,8 +56,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("=== urUSMDeviceAlloc");
-
     return context.interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::DEVICE);
 }
@@ -87,8 +79,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("=== urUSMSharedAlloc");
-
     return context.interceptor->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::SHARE);
 }
@@ -105,32 +95,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("=== urUSMFree");
-
     return context.interceptor->releaseMemory(hContext, pMem);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urKernelCreate
-__urdlllocal ur_result_t UR_APICALL urKernelCreate(
-    ur_program_handle_t hProgram, ///< [in] handle of the program instance
-    const char *pKernelName,      ///< [in] pointer to null-terminated string.
-    ur_kernel_handle_t
-        *phKernel ///< [out] pointer to handle of kernel object created.
-) {
-    auto pfnCreate = context.urDdiTable.Kernel.pfnCreate;
-
-    if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-    // context.logger.debug("=== urKernelCreate");
-
-    ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
-    // if (result == UR_RESULT_SUCCESS) {
-    //     context.interceptor->addKernel(hProgram, *phKernel);
-    // }
-
-    return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -148,7 +113,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     if (nullptr == pfnCreate) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
-    // context.logger.debug("=== urQueueCreate");
 
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
     if (result == UR_RESULT_SUCCESS) {
@@ -195,7 +159,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    context.logger.debug("=== urEnqueueKernelLaunch");
     ur_event_handle_t lk_event{};
     std::vector<ur_event_handle_t> events(numEventsInWaitList + 1);
     for (unsigned i = 0; i < numEventsInWaitList; ++i) {
@@ -313,19 +276,19 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_asan_layer::context.version) >
+        UR_MINOR_VERSION(ur_san_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_asan_layer::urContextCreate;
+    pDdiTable->pfnCreate = ur_san_layer::urContextCreate;
 
     pDdiTable->pfnCreateWithNativeHandle =
-        ur_asan_layer::urContextCreateWithNativeHandle;
+        ur_san_layer::urContextCreateWithNativeHandle;
 
     return result;
 }
@@ -346,46 +309,16 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_asan_layer::context.version) >
+        UR_MINOR_VERSION(ur_san_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnKernelLaunch = ur_asan_layer::urEnqueueKernelLaunch;
-
-    return result;
-}
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Kernel table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-__urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_kernel_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
-    if (nullptr == pDdiTable) {
-        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    }
-
-    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
-            UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_asan_layer::context.version) >
-            UR_MINOR_VERSION(version)) {
-        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-    }
-
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    pDdiTable->pfnCreate = ur_asan_layer::urKernelCreate;
+    pDdiTable->pfnKernelLaunch = ur_san_layer::urEnqueueKernelLaunch;
 
     return result;
 }
@@ -406,16 +339,16 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_asan_layer::context.version) >
+        UR_MINOR_VERSION(ur_san_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_asan_layer::urQueueCreate;
+    pDdiTable->pfnCreate = ur_san_layer::urQueueCreate;
 
     return result;
 }
@@ -436,16 +369,16 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
 
-    if (UR_MAJOR_VERSION(ur_asan_layer::context.version) !=
+    if (UR_MAJOR_VERSION(ur_san_layer::context.version) !=
             UR_MAJOR_VERSION(version) ||
-        UR_MINOR_VERSION(ur_asan_layer::context.version) >
+        UR_MINOR_VERSION(ur_san_layer::context.version) >
             UR_MINOR_VERSION(version)) {
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnDeviceAlloc = ur_asan_layer::urUSMDeviceAlloc;
+    pDdiTable->pfnDeviceAlloc = ur_san_layer::urUSMDeviceAlloc;
 
     return result;
 }
@@ -454,38 +387,41 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    if (!enabledLayerNames.count(name)) {
+    if (enabledLayerNames.count("UR_LAYER_ASAN")) {
+        context.enabledType = SanitizerType::AddressSanitizer;
+    } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
+        context.enabledType = SanitizerType::MemorySanitizer;
+    } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {
+        context.enabledType = SanitizerType::ThreadSanitizer;
+    }
+
+    // Only support AddressSanitizer now
+    if (context.enabledType != SanitizerType::AddressSanitizer) {
         return result;
     }
 
     // FIXME: Just copy needed APIs?
     urDdiTable = *dditable;
-
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_asan_layer::urGetContextProcAddrTable(
-            UR_API_VERSION_CURRENT, &dditable->Context);
+        result = ur_san_layer::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_asan_layer::urGetEnqueueProcAddrTable(
-            UR_API_VERSION_CURRENT, &dditable->Enqueue);
+        result = ur_san_layer::urGetEnqueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                         &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_asan_layer::urGetKernelProcAddrTable(UR_API_VERSION_CURRENT,
-                                                         &dditable->Kernel);
+        result = ur_san_layer::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
+                                                       &dditable->Queue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_asan_layer::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &dditable->Queue);
-    }
-
-    if (UR_RESULT_SUCCESS == result) {
-        result = ur_asan_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
-                                                      &dditable->USM);
+        result = ur_san_layer::urGetUSMProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &dditable->USM);
     }
 
     return result;
 }
-} // namespace ur_asan_layer
+} // namespace ur_san_layer

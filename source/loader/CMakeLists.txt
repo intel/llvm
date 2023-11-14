@@ -103,13 +103,14 @@ endif()
 if(UR_ENABLE_SANITIZER)
     target_sources(ur_loader
         PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/device_sanitizer_report.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/sanitizer_interceptor.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/sanitizer_interceptor.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/ur_asan_layer.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/ur_asan_layer.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan/ur_asnddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_san_layer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_san_layer.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
     )
     target_include_directories(ur_loader PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
