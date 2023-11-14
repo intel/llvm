@@ -97,16 +97,6 @@ class SanitizerInterceptor {
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                           ur_event_handle_t *Event, bool SetCallback = true);
 
-    ur_result_t createMemoryBuffer(ur_context_handle_t Context,
-                                   ur_mem_flags_t Flags, size_t Size,
-                                   const ur_buffer_properties_t *Properties,
-                                   ur_mem_handle_t *OutBuffer);
-    ur_result_t partitionMemoryBuffer(ur_mem_handle_t Buffer,
-                                      ur_mem_flags_t Flags,
-                                      ur_buffer_create_type_t BufferCreateType,
-                                      const ur_buffer_region_t *Region,
-                                      ur_mem_handle_t *OutBuffer);
-
     ur_result_t addContext(ur_context_handle_t Context);
     ur_result_t addDevice(ur_context_handle_t Context,
                           ur_device_handle_t Device);
