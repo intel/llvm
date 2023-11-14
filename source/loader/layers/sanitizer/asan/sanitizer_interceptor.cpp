@@ -60,6 +60,27 @@ const auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
 DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
+uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
+    return USM_SHADOW_BASE + (UPtr >> 3);
+}
+
+uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
+    if (UPtr & 0xFF00000000000000ULL) { // Device USM
+        return USM_SHADOW_BASE + 0x200000000000ULL +
+               ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
+    } else { // Only consider 47bit VA
+        return USM_SHADOW_BASE + ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
+    }
+}
+
+uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
+    if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
+        return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
+    } else {
+        return USM_SHADOW_BASE + (UPtr >> 3);
+    }
+}
+
 ur_context_handle_t getContext(ur_queue_handle_t Queue,
                                ur_dditable_t &Dditable) {
     ur_context_handle_t Context;
@@ -210,30 +231,6 @@ bool SanitizerInterceptor::launchKernel(ur_kernel_handle_t Kernel,
     return true;
 }
 
-static void checkSanitizerReport(const char *KernelName) {
-    auto AH = &SPIR_DeviceSanitizerReportMem;
-    if (!AH->Flag) {
-        return;
-    }
-
-    const char *File = AH->File[0] ? AH->File : "<unknown file>";
-    const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
-
-    fprintf(stderr, "\n====ERROR: DeviceSanitizer: %s on %s\n\n",
-            DeviceSanitizerFormat(AH->ErrorType),
-            DeviceSanitizerFormat(AH->MemoryType));
-    fprintf(stderr,
-            "%s of size %u at kernel <%s> LID(%lu, %lu, %lu) GID(%lu, "
-            "%lu, %lu)\n",
-            AH->IsWrite ? "WRITE" : "READ", AH->AccessSize, KernelName,
-            AH->LID0, AH->LID1, AH->LID2, AH->GID0, AH->GID1, AH->GID2);
-    fprintf(stderr, "  #0 %s %s:%d\n", Func, File, AH->Line);
-    fflush(stderr);
-    if (!AH->IsRecover) {
-        abort();
-    }
-}
-
 void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
                                             ur_event_handle_t *Event,
@@ -292,38 +289,12 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
     return std::string(KernelNameBuf.data(), KernelNameSize);
 }
 
-void SanitizerInterceptor::checkSanitizerError(ur_kernel_handle_t Kernel) {
-    std::string KernelName = getKernelName(Kernel);
-    checkSanitizerReport(KernelName.c_str());
-}
-
-uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
-    return USM_SHADOW_BASE + (UPtr >> 3);
-}
-
-uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
-    if (UPtr & 0xFF00000000000000ULL) { // Device USM
-        return USM_SHADOW_BASE + 0x200000000000ULL +
-               ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
-    } else { // Only consider 47bit VA
-        return USM_SHADOW_BASE + ((UPtr & 0x7FFFFFFFFFFFULL) >> 3);
-    }
-}
-
-uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
-    if (UPtr & (~0xFFFFFFFFFFFFULL)) { // Device USM
-        return USM_SHADOW_BASE + ((UPtr & 0xFFFFFFFFFFFFULL) >> 3);
-    } else {
-        return USM_SHADOW_BASE + (UPtr >> 3);
-    }
-}
-
 ur_result_t SanitizerInterceptor::allocShadowMemory(ur_context_handle_t Context,
                                                     DeviceInfo &DeviceInfo) {
-    if (DeviceInfo.Type == UR_DEVICE_TYPE_CPU) {
+    if (DeviceInfo.Type == DeviceType::CPU) {
         DeviceInfo.ShadowOffset = 0x00007fff7fffULL;
         DeviceInfo.ShadowOffsetEnd = 0x10007fff7fffULL;
-    } else if (DeviceInfo.Type == UR_DEVICE_TYPE_GPU) {
+    } else if (DeviceInfo.Type == DeviceType::GPU_PVC) {
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
@@ -351,9 +322,9 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
     ur_event_handle_t *OutEvent) {
     auto &ContextInfo = getContextInfo(Context);
     auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
-    if (DeviceInfo.Type == UR_DEVICE_TYPE_CPU) {
+    if (DeviceInfo.Type == DeviceType::CPU) {
         die("Unsupport device type");
-    } else if (DeviceInfo.Type == UR_DEVICE_TYPE_GPU) {
+    } else if (DeviceInfo.Type == DeviceType::GPU_PVC) {
         const uptr UPtr = (uptr)Ptr;
 
         ur_event_handle_t InternalEvent{};
@@ -542,7 +513,7 @@ ur_result_t SanitizerInterceptor::addContext(ur_context_handle_t Context) {
 
     // Host Device
     auto DeviceInfoPtr = std::make_unique<DeviceInfo>();
-    DeviceInfoPtr->Type = UR_DEVICE_TYPE_CPU;
+    DeviceInfoPtr->Type = DeviceType::CPU;
     DeviceInfoPtr->Alignment = ASAN_SHADOW_GRANULARITY;
 
     // TODO: Check if host asan is enabled
@@ -562,9 +533,19 @@ ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
     auto DeviceInfoPtr = std::make_unique<DeviceInfo>();
 
     // Query device type
-    UR_CALL(m_Dditable.Device.pfnGetInfo(Device, UR_DEVICE_INFO_TYPE,
-                                         sizeof(DeviceInfoPtr->Type),
-                                         &DeviceInfoPtr->Type, nullptr));
+    ur_device_type_t DeviceType;
+    UR_CALL(m_Dditable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr));
+    switch (DeviceType) {
+    case UR_DEVICE_TYPE_CPU:
+        DeviceInfoPtr->Type = DeviceType::CPU;
+        break;
+    case UR_DEVICE_TYPE_GPU:
+        DeviceInfoPtr->Type = DeviceType::GPU_PVC;
+        break;
+    default:
+        DeviceInfoPtr->Type = DeviceType::UNKNOWN;
+    }
 
     // Query alignment
     UR_CALL(m_Dditable.Device.pfnGetInfo(
@@ -637,7 +618,7 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
 
 ur_result_t SanitizerInterceptor::createMemoryBuffer(
     ur_context_handle_t Context, ur_mem_flags_t Flags, size_t Size,
-    const ur_buffer_properties_t *Properties, ur_mem_handle_t *Buffer) {
+    const ur_buffer_properties_t *Properties, ur_mem_handle_t *OutBuffer) {
     auto &ContextInfo = getContextInfo(Context);
 
     constexpr size_t Alignment = ASAN_SHADOW_GRANULARITY;
@@ -649,14 +630,14 @@ ur_result_t SanitizerInterceptor::createMemoryBuffer(
     const uptr NeededSize = RoundedSize + RZSize * 2;
 
     auto Result = m_Dditable.Mem.pfnBufferCreate(Context, Flags, NeededSize,
-                                                 Properties, Buffer);
+                                                 Properties, OutBuffer);
     if (Result != UR_RESULT_SUCCESS) {
         return Result;
     }
 
     // Get Native Handle
     ur_native_handle_t NativeHandle{};
-    Result = m_Dditable.Mem.pfnGetNativeHandle(*Buffer, &NativeHandle);
+    Result = m_Dditable.Mem.pfnGetNativeHandle(*OutBuffer, &NativeHandle);
     if (Result != UR_RESULT_SUCCESS) {
         return Result;
     }
@@ -694,15 +675,26 @@ ur_result_t SanitizerInterceptor::createMemoryBuffer(
     ur_buffer_region_t BufferRegion{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr,
                                     UserBegin - AllocBegin, Size};
     ur_mem_handle_t SubBuffer;
-    Result = m_Dditable.Mem.pfnBufferPartition(*Buffer, Flags,
+    Result = m_Dditable.Mem.pfnBufferPartition(*OutBuffer, Flags,
                                                UR_BUFFER_CREATE_TYPE_REGION,
                                                &BufferRegion, &SubBuffer);
     if (Result != UR_RESULT_SUCCESS) {
         return Result;
     }
 
-    *Buffer = SubBuffer;
+    *OutBuffer = SubBuffer;
     return UR_RESULT_SUCCESS;
+}
+
+ur_result_t SanitizerInterceptor::partitionMemoryBuffer(
+    ur_mem_handle_t Buffer, ur_mem_flags_t Flags,
+    ur_buffer_create_type_t BufferCreateType, const ur_buffer_region_t *Region,
+    ur_mem_handle_t *OutBuffer) {
+
+    ur_result_t result =
+        m_Dditable.Mem.pfnBufferPartition(Buffer, Flags, BufferCreateType, Region, OutBuffer);
+
+    return result;
 }
 
 } // namespace ur_asan_layer
