@@ -3502,18 +3502,16 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
+  // Auto-convert FP atomics to LSC version.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+                (Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
+                (Op == atomic_op::fadd) || (Op == atomic_op::fsub) ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src0, mask);
   } else {
-    if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
-                  (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
-      // Auto-convert FP atomics to LSC version.
-      return atomic_update<detail::to_lsc_atomic_op<Op>(), T, N>(p, byte_offset,
-                                                                 src0, mask);
-    } else if constexpr (Op == atomic_op::store) {
+    if constexpr (Op == atomic_op::store) {
       if constexpr (std::is_integral_v<T>) {
         return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask);
       } else {
@@ -3959,8 +3957,10 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
 
+  // Use LSC atomic when cache hints are present, FP atomics is used,
+  // non-power of two length is used, or operation width greater than 32.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.
@@ -3968,19 +3968,13 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src1, src0, mask);
   } else {
-    if constexpr (Op == atomic_op::fcmpxchg) {
-      // Auto-convert FP atomics to LSC version.
-      return atomic_update<detail::to_lsc_atomic_op<Op>(), T, N>(
-          p, byte_offset, src0, src1, mask);
-    } else {
-      detail::check_atomic<Op, T, N, 2>();
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic2<Op, Tx, N>(vAddr.data(), src0.data(),
-                                            src1.data(), mask.data());
-    }
+    detail::check_atomic<Op, T, N, 2>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic2<Op, Tx, N>(vAddr.data(), src0.data(),
+                                          src1.data(), mask.data());
   }
 }
 
