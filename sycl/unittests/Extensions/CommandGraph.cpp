@@ -1597,7 +1597,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
 
   // Check the graph structure
   // (1)(2)
-  //  |\ |  
+  //  |\ |
   //  | (E)
   // (3) |
   //    (4)
@@ -1611,7 +1611,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
   ASSERT_EQ(Node1Impl->MSuccessors.size(), 2lu);
   ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
   ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
-  
+
   auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
   ASSERT_EQ(Node3Impl->MPredecessors.size(), 1lu);
   ASSERT_EQ(Node3Impl->MPredecessors[0].lock(), Node1Impl);
@@ -1639,7 +1639,7 @@ TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
 
   // Check the graph structure
   // (1)(2)
-  //   \/  
+  //   \/
   //  (E1) (3)
   //    \  /
   //    (E2)
