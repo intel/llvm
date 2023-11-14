@@ -55,14 +55,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 659d3f469faa99a886fa680a3d6d20449b109578
-  # Merge: 192e9404 f94550b4
+  set(UNIFIED_RUNTIME_REPO "https://github.com/omarahmed1111/unified-runtime.git")
+
+  # commit be53fb3ba5bf1ac33051456d72c61b6a01d94a72
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 14 16:45:24 2023 +0000
-  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
-  #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG 659d3f469faa99a886fa680a3d6d20449b109578)
+  # Date:   Tue Oct 31 13:22:52 2023 +0000
+  # - Merge pull request #932 from Bensuo/cuda-cmd-buffers
+  # - [CUDA][EXP] CUDA adapter support for command buffers
+  set(UNIFIED_RUNTIME_TAG dad65343c75c3a98728facb66b2c6d7425990729)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
