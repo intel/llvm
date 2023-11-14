@@ -1,25 +1,25 @@
-//==---------- sanitizer_interceptor.hpp - Sanitizer interceptor -----------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
+/*
+ *
+ * Copyright (C) 2023 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ * @file ur_san_layer.cpp
+ *
+ */
 #pragma once
 
-#include "common.h"
+#include "common.hpp"
 
 #include <cstddef>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
-#include <utility>
 #include <vector>
 
-namespace ur_asan_layer {
+namespace ur_san_layer {
 
 enum USMMemoryType { DEVICE, SHARE, HOST, MEM_BUFFER };
 
@@ -144,4 +144,4 @@ class SanitizerInterceptor {
     ur_dditable_t &m_Dditable;
 };
 
-} // namespace ur_asan_layer
+} // namespace ur_san_layer
