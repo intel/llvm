@@ -14,7 +14,7 @@
 
 #include <cinttypes>
 
-namespace ur_san_layer {
+namespace ur_sanitizer_layer {
 
 enum class DeviceSanitizerErrorType : int32_t {
     UNKNOWN,
@@ -92,4 +92,4 @@ const char *DeviceSanitizerFormat(DeviceSanitizerErrorType ErrorType) {
     }
 }
 
-} // namespace ur_san_layer
+} // namespace ur_sanitizer_layer

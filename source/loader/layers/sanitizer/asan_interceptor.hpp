@@ -6,7 +6,7 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_san_layer.cpp
+ * @file ur_sanitizer_layer.cpp
  *
  */
 
@@ -19,7 +19,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace ur_san_layer {
+namespace ur_sanitizer_layer {
 
 enum USMMemoryType { DEVICE, SHARE, HOST, MEM_BUFFER };
 
@@ -135,4 +135,4 @@ class SanitizerInterceptor {
     ur_shared_mutex m_ContextMapMutex;
 };
 
-} // namespace ur_san_layer
+} // namespace ur_sanitizer_layer
