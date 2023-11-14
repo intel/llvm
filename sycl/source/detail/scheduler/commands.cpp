@@ -2584,8 +2584,8 @@ pi_int32 enqueueImpKernel(
 
   pi_result Error = PI_SUCCESS;
   {
-    // When KernelMutex is null, this means that in-memory caching is 
-    // disabled, which means that kernel object is not shared, so no locking 
+    // When KernelMutex is null, this means that in-memory caching is
+    // disabled, which means that kernel object is not shared, so no locking
     // is necessary.
     using LockT = std::unique_lock<std::mutex>;
     auto Lock = KernelMutex ? LockT(*KernelMutex) : LockT();
