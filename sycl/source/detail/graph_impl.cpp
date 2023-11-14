@@ -733,10 +733,8 @@ void modifiable_command_graph::addGraphLeafDependencies(node Node) {
       sycl::detail::getSyclObjImpl(Node);
   graph_impl::WriteLock Lock(impl->MMutex);
   for (auto &NodeImpl : impl->MNodeStorage) {
-    if (NodeImpl->MSuccessors.size() == 0) {
-      if (NodeImpl != DstImpl) {
-        impl->makeEdge(NodeImpl, DstImpl);
-      }
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
+      impl->makeEdge(NodeImpl, DstImpl);
     }
   }
 }
