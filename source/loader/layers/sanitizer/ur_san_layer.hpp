@@ -10,8 +10,7 @@
  *
  */
 
-#ifndef UR_SANITIZER_LAYER_H
-#define UR_SANITIZER_LAYER_H 1
+#pragma once
 
 #include "logger/ur_logger.hpp"
 #include "ur_ddi.h"
@@ -53,5 +52,3 @@ class __urdlllocal context_t : public proxy_layer_context_t {
 
 extern context_t context;
 } // namespace ur_san_layer
-
-#endif /* UR_sanitizer_LAYER_H */
