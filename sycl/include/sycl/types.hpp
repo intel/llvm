@@ -1181,13 +1181,21 @@ public:
   }
 
   template <typename T>
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using OpNotRet = typename detail::OperatorNotReturnType<sizeof(T)>::type;
+#else
+  using OpNotRet = T;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   // operator!
   template <typename T = DataT, int N = NumElements>
   EnableIfNotUsingArray<vec<OpNotRet<T>, N>> operator!() const {
     return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data}
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
         .template as<vec<OpNotRet<T>, N>>();
+#else
+    ;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   // std::byte neither supports ! unary op or casting, so special handling is
@@ -1203,6 +1211,11 @@ public:
       Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
     }
     return Ret.template as<vec<OpNotRet<T>, N>>();
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
+    return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   template <typename T = DataT, int N = NumElements>
@@ -1213,7 +1226,11 @@ public:
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
+    return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 #else
   template <typename T = DataT, int N = NumElements>
@@ -1221,7 +1238,11 @@ public:
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
+    return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 #endif
 

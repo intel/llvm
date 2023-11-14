@@ -132,7 +132,11 @@ std::string vec2string(const sycl::vec<vecType, numOfElems> &vec) {
 template <typename T, typename Expected> inline void checkVecNotReturnType() {
   constexpr int N = 4;
   using Vector = sycl::vec<T, N>;
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using ExpectedVector = sycl::vec<Expected, N>;
+#else
+  using ExpectedVector = sycl::vec<T, N>;
+#endif
   using OpNotResult = decltype(std::declval<Vector>().operator!());
   static_assert(std::is_same_v<OpNotResult, ExpectedVector>,
                 "Incorrect vec::operator! return type");
