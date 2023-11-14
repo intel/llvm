@@ -202,7 +202,7 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
 #endif // __ENABLE_USM_ADDR_SPACE__
 
-  T * m_Ptr;
+  T *m_Ptr;
 
   template <typename T2, typename PropertyListT> friend class annotated_ptr;
 

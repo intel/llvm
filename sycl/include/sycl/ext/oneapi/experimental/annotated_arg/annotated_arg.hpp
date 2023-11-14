@@ -65,7 +65,7 @@ class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
-  T * obj;
+  T *obj;
 
   template <typename T2, typename PropertyListT> friend class annotated_arg;
 
@@ -114,8 +114,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
-      : obj(_ptr) {
+  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept : obj(_ptr) {
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,
