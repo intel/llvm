@@ -55,13 +55,17 @@ public:
   bool operator==(const CustomType &RHS) const { return MVal == RHS.MVal; }
 
 private:
-  size_t MVal = 0;
+   size_t MVal = 0;
+ };
+
+template <class T> struct ConvertToSimpleType {
+  using Type = T;
 };
 
-template <class T> struct ConvertToSimpleType { using Type = T; };
-
 // Dummy overloads for CustomType which is not supported by radix sorter
-template <> struct ConvertToSimpleType<CustomType> { using Type = int; };
+template <> struct ConvertToSimpleType<CustomType> {
+  using Type = int;
+};
 
 template <class SorterT> struct ConvertToSortingOrder;
 
