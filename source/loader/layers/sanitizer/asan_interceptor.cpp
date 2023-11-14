@@ -1,9 +1,3 @@
-//==---------- sanitizer_interceptor.cpp - Sanitizer interceptor -----------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
 //===----------------------------------------------------------------------===//
 /*
  *
@@ -16,7 +10,12 @@
  * @file ur_san_layer.cpp
  *
  */
-
+//==---------- sanitizer_interceptor.cpp - Sanitizer interceptor -----------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
 #include "asan_interceptor.hpp"
 #include "device_sanitizer_report.hpp"
 #include "ur_san_layer.hpp"
@@ -107,7 +106,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         Alignment = DeviceInfo.Alignment;
     }
 
-    // Calcuate Size + Red Zone Size
+    // Copy from LLVM compiler-rt/lib/asan
     uptr RZLog = ComputeRZLog(Size);
     uptr RZSize = RZLog2Size(RZLog);
     uptr RoundedSize = RoundUpTo(Size, Alignment);
@@ -128,6 +127,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         die("SanitizerInterceptor: unsupport memory type");
     }
 
+    // Copy from LLVM compiler-rt/lib/asan
     uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
     uptr AllocEnd = AllocBegin + NeededSize;
     uptr UserBegin = AllocBegin + RZSize;
@@ -164,8 +164,6 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
                                                 void *Ptr) {
     auto &ContextInfo = getContextInfo(Context);
-
-    context.logger.debug("ReleaseMemory: {}", Ptr);
 
     std::shared_lock<ur_shared_mutex> Guard(ContextInfo.Mutex);
 
