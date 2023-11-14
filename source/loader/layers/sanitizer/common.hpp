@@ -1,10 +1,3 @@
-//==---------- common.hpp - Device Sanitizer -----------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 /*
  *
  * Copyright (C) 2023 Intel Corporation
@@ -16,6 +9,13 @@
  * @file common.hpp
  *
  */
+//==---------- common.hpp - Device Sanitizer -----------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -25,6 +25,9 @@
 #include <ur/ur.hpp>
 
 namespace ur_san_layer {
+
+// ================================================================
+// Copy from LLVM compiler-rt/lib/asan
 
 typedef uintptr_t uptr;
 typedef unsigned char u8;
@@ -70,9 +73,7 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
     return rz_log;
 }
 
-inline constexpr uptr MemToShadow(uptr Addr, uptr ShadowOffset) {
-    return ShadowOffset + ((Addr) >> ASAN_SHADOW_SCALE);
-}
+// ================================================================
 
 static auto getUrResultString = [](ur_result_t Result) {
     switch (Result) {
