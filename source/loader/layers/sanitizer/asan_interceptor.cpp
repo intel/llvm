@@ -195,9 +195,9 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     return m_Dditable.USM.pfnFree(Context, (void *)AllocInfo.AllocBegin);
 }
 
-bool SanitizerInterceptor::launchKernel(ur_kernel_handle_t Kernel,
-                                        ur_queue_handle_t Queue,
-                                        ur_event_handle_t &Event) {
+bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
+                                           ur_queue_handle_t Queue,
+                                           ur_event_handle_t &Event) {
     prepareLaunch(Queue, Kernel);
 
     updateShadowMemory(Queue);

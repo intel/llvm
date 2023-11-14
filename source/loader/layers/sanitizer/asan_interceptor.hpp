@@ -92,8 +92,8 @@ class SanitizerInterceptor {
                                void **ResultPtr, USMMemoryType Type);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
-    bool launchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                      ur_event_handle_t &Event);
+    bool preLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
+                         ur_event_handle_t &Event);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                           ur_event_handle_t *Event, bool SetCallback = true);
 
