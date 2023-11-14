@@ -27,7 +27,7 @@ jobs:
 
   lint:
     runs-on: [Linux, build]
-    if: ${{ always() && !contains(github.event.pull_request.labels.*.name, 'ignore-lint') }}
+    if: ${{ always() && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
       options: -u 1001:1001
