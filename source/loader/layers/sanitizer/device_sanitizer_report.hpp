@@ -34,8 +34,6 @@ enum class DeviceSanitizerMemoryType : int32_t {
     MEM_BUFFER,
 };
 
-// NOTE Layout of this structure should be aligned with the one in
-// sycl/include/sycl/detail/device_sanitizer_report.hpp
 struct DeviceSanitizerReport {
     int Flag = 0;
 
