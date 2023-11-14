@@ -262,7 +262,32 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
-// TODO: CommandBuffer
+UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
+    ur_api_version_t version, ur_command_buffer_exp_dditable_t *pDdiTable) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+  pDdiTable->pfnCreateExp = urCommandBufferCreateExp;
+  pDdiTable->pfnRetainExp = urCommandBufferRetainExp;
+  pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
+  pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
+  pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
+  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
+  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
+  pDdiTable->pfnAppendMembufferCopyRectExp =
+      urCommandBufferAppendMembufferCopyRectExp;
+  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
+  pDdiTable->pfnAppendMembufferReadRectExp =
+      urCommandBufferAppendMembufferReadRectExp;
+  pDdiTable->pfnAppendMembufferWriteExp =
+      urCommandBufferAppendMembufferWriteExp;
+  pDdiTable->pfnAppendMembufferWriteRectExp =
+      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
+
+  return retVal;
+}
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
     ur_api_version_t version, ur_usm_p2p_exp_dditable_t *pDdiTable) {
@@ -273,6 +298,84 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
   pDdiTable->pfnEnablePeerAccessExp = urUsmP2PEnablePeerAccessExp;
   pDdiTable->pfnDisablePeerAccessExp = urUsmP2PDisablePeerAccessExp;
   pDdiTable->pfnPeerAccessGetInfoExp = urUsmP2PPeerAccessGetInfoExp;
+
+  return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
+    ur_api_version_t version, ur_bindless_images_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnUnsampledImageHandleDestroyExp =
+      urBindlessImagesUnsampledImageHandleDestroyExp;
+  pDdiTable->pfnSampledImageHandleDestroyExp =
+      urBindlessImagesSampledImageHandleDestroyExp;
+  pDdiTable->pfnImageAllocateExp = urBindlessImagesImageAllocateExp;
+  pDdiTable->pfnImageFreeExp = urBindlessImagesImageFreeExp;
+  pDdiTable->pfnUnsampledImageCreateExp =
+      urBindlessImagesUnsampledImageCreateExp;
+  pDdiTable->pfnSampledImageCreateExp = urBindlessImagesSampledImageCreateExp;
+  pDdiTable->pfnImageCopyExp = urBindlessImagesImageCopyExp;
+  pDdiTable->pfnImageGetInfoExp = urBindlessImagesImageGetInfoExp;
+  pDdiTable->pfnMipmapGetLevelExp = urBindlessImagesMipmapGetLevelExp;
+  pDdiTable->pfnMipmapFreeExp = urBindlessImagesMipmapFreeExp;
+  pDdiTable->pfnImportOpaqueFDExp = urBindlessImagesImportOpaqueFDExp;
+  pDdiTable->pfnMapExternalArrayExp = urBindlessImagesMapExternalArrayExp;
+  pDdiTable->pfnReleaseInteropExp = urBindlessImagesReleaseInteropExp;
+  pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
+      urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+  pDdiTable->pfnDestroyExternalSemaphoreExp =
+      urBindlessImagesDestroyExternalSemaphoreExp;
+  pDdiTable->pfnWaitExternalSemaphoreExp =
+      urBindlessImagesWaitExternalSemaphoreExp;
+  pDdiTable->pfnSignalExternalSemaphoreExp =
+      urBindlessImagesSignalExternalSemaphoreExp;
+  return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
+    ur_api_version_t version, ur_physical_mem_dditable_t *pDdiTable) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+
+  pDdiTable->pfnCreate = nullptr;
+  pDdiTable->pfnRelease = nullptr;
+  pDdiTable->pfnRetain = nullptr;
+
+  return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
+    ur_api_version_t version, ur_usm_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnPitchedAllocExp = urUSMPitchedAllocExp;
+  return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_virtual_mem_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+
+  pDdiTable->pfnFree = nullptr;
+  pDdiTable->pfnGetInfo = nullptr;
+  pDdiTable->pfnGranularityGetInfo = nullptr;
+  pDdiTable->pfnMap = nullptr;
+  pDdiTable->pfnReserve = nullptr;
+  pDdiTable->pfnSetAccess = nullptr;
+  pDdiTable->pfnUnmap = nullptr;
 
   return retVal;
 }
