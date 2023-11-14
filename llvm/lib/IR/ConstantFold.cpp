@@ -295,6 +295,13 @@ static Constant *ExtractConstantBytes(Constant *C, unsigned ByteStart,
   }
 }
 
+static Constant *foldMaybeUndesirableCast(unsigned opc, Constant *V,
+                                          Type *DestTy) {
+  return ConstantExpr::isDesirableCastOp(opc)
+             ? ConstantExpr::getCast(opc, V, DestTy)
+             : ConstantFoldCastInstruction(opc, V, DestTy);
+}
+
 Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
                                             Type *DestTy) {
   if (isa<PoisonValue>(V))
@@ -320,7 +327,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
     if (CE->isCast()) {
       // Try hard to fold cast of cast because they are often eliminable.
       if (unsigned newOpc = foldConstantCastPair(opc, CE, DestTy))
-        return ConstantExpr::getCast(newOpc, CE->getOperand(0), DestTy);
+        return foldMaybeUndesirableCast(newOpc, CE->getOperand(0), DestTy);
     } else if (CE->getOpcode() == Instruction::GetElementPtr &&
                // Do not fold addrspacecast (gep 0, .., 0). It might make the
                // addrspacecast uncanonicalized.
@@ -357,18 +364,22 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
     Type *DstEltTy = DestVecTy->getElementType();
     // Fast path for splatted constants.
     if (Constant *Splat = V->getSplatValue()) {
+      Constant *Res = foldMaybeUndesirableCast(opc, Splat, DstEltTy);
+      if (!Res)
+        return nullptr;
       return ConstantVector::getSplat(
-          cast<VectorType>(DestTy)->getElementCount(),
-          ConstantExpr::getCast(opc, Splat, DstEltTy));
+          cast<VectorType>(DestTy)->getElementCount(), Res);
     }
     SmallVector<Constant *, 16> res;
     Type *Ty = IntegerType::get(V->getContext(), 32);
     for (unsigned i = 0,
                   e = cast<FixedVectorType>(V->getType())->getNumElements();
          i != e; ++i) {
-      Constant *C =
-        ConstantExpr::getExtractElement(V, ConstantInt::get(Ty, i));
-      res.push_back(ConstantExpr::getCast(opc, C, DstEltTy));
+      Constant *C = ConstantExpr::getExtractElement(V, ConstantInt::get(Ty, i));
+      Constant *Casted = foldMaybeUndesirableCast(opc, C, DstEltTy);
+      if (!Casted)
+        return nullptr;
+      res.push_back(Casted);
     }
     return ConstantVector::get(res);
   }
@@ -1945,8 +1956,13 @@ static Constant *foldGEPOfGEP(GEPOperator *GEP, Type *PointeeTy, bool InBounds,
 
     Type *CommonTy =
         Type::getIntNTy(LastIdxTy->getContext(), CommonExtendedWidth);
-    Idx0 = ConstantExpr::getSExtOrBitCast(Idx0, CommonTy);
-    LastIdx = ConstantExpr::getSExtOrBitCast(LastIdx, CommonTy);
+    if (Idx0->getType() != CommonTy)
+      Idx0 = ConstantFoldCastInstruction(Instruction::SExt, Idx0, CommonTy);
+    if (LastIdx->getType() != CommonTy)
+      LastIdx =
+          ConstantFoldCastInstruction(Instruction::SExt, LastIdx, CommonTy);
+    if (!Idx0 || !LastIdx)
+      return nullptr;
   }
 
   NewIndices.push_back(ConstantExpr::get(Instruction::Add, Idx0, LastIdx));
@@ -2165,11 +2181,13 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
               : cast<FixedVectorType>(CurrIdx->getType())->getNumElements());
 
     if (!PrevIdx->getType()->isIntOrIntVectorTy(CommonExtendedWidth))
-      PrevIdx = ConstantExpr::getSExt(PrevIdx, ExtendedTy);
+      PrevIdx =
+          ConstantFoldCastInstruction(Instruction::SExt, PrevIdx, ExtendedTy);
 
     if (!Div->getType()->isIntOrIntVectorTy(CommonExtendedWidth))
-      Div = ConstantExpr::getSExt(Div, ExtendedTy);
+      Div = ConstantFoldCastInstruction(Instruction::SExt, Div, ExtendedTy);
 
+    assert(PrevIdx && Div && "Should have folded");
     NewIdxs[i - 1] = ConstantExpr::getAdd(PrevIdx, Div);
   }
 

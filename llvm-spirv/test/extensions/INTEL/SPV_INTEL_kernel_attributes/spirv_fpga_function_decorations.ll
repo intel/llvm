@@ -37,9 +37,9 @@ entry:
 !10 = !{i32 5919, i32 1}
 !11 = !{i32 5917, i32 2}
 
-; CHECK-SPV-IR: define spir_kernel void @k(float %a, float %b, float %c) {{.*}} !initiation_interval ![[II:[0-9]+]] !disable_loop_pipelining ![[DISABLE_LOOP_PIPELINING:[0-9]+]] {
+; CHECK-SPV-IR: define spir_kernel void @k(float %a, float %b, float %c) {{.*}} !initiation_interval ![[II:[0-9]+]] !pipeline_kernel ![[PIPELINE_KERNEL:[0-9]+]] {
 ; CHECK-SPV-IR-DAG: ![[II]] = !{i32 2}
-; CHECK-SPV-IR-DAG: ![[DISABLE_LOOP_PIPELINING]] = !{i32 0}
+; CHECK-SPV-IR-DAG: ![[PIPELINE_KERNEL]] = !{i32 1}
 
 ; CHECK-LLVM-NOT: define spir_kernel void @k(float %a, float %b, float %c) {{.*}} !spirv.Decorations ![[DecoListId:[0-9]+]] {
 ; CHECK-LLVM: define spir_kernel void @k(float %a, float %b, float %c) {{.*}} {

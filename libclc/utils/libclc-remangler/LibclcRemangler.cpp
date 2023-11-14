@@ -614,7 +614,7 @@ private:
             EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
                              &EnumName, nullptr, false, false, true);
         Res = AST->getEnumType(ED);
-        Res = AST->getElaboratedType(ETK_None, NNS, Res);
+        Res = AST->getElaboratedType(ElaboratedTypeKeyword::None, NNS, Res);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -631,7 +631,7 @@ private:
       }
       case Node::Kind::KVectorType: {
         Res = AST->getVectorType(Res, I->Data,
-                                 clang::VectorType::VectorKind::GenericVector);
+                                 clang::VectorKind::Generic);
         break;
       }
       case Node::Kind::KQualType: {

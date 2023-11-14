@@ -318,6 +318,18 @@ bool isAssumedShape(mlir::Type ty) {
   return false;
 }
 
+bool isAllocatableOrPointerArray(mlir::Type ty) {
+  if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
+    ty = refTy;
+  if (auto boxTy = mlir::dyn_cast<fir::BoxType>(ty)) {
+    if (auto heapTy = mlir::dyn_cast<fir::HeapType>(boxTy.getEleTy()))
+      return mlir::isa<fir::SequenceType>(heapTy.getEleTy());
+    if (auto ptrTy = mlir::dyn_cast<fir::PointerType>(boxTy.getEleTy()))
+      return mlir::isa<fir::SequenceType>(ptrTy.getEleTy());
+  }
+  return false;
+}
+
 bool isPolymorphicType(mlir::Type ty) {
   if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
     ty = refTy;
@@ -533,7 +545,9 @@ std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
       break;
     } else if (auto charTy = mlir::dyn_cast_or_null<fir::CharacterType>(ty)) {
       name << 'c' << kindMap.getCharacterBitsize(charTy.getFKind());
-      if (charTy.getLen() != fir::CharacterType::singleton())
+      if (charTy.getLen() == fir::CharacterType::unknownLen())
+        name << "xU";
+      else if (charTy.getLen() != fir::CharacterType::singleton())
         name << "x" << charTy.getLen();
       break;
     } else if (auto seqTy = mlir::dyn_cast_or_null<fir::SequenceType>(ty)) {
@@ -562,6 +576,9 @@ std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
     } else if (auto boxTy = mlir::dyn_cast_or_null<fir::BoxType>(ty)) {
       name << "box_";
       ty = boxTy.getEleTy();
+    } else if (auto boxcharTy = mlir::dyn_cast_or_null<fir::BoxCharType>(ty)) {
+      name << "boxchar_";
+      ty = boxcharTy.getEleTy();
     } else if (auto recTy = mlir::dyn_cast_or_null<fir::RecordType>(ty)) {
       name << "rec_" << recTy.getName();
       break;

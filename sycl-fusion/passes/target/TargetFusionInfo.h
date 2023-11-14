@@ -9,6 +9,7 @@
 #ifndef SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 #define SYCL_FUSION_PASSES_TARGET_TARGETFUSIONINFO_H
 
+#include "Kernel.h"
 #include "kernel-fusion/Builtins.h"
 
 #include "llvm/IR/Function.h"
@@ -57,7 +58,8 @@ public:
   /// kernel.
   llvm::ArrayRef<llvm::StringRef> getUniformKernelAttributes() const;
 
-  void createBarrierCall(IRBuilderBase &Builder, int BarrierFlags) const;
+  void createBarrierCall(IRBuilderBase &Builder,
+                         jit_compiler::BarrierFlags BarrierFlags) const;
 
   unsigned getPrivateAddressSpace() const;
 

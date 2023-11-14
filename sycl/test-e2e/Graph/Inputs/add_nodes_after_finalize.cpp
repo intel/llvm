@@ -85,8 +85,10 @@ int main() {
   free(PtrC, Queue);
   free(PtrOut, Queue);
 
-  assert(ReferenceC == DataC);
-  assert(ReferenceOut == DataOut);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, ReferenceOut[i], DataOut[i], "DataOut"));
+  }
 
   return 0;
 }

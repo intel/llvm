@@ -339,10 +339,9 @@ public:
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   template <typename T>
-  std::enable_if_t<std::is_convertible_v<T, std::function<void(handler &)>>,
-                   event>
-  submit(T CGF, const detail::code_location &CodeLoc =
-                    detail::code_location::current()) {
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
+      T CGF,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
     auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -377,9 +376,7 @@ public:
   /// \return a SYCL event object, which corresponds to the queue the command
   /// group is being enqueued on.
   template <typename T>
-  std::enable_if_t<std::is_convertible_v<T, std::function<void(handler &)>>,
-                   event>
-  submit(
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);

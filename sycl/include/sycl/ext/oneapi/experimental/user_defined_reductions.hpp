@@ -81,7 +81,7 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 // ---- joint_reduce
 template <typename GroupHelper, typename Ptr, typename BinaryOperation>
 std::enable_if_t<(is_group_helper_v<GroupHelper> &&
-                  sycl::detail::is_pointer<Ptr>::value),
+                  sycl::detail::is_pointer_v<Ptr>),
                  typename std::iterator_traits<Ptr>::value_type>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
              BinaryOperation binary_op) {
@@ -118,7 +118,7 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
 template <typename GroupHelper, typename Ptr, typename T,
           typename BinaryOperation>
 std::enable_if_t<
-    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
+    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer_v<Ptr>), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {

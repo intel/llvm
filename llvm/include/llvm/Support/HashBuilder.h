@@ -135,7 +135,7 @@ private:
 /// computation (for example when computing `add((int)123)`).
 /// Specifiying a non-`native` `Endianness` template parameter allows to compute
 /// stable hash across platforms with different endianness.
-template <typename HasherT, support::endianness Endianness>
+template <typename HasherT, llvm::endianness Endianness>
 class HashBuilder : public HashBuilderBase<HasherT> {
 public:
   explicit HashBuilder(HasherT &Hasher) : HashBuilderBase<HasherT>(Hasher) {}
@@ -170,7 +170,7 @@ public:
     // `update` to guarantee the fast path.
     add(Value.size());
     if (hashbuilder_detail::IsHashableData<T>::value &&
-        Endianness == support::endian::system_endianness()) {
+        Endianness == llvm::endianness::native) {
       this->update(ArrayRef(reinterpret_cast<const uint8_t *>(Value.begin()),
                             Value.size() * sizeof(T)));
     } else {
@@ -213,7 +213,7 @@ public:
   /// providing a `addHash` templated function.
   ///
   /// ```
-  /// template <typename HasherT, support::endianness Endianness>
+  /// template <typename HasherT, llvm::endianness Endianness>
   /// void addHash(HashBuilder<HasherT, Endianness> &HBuilder,
   ///              const UserDefinedStruct &Value);
   /// ```
@@ -225,7 +225,7 @@ public:
   ///   int i;
   /// };
   ///
-  /// template <typename HasherT, support::endianness Endianness>
+  /// template <typename HasherT, llvm::endianness Endianness>
   /// void addHash(HashBuilder<HasherT, Endianness> &HBuilder,
   ///              const SimpleStruct &Value) {
   ///   HBuilder.add(Value.c);
@@ -245,10 +245,10 @@ public:
   ///
   ///   // If possible, we want to hash both `I` and `C` in a single
   ///   // `update` call for performance concerns.
-  ///   template <typename HasherT, support::endianness Endianness>
+  ///   template <typename HasherT, llvm::endianness Endianness>
   ///   friend void addHash(HashBuilder<HasherT, Endianness> &HBuilder,
   ///                       const StructWithFastHash &Value) {
-  ///     if (Endianness == support::endian::system_endianness()) {
+  ///     if (Endianness == llvm::endianness::native) {
   ///       HBuilder.update(ArrayRef(
   ///           reinterpret_cast<const uint8_t *>(&Value), sizeof(Value)));
   ///     } else {
@@ -275,10 +275,10 @@ public:
   ///     for (size_t I = 0; I != Size; ++I)
   ///       Elements[I] = I;
   ///   }
-  ///   template <typename HasherT, support::endianness Endianness>
+  ///   template <typename HasherT, llvm::endianness Endianness>
   ///   friend void addHash(HashBuilder<HasherT, Endianness> &HBuilder,
   ///                       const CustomContainer &Value) {
-  ///     if (Endianness == support::endian::system_endianness()) {
+  ///     if (Endianness == llvm::endianness::native) {
   ///       HBuilder.update(ArrayRef(
   ///           reinterpret_cast<const uint8_t *>(&Value.Size),
   ///           sizeof(Value.Size) + Value.Size * sizeof(Value.Elements[0])));
@@ -348,7 +348,7 @@ public:
 
   template <typename T>
   using HasByteSwapT = decltype(support::endian::byte_swap(
-      std::declval<T &>(), support::endianness::little));
+      std::declval<T &>(), llvm::endianness::little));
   /// Adjust `Value` for the target endianness and add it to the hash.
   template <typename T>
   std::enable_if_t<is_detected<HasByteSwapT, T>::value, HashBuilder &>
@@ -373,7 +373,7 @@ private:
 
   template <typename T>
   std::enable_if_t<hashbuilder_detail::IsHashableData<T>::value &&
-                       Endianness == support::endian::system_endianness(),
+                       Endianness == llvm::endianness::native,
                    HashBuilder &>
   addRangeElementsImpl(T *First, T *Last, std::forward_iterator_tag) {
     this->update(ArrayRef(reinterpret_cast<const uint8_t *>(First),
@@ -393,8 +393,8 @@ public:
   hash_code Code;
 };
 
-using HashCodeHashBuilder = HashBuilder<hashbuilder_detail::HashCodeHasher,
-                                        support::endianness::native>;
+using HashCodeHashBuilder =
+    HashBuilder<hashbuilder_detail::HashCodeHasher, llvm::endianness::native>;
 } // namespace hashbuilder_detail
 
 /// Provide a default implementation of `hash_value` when `addHash(const T &)`

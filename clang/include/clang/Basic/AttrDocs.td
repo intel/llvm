@@ -3017,6 +3017,65 @@ In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
+def SYCLIntelMinWorkGroupsPerComputeUnitAttrDocs: Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::min_work_groups_per_cu";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the desired minimum
+number of resident work_groups per multiprocessor. It complies to the
+.minnctapersm PTX directive.
+
+.. code-block:: c++
+
+  [[intel::min_work_groups_per_cu(2)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::min_work_groups_per_cu(2)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::min_work_groups_per_cu(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::min_work_groups_per_cu(N)]] void func() {}
+
+  }];
+}
+
+def SYCLIntelMaxWorkGroupsPerMultiprocessorDocs: Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::max_work_groups_per_mp";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the desired maximum
+number work_groups per cluster with which the application will ever launch. It
+complies to the .maxclusterrank PTX directive. Note, that the feature requires
+SM_90 or higher.
+
+.. code-block:: c++
+
+  [[intel::max_work_groups_per_mp(2)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::max_work_groups_per_mp(2)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::max_work_groups_per_mp(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::max_work_groups_per_mp(N)]] void func() {}
+
+  }];
+}
+
 def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::max_global_work_dim";
@@ -3361,11 +3420,10 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
 This attribute applies to a loop or a function. Takes no arguments and
-disables pipelining of the loop or function data path, causing the loop
-or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
-``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
-``enable_loop_pipelining`` attribute.
+indicates whether the kernel should be pipelined or not. Cannot be used on the
+same loop or function, or in conjunction with ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, ``ivdep``,
+``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -4376,6 +4434,18 @@ allows the caller to align the parameter memory.
 See the documentation for `__vectorcall`_ on MSDN for more details.
 
 .. _`__vectorcall`: http://msdn.microsoft.com/en-us/library/dn375768.aspx
+  }];
+}
+
+def M68kRTDDocs : Documentation {
+  let Category = DocCatCallingConvs;
+  let Content = [{
+On M68k targets, this attribute changes the calling convention of a function
+to clear parameters off the stack on return. In other words, callee is
+responsible for cleaning out the stack space allocated for incoming paramters.
+This convention does not support variadic calls or unprototyped functions in C.
+When targeting M68010 or newer CPUs, this calling convention is implemented
+using the `rtd` instruction.
   }];
 }
 
@@ -8862,6 +8932,69 @@ def WebAssemblyFuncrefDocs : Documentation {
 Clang supports the ``__funcref`` attribute for the WebAssembly target.
 This attribute may be attached to a function pointer type, where it modifies
 its underlying representation to be a WebAssembly ``funcref``.
+  }];
+}
+
+def PreferredTypeDocumentation : Documentation {
+  let Category = DocCatField;
+  let Content = [{
+This attribute allows adjusting the type of a bit-field in debug information.
+This can be helpful when a bit-field is intended to store an enumeration value,
+but has to be specified as having the enumeration's underlying type in order to
+facilitate compiler optimizations or bit-field packing behavior. Normally, the
+underlying type is what is emitted in debug information, which can make it hard
+for debuggers to know to map a bit-field's value back to a particular enumeration.
+
+.. code-block:: c++
+
+    enum Colors { Red, Green, Blue };
+
+    struct S {
+      [[clang::preferred_type(Colors)]] unsigned ColorVal : 2;
+      [[clang::preferred_type(bool)]] unsigned UseAlternateColorSpace : 1;
+    } s = { Green, false };
+
+Without the attribute, a debugger is likely to display the value ``1`` for ``ColorVal``
+and ``0`` for ``UseAlternateColorSpace``. With the attribute, the debugger may now
+display ``Green`` and ``false`` instead.
+
+This can be used to map a bit-field to an arbitrary type that isn't integral
+or an enumeration type. For example:
+
+.. code-block:: c++
+
+    struct A {
+      short a1;
+      short a2;
+    };
+
+    struct B {
+      [[clang::preferred_type(A)]] unsigned b1 : 32 = 0x000F'000C;
+    };
+
+will associate the type ``A`` with the ``b1`` bit-field and is intended to display
+something like this in the debugger:
+
+.. code-block:: text
+
+    Process 2755547 stopped
+    * thread #1, name = 'test-preferred-', stop reason = step in
+        frame #0: 0x0000555555555148 test-preferred-type`main at test.cxx:13:14
+       10   int main()
+       11   {
+       12       B b;
+    -> 13       return b.b1;
+       14   }
+    (lldb) v -T
+    (B) b = {
+      (A:32) b1 = {
+        (short) a1 = 12
+        (short) a2 = 15
+      }
+    }
+
+Note that debuggers may not be able to handle more complex mappings, and so
+this usage is debugger-dependent.
   }];
 }
 

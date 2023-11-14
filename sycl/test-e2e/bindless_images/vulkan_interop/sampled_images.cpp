@@ -17,90 +17,181 @@
 #include <stdexcept>
 #include <vector>
 
-// Returns true if validated correctly
-bool run_sycl(int input_image_fd, size_t width, size_t height) {
+template <typename DType, int NChannels>
+std::ostream &operator<<(std::ostream &os,
+                         const sycl::vec<DType, NChannels> &vec) {
+  std::string str{""};
+  for (int i = 0; i < NChannels; ++i) {
+    str += std::to_string(vec[i]) + ",";
+  }
+  str.pop_back();
+  os << str;
+  return os;
+}
+
+template <typename DType, int NChannels>
+bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
+  for (int i = 0; i < NChannels; ++i) {
+    if (v1[i] != v2[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+template <typename DType, int NChannel>
+constexpr sycl::vec<DType, NChannel> initVector(DType val) {
+  if constexpr (NChannel == 1) {
+    return sycl::vec<DType, NChannel>{val};
+  } else if constexpr (NChannel == 2) {
+    return sycl::vec<DType, NChannel>{val, val};
+  } else if constexpr (NChannel == 4) {
+    return sycl::vec<DType, NChannel>{val, val, val, val};
+  } else {
+    std::cerr << "unsupported number of channels " << NChannel << "\n";
+    exit(-1);
+  }
+}
+
+struct handles_t {
+  sycl::ext::oneapi::experimental::sampled_image_handle imgInput;
+  sycl::ext::oneapi::experimental::interop_mem_handle inputInteropMemHandle;
+};
+
+handles_t create_test_handles(
+    sycl::context &ctxt, sycl::device &dev,
+    const sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
+    int input_image_fd, sycl::ext::oneapi::experimental::image_descriptor desc,
+    const size_t imgSize) {
+  namespace syclexp = sycl::ext::oneapi::experimental;
+  // Extension: external memory descriptor
+  syclexp::external_mem_descriptor<syclexp::external_mem_fd> inputExtMemDesc{
+      input_image_fd, imgSize};
+
+  // Extension: interop mem handle imported from file descriptor
+  syclexp::interop_mem_handle inputInteropMemHandle =
+      syclexp::import_external_memory(inputExtMemDesc, dev, ctxt);
+
+  // Extension: interop mem handle imported from file descriptor
+  syclexp::image_mem_handle inputMappedMemHandle =
+      syclexp::map_external_image_memory(inputInteropMemHandle, desc, dev,
+                                         ctxt);
+
+  // Extension: create the image and return the handle
+  syclexp::sampled_image_handle imgInput =
+      syclexp::create_image(inputMappedMemHandle, samp, desc, dev, ctxt);
+
+  return {imgInput, inputInteropMemHandle};
+}
+
+template <int NDims, typename DType, int NChannels,
+          sycl::image_channel_type CType, sycl::image_channel_order COrder,
+          typename KernelName>
+bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
+              int input_image_fd) {
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  // Image descriptor - mapped to Vulkan image layout
-  sycl::ext::oneapi::experimental::image_descriptor desc(
-      {width, height}, sycl::image_channel_order::r,
-      sycl::image_channel_type::fp32,
-      sycl::ext::oneapi::experimental::image_type::interop, 1 /*num_levels*/);
+  namespace syclexp = sycl::ext::oneapi::experimental;
 
-  sycl::ext::oneapi::experimental::bindless_image_sampler samp(
+  // Image descriptor - mapped to Vulkan image layout
+  syclexp::image_descriptor desc(globalSize, COrder, CType,
+                                 syclexp::image_type::interop,
+                                 1 /*num_levels*/);
+
+  syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
       sycl::coordinate_normalization_mode::normalized,
       sycl::filtering_mode::linear);
 
-  const size_t img_size = width * height * sizeof(float);
+  const auto numElems = globalSize.size();
 
-  // Extension: external memory descriptor
-  sycl::ext::oneapi::experimental::external_mem_descriptor<
-      sycl::ext::oneapi::experimental::external_mem_fd>
-      input_ext_mem_desc{input_image_fd, img_size};
+  const size_t img_size = numElems * sizeof(DType) * NChannels;
 
-  // Extension: interop mem handle imported from file descriptor
-  sycl::ext::oneapi::experimental::interop_mem_handle input_interop_mem_handle =
-      sycl::ext::oneapi::experimental::import_external_memory(
-          input_ext_mem_desc, q);
+  auto width = globalSize[0];
+  auto height = globalSize[1];
+  auto depth = 1UL;
 
-  // Extension: interop mem handle imported from file descriptor
-  sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
-          input_interop_mem_handle, desc, q);
-
-  // Extension: create the image and return the handle
-  sycl::ext::oneapi::experimental::sampled_image_handle img_input =
-      sycl::ext::oneapi::experimental::create_image(input_mapped_mem_handle,
-                                                    samp, desc, q);
-
-  std::vector<float> out(width * height);
-
-  try {
-    sycl::buffer<float, 2> buf((float *)out.data(),
-                               sycl::range<2>{height, width});
-    q.submit([&](sycl::handler &cgh) {
-      auto outAcc = buf.get_access<sycl::access_mode::write>(
-          cgh, sycl::range<2>{height, width});
-      cgh.parallel_for<class image_interop>(
-          sycl::nd_range<2>{{width, height}, {width, height}},
-          [=](sycl::nd_item<2> it) {
-            size_t dim0 = it.get_local_id(0);
-            size_t dim1 = it.get_local_id(1);
-
-            // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
-
-            // Extension: read image data from handle (Vulkan imported)
-            float pixel = sycl::ext::oneapi::experimental::read_image<float>(
-                img_input, sycl::float2(fdim0, fdim1));
-
-            pixel *= 10.f;
-            outAcc[sycl::id<2>{dim1, dim0}] = pixel;
-          });
-    });
-  } catch (...) {
-    std::cerr << "Kernel submission failed!" << std::endl;
-    exit(-1);
+  sycl::range<NDims> outBufferRange;
+  if constexpr (NDims == 3) {
+    depth = globalSize[2];
+    outBufferRange = sycl::range<NDims>{depth, height, width};
+  } else {
+    outBufferRange = sycl::range<NDims>{height, width};
   }
 
+  using VecType = sycl::vec<DType, NChannels>;
+
+  auto handles =
+      create_test_handles(ctxt, dev, samp, input_image_fd, desc, img_size);
+
+  std::vector<VecType> out(numElems);
   try {
-    sycl::ext::oneapi::experimental::destroy_image_handle(img_input, q);
-    sycl::ext::oneapi::experimental::release_external_memory(
-        input_interop_mem_handle, q);
+
+    sycl::buffer<VecType, NDims> buf((VecType *)out.data(), outBufferRange);
+    q.submit([&](sycl::handler &cgh) {
+      auto outAcc = buf.template get_access<sycl::access_mode::write>(
+          cgh, outBufferRange);
+      cgh.parallel_for<KernelName>(
+          sycl::nd_range<NDims>{globalSize, localSize},
+          [=](sycl::nd_item<NDims> it) {
+            if constexpr (NDims == 3) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              size_t dim2 = it.get_global_id(2);
+
+              // Normalize coordinates -- +0.5 to look towards centre of pixel
+              float fdim0 = float(dim0 + 0.5) / (float)width;
+              float fdim1 = float(dim1 + 0.5) / (float)height;
+              float fdim2 = float(dim2 + 0.5) / (float)depth;
+
+              // Extension: read image data from handle (Vulkan imported)
+              VecType pixel;
+              pixel = syclexp::read_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  handles.imgInput, sycl::float4(fdim0, fdim1, fdim2, 0));
+
+              pixel *= static_cast<DType>(10.1f);
+              outAcc[sycl::id{dim2, dim1, dim0}] = pixel;
+            } else {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+
+              // Normalize coordinates -- +0.5 to look towards centre of pixel
+              float fdim0 = float(dim0 + 0.5) / (float)width;
+              float fdim1 = float(dim1 + 0.5) / (float)height;
+
+              // Extension: read image data from handle (Vulkan imported)
+              VecType pixel = syclexp::read_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  handles.imgInput, sycl::float2(fdim0, fdim1));
+
+              pixel *= static_cast<DType>(10.1f);
+              outAcc[sycl::id{dim1, dim0}] = pixel;
+            }
+          });
+    });
+    q.wait_and_throw();
+
+    syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
+    syclexp::release_external_memory(handles.inputInteropMemHandle, dev, ctxt);
+  } catch (sycl::exception e) {
+    std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
+    exit(-1);
   } catch (...) {
-    std::cerr << "Destroying interop memory failed!\n";
+    std::cerr << "\tKernel submission failed!" << std::endl;
+    exit(-1);
   }
 
   printString("Validating\n");
   bool validated = true;
-  for (int i = 0; i < width * height; i++) {
+  for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
-    float expected = (float)(i)*10.f;
-    if (out[i] != expected) {
+    VecType expected =
+        initVector<DType, NChannels>(i) * static_cast<DType>(10.1f);
+    if (!equal_vec<DType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
     }
@@ -115,24 +206,46 @@ bool run_sycl(int input_image_fd, size_t width, size_t height) {
     }
   }
   if (validated) {
-    std::cout << "Test passed!\n";
-    return true;
+    printString("Results are correct!\n");
   }
-  std::cout << "Test failed!\n";
-  return false;
+
+  return validated;
 }
 
-// Returns true if validated correctly
-bool run_test() {
-  const uint32_t width = 16, height = 16;
-  const size_t imageSizeBytes = width * height * sizeof(float);
+template <int NDims, typename DType, int NChannels,
+          sycl::image_channel_type CType, sycl::image_channel_order COrder,
+          typename KernelName>
+bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
+              unsigned int seed = 0) {
+  uint32_t width = static_cast<uint32_t>(dims[0]);
+  uint32_t height = 1;
+  uint32_t depth = 1;
+
+  size_t numElems = dims[0];
+  VkImageType imgType = VK_IMAGE_TYPE_1D;
+
+  if constexpr (NDims > 1) {
+    numElems *= dims[1];
+    height = static_cast<uint32_t>(dims[1]);
+    imgType = VK_IMAGE_TYPE_2D;
+  }
+  if constexpr (NDims > 2) {
+    numElems *= dims[2];
+    depth = static_cast<uint32_t>(dims[2]);
+    imgType = VK_IMAGE_TYPE_3D;
+  }
+
+  using VecType = sycl::vec<DType, NChannels>;
+
+  VkFormat format = vkutil::to_vulkan_format(COrder, CType);
+  const size_t imageSizeBytes = numElems * NChannels * sizeof(DType);
 
   printString("Creating input image\n");
   // Create input image memory
-  auto inputImage = vkutil::createImage(
-      VK_IMAGE_TYPE_2D, VK_FORMAT_R32_SFLOAT, {width, height, 1},
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-          VK_IMAGE_USAGE_STORAGE_BIT);
+  auto inputImage = vkutil::createImage(imgType, format, {width, height, depth},
+                                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                            VK_IMAGE_USAGE_STORAGE_BIT);
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
       inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   auto inputMemory =
@@ -155,30 +268,20 @@ bool run_test() {
 
   printString("Populating staging buffer\n");
   // Populate staging memory
-  float *inputStagingData = nullptr;
+  VecType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
-  for (int i = 0; i < width * height; ++i) {
-    inputStagingData[i] = (float)i;
+  for (int i = 0; i < numElems; ++i) {
+    inputStagingData[i] = initVector<DType, NChannels>(i);
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 
   printString("Submitting image layout transition\n");
   // Transition image layouts
   {
-    VkImageMemoryBarrier barrierInput = {};
-    barrierInput.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrierInput.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    barrierInput.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    barrierInput.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrierInput.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrierInput.image = inputImage;
-    barrierInput.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrierInput.subresourceRange.levelCount = 1;
-    barrierInput.subresourceRange.layerCount = 1;
-    barrierInput.srcAccessMask = 0;
-    barrierInput.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    VkImageMemoryBarrier barrierInput =
+        vkutil::createImageMemoryBarrier(inputImage);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -208,7 +311,7 @@ bool run_test() {
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     VkBufferImageCopy copyRegion = {};
-    copyRegion.imageExtent = {width, height, 1};
+    copyRegion.imageExtent = {width, height, depth};
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     copyRegion.imageSubresource.layerCount = 1;
 
@@ -231,7 +334,8 @@ bool run_test() {
   printString("Getting memory file descriptors and calling into SYCL\n");
   // Pass memory to SYCL for modification
   auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
-  bool validated = run_sycl(input_fd, width, height);
+  bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
+      dims, localSize, input_fd);
 
   // Cleanup
   vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);
@@ -239,7 +343,43 @@ bool run_test() {
   vkFreeMemory(vk_device, inputStagingMemory, nullptr);
   vkFreeMemory(vk_device, inputMemory, nullptr);
 
-  return validated;
+  return result;
+}
+
+bool run_tests() {
+  bool valid = run_test<2, float, 4, sycl::image_channel_type::fp32,
+                        sycl::image_channel_order::rgba, class float_2d>(
+      {16, 16}, {2, 2}, 0);
+
+  valid &= run_test<2, float, 2, sycl::image_channel_type::fp32,
+                    sycl::image_channel_order::rg, class float_2d_large>(
+      {1024, 1024}, {4, 2}, 0);
+
+  valid &= run_test<3, char, 2, sycl::image_channel_type::signed_int8,
+                    sycl::image_channel_order::rg, class float_3d>(
+      {256, 16, 2}, {2, 2, 2}, 0);
+
+  valid &= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
+                    sycl::image_channel_order::r, class uint32_2d>({64, 32},
+                                                                   {4, 2}, 0);
+
+  valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
+                    sycl::image_channel_order::rgba, class uint_3d_large>(
+      {1024, 256, 16}, {2, 2, 4}, 0);
+
+  valid &= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
+                    sycl::image_channel_order::r, class int32_2d>({64, 32},
+                                                                  {4, 2}, 0);
+
+  valid &= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
+                    sycl::image_channel_order::rg, class int32_3d>(
+      {64, 32, 64}, {4, 2, 4}, 0);
+
+  valid &= run_test<3, int16_t, 1, sycl::image_channel_type::signed_int16,
+                    sycl::image_channel_order::r, class int16_3d>({64, 32, 64},
+                                                                  {4, 2, 4}, 0);
+
+  return valid;
 }
 
 int main() {
@@ -259,12 +399,18 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  bool validated = run_test();
+  bool result_ok = run_tests();
 
   if (vkutil::cleanup() != VK_SUCCESS) {
     std::cerr << "Cleanup failed!\n";
     return EXIT_FAILURE;
   }
 
-  return validated ? EXIT_SUCCESS : EXIT_FAILURE;
+  if (result_ok) {
+    std::cout << "All tests passed!\n";
+    return EXIT_SUCCESS;
+  }
+
+  std::cerr << "Test failed\n";
+  return EXIT_FAILURE;
 }

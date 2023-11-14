@@ -41,7 +41,8 @@ static APSInt peekToAPSInt(InterpStack &Stk, PrimType T, size_t Offset = 0) {
   APSInt R;
   INT_TYPE_SWITCH(T, {
     T Val = Stk.peek<T>(Offset);
-    R = APSInt(APInt(T::bitWidth(), static_cast<uint64_t>(Val), T::isSigned()));
+    R = APSInt(
+        APInt(Val.bitWidth(), static_cast<uint64_t>(Val), T::isSigned()));
   });
 
   return R;
@@ -149,6 +150,9 @@ static bool interp__builtin_strlen(InterpState &S, CodePtr OpPC,
     return false;
 
   if (!CheckLive(S, OpPC, StrPtr, AK_Read))
+    return false;
+
+  if (!CheckDummy(S, OpPC, StrPtr))
     return false;
 
   assert(StrPtr.getFieldDesc()->isPrimitiveArray());
@@ -302,6 +306,15 @@ static bool interp__builtin_isnan(InterpState &S, CodePtr OpPC,
   return true;
 }
 
+static bool interp__builtin_issignaling(InterpState &S, CodePtr OpPC,
+                                        const InterpFrame *Frame,
+                                        const Function *F) {
+  const Floating &Arg = S.Stk.peek<Floating>();
+
+  pushInt(S, Arg.isSignaling());
+  return true;
+}
+
 static bool interp__builtin_isinf(InterpState &S, CodePtr OpPC,
                                   const InterpFrame *Frame, const Function *F,
                                   bool CheckSign) {
@@ -330,6 +343,24 @@ static bool interp__builtin_isnormal(InterpState &S, CodePtr OpPC,
   const Floating &Arg = S.Stk.peek<Floating>();
 
   pushInt(S, Arg.isNormal());
+  return true;
+}
+
+static bool interp__builtin_issubnormal(InterpState &S, CodePtr OpPC,
+                                        const InterpFrame *Frame,
+                                        const Function *F) {
+  const Floating &Arg = S.Stk.peek<Floating>();
+
+  pushInt(S, Arg.isDenormal());
+  return true;
+}
+
+static bool interp__builtin_iszero(InterpState &S, CodePtr OpPC,
+                                   const InterpFrame *Frame,
+                                   const Function *F) {
+  const Floating &Arg = S.Stk.peek<Floating>();
+
+  pushInt(S, Arg.isZero());
   return true;
 }
 
@@ -487,6 +518,10 @@ bool InterpretBuiltin(InterpState &S, CodePtr OpPC, const Function *F,
     if (interp__builtin_isnan(S, OpPC, Frame, F))
       return retInt(S, OpPC, Dummy);
     break;
+  case Builtin::BI__builtin_issignaling:
+    if (interp__builtin_issignaling(S, OpPC, Frame, F))
+      return retInt(S, OpPC, Dummy);
+    break;
 
   case Builtin::BI__builtin_isinf:
     if (interp__builtin_isinf(S, OpPC, Frame, F, /*Sign=*/false))
@@ -504,6 +539,14 @@ bool InterpretBuiltin(InterpState &S, CodePtr OpPC, const Function *F,
     break;
   case Builtin::BI__builtin_isnormal:
     if (interp__builtin_isnormal(S, OpPC, Frame, F))
+      return retInt(S, OpPC, Dummy);
+    break;
+  case Builtin::BI__builtin_issubnormal:
+    if (interp__builtin_issubnormal(S, OpPC, Frame, F))
+      return retInt(S, OpPC, Dummy);
+    break;
+  case Builtin::BI__builtin_iszero:
+    if (interp__builtin_iszero(S, OpPC, Frame, F))
       return retInt(S, OpPC, Dummy);
     break;
   case Builtin::BI__builtin_isfpclass:

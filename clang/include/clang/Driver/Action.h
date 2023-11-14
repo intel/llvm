@@ -629,10 +629,19 @@ public:
           DependentOffloadKind(DependentOffloadKind) {}
   };
 
+  /// Allow for a complete override of the target to unbundle.
+  /// This is used for specific unbundles used for SYCL AOT when generating full
+  /// device files that are bundled with the host object.
+  void setTargetString(std::string Target) { TargetString = Target; }
+
+  std::string getTargetString() const { return TargetString; }
+
 private:
   /// Container that keeps information about each dependence of this unbundling
   /// action.
   SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
+
+  std::string TargetString;
 
 public:
   // Offloading unbundling doesn't change the type of output.
