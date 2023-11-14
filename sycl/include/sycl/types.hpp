@@ -950,16 +950,16 @@ public:
           (std::is_fundamental_v<vec_data_t<T>> ||                             \
            std::is_same_v<typename std::remove_const_t<T>, half>),             \
       vec>                                                                     \
-  operator BINOP(const T & Rhs) const {                                        \
+  operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
   }                                                                            \
-  vec &operator OPASSIGN(const vec & Rhs) {                                    \
+  vec &operator OPASSIGN(const vec &Rhs) {                                     \
     *this = *this BINOP Rhs;                                                   \
     return *this;                                                              \
   }                                                                            \
   template <int Num = NumElements>                                             \
   typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(                \
-      const DataT & Rhs) {                                                     \
+      const DataT &Rhs) {                                                      \
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
