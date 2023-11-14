@@ -40,7 +40,7 @@ struct DeviceSanitizerReport {
     int Flag = 0;
 
     char File[256 + 1] = "";
-    char Func[128 + 1] = "";
+    char Func[256 + 1] = "";
 
     int32_t Line = 0;
 
