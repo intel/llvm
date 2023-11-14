@@ -38,9 +38,9 @@ private short2 *testGenericCastToPtrPrivate(generic short2 *a) {
 // CHECK-SPIRV: 5 GenericCastToPtrExplicit
 
 // CHECK-LLVM-LABEL: @testGenericCastToPtrExplicitGlobal
-// CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = bitcast ptr addrspace(4) %a to ptr addrspace(4)
-// CHECK-LLVM-OCL-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(1) @__to_global(ptr addrspace(4) %[[VoidPtrCast]])
-// CHECK-LLVM-SPV-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPU3AS4ci(ptr addrspace(4) %[[VoidPtrCast]], i32
+// CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = addrspacecast ptr addrspace(4) %a to ptr
+// CHECK-LLVM-OCL-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(1) @__to_global(ptr %[[VoidPtrCast]])
+// CHECK-LLVM-SPV-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPci(ptr %[[VoidPtrCast]], i32
 
 global short2 *testGenericCastToPtrExplicitGlobal(generic short2 *a) {
   return to_global(a);
@@ -49,9 +49,9 @@ global short2 *testGenericCastToPtrExplicitGlobal(generic short2 *a) {
 // CHECK-SPIRV: 5 GenericCastToPtrExplicit
 
 // CHECK-LLVM-LABEL: @testGenericCastToPtrExplicitLocal
-// CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = bitcast ptr addrspace(4) %a to ptr addrspace(4)
-// CHECK-LLVM-OCL-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(3) @__to_local(ptr addrspace(4) %[[VoidPtrCast]])
-// CHECK-LLVM-SPV-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(3) @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPU3AS4ci(ptr addrspace(4) %[[VoidPtrCast]], i32
+// CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = addrspacecast ptr addrspace(4) %a to ptr
+// CHECK-LLVM-OCL-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(3) @__to_local(ptr %[[VoidPtrCast]])
+// CHECK-LLVM-SPV-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr addrspace(3) @_Z40__spirv_GenericCastToPtrExplicit_ToLocalPci(ptr %[[VoidPtrCast]], i32
 
 local short2 *testGenericCastToPtrExplicitLocal(generic short2 *a) {
   return to_local(a);
@@ -60,9 +60,9 @@ local short2 *testGenericCastToPtrExplicitLocal(generic short2 *a) {
 // CHECK-SPIRV: 5 GenericCastToPtrExplicit
 
 // CHECK-LLVM-LABEL: @testGenericCastToPtrExplicitPrivate
-// CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = bitcast ptr addrspace(4) %a to ptr addrspace(4)
-// CHECK-LLVM-OCL-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr @__to_private(ptr addrspace(4) %[[VoidPtrCast]])
-// CHECK-LLVM-SPV-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePU3AS4ci(ptr addrspace(4) %[[VoidPtrCast]], i32
+// CHECK-LLVM: %[[VoidPtrCast:[0-9]+]] = addrspacecast ptr addrspace(4) %a to ptr
+// CHECK-LLVM-OCL-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr @__to_private(ptr %[[VoidPtrCast]])
+// CHECK-LLVM-SPV-NEXT: %{{[0-9a-zA-Z.]+}} = call spir_func ptr @_Z42__spirv_GenericCastToPtrExplicit_ToPrivatePci(ptr %[[VoidPtrCast]], i32
 
 private short2 *testGenericCastToPtrExplicitPrivate(generic short2 *a) {
   return to_private(a);
