@@ -400,6 +400,37 @@ As with standard SYCL kernels, these properties can be queried via
 `kernel::get_info` using either the `info::kernel::attributes` information
 descriptor or the `info::kernel_device_specific` information descriptors.
 
+== Raw kernels that are function templates
+
+A raw kernel may be defined as a function template, however, any instantiation
+that is submitted at runtime must be instantiated at compile time.
+Normally, the application does this with an explicit template instantiation as
+shown below:
+
+```
+template<typename T>
+struct my_iota;
+
+template<typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1, my_iota<T>>)
+void iota(T start, T *ptr) {
+   // ...
+}
+
+template void iota<int>(int, int *);
+template void iota<float>(float, float *);
+```
+
+As noted earlier, each instantiation must have a unique type-name, as
+illustrated in the example above.
+The application can use this type-name to obtain the `kernel` object for the
+raw kernel:
+
+```
+sycl::kernel myiota_int = exe_bndl.get_kernel<my_iota<int>>();
+sycl::kernel myiota_float = exe_bndl.get_kernel<my_iota<float>>();
+```
+
 
 == Example
 
