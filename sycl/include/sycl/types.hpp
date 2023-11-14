@@ -2230,6 +2230,8 @@ template <typename T, int N> struct VecStorageImpl;
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 template <typename T, int N> struct VecStorageImpl {
   using DataType = T __attribute__((ext_vector_type(N)));
+  using VectorDataType =
+      DataType; // to unify code with preview breaking changes mode
 };
 #else
 // When ext_vector_type is not available, we rely on cl_* types from CL/cl.h
@@ -2238,6 +2240,8 @@ template <typename T, int N> struct VecStorageImpl;
 #define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
   template <> struct VecStorageImpl<type, num> {                               \
     using DataType = ::cl_##cl_type##num;                                      \
+    using VectorDataType =                                                     \
+        DataType; /* to unify code with preview breaking changes mode */       \
   };
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 #endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -2268,9 +2272,7 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
   using DataType = bool;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = bool;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Multiple element bool
@@ -2280,12 +2282,10 @@ struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
       typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                                 std::int32_t, std::int64_t>,
                               N>::DataType;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType =
       typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                                 std::int32_t, std::int64_t>,
                               N>::VectorDataType;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element signed integers
@@ -2293,9 +2293,7 @@ template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
   using DataType = select_apply_cl_t<T, std::int8_t, std::int16_t, std::int32_t,
                                      std::int64_t>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = DataType;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element unsigned integers
@@ -2303,9 +2301,7 @@ template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
   using DataType = select_apply_cl_t<T, std::uint8_t, std::uint16_t,
                                      std::uint32_t, std::uint64_t>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = DataType;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element floating-point (except half)
@@ -2314,9 +2310,7 @@ struct VecStorage<
     T, 1, typename std::enable_if_t<!is_half_v<T> && is_sgenfloat_v<T>>> {
   using DataType =
       select_apply_cl_t<T, std::false_type, std::false_type, float, double>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = DataType;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 // Multiple elements signed/unsigned integers and floating-point (except half)
 template <typename T, int N>
@@ -2327,33 +2321,22 @@ struct VecStorage<
                                (is_sgenfloat_v<T> && !is_half_v<T>))>> {
   using DataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType, N>::DataType;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType,
                               N>::VectorDataType;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element half
 template <> struct VecStorage<half, 1, void> {
   using DataType = sycl::detail::half_impl::StorageT;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using VectorDataType = sycl::detail::half_impl::StorageT;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 // Multiple elements half
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
     using VectorDataType = sycl::detail::half_impl::Vec##Num##StorageT;        \
   };
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
-#define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
-  template <> struct VecStorage<half, Num, void> {                             \
-    using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
-  };
-#endif
 
 __SYCL_DEFINE_HALF_VECSTORAGE(2)
 __SYCL_DEFINE_HALF_VECSTORAGE(3)
