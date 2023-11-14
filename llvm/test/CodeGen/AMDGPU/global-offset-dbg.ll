@@ -30,8 +30,8 @@ entry:
   ret void
 }
 
-; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset(ptr byval([3 x i32]) %0) !dbg !17 {
-; CHECK:   %1 = call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %0), !dbg !18
+; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset(ptr byref([3 x i32]) %0) !dbg !17 {
+; CHECK: call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %1), !dbg !18
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4}

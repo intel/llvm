@@ -160,7 +160,8 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
 
   auto *NewFunc = std::get<0>(addOffsetArgumentToFunction(
       M, Func, KernelImplicitArgumentType->getPointerTo(),
-      /*KeepOriginal=*/true));
+      /*KeepOriginal=*/true,
+      /*IsKernel=*/true));
   Argument *NewArgument = std::prev(NewFunc->arg_end());
   // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
   // byval args, use byref.
@@ -219,7 +220,7 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
     } else {
       std::tie(NewFunc, ImplicitOffset) =
           addOffsetArgumentToFunction(
-              M, Caller, KernelImplicitArgumentType->getPointerTo(),
+              M, Caller, nullptr,
               /*KeepOriginal=*/true);
     }
     CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
@@ -263,7 +264,8 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 }
 
 std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
-    Module &M, Function *Func, Type *ImplicitArgumentType, bool KeepOriginal) {
+    Module &M, Function *Func, Type *ImplicitArgumentType, bool KeepOriginal,
+    bool IsKernel) {
   FunctionType *FuncTy = Func->getFunctionType();
   const AttributeList &FuncAttrs = Func->getAttributes();
   ImplicitArgumentType =
@@ -318,7 +320,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     // addrspace(3). This is done as kernels can't allocate and fill the
     // array in constant address space, which would be required for the case
     // with no global offset.
-    if (AT == ArchType::AMDHSA) {
+    if (IsKernel && AT == ArchType::AMDHSA) {
       BasicBlock *EntryBlock = &NewFunc->getEntryBlock();
       IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
       Type *ImplicitOffsetType =

@@ -56,10 +56,14 @@ entry:
 
 ; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset(ptr byref([3 x i32]) %0) {
 ; CHECK: entry:
-; CHECK:   %1 = call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %0)
-; CHECK:   %2 = call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %0)
+; CHECK:   %1 = alloca [3 x i32], align 4, addrspace(5)
+; CHECK:   %2 = addrspacecast ptr %0 to ptr addrspace(4)
+; CHECK:   call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 4 %1, ptr addrspace(4) align 1 %2, i64 12, i1 false)
+; CHECK:   %3 = call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %1)
+; CHECK:   %4 = call i64 @_ZTS14other_function_with_offset(ptr addrspace(5) %1)
 ; CHECK:   ret void
 ; CHECK: }
+
 !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 ; CHECK: !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3, !5}
 

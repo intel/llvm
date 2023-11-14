@@ -79,6 +79,8 @@ private:
   /// keep it intact and create a clone of it with `_wit_offset` appended to
   /// the name.
   ///
+  /// \param IsKernel Indicates whether Func is a kernel entry point.
+  ///
   /// \param CI A pointer to a CallInstruction in the old function.
   ///
   /// \returns A tuple of new function with the offset argument added, a
@@ -88,7 +90,8 @@ private:
   std::pair<Function *, Value *>
   addOffsetArgumentToFunction(Module &M, Function *Func,
                               Type *ImplicitArgumentType = nullptr,
-                              bool KeepOriginal = false);
+                              bool KeepOriginal = false,
+                              bool IsKernel = false);
 
   /// Create a mapping of kernel entry points to their metadata nodes. While
   /// iterating over kernels make sure that a given kernel entry point has no
