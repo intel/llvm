@@ -22,7 +22,7 @@ context_t context;
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t()
     : interceptor(new SanitizerInterceptor(urDdiTable)),
-      logger(logger::create_logger("sanitizer")) {}
+      logger(logger::create_logger("asan")) {}
 
 bool context_t::isAvailable() const { return true; }
 
