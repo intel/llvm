@@ -405,9 +405,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
 
   pDdiTable->pfnFree = nullptr;
   pDdiTable->pfnGetInfo = nullptr;
-  pDdiTable->pfnGranularityGetInfo = urVirtualMemGranularityGetInfo;
-  pDdiTable->pfnMap = urVirtualMemMap;
-  pDdiTable->pfnReserve = urVirtualMemReserve;
+  pDdiTable->pfnGranularityGetInfo = nullptr;
+  pDdiTable->pfnMap = nullptr;
+  pDdiTable->pfnReserve = nullptr;
   pDdiTable->pfnSetAccess = nullptr;
   pDdiTable->pfnUnmap = nullptr;
 
@@ -424,7 +424,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
     return retVal;
   }
 
-  pDdiTable->pfnCreate = urPhysicalMemCreate;
+  pDdiTable->pfnCreate = nullptr;
   pDdiTable->pfnRelease = nullptr;
   pDdiTable->pfnRetain = nullptr;
 
