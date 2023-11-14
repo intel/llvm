@@ -10,12 +10,7 @@
  * @file ur_san_layer.cpp
  *
  */
-//==---------- sanitizer_interceptor.cpp - Sanitizer interceptor -----------==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
+
 #include "asan_interceptor.hpp"
 #include "device_sanitizer_report.hpp"
 #include "ur_san_layer.hpp"
@@ -197,7 +192,7 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                            ur_event_handle_t &Event) {
     prepareLaunch(Queue, Kernel);
 
-    updateShadowMemory(Queue);
+    UR_CALL(updateShadowMemory(Queue));
 
     // Return LastEvent in QueueInfo
     auto Context = getContext(Queue);
@@ -216,7 +211,6 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_event_handle_t *Event,
                                             bool SetCallback) {
     auto Program = getProgram(Kernel);
-
     ur_event_handle_t ReadEvent{};
 
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
