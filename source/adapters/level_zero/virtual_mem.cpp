@@ -22,7 +22,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   switch (propName) {
   case UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
   case UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED: {
-    // For L0 the minimum and recommended granularity is the same. We use a
+    // For L0 the minimum and recommended granularity is the same. We use an
     // memory size of 1 byte to get the actual granularity instead of the
     // aligned size.
     size_t PageSize;
