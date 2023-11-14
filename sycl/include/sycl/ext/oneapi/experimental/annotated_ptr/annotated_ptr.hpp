@@ -89,7 +89,7 @@ public:
 #endif
   }
 
-  T operator=(const T Obj) const {
+  T operator=(T Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
