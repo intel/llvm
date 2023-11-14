@@ -699,51 +699,44 @@ Expected<SmallVector<SYCLImage>> readImages(StringRef File) {
 
 // Run clang-offload-wrapper's functionality
 // TODO: this function should be removed in favor of community flow
-Expected<StringRef> wrapSYCLBinariesFromFile(StringRef &InputFile,
+Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
                                              const ArgList &Args) {
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-  SmallString<128> TargetTripleOpt = Triple.getArchName();
+  auto OutputFileOrErr = createOutputFile(sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
+  if (!OutputFileOrErr)
+    return OutputFileOrErr.takeError();
+
+  StringRef OutputFilePath = *OutputFileOrErr;
+  if (DryRun) {
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFile, OutputFilePath);
+    return OutputFilePath;
+  }
+
   auto ImagesOrErr = readImages(InputFile);
   if (!ImagesOrErr)
     return ImagesOrErr.takeError();
 
   auto &Images = *ImagesOrErr;
+
+  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  SmallString<128> TargetTripleOpt = Triple.getArchName();
   LLVMContext C;
   Module M("offload.wrapper.object", C);
   M.setTargetTriple(TargetTripleOpt);
-  auto Error = wrapSYCLBinaries(M, Images);
-  if (Error)
-    return Error;
+  if (auto E = wrapSYCLBinaries(M, Images))
+    return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << M;
-  if (Args.hasArg(OPT_save_temps)) {
-    int FD = -1;
-    auto TempFileOrErr = createOutputFile(
-        sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
-    if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
-      return errorCodeToError(EC);
-    llvm::raw_fd_ostream OS(FD, true);
-    WriteBitcodeToFile(M, OS);
-  }
 
-  {
-    // TODO: Once "llc tool->runCompile" migration is finished we need to remove
-    // this scope and use community flow.
-    auto TempFileOrErr =
-        createOutputFile(sys::path::filename(ExecutableName), "bc");
-    if (!TempFileOrErr)
-      return TempFileOrErr.takeError();
+  // TODO: Once "llc tool->runCompile" migration is finished we need to remove
+  // this scope and use community flow.
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(OutputFilePath, FD))
+    return errorCodeToError(EC);
 
-    int FD = -1;
-    llvm::raw_fd_ostream OS(FD, true);
-    WriteBitcodeToFile(M, OS);
-    return *TempFileOrErr;
-  }
-
-  llvm_unreachable("unreachable");
+  raw_fd_ostream OS(FD, true);
+  WriteBitcodeToFile(M, OS);
+  return OutputFilePath;
 }
 
 // Run llc
