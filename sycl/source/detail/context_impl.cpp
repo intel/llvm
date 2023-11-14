@@ -77,7 +77,7 @@ context_impl::context_impl(sycl::detail::pi::PiContext PiContext,
       MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
-  size_t DevicesNum = 0;
+  uint32_t DevicesNum = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piContextGetInfo>(
       MContext, PI_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
