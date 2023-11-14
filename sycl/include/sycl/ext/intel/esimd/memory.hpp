@@ -3961,9 +3961,12 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
+    // 2-argument lsc_atomic_update arguments order matches the standard one -
+    // expected value first, then new value. But atomic_update uses reverse
+    // order, hence the src1/src0 swap.
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
-        p, byte_offset, src0, src1, mask);
+        p, byte_offset, src1, src0, mask);
   } else {
     if constexpr (Op == atomic_op::fcmpxchg) {
       // Auto-convert FP atomics to LSC version.

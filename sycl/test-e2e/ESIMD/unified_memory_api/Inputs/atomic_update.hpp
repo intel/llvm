@@ -133,8 +133,10 @@ bool test(queue q, const Config &cfg) {
         simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                  cfg.stride * sizeof(T));
         simd_mask<N> m = 1;
-        if (cfg.masked_lane < N)
-          m[cfg.masked_lane] = 0;
+        if constexpr (UseMask) {
+          if (cfg.masked_lane < N)
+            m[cfg.masked_lane] = 0;
+        }
         // barrier to achieve better contention:
         // Intra-work group barrier.
         barrier();
@@ -484,14 +486,9 @@ bool test_int_types(queue q, const Config &cfg) {
 
     passed &= test<int32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
     passed &= test<int64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
-
     if constexpr (!std::is_same_v<signed long, int64_t> &&
                   !std::is_same_v<signed long, int32_t>) {
-      passed &= test<signed long, N, Op>(q, cfg);
-      if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
-                    !std::is_same_v<unsigned long, uint32_t>) {
-        passed &= test<unsigned long, N, Op>(q, cfg);
-      }
+      passed &= test<signed long, N, Op, UseMask, UsePVCFeatures>(q, cfg);
     }
   }
 
@@ -501,6 +498,11 @@ bool test_int_types(queue q, const Config &cfg) {
       passed &= test<uint16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
     passed &= test<uint32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    passed &= test<uint64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
+                  !std::is_same_v<unsigned long, uint32_t>) {
+      passed &= test<unsigned long, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    }
   }
   return passed;
 }

@@ -9,8 +9,8 @@
 // REQUIRES: gpu-intel-pvc
 
 // TODO: understand why the test is hanging.
-// RUNx: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #define CMPXCHG_TEST
 
