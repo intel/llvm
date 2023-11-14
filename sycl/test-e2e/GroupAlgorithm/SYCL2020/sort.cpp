@@ -55,8 +55,8 @@ public:
   bool operator==(const CustomType &RHS) const { return MVal == RHS.MVal; }
 
 private:
-   size_t MVal = 0;
- };
+  size_t MVal = 0;
+};
 
 template <class T> struct ConvertToSimpleType {
   using Type = T;
