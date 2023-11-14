@@ -266,9 +266,14 @@ support.
 Due to the API mapping gaps documented in the following section, OpenCL as a
 SYCL backend cannot fully support the graphs API. Instead there are
 limitations in the types on nodes which a user can add to a graph, using
-an unsupported node type will cause an abort in graph finalization with the
-message
-`ur_die: Experimental Command-buffer entry point is not implemented for OpenCL adapter.`.
+an unsupported node type will cause a sycl exception to be throw in graph
+finalization with error code `sycl::errc::feature_not_support` and a message
+mentioning the unsupported command. For example,
+
+```
+terminate called after throwing an instance of 'sycl::_V1::exception'
+what():  USM copy command not supported by graph backend
+```
 
 The types of commands which are unsupported, and lead to this exception are:
 * `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
@@ -311,6 +316,9 @@ adapter where there is matching support for each function in the list.
 |  | clGetCommandBufferInfoKHR | No |
 |  | clCommandSVMMemcpyKHR | No |
 |  | clCommandSVMMemFillKHR | No |
+
+We are looking to address these gaps in the future so that SYCL-Graphs can be
+fully supported on a `cl_khr_command_buffer` backend.
 
 #### UR Command-Buffer Implementation
 
