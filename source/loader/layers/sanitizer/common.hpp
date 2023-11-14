@@ -12,11 +12,11 @@
 
 #pragma once
 
+#include "ur/ur.hpp"
+#include "ur_ddi.h"
+
 #include <cassert>
 #include <cstdint>
-
-#include "ur_ddi.h"
-#include <ur/ur.hpp>
 
 namespace ur_san_layer {
 

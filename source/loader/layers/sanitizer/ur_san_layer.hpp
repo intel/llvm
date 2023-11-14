@@ -13,9 +13,7 @@
 #pragma once
 
 #include "logger/ur_logger.hpp"
-#include "ur_ddi.h"
 #include "ur_proxy_layer.hpp"
-#include "ur_util.hpp"
 
 #define SANITIZER_COMP_NAME "sanitizer layer"
 
