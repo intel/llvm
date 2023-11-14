@@ -235,6 +235,28 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urMemBufferPartition
+__urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
+    ur_mem_handle_t
+        hBuffer,          ///< [in] handle of the buffer object to allocate from
+    ur_mem_flags_t flags, ///< [in] allocation and usage information flags
+    ur_buffer_create_type_t bufferCreateType, ///< [in] buffer creation type
+    const ur_buffer_region_t
+        *pRegion, ///< [in] pointer to buffer create region information
+    ur_mem_handle_t
+        *phMem ///< [out] pointer to the handle of sub buffer created
+) {
+    auto pfnBufferPartition = context.urDdiTable.Mem.pfnBufferPartition;
+
+    if (nullptr == pfnBufferPartition) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    return context.interceptor->partitionMemoryBuffer(
+        hBuffer, flags, bufferCreateType, pRegion, phMem);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgLocal
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
@@ -458,7 +480,7 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
     // pDdiTable->pfnRelease = ur_asan_layer::urMemRelease;
 
     // dditable.pfnBufferPartition = pDdiTable->pfnBufferPartition;
-    // pDdiTable->pfnBufferPartition = ur_asan_layer::urMemBufferPartition;
+    pDdiTable->pfnBufferPartition = ur_asan_layer::urMemBufferPartition;
 
     // dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
     // pDdiTable->pfnGetNativeHandle = ur_asan_layer::urMemGetNativeHandle;
