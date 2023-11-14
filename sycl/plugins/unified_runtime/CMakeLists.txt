@@ -54,13 +54,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0e24ab8d136978d984be9e8cba34e23b4fbcf37c
-  # Merge: a62423d d5a4691
+  # commit 192e9404392c38ac43d09116d6c97e153c66f46b
+  # Merge: 2f44433c f65473d9
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Nov 6 11:42:03 2023 +0000
-  #     Merge pull request #931 from konradkusiak97/konradkusiak/LocalMemSizeQuery
-  #     [UR] [CUDA] Changed the output of querying localMemSize
-  set(UNIFIED_RUNTIME_TAG 0e24ab8d136978d984be9e8cba34e23b4fbcf37c)
+  # Date:   Fri Nov 10 13:25:42 2023 +0000
+  #     Merge pull request #1044 from aarongreig/aaron/clCTSFixMegaBranch
+  #     [OpenCL] Combined CTS fixes
+  set(UNIFIED_RUNTIME_TAG 192e9404392c38ac43d09116d6c97e153c66f46b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

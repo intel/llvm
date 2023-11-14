@@ -3,6 +3,9 @@
 // RUN: %if preview-breaking-changes-supported %{%{build} -o -fpreview %t_preview.out%}
 // RUN: %if preview-breaking-changes-supported %{%{run} %t_preview.out%}
 
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
+
 #ifdef _WIN32
 #define _USE_MATH_DEFINES // To use math constants
 #endif
