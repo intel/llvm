@@ -64,31 +64,29 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
 //     }
 // }
 
-ur_context_handle_t getContext(ur_queue_handle_t Queue,
-                               ur_dditable_t &Dditable) {
+ur_context_handle_t getContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context;
-    auto Result = Dditable.Queue.pfnGetInfo(Queue, UR_QUEUE_INFO_CONTEXT,
-                                            sizeof(ur_context_handle_t),
-                                            &Context, nullptr);
+    auto Result = context.urDdiTable.Queue.pfnGetInfo(
+        Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
+        nullptr);
     assert(Result == UR_RESULT_SUCCESS);
     return Context;
 }
 
-ur_device_handle_t getDevice(ur_queue_handle_t Queue, ur_dditable_t &Dditable) {
+ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
     ur_device_handle_t Device;
-    auto Result =
-        Dditable.Queue.pfnGetInfo(Queue, UR_QUEUE_INFO_DEVICE,
-                                  sizeof(ur_device_handle_t), &Device, nullptr);
+    auto Result = context.urDdiTable.Queue.pfnGetInfo(
+        Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
+        nullptr);
     assert(Result == UR_RESULT_SUCCESS);
     return Device;
 }
 
-ur_program_handle_t getProgram(ur_kernel_handle_t Kernel,
-                               ur_dditable_t &Dditable) {
+ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program;
-    auto Result = Dditable.Kernel.pfnGetInfo(Kernel, UR_KERNEL_INFO_PROGRAM,
-                                             sizeof(ur_program_handle_t),
-                                             &Program, nullptr);
+    auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
+        nullptr);
     assert(Result == UR_RESULT_SUCCESS);
     return Program;
 }
@@ -118,14 +116,14 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     void *Allocated = nullptr;
 
     if (Type == USMMemoryType::DEVICE) {
-        UR_CALL(m_Dditable.USM.pfnDeviceAlloc(Context, Device, Properties, Pool,
-                                              NeededSize, &Allocated));
+        UR_CALL(context.urDdiTable.USM.pfnDeviceAlloc(
+            Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else if (Type == USMMemoryType::HOST) {
-        UR_CALL(m_Dditable.USM.pfnHostAlloc(Context, Properties, Pool,
-                                            NeededSize, &Allocated));
+        UR_CALL(context.urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
+                                                    NeededSize, &Allocated));
     } else if (Type == USMMemoryType::SHARE) {
-        UR_CALL(m_Dditable.USM.pfnSharedAlloc(Context, Device, Properties, Pool,
-                                              NeededSize, &Allocated));
+        UR_CALL(context.urDdiTable.USM.pfnSharedAlloc(
+            Context, Device, Properties, Pool, NeededSize, &Allocated));
     } else {
         die("SanitizerInterceptor: unsupport memory type");
     }
@@ -192,7 +190,8 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     }
 
     // TODO: Update shadow memory
-    return m_Dditable.USM.pfnFree(Context, (void *)AllocInfo.AllocBegin);
+    return context.urDdiTable.USM.pfnFree(Context,
+                                          (void *)AllocInfo.AllocBegin);
 }
 
 bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
@@ -203,7 +202,7 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     updateShadowMemory(Queue);
 
     // Return LastEvent in QueueInfo
-    auto Context = getContext(Queue, m_Dditable);
+    auto Context = getContext(Queue);
     auto &ContextInfo = getContextInfo(Context);
     auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
 
@@ -218,13 +217,13 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
                                             ur_event_handle_t *Event,
                                             bool SetCallback) {
-    auto Program = getProgram(Kernel, m_Dditable);
+    auto Program = getProgram(Kernel);
 
     ur_event_handle_t ReadEvent{};
 
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
     // to host, but it's okay that it isn't defined
-    auto Result = m_Dditable.Enqueue.pfnDeviceGlobalVariableRead(
+    auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
         Queue, Program, kSPIR_DeviceSanitizerReportMem, true,
         sizeof(SPIR_DeviceSanitizerReportMem), 0,
         &SPIR_DeviceSanitizerReportMem, 1, Event, &ReadEvent);
@@ -258,14 +257,14 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 
 std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
     size_t KernelNameSize = 0;
-    auto Res = m_Dditable.Kernel.pfnGetInfo(
+    auto Res = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
     assert(Res == UR_RESULT_SUCCESS);
 
     std::vector<char> KernelNameBuf(KernelNameSize + 1);
-    Res = m_Dditable.Kernel.pfnGetInfo(Kernel, UR_KERNEL_INFO_FUNCTION_NAME,
-                                       KernelNameSize, KernelNameBuf.data(),
-                                       nullptr);
+    Res = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
+        KernelNameBuf.data(), nullptr);
     assert(Res == UR_RESULT_SUCCESS);
     KernelNameBuf[KernelNameSize] = '\0';
 
@@ -285,7 +284,7 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(ur_context_handle_t Context,
         constexpr size_t SHADOW_SIZE = 1ULL << 46;
 
         // TODO: Protect Bad Zone
-        UR_CALL(m_Dditable.VirtualMem.pfnReserve(
+        UR_CALL(context.urDdiTable.VirtualMem.pfnReserve(
             Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo.ShadowOffset));
 
         DeviceInfo.ShadowOffsetEnd = DeviceInfo.ShadowOffset + SHADOW_SIZE;
@@ -298,24 +297,26 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(ur_context_handle_t Context,
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
+ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
     ur_context_handle_t Context, ur_device_handle_t Device,
-    ur_queue_handle_t Queue, void *Ptr, size_t Size, uint8_t Value,
-    size_t NumEventsInWaitList, const ur_event_handle_t *EventsWaitList,
-    ur_event_handle_t *OutEvent) {
+    ur_queue_handle_t Queue, uptr Ptr, uptr Size, u8 Value,
+    ur_event_handle_t DepEvent, ur_event_handle_t *OutEvent) {
+
+    uint32_t NumEventsInWaitList = DepEvent ? 1 : 0;
+    const ur_event_handle_t *EventsWaitList = DepEvent ? &DepEvent : nullptr;
+
     auto &ContextInfo = getContextInfo(Context);
     auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+
     if (DeviceInfo.Type == DeviceType::CPU) {
         die("Unsupport device type");
     } else if (DeviceInfo.Type == DeviceType::GPU_PVC) {
-        const uptr UPtr = (uptr)Ptr;
-
         ur_event_handle_t InternalEvent{};
         ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
-        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo.ShadowOffset, UPtr);
+        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo.ShadowOffset, Ptr);
         uptr ShadowEnd =
-            MemToShadow_PVC(DeviceInfo.ShadowOffset, UPtr + Size - 1);
+            MemToShadow_PVC(DeviceInfo.ShadowOffset, Ptr + Size - 1);
 
         // Maybe in future, we needn't to map physical memory manually
         const bool IsNeedMapPhysicalMem = true;
@@ -332,7 +333,7 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
             for (auto MappedPtr = RoundDownTo(ShadowBegin, PageSize);
                  MappedPtr <= ShadowEnd; MappedPtr += PageSize) {
                 if (!PhysicalMem) {
-                    auto URes = m_Dditable.PhysicalMem.pfnCreate(
+                    auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
                         Context, Device, PageSize, &Desc, &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
                         context.logger.error("zePhysicalMemCreate(): {}",
@@ -346,7 +347,7 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
                                      (void *)(MappedPtr + PageSize - 1));
 
                 // FIXME: No flag to check the failed reason is VA is already mapped
-                auto URes = m_Dditable.VirtualMem.pfnMap(
+                auto URes = context.urDdiTable.VirtualMem.pfnMap(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
@@ -362,7 +363,7 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
                     // FIXME: Maybe we needn't to initialize shadow memory to zero? Or it'd be better to be a negative value?
                     const char Pattern[] = {0};
 
-                    auto URes = m_Dditable.Enqueue.pfnUSMFill(
+                    auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
                         NumEventsInWaitList, EventsWaitList, Event);
                     if (URes != UR_RESULT_SUCCESS) {
@@ -378,7 +379,7 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
         }
 
         const char Pattern[] = {(char)Value};
-        auto URes = m_Dditable.Enqueue.pfnUSMFill(
+        auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
             Queue, (void *)ShadowBegin, 1, Pattern,
             (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
             Event);
@@ -393,22 +394,12 @@ ur_result_t SanitizerInterceptor::piextEnqueueMemSetShadow(
     return UR_RESULT_SUCCESS;
 }
 
-ur_result_t SanitizerInterceptor::enqueuePoisonShadow(
-    ur_context_handle_t Context, ur_device_handle_t Device,
-    ur_queue_handle_t Queue, uptr Addr, uptr Size, u8 Value,
-    ur_event_handle_t DepEvent, ur_event_handle_t *OutEvent) {
-    uint32_t NumEvents = DepEvent ? 1 : 0;
-    const ur_event_handle_t *EventsList = DepEvent ? &DepEvent : nullptr;
-    return piextEnqueueMemSetShadow(Context, Device, Queue, (void *)Addr, Size,
-                                    Value, NumEvents, EventsList, OutEvent);
-}
-
 ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ur_queue_handle_t Queue, USMAllocInfo &AllocInfo,
     ur_event_handle_t &LastEvent) {
     // Init zero
-    UR_CALL(enqueuePoisonShadow(Context, Device, Queue, AllocInfo.AllocBegin,
+    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo.AllocBegin,
                                 AllocInfo.AllocSize, 0, LastEvent, &LastEvent));
 
     uptr TailBegin = RoundUpTo(AllocInfo.UserEnd, ASAN_SHADOW_GRANULARITY);
@@ -418,7 +409,7 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     if (TailBegin != AllocInfo.UserEnd) {
         auto Value = AllocInfo.UserEnd -
                      RoundDownTo(AllocInfo.UserEnd, ASAN_SHADOW_GRANULARITY);
-        UR_CALL(enqueuePoisonShadow(Context, Device, Queue, AllocInfo.UserEnd,
+        UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo.UserEnd,
                                     1, Value, LastEvent, &LastEvent));
     }
 
@@ -442,12 +433,12 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     }
 
     // Left red zone
-    UR_CALL(enqueuePoisonShadow(Context, Device, Queue, AllocInfo.AllocBegin,
+    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo.AllocBegin,
                                 AllocInfo.UserBegin - AllocInfo.AllocBegin,
                                 ShadowByte, LastEvent, &LastEvent));
 
     // Right red zone
-    UR_CALL(enqueuePoisonShadow(Context, Device, Queue, TailBegin,
+    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, TailBegin,
                                 TailEnd - TailBegin, ShadowByte, LastEvent,
                                 &LastEvent));
 
@@ -455,8 +446,8 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
 }
 
 ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
-    auto Context = getContext(Queue, m_Dditable);
-    auto Device = getDevice(Queue, m_Dditable);
+    auto Context = getContext(Queue);
+    auto Device = getDevice(Queue);
     assert(Device != nullptr);
 
     auto &ContextInfo = getContextInfo(Context);
@@ -517,7 +508,7 @@ ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
 
     // Query device type
     ur_device_type_t DeviceType;
-    UR_CALL(m_Dditable.Device.pfnGetInfo(
+    UR_CALL(context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr));
     switch (DeviceType) {
     case UR_DEVICE_TYPE_CPU:
@@ -531,7 +522,7 @@ ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
     }
 
     // Query alignment
-    UR_CALL(m_Dditable.Device.pfnGetInfo(
+    UR_CALL(context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN,
         sizeof(DeviceInfoPtr->Alignment), &DeviceInfoPtr->Alignment, nullptr));
 
@@ -559,9 +550,9 @@ ur_result_t SanitizerInterceptor::addQueue(ur_context_handle_t Context,
 
 void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                                          ur_kernel_handle_t Kernel) {
-    auto Context = getContext(Queue, m_Dditable);
-    auto Device = getDevice(Queue, m_Dditable);
-    auto Program = getProgram(Kernel, m_Dditable);
+    auto Context = getContext(Queue);
+    auto Device = getDevice(Queue);
+    auto Program = getProgram(Kernel);
 
     auto &ContextInfo = getContextInfo(Context);
     auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
@@ -577,9 +568,10 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
             uint32_t NumEvents = LastEvent ? 1 : 0;
             const ur_event_handle_t *EventsList =
                 LastEvent ? &LastEvent : nullptr;
-            auto Result = m_Dditable.Enqueue.pfnDeviceGlobalVariableWrite(
-                Queue, Program, Name, false, sizeof(uptr), 0, Value, NumEvents,
-                EventsList, &NewEvent);
+            auto Result =
+                context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+                    Queue, Program, Name, false, sizeof(uptr), 0, Value,
+                    NumEvents, EventsList, &NewEvent);
             if (Result != UR_RESULT_SUCCESS) {
                 context.logger.warning("Device Global Write Failed[{}]: {}",
                                        Name, getUrResultString(Result));
