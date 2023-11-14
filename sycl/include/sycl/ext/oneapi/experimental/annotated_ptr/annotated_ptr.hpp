@@ -31,7 +31,7 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
+  T operator op##=(T rhs) const { return *this = *this op rhs; }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -71,7 +71,6 @@ class annotated_ref {
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using nonvolatile_value_type = typename std::remove_volatile<T>::type;
 
 private:
   T *m_Ptr;
@@ -90,18 +89,7 @@ public:
 #endif
   }
 
-  T operator=(const nonvolatile_value_type &Obj) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    *__builtin_intel_sycl_ptr_annotation(
-        m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...) = Obj;
-#else
-    *m_Ptr = Obj;
-#endif
-    return Obj;
-  }
-
-  T operator=(const volatile nonvolatile_value_type &Obj) const {
+  T operator=(const T Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
