@@ -400,8 +400,9 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         return result;
     }
 
-    // FIXME: Just copy needed APIs?
+    // FIXME: Interceptor needs use some of APIs that aren't registered, maybe just copy needed APIs?
     urDdiTable = *dditable;
+
     if (UR_RESULT_SUCCESS == result) {
         result = ur_san_layer::urGetContextProcAddrTable(UR_API_VERSION_CURRENT,
                                                          &dditable->Context);
