@@ -118,6 +118,7 @@ if(UR_DPCXX)
     add_subdirectory(kernel)
     add_subdirectory(program)
     add_subdirectory(enqueue)
+    add_subdirectory(exp_command_buffer)
 else()
     message(WARNING
         "UR_DPCXX is not defined, the following conformance test executables \

@@ -214,6 +214,7 @@ CONSTFIX char CommandCopyBufferName[] = "clCommandCopyBufferKHR";
 CONSTFIX char CommandCopyBufferRectName[] = "clCommandCopyBufferRectKHR";
 CONSTFIX char CommandFillBufferName[] = "clCommandFillBufferKHR";
 CONSTFIX char EnqueueCommandBufferName[] = "clEnqueueCommandBufferKHR";
+CONSTFIX char GetCommandBufferInfoName[] = "clGetCommandBufferInfoKHR";
 
 #undef CONSTFIX
 
@@ -300,6 +301,10 @@ cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
                       cl_uint num_events_in_wait_list,
                       const cl_event *event_wait_list, cl_event *event);
 
+using clGetCommandBufferInfoKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_buffer_info_khr param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;
   std::mutex Mutex;
@@ -338,6 +343,7 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clCommandCopyBufferRectKHR_fn> clCommandCopyBufferRectKHRCache;
   FuncPtrCache<clCommandFillBufferKHR_fn> clCommandFillBufferKHRCache;
   FuncPtrCache<clEnqueueCommandBufferKHR_fn> clEnqueueCommandBufferKHRCache;
+  FuncPtrCache<clGetCommandBufferInfoKHR_fn> clGetCommandBufferInfoKHRCache;
 };
 // A raw pointer is used here since the lifetime of this map has to be tied to
 // piTeardown to avoid issues with static destruction order (a user application
