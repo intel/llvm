@@ -995,7 +995,7 @@ Value *SPIRVToLLVM::transValue(SPIRVValue *BV, Function *F, BasicBlock *BB,
   if (Loc != ValueMap.end() && (!PlaceholderMap.count(BV) || CreatePlaceHolder))
     return Loc->second;
 
-  SPIRVDBG(spvdbgs() << "[transValue] " << *BV << " -> \n";)
+  SPIRVDBG(spvdbgs() << "[transValue] " << *BV << " -> ";)
   BV->validate();
 
   auto *V = transValueWithoutDecoration(BV, F, BB, CreatePlaceHolder);
@@ -3541,11 +3541,10 @@ void generateIntelFPGAAnnotationForStructMember(
     std::vector<llvm::SmallString<256>> &AnnotStrVec) {
   llvm::SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
-  SPIRVWord Result = 0;
-
   if (E->hasMemberDecorate(DecorationRegisterINTEL, 0, MemberNumber))
     Out << "{register:1}";
 
+  SPIRVWord Result = 0;
   if (E->hasMemberDecorate(DecorationMemoryINTEL, 0, MemberNumber, &Result))
     Out << "{memory:"
         << E->getMemberDecorationStringLiteral(DecorationMemoryINTEL,
@@ -3606,11 +3605,6 @@ void generateIntelFPGAAnnotationForStructMember(
 void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
   if (!BV->isVariable() && !BV->isInst())
     return;
-  
-  SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: BV: "
-                     << BV->getName() << '\n');
-  SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: V: ";
-                     V->dump());
 
   if (auto *Inst = dyn_cast<Instruction>(V)) {
     auto *AL = dyn_cast<AllocaInst>(Inst);
@@ -3624,51 +3618,20 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
     Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
     Value *UndefInt32 = UndefValue::get(Int32Ty);
 
-    SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: Inst->getType(): ";
-                   Inst->getType()->dump());
-
-    // check if this a pointer to a struct
-    bool isStructType = false;
-    if (auto *AL = dyn_cast<AllocaInst>(Inst))
-      isStructType = AL->getAllocatedType()->isStructTy();
-    else if (auto *G = dyn_cast<GetElementPtrInst>(Inst)) {
-      isStructType = G->getResultElementType()->isStructTy();
-      SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: GEP->getResultElementType(): ";
-                   G->getResultElementType()->dump());
-    }
-    else if (BV->hasType() && BV->getType()->isTypePointer())
-      isStructType = BV->getType()->getPointerElementType()->isTypeStruct();
-    
-    if (isStructType) {
-      SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: BV->getType(): ";
-                   BV->getType()->getName());
-      std::vector<SmallString<256>> AnnotStrVec;
-      auto *ST = BV->getType()->getPointerElementType();
-      generateIntelFPGAAnnotationForStructMember(ST, 0, AnnotStrVec);
-      SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: *generateIntelFPGAAnnotationForStructMember.size(): "
-                     << AnnotStrVec.size() << '\n');
-    }
-
     if (AL && BV->getType()->getPointerElementType()->isTypeStruct()) {
       auto *ST = BV->getType()->getPointerElementType();
-      SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: BV->getType()->getPointerElementType(): ";
-                   BV->getType()->getPointerElementType()->getName());
       SPIRVTypeStruct *STS = static_cast<SPIRVTypeStruct *>(ST);
 
       for (SPIRVWord I = 0; I < STS->getMemberCount(); ++I) {
         std::vector<SmallString<256>> AnnotStrVec;
         generateIntelFPGAAnnotationForStructMember(ST, I, AnnotStrVec);
-        SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: generateIntelFPGAAnnotationForStructMember.size(): "
-                     << AnnotStrVec.size() << '\n');
-
         for (const auto &AnnotStr : AnnotStrVec) {
-          SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: "
-                     << AnnotStr.str().str() << '\n');
           auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
+
           Instruction *PtrAnnFirstArg = nullptr;
 
-          if (GEPOrUseMap.count(Inst)) {
-            auto IdxToInstMap = GEPOrUseMap[Inst];
+          if (GEPOrUseMap.count(AL)) {
+            auto IdxToInstMap = GEPOrUseMap[AL];
             if (IdxToInstMap.count(I)) {
               PtrAnnFirstArg = IdxToInstMap[I];
             }
@@ -3678,7 +3641,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
 
           if (!PtrAnnFirstArg) {
             GetElementPtrInst *GEP = cast<GetElementPtrInst>(
-                Builder.CreateConstInBoundsGEP2_32(AllocatedTy, Inst, 0, I));
+                Builder.CreateConstInBoundsGEP2_32(AllocatedTy, AL, 0, I));
 
             IntTy = GEP->getResultElementType()->isIntegerTy()
                         ? GEP->getType()
@@ -3697,20 +3660,16 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
               Builder.CreateBitCast(GS, Int8PtrTyPrivate), UndefInt8Ptr,
               UndefInt32, UndefInt8Ptr};
           auto *PtrAnnotationCall = Builder.CreateCall(AnnotationFn, Args);
-          GEPOrUseMap[Inst][I] = PtrAnnotationCall;
+          GEPOrUseMap[AL][I] = PtrAnnotationCall;
         }
       }
     }
 
     std::vector<SmallString<256>> AnnotStrVec;
     generateIntelFPGAAnnotation(BV, AnnotStrVec);
-    SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: generateIntelFPGAAnnotation.size(): " << 
-                     AnnotStrVec.size() << "\n");
     for (const auto &AnnotStr : AnnotStrVec) {
       Constant *GS = nullptr;
       const auto StringAnnotStr = static_cast<std::string>(AnnotStr);
-      SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: AnnotStr: " << 
-                     StringAnnotStr << "\n");
       auto AnnotItr = AnnotationsMap.find(StringAnnotStr);
       if (AnnotItr != AnnotationsMap.end()) {
         GS = AnnotItr->second;
@@ -3740,8 +3699,6 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
                              UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
       Builder.CreateCall(AnnotationFn, Args);
-      SPIRVDBG(spvdbgs() << "Artem [transIntelFPGADecorations]: create annotation for: ";
-                     GS->dump());
     }
   } else if (auto *GV = dyn_cast<GlobalVariable>(V)) {
     std::vector<SmallString<256>> AnnotStrVec;

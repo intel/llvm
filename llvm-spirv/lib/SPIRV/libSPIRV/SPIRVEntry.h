@@ -434,8 +434,7 @@ protected:
       MemberDecorateMapType;
 
   bool canHaveMemberDecorates() const {
-    // return OpCode == OpTypeStruct || OpCode == internal::OpForward;
-    return true;
+    return OpCode == OpTypeStruct || OpCode == internal::OpForward;
   }
   MemberDecorateMapType &getMemberDecorates() {
     assert(canHaveMemberDecorates());

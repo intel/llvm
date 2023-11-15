@@ -4192,16 +4192,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // i8* <ptr> is a pointer on a GV, which can carry optinal variadic
   // clang::annotation attribute expression arguments.
   case Intrinsic::ptr_annotation: {
-    // Strip all bitcast and addrspace casts from the pointer argument:
-    //   llvm annotation intrinsic only takes i8*, so the original pointer
-    //   probably had to loose its addrspace and its original type.
-    Value *AnnotSubj = II->getArgOperand(0);
-    while (isa<BitCastInst>(AnnotSubj) || isa<AddrSpaceCastInst>(AnnotSubj)) {
-      AnnotSubj = cast<CastInst>(AnnotSubj)->getOperand(0);
-    }
 
-    // Artem: find the Variable that we should be putting the decoration on
-    // SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: ptr_annotation: AnnotSubj: "; AnnotSubj->dump());
+    Value *AnnotSubj = II->getArgOperand(0);
 
     std::string AnnotationString;
     processAnnotationString(II, AnnotationString);
@@ -4216,31 +4208,6 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         return BM->addFPGARegINTELInst(Ty, transValue(BI, BB), BB);
       return transValue(BI, BB);
     }
-
-
-    // If the pointer is a GEP on a struct, then we have to emit a member
-    // decoration for the GEP-accessed struct, or a memory access decoration
-    // for the GEP itself. There may not be a GEP in this case if the access is
-    // to the first member of the struct; if so, attempt to get a struct type
-    // from an alloca instead.
-    SPIRVType *StructTy = nullptr;
-    [[maybe_unused]] SPIRVValue *ResPtr = nullptr;
-    // if (auto *const GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
-    //   SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: ptr_annotation: porposed anchor: "; GI->getPointerOperand()->dump());
-
-
-    //   if (auto *const STy = dyn_cast<StructType>(GI->getSourceElementType())) {
-    //     StructTy = transType(STy);
-    //     ResPtr = transValue(GI, BB);
-    //     MemberNumber = dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
-    //   }
-    // } else if (auto *const AI = dyn_cast<AllocaInst>(AnnotSubj)) {
-    //   if (auto *const STy = dyn_cast<StructType>(AI->getAllocatedType())) {
-    //     StructTy = transType(STy);
-    //     ResPtr = transValue(AI, BB);
-    //     MemberNumber = 0;
-    //   }
-    // }
 
     auto DecorateOnPointer = [&](Value *DecorateOn) {
       SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: DecorateOnPointer: subj: "; DecorateOn->dump());
@@ -4265,92 +4232,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return DecSubj;
     };
 
-    Value *DecorateOn = nullptr;
-    SPIRVValue *DecSubj = nullptr;
-    if(auto *const GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
-      DecorateOn = GI->getPointerOperand();
-
-      AllocaInst* AI = trace2Alloca(GI);
-      if(!AI) {
-        DecSubj = DecorateOnPointer(DecorateOn);
-      }
-      if (AI->getAllocatedType()->isPointerTy()) {
-        DecSubj = DecorateOnPointer(DecorateOn);
-      } else {
-        // decorate on member
-        DecorateOn = AI;
-        SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: ptr_annotation memeber: subj: "; DecorateOn->dump());
-        
-        DecSubj = transValue(DecorateOn, BB);
-        SPIRVWord MemberNumber = dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
-
-        if (Decorations.empty()) // Artem: figure out why this is needed
-          DecSubj->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-                DecSubj, MemberNumber, AnnotationString.c_str()));
-        addAnnotationDecorationsForStructMember(
-            DecSubj, MemberNumber, Decorations.MemoryAttributesVec);
-        // Apply the LSU parameter decoration to the pointer result of a GEP
-        // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
-        // Decorating the member itself with a MemberDecoration is not feasible,
-        // because multiple accesses to the struct-held memory can require
-        // different LSU parameters.
-        addAnnotationDecorationsForStructMember(DecSubj, MemberNumber, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorationsForStructMember(DecSubj, MemberNumber, Decorations.BufferLocationVec);
-          addAnnotationDecorationsForStructMember(DecSubj, MemberNumber, Decorations.LatencyControlVec);
-        }
-      }
-
-    // if (StructTy) {
-    //   // If we didn't find any IntelFPGA-specific decorations, let's add the
-    //   // whole annotation string as UserSemantic Decoration
-    //   if (Decorations.empty()) {
-    //     // TODO: Is there a way to detect that the annotation belongs solely
-    //     // to struct member memory atributes or struct member memory access
-    //     // controls? This would allow emitting just the necessary decoration.
-    //     StructTy->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-    //         StructTy, MemberNumber, AnnotationString.c_str()));
-    //     ResPtr->addDecorate(new SPIRVDecorateUserSemanticAttr(
-    //         ResPtr, AnnotationString.c_str()));
-    //   } else {
-    //     addAnnotationDecorationsForStructMember(
-    //         StructTy, MemberNumber, Decorations.MemoryAttributesVec);
-    //     // Apply the LSU parameter decoration to the pointer result of a GEP
-    //     // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
-    //     // Decorating the member itself with a MemberDecoration is not feasible,
-    //     // because multiple accesses to the struct-held memory can require
-    //     // different LSU parameters.
-    //     addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
-    //     if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-    //       addAnnotationDecorations(ResPtr, Decorations.BufferLocationVec);
-    //       addAnnotationDecorations(ResPtr, Decorations.LatencyControlVec);
-    //     }
-    //   }
-    //   II->replaceAllUsesWith(II->getOperand(0));
-    } else {
-      // Memory accesses to a standalone pointer variable
-      DecorateOn = II->getArgOperand(0);
-      DecSubj = DecorateOnPointer(DecorateOn);
-
-      // auto *DecSubj = transValue(II->getArgOperand(0), BB);
-      // if (Decorations.MemoryAccessesVec.empty() &&
-      //     Decorations.BufferLocationVec.empty() &&
-      //     Decorations.LatencyControlVec.empty())
-      //   DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
-      //       DecSubj, AnnotationString.c_str()));
-      // else {
-      //   // Apply the LSU parameter decoration to the pointer result of an
-      //   // instruction. Note it's the address to the accessed memory that's
-      //   // loaded from the original pointer variable, and not the value
-      //   // accessed by the latter.
-      //   addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
-      //   if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-      //     addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
-      //     addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
-      //   }
-      // }
-      // II->replaceAllUsesWith(II->getOperand(0));
-    }
+    SPIRVValue *DecSubj = DecorateOnPointer(AnnotSubj);
     return DecSubj;
   }
   case Intrinsic::stacksave: {
@@ -5397,6 +5279,9 @@ bool isEmptyLLVMModule(Module *M) {
 }
 
 bool LLVMToSPIRVBase::translate() {
+  SPIRVDBG(spvdbgs() << "Artem: translate: Module: "; M->dump());
+  SPIRVDBG(spvdbgs() << "\nArtem: translate: Module: end\n");
+
   BM->setGeneratorVer(KTranslatorVer);
 
   if (isEmptyLLVMModule(M))
