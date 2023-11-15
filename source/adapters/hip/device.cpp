@@ -210,9 +210,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint64_t{MaxAlloc});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
-    return ReturnValue(uint32_t{true});
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
+    // This call doesn't match to HIP as it doesn't have images, but instead
+    // surfaces and textures. No clear call in the HIP API to determine this,
+    // but some searching found as of SM 2.x 128 are supported.
+    return ReturnValue(128u);
+  }
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
     // This call doesn't match to HIP as it doesn't have images, but instead
     // surfaces and textures. No clear call in the HIP API to determine this,
     // but some searching found as of SM 2.x 128 are supported.
@@ -339,7 +345,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
-    uint64_t Config =
+    ur_device_fp_capability_flags_t Config =
         UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
         UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
         UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
@@ -350,12 +356,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    uint64_t Config = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+    ur_device_fp_capability_flags_t Config =
+        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
@@ -459,14 +466,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                          UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
+                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -730,9 +737,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
 
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
@@ -821,7 +829,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_BFLOAT16:
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  case UR_DEVICE_INFO_IL_VERSION:
+  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
@@ -939,15 +950,6 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
     UR_CHECK_ERROR(hipEventRecord(Event));
-  }
-  if (pHostTimestamp) {
-    using namespace std::chrono;
-    *pHostTimestamp =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
-  }
-
-  if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventSynchronize(Event));
     float ElapsedTime = 0.0f;
     UR_CHECK_ERROR(hipEventElapsedTime(&ElapsedTime,
@@ -955,5 +957,11 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
     *pDeviceTimestamp = (uint64_t)(ElapsedTime * (double)1e6);
   }
 
+  if (pHostTimestamp) {
+    using namespace std::chrono;
+    *pHostTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
   return UR_RESULT_SUCCESS;
 }
