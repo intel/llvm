@@ -307,10 +307,10 @@ __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
-    // svgenfloat fmax (svgenfloat x, sgenfloat y)
-    template <typename T>
-    std::enable_if_t<detail::is_vgenfloat_v<T>, T> fmax(
-        T x, typename T::element_type y) {
+// svgenfloat fmax (svgenfloat x, sgenfloat y)
+template <typename T>
+std::enable_if_t<detail::is_vgenfloat_v<T>, T>
+fmax(T x, typename T::element_type y) {
   return __sycl_std::__invoke_fmax<T>(x, T(y));
 }
 
