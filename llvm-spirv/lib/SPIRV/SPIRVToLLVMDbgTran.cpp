@@ -708,7 +708,8 @@ SPIRVToLLVMDbgTran::transTypeMemberOpenCL(const SPIRVExtInst *DebugInst) {
            "Static member must be a constant");
     llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val),
+        llvm::dwarf::DW_TAG_member);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
@@ -758,7 +759,8 @@ SPIRVToLLVMDbgTran::transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
            "Static member must be a constant");
     llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val),
+        llvm::dwarf::DW_TAG_member);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
