@@ -1,5 +1,5 @@
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefixes=CHECK
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefixes=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - -fpreview-breaking-changes | FileCheck %s --check-prefixes=CHECK
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - -fpreview-breaking-changes | FileCheck %s --check-prefixes=CHECK-LLVM
 
 #include <sycl/aliases.hpp>
 #include <sycl/sycl.hpp>
