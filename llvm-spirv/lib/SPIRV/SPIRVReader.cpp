@@ -2536,8 +2536,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     SPIRVFPGARegINTELInstBase *BC =
         static_cast<SPIRVFPGARegINTELInstBase *>(BV);
 
-    PointerType *Int8PtrTyPrivate =
-        PointerType::get(*Context, SPIRAS_Private);
+    PointerType *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
     IntegerType *Int32Ty = Type::getInt32Ty(*Context);
 
     Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
@@ -3488,6 +3487,12 @@ void generateIntelFPGAAnnotation(
   }
   if (E->hasDecorate(DecorationForcePow2DepthINTEL, 0, &Result))
     Out << "{force_pow2_depth:" << Result << '}';
+  if (E->hasDecorate(DecorationStridesizeINTEL, 0, &Result))
+    Out << "{stride_size:" << Result << "}";
+  if (E->hasDecorate(DecorationWordsizeINTEL, 0, &Result))
+    Out << "{word_size:" << Result << "}";
+  if (E->hasDecorate(DecorationTrueDualPortINTEL))
+    Out << "{true_dual_port}";
   if (E->hasDecorate(DecorationBufferLocationINTEL, 0, &Result))
     Out << "{sycl-buffer-location:" << Result << '}';
   if (E->hasDecorate(DecorationLatencyControlLabelINTEL, 0, &Result))
@@ -3585,6 +3590,12 @@ void generateIntelFPGAAnnotationForStructMember(
   if (E->hasMemberDecorate(DecorationForcePow2DepthINTEL, 0, MemberNumber,
                            &Result))
     Out << "{force_pow2_depth:" << Result << '}';
+  if (E->hasMemberDecorate(DecorationStridesizeINTEL, 0, MemberNumber, &Result))
+    Out << "{stride_size:" << Result << "}";
+  if (E->hasMemberDecorate(DecorationWordsizeINTEL, 0, MemberNumber, &Result))
+    Out << "{word_size:" << Result << "}";
+  if (E->hasMemberDecorate(DecorationTrueDualPortINTEL, 0, MemberNumber))
+    Out << "{true_dual_port}";
   if (!AnnotStr.empty())
     AnnotStrVec.emplace_back(AnnotStr);
 
@@ -3727,8 +3738,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
       GS->setSection("llvm.metadata");
 
-      Type *ResType = PointerType::get(
-          GV->getContext(), GV->getType()->getPointerAddressSpace());
+      Type *ResType = PointerType::get(GV->getContext(),
+                                       GV->getType()->getPointerAddressSpace());
       Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
 
       Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
@@ -3787,8 +3798,8 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     GS->setSection("llvm.metadata");
 
-    Type *ResType = PointerType::get(
-        V->getContext(), V->getType()->getPointerAddressSpace());
+    Type *ResType = PointerType::get(V->getContext(),
+                                     V->getType()->getPointerAddressSpace());
     Constant *C =
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
 

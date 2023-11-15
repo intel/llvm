@@ -1,4 +1,4 @@
-//===--------- device.hpp - Native CPU Adapter ----------------------------===//
+//==------- atomic_update_usm_pvc_cmpxchg.cpp- DPC++ ESIMD on-device test --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+// REQUIRES: gpu-intel-pvc
 
-#include <ur/ur.hpp>
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-struct ur_device_handle_t_ {
-  ur_device_handle_t_(ur_platform_handle_t ArgPlt) : Platform(ArgPlt) {}
+#define CMPXCHG_TEST
 
-  ur_platform_handle_t Platform;
-};
+#include "atomic_update_usm_pvc.cpp"

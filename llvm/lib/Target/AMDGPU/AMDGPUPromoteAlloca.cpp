@@ -386,6 +386,7 @@ static Value *promoteAllocaUserToVector(
   };
 
   Type *VecEltTy = VectorTy->getElementType();
+  const unsigned NumVecElts = VectorTy->getNumElements();
 
   switch (Inst->getOpcode()) {
   case Instruction::Load: {
@@ -418,12 +419,11 @@ static Value *promoteAllocaUserToVector(
       auto *SubVecTy = FixedVectorType::get(VecEltTy, NumLoadedElts);
       assert(DL.getTypeStoreSize(SubVecTy) == DL.getTypeStoreSize(AccessTy));
 
+      unsigned IndexVal = cast<ConstantInt>(Index)->getZExtValue();
       Value *SubVec = PoisonValue::get(SubVecTy);
       for (unsigned K = 0; K < NumLoadedElts; ++K) {
-        Value *CurIdx =
-            Builder.CreateAdd(Index, ConstantInt::get(Index->getType(), K));
         SubVec = Builder.CreateInsertElement(
-            SubVec, Builder.CreateExtractElement(CurVal, CurIdx), K);
+            SubVec, Builder.CreateExtractElement(CurVal, IndexVal + K), K);
       }
 
       if (AccessTy->isPtrOrPtrVectorTy())
@@ -479,12 +479,12 @@ static Value *promoteAllocaUserToVector(
 
       Val = Builder.CreateBitOrPointerCast(Val, SubVecTy);
 
+      unsigned IndexVal = cast<ConstantInt>(Index)->getZExtValue();
       Value *CurVec = GetOrLoadCurrentVectorValue();
-      for (unsigned K = 0; K < NumWrittenElts; ++K) {
-        Value *CurIdx =
-            Builder.CreateAdd(Index, ConstantInt::get(Index->getType(), K));
+      for (unsigned K = 0; K < NumWrittenElts && ((IndexVal + K) < NumVecElts);
+           ++K) {
         CurVec = Builder.CreateInsertElement(
-            CurVec, Builder.CreateExtractElement(Val, K), CurIdx);
+            CurVec, Builder.CreateExtractElement(Val, K), IndexVal + K);
       }
       return CurVec;
     }

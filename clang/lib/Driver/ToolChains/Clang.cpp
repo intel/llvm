@@ -10008,12 +10008,20 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
   TranslatorArgs.push_back("-o");
   TranslatorArgs.push_back(Output.getFilename());
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    const toolchains::SYCLToolChain &TC =
+        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+    llvm::Triple Triple = TC.getTriple();
+    bool IsCPU = Triple.isSPIR() &&
+                 Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
     TranslatorArgs.push_back("-spirv-max-version=1.4");
     TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
     // Prevent crash in the translator if input IR contains DIExpression
     // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
     TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-    TranslatorArgs.push_back("-spirv-allow-unknown-intrinsics=llvm.genx.");
+    std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
+    if (IsCPU)
+      UnknownIntrinsics += ",llvm.fpbuiltin";
+    TranslatorArgs.push_back(TCArgs.MakeArgString(UnknownIntrinsics));
     bool CreatingSyclSPIRVFatObj =
         C.getDriver().getFinalPhase(C.getArgs()) != phases::Link &&
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
@@ -10072,11 +10080,10 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_INTEL_optnone";
     if (ShouldPreserveMetadata)
       ExtArg += ",+SPV_KHR_non_semantic_info";
+    if (IsCPU)
+      ExtArg += ",+SPV_INTEL_fp_max_error";
 
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
-
-    const toolchains::SYCLToolChain &TC =
-        static_cast<const toolchains::SYCLToolChain &>(getToolChain());
 
     // Handle -Xspirv-translator
     TC.TranslateTargetOpt(
