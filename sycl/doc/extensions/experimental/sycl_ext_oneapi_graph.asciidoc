@@ -336,6 +336,11 @@ class depends_on {
     depends_on(NodeTN... nodes);
 };
 
+class depends_on_all_leaves {
+  public:
+    depends_on_all_leaves() = default;
+};
+
 } // namespace node
 } // namespace property
 
@@ -477,6 +482,21 @@ class depends_on {
   public:
     template<typename... NodeTN>
     depends_on(NodeTN... nodes);
+};
+}
+----
+
+==== Depends-On-All-Leaves Property 
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on_all_leaves` 
+property to be passed here. `depends_on_all_leaves` provides a shortcut for 
+adding all the current leaves of a graph as dependencies.
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node {
+class depends_on_all_leaves {
+  public:
+    depends_on_all_leaves();
 };
 }
 ----
@@ -1108,20 +1128,28 @@ they do in non-recording mode.
 
 ==== Event Limitations
 
-Events returned from queue submissions when a queue is in the recording state
-may only be used as parameters to `handler::depends_on()` or as dependent
-events for queue shortcuts like `queue::parallel_for()` for submissions which
-are being recorded to the same modifiable `command_graph`.
+For queue submissions that are being recorded to a modifiable `command_graph`,
+the only events that can be used as parameters to `handler::depends_on()`, or
+as dependent events for queue shortcuts like `queue::parallel_for()`, are events
+that have been returned from queue submissions recorded to the same modifiable
+`command_graph`.
+
+Other limitations on the events returned from a submission to a queue in the
+recording state are:
 
 - Calling `event::get_info<info::event::command_execution_status>()` or
-`event::get_profiling_info()` on an event returned from a queue submission
-recorded to a graph will throw synchronously with error code `invalid`.
+`event::get_profiling_info()` will throw synchronously with error code `invalid`.
 
-- Waiting on an event returned from a queue submission recorded to a graph
-will throw synchronously with error code `invalid`.
+- A host-side wait on the event will throw synchronously with error
+code `invalid`.
 
-- Waiting on a queue in the recording state is an error and will throw
-synchronously with error code `invalid`.
+- Using the event outside of the recording scope will throw synchronously with error code
+`invalid`.
+
+==== Queue Limitations
+
+A host-side wait on a queue in the recording state is an error and will
+throw synchronously with error code `invalid`.
 
 ==== Buffer Limitations
 

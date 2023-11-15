@@ -2,7 +2,8 @@
 // DataT or N produces a verbose error message.
 //
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,error %s
-//
+// RUN: %if preview-breaking-changes-supported %{%clangxx %fsycl-host-only -fsyntax-only -fpreview-breaking-changes -Xclang -verify -Xclang -verify-ignore-unexpected=note,error %s%}
+
 // Note: there is one more error being emitted: "requested alignemnt is not a
 // power of 2" It happens because in all cases above we weren't able to select
 // underlying data type for vec and therefore it screwed up other code realying
@@ -17,11 +18,11 @@ struct CustomT {
 };
 
 void unsupported_data_type() {
-  // expected-error@sycl/types.hpp:* {{Incorrect data type for sycl::vec}}
+  // expected-error@detail/vec_* {{Incorrect data type for sycl::vec}}
   sycl::vec<CustomT, 4> v;
 }
 
 void unsupported_size() {
-  // expected-error@sycl/types.hpp:* {{Incorrect number of elements for sycl::vec}}
+  // expected-error@detail/vec_* {{Incorrect number of elements for sycl::vec}}
   sycl::vec<int, 15> v;
 }

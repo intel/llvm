@@ -1712,7 +1712,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
       llvm::Value *V = address.getPointer();
-      llvm::Type *DestPtrTy = llvm::PointerType::getInt8PtrTy(
+      llvm::Type *DestPtrTy = llvm::PointerType::get(
           CGM.getLLVMContext(), address.getAddressSpace());
       llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
       if (address.getAddressSpace() != 0)
@@ -2572,7 +2572,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     // Suppressing debug info for ThreadPrivateVar parameters, else it hides
     // debug info of TLS variables.
     NoDebugInfo =
-        (IPD->getParameterKind() == ImplicitParamDecl::ThreadPrivateVar);
+        (IPD->getParameterKind() == ImplicitParamKind::ThreadPrivateVar);
   }
 
   Address DeclPtr = Address::invalid();

@@ -276,10 +276,13 @@ if not sycl_ls:
 
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
     devices = set()
-    sp = subprocess.check_output(sycl_ls, text=True)
+    cmd = '{} {}'.format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+    sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
         if "gfx90a" in line:
             config.available_features.add("gpu-amd-gfx90a")
+        if not line.startswith('['):
+            continue
         (backend, device, _) = line[1:].split(':', 2)
         devices.add('{}:{}'.format(backend, device))
     config.sycl_devices = list(devices)
@@ -426,7 +429,8 @@ for sycl_device in config.sycl_devices:
     # with their test run. It's just us filtering here, so silence them unless
     # we get an exit status.
     try:
-        sp = subprocess.run([sycl_ls, '--verbose'], env=env, text=True,
+        cmd = '{} {} --verbose'.format(config.run_launcher or "", sycl_ls)
+        sp = subprocess.run(cmd, env=env, text=True, shell=True,
                             capture_output=True)
         sp.check_returncode()
     except subprocess.CalledProcessError as e:

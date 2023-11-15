@@ -1,5 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
 
 // https://github.com/intel/llvm/issues/7585 to fix the failure:
 // XFAIL: gpu

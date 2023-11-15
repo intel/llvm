@@ -119,8 +119,8 @@ public:
 
   constexpr unsigned bitWidth() const { return V.getBitWidth(); }
 
-  APSInt toAPSInt(unsigned Bits = 0) const { return APSInt(V, Signed); }
-  APValue toAPValue() const { return APValue(APSInt(V, Signed)); }
+  APSInt toAPSInt(unsigned Bits = 0) const { return APSInt(V, !Signed); }
+  APValue toAPValue() const { return APValue(APSInt(V, !Signed)); }
 
   bool isZero() const { return V.isZero(); }
   bool isPositive() const { return V.isNonNegative(); }
@@ -140,9 +140,8 @@ public:
     return NameStr;
   }
 
-  IntegralAP truncate(unsigned bitWidth) const {
-    assert(false);
-    return V;
+  IntegralAP truncate(unsigned BitWidth) const {
+    return IntegralAP(V.trunc(BitWidth));
   }
 
   IntegralAP<false> toUnsigned() const {
@@ -249,7 +248,11 @@ public:
 
   static void shiftRight(const IntegralAP A, const IntegralAP B,
                          unsigned OpBits, IntegralAP *R) {
-    *R = IntegralAP(A.V.ashr(B.V.getZExtValue()));
+    unsigned ShiftAmount = B.V.getZExtValue();
+    if constexpr (Signed)
+      *R = IntegralAP(A.V.ashr(ShiftAmount));
+    else
+      *R = IntegralAP(A.V.lshr(ShiftAmount));
   }
 
 private:
