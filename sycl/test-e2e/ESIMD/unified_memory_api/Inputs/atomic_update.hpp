@@ -254,11 +254,13 @@ bool test_acc(queue q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
-
-  // Remove once 1 and 2 are supported
-  if constexpr (n_args != 0) {
+  constexpr bool DataSizeRequiresLSC = sizeof(T) != 4;
+  // If we need LSC but can't use it, just bail
+  if constexpr (!UseProperties && DataSizeRequiresLSC)
     return true;
-  }
+  // Remove once 1 and 2 are supported
+  if constexpr (n_args != 0)
+    return true;
 
   std::cout << "Accessor Testing " << "op=" << to_string(op)
             << " n_args=" << n_args << " T=" << esimd_test::type_name<T>()
@@ -302,12 +304,12 @@ bool test_acc(queue q, const Config &cfg) {
         for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
           if constexpr (n_args == 0) {
             if constexpr (UseMask) {
-              if constexpr (UseProperties)
+              if constexpr (UseProperties || DataSizeRequiresLSC)
                 atomic_update<op, T>(arr_acc, offsets, m, props);
               else
                 atomic_update<op, T>(arr_acc, offsets, m);
             } else {
-              if constexpr (UseProperties)
+              if constexpr (UseProperties || DataSizeRequiresLSC)
                 atomic_update<op, T>(arr_acc, offsets, props);
               else
                 atomic_update<op, T>(arr_acc, offsets);
@@ -575,49 +577,35 @@ template <int N, template <class, int> class Op, bool UseMask,
           bool UsePVCFeatures, bool UseAcc, int SignMask = (Signed | Unsigned)>
 bool test_int_types(queue q, const Config &cfg) {
   bool passed = true;
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  constexpr bool test_long = true;
-  constexpr bool test_short = true;
-#else
-  constexpr bool test_long = !UseAcc;
-  constexpr bool test_short = !UseAcc;
-#endif
   if constexpr (SignMask & Signed) {
     // Supported by LSC atomic:
-    if constexpr (UsePVCFeatures && test_short)
+    if constexpr (UsePVCFeatures)
       passed &=
           run_test<UseAcc, int16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
     passed &= run_test<UseAcc, int32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
-    if constexpr (test_long) {
+    passed &= run_test<UseAcc, int64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    if constexpr (!std::is_same_v<signed long, int64_t> &&
+                  !std::is_same_v<signed long, int32_t>) {
       passed &=
-          run_test<UseAcc, int64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
-      if constexpr (!std::is_same_v<signed long, int64_t> &&
-                    !std::is_same_v<signed long, int32_t>) {
-        passed &= run_test<UseAcc, signed long, N, Op, UseMask, UsePVCFeatures>(
-            q, cfg);
-      }
+          run_test<UseAcc, signed long, N, Op, UseMask, UsePVCFeatures>(q, cfg);
     }
   }
 
   if constexpr (SignMask & Unsigned) {
     // Supported by LSC atomic:
-    if constexpr (UsePVCFeatures && test_short)
+    if constexpr (UsePVCFeatures)
       passed &=
           run_test<UseAcc, uint16_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 
     passed &=
         run_test<UseAcc, uint32_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
-    if constexpr (test_long) {
-
-      passed &=
-          run_test<UseAcc, uint64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
-      if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
-                    !std::is_same_v<unsigned long, uint32_t>) {
-        passed &=
-            run_test<UseAcc, unsigned long, N, Op, UseMask, UsePVCFeatures>(
-                q, cfg);
-      }
+    passed &=
+        run_test<UseAcc, uint64_t, N, Op, UseMask, UsePVCFeatures>(q, cfg);
+    if constexpr (!std::is_same_v<unsigned long, uint64_t> &&
+                  !std::is_same_v<unsigned long, uint32_t>) {
+      passed &= run_test<UseAcc, unsigned long, N, Op, UseMask, UsePVCFeatures>(
+          q, cfg);
     }
   }
   return passed;
@@ -641,18 +629,11 @@ bool test_fp_types(queue q, const Config &cfg) {
   }
   passed &= run_test<UseAcc, float, N, Op, UseMask, UsePVCFeatures>(q, cfg);
 #ifndef CMPXCHG_TEST
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  constexpr bool test_double = true;
-#else
-  constexpr bool test_double = !UseAcc;
-#endif
-  if constexpr (test_double) {
-    if (q.get_device().has(sycl::aspect::atomic64) &&
-        q.get_device().has(sycl::aspect::fp64)) {
-      passed &=
-          run_test<UseAcc, double, N, Op, UseMask, UsePVCFeatures>(q, cfg);
-    }
+  if (q.get_device().has(sycl::aspect::atomic64) &&
+      q.get_device().has(sycl::aspect::fp64)) {
+    passed &= run_test<UseAcc, double, N, Op, UseMask, UsePVCFeatures>(q, cfg);
   }
+
 #endif // CMPXCHG_TEST
   return passed;
 }
@@ -661,11 +642,6 @@ template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
           bool UseAcc, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  constexpr bool test_64 = true;
-#else
-  constexpr bool test_64 = !UseAcc;
-#endif
   passed &=
       test_int_types<1, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q, cfg);
   passed &=
@@ -682,13 +658,11 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
         q, cfg);
     passed &= test_int_types<32, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(
         q, cfg);
-    if constexpr (test_64)
-      passed &=
-          test_int_types<64, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(
-              q, cfg);
-      // non power of two values are supported only in newer driver.
-      // TODO: Enable this when the new driver reaches test infrastructure
-      // (v27556).
+    passed &= test_int_types<64, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(
+        q, cfg);
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
 #if 0
     passed &= test_int_types<12, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q, cfg);
     passed &= test_int_types<33, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q, cfg);
@@ -702,11 +676,6 @@ template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
           bool UseAcc>
 bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   bool passed = true;
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  constexpr bool test_64 = true;
-#else
-  constexpr bool test_64 = !UseAcc;
-#endif
   passed &= test_fp_types<1, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
   passed &= test_fp_types<2, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
   passed &= test_fp_types<4, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
@@ -716,12 +685,11 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
   if constexpr (UsePVCFeatures) {
     passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
     passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
-    if constexpr (test_64)
-      passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
+    passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
 
-      // non power of two values are supported only in newer driver.
-      // TODO: Enable this when the new driver reaches test infrastructure
-      // (v27556).
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
 #if 0
     passed &= test_fp_types<12, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
     passed &= test_fp_types<35, Op, UseMask, UsePVCFeatures, UseAcc>(q, cfg);
