@@ -106,9 +106,8 @@ bool verify(T *arr, const Config &cfg, size_t size) {
     T test = arr[i];
 
     if ((gold != test) && (++err_cnt < 10)) {
-      if (err_cnt == 1) {
+      if (err_cnt == 1)
         std::cout << "\n";
-      }
       std::cout << "  failed at index " << i << ": " << test << " != " << gold
                 << "(gold)\n";
     }
@@ -125,15 +124,16 @@ bool verify(T *arr, const Config &cfg, size_t size) {
 
 template <class T, int N, template <class, int> class ImplF, bool UseMask,
           bool UseProperties>
-bool test(queue q, const Config &cfg) {
+bool test_usm(queue q, const Config &cfg) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
 
   std::cout << "USM Testing " << "op=" << to_string(op) << " n_args=" << n_args
             << " T=" << esimd_test::type_name<T>() << " N=" << N
-            << " UseMask=" << (UseMask ? "true" : "false") << "\n\t" << cfg
-            << "...";
+            << " UseMask=" << (UseMask ? "true" : "false")
+            << " UseProperties=" << (UseProperties ? "true" : "false") << "\n\t"
+            << cfg << "...";
 
   size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
   T *arr = malloc_shared<T>(size, q);
@@ -263,7 +263,8 @@ bool test_acc(queue q, const Config &cfg) {
   std::cout << "Accessor Testing " << "op=" << to_string(op)
             << " n_args=" << n_args << " T=" << esimd_test::type_name<T>()
             << " N=" << N << " UseMask=" << (UseMask ? "true" : "false")
-            << "\n\t" << cfg << "...";
+            << " UseProperties=" << (UseProperties ? "true" : "false") << "\n\t"
+            << cfg << "...";
 
   size_t size = cfg.start_ind + (N - 1) * cfg.stride + 1;
   T *arr = malloc_shared<T>(size, q);
@@ -567,7 +568,7 @@ auto run_test(queue q, const Config &cfg) {
   if constexpr (UseAcc)
     return test_acc<T, N, ImplF, UseMask, UsePVCFeatures>(q, cfg);
   else
-    return test<T, N, ImplF, UseMask, UsePVCFeatures>(q, cfg);
+    return test_usm<T, N, ImplF, UseMask, UsePVCFeatures>(q, cfg);
 }
 
 template <int N, template <class, int> class Op, bool UseMask,

@@ -9,8 +9,7 @@
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
 
-// 64-bit offset only supported in stateless mode
-// for accessors
+// 64-bit offset is supported for accessors only in stateless mode
 #define USE_64_BIT_OFFSET
 
 #include "atomic_update_acc.cpp"

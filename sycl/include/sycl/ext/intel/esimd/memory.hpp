@@ -3213,7 +3213,7 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
 /// @tparam L2H is L2 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
-/// @param offsets is the zero-based offsets.
+/// @param byte_offsets is the zero-based offsets.
 /// @param pred is predicates.
 /// @return A vector of the old values at the memory locations before the
 ///   update.
@@ -3226,11 +3226,11 @@ __ESIMD_API std::enable_if_t<
         sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
     simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> offsets,
+atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
                    simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
-                                                    offsets, pred);
+                                                    byte_offsets, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
   static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
@@ -3248,8 +3248,8 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> offsets,
   auto si = get_surface_index(acc);
   simd<MsgT, N> Tmp =
       __esimd_lsc_xatomic_bti_0<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
-                                EDS, VS, Transposed, N>(pred.data(),
-                                                        offsets.data(), si);
+                                EDS, VS, Transposed, N>(
+          pred.data(), byte_offsets.data(), si);
   return lsc_format_ret<T>(Tmp);
 #endif
 }
@@ -3285,8 +3285,8 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> offsets,
 /// values found at the memory locations before update. The update operation
 /// has no arguments in addition to the value at the memory location.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-///   \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+///   \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -3357,8 +3357,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 ///
 /// A variation of \c atomic_update API without mask operand.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-///   \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+///   \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -3388,8 +3388,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, PropertyListT props = {}) {
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -3421,8 +3421,8 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd_mask<N> mask,
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object without mask operand.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-///   \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+///   \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update
 /// @param p The USM pointer.
@@ -3449,8 +3449,8 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> byte_offset,
 /// A variation of \c atomic_update API with \c offset represented as
 /// scalar.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4597,8 +4597,8 @@ atomic_update(Tx *p, Toffset byte_offset, simd<Tx, N> src0, simd<Tx, N> src1,
 /// memory locations before update. The update operation has no arguments
 /// in addition to the value at the memory location.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -4633,11 +4633,9 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
           cache_hint::none);
-
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
           cache_hint::none);
-
   static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
                 "L3 cache hint is reserved. The old/experimental L3 LSC cache "
                 "hint is cache_level::L2 now.");
@@ -4679,8 +4677,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 ///               props = {});                                  /// (acc-au0-2)
 /// A variation of \c atomic_update API without mask operand
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -4716,8 +4714,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// memory locations before update. The update operation has no arguments
 /// in addition to the value at the memory location.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -4759,8 +4757,8 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> byte_offset,
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -4797,8 +4795,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object and no mask operand.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -4828,8 +4826,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// A variation of \c atomic_update API with \c offsets represented as
 /// \c simd_view object.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -4858,8 +4856,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// A variation of \c atomic_update API with \c offset represented as
 /// scalar.
 ///
-/// @tparam Op The atomic operation - can be \c atomic_op::inc or
-/// \c atomic_op::dec, \c atomic_op::load.
+/// @tparam Op The atomic operation - can be \c atomic_op::inc,
+/// \c atomic_op::dec, or \c atomic_op::load.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
