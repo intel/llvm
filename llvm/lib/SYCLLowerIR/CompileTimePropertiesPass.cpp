@@ -65,16 +65,17 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
-// Masks defined here must be in sync with the SYCL header with fp control kernel property.
+// Masks defined here must be in sync with the SYCL header with fp control
+// kernel property.
 enum FloatControl {
   RTE = 1,      // Round to nearest or even
   RTP = 1 << 1, // Round towards +ve inf
   RTN = 1 << 2, // Round towards -ve inf
   RTZ = 1 << 3, // Round towards zero
 
-  DENORM_FTZ = 1 << 4,           // Denorm mode flush to zero
-  DENORM_D_ALLOW = 1 << 5,  // Denorm mode double allow
-  DENORM_F_ALLOW = 1 << 6,  // Denorm mode float allow
+  DENORM_FTZ = 1 << 4,     // Denorm mode flush to zero
+  DENORM_D_ALLOW = 1 << 5, // Denorm mode double allow
+  DENORM_F_ALLOW = 1 << 6, // Denorm mode float allow
   DENORM_HF_ALLOW = 1 << 7 // Denorm mode half allow
 };
 
