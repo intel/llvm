@@ -20,6 +20,9 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_load(AccType &,
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_atomic_update(AccType &, float *, int byte_offset32, size_t byte_offset64);
 
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_block_store(AccType &, float *, int byte_offset32, size_t byte_offset64);
+
 class EsimdFunctor {
 public:
   AccType acc;
@@ -30,6 +33,7 @@ public:
   void operator()() __attribute__((sycl_explicit_simd)) {
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_atomic_update(acc, ptr, byte_offset32, byte_offset64);
+    test_block_store(acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -63,6 +67,17 @@ test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
   properties props_c{alignment<4>};
   properties props_c16{alignment<16>};
   static_assert(props_c.has_property<alignment_key>(), "Missing alignment");
+
+  properties store_props_a{cache_hint_L1<cache_hint::uncached>,
+                           cache_hint_L2<cache_hint::uncached>, alignment<16>};
+
+  properties store_props_b{alignment<16>};
+
+  properties store_props_c{cache_hint_L1<cache_hint::write_back>,
+                           cache_hint_L2<cache_hint::write_back>,
+                           alignment<32>};
+
+  properties store_props_d{alignment<8>};
 
   constexpr int N = 4;
   simd<float, N> pass_thru = 1;
@@ -397,4 +412,78 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
     auto res_atomic_100 = atomic_update<atomic_op::cmpxchg, int, VL>(
         ptr, offsets, swap, compare, pred);
   }
+}
+
+// CHECK-LABEL: define {{.*}} @_Z16test_block_store{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_block_store(AccType &acc,
+                                                        float *ptrf,
+                                                        int byte_offset32,
+                                                        size_t byte_offset64) {
+  // Test USM block store
+  constexpr int N = 4;
+  properties store_props_a{cache_hint_L1<cache_hint::uncached>,
+                           cache_hint_L2<cache_hint::uncached>, alignment<16>};
+
+  properties store_props_b{alignment<16>};
+
+  properties store_props_c{cache_hint_L1<cache_hint::write_back>,
+                           cache_hint_L2<cache_hint::write_back>,
+                           alignment<32>};
+
+  properties store_props_d{alignment<8>};
+  simd<float, N> vals = 1;
+  simd<int, N> valsi = 1;
+  int *ptri = reinterpret_cast<int *>(ptrf);
+  simd_mask<1> mask = 1;
+
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
+  block_store(ptrf, vals, store_props_a);
+
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  block_store(ptri, byte_offset32, valsi, store_props_a);
+
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
+  block_store(ptrf, byte_offset64, vals, store_props_c);
+
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
+  block_store(ptrf, vals, mask, store_props_a);
+
+  // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> %{{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  block_store(ptri, byte_offset64, valsi, mask, store_props_c);
+
+  // Test SVM/legacy USM block store
+
+  // CHECK: store <4 x float> {{[^)]+}}, ptr addrspace(4) {{[^)]+}}, align 16
+  block_store(ptrf, vals, store_props_b);
+
+  // CHECK: store <4 x float> {{[^)]+}}, ptr addrspace(4) {{[^)]+}}, align 8
+  block_store(ptrf, vals, store_props_d);
+
+  // CHECK: store <4 x float> {{[^)]+}}, ptr addrspace(4) {{[^)]+}}, align 16
+  block_store(ptrf, byte_offset32, vals, store_props_b);
+
+  // Test accessor block store
+
+  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  block_store(acc, vals, store_props_a);
+
+  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  block_store(acc, byte_offset32, valsi, store_props_a);
+
+  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  block_store(acc, byte_offset64, vals, store_props_c);
+
+  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 {{[^)]+}})
+  block_store(acc, vals, mask, store_props_a);
+
+  // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 3, i8 3, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  block_store(acc, byte_offset64, valsi, mask, store_props_c);
+
+  // Test accessor SVM/legacy block store
+
+  // CHECK: call void @llvm.genx.oword.st.v4f32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
+  block_store(acc, vals, store_props_b);
+
+  // CHECK: call void @llvm.genx.oword.st.v4i32(i32 {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}})
+  block_store(acc, byte_offset32, valsi, store_props_b);
 }

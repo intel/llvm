@@ -601,7 +601,7 @@ private:
         std::string StructName =
             StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
-        RD = RecordDecl::Create(*AST, TTK_Struct, SpvNamespace, SL, SL, II);
+        RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
         auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
         auto RecordQT = AST->getRecordType(RD);
         NNS = NestedNameSpecifier::Create(*AST, NNS, false,
