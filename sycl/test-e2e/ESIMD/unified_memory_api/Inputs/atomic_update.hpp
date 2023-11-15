@@ -306,12 +306,12 @@ bool test_acc(queue q, const Config &cfg) {
           for (int cnt = 0; cnt < cfg.repeat; ++cnt) {
             if constexpr (n_args == 0) {
               if constexpr (UseMask) {
-                if constexpr (UseProperties || DataSizeRequiresLSC)
+                if constexpr (UseProperties)
                   atomic_update<op, T>(arr_acc, offsets, m, props);
                 else
                   atomic_update<op, T>(arr_acc, offsets, m);
               } else {
-                if constexpr (UseProperties || DataSizeRequiresLSC)
+                if constexpr (UseProperties)
                   atomic_update<op, T>(arr_acc, offsets, props);
                 else
                   atomic_update<op, T>(arr_acc, offsets);
