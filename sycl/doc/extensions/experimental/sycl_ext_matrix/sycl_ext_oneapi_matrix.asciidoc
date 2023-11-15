@@ -855,10 +855,10 @@ XMX hardware. Note that these can be returned using
 
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_cpu_spr`, and `architecture::intel_cpu_gnr`. In
-this architecture's implementation, the type of the C matrix must be
-the same as the type of the D matrix. Therefore, that common type is
-shown in a single column in the table below. 
+`architecture::intel_cpu_spr`, and `architecture::intel_cpu_gnr`.
+In this architecture's implementation, the type of the C matrix must
+be the same as the type of the D matrix. Therefore, that common type
+is shown in a single column in the table below.
 
 [frame="none",options="header"]
 |======================
