@@ -22,7 +22,7 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
 #include <sycl/exception.hpp>                 // for runtime_error
-#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32, convertMatrixUseToString
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32, convertMatrixUseEnumToString
 #include <sycl/ext/oneapi/matrix/query-types.hpp> // for convertTypeToMatrixTypeString
 #include <sycl/marray.hpp>                                 // for marray
 #include <sycl/multi_ptr.hpp>                              // for multi_ptr
@@ -65,7 +65,7 @@ struct joint_matrix {
       "sycl-joint-matrix-type", "sycl-joint-matrix-use",
       "sycl-joint-matrix-rows", "sycl-joint-matrix-cols",
       sycl::detail::convertTypeToMatrixTypeString<T>(),
-      sycl::detail::convertMatrixUseToString(Use), Rows, Cols)]]
+      sycl::detail::convertMatrixUseEnumToString(Use), Rows, Cols)]]
 #endif // defined(__SYCL_DEVICE_ONLY__)
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__

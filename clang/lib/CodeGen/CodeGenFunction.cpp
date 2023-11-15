@@ -758,6 +758,24 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  auto attrAsMDArg = [&](Expr *E) {
+    const auto *CE = cast<ConstantExpr>(E);
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    return llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()));
+  };
+
+  if (const auto *A = FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+    Fn->setMetadata("min_work_groups_per_cu",
+                    llvm::MDNode::get(Context, {attrAsMDArg(A->getValue())}));
+  }
+
+  if (const auto *A =
+          FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+    Fn->setMetadata("max_work_groups_per_mp",
+                    llvm::MDNode::get(Context, {attrAsMDArg(A->getValue())}));
+  }
+
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
 
@@ -1563,7 +1581,7 @@ QualType CodeGenFunction::BuildFunctionArgList(GlobalDecl GD,
 
       auto *Implicit = ImplicitParamDecl::Create(
           getContext(), Param->getDeclContext(), Param->getLocation(),
-          /*Id=*/nullptr, getContext().getSizeType(), ImplicitParamDecl::Other);
+          /*Id=*/nullptr, getContext().getSizeType(), ImplicitParamKind::Other);
       SizeArguments[Param] = Implicit;
       Args.push_back(Implicit);
     }
@@ -2886,7 +2904,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   }
 
   unsigned AS = VTy->getPointerAddressSpace();
-  llvm::Type *Int8VPtrTy = llvm::Type::getInt8PtrTy(CGM.getLLVMContext(), AS);
+  llvm::Type *Int8VPtrTy = llvm::PointerType::get(CGM.getLLVMContext(), AS);
   llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
                                        {Int8VPtrTy, CGM.ConstGlobalsPtrTy});
   V = Builder.CreateBitCast(V, Int8VPtrTy);
