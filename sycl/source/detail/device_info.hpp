@@ -811,72 +811,70 @@ struct get_device_info_impl<
            matrix_type::fp64, matrix_type::fp64},
       };
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
-      auto GetArchNum = [](const architecture& arch) {
+      auto GetArchNum = [](const architecture &arch) {
         NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD_REVERSE);
       };
       float ArchNum = std::stof(GetArchNum(DeviceArch));
       std::vector<combination> sm_70_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp16, matrix_type::fp16}, 
+           matrix_type::fp16, matrix_type::fp16},
           {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp16, matrix_type::fp16}, 
+           matrix_type::fp16, matrix_type::fp16},
           {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp16, matrix_type::fp16}, 
+           matrix_type::fp16, matrix_type::fp16},
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp32, matrix_type::fp16}, 
+           matrix_type::fp32, matrix_type::fp16},
           {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp32, matrix_type::fp16}, 
+           matrix_type::fp32, matrix_type::fp16},
           {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp32, matrix_type::fp16}, 
+           matrix_type::fp32, matrix_type::fp16},
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp16, matrix_type::fp32}, 
+           matrix_type::fp16, matrix_type::fp32},
           {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp16, matrix_type::fp32}, 
+           matrix_type::fp16, matrix_type::fp32},
           {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-            matrix_type::fp16, matrix_type::fp32}
-      }; 
+           matrix_type::fp16, matrix_type::fp32}};
       std::vector<combination> sm_72_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
-            matrix_type::sint32, matrix_type::sint32}, 
+           matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
-            matrix_type::sint32, matrix_type::sint32}, 
+           matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 32, 8, 16, matrix_type::sint8, matrix_type::sint8,
-            matrix_type::sint32, matrix_type::sint32}, 
+           matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 16, 16, 16, matrix_type::uint8, matrix_type::uint8,
-            matrix_type::sint32, matrix_type::sint32}, 
+           matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 8, 32, 16, matrix_type::uint8, matrix_type::uint8,
-            matrix_type::sint32, matrix_type::sint32}, 
+           matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
-            matrix_type::sint32, matrix_type::sint32} 
-      };
+           matrix_type::sint32, matrix_type::sint32}};
       std::vector<combination> sm_80_combinations = {
           {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 32, 16, matrix_type::bf16, matrix_type::bf16,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
-            matrix_type::fp32, matrix_type::fp32}, 
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
-            matrix_type::fp16, matrix_type::fp64} 
-      };
+           matrix_type::fp16, matrix_type::fp64}};
       if (ArchNum >= 8.0) {
-        std::move(sm_72_combinations.begin(), sm_72_combinations.end(), std::back_inserter(sm_70_combinations));
-        std::move(sm_80_combinations.begin(), sm_80_combinations.end(), std::back_inserter(sm_70_combinations));
+        std::move(sm_72_combinations.begin(), sm_72_combinations.end(),
+                  std::back_inserter(sm_70_combinations));
+        std::move(sm_80_combinations.begin(), sm_80_combinations.end(),
+                  std::back_inserter(sm_70_combinations));
         return std::move(sm_70_combinations);
-      }
-      else if (ArchNum >= 7.2) {
-        std::move(sm_72_combinations.begin(), sm_72_combinations.end(), std::back_inserter(sm_70_combinations));
+      } else if (ArchNum >= 7.2) {
+        std::move(sm_72_combinations.begin(), sm_72_combinations.end(),
+                  std::back_inserter(sm_70_combinations));
         return std::move(sm_70_combinations);
-      }
-      else if (ArchNum >= 7.0) {
+      } else if (ArchNum >= 7.0) {
         return std::move(sm_70_combinations);
       }
     }
