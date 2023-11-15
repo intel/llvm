@@ -25,7 +25,8 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind ssp uwtable
 define void @foo() #0 !dbg !4 {
 entry:
-  tail call void @llvm.dbg.value(metadata i64 lshr (i64 bitcast (<2 x i32> <i32 1, i32 1> to i64), i64 32), metadata !12, metadata !17) #3, !dbg !18
+  %0 = lshr i64 bitcast (<2 x i32> <i32 1, i32 1> to i64), 32
+  tail call void @llvm.dbg.value(metadata i64 %0, metadata !12, metadata !17) #3, !dbg !18
   ret void, !dbg !20
 ; CHECK-LLVM: %[[bitcast:[0-9]+]] = bitcast <2 x i32> <i32 1, i32 1> to i64
 ; CHECK-LLVM: %[[shift:[0-9]+]] = lshr i64 %[[bitcast]], 32
