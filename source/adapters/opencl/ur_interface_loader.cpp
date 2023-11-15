@@ -386,6 +386,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -395,6 +397,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
+
+  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
 
   return UR_RESULT_SUCCESS;
 }

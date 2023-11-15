@@ -1,4 +1,4 @@
-//===--------- ur_interface_loader.cpp - Unified Runtime  -----------------===//
+//===----------- ur_interface_loader.cpp - Native CPU Plugin  -------------===//
 //
 // Copyright (C) 2023 Intel Corporation
 //
@@ -28,9 +28,7 @@ ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable) {
 }
 } // namespace
 
-#if defined(__cplusplus)
 extern "C" {
-#endif
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     ur_api_version_t version, ur_platform_dditable_t *pDdiTable) {
@@ -38,7 +36,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGet = urPlatformGet;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
@@ -123,7 +121,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
   pDdiTable->pfnSetArgValue = urKernelSetArgValue;
   pDdiTable->pfnSetExecInfo = urKernelSetExecInfo;
-  pDdiTable->pfnSetSpecializationConstants = nullptr;
+  pDdiTable->pfnSetSpecializationConstants = urKernelSetSpecializationConstants;
   return UR_RESULT_SUCCESS;
 }
 
@@ -203,11 +201,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     return result;
   }
   pDdiTable->pfnAdapterGet = urAdapterGet;
+  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
   pDdiTable->pfnAdapterRelease = urAdapterRelease;
   pDdiTable->pfnAdapterRetain = urAdapterRetain;
-  pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
-  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
-
   return UR_RESULT_SUCCESS;
 }
 
@@ -265,10 +261,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 }
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_command_buffer_exp_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
+    ur_api_version_t version, ur_command_buffer_exp_dditable_t *pDdiTable) {
   auto retVal = validateProcInputs(version, pDdiTable);
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
@@ -340,6 +333,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
+    ur_api_version_t version, ur_physical_mem_dditable_t *pDdiTable) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+
+  pDdiTable->pfnCreate = nullptr;
+  pDdiTable->pfnRelease = nullptr;
+  pDdiTable->pfnRetain = nullptr;
+
+  return retVal;
+}
+
 UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     ur_api_version_t version, ur_usm_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -371,23 +378,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
   return retVal;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
-    ur_api_version_t version, ///< [in] API version requested
-    ur_physical_mem_dditable_t
-        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-) {
-  auto retVal = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != retVal) {
-    return retVal;
-  }
-
-  pDdiTable->pfnCreate = nullptr;
-  pDdiTable->pfnRelease = nullptr;
-  pDdiTable->pfnRetain = nullptr;
-
-  return retVal;
-}
-
 UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     ur_api_version_t version, ur_enqueue_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -411,7 +401,4 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
 
   return UR_RESULT_SUCCESS;
 }
-
-#if defined(__cplusplus)
 } // extern "C"
-#endif

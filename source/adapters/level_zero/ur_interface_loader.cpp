@@ -11,6 +11,8 @@
 #include <ur_api.h>
 #include <ur_ddi.h>
 
+namespace {
+
 ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
@@ -22,6 +24,11 @@ ur_result_t validateProcInputs(ur_api_version_t version, void *pDdiTable) {
   }
   return UR_RESULT_SUCCESS;
 }
+} // namespace
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
 UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     ur_api_version_t version, ///< [in] API version requested
@@ -435,6 +442,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -445,5 +454,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
+
   return UR_RESULT_SUCCESS;
 }
+#if defined(__cplusplus)
+} // extern "C"
+#endif
