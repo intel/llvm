@@ -1500,6 +1500,170 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   }
 }
 
+TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | /
+  //     (E)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 3lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 0lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node1Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node3Impl->MSuccessors[0].lock(), EmptyImpl);
+}
+
+TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node4Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(Node3Graph)});
+
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | (4)
+  //     \| /
+  //     (E)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 3lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 0lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node1Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MSuccessors.size(), 1lu);
+
+  auto Node4Impl = sycl::detail::getSyclObjImpl(Node4Graph);
+  ASSERT_EQ(Node4Impl->MPredecessors.size(), 1lu);
+  ASSERT_EQ(Node4Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node4Impl->MSuccessors[0].lock(), EmptyImpl);
+}
+
+TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(Node1Graph)});
+  auto Node4Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(EmptyNode)});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1)(2)
+  //  |\ |
+  //  | (E)
+  // (3) |
+  //    (4)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 2lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 1lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 2lu);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MPredecessors.size(), 1lu);
+  ASSERT_EQ(Node3Impl->MPredecessors[0].lock(), Node1Impl);
+
+  auto Node4Impl = sycl::detail::getSyclObjImpl(Node4Graph);
+  ASSERT_EQ(Node4Impl->MPredecessors.size(), 1lu);
+  ASSERT_EQ(Node4Impl->MPredecessors[0].lock(), EmptyImpl);
+}
+
+TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EmptyNode2 =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1)(2)
+  //   \/
+  //  (E1) (3)
+  //    \  /
+  //    (E2)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 2lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 1lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node1Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+
+  auto EmptyImpl2 = sycl::detail::getSyclObjImpl(EmptyNode2);
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MPredecessors.size(), 0lu);
+  ASSERT_EQ(Node3Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node3Impl->MSuccessors[0].lock(), EmptyImpl2);
+
+  ASSERT_EQ(EmptyImpl2->MPredecessors.size(), 2lu);
+}
+
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   queue Q{ext::codeplay::experimental::property::queue::enable_fusion{}};
 

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix, gpu
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST
+// RUN: %{build} -o %t.out -DINIT_LIST
 // RUN: %{run} %t.out
 
 #include "common.hpp"
