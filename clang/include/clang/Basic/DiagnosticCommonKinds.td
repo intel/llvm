@@ -436,4 +436,10 @@ def warn_try_not_valid_on_target : Warning<
   "target '%0' does not support exception handling;"
   " 'catch' block is ignored">,
   InGroup<OpenMPTargetException>;
+
+// Launch bound
+def warn_launch_bounds_missing_attr: Warning<
+  "%0 attribute ignored, as it requires: maximum work group size"
+  "%select{| and minimum work groups per compute unit}1 to be also specified">,
+  InGroup<IgnoredAttributes>;
 }

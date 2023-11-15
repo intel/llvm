@@ -61,19 +61,6 @@ namespace {
 
 void fixCallingConv(Function *F) {
   F->setCallingConv(llvm::CallingConv::C);
-  // The frame-pointer=all and the "byval" attributes lead to code generation
-  // that conflicts with the Kernel declaration that we emit in the Native CPU
-  // helper header (in which all the kernel argument are void* or scalars).
-  auto AttList = F->getAttributes();
-  for (unsigned ArgNo = 0; ArgNo < F->getFunctionType()->getNumParams();
-       ArgNo++) {
-    if (AttList.hasParamAttr(ArgNo, Attribute::AttrKind::ByVal)) {
-      AttList = AttList.removeParamAttribute(F->getContext(), ArgNo,
-                                             Attribute::AttrKind::ByVal);
-    }
-  }
-  F->setAttributes(AttList);
-  F->addFnAttr("frame-pointer", "none");
 }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
@@ -404,7 +391,16 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
     auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-    OldF->setName(Name);
+    if(Name != OldF->getName()) {
+      auto RealKernel = M.getFunction(Name);
+      if(RealKernel) {
+        // the real kernel was not inlined in the wrapper, steal its name
+        OldF->takeName(RealKernel);
+      } else {
+        // the real kernel has been inlined, just use the name
+        OldF->setName(Name);
+      }
+    }
 #endif
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);

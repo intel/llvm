@@ -221,6 +221,14 @@ public:
   /// executing.
   bool end_recording(const std::vector<queue> &RecordingQueues);
 
+  /// Synchronous operation that writes a DOT formatted description of the graph
+  /// to the provided path. By default, this includes the graph topology, node
+  /// types, node id and kernel names.
+  /// @param path The path to write the DOT file to.
+  /// @param verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void print_graph(const std::string path, bool verbose = false) const;
+
 protected:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
