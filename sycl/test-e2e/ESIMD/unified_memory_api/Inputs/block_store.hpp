@@ -16,7 +16,6 @@ template <typename T>
 bool verify(T OutVal, const T *Out, size_t Size, int N, bool UseMask) {
   bool Passed = true;
   using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
-
   for (int i = 0; i < Size; i++) {
     bool IsMaskSet = (i / N + 1) & 0x1;
     Tuint Expected = sycl::bit_cast<Tuint>(OutVal);
@@ -219,6 +218,164 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
   return Passed;
 }
 
+template <typename T, uint16_t N, bool UseMask, bool CheckProperties,
+          typename StorePropertiesT>
+bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
+  using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared, 16>;
+  using shared_vector = std::vector<T, shared_allocator>;
+  constexpr uint16_t GroupSize = 8;
+
+  uint32_t Size = Groups * GroupSize * N;
+
+  std::cout << "SLM case: T=" << esimd_test::type_name<T>() << ",N=" << N
+            << ",UseMask=" << UseMask << ",UseProperties=" << CheckProperties
+            << std::endl;
+
+  sycl::range<1> GlobalRange{Groups};
+  sycl::range<1> LocalRange{GroupSize};
+  sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+
+  constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
+
+  shared_vector Out(GroupSize, shared_allocator{Q});
+  T Out_val = esimd_test::getRandomValue<T>();
+  for (int i = 0; i < Size; i++)
+    Out[i] = Out_val;
+
+  try {
+    Q.submit([&](handler &CGH) {
+       auto OutPtr = Out.data();
+
+       CGH.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+         constexpr uint32_t SLMSize = (GroupSize * N) * sizeof(T);
+         slm_init<SLMSize>();
+
+         uint16_t GlobalID = ndi.get_global_id(0);
+         uint16_t LocalID = ndi.get_local_id(0);
+         uint32_t LocalElemOffset = LocalID * N * sizeof(T);
+         uint32_t ElemOff = GlobalID * N;
+         simd<T, N> Vals(ElemOff, 1);
+
+         if constexpr (UseMask) {
+           simd_mask<1> Mask = (GlobalID + 1) & 0x1;
+           simd<T, N> PassThru = Out_val;
+           if constexpr (CheckProperties)
+             slm_block_store(LocalElemOffset, Vals, Mask, StorePropertiesT{});
+           else
+             slm_block_store(LocalElemOffset, Vals, Mask);
+           Vals = slm_block_load<T, N>(LocalElemOffset, Mask, PassThru);
+           Vals += 6;
+           slm_block_store(LocalElemOffset, Vals, Mask);
+           Vals = slm_block_load<T, N>(LocalElemOffset, Mask, PassThru);
+         } else {
+           if constexpr (CheckProperties)
+             slm_block_store(LocalElemOffset, Vals, StorePropertiesT{});
+           else
+             slm_block_store(LocalElemOffset, Vals);
+
+           Vals = slm_block_load<T, N>(LocalElemOffset);
+           Vals += 6;
+           slm_block_store(LocalElemOffset, Vals);
+           Vals = slm_block_load<T, N>(LocalElemOffset);
+         }
+         Vals.copy_to(OutPtr + ElemOff);
+       });
+     }).wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return false;
+  }
+
+  bool Passed = verify(Out_val, Out.data(), Size, N, UseMask);
+
+  return Passed;
+}
+
+template <typename T, uint16_t N, bool UseMask, bool CheckProperties,
+          typename StorePropertiesT>
+bool testLocalAccSLM(queue Q, uint32_t Groups,
+                     StorePropertiesT StoreProperties) {
+  using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared, 16>;
+  using shared_vector = std::vector<T, shared_allocator>;
+  constexpr uint16_t GroupSize = 8;
+
+  uint32_t Size = Groups * GroupSize * N;
+
+  std::cout << "Local Acc case: T=" << esimd_test::type_name<T>() << ",N=" << N
+            << ",UseMask=" << UseMask << ",UseProperties=" << CheckProperties
+            << std::endl;
+
+  sycl::range<1> GlobalRange{Groups};
+  sycl::range<1> LocalRange{GroupSize};
+  sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+
+  constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
+
+  shared_vector Out(GroupSize, shared_allocator{Q});
+  T Out_val = esimd_test::getRandomValue<T>();
+  for (int i = 0; i < Size; i++)
+    Out[i] = Out_val;
+
+  try {
+    Q.submit([&](handler &CGH) {
+       local_accessor<T, 1> LocalAcc(GroupSize * N, CGH);
+
+       auto OutPtr = Out.data();
+
+       CGH.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+         constexpr uint32_t SLMSize = (GroupSize * N) * sizeof(T);
+         slm_init<SLMSize>();
+
+         uint16_t GlobalID = ndi.get_global_id(0);
+         uint16_t LocalID = ndi.get_local_id(0);
+         uint32_t LocalElemOffset = LocalID * N * sizeof(T);
+         uint32_t ElemOff = GlobalID * N;
+         simd<T, N> Vals(ElemOff, 1);
+
+         if constexpr (UseMask) {
+           simd_mask<1> Mask = (GlobalID + 1) & 0x1;
+           simd<T, N> PassThru = Out_val;
+           if constexpr (CheckProperties)
+             block_store(LocalAcc, LocalElemOffset, Vals, Mask,
+                         StorePropertiesT{});
+           else {
+             if (LocalElemOffset == 0)
+               block_store(LocalAcc, Vals, Mask);
+             else
+               block_store(LocalAcc, LocalElemOffset, Vals, Mask);
+           }
+           Vals = block_load<T, N>(LocalAcc, LocalElemOffset, Mask, PassThru);
+           Vals += 6;
+           block_store(LocalAcc, LocalElemOffset, Vals, Mask);
+           Vals = block_load<T, N>(LocalAcc, LocalElemOffset, Mask, PassThru);
+         } else {
+           if constexpr (CheckProperties)
+             block_store(LocalAcc, LocalElemOffset, Vals, StorePropertiesT{});
+           else {
+             if (LocalElemOffset == 0)
+               block_store(LocalAcc, Vals);
+             else
+               block_store(LocalAcc, LocalElemOffset, Vals);
+           }
+
+           Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
+           Vals += 6;
+           block_store(LocalAcc, LocalElemOffset, Vals);
+           Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
+         }
+         Vals.copy_to(OutPtr + ElemOff);
+       });
+     }).wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    return false;
+  }
+
+  bool Passed = verify(Out_val, Out.data(), Size, N, UseMask);
+
+  return Passed;
+}
+
 template <typename T, bool TestPVCFeatures> bool test_block_store_usm(queue Q) {
   constexpr bool CheckMask = true;
   constexpr bool CheckProperties = true;
@@ -368,6 +525,165 @@ template <typename T, bool TestPVCFeatures> bool test_block_store_acc(queue Q) {
     Passed &= testACC<T, 64 * I32Factor, !CheckMask, CheckProperties>(
         Q, 7, 1, PVCAlign8Props);
 
+  } // TestPVCFeatures
+
+  return Passed;
+}
+
+template <typename T, bool TestPVCFeatures> bool test_block_store_slm(queue Q) {
+  constexpr bool CheckMerge = true;
+  constexpr bool CheckMask = true;
+  constexpr bool CheckProperties = true;
+
+  bool Passed = true;
+
+  // Test slm_block_store() from SLM that doesn't use the mask is implemented
+  // for any N > 1.
+  // Ensure that for every call of slm_block_store(offset, ...)
+  // the 'alignment' property is specified correctly.
+  properties Align16Props{alignment<16>};
+  properties AlignElemProps{alignment<sizeof(T)>};
+  Passed &= testSLM<T, 1, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &= testSLM<T, 2, !CheckMask, CheckProperties>(Q, 1, AlignElemProps);
+  Passed &= testSLM<T, 4, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &= testSLM<T, 8, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &= testSLM<T, 16, !CheckMask, CheckProperties>(Q, 2, Align16Props);
+  Passed &= testSLM<T, 32, !CheckMask, CheckProperties>(Q, 2, Align16Props);
+  Passed &= testSLM<T, 64, !CheckMask, CheckProperties>(Q, 2, Align16Props);
+
+  // Test block_store() without passing compile-time properties argument.
+  Passed &= testSLM<T, 16, !CheckMask, !CheckProperties>(Q, 2, Align16Props);
+
+  // Test N that is not power of 2, which definitely would require element-size
+  // alignment - it works even for byte- and word-vectors if mask is not used.
+  // Alignment that is smaller than 16-bytes is not assumed/expected by default
+  // and requires explicit passing of the esimd::alignment property.
+  //
+  // These test case may compute wrong values for some of elements
+  // if the driver is not new enough.
+  if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                "27556", "win.just.skip.test", false)) {
+    Passed &= testSLM<T, 3, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+
+    Passed &= testSLM<T, 17, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+
+    Passed &=
+        testSLM<T, 113, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  }
+
+  if constexpr (TestPVCFeatures) {
+    // Using the mask adds the requirement to run tests on PVC.
+    // Also, PVC variant currently requires power-or-two elements and
+    // the number of bytes stored per call must not exceed 512.
+
+    constexpr int I32Factor =
+        std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
+    constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
+    properties PVCProps{alignment<ReqiredAlignment>};
+
+    // Test block_store() that is available on PVC:
+    // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
+    Passed &=
+        testSLM<T, 1 * I32Factor, CheckMask, CheckProperties>(Q, 2, PVCProps);
+    Passed &=
+        testSLM<T, 2 * I32Factor, CheckMask, CheckProperties>(Q, 1, PVCProps);
+    Passed &=
+        testSLM<T, 3 * I32Factor, CheckMask, CheckProperties>(Q, 2, PVCProps);
+    Passed &=
+        testSLM<T, 4 * I32Factor, CheckMask, CheckProperties>(Q, 2, PVCProps);
+    Passed &=
+        testSLM<T, 8 * I32Factor, CheckMask, CheckProperties>(Q, 1, PVCProps);
+    Passed &=
+        testSLM<T, 16 * I32Factor, CheckMask, CheckProperties>(Q, 8, PVCProps);
+    Passed &=
+        testSLM<T, 32 * I32Factor, CheckMask, CheckProperties>(Q, 2, PVCProps);
+    Passed &=
+        testSLM<T, 64 * I32Factor, CheckMask, !CheckProperties>(Q, 2, PVCProps);
+  } // TestPVCFeatures
+
+  return Passed;
+}
+
+template <typename T, bool TestPVCFeatures>
+bool test_block_store_local_acc_slm(queue Q) {
+  constexpr bool CheckMerge = true;
+  constexpr bool CheckMask = true;
+  constexpr bool CheckProperties = true;
+
+  bool Passed = true;
+
+  // Test slm_block_store() from SLM that doesn't use the mask is implemented
+  // for any N > 1.
+  // Ensure that for every call of slm_block_store(offset, ...)
+  // the 'alignment' property is specified correctly.
+  properties Align16Props{alignment<16>};
+  properties AlignElemProps{alignment<sizeof(T)>};
+  Passed &=
+      testLocalAccSLM<T, 1, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &=
+      testLocalAccSLM<T, 2, !CheckMask, CheckProperties>(Q, 1, AlignElemProps);
+  Passed &=
+      testLocalAccSLM<T, 4, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &=
+      testLocalAccSLM<T, 8, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &=
+      testLocalAccSLM<T, 16, !CheckMask, CheckProperties>(Q, 2, Align16Props);
+  Passed &=
+      testLocalAccSLM<T, 32, !CheckMask, CheckProperties>(Q, 2, Align16Props);
+  Passed &=
+      testLocalAccSLM<T, 64, !CheckMask, CheckProperties>(Q, 2, Align16Props);
+
+  // Test block_store() without passing compile-time properties argument.
+  Passed &=
+      testLocalAccSLM<T, 16, !CheckMask, !CheckProperties>(Q, 2, Align16Props);
+
+  // Test N that is not power of 2, which definitely would require element-size
+  // alignment - it works even for byte- and word-vectors if mask is not used.
+  // Alignment that is smaller than 16-bytes is not assumed/expected by default
+  // and requires explicit passing of the esimd::alignment property.
+  //
+  // These test case may compute wrong values for some of elements
+  // if the driver is not new enough.
+  if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                "27556", "win.just.skip.test", false)) {
+    Passed &= testLocalAccSLM<T, 3, !CheckMask, CheckProperties>(
+        Q, 2, AlignElemProps);
+
+    Passed &= testLocalAccSLM<T, 17, !CheckMask, CheckProperties>(
+        Q, 2, AlignElemProps);
+
+    Passed &= testLocalAccSLM<T, 113, !CheckMask, CheckProperties>(
+        Q, 2, AlignElemProps);
+  }
+
+  if constexpr (TestPVCFeatures) {
+    // Using the mask adds the requirement to run tests on PVC.
+    // Also, PVC variant currently requires power-or-two elements and
+    // the number of bytes stored per call must not exceed 512.
+
+    constexpr int I32Factor =
+        std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
+    constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
+    properties PVCProps{alignment<ReqiredAlignment>};
+
+    // Test block_store() that is available on PVC:
+    // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
+    Passed &= testLocalAccSLM<T, 1 * I32Factor, CheckMask, CheckProperties>(
+        Q, 2, PVCProps);
+    Passed &= testLocalAccSLM<T, 2 * I32Factor, CheckMask, CheckProperties>(
+        Q, 1, PVCProps);
+    Passed &= testLocalAccSLM<T, 3 * I32Factor, CheckMask, CheckProperties>(
+        Q, 2, PVCProps);
+    Passed &= testLocalAccSLM<T, 4 * I32Factor, CheckMask, CheckProperties>(
+        Q, 2, PVCProps);
+    Passed &= testLocalAccSLM<T, 8 * I32Factor, CheckMask, CheckProperties>(
+        Q, 1, PVCProps);
+    Passed &= testLocalAccSLM<T, 16 * I32Factor, CheckMask, CheckProperties>(
+        Q, 8, PVCProps);
+    Passed &= testLocalAccSLM<T, 32 * I32Factor, CheckMask, CheckProperties>(
+        Q, 2, PVCProps);
+    Passed &= testLocalAccSLM<T, 64 * I32Factor, CheckMask, !CheckProperties>(
+        Q, 2, PVCProps);
   } // TestPVCFeatures
 
   return Passed;
