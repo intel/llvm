@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Failing negative test with HIP
-// UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>
 
