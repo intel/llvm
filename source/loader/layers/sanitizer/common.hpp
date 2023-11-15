@@ -216,11 +216,11 @@ static auto getUrResultString = [](ur_result_t Result) {
 #define UR_CALL(Call)                                                          \
     {                                                                          \
         if (PrintTrace)                                                        \
-            fprintf(stderr, "UR ---> %s\n", #Call);                            \
+            context.logger.debug("UR ---> {}", #Call);                         \
         ur_result_t Result = (Call);                                           \
         if (PrintTrace)                                                        \
-            fprintf(stderr, "UR <--- %s(%s)\n", #Call,                         \
-                    getUrResultString(Result));                                \
+            context.logger.debug("UR <--- {}({})", #Call,                      \
+                                 getUrResultString(Result));                   \
         if (Result != UR_RESULT_SUCCESS)                                       \
             return Result;                                                     \
     }
