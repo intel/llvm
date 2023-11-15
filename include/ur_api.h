@@ -4781,7 +4781,7 @@ urKernelSetArgLocal(
 /// @brief Get Kernel object information
 typedef enum ur_kernel_info_t {
     UR_KERNEL_INFO_FUNCTION_NAME = 0,   ///< [char[]] Return null-terminated kernel function name.
-    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [size_t] Return Kernel number of arguments.
+    UR_KERNEL_INFO_NUM_ARGS = 1,        ///< [uint32_t] Return Kernel number of arguments.
     UR_KERNEL_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the kernel object.
                                         ///< The reference count returned should be considered immediately stale.
                                         ///< It is unsuitable for general use in applications. This feature is

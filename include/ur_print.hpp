@@ -7855,9 +7855,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
         printPtr(os, tptr);
     } break;
     case UR_KERNEL_INFO_NUM_ARGS: {
-        const size_t *tptr = (const size_t *)ptr;
-        if (sizeof(size_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t) << ")";
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
