@@ -1,9 +1,7 @@
 //===----------- enqueue.cpp - NATIVE CPU Adapter -------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
-//
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -15,6 +13,8 @@
 #include "common.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
+#include "threadpool.hpp"
+#include "queue.hpp"
 
 namespace native_cpu {
 struct NDRDescT {
@@ -61,14 +61,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   // TODO: add proper error checking
   // TODO: add proper event dep management
-  native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
-                           pLocalWorkSize);
-  hKernel->handleLocalArgs();
+  native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize);
+  auto& tp = hQueue->device->tp;
+  const size_t numParallelThreads = tp.num_threads();
+  hKernel->updateMemPool(numParallelThreads);
+  std::vector<std::future<void>> futures;
+  auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
+  auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
+  auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
+  bool isLocalSizeOne =
+      ndr.LocalSize[0] == 1 && ndr.LocalSize[1] == 1 && ndr.LocalSize[2] == 1;
+  
 
   native_cpu::state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
                           ndr.LocalSize[2], ndr.GlobalOffset[0],
                           ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
+  if (isLocalSizeOne) {
+    // If the local size is one, we make the assumption that we are running a
+    // parallel_for over a sycl::range Todo: we could add compiler checks and
+    // kernel properties for this (e.g. check that no barriers are called, no
+    // local memory args).
 
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
@@ -92,6 +105,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       }
     }
   }
+
+  for (auto &f : futures)
+    f.get();
   // TODO: we should avoid calling clear here by avoiding using push_back
   // in setKernelArgs.
   hKernel->_args.clear();
@@ -537,3 +553,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
   DIE_NO_IMPLEMENTATION;
 }
+
