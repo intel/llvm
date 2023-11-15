@@ -184,8 +184,7 @@ __SYCL_MATH_FUNCTION_2_OVERLOAD(remainder)
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<__FAST_MATH_SGENFLOAT(T), marray<T, N>>
-    powr(marray<T, N> x,
-         marray<T, N> y){
+    powr(marray<T, N> x, marray<T, N> y) {
   __SYCL_MATH_FUNCTION_2_OVERLOAD_IMPL(powr)
 }
 
@@ -277,7 +276,7 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<detail::is_sgenfloat_v<T>,
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<detail::is_sgenfloat_v<T>, marray<T, N>>
-    rootn(marray<T, N> x, int y){
+    rootn(marray<T, N> x, int y) {
   __SYCL_MATH_FUNCTION_2_INT_Y_OVERLOAD_IMPL(rootn)
 }
 
@@ -303,7 +302,8 @@ inline __SYCL_ALWAYS_INLINE
   }
 
 __SYCL_MATH_FUNCTION_3_OVERLOAD(mad)
-__SYCL_MATH_FUNCTION_3_OVERLOAD(mix) __SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(mix)
+__SYCL_MATH_FUNCTION_3_OVERLOAD(fma)
 
 #undef __SYCL_MATH_FUNCTION_3_OVERLOAD
 
