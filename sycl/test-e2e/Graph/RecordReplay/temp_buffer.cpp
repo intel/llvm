@@ -5,9 +5,10 @@
 //
 // CHECK-NOT: LEAK
 
-// This test should be removed as using buffers that don't exceed the
-// lifetime of the graph doesn't satisfy the graphs extension spec.
-// XFAIL: *
+// This test should be removed or modified as using buffers that don't exceed
+// the lifetime of the graph doesn't satisfy valid usage of the graphs
+// extension.
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 // This test creates a temporary buffer which is used in kernels, but
 // destroyed before finalization and execution of the graph.
