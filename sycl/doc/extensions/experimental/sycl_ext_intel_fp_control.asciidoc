@@ -93,7 +93,7 @@ supports.
 |Property|Description
 
 |`fp_control`
-|The `fp_control` kernel property provides a way to specify the rounding mode, denorm mode and single precision floating point mode for a kernel.
+|The `fp_control` kernel property provides a way to specify the rounding mode and denormalized floating point values mode for a kernel.
 |===
 
 The values that the property can be set to are a subset of the following that can be OR'ed together:
@@ -107,7 +107,7 @@ The values that the property can be set to are a subset of the following that ca
 | round_toward_zero | Round towards zero
 | denorm_ftz | Denormalized floating point values are flushed to zero in the kernel code
 | denorm_d_allow | Kernel code is allowed to use denormalized double precision floating point values
-| denorm_f_allow | Kernel code is allowed to use denormalized signle precision floating point values
+| denorm_f_allow | Kernel code is allowed to use denormalized single precision floating point values
 | denorm_hf_allow | Kernel code is allowed to use denormalized half precision floating point values
 | denorm_allow | Kernel code is allowed to use denormalized double/float/half precision floating point values
 |===
