@@ -21,10 +21,11 @@ namespace {
 
 // These magic values are written to shadow for better error
 // reporting.
-const int kUsmDeviceRedzoneMagic = 0x81;
-const int kUsmHostRedzoneMagic = 0x82;
-const int kUsmSharedRedzoneMagic = 0x83;
-const int kMemBufferRedzoneMagic = 0x84;
+const int kUsmDeviceRedzoneMagic = (char)0x81;
+const int kUsmHostRedzoneMagic = (char)0x82;
+const int kUsmSharedRedzoneMagic = (char)0x83;
+const int kMemBufferRedzoneMagic = (char)0x84;
+const int kUnkownRedzoneMagic = (char)0x8F;
 
 const auto kSPIR_AsanShadowMemoryGlobalStart = "__AsanShadowMemoryGlobalStart";
 const auto kSPIR_AsanShadowMemoryGlobalEnd = "__AsanShadowMemoryGlobalEnd";
@@ -339,7 +340,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("    zeVirtualMemMap(): %s\n",
+                    context.logger.debug("zeVirtualMemMap(): %s",
                                          getUrResultString(URes));
                 }
 
@@ -348,8 +349,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     // Reset PhysicalMem to null since it's been mapped
                     PhysicalMem = nullptr;
 
-                    // FIXME: Maybe we needn't to initialize shadow memory to zero? Or it'd be better to be a negative value?
-                    const char Pattern[] = {0};
+                    const char Pattern[] = {kUnkownRedzoneMagic};
 
                     auto URes = context.urDdiTable.Enqueue.pfnUSMFill(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
