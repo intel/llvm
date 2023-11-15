@@ -9,5 +9,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 #include "common.hpp"
+#include "device.hpp"
 
-struct ur_queue_handle_t_ : RefCounted {};
+struct ur_queue_handle_t_ : RefCounted {
+  ur_device_handle_t_ *device;
+
+  ur_queue_handle_t_(ur_device_handle_t_ *device) : device(device) {}
+
+};
