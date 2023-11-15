@@ -1178,7 +1178,6 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     llvm::AttrBuilder FnAttrBuilder(Fn->getContext());
     for (const auto &NameValuePair : NameValuePairs)
       FnAttrBuilder.addAttribute(NameValuePair.first, NameValuePair.second);
-
     Fn->addFnAttrs(FnAttrBuilder);
   }
 

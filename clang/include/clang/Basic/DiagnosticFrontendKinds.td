@@ -292,9 +292,6 @@ def warn_sycl_device_has_aspect_mismatch
 def note_sycl_aspect_propagated_from_call
     : Note<"propagated from call to function '%0'">, BackendInfo;
 
-def err_sycl_fp_control_non_esimd
-    : Error<"SYCL fp_control control property is supported only for ESIMD kernels">;
-
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;
