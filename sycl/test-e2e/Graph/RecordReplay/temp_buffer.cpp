@@ -6,7 +6,7 @@
 // CHECK-NOT: LEAK
 
 // Fail that needs investigation
-// UNSUPPORTED: *
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 // This test creates a temporary buffer which is used in kernels, but
 // destroyed before finalization and execution of the graph.

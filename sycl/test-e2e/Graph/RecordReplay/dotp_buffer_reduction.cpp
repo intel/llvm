@@ -6,7 +6,7 @@
 // CHECK-NOT: LEAK
 
 // Expected fail as reduction support is not complete.
-// UNSUPPORTED: *
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_RECORD_REPLAY
 

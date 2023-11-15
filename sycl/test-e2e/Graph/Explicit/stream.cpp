@@ -5,7 +5,7 @@
 // CHECK-NOT: LEAK
 
 // Expected fail as sycl streams aren't implemented yet
-// UNSUPPORTED: *
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_EXPLICIT
 

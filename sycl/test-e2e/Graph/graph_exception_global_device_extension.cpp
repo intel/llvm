@@ -22,7 +22,7 @@ template <OperationPath PathKind, typename T> void test(queue Queue) {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   if constexpr (PathKind != OperationPath::Explicit) {
-    Graph.begin_recording(Q);
+    Graph.begin_recording(Queue);
   }
 
   // Copy from device globals before having written anything.

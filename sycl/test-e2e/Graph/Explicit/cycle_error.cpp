@@ -17,7 +17,7 @@ void CreateGraphWithCyclesTest(bool DisableCycleChecks) {
   queue Queue;
 
   if (!are_graphs_supported(Queue)) {
-    return 0;
+    return;
   }
 
   property_list Props;
