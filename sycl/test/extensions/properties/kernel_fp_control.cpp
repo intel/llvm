@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>

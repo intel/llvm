@@ -1,6 +1,5 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
-#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
