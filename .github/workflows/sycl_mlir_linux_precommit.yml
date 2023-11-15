@@ -56,7 +56,7 @@ jobs:
     needs: [lint, detect_changes]
     if: |
       always()
-      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && (success() || contains(github.event.pull_request.labels.*.name, 'disable-lint'))
     uses: ./.github/workflows/sycl_linux_build.yml
     with:
       build_ref: ${{ github.sha }}
