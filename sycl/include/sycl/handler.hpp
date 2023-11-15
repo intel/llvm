@@ -923,9 +923,9 @@ private:
     static_assert(
         !PropertiesT::template has_property<
             sycl::ext::intel::experimental::fp_control_key>() ||
-            PropertiesT::template has_property<
-                sycl::ext::intel::experimental::fp_control_key>() &&
-                KI::isESIMD(),
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             KI::isESIMD()),
         "Floating point control property is supported for ESIMD kernels only.");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
