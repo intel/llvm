@@ -13,10 +13,33 @@
 
 #include "pi_level_zero.hpp"
 #include "ur_bindings.hpp"
+#ifdef _WIN32
+#include <Windows.h>
+#include <delayimp.h>
+#endif
 
 // Defined in tracing.cpp
 void enableZeTracing();
 void disableZeTracing();
+#ifdef _WIN32
+ FARPROC WINAPI delayHook(unsigned dliNotify, PDelayLoadInfo pdli) {
+  switch (dliNotify) {
+  case dliStartProcessing:
+    break;
+  case dliNotePreLoadLibrary: {
+    if (strcmp(pdli->szDll, "ze_loader.dll") == 0) {
+      // auto libName="ze_loader.dll";
+      return (FARPROC)LoadLibraryExA("ze_loader.dll", nullptr,
+                                     LOAD_LIBRARY_SEARCH_SYSTEM32);
+    }
+  }
+  }
+  return NULL;
+}
+
+ExternC const PfnDliHook __pfnDliNotifyHook2 = delayHook;
+ExternC const PfnDliHook __pfnDliFailureHook2 = delayHook;
+#endif
 
 extern "C" {
 
