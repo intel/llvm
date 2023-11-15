@@ -40,7 +40,6 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
       accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
       secretAccessKey: core.getInput("AWS_SECRET_KEY")
     },
-
     region:          core.getInput("aws-region")
   });
 
@@ -144,7 +143,6 @@ async function stop(param_label) {
       accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
       secretAccessKey: core.getInput("AWS_SECRET_KEY")
     },
-
     region:          core.getInput("aws-region")
   });
 
