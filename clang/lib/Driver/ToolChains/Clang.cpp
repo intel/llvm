@@ -9469,7 +9469,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // better in the output extension and type for improved understanding
     // of file contents and debuggability.
     TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
-    // When the output is a Tempfilelist, we know we are generating unbundling
+    // When the output is a Tempfilelist, we know we are unbundling
     // the .bc files from the archive.
     if (!getToolChain().getTriple().isSPIR() ||
         JA.getType() == types::TY_Tempfilelist)
@@ -9525,7 +9525,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       if (getToolChain().getTriple().isSPIR()) {
         if (Dep.DependentToolChain->getTriple().getSubArch() ==
             llvm::Triple::SPIRSubArch_fpga) {
-          // mtoguchi
           StringRef TypeName(types::getTypeName(InputType));
           types::ID Type = UA.getDependentType();
           if (InputType == types::TY_Tempfilelist && Type != types::TY_Nothing)
@@ -9790,8 +9789,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
-    // For FPGA toolchains, we can add additional wrapped bc input files to
-    // the wrapped step.  This is done for AOCR based files that contain the
+    // For FPGA toolchains, we can provide previously wrapped bc input files to
+    // the wrapper step.  This is done for AOCR based files that will need the
     // Symbols and Properties from a previous compilation step.
     if (TC.getTriple().isSPIR() && Inputs.size() == 2 &&
         TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
