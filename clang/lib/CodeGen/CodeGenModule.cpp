@@ -7552,9 +7552,7 @@ void CodeGenModule::AddDeferredUnusedCoverageMapping(Decl *D) {
     SourceManager &SM = getContext().getSourceManager();
     if (LimitedCoverage && SM.getMainFileID() != SM.getFileID(D->getBeginLoc()))
       break;
-    auto I = DeferredEmptyCoverageMappingDecls.find(D);
-    if (I == DeferredEmptyCoverageMappingDecls.end())
-      DeferredEmptyCoverageMappingDecls[D] = true;
+    DeferredEmptyCoverageMappingDecls.try_emplace(D, true);
     break;
   }
   default:
@@ -7570,11 +7568,7 @@ void CodeGenModule::ClearUnusedCoverageMapping(const Decl *D) {
     if (Fn->isTemplateInstantiation())
       ClearUnusedCoverageMapping(Fn->getTemplateInstantiationPattern());
   }
-  auto I = DeferredEmptyCoverageMappingDecls.find(D);
-  if (I == DeferredEmptyCoverageMappingDecls.end())
-    DeferredEmptyCoverageMappingDecls[D] = false;
-  else
-    I->second = false;
+  DeferredEmptyCoverageMappingDecls.insert_or_assign(D, false);
 }
 
 void CodeGenModule::EmitDeferredUnusedCoverageMappings() {
