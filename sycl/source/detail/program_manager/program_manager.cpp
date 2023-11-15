@@ -740,13 +740,15 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                              CompileOpts + LinkOpts, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
-    if (std::get<0>(ret_tuple)) {
+    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
+    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
+    if (std::get<Kernel>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.
       ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
-          std::get<0>(ret_tuple));
+          std::get<Kernel>(ret_tuple));
       ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
-          std::get<3>(ret_tuple));
+          std::get<Program>(ret_tuple));
       return ret_tuple;
     }
   }
