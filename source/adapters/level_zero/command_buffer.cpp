@@ -498,11 +498,6 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
              (CommandBuffer->ZeCommandList, CommandBuffer->SignalEvent->ZeEvent,
               NumEvents, WaitEventList.data()));
 
-  // Reset the wait-event for the UR command-buffer that is signalled when its
-  // submission dependencies have been satisfied.
-  ZE2UR_CALL(zeCommandListAppendEventReset,
-             (CommandBuffer->ZeCommandList, CommandBuffer->WaitEvent->ZeEvent));
-
   // Close the command list and have it ready for dispatch.
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeCommandList));
   return UR_RESULT_SUCCESS;
@@ -938,10 +933,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ur_event_handle_t RetEvent{};
   // Create a command-list to signal RetEvent on completion
   ur_command_list_ptr_t SignalCommandList{};
-  if (Event) {
-    UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
-                                                    false, false));
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
+                                                  false, false));
+  // Reset the wait-event for the UR command-buffer that is signalled when its
+  // submission dependencies have been satisfied.
+  ZE2UR_CALL(zeCommandListAppendEventReset,
+             (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
 
+  if (Event) {
     UR_CALL(createEventAndAssociateQueue(Queue, &RetEvent,
                                          UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
                                          SignalCommandList, false));
@@ -968,8 +967,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       RetEvent->CommandData = static_cast<void *>(Profiling);
     } else {
       ZE2UR_CALL(zeCommandListAppendBarrier,
-		 (SignalCommandList->first, RetEvent->ZeEvent, 1,
-		  &(CommandBuffer->SignalEvent->ZeEvent)));
+                 (SignalCommandList->first, RetEvent->ZeEvent, 1,
+                  &(CommandBuffer->SignalEvent->ZeEvent)));
     }
   }
 
