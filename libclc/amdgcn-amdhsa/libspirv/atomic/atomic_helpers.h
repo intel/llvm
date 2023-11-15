@@ -71,3 +71,25 @@
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, BUILTIN) \
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, BUILTIN)  \
   AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, BUILTIN)
+
+#define AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                          \
+                               SUB1, OP)                                                                               \
+  _CLC_DEF TYPE                                                                                                        \
+      FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
+          volatile AS TYPE *p, enum Scope scope,                                                                       \
+          enum MemorySemanticsMask semantics, TYPE val) {                                                              \
+    int atomic_scope = 0, memory_order = 0;                                                                            \
+    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                           \
+    TYPE oldval = __hip_atomic_load(p, memory_order, atomic_scope);                                                    \
+    TYPE newval = 0;                                                                                                   \
+    do {                                                                                                               \
+      newval = oldval OP val;                                                                                          \
+    } while (!__hip_atomic_compare_exchange_strong(                                                                    \
+        p, &oldval, newval, atomic_scope, atomic_scope, memory_order));                                                \
+    return oldval;                                                                                                     \
+  }
+
+#define AMDGPU_CAS_ATOMIC(FUNC_NAME, TYPE, TYPE_MANGLED, OP)                   \
+  AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, global, U3AS1, 1, OP)  \
+  AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, local, U3AS3, 1, OP)   \
+  AMDGPU_CAS_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, , , 0, OP)
