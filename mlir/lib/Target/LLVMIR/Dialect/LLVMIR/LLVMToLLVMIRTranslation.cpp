@@ -195,6 +195,8 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
       llvm::Function *callee =
           moduleTranslation.lookupFunction(attr.getValue());
       call = builder.CreateCall(callee, operandsRef);
+      // FIXME: https://github.com/intel/llvm/issues/11894
+      // FIXME: Use `llvm.call` `CConv` attribute instead
       call->setCallingConv(callee->getCallingConv());
       // FIXME: This is just a temporary solution. Arguments should be attached
       // to the operation and translated, not taken from callee.
@@ -205,7 +207,9 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
       call = builder.CreateCall(calleeType, operandsRef.front(),
                                 operandsRef.drop_front());
     }
-    call->setCallingConv(convertCConvToLLVM(callOp.getCConv()));
+    // FIXME: https://github.com/intel/llvm/issues/11894
+    // FIXME: SYCL-MLIR does not attach `llvm.call` `CConv` attribute
+    // call->setCallingConv(convertCConvToLLVM(callOp.getCConv()));
     moduleTranslation.setAccessGroupsMetadata(callOp, call);
     moduleTranslation.setAliasScopeMetadata(callOp, call);
     moduleTranslation.setTBAAMetadata(callOp, call);
