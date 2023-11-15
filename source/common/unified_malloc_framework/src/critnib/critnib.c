@@ -81,7 +81,7 @@
 #define DELETED_LIFE 16
 
 #define SLICE 4
-#define NIB ((1UL << SLICE) - 1)
+#define NIB ((1ULL << SLICE) - 1)
 #define SLNODES (1 << SLICE)
 
 typedef uintptr_t word;
@@ -156,7 +156,7 @@ static inline bool is_leaf(struct critnib_node *n) { return (word)n & 1; }
  * internal: to_leaf -- untag a leaf pointer
  */
 static inline struct critnib_leaf *to_leaf(struct critnib_node *n) {
-    return (void *)((word)n & ~1UL);
+    return (void *)((word)n & ~1ULL);
 }
 
 /*
