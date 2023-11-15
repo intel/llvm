@@ -1,8 +1,6 @@
 const core   = require('@actions/core');
 const github = require('@actions/github');
-const AWS    = require('aws-sdk');
-
-const { EC2, waitUntilInstanceRunning } = require("@aws-sdk/client-ec2");
+const { EC2, waitUntilInstanceRunning } = require('@aws-sdk/client-ec2');
 
 // shortcut to reference current repo
 const repo = `${github.context.repo.owner}/${github.context.repo.repo}`;
@@ -221,15 +219,6 @@ async function stop(param_label) {
 
 (async function() {
   try {
-    // provide AWS credentials
-    // JS SDK v3 does not support global configuration.
-    // Codemod has attempted to pass values to each service client in this file.
-    // You may need to update clients outside of this file, if they use global config.
-    AWS.config.update({
-      accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
-      secretAccessKey: core.getInput("AWS_SECRET_KEY"),
-      region:          core.getInput("aws-region")
-    });
     // mode is start or stop
     const mode = core.getInput("mode");
     const runs_on_list = core.getInput("runs-on-list") ? JSON.parse(core.getInput("runs-on-list")) : [];
