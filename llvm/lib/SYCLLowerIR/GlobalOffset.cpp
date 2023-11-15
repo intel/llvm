@@ -150,7 +150,7 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   MDNode *FuncMetadata = EntryPointMetadata[Func];
 
   // Already processed.
-  if (ProcessedFunctions[Func] != nullptr)
+  if (ProcessedFunctions.count(Func) == 1)
     return;
 
   // Add the new argument to all other kernel entry points, despite not
@@ -158,10 +158,11 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   auto *KernelMetadata = M.getNamedMetadata(getAnnotationString(AT).c_str());
   assert(KernelMetadata && "IR compiled must have correct annotations");
 
-  auto *NewFunc = std::get<0>(addOffsetArgumentToFunction(
-      M, Func, KernelImplicitArgumentType->getPointerTo(),
-      /*KeepOriginal=*/true,
-      /*IsKernel=*/true));
+  auto *NewFunc = addOffsetArgumentToFunction(
+                      M, Func, KernelImplicitArgumentType->getPointerTo(),
+                      /*KeepOriginal=*/true,
+                      /*IsKernel=*/true)
+                      .first;
   Argument *NewArgument = std::prev(NewFunc->arg_end());
   // Pass byval to the kernel for NVIDIA, AMD's calling convention disallows
   // byval args, use byref.
@@ -180,22 +181,8 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
 
 void GlobalOffsetPass::addImplicitParameterToCallers(
     Module &M, Value *Callee, Function *CalleeWithImplicitParam) {
-
-  // Make sure that all entry point callers are processed.
   SmallVector<User *, 8> Users{Callee->users()};
-  for (User *U : Users) {
-    auto *Call = dyn_cast<CallInst>(U);
-    if (!Call)
-      continue;
 
-    Function *Caller = Call->getFunction();
-    if (EntryPointMetadata.count(Caller) != 0) {
-      processKernelEntryPoint(Caller);
-    }
-  }
-
-  // User collection may have changed, so we reinitialize it.
-  Users = SmallVector<User *, 8>{Callee->users()};
   for (User *U : Users) {
     auto *CallToOld = dyn_cast<CallInst>(U);
     if (!CallToOld)
@@ -203,9 +190,15 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
 
     auto *Caller = CallToOld->getFunction();
 
-    // Ignore every already cloned non-offset function
+    // Only original function uses are considered.
+    // Clones are processed through a global VMap.
     if (Clones.contains(Caller)) {
       continue;
+    }
+
+    // Kernel entry points need additional processing and change Metdadata.
+    if (EntryPointMetadata.count(Caller) != 0) {
+      processKernelEntryPoint(Caller);
     }
 
     // Determine if `Caller` needs to be processed or if this is
@@ -219,9 +212,8 @@ void GlobalOffsetPass::addImplicitParameterToCallers(
       NewFunc = Caller;
     } else {
       std::tie(NewFunc, ImplicitOffset) =
-          addOffsetArgumentToFunction(
-              M, Caller, nullptr,
-              /*KeepOriginal=*/true);
+          addOffsetArgumentToFunction(M, Caller, nullptr,
+                                      /*KeepOriginal=*/true);
     }
     CallToOld = cast<CallInst>(GlobalVMap[CallToOld]);
     if (!CalleeWithImplicitParam) {
@@ -314,7 +306,6 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     SmallVector<ReturnInst *, 8> Returns;
     CloneFunctionInto(NewFunc, Func, GlobalVMap,
                       CloneFunctionChangeType::GlobalChanges, Returns);
-
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
