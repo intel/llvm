@@ -128,14 +128,14 @@ sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 // Trackers.
 thread_local DeviceGlobalElemType MockDeviceGlobalMem;
 thread_local DeviceGlobalElemType MockDeviceGlobalImgScopeMem;
-thread_local std::optional<pi_event> DeviceGlobalFillEvent = std::nullopt;
+thread_local std::optional<pi_event> DeviceGlobalInitEvent = std::nullopt;
 thread_local std::optional<pi_event> DeviceGlobalWriteEvent = std::nullopt;
 thread_local unsigned KernelCallCounter = 0;
 thread_local unsigned DeviceGlobalWriteCounter = 0;
 thread_local unsigned DeviceGlobalReadCounter = 0;
 
 // Markers.
-thread_local bool TreatDeviceGlobalFillEventAsCompleted = false;
+thread_local bool TreatDeviceGlobalInitEventAsCompleted = false;
 thread_local bool TreatDeviceGlobalWriteEventAsCompleted = false;
 thread_local std::optional<pi_program> ExpectedReadWritePIProgram =
     std::nullopt;
@@ -148,21 +148,15 @@ static pi_result after_piextUSMDeviceAlloc(void **result_ptr, pi_context,
   return PI_SUCCESS;
 }
 
-static pi_result after_piextUSMEnqueueMemset(pi_queue, void *ptr,
-                                             pi_int32 value, size_t count,
-                                             pi_uint32, const pi_event *,
-                                             pi_event *event) {
-  EXPECT_FALSE(DeviceGlobalFillEvent.has_value())
-      << "piextUSMEnqueueMemset is called multiple times!";
-  std::memset(ptr, value, count);
-  DeviceGlobalFillEvent = *event;
-  return PI_SUCCESS;
-}
-
 static pi_result after_piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *dst_ptr,
                                              const void *src_ptr, size_t size,
                                              pi_uint32, const pi_event *,
-                                             pi_event *) {
+                                             pi_event *event) {
+  // If DeviceGlobalInitEvent.has_value() is true then this means that this is
+  // the second call to MemCopy and we don't want to initialize anything. If
+  // it's the first call then we want to set the DeviceGlobalInitEvent
+  if (!DeviceGlobalInitEvent.has_value())
+    DeviceGlobalInitEvent = *event;
   std::memcpy(dst_ptr, src_ptr, size);
   return PI_SUCCESS;
 }
@@ -205,9 +199,9 @@ pi_result after_piEventGetInfo(pi_event event, pi_event_info param_name, size_t,
                                void *param_value, size_t *) {
   if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS &&
       param_value != nullptr) {
-    if ((TreatDeviceGlobalFillEventAsCompleted &&
-         DeviceGlobalFillEvent.has_value() &&
-         event == *DeviceGlobalFillEvent) ||
+    if ((TreatDeviceGlobalInitEventAsCompleted &&
+         DeviceGlobalInitEvent.has_value() &&
+         event == *DeviceGlobalInitEvent) ||
         (TreatDeviceGlobalWriteEventAsCompleted &&
          DeviceGlobalWriteEvent.has_value() &&
          event == *DeviceGlobalWriteEvent))
@@ -225,8 +219,8 @@ pi_result after_piEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                       const pi_event *event_wait_list,
                                       pi_event *) {
   ++KernelCallCounter;
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value())
-      << "DeviceGlobalFillEvent has not been set. Kernel call "
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value())
+      << "DeviceGlobalInitEvent has not been set. Kernel call "
       << KernelCallCounter;
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value())
       << "DeviceGlobalWriteEvent has not been set. Kernel call "
@@ -234,17 +228,17 @@ pi_result after_piEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 
   const pi_event *EventListEnd = event_wait_list + num_events_in_wait_list;
 
-  bool DeviceGlobalFillEventFound =
-      std::find(event_wait_list, EventListEnd, *DeviceGlobalFillEvent) !=
+  bool DeviceGlobalInitEventFound =
+      std::find(event_wait_list, EventListEnd, *DeviceGlobalInitEvent) !=
       EventListEnd;
-  if (TreatDeviceGlobalFillEventAsCompleted) {
-    EXPECT_FALSE(DeviceGlobalFillEventFound)
-        << "DeviceGlobalFillEvent was in event wait list but was not expected. "
+  if (TreatDeviceGlobalInitEventAsCompleted) {
+    EXPECT_FALSE(DeviceGlobalInitEventFound)
+        << "DeviceGlobalInitEvent was in event wait list but was not expected. "
            "Kernel call "
         << KernelCallCounter;
   } else {
-    EXPECT_TRUE(DeviceGlobalFillEventFound)
-        << "DeviceGlobalFillEvent expected in event wait list but was missing. "
+    EXPECT_TRUE(DeviceGlobalInitEventFound)
+        << "DeviceGlobalInitEvent expected in event wait list but was missing. "
            "Kernel call "
         << KernelCallCounter;
   }
@@ -270,11 +264,11 @@ void ResetTrackersAndMarkers() {
   std::memset(MockDeviceGlobalMem, 1, sizeof(DeviceGlobalElemType));
   std::memset(MockDeviceGlobalImgScopeMem, 0, sizeof(DeviceGlobalElemType));
   DeviceGlobalWriteEvent = std::nullopt;
-  DeviceGlobalFillEvent = std::nullopt;
+  DeviceGlobalInitEvent = std::nullopt;
   KernelCallCounter = 0;
   DeviceGlobalWriteCounter = 0;
   DeviceGlobalReadCounter = 0;
-  TreatDeviceGlobalFillEventAsCompleted = false;
+  TreatDeviceGlobalInitEventAsCompleted = false;
   TreatDeviceGlobalWriteEventAsCompleted = false;
   ExpectedReadWritePIProgram = std::nullopt;
 }
@@ -305,7 +299,6 @@ CommonSetup(std::function<void(sycl::unittest::PiMock &)> RedefinitionFunc) {
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -330,14 +323,38 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
 
   // Kernel call 4.
   // Treat the both init event as finished.
-  TreatDeviceGlobalFillEventAsCompleted = true;
+  TreatDeviceGlobalInitEventAsCompleted = true;
   Q.single_task<DeviceGlobalTestKernel>([]() {});
+}
+
+TEST(DeviceGlobalTest, DeviceGlobalInitialMemContents) {
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
+  std::ignore = Mock;
+
+  int Results[2] = {3, 4};
+  // This should replace the contents of Results with {0, 0}
+  Q.copy(DeviceGlobal, Results).wait();
+
+  // Device global should not have been read from yet. Memcpy operation is
+  // required to init for full copies as certain orderings could get invalid
+  // reads otherwise.
+  EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
+
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Results[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Results[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -348,11 +365,11 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
 
-  // Device global should not have been written to yet. Fill operation is
-  // required for full copies as certain orderings could get invalid reads
-  // otherwise.
+  // Device global should not have been written to yet. Memcpy operation is
+  // required to init for full copies as certain orderings could get invalid
+  // reads otherwise.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
@@ -367,7 +384,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -378,11 +394,11 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobal, Vals).wait();
 
-  // Device global should not have been written to yet. Fill operation is
-  // required for full copies as certain orderings could get invalid reads
-  // otherwise.
+  // Device global should not have been written to yet. Memcpy operation is
+  // required to init for full copies as certain orderings could get invalid
+  // reads otherwise.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
@@ -397,7 +413,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -408,10 +423,10 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
   int Val = 42;
   Q.copy(&Val, DeviceGlobal, 1).wait();
 
-  // Device global should not have been written to yet. The fill operation must
-  // have happened as the copy was only partial.
+  // Device global should not have been written to yet. The Memcpy operation (to
+  // initialize the memory) must have happened as the copy was only partial.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Val);
@@ -426,7 +441,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -437,10 +451,10 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
   int Val = 42;
   Q.memcpy(DeviceGlobal, &Val, sizeof(int)).wait();
 
-  // Device global should not have been written to yet. The fill operation must
-  // have happened as the copy was only partial.
+  // Device global should not have been written to yet. The Memcpy operation
+  // required to init must have happened as the copy was only partial.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Val);
@@ -455,7 +469,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -466,10 +479,10 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
   int Val = 42;
   Q.copy(&Val, DeviceGlobal, 1, 1).wait();
 
-  // Device global should not have been written to yet. The fill operation must
-  // have happened as the copy was only partial.
+  // Device global should not have been written to yet. The Memcopy operation
+  // required to init must have happened as the copy was only partial.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], 0);
@@ -484,7 +497,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -495,10 +507,10 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
   int Val = 42;
   Q.memcpy(DeviceGlobal, &Val, sizeof(int), sizeof(int)).wait();
 
-  // Device global should not have been written to yet. The fill operation must
-  // have happened as the copy was only partial.
+  // Device global should not have been written to yet. The Memcpy operation
+  // required to init must have happened as the copy was only partial.
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], 0);
@@ -513,7 +525,6 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
 TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -525,7 +536,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
   Q.copy(DeviceGlobal, Vals).wait();
 
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
@@ -535,7 +546,6 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -547,7 +557,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
   Q.memcpy(Vals, DeviceGlobal).wait();
 
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Check the mocked memory.
   EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
@@ -557,7 +567,6 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -569,7 +578,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
 
   // Device global will have been initialized at this point.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
@@ -584,7 +593,6 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
     MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
-    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
@@ -596,7 +604,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
 
   // Device global will have been initialized at this point.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
-  EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+  EXPECT_TRUE(DeviceGlobalInitEvent.has_value());
 
   // Copy to should only copy to USM memory. If fill or a copy to the device
   // global happens it should fail here.

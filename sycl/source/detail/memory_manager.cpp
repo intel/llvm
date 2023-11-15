@@ -1236,9 +1236,9 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Dest = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the zero-initialization event alive for the duration
+  // OwnedPiEvent will keep the initialization event alive for the duration
   // of this function call.
-  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
+  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.
@@ -1265,14 +1265,14 @@ static void memcpyFromDeviceGlobalUSM(
     sycl::detail::pi::PiEvent *OutEvent,
     const detail::EventImplPtr &OutEventImpl) {
   // Get or allocate USM memory for the device_global. Since we are reading from
-  // it, we need it zero-initialized if it has not been yet.
+  // it, we need it initialized if it has not been yet.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
   void *Src = DeviceGlobalUSM.getPtr();
 
-  // OwnedPiEvent will keep the zero-initialization event alive for the duration
+  // OwnedPiEvent will keep the initialization event alive for the duration
   // of this function call.
-  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
+  OwnedPiEvent ZIEvent = DeviceGlobalUSM.getInitEvent(Queue->getPlugin());
 
   // We may need addtional events, so create a non-const dependency events list
   // to use if we need to modify it.

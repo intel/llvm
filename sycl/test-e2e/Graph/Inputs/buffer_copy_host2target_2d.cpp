@@ -39,7 +39,8 @@ int main() {
 
   for (size_t i = 0; i < Size; i++) {
     for (size_t j = 0; j < Size; j++) {
-      assert(ReferenceA[i * Size + j] == HostAccA[i][j]);
+      const size_t index = i * Size + j;
+      assert(check_value(index, ReferenceA[index], HostAccA[i][j], "HostAccA"));
     }
   }
 

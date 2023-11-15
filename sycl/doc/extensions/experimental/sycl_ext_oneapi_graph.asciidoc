@@ -382,6 +382,8 @@ public:
   node add(T cgf, const property_list& propList = {});
 
   void make_edge(node& src, node& dest);
+
+  void print_graph(std::string path, bool verbose = false) const;
 };
 
 template<>
@@ -726,6 +728,32 @@ Parameters:
   properties are defined by this extension.
 
 Returns: A new executable graph object which can be submitted to a queue.
+
+|
+[source,c++]
+----
+void
+print_graph(std::string path, bool verbose = false) const;
+----
+
+|Synchronous operation that writes a DOT formatted description of the graph to the
+provided path. By default, this includes the graph topology, node types, node id, 
+and kernel names. 
+Verbose can be set to true to write more detailed information about each node type 
+such as kernel arguments, copy source, and destination addresses.
+At the moment DOT format is the only supported format. The name of hte output file 
+must therefore match this extension, i.e. "<filename>.dot".
+
+Parameters:
+
+* `path` - The path to write the DOT file to.
+* `verbose` - If true, print additional information about the nodes such as kernel args
+or memory access where applicable.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the path is invalid or 
+the file extension is not supported or if the write operation failed.
 
 |===
 

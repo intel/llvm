@@ -53,8 +53,8 @@ int main() {
   host_accessor HostAccB(BufferB);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(ReferenceA[i] == HostAccA[i]);
-    assert(ReferenceB[i] == HostAccB[i]);
+    assert(check_value(i, ReferenceA[i], HostAccA[i], "HostAccA"));
+    assert(check_value(i, ReferenceB[i], HostAccB[i], "HostAccB"));
   }
 
   return 0;

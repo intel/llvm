@@ -40,7 +40,7 @@ One use for compile-time properties is with types that are used exclusively
 for declaring global variables.  One such example is the
 [sycl\_ext\_oneapi\_device\_global][2] extension:
 
-[2]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc>
+[2]: <../extensions/experimental/sycl_ext_oneapi_device_global.asciidoc>
 
 ```
 namespace sycl::ext::oneapi {
@@ -271,7 +271,7 @@ proposed in the [sycl\_ext\_oneapi\_kernel\_properties][8] extension.  There
 are two ways the application can specify these properties.  The first is by
 passing a `properties` parameter to the function that submits the kernel:
 
-[8]: <../extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc>
+[8]: <../extensions/experimental/sycl_ext_oneapi_kernel_properties.asciidoc>
 
 ```
 namespace sycl {

@@ -30,7 +30,7 @@ SYCL_EXTERNAL void kernel2(int *ptr) SYCL_ESIMD_FUNCTION {
 
 // Incompatible mode (write).
 SYCL_EXTERNAL void
-kernel3(accessor<int, 1, access::mode::write, access::target::device> &buf)
+kernel4(accessor<int, 1, access::mode::write, access::target::device> &buf)
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v;
   // CHECK: block_load_store.cpp:38{{.*}}error: no matching function
@@ -40,10 +40,19 @@ kernel3(accessor<int, 1, access::mode::write, access::target::device> &buf)
 
 // Incompatible mode (read).
 SYCL_EXTERNAL void
-kernel4(accessor<int, 1, access::mode::read, access::target::device> &buf)
+kernel5(accessor<int, 1, access::mode::read, access::target::device> &buf)
     SYCL_ESIMD_FUNCTION {
   simd<int, 32> v(0, 1);
   // CHECK: block_load_store.cpp:48{{.*}}error: no matching function
+  // function for call to 'block_store'
+  block_store<int, 32>(buf, 0, v);
+}
+
+// Incompatible mode (read).
+SYCL_EXTERNAL void
+kernel6(local_accessor<const int, 1> &buf) SYCL_ESIMD_FUNCTION {
+  simd<int, 32> v(0, 1);
+  // CHECK: block_load_store.cpp:57{{.*}}error: no matching function
   // function for call to 'block_store'
   block_store<int, 32>(buf, 0, v);
 }

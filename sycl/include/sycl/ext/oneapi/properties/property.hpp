@@ -214,8 +214,14 @@ enum PropKind : uint32_t {
   ESIMDL1CacheHint = 44,
   ESIMDL2CacheHint = 45,
   ESIMDL3CacheHint = 46,
+  UsmKind = 47,
+  CacheControlReadHint = 48,
+  CacheControlReadAssertion = 49,
+  CacheControlWrite = 50,
+  BuildOptions = 51,
+  BuildLog = 52,
   // PropKindSize must always be the last value.
-  PropKindSize = 47,
+  PropKindSize = 53,
 };
 
 // This trait must be specialized for all properties and must have a unique

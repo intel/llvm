@@ -50,8 +50,9 @@ int main() {
   std::vector<int> HostData(N);
   Queue.memcpy(HostData.data(), Arr, N * sizeof(int)).wait();
 
-  for (int i = 0; i < N; i++)
-    assert(HostData[i] == 1);
+  const int Expected = 1;
+  for (size_t i = 0; i < N; i++)
+    assert(check_value(i, Expected, HostData[i], "HostData"));
 
   sycl::free(Arr, Queue);
 

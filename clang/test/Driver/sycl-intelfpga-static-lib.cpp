@@ -5,11 +5,11 @@
 // make dummy archive
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fintelfpga -fsycl %t1.cpp -c -o %t1_bundle.o
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fintelfpga %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t.a %t1_bundle.o
 
 /// Check phases with static lib
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-dead-args-optimization -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t.a -ccc-print-phases 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-dead-args-optimization -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t.a -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_PHASES %s
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.a]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
@@ -30,7 +30,7 @@
 // CHECK_PHASES: 16: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown)" {15}, image
 
 /// Check for unbundle and use of deps in static lib
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_UNBUNDLE %s
 // CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-input={{.*}}" "-output=[[DEPFILES:.+\.txt]]" "-unbundle"
 // CHECK_UNBUNDLE: aoc{{.*}} "-dep-files=@[[DEPFILES]]"

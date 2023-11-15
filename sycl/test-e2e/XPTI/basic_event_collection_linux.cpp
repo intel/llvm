@@ -79,7 +79,7 @@
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piEventRelease
 // CHECK-NEXT: Wait begin
-// CHECK:        sycl_device : {{.*}}
+// CHECK:        sycl_device_type : {{.*}}
 // CHECK:      PI Call Begin : piQueueFinish
 // CHECK-NEXT: Wait end
-// CHECK:        sycl_device : {{.*}}
+// CHECK:        sycl_device_type : {{.*}}

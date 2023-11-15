@@ -50,6 +50,8 @@ class PropertyContainer {
 public:
   PropertyContainer(const std::string &Name, void *Data, size_t Size,
                     uint32_t Type);
+  // Set a PI_PROPERTY_TYPE_UINT32 property
+  PropertyContainer(const std::string &Name, uint32_t Data);
 
   PropertyContainer(PropertyContainer &&) = default;
   PropertyContainer &operator=(PropertyContainer &&) = default;

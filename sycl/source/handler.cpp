@@ -111,9 +111,10 @@ bool handler::isStateExplicitKernelBundle() const {
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!MImpl->MKernelBundle && Insert) {
-    MImpl->MKernelBundle =
-        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-            MQueue->get_context(), {MQueue->get_device()}, {}));
+    auto Ctx = MGraph ? MGraph->getContext() : MQueue->get_context();
+    auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
+    MImpl->MKernelBundle = detail::getSyclObjImpl(
+        get_kernel_bundle<bundle_state::input>(Ctx, {Dev}, {}));
   }
   return MImpl->MKernelBundle;
 }
@@ -179,10 +180,10 @@ event handler::finalize() {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!KernelBundleImpPtr->isInterop() &&
           !MImpl->isStateExplicitKernelBundle()) {
+        auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-        bool KernelInserted =
-            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
         if (!KernelInserted &&
@@ -194,8 +195,7 @@ event handler::finalize() {
               build(KernelBundle);
           KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
           setHandlerKernelBundle(KernelBundleImpPtr);
-          KernelInserted =
-              KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+          KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
@@ -217,6 +217,7 @@ event handler::finalize() {
         // Nothing to do
         break;
       case bundle_state::object:
+      case bundle_state::ext_oneapi_source:
         assert(0 && "Expected that the bundle is either in input or executable "
                     "states.");
         break;
@@ -236,10 +237,23 @@ event handler::finalize() {
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
+      int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
+      auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
+          KernelBundleImpPtr, MArgs);
+      auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
+                            InstanceID = InstanceID]() {
+#else
       auto EnqueueKernel = [&]() {
+#endif
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
-
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                           xpti::trace_task_begin, nullptr);
+#endif
         if (MQueue->is_host()) {
           MHostKernel->call(MNDRDesc, (NewEvent)
                                           ? NewEvent->getHostProfilingInfo()
@@ -264,11 +278,12 @@ event handler::finalize() {
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
+                                           xpti::trace_task_end, nullptr);
+#endif
         return Result;
       };
-
-      emitKernelInstrumentationData(MKernel, MCodeLoc, MKernelName, MQueue,
-                                    MNDRDesc, KernelBundleImpPtr, MArgs);
 
       bool DiscardEvent = false;
       if (MQueue->has_discard_events_support()) {
@@ -821,7 +836,7 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
   device Dev =
-      (MGraph) ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
+      MGraph ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),

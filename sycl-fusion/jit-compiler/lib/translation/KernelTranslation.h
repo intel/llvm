@@ -43,6 +43,10 @@ private:
 
   static llvm::Expected<KernelBinary *>
   translateToPTX(SYCLKernelInfo &Kernel, llvm::Module &Mod, JITContext &JITCtx);
+
+  static llvm::Expected<KernelBinary *>
+  translateToAMDGCN(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
+                    JITContext &JITCtx);
 };
 } // namespace translation
 } // namespace jit_compiler

@@ -3,6 +3,9 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %{mathflags} %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
+
 #include <sycl/sycl.hpp>
 
 #define TEST(FUNC, VEC_ELEM_TYPE, DIM, EXPECTED, DELTA, ...)                   \

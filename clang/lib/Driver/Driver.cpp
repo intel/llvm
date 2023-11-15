@@ -516,8 +516,10 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
   if (Args.hasFlag(options::OPT_miamcu, options::OPT_mno_iamcu, false))
     DAL->AddFlagArg(nullptr, Opts.getOption(options::OPT_static));
 
-  // Use of -fintelfpga implies -g
+  // Use of -fintelfpga implies -g and -fsycl
   if (Args.hasArg(options::OPT_fintelfpga)) {
+    if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+      DAL->AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
     // if any -gN option is provided, use that.
     if (Arg *A = Args.getLastArg(options::OPT_gN_Group))
       DAL->append(A);
@@ -1658,6 +1660,13 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
         Diag(diag::err_drv_invalid_directx_shader_module) << TargetProfile;
 
       A->claim();
+
+      // TODO: Specify Vulkan target environment somewhere in the triple.
+      if (Args.hasArg(options::OPT_spirv)) {
+        llvm::Triple T(TargetTriple);
+        T.setArch(llvm::Triple::spirv);
+        TargetTriple = T.str();
+      }
     } else {
       Diag(diag::err_drv_dxc_missing_target_profile);
     }
@@ -3068,8 +3077,11 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
       Diag(clang::diag::note_drv_t_option_is_global);
   }
 
+  // CUDA/HIP and their preprocessor expansions can be accepted by CL mode.
   // Warn -x after last input file has no effect
-  if (!IsCLMode()) {
+  auto LastXArg = Args.getLastArgValue(options::OPT_x);
+  const llvm::StringSet<> ValidXArgs = {"cuda", "hip", "cui", "hipi"};
+  if (!IsCLMode() || ValidXArgs.contains(LastXArg)) {
     Arg *LastXArg = Args.getLastArgNoClaim(options::OPT_x);
     Arg *LastInputArg = Args.getLastArgNoClaim(options::OPT_INPUT);
     if (LastXArg && LastInputArg &&
@@ -5557,8 +5569,9 @@ class OffloadingActionBuilder final {
             DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
             continue;
           }
-          if (IsNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
-            // When compiling for Nvidia/CUDA devices and the user requested the
+          if ((IsNVPTX || IsAMDGCN) &&
+              Args.hasArg(options::OPT_fsycl_embed_ir)) {
+            // When compiling for Nvidia/AMD devices and the user requested the
             // IR to be embedded in the application (via option), run the output
             // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
             // through the offload wrapper and link the resulting object to the
@@ -7087,6 +7100,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   handleArguments(C, Args, Inputs, Actions);
+
+  // If '-fintelfpga' is passed, add '-fsycl' to the list of arguments
+  const llvm::opt::OptTable &Opts = getOpts();
+  Arg *SYCLFpgaArg = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
+  if (SYCLFpgaArg &&
+      !Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    Args.AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
 
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.

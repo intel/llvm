@@ -48,6 +48,7 @@ template <> struct ScalarEnumerationTraits<jit_compiler::BinaryFormat> {
     IO.enumCase(BF, "LLVM", jit_compiler::BinaryFormat::LLVM);
     IO.enumCase(BF, "SPIRV", jit_compiler::BinaryFormat::SPIRV);
     IO.enumCase(BF, "PTX", jit_compiler::BinaryFormat::PTX);
+    IO.enumCase(BF, "AMDGCN", jit_compiler::BinaryFormat::AMDGCN);
     IO.enumCase(BF, "INVALID", jit_compiler::BinaryFormat::INVALID);
   }
 };

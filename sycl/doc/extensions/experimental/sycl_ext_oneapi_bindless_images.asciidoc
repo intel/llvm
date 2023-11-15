@@ -1238,12 +1238,12 @@ interop_mem_handle import_external_memory(
     external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
-image_mem_handle map_external_memory_array(
+image_mem_handle map_external_image_memory(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
-image_mem_handle map_external_memory_array(
+image_mem_handle map_external_image_memory(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::queue &syclQueue);
@@ -1784,10 +1784,10 @@ try {
 
   // Extension: map imported external memory to image memory
   sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
+      sycl::ext::oneapi::experimental::map_external_image_memory(
           input_interop_mem_handle, desc, queue);
   sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
-      sycl::ext::oneapi::experimental::map_external_memory_array(
+      sycl::ext::oneapi::experimental::map_external_image_memory(
           output_interop_mem_handle, desc, queue);
 
   // Extension: create images from mapped memory and return the handles
@@ -1995,4 +1995,6 @@ These features still need to be handled:
 |4.6|2023-09-19| - Clarify restrictions on reading/writing coordinate types
 |4.7|2023-10-16| - Introduce `read_mipmap` for mipmap access and clarify reading 
                    restrictions on image types
+|4.8|2023-10-25| - Change the name of `map_external_memory_array` to 
+                   `map_external_image_memory` to avoid CUDA terminology
 |======================

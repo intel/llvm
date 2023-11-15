@@ -526,9 +526,11 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<external_mem_fd>(
       externalMem, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::device &syclDevice, const sycl::context &syclContext) {
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -551,9 +553,28 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
   return image_mem_handle{retHandle};
 }
 
-__SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &desc,
-    const sycl::queue &syclQueue) {
+__SYCL_EXPORT
+image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue) {
+  return map_external_image_memory(memHandle, desc, syclQueue.get_device(),
+                                   syclQueue.get_context());
+}
+
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::device &syclDevice,
+                                           const sycl::context &syclContext) {
+  return map_external_image_memory(memHandle, desc, syclDevice, syclContext);
+}
+
+__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
+                         "use map_external_image_memory")
+image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
+                                           const image_descriptor &desc,
+                                           const sycl::queue &syclQueue) {
   return map_external_memory_array(memHandle, desc, syclQueue.get_device(),
                                    syclQueue.get_context());
 }
