@@ -97,7 +97,6 @@ add_sycl_plugin(level_zero
     UnifiedMallocFramework
     LevelZeroLoader
     Threads::Threads
-    delayimp
     ${XPTI_LIBS}
 )
 
