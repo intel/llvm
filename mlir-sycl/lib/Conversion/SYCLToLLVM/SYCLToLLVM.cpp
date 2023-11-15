@@ -97,7 +97,6 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   LowerToLLVMOptions options(&context);
   options.useBarePtrCallConv = true;
-  options.useOpaquePointers = true;
   if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
     options.overrideIndexBitwidth(indexBitwidth);
   LLVMTypeConverter converter(&context, options);

@@ -6,7 +6,7 @@
 !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 !sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64>)>)>
 !sycl_range_2_ = !sycl.range<[2], (!sycl.array<[2], (memref<2xi64>)>)>
-!sycl_accessor_2_i32_r_dev = !sycl.accessor<[2, i32, read, device], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_2_i32_r_dev = !sycl.accessor<[2, i32, read, device], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<1>)>)>
 
 // CHECK-LABEL: test_host_constructor
 // CHECK:  %1 = llvm.alloca %0 x !sycl_id_1_ : (i32) -> !llvm.ptr

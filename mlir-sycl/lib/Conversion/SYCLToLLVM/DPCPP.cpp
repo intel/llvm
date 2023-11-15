@@ -613,7 +613,7 @@ public:
     auto PT =
         cast<LLVM::LLVMPointerType>(typeConverter->convertType(op.getType()));
     Type ET = typeConverter->convertType(op.getType().getElementType());
-    auto allocaType = typeConverter->getPointerType(ET);
+    auto allocaType = rewriter.getType<LLVM::LLVMPointerType>();
     // The constructor value corresponds with the value defined by the alloca
     // operation.
     Value alloca = rewriter.create<LLVM::AllocaOp>(
@@ -1526,7 +1526,7 @@ public:
     const auto rangeTy = op.getType();
     const auto convRangeTy = getTypeConverter()->convertType(rangeTy);
     const auto indexTy = getTypeConverter()->getIndexType();
-    const auto allocaTy = getTypeConverter()->getPointerType(convRangeTy);
+    const auto allocaTy = rewriter.getType<LLVM::LLVMPointerType>();
     const auto baseTy = convRangeTy;
     Value alloca = rewriter.create<LLVM::AllocaOp>(
         loc, allocaTy, convRangeTy,
@@ -1997,7 +1997,7 @@ public:
         op.getNDItem().getType().getElementType());
 
     const auto ndrTy = getTypeConverter()->convertType(op.getType());
-    const auto allocaTy = getTypeConverter()->getPointerType(ndrTy);
+    const auto allocaTy = rewriter.getType<LLVM::LLVMPointerType>();
     const Value alloca = rewriter.create<LLVM::AllocaOp>(
         loc, allocaTy, ndrTy,
         rewriter.create<arith::ConstantIntOp>(loc, 1, 32));

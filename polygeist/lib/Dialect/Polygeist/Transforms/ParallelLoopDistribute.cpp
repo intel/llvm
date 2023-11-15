@@ -870,14 +870,8 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
         idx = rewriter.create<MulIOp>(ao.getLoc(), sz,
                                       rewriter.create<arith::IndexCastOp>(
                                           ao.getLoc(), sz.getType(), idx));
-        SmallVector<Value> vec = {idx};
-        if (std::optional<Type> optElemType = ao.getElemType()) {
-          u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(),
-                                             *optElemType, alloc, idx));
-        } else {
-          u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
-                                             idx));
-        }
+        u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(),
+                                           ao.getElemType(), alloc, idx));
       }
     } else {
       assert(false && "Wrong operation type in preserveAllocas");

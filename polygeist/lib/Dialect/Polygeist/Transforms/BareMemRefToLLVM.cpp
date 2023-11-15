@@ -189,8 +189,7 @@ protected:
         typeConverter->convertType(allocaOp.getType().getElementType());
     unsigned addrSpace =
         *getTypeConverter()->getMemRefAddressSpace(allocaOp.getType());
-    auto elementPtrType =
-        getTypeConverter()->getPointerType(elementType, addrSpace);
+    auto elementPtrType = rewriter.getType<LLVM::LLVMPointerType>(addrSpace);
 
     auto allocatedElementPtr =
         rewriter.create<LLVM::AllocaOp>(loc, elementPtrType, elementType, size,

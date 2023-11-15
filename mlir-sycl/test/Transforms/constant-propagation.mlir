@@ -73,7 +73,7 @@ llvm.func internal @foo.1(%handler: !llvm.ptr, %ptr: !llvm.ptr) {
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
-!sycl_accessor_1_i64_w_dev = !sycl.accessor<[1, i64, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i64_w_dev = !sycl.accessor<[1, i64, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<1>)>)>
 
 // COM: Check we can detect kernel argument %c is constant
 
@@ -1270,7 +1270,7 @@ llvm.func internal @foo_constant_constant_global_local_size(
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
-!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<1>)>)>
 !sycl_accessor_host = !sycl.accessor<[1, i32, write, device], (!llvm.void)>
 !sycl_accessor_host_range = !sycl.accessor<[1, i32, write, device], (!sycl_range_1_)>
 !sycl_accessor_host_offset = !sycl.accessor<[1, i32, write, device], (!sycl_range_1_, !sycl_id_1_)>
@@ -1539,7 +1539,7 @@ llvm.func internal @propagate_array(%ptr: !llvm.ptr, %handler: !llvm.ptr) {
 !sycl_range_1_ = !sycl.range<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (memref<1xi64>)>
 !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
-!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i32_w_dev = !sycl.accessor<[1, i32, write, device], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<1>)>)>
 !sycl_accessor_host = !sycl.accessor<[1, i32, write, device], (!llvm.void)>
 
 gpu.module @kernels {

@@ -434,12 +434,9 @@ public:
     if (!alloc)
       return failure();
 
-    assert(alloc.getElemType().has_value() &&
-           "Expecting element type attribute for opaque alloca");
-
     // Check whether the type allocated for the first argument ('this') matches
     // the expected type.
-    if (!isClassType(*alloc.getElemType(), tag.getTypeName()))
+    if (!isClassType(alloc.getElemType(), tag.getTypeName()))
       return failure();
 
     if (constructor.getNumResults())
@@ -749,12 +746,12 @@ public:
     // The 'this*' is the address to which the element stores are performed.
     auto alloc = op.getAddr().getDefiningOp<LLVM::AllocaOp>();
 
-    if (!alloc || !alloc.getElemType().has_value())
+    if (!alloc)
       return failure();
 
     // Check whether the type allocated for address operand matches the expected
     // type.
-    auto allocTy = *alloc.getElemType();
+    auto allocTy = alloc.getElemType();
     if (!isClassType(allocTy, tag.getTypeName()))
       return failure();
 
@@ -837,9 +834,7 @@ private:
         if (constantIndices.size() != 1)
           continue;
 
-        assert(gep.getElemType().has_value() &&
-               "Expecting element type to be set");
-        auto byteWidth = gep.getElemType()->getIntOrFloatBitWidth() / 8;
+        auto byteWidth = gep.getElemType().getIntOrFloatBitWidth() / 8;
 
         if (byteWidth == 0)
           continue;
@@ -919,10 +914,10 @@ public:
                                 PatternRewriter &rewriter) const final {
     // Check the destination is an alloca of the given type
     auto alloc = op.getDst().template getDefiningOp<LLVM::AllocaOp>();
-    if (!alloc || !alloc.getElemType().has_value())
+    if (!alloc)
       return failure();
 
-    Type allocTy = *alloc.getElemType();
+    Type allocTy = alloc.getElemType();
     if (!isClassType(allocTy, tag.getTypeName()))
       return failure();
 
@@ -1154,11 +1149,8 @@ private:
 
   LogicalResult raiseAlloca(FunctionOpInterface func, LLVM::AllocaOp alloc,
                             PatternRewriter &rewriter) const {
-    assert(alloc.getElemType().has_value() &&
-           "Expecting element type attribute for opaque alloca");
-
     // Check whether the type allocated matches the expected type.
-    Type elemType = *alloc.getElemType();
+    Type elemType = alloc.getElemType();
     if (!isClassType(elemType, tag.getTypeName()))
       return failure();
 
@@ -1218,7 +1210,7 @@ RaiseNDRangeConstructor::Initializers::getIndices(
     // Do not allow dynamic indices
     return failure();
 
-  Type type = *gep.getElemType();
+  Type type = gep.getElemType();
   if (isClassType(type, tag.getTypeName())) {
     // nd_range case
     ArrayRef<int32_t> indices = gep.getRawConstantIndices();
@@ -1239,7 +1231,7 @@ RaiseNDRangeConstructor::Initializers::getIndices(
   assert(indices.size() == 1 && "Expecting a single index");
 
   auto ndType = cast<LLVM::LLVMStructType>(
-      *gep.getBase().getDefiningOp<LLVM::AllocaOp>().getElemType());
+      gep.getBase().getDefiningOp<LLVM::AllocaOp>().getElemType());
   assert(isClassType(ndType, tag.getTypeName()) && "Using wrong alloca");
   auto rt = cast<LLVM::LLVMStructType>(ndType.getBody()[0]);
   auto at = cast<LLVM::LLVMStructType>(rt.getBody()[0]);
@@ -1256,9 +1248,6 @@ RaiseNDRangeConstructor::Initializers::getIndices(
 
 LogicalResult RaiseNDRangeConstructor::Initializers::handle(
     LLVM::GEPOp gep, LLVM::AllocaOp alloc, const NDRangeTypeTag &tag) {
-  assert(gep.getElemType().has_value() &&
-         "Expecting element type attribute for opaque alloca");
-
   auto memcpyUsers = llvm::make_filter_range(
       getUsersOfType<LLVM::MemcpyOp>(gep),
       [=](auto op) { return op.getDst().getDefiningOp() == gep; });
@@ -1324,8 +1313,8 @@ RaiseNDRangeConstructor::getArgs(FunctionOpInterface func, LLVM::AllocaOp alloc,
     assert(ops.size() == dimensions && "Expecting a value per dimension");
 
     Type resultType = rewriter.getType<LLVM::LLVMPointerType>();
-    Type elementType = cast<LLVM::LLVMStructType>(*alloc.getElemType())
-                           .getBody()[iter.index()];
+    Type elementType =
+        cast<LLVM::LLVMStructType>(alloc.getElemType()).getBody()[iter.index()];
     Location loc = ops[0]->getLoc();
     SmallVector<Value> args;
     llvm::transform(ops, std::back_inserter(args), [](Operation *op) {
@@ -1503,8 +1492,7 @@ private:
   /// `llvm.invoke` \p op.
   static Value getHandlerFromThisArg(LLVM::InvokeOp op) {
     auto gep = op.getOperand(0).getDefiningOp<LLVM::GEPOp>();
-    return gep && isClassType(gep.getSourceElementType(),
-                              "class.sycl::_V1::handler")
+    return gep && isClassType(gep.getElemType(), "class.sycl::_V1::handler")
                ? gep.getBase()
                : Value();
   }
@@ -1673,11 +1661,10 @@ public:
       return failure();
 
     auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(lambdaObj.getDefiningOp());
-    if (!alloca || !alloca.getElemType().has_value())
+    if (!alloca)
       return failure();
 
-    auto lambdaClassTy =
-        dyn_cast<LLVM::LLVMStructType>(alloca.getElemType().value());
+    auto lambdaClassTy = dyn_cast<LLVM::LLVMStructType>(alloca.getElemType());
     if (!lambdaClassTy)
       return failure();
 
@@ -1729,8 +1716,7 @@ public:
     // The offset case can only happen for array members of the lambda.
     for (auto *user : lambdaObj.getUsers()) {
       auto gep = dyn_cast<LLVM::GEPOp>(user);
-      if (!gep || !gep.getElemType().has_value() ||
-          gep.getElemType().value() != lambdaClassTy ||
+      if (!gep || gep.getElemType() != lambdaClassTy ||
           !gep.getDynamicIndices().empty())
         continue;
 
@@ -1868,8 +1854,7 @@ private:
       if (auto load = dyn_cast_or_null<LLVM::LoadOp>(assigned.getDefiningOp()))
         if (auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(
                 load.getAddr().getDefiningOp()))
-          if (auto elemTy = alloca.getElemType();
-              elemTy.has_value() && elemTy.value() == expected)
+          if (Type elemTy = alloca.getElemType(); elemTy == expected)
             if (auto accessorAlloca =
                     dyn_cast<LLVM::AllocaOp>(load.getAddr().getDefiningOp()))
               for (auto *user : accessorAlloca->getUsers())

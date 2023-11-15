@@ -140,19 +140,15 @@ inline bool canBeLoweredToBarePtr(mlir::MemRefType memRefType) {
 inline LLVM::LLVMFuncOp getFreeFn(const LLVMTypeConverter &typeConverter,
                                   ModuleOp module) {
   return typeConverter.getOptions().useGenericFunctions
-             ? LLVM::lookupOrCreateGenericFreeFn(module,
-                                                 /* opaquePointers */ true)
-             : LLVM::lookupOrCreateFreeFn(module,
-                                          /* opaquePointers */ true);
+             ? LLVM::lookupOrCreateGenericFreeFn(module)
+             : LLVM::lookupOrCreateFreeFn(module);
 }
 
 inline LLVM::LLVMFuncOp getAllocFn(const LLVMTypeConverter &typeConverter,
                                    ModuleOp module, Type indexType) {
   return typeConverter.getOptions().useGenericFunctions
-             ? LLVM::lookupOrCreateGenericAllocFn(module, indexType,
-                                                  /* opaquePointers */ true)
-             : LLVM::lookupOrCreateMallocFn(module, indexType,
-                                            /* opaquePointers */ true);
+             ? LLVM::lookupOrCreateGenericAllocFn(module, indexType)
+             : LLVM::lookupOrCreateMallocFn(module, indexType);
 }
 
 /// Returns whether any public symbol in the module has a non-bare convertible

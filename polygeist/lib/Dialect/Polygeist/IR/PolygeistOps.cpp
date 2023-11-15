@@ -1160,7 +1160,6 @@ public:
                                                  rewriter.getI64Type(), idx[0]);
 
     auto PtrTy = cast<LLVM::LLVMPointerType>(op.getType());
-    assert(PtrTy.isOpaque() && "Expecting only opaque pointers");
 
     Value GEP = rewriter.create<LLVM::GEPOp>(
         op->getLoc(), PtrTy, MET,

@@ -1833,10 +1833,7 @@ static Type getElementType(mlir::Operation *AllocOp) {
       .Case<memref::AllocaOp, memref::AllocOp>([](auto AllocOp) {
         return AllocOp.getMemref().getType().getElementType();
       })
-      .Case<LLVM::AllocaOp>([](auto AllocOp) {
-        assert(AllocOp.getElemType() && "Expecting element type");
-        return *AllocOp.getElemType();
-      })
+      .Case<LLVM::AllocaOp>([](auto AllocOp) { return AllocOp.getElemType(); })
       .Case<memref::GetGlobalOp>([](auto GlobalOp) {
         return GlobalOp.getResult().getType().getElementType();
       })

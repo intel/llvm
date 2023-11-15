@@ -429,7 +429,7 @@ struct StreamToTokenOpLowering
   }
 };
 
-/// Lowers to a bitcast operation
+/// Lowers to the identity operation
 struct BareMemref2PointerOpLowering
     : public ConvertOpToLLVMPattern<Memref2PointerOp> {
   using ConvertOpToLLVMPattern<Memref2PointerOp>::ConvertOpToLLVMPattern;
@@ -454,7 +454,7 @@ struct BareMemref2PointerOpLowering
   }
 };
 
-/// Lowers to a bitcast operation
+/// Lowers to an identity operation
 struct BarePointer2MemrefOpLowering
     : public ConvertOpToLLVMPattern<Pointer2MemrefOp> {
   using ConvertOpToLLVMPattern<Pointer2MemrefOp>::ConvertOpToLLVMPattern;
@@ -678,14 +678,10 @@ static LLVM::LLVMFuncOp addMocCUDAFunctionOld(ModuleOp module, Type streamTy) {
   }
 
   auto voidTy = LLVM::LLVMVoidType::get(ctx);
-  auto i8Ptr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+  auto ptrTy = moduleBuilder.getType<LLVM::LLVMPointerType>();
 
   auto resumeOp = moduleBuilder.create<LLVM::LLVMFuncOp>(
-      fname, LLVM::LLVMFunctionType::get(
-                 voidTy, {i8Ptr,
-                          LLVM::LLVMPointerType::get(
-                              LLVM::LLVMFunctionType::get(voidTy, {i8Ptr})),
-                          streamTy}));
+      fname, LLVM::LLVMFunctionType::get(voidTy, {ptrTy, ptrTy, streamTy}));
   resumeOp.setPrivate();
 
   return resumeOp;
@@ -703,7 +699,7 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     Location loc = execute.getLoc();
 
     auto voidTy = LLVM::LLVMVoidType::get(ctx);
-    Type voidPtr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+    auto ptrTy = LLVM::LLVMPointerType::get(ctx);
 
     // Make sure that all constants will be inside the outlined async function
     // to reduce the number of function arguments.
@@ -730,7 +726,7 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     });
     SmallVector<Type, 4> inputTypes(typesRange.begin(), typesRange.end());
 
-    Type ftypes[] = {voidPtr};
+    Type ftypes[] = {ptrTy};
     auto funcType = LLVM::LLVMFunctionType::get(voidTy, ftypes);
 
     // TODO: Derive outlined function name from the parent FuncOp (support
@@ -767,11 +763,7 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       } else if (functionInputs.size() == 1 &&
                  isa<LLVM::LLVMPointerType>(
                      converter->convertType(functionInputs[0].getType()))) {
-        valueMapping.map(
-            functionInputs[0],
-            rewriter.create<LLVM::BitcastOp>(
-                execute.getLoc(),
-                converter->convertType(functionInputs[0].getType()), arg));
+        valueMapping.map(functionInputs[0], arg);
       } else if (functionInputs.size() == 1 &&
                  isa<IntegerType>(
                      converter->convertType(functionInputs[0].getType()))) {
@@ -784,9 +776,6 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         SmallVector<Type> types;
         for (auto v : functionInputs)
           types.push_back(converter->convertType(v.getType()));
-        auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
-        auto alloc = rewriter.create<LLVM::BitcastOp>(
-            execute.getLoc(), LLVM::LLVMPointerType::get(ST), arg);
         for (auto idx : llvm::enumerate(functionInputs)) {
 
           mlir::Value idxs[] = {
@@ -794,10 +783,10 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
               rewriter.create<arith::ConstantIntOp>(loc, idx.index(), 32),
           };
           Value next = rewriter.create<LLVM::GEPOp>(
-              loc, LLVM::LLVMPointerType::get(idx.value().getType()), alloc,
-              idxs);
-          valueMapping.map(idx.value(),
-                           rewriter.create<LLVM::LoadOp>(loc, next));
+              loc, rewriter.getType<LLVM::LLVMPointerType>(),
+              idx.value().getType(), arg, idxs);
+          valueMapping.map(idx.value(), rewriter.create<LLVM::LoadOp>(
+                                            loc, idx.value().getType(), next));
         }
         auto freef = getFreeFn(*getTypeConverter(), module);
         Value args[] = {arg};
@@ -823,18 +812,16 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       SmallVector<Value> vals;
       if (crossing.size() == 0) {
-        vals.push_back(
-            rewriter.create<LLVM::ZeroOp>(execute.getLoc(), voidPtr));
+        vals.push_back(rewriter.create<LLVM::ZeroOp>(execute.getLoc(), ptrTy));
       } else if (crossing.size() == 1 &&
                  isa<LLVM::LLVMPointerType>(
                      converter->convertType(crossing[0].getType()))) {
-        vals.push_back(rewriter.create<LLVM::BitcastOp>(execute.getLoc(),
-                                                        voidPtr, crossing[0]));
+        vals.push_back(crossing[0]);
       } else if (crossing.size() == 1 &&
                  isa<IntegerType>(
                      converter->convertType(crossing[0].getType()))) {
         vals.push_back(rewriter.create<LLVM::IntToPtrOp>(execute.getLoc(),
-                                                         voidPtr, crossing[0]));
+                                                         ptrTy, crossing[0]));
       } else {
         SmallVector<Type> types;
         for (auto v : crossing)
@@ -847,10 +834,8 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
             loc, rewriter.getI64Type(),
             rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
                                                    ST))};
-        mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
-            loc, LLVM::LLVMPointerType::get(ST),
-            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
-                .getResult());
+        mlir::Value alloc =
+            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args).getResult();
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -859,12 +844,11 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
               rewriter.create<arith::ConstantIntOp>(loc, idx.index(), 32),
           };
           Value next = rewriter.create<LLVM::GEPOp>(
-              loc, LLVM::LLVMPointerType::get(idx.value().getType()), alloc,
-              idxs);
+              loc, rewriter.getType<LLVM::LLVMPointerType>(),
+              idx.value().getType(), alloc, idxs);
           rewriter.create<LLVM::StoreOp>(loc, idx.value(), next);
         }
-        vals.push_back(
-            rewriter.create<LLVM::BitcastOp>(execute.getLoc(), voidPtr, alloc));
+        vals.push_back(alloc);
       }
       vals.push_back(
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
@@ -1343,7 +1327,6 @@ public:
     LowerToLLVMOptions options(&getContext(),
                                dataLayoutAnalysis.getAtOrAbove(m));
     options.useBarePtrCallConv = true;
-    options.useOpaquePointers = true;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
 
