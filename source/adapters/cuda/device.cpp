@@ -1035,6 +1035,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
+    return ReturnValue(true);
+
   default:
     break;
   }

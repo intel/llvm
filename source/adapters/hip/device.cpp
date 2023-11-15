@@ -841,6 +841,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
+    return ReturnValue(false);
+
   default:
     break;
   }

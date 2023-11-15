@@ -511,7 +511,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_exp_command_buffer_command_handle_t *) {
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(
       Kernel->Mutex, Kernel->Program->Mutex);
@@ -979,4 +980,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferRetainCommandExp(ur_exp_command_buffer_command_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferReleaseCommandExp(ur_exp_command_buffer_command_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_info_t propName, size_t propSize, void *pPropValue,
+    size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
+    return ReturnValue(uint32_t{hCommandBuffer->RefCount.load()});
+  default:
+    assert(!"Command-buffer info request not implemented");
+  }
+
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
+    ur_exp_command_buffer_command_handle_t,
+    ur_exp_command_buffer_command_info_t, size_t, void *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

@@ -196,6 +196,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_ADAPTER_RETAIN = 179,                                          ///< Enumerator for ::urAdapterRetain
     UR_FUNCTION_ADAPTER_GET_LAST_ERROR = 180,                                  ///< Enumerator for ::urAdapterGetLastError
     UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
+    UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP = 182,                 ///< Enumerator for ::urCommandBufferUpdateKernelLaunchExp
     UR_FUNCTION_PROGRAM_BUILD_EXP = 197,                                       ///< Enumerator for ::urProgramBuildExp
     UR_FUNCTION_PROGRAM_COMPILE_EXP = 198,                                     ///< Enumerator for ::urProgramCompileExp
     UR_FUNCTION_PROGRAM_LINK_EXP = 199,                                        ///< Enumerator for ::urProgramLinkExp
@@ -215,6 +216,10 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 213,                    ///< Enumerator for ::urCommandBufferAppendUSMAdviseExp
     UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP = 214,                   ///< Enumerator for ::urEnqueueCooperativeKernelLaunchExp
     UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 215,          ///< Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
+    UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP = 216,                       ///< Enumerator for ::urCommandBufferRetainCommandExp
+    UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP = 217,                      ///< Enumerator for ::urCommandBufferReleaseCommandExp
+    UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 218,                             ///< Enumerator for ::urCommandBufferGetInfoExp
+    UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 219,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -224,48 +229,53 @@ typedef enum ur_function_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Defines structure types
 typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,               ///< ::ur_context_properties_t
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                       ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                ///< ::ur_buffer_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                    ///< ::ur_buffer_region_t
-    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,        ///< ::ur_buffer_channel_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
-    UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                    ///< ::ur_usm_host_desc_t
-    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                  ///< ::ur_usm_device_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
-    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
-    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_index_properties_t
-    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
-    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
-    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
-    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
-    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
-    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
-    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,   ///< ::ur_kernel_arg_pointer_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,   ///< ::ur_kernel_arg_sampler_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,     ///< ::ur_kernel_exec_info_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,     ///< ::ur_kernel_arg_value_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
-    UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,         ///< ::ur_usm_alloc_location_desc_t
-    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,        ///< ::ur_exp_interop_mem_desc_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,  ///< ::ur_exp_interop_semaphore_desc_t
-    UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,         ///< ::ur_exp_file_descriptor_t
-    UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,            ///< ::ur_exp_win32_handle_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,      ///< ::ur_exp_sampler_addr_modes_t
+    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,                                ///< ::ur_context_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                                        ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                                 ///< ::ur_buffer_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                                     ///< ::ur_buffer_region_t
+    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,                         ///< ::ur_buffer_channel_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5,                  ///< ::ur_buffer_alloc_location_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,                                ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 7,                                          ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                                     ///< ::ur_usm_host_desc_t
+    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                                   ///< ::ur_usm_device_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                                    ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,                             ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                                    ///< ::ur_device_binary_t
+    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                                     ///< ::ur_sampler_desc_t
+    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                                 ///< ::ur_queue_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,                           ///< ::ur_queue_index_properties_t
+    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,                        ///< ::ur_context_native_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,                         ///< ::ur_kernel_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,                          ///< ::ur_queue_native_properties_t
+    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,                            ///< ::ur_mem_native_properties_t
+    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,                          ///< ::ur_event_native_properties_t
+    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,                       ///< ::ur_platform_native_properties_t
+    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,                         ///< ::ur_device_native_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,                        ///< ::ur_program_native_properties_t
+    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,                        ///< ::ur_sampler_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,                                ///< ::ur_queue_native_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,                      ///< ::ur_device_partition_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,                    ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,                          ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,                    ///< ::ur_kernel_arg_pointer_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,                    ///< ::ur_kernel_arg_sampler_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,                      ///< ::ur_kernel_exec_info_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,                      ///< ::ur_kernel_arg_value_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,                      ///< ::ur_kernel_arg_local_properties_t
+    UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,                          ///< ::ur_usm_alloc_location_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,                      ///< ::ur_exp_command_buffer_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC = 0x1001, ///< ::ur_exp_command_buffer_update_kernel_launch_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC = 0x1002,    ///< ::ur_exp_command_buffer_update_memobj_arg_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC = 0x1003,   ///< ::ur_exp_command_buffer_update_pointer_arg_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC = 0x1004,     ///< ::ur_exp_command_buffer_update_value_arg_desc_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC = 0x1005,     ///< ::ur_exp_command_buffer_update_exec_info_desc_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,                   ///< ::ur_exp_sampler_mip_properties_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,                         ///< ::ur_exp_interop_mem_desc_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,                   ///< ::ur_exp_interop_semaphore_desc_t
+    UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,                          ///< ::ur_exp_file_descriptor_t
+    UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -483,6 +493,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
+    UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP = 0x1003,       ///< Handle to command-buffer command is invalid
     UR_RESULT_ERROR_UNKNOWN = 0x7ffffffe,                                     ///< Unknown or internal error
     /// @cond
     UR_RESULT_FORCE_UINT32 = 0x7fffffff
@@ -1534,6 +1545,10 @@ typedef enum ur_device_info_t {
                                                                     ///< this composite device.
     UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                          ///< [::ur_device_handle_t] The composite device containing this component
                                                                     ///< device.
+    UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,             ///< [::ur_bool_t] Returns true if the device supports the use of
+                                                                    ///< command-buffers.
+    UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP = 0x1001,      ///< [::ur_bool_t] Returns true if the device supports updating the kernel
+                                                                    ///< commands in a command-buffer.
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,            ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                     ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001, ///< [::ur_bool_t] returns true if the device supports the creation of
@@ -7759,6 +7774,32 @@ urBindlessImagesSignalExternalSemaphoreExp(
 #pragma region command buffer(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Command-buffer query information type
+typedef enum ur_exp_command_buffer_info_t {
+    UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT = 0, ///< [uint32_t] Reference count of the command-buffer object.
+                                                    ///< The reference count returned should be considered immediately stale.
+                                                    ///< It is unsuitable for general use in applications. This feature is
+                                                    ///< provided for identifying memory leaks.
+    /// @cond
+    UR_EXP_COMMAND_BUFFER_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_command_buffer_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Command-buffer command query information type
+typedef enum ur_exp_command_buffer_command_info_t {
+    UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT = 0, ///< [uint32_t] Reference count of the command-buffer object.
+                                                            ///< The reference count returned should be considered immediately stale.
+                                                            ///< It is unsuitable for general use in applications. This feature is
+                                                            ///< provided for identifying memory leaks.
+    /// @cond
+    UR_EXP_COMMAND_BUFFER_COMMAND_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_exp_command_buffer_command_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
 /// @brief The extension string which defines support for command-buffers which
 ///        is returned when querying device extensions.
@@ -7771,8 +7812,91 @@ typedef struct ur_exp_command_buffer_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
                                ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    ur_bool_t isUpdatable;     ///< [in] Commands in a finalized command-buffer can be updated.
 
 } ur_exp_command_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for updating a kernel command memobj argument.
+typedef struct ur_exp_command_buffer_update_memobj_arg_desc_t {
+    ur_structure_type_t stype;                             ///< [in] type of this structure, must be
+                                                           ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC
+    const void *pNext;                                     ///< [in][optional] pointer to extension-specific structure
+    uint32_t argIndex;                                     ///< [in] Argument index.
+    const ur_kernel_arg_mem_obj_properties_t *pProperties; ///< [in][optinal] Pointer to memory object properties.
+    ur_mem_handle_t hNewMemObjArg;                         ///< [in][optional] Handle of memory object to set at argument index.
+
+} ur_exp_command_buffer_update_memobj_arg_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for updating a kernel command pointer argument.
+typedef struct ur_exp_command_buffer_update_pointer_arg_desc_t {
+    ur_structure_type_t stype;                             ///< [in] type of this structure, must be
+                                                           ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
+    const void *pNext;                                     ///< [in][optional] pointer to extension-specific structure
+    uint32_t argIndex;                                     ///< [in] Argument index.
+    const ur_kernel_arg_pointer_properties_t *pProperties; ///< [in][optinal] Pointer to USM pointer properties.
+    const void *pNewPointerArg;                            ///< [in][optional] USM pointer to memory location holding the argument
+                                                           ///< value to set at argument index.
+
+} ur_exp_command_buffer_update_pointer_arg_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for updating a kernel command value argument.
+typedef struct ur_exp_command_buffer_update_value_arg_desc_t {
+    ur_structure_type_t stype;                           ///< [in] type of this structure, must be
+                                                         ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
+    const void *pNext;                                   ///< [in][optional] pointer to extension-specific structure
+    uint32_t argIndex;                                   ///< [in] Argument index.
+    uint32_t argSize;                                    ///< [in] Argument size.
+    const ur_kernel_arg_value_properties_t *pProperties; ///< [in][optinal] Pointer to value properties.
+    const void *pNewValueArg;                            ///< [in][optional] Argument value representing matching kernel arg type to
+                                                         ///< set at argument index.
+
+} ur_exp_command_buffer_update_value_arg_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for updating kernel command execution info.
+typedef struct ur_exp_command_buffer_update_exec_info_desc_t {
+    ur_structure_type_t stype;                           ///< [in] type of this structure, must be
+                                                         ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC
+    const void *pNext;                                   ///< [in][optional] pointer to extension-specific structure
+    ur_kernel_exec_info_t propName;                      ///< [in] Name of execution attribute.
+    size_t propSize;                                     ///< [in] Size of execution attribute.
+    const ur_kernel_exec_info_properties_t *pProperties; ///< [in][optional] Pointer to execution info properties.
+    const void *pNewExecInfo;                            ///< [in] Pointer to memory location holding the execution info value.
+
+} ur_exp_command_buffer_update_exec_info_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Descriptor type for updating a kernel launch command.
+typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
+    ur_structure_type_t stype;                                                 ///< [in] type of this structure, must be
+                                                                               ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC
+    const void *pNext;                                                         ///< [in][optional] pointer to extension-specific structure
+    uint32_t numNewMemObjArgs;                                                 ///< [in] Length of pNewMemObjArgList.
+    uint32_t numNewPointerArgs;                                                ///< [in] Length of pNewPointerArgList.
+    uint32_t numNewValueArgs;                                                  ///< [in] Length of pNewValueArgList.
+    uint32_t numNewExecInfos;                                                  ///< [in] Length of pNewExecInfoList.
+    uint32_t newWorkDim;                                                       ///< [in] Number of work dimensions in the kernel ND-range, from 1-3.
+    const ur_exp_command_buffer_update_memobj_arg_desc_t *pNewMemObjArgList;   ///< [in][optional][range(0, numNewMemObjArgs)] An array describing the new
+                                                                               ///< kernel mem obj arguments for the command.
+    const ur_exp_command_buffer_update_pointer_arg_desc_t *pNewPointerArgList; ///< [in][optional][range(0, numNewPointerArgs)] An array describing the
+                                                                               ///< new kernel pointer arguments for the command.
+    const ur_exp_command_buffer_update_value_arg_desc_t *pNewValueArgList;     ///< [in][optional][range(0, numNewValueArgs)] An array describing the new
+                                                                               ///< kernel value arguments for the command.
+    const ur_exp_command_buffer_update_exec_info_desc_t *pNewExecInfoList;     ///< [in][optional][range(0, numNewExecInfos)] An array describing the
+                                                                               ///< execution info objects for the command.
+    size_t *pNewGlobalWorkOffset;                                              ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
+                                                                               ///< values that describe the offset used to calculate the global ID.
+    size_t *pNewGlobalWorkSize;                                                ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
+                                                                               ///< values that describe the number of global work-items.
+    size_t *pNewLocalWorkSize;                                                 ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
+                                                                               ///< values that describe the number of work-items that make up a
+                                                                               ///< work-group. If nullptr, the runtime implementation will choose the
+                                                                               ///< work-group size.
+
+} ur_exp_command_buffer_update_kernel_launch_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief A value that identifies a command inside of a command-buffer, used for
@@ -7784,10 +7908,14 @@ typedef uint32_t ur_exp_command_buffer_sync_point_t;
 typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of a Command-Buffer command
+typedef struct ur_exp_command_buffer_command_handle_t_ *ur_exp_command_buffer_command_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a Command-Buffer object
 ///
 /// @details
-///     - Create a command-buffer object
+///     - Create a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7805,10 +7933,10 @@ typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferCreateExp(
-    ur_context_handle_t hContext,                           ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                             ///< [in] handle of the device object
-    const ur_exp_command_buffer_desc_t *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
-    ur_exp_command_buffer_handle_t *phCommandBuffer         ///< [out] pointer to Command-Buffer handle
+    ur_context_handle_t hContext,                           ///< [in] Handle of the context object.
+    ur_device_handle_t hDevice,                             ///< [in] Handle of the device object.
+    const ur_exp_command_buffer_desc_t *pCommandBufferDesc, ///< [in][optional] command-buffer descriptor.
+    ur_exp_command_buffer_handle_t *phCommandBuffer         ///< [out] Pointer to command-Buffer handle.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7826,7 +7954,7 @@ urCommandBufferCreateExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7845,7 +7973,7 @@ urCommandBufferRetainExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7864,11 +7992,11 @@ urCommandBufferReleaseExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] handle of the command-buffer object
+    ur_exp_command_buffer_handle_t hCommandBuffer ///< [in] Handle of the command-buffer object.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a kernel execution command to a command-buffer object
+/// @brief Append a kernel execution command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7895,19 +8023,20 @@ urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendKernelLaunchExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel,                                   ///< [in] kernel to append
-    uint32_t workDim,                                             ///< [in] dimension of the kernel execution
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
+    ur_kernel_handle_t hKernel,                                   ///< [in] Kernel to append.
+    uint32_t workDim,                                             ///< [in] Dimension of the kernel execution.
     const size_t *pGlobalWorkOffset,                              ///< [in] Offset to use when executing kernel.
     const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
     const size_t *pLocalWorkSize,                                 ///< [in] Local work size to use when executing kernel.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a USM memcpy command to a command-buffer object
+/// @brief Append a USM memcpy command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7932,17 +8061,17 @@ urCommandBufferAppendKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendUSMMemcpyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
     void *pDst,                                                   ///< [in] Location the data will be copied to.
     const void *pSrc,                                             ///< [in] The data to be copied.
-    size_t size,                                                  ///< [in] The number of bytes to copy
+    size_t size,                                                  ///< [in] The number of bytes to copy.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a USM fill command to a command-buffer object
+/// @brief Append a USM fill command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7981,7 +8110,7 @@ urCommandBufferAppendUSMFillExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a memory copy command to a command-buffer object
+/// @brief Append a memory copy command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8002,7 +8131,7 @@ urCommandBufferAppendUSMFillExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendMemBufferCopyExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
     ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
     size_t srcOffset,                                             ///< [in] Offset into the source memory.
@@ -8010,11 +8139,11 @@ urCommandBufferAppendMemBufferCopyExp(
     size_t size,                                                  ///< [in] The number of bytes to be copied.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a memory write command to a command-buffer object
+/// @brief Append a memory write command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8036,18 +8165,18 @@ urCommandBufferAppendMemBufferCopyExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendMemBufferWriteExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
-    size_t offset,                                                ///< [in] offset in bytes in the buffer object.
-    size_t size,                                                  ///< [in] size in bytes of data being written.
-    const void *pSrc,                                             ///< [in] pointer to host memory where data is to be written from.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] Handle of the buffer object.
+    size_t offset,                                                ///< [in] Offset in bytes in the buffer object.
+    size_t size,                                                  ///< [in] Size in bytes of data being written.
+    const void *pSrc,                                             ///< [in] Pointer to host memory where data is to be written from.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a memory read command to a command-buffer object
+/// @brief Append a memory read command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8069,18 +8198,18 @@ urCommandBufferAppendMemBufferWriteExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendMemBufferReadExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
-    size_t offset,                                                ///< [in] offset in bytes in the buffer object.
-    size_t size,                                                  ///< [in] size in bytes of data being written.
-    void *pDst,                                                   ///< [in] pointer to host memory where data is to be written to.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] Handle of the buffer object.
+    size_t offset,                                                ///< [in] Offset in bytes in the buffer object.
+    size_t size,                                                  ///< [in] Size in bytes of data being written.
+    void *pDst,                                                   ///< [in] Pointer to host memory where data is to be written to.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a rectangular memory copy command to a command-buffer object
+/// @brief Append a rectangular memory copy command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8101,7 +8230,7 @@ urCommandBufferAppendMemBufferReadExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendMemBufferCopyRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
     ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
     ur_rect_offset_t srcOrigin,                                   ///< [in] Origin for the region of data to be copied from the source.
@@ -8113,11 +8242,11 @@ urCommandBufferAppendMemBufferCopyRectExp(
     size_t dstSlicePitch,                                         ///< [in] Slice pitch of the destination memory.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a rectangular memory write command to a command-buffer object
+/// @brief Append a rectangular memory write command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8139,26 +8268,26 @@ urCommandBufferAppendMemBufferCopyRectExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendMemBufferWriteRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] Handle of the buffer object.
     ur_rect_offset_t bufferOffset,                                ///< [in] 3D offset in the buffer.
     ur_rect_offset_t hostOffset,                                  ///< [in] 3D offset in the host region.
     ur_rect_region_t region,                                      ///< [in] 3D rectangular region descriptor: width, height, depth.
-    size_t bufferRowPitch,                                        ///< [in] length of each row in bytes in the buffer object.
-    size_t bufferSlicePitch,                                      ///< [in] length of each 2D slice in bytes in the buffer object being
+    size_t bufferRowPitch,                                        ///< [in] Length of each row in bytes in the buffer object.
+    size_t bufferSlicePitch,                                      ///< [in] Length of each 2D slice in bytes in the buffer object being
                                                                   ///< written.
-    size_t hostRowPitch,                                          ///< [in] length of each row in bytes in the host memory region pointed to
+    size_t hostRowPitch,                                          ///< [in] Length of each row in bytes in the host memory region pointed to
                                                                   ///< by pSrc.
-    size_t hostSlicePitch,                                        ///< [in] length of each 2D slice in bytes in the host memory region
+    size_t hostSlicePitch,                                        ///< [in] Length of each 2D slice in bytes in the host memory region
                                                                   ///< pointed to by pSrc.
-    void *pSrc,                                                   ///< [in] pointer to host memory where data is to be written from.
+    void *pSrc,                                                   ///< [in] Pointer to host memory where data is to be written from.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a rectangular memory read command to a command-buffer object
+/// @brief Append a rectangular memory read command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8180,25 +8309,25 @@ urCommandBufferAppendMemBufferWriteRectExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendMemBufferReadRectExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] Handle of the buffer object.
     ur_rect_offset_t bufferOffset,                                ///< [in] 3D offset in the buffer.
     ur_rect_offset_t hostOffset,                                  ///< [in] 3D offset in the host region.
     ur_rect_region_t region,                                      ///< [in] 3D rectangular region descriptor: width, height, depth.
-    size_t bufferRowPitch,                                        ///< [in] length of each row in bytes in the buffer object.
-    size_t bufferSlicePitch,                                      ///< [in] length of each 2D slice in bytes in the buffer object being read.
-    size_t hostRowPitch,                                          ///< [in] length of each row in bytes in the host memory region pointed to
+    size_t bufferRowPitch,                                        ///< [in] Length of each row in bytes in the buffer object.
+    size_t bufferSlicePitch,                                      ///< [in] Length of each 2D slice in bytes in the buffer object being read.
+    size_t hostRowPitch,                                          ///< [in] Length of each row in bytes in the host memory region pointed to
                                                                   ///< by pDst.
-    size_t hostSlicePitch,                                        ///< [in] length of each 2D slice in bytes in the host memory region
+    size_t hostSlicePitch,                                        ///< [in] Length of each 2D slice in bytes in the host memory region
                                                                   ///< pointed to by pDst.
-    void *pDst,                                                   ///< [in] pointer to host memory where data is to be read into.
+    void *pDst,                                                   ///< [in] Pointer to host memory where data is to be read into.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a memory fill command to a command-buffer object
+/// @brief Append a memory fill command to a command-buffer object.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8234,7 +8363,7 @@ urCommandBufferAppendMemBufferFillExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a USM Prefetch command to a command-buffer object
+/// @brief Append a USM Prefetch command to a command-buffer object.
 ///
 /// @details
 ///     - Prefetching may not be supported for all devices or allocation types.
@@ -8275,7 +8404,7 @@ urCommandBufferAppendUSMPrefetchExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Append a USM Advise command to a command-buffer object
+/// @brief Append a USM Advise command to a command-buffer object.
 ///
 /// @details
 ///     - Not all memory advice hints may be supported for all devices or
@@ -8337,15 +8466,150 @@ urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] handle of the command-buffer object.
-    ur_queue_handle_t hQueue,                      ///< [in] the queue to submit this command-buffer for execution.
-    uint32_t numEventsInWaitList,                  ///< [in] size of the event wait list
+    ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] Handle of the command-buffer object.
+    ur_queue_handle_t hQueue,                      ///< [in] The queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList,                  ///< [in] Size of the event wait list.
     const ur_event_handle_t *phEventWaitList,      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                    ///< events that must be complete before the command-buffer execution.
-                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-                                                   ///< events.
+                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
                                                    ///< command-buffer execution instance.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Increment the command object's reference count.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferRetainCommandExp(
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Decrement the command object's reference count and delete the command
+///        object if the reference count becomes zero.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferReleaseCommandExp(
+    ur_exp_command_buffer_command_handle_t hCommand ///< [in] Handle of the command-buffer command.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Update a kernel launch command in a finalized command-buffer.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommand`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pUpdateKernelLaunch`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If update functionality is not supported by the device.
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
+///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t hCommand,                             ///< [in] Handle of the command-buffer kernel command to update.
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *pUpdateKernelLaunch ///< [in] Struct defining how the kernel command is to be updated.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get command-buffer object information.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferGetInfoExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ///< [in] handle of the command-buffer object
+    ur_exp_command_buffer_info_t propName,         ///< [in] the name of the command-buffer property to query
+    size_t propSize,                               ///< [in] size in bytes of the command-buffer property value
+    void *pPropValue,                              ///< [out][optional][typename(propName, propSize)] value of the
+                                                   ///< command-buffer property
+    size_t *pPropSizeRet                           ///< [out][optional] bytes returned in command-buffer property
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get command-buffer object information.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommand`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferCommandGetInfoExp(
+    ur_exp_command_buffer_command_handle_t hCommand, ///< [in] handle of the command-buffer command object
+    ur_exp_command_buffer_command_info_t propName,   ///< [in] the name of the command-buffer command property to query
+    size_t propSize,                                 ///< [in] size in bytes of the command-buffer command property value
+    void *pPropValue,                                ///< [out][optional][typename(propName, propSize)] value of the
+                                                     ///< command-buffer command property
+    size_t *pPropSizeRet                             ///< [out][optional] bytes returned in command-buffer command property
 );
 
 #if !defined(__GNUC__)
@@ -10507,6 +10771,7 @@ typedef struct ur_command_buffer_append_kernel_launch_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_kernel_launch_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -10699,6 +10964,55 @@ typedef struct ur_command_buffer_enqueue_exp_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_command_buffer_enqueue_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferRetainCommandExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_retain_command_exp_params_t {
+    ur_exp_command_buffer_command_handle_t *phCommand;
+} ur_command_buffer_retain_command_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferReleaseCommandExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_release_command_exp_params_t {
+    ur_exp_command_buffer_command_handle_t *phCommand;
+} ur_command_buffer_release_command_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferUpdateKernelLaunchExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_update_kernel_launch_exp_params_t {
+    ur_exp_command_buffer_command_handle_t *phCommand;
+    const ur_exp_command_buffer_update_kernel_launch_desc_t **ppUpdateKernelLaunch;
+} ur_command_buffer_update_kernel_launch_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferGetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_get_info_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_exp_command_buffer_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_command_buffer_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferCommandGetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_command_get_info_exp_params_t {
+    ur_exp_command_buffer_command_handle_t *phCommand;
+    ur_exp_command_buffer_command_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_command_buffer_command_get_info_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp
