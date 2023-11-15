@@ -5,7 +5,7 @@
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as reduction support is not complete.
+// Skip as reduction support is not complete.
 // REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_EXPLICIT

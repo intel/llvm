@@ -5,8 +5,8 @@
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as host tasks are not implemented yet
-// XFAIL: *
+// Skip as host tasks aren't implemented yet.
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_RECORD_REPLAY
 

@@ -5,8 +5,9 @@
 //
 // CHECK-NOT: LEAK
 
-// Fail that needs investigation
-// REQUIRES: NOT_YET_IMPLEMENTED
+// This test should be removed as using buffers that don't exceed the
+// lifetime of the graph doesn't satisfy the graphs extension spec.
+// XFAIL: *
 
 // This test creates a temporary buffer which is used in kernels, but
 // destroyed before finalization and execution of the graph.

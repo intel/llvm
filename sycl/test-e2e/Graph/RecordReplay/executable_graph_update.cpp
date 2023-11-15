@@ -5,7 +5,7 @@
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as executable graph update not implemented yet
+// Skip as executable graph update not implemented yet
 // REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_RECORD_REPLAY

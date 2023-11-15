@@ -4,7 +4,7 @@
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as sycl::stream is not implemented yet
+// Skip as sycl::stream is not implemented yet
 // REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_RECORD_REPLAY

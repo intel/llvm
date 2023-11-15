@@ -5,7 +5,7 @@
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as executable graph update isn't implemented yet
+// Skip as executable graph update isn't implemented yet
 // REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_EXPLICIT
