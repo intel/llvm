@@ -22,8 +22,12 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     ScopedContext Active(hProgram->getContext()->getDevice());
 
     hipFunction_t HIPFunc;
-    UR_CHECK_ERROR(
-        hipModuleGetFunction(&HIPFunc, hProgram->get(), pKernelName));
+    hipError_t KernelError =
+        hipModuleGetFunction(&HIPFunc, hProgram->get(), pKernelName);
+    if (KernelError == hipErrorNotFound) {
+      return UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+    }
+    UR_CHECK_ERROR(KernelError);
 
     std::string KernelNameWoffset = std::string(pKernelName) + "_with_offset";
     hipFunction_t HIPFuncWithOffsetParam;
@@ -319,5 +323,12 @@ urKernelSetExecInfo(ur_kernel_handle_t, ur_kernel_exec_info_t, size_t,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t, ur_context_handle_t, ur_program_handle_t,
     const ur_kernel_native_properties_t *, ur_kernel_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] uint32_t count,
+    [[maybe_unused]] const ur_specialization_constant_info_t *pSpecConstants) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

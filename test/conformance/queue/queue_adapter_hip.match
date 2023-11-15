@@ -1,5 +1,3 @@
 urQueueCreateTest.InvalidQueueProperties/AMD_HIP_BACKEND___{{.*}}_
-urQueueCreateWithParamTest.SuccessWithProperties/AMD_HIP_BACKEND___{{.*}}___UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE
-urQueueCreateWithParamTest.SuccessWithProperties/AMD_HIP_BACKEND___{{.*}}___UR_QUEUE_FLAG_PROFILING_ENABLE
 urQueueGetInfoTestWithInfoParam.Success/AMD_HIP_BACKEND___{{.*}}___UR_QUEUE_INFO_DEVICE_DEFAULT
 urQueueGetInfoTestWithInfoParam.Success/AMD_HIP_BACKEND___{{.*}}___UR_QUEUE_INFO_SIZE

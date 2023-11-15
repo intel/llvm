@@ -18,9 +18,20 @@ macro(add_device_binary SOURCE_FILE)
     endif()
     foreach(TRIPLE ${TARGET_TRIPLES})
         set(EXE_PATH "${DEVICE_BINARY_DIR}/${KERNEL_NAME}_${TRIPLE}")
+        if(${TRIPLE} MATCHES "amd")
+            set(AMD_TARGET_BACKEND -Xsycl-target-backend=${TRIPLE})
+            set(AMD_OFFLOAD_ARCH  --offload-arch=${AMD_ARCH})
+            set(AMD_NOGPULIB -nogpulib)
+        endif()
+        # images are not yet supported in sycl on AMD
+        if(${TRIPLE} MATCHES "amd" AND ${KERNEL_NAME} MATCHES "image_copy")
+            continue()
+        endif()
         add_custom_command(OUTPUT ${EXE_PATH}
-            COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off
+            COMMAND ${UR_DPCXX} -fsycl -fsycl-targets=${TRIPLE} -fsycl-device-code-split=off 
+            ${AMD_TARGET_BACKEND} ${AMD_OFFLOAD_ARCH} ${AMD_NOGPULIB}
             ${SOURCE_FILE} -o ${EXE_PATH}
+
             COMMAND ${CMAKE_COMMAND} -E env ${EXTRA_ENV} SYCL_DUMP_IMAGES=true
             ${EXE_PATH} || exit 0
             WORKING_DIRECTORY "${DEVICE_BINARY_DIR}"
