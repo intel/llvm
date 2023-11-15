@@ -18,9 +18,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 4)
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
-#endif
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -624,7 +622,9 @@ struct get_device_info_impl<range<Dimensions>,
 // This macro is only for Intel CPU architectures
 // TODO: extend the macro with other CPU architectures when they will be added
 // to ext_oneapi_device_architecture
-#define INTEL_CPU_ARCHES(X) X(8, oneapi_exp_arch::intel_cpu_spr)
+#define INTEL_CPU_ARCHES(X)                                                    \
+  X(8, oneapi_exp_arch::intel_cpu_spr)                                         \
+  X(9, oneapi_exp_arch::intel_cpu_gnr)
 
 #define CMP_NVIDIA_AMD(s, i)                                                   \
   if (strcmp(s, arch) == 0)                                                    \
@@ -734,6 +734,21 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
       };
+    else if (architecture::intel_cpu_gnr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
     else if (architecture::intel_gpu_pvc == DeviceArch)
       return {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
@@ -742,11 +757,13 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 16, matrix_type::sint8, matrix_type::sint8,
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
           {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
       };
     else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
@@ -759,7 +776,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 16, matrix_type::sint8, matrix_type::sint8,
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},

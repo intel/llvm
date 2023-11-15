@@ -49,10 +49,10 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
-#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -518,6 +518,8 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
   Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
   Options.MCOptions.AsSecureLogFile = CodeGenOpts.AsSecureLogFile;
+  Options.MCOptions.PPCUseFullRegisterNames =
+      CodeGenOpts.PPCUseFullRegisterNames;
   Options.MisExpect = CodeGenOpts.MisExpect;
 
   return true;
@@ -939,6 +941,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           << PluginFN << toString(PassPlugin.takeError());
     }
   }
+  for (auto PassCallback : CodeGenOpts.PassBuilderCallbacks)
+    PassCallback(PB);
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
 #include "llvm/Support/Extension.def"

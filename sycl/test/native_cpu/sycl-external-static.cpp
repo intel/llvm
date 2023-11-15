@@ -7,9 +7,6 @@
 // RUN: llvm-ar crv %t.a %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t2.o %t.a -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
-// This currently fails because we have a static array of functions which
-// we do not support when handling barriers.
-// XFAIL: *
 
 #include <iostream>
 #include <sycl/sycl.hpp>
