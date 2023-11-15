@@ -353,8 +353,9 @@ public:
     assert(Language == syclex::source_language::opencl &&
            "TODO: add other Languages. Must be OpenCL");
     if (Language != syclex::source_language::opencl)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "OpenCLC only supported language at this time");
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "OpenCL C is the only supported language at this time");
 
     // if successful, the log is empty. if failed, throws an error with the
     // compilation log.

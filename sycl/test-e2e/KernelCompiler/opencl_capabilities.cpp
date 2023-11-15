@@ -9,7 +9,8 @@
 // REQUIRES: ocloc
 
 // UNSUPPORTED: (gpu-intel-dg2 && level_zero) || (gpu-intel-pvc && level_zero)
-// seems to be an incompatibility with the KernelCompiler on L0 with DG2 and PVC
+// Seems to be an incompatibility with the KernelCompiler on L0 with DG2 and
+// PVC.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
