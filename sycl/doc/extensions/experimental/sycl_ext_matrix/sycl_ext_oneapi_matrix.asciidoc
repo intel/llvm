@@ -855,24 +855,32 @@ XMX hardware. Note that these can be returned using
 
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_cpu_spr`. In this architecture's implementation,
-the type of the C matrix must be the same as the type of the D
-matrix. Therefore, that common type is shown in a single column in the
-table below.
+`architecture::intel_cpu_spr`, and `architecture::intel_cpu_gnr`. In
+this architecture's implementation, the type of the C matrix must be
+the same as the type of the D matrix. Therefore, that common type is
+shown in a single column in the table below. 
 
 [frame="none",options="header"]
 |======================
-| A type | B type | C and D type | M | N | K
+| A type | B type | C and D type | M | N | K | device
 | `matrix_type::uint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
 | `matrix_type::uint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
 | `matrix_type::sint8`  | `matrix_type::uint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
 | `matrix_type::sint8`  | `matrix_type::sint8` |
 `matrix_type::sint32`  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
 |  `matrix_type::bf16`       |  `matrix_type::bf16`   |
 `matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
+|`architecture::intel_gpu_spr`, `architecture::intel_gpu_gnr`
+|  `matrix_type::fp16`       |  `matrix_type::fp16`   |
+`matrix_type::fp32`   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
+|`architecture::intel_gpu_gnr`
 |======================
 
 ==== Intel XMX Supported Combinations
@@ -911,6 +919,9 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 `matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
 `architecture::intel_gpu_pvc` |8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+|  `matrix_type::tf32`       |  `matrix_type::tf32`   |
+`matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
+`architecture::intel_gpu_pvc`
 |======================
 
 ==== Nvidia Tensor Cores Supported Combinations
@@ -1011,7 +1022,7 @@ be used. An attempt to run the compiled code on an unsupported architecture will
 operations support
 |4   |2022-08-25 |Dounia Khaldi |Update the matrix spec by adding the
 new matrix use parameter and remove reference to the AOT AMX initial
-implementation 
+implementation
 |5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by making it
 portable across Intel AMX, Intel XMX and Nvidia Tensor Cores, and move
 the Intel-specifics to a separate extension document
@@ -1020,4 +1031,6 @@ type, runtime query, and supported combinations appendix for Intel AMX
 and Intel XMX
 |7   |2023-04-11 |Jack Kirk |Add Nvidia Tensor Cores supported combinations
 |8   |2023-10-05 |Mahmoud Moadeli |Add AMD Matrix Core supported combinations
+|9   |2023-11-13 |Dounia Khaldi |Add Granite Rapids Intel AMX
+supported combinations
 |======================

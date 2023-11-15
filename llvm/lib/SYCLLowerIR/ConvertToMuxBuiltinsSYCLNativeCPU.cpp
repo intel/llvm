@@ -25,6 +25,22 @@ using namespace llvm;
 
 namespace {
 
+static void fixCallingConv(Function *F) {
+  // The frame-pointer=all and the "byval" attributes lead to code generation
+  // that conflicts with the Kernel declaration that we emit in the Native CPU
+  // helper header (in which all the kernel argument are void* or scalars).
+  auto AttList = F->getAttributes();
+  for (unsigned ArgNo = 0; ArgNo < F->getFunctionType()->getNumParams();
+       ArgNo++) {
+    if (AttList.hasParamAttr(ArgNo, Attribute::AttrKind::ByVal)) {
+      AttList = AttList.removeParamAttribute(F->getContext(), ArgNo,
+                                             Attribute::AttrKind::ByVal);
+    }
+  }
+  F->setAttributes(AttList);
+  F->addFnAttr("frame-pointer", "none");
+}
+
 // Helper macros for constructing builtin MS names
 #define GENMS1(builtin_str) "?" builtin_str "@@YA_KXZ"
 
@@ -141,8 +157,10 @@ ConvertToMuxBuiltinsSYCLNativeCPUPass::run(Module &M,
                                            ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   for (auto &F : M) {
-    if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL) {
+      fixCallingConv(&F);
       setIsKernelEntryPt(F);
+    }
   }
   const bool VisualStudioMangling = isForVisualStudio(M.getTargetTriple());
 
