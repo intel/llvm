@@ -265,6 +265,12 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: bin/codegen
 
+    # conda init adds content to user's profile making it failing (if conda is gone)
+    - name: Cleanup after conda init
+      run: |
+        cat ${HOME}/.profile || true
+        rm ${HOME}/.profile || true
+
   windows-build:
     name: Build - Windows
     strategy:
