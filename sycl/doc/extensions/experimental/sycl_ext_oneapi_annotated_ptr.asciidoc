@@ -524,10 +524,12 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    T operator=(T) const;
+    template <typename TT>
+    T operator=(TT&&) const;
     T operator=(const annotated_ref&) const;
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    T operatorOP(T) const;
+    template <typename TT>
+    T operatorOP(TT&&) const;
     T operator++();
     T operator++(int);
     T operator--();
@@ -556,10 +558,11 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-T operator=(T);
+template <typename TT>
+T operator=(TT&&);
 ----
 |
-Writes an object of type `T` to the location referenced by this wrapper,
+Writes an object of type `T` to the location referenced by this wrapper via perfect forwarding,
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
@@ -583,7 +586,8 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-T operatorOP(const T &);
+template <typename TT>
+T operatorOP(TT&&);
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.

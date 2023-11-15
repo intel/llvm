@@ -30,8 +30,9 @@ namespace oneapi {
 namespace experimental {
 
 namespace {
-#define PROPAGATE_OP(op)                                                       \
-  T operator op##=(T rhs) const { return *this = *this op rhs; }
+#define PROPAGATE_OP(op)                                                   \
+  template <typename TT>                                                   \
+  T operator op##=(TT&& rhs) const { return *this = *this op std::forward<TT>(rhs); }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -89,11 +90,12 @@ public:
 #endif
   }
 
-  T operator=(T Obj) const {
+  template <typename TT>
+  T operator=(TT&& Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
-        detail::PropertyMetaInfo<Props>::value...) = Obj;
+        detail::PropertyMetaInfo<Props>::value...) = std::forward<TT>(Obj);
 #else
     *m_Ptr = Obj;
 #endif
