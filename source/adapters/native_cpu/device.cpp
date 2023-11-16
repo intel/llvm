@@ -159,15 +159,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
+  // todo: how can we query vector width in a platform
+  // indipendent way?
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
+    return ReturnValue(uint32_t{32});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
+    return ReturnValue(uint32_t{16});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
+    return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
+    return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
-    return ReturnValue(uint32_t{1});
-
+    return ReturnValue(uint32_t{16});
   // Imported from level_zero
   case UR_DEVICE_INFO_USM_HOST_SUPPORT:
   case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
@@ -214,10 +221,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint64_t{0});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
     // TODO : CHECK
-    return ReturnValue(uint64_t{0});
+    return ReturnValue(uint64_t{32768});
   case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
     // TODO : CHECK
-    return ReturnValue(uint64_t{0});
+    return ReturnValue(uint64_t{32768});
   case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
     // TODO : CHECK
     return ReturnValue(uint64_t{0});
@@ -257,9 +264,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE:
     return ReturnValue(bool{0});
   case UR_DEVICE_INFO_ATOMIC_64:
-    return ReturnValue(bool{0});
+    return ReturnValue(bool{1});
   case UR_DEVICE_INFO_BFLOAT16:
-    return ReturnValue(bool{0});
+    return ReturnValue(bool{1});
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     return ReturnValue(bool{0});
   case UR_DEVICE_INFO_IMAGE_SRGB:
