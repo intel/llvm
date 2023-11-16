@@ -2850,8 +2850,10 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     // > For arguments to a __kernel function declared to be a pointer to a
     // > data type, the OpenCL compiler can assume that the pointee is always
     // > appropriately aligned as required by the data type.
-    if (TargetDecl && TargetDecl->hasAttr<OpenCLKernelAttr>() &&
-        ParamType->isPointerType()) {
+    //
+    // Don't do this for SYCL, as this assumption does not hold.
+    if (!getLangOpts().SYCLIsDevice && TargetDecl &&
+        TargetDecl->hasAttr<OpenCLKernelAttr>() && ParamType->isPointerType()) {
       QualType PTy = ParamType->getPointeeType();
       if (!PTy->isIncompleteType() && PTy->isConstantSizeType()) {
         llvm::Align Alignment =

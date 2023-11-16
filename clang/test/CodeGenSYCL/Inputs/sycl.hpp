@@ -670,5 +670,8 @@ public:
   }
 };
 
+template <typename T> T *malloc_shared(unsigned long size);
+void free(void *ptr);
+
 } // namespace _V1
 } // namespace sycl
