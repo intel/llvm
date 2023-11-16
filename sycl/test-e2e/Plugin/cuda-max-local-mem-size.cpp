@@ -26,5 +26,5 @@ int main() {
      });
    }).wait();
   // CHECK-ZERO: Local memory for kernel exceeds the amount requested using SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE
-  // CHECK-OVERALLOCATE: Too much local memory allocated for device
+  // CHECK-OVERALLOCATE: Excessive allocation of local memory on the device
 }

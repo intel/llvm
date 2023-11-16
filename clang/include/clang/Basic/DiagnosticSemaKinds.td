@@ -209,6 +209,8 @@ def ext_vla_folded_to_constant : ExtWarn<
   InGroup<GNUFoldingConstant>;
 def err_vla_unsupported : Error<
   "variable length arrays are not supported for %select{the current target|'%1'}0">;
+def err_vla_in_coroutine_unsupported : Error<
+  "variable length arrays in a coroutine are not supported">;
 def note_vla_unsupported : Note<
   "variable length arrays are not supported for the current target">;
 
@@ -3214,9 +3216,6 @@ def err_invalid_branch_protection_spec : Error<
   "invalid or misplaced branch protection specification '%0'">;
 def warn_unsupported_branch_protection_spec : Warning<
   "unsupported branch protection specification '%0'">, InGroup<BranchProtection>;
-def warn_attribute_underlying_type_mismatch : Warning<
-  "underlying type %0 of enumeration %1 doesn't match bit-field type %2">,
-  InGroup<BitFieldType>;
 
 def warn_unsupported_target_attribute
     : Warning<"%select{unsupported|duplicate|unknown}0%select{| CPU|"
@@ -8049,6 +8048,8 @@ def err_return_in_constructor_handler : Error<
 def warn_cdtor_function_try_handler_mem_expr : Warning<
   "cannot refer to a non-static member from the handler of a "
   "%select{constructor|destructor}0 function try block">, InGroup<Exceptions>;
+def err_throw_object_throwing_dtor : Error<
+  "cannot throw object of type %0 with a potentially-throwing destructor">;
 
 let CategoryName = "Lambda Issue" in {
   def err_capture_more_than_once : Error<
@@ -9556,6 +9557,9 @@ def err_defaulted_special_member_return_type : Error<
 def err_defaulted_special_member_quals : Error<
   "an explicitly-defaulted %select{copy|move}0 assignment operator may not "
   "have 'const'%select{, 'constexpr'|}1 or 'volatile' qualifiers">;
+def err_defaulted_special_member_explicit_object_mismatch : Error<
+  "the type of the explicit object parameter of an explicitly-defaulted "
+  "%select{copy|move}0 assignment operator should match the type of the class %1">;
 def err_defaulted_special_member_volatile_param : Error<
   "the parameter for an explicitly-defaulted %sub{select_special_member_kind}0 "
   "may not be volatile">;
@@ -12016,9 +12020,12 @@ def warn_sycl_kernel_return_type : Warning<
 def err_sycl_special_type_num_init_method : Error<
   "types with 'sycl_special_class' attribute must have one and only one '__init' "
   "method defined">;
+def warn_launch_bounds_is_cuda_specific : Warning<
+  "%0 attribute ignored, only applicable when targeting Nvidia devices">,
+  InGroup<IgnoredAttributes>;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<
-  "maxclusterrank requires sm_90 or higher, CUDA arch provided: %0, ignoring "
+  "'maxclusterrank' requires sm_90 or higher, CUDA arch provided: %0, ignoring "
   "%1 attribute">, InGroup<IgnoredAttributes>;
 
 def err_bit_int_bad_size : Error<"%select{signed|unsigned}0 _BitInt must "

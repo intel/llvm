@@ -41,7 +41,7 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <accept-filter> ::= <term>
 <discard-filter> ::= !<term>
 <term> ::= <backend>:<devices>
-<backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
+<backend> ::= { * | level_zero | opencl | cuda | hip }  // case insensitive
 <devices> ::= <device>[,<device>...]
 <device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
@@ -160,6 +160,20 @@ A `sycl::exception` with `sycl::errc::invalid` is thrown during submission of a 
 If this environment variable is not set, the preferred work-group size for reductions is implementation defined.
 
 Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions to 32 on CPUs and to 16 on all other devices.
+
+## Range Rounding Environment Variables
+
+For a description of parallel for range rounding in DPC++ see
+[Parallel For Range Rounding][range-rounding].
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE`   | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS`  | `MinFactorX:GoodFactor:MinRangeX` | `MinFactorX`: The minimum range that the rounded range should be a multiple of (Default 16)  |
+|  |  | `GoodFactor`: The preferred range that the rounded range be a multiple of (Default 32)  |
+|  |  | `MinRangeX`: The minimum X dimension of the range such that range rounding is activated (Default 1024) |
+
 
 ## Controlling DPC++ Level Zero Plugin
 
@@ -290,3 +304,4 @@ variables in production code.</span>
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 [xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md
+[range-rounding]: https://github.com/intel/llvm/blob/sycl/doc/design/ParallelForRangeRounding.md

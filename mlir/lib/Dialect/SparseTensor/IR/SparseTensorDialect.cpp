@@ -10,6 +10,7 @@
 
 #include "Detail/DimLvlMapParser.h"
 
+#include "mlir/Dialect/SparseTensor/IR/Enums.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensorStorageLayout.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensorType.h"
@@ -270,28 +271,11 @@ SparseTensorDimSliceAttr::verify(function_ref<InFlightDiagnostic()> emitError,
   return success();
 }
 
-Type mlir::sparse_tensor::detail::getIntegerOrIndexType(MLIRContext *ctx,
-                                                        unsigned bitwidth) {
-  if (bitwidth)
-    return IntegerType::get(ctx, bitwidth);
-  return IndexType::get(ctx);
-}
-
-Type SparseTensorEncodingAttr::getPosType() const {
-  assert(getImpl() && "Uninitialized SparseTensorEncodingAttr");
-  return detail::getIntegerOrIndexType(getContext(), getPosWidth());
-}
-
-Type SparseTensorEncodingAttr::getCrdType() const {
-  assert(getImpl() && "Uninitialized SparseTensorEncodingAttr");
-  return detail::getIntegerOrIndexType(getContext(), getCrdWidth());
-}
-
 SparseTensorEncodingAttr
 SparseTensorEncodingAttr::withDimToLvl(AffineMap dimToLvl) const {
   assert(getImpl() && "Uninitialized SparseTensorEncodingAttr");
   return SparseTensorEncodingAttr::get(getContext(), getLvlTypes(), dimToLvl,
-                                       getLvlToDim(), getPosWidth(),
+                                       AffineMap(), getPosWidth(),
                                        getCrdWidth());
 }
 
@@ -410,6 +394,67 @@ std::optional<uint64_t>
 SparseTensorEncodingAttr::getStaticLvlSliceStride(Level lvl) const {
   // FIXME: `toOrigDim` is deprecated.
   return getStaticDimSliceStride(toOrigDim(*this, lvl));
+}
+
+SmallVector<int64_t>
+SparseTensorEncodingAttr::tranlateShape(ArrayRef<int64_t> srcShape,
+                                        CrdTransDirectionKind dir) const {
+  if (isIdentity())
+    return SmallVector<int64_t>(srcShape);
+
+  SmallVector<int64_t> ret;
+  unsigned rank =
+      dir == CrdTransDirectionKind::dim2lvl ? getLvlRank() : getDimRank();
+  ret.reserve(rank);
+
+  if (isPermutation()) {
+    for (unsigned r = 0; r < rank; r++) {
+      // FIXME: `toOrigDim` and `toStoredDim` are deprecated.
+      unsigned trans = dir == CrdTransDirectionKind::dim2lvl
+                           ? toOrigDim(*this, r)
+                           : toStoredDim(*this, r);
+      ret.push_back(srcShape[trans]);
+    }
+    return ret;
+  }
+
+  // Handle non-permutation maps.
+  AffineMap transMap =
+      dir == CrdTransDirectionKind::dim2lvl ? getDimToLvl() : getLvlToDim();
+
+  SmallVector<AffineExpr> dimRep;
+  dimRep.reserve(srcShape.size());
+  for (int64_t sz : srcShape) {
+    if (!ShapedType::isDynamic(sz)) {
+      // Push back the max coordinate for the given dimension/level size.
+      dimRep.push_back(getAffineConstantExpr(sz - 1, getContext()));
+    } else {
+      // A dynamic size, use a AffineDimExpr to symbolize the value.
+      dimRep.push_back(getAffineDimExpr(dimRep.size(), getContext()));
+    }
+  };
+
+  for (AffineExpr exp : transMap.getResults()) {
+    // Do constant propagation on the affine map.
+    AffineExpr evalExp =
+        simplifyAffineExpr(exp.replaceDims(dimRep), srcShape.size(), 0);
+    if (auto c = evalExp.dyn_cast<AffineConstantExpr>()) {
+      ret.push_back(c.getValue() + 1);
+    } else {
+      if (auto mod = evalExp.dyn_cast<AffineBinaryOpExpr>();
+          mod && mod.getKind() == AffineExprKind::Mod) {
+        // We can still infer a static bound for expressions in form
+        // "d % constant" since d % constant \in [0, constant).
+        if (auto bound = mod.getRHS().dyn_cast<AffineConstantExpr>()) {
+          ret.push_back(bound.getValue());
+          continue;
+        }
+      }
+      ret.push_back(ShapedType::kDynamic);
+    }
+  }
+  assert(ret.size() == rank);
+  return ret;
 }
 
 ValueRange
@@ -662,7 +707,7 @@ SparseTensorEncodingAttr::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 LogicalResult SparseTensorEncodingAttr::verifyEncoding(
-    ArrayRef<DynSize> dimShape, Type elementType,
+    ArrayRef<Size> dimShape, Type elementType,
     function_ref<InFlightDiagnostic()> emitError) const {
   // Check structural integrity.  In particular, this ensures that the
   // level-rank is coherent across all the fields.
@@ -907,21 +952,6 @@ Level mlir::sparse_tensor::toStoredDim(SparseTensorEncodingAttr enc,
     }
   }
   return d;
-}
-
-// TODO: Remove this definition once all use-sites have been fixed to
-// properly handle non-permutations.
-Dimension mlir::sparse_tensor::toOrigDim(RankedTensorType type, Level l) {
-  const auto enc = getSparseTensorEncoding(type);
-  assert(!enc || l < enc.getLvlRank());
-  return toOrigDim(enc, l);
-}
-
-// TODO: Remove this definition once all use-sites have been fixed to
-// properly handle non-permutations.
-Level mlir::sparse_tensor::toStoredDim(RankedTensorType type, Dimension d) {
-  assert(d < static_cast<Dimension>(type.getRank()));
-  return toStoredDim(getSparseTensorEncoding(type), d);
 }
 
 /// We normalized sparse tensor encoding attribute by always using
@@ -1250,39 +1280,68 @@ OpFoldResult LvlOp::fold(FoldAdaptor adaptor) {
     return IntegerAttr::get(IndexType::get(getContext()), APInt(64, lvlSz));
   };
 
-  // TODO: we can remove this after SparseTensorEncoding always returns non-null
-  // dimToLvl map.
-  ArrayRef<DynSize> shape = stt.getDimShape();
-  if (stt.isPermutation()) {
-    Dimension dim = toOrigDim(stt, lvl);
-    if (!ShapedType::isDynamic(shape[dim])) {
-      return getIndexAttr(shape[dim]);
-    }
-    return {};
+  SmallVector<Size> lvlShape = stt.getLvlShape();
+  if (!ShapedType::isDynamic(lvlShape[lvl]))
+    return getIndexAttr(lvlShape[lvl]);
+
+  return {};
+}
+
+void ReinterpretMapOp::build(OpBuilder &odsBuilder, OperationState &odsState,
+                             SparseTensorEncodingAttr dstEnc, Value source) {
+  auto srcStt = getSparseTensorType(source);
+  SmallVector<int64_t> srcLvlShape = srcStt.getLvlShape();
+  SmallVector<int64_t> dstDimShape =
+      dstEnc.tranlateShape(srcLvlShape, CrdTransDirectionKind::lvl2dim);
+  auto dstTp =
+      RankedTensorType::get(dstDimShape, srcStt.getElementType(), dstEnc);
+  return build(odsBuilder, odsState, dstTp, source);
+}
+
+LogicalResult ReinterpretMapOp::verify() {
+  auto srcStt = getSparseTensorType(getSource());
+  auto dstStt = getSparseTensorType(getDest());
+  ArrayRef<DimLevelType> srcLvlTps = srcStt.getLvlTypes();
+  ArrayRef<DimLevelType> dstLvlTps = dstStt.getLvlTypes();
+
+  if (srcLvlTps.size() != dstLvlTps.size())
+    return emitError("Level rank mismatch between source/dest tensors");
+
+  for (auto [srcLvlTp, dstLvlTp] : llvm::zip(srcLvlTps, dstLvlTps))
+    if (srcLvlTp != dstLvlTp)
+      return emitError("Level type mismatch between source/dest tensors");
+
+  if (srcStt.getPosWidth() != dstStt.getPosWidth() ||
+      srcStt.getCrdWidth() != dstStt.getCrdWidth()) {
+    return emitError("Crd/Pos width mismatch between source/dest tensors");
   }
 
-  // Non-permutation dim2lvl/lvl2dim maps.
-  AffineExpr lvlExpr = stt.getDimToLvl().getResult(lvl);
-  if (auto binExpr = lvlExpr.dyn_cast<AffineBinaryOpExpr>()) {
-    if (lvlExpr.getKind() == AffineExprKind::Mod) {
-      // j % block_sz, the level size equals to the block size.
-      int64_t lvlSz = binExpr.getRHS().cast<AffineConstantExpr>().getValue();
-      return getIndexAttr(lvlSz);
-    }
-    if (lvlExpr.getKind() == AffineExprKind::FloorDiv) {
-      // j / block_sz, the level size equals to dim[j] / block_sz.
-      Dimension dim = binExpr.getLHS().cast<AffineDimExpr>().getPosition();
-      int64_t blockSz = binExpr.getRHS().cast<AffineConstantExpr>().getValue();
-      if (ShapedType::isDynamic(shape[dim]))
-        return {};
-      return getIndexAttr(shape[dim] / blockSz);
+  if (srcStt.getElementType() != dstStt.getElementType())
+    return emitError("Element type mismatch between source/dest tensors");
+
+  SmallVector<Size> srcLvlShape = srcStt.getLvlShape();
+  SmallVector<Size> dstLvlShape = dstStt.getLvlShape();
+  for (auto [srcLvlSz, dstLvlSz] : llvm::zip(srcLvlShape, dstLvlShape)) {
+    if (srcLvlSz != dstLvlSz) {
+      // Should we allow one side to be dynamic size, e.g., <?x?> should be
+      // compatible to <3x4>? For now, we require all the level sizes to be
+      // *exactly* matched for simplicity.
+      return emitError("Level size mismatch between source/dest tensors");
     }
   }
 
-  auto dim = lvlExpr.cast<AffineDimExpr>().getPosition();
-  if (!ShapedType::isDynamic(dim))
-    return getIndexAttr(shape[dim]);
+  return success();
+}
 
+OpFoldResult ReinterpretMapOp::fold(FoldAdaptor adaptor) {
+  if (getSource().getType() == getDest().getType())
+    return getSource();
+
+  if (auto def = getSource().getDefiningOp<ReinterpretMapOp>()) {
+    // A -> B, B -> A ==> A
+    if (def.getSource().getType() == getDest().getType())
+      return def.getSource();
+  }
   return {};
 }
 
@@ -1498,13 +1557,13 @@ LogicalResult ConcatenateOp::verify() {
   }
 
   for (Dimension d = 0; d < dimRank; d++) {
-    const DynSize dstSh = dstTp.getDimShape()[d];
+    const Size dstSh = dstTp.getDimShape()[d];
     if (d == concatDim) {
       if (!ShapedType::isDynamic(dstSh)) {
         // If we reach here, then all inputs have static shapes.  So we
         // can use `getDimShape()[d]` instead of `*getDynamicDimSize(d)`
         // to avoid redundant assertions in the loop.
-        StaticSize sumSz = 0;
+        Size sumSz = 0;
         for (const auto src : getInputs())
           sumSz += getSparseTensorType(src).getDimShape()[d];
         // If all dimension are statically known, the sum of all the input
@@ -1515,7 +1574,7 @@ LogicalResult ConcatenateOp::verify() {
               "sum of all the concatenation dimensions of the input tensors.");
       }
     } else {
-      DynSize prev = dstSh;
+      Size prev = dstSh;
       for (const auto src : getInputs()) {
         const auto sh = getSparseTensorType(src).getDimShape()[d];
         if (!ShapedType::isDynamic(prev) && sh != prev)
@@ -1593,11 +1652,10 @@ LogicalResult ForeachOp::verify() {
   const Dimension dimRank = t.getDimRank();
   const auto args = getBody()->getArguments();
 
-  if (getOrder().has_value() &&
-      (t.getEncoding() || !getOrder()->isPermutation()))
-    return emitError("Only support permuted order on non encoded dense tensor");
+  if (getOrder().has_value() && getOrder()->getNumDims() != t.getLvlRank())
+    return emitError("Level traverse order does not match tensor's level rank");
 
-  if (static_cast<size_t>(dimRank) + 1 + getInitArgs().size() != args.size())
+  if (dimRank + 1 + getInitArgs().size() != args.size())
     return emitError("Unmatched number of arguments in the block");
 
   if (getNumResults() != getInitArgs().size())
@@ -1690,8 +1748,8 @@ LogicalResult SortOp::verify() {
   // FIXME: update the types of variables used in expressions bassed as
   // the `minSize` argument, to avoid implicit casting at the callsites
   // of this lambda.
-  const auto checkDim = [&](Value v, StaticSize minSize, const char *message) {
-    const DynSize sh = getMemRefType(v).getShape()[0];
+  const auto checkDim = [&](Value v, Size minSize, const char *message) {
+    const Size sh = getMemRefType(v).getShape()[0];
     if (!ShapedType::isDynamic(sh) && sh < minSize)
       emitError(llvm::formatv("{0} got {1} < {2}", message, sh, minSize));
   };

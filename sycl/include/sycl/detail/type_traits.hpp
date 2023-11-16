@@ -25,6 +25,10 @@ template <class T> struct is_fixed_size_group : std::false_type {};
 
 template <class T>
 inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
+
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+class SwizzleOp;
 } // namespace detail
 
 template <int Dimensions> class group;
@@ -148,6 +152,26 @@ template <class T> using vector_element_t = typename vector_element<T>::type;
 
 template <class T> using marray_element_t = typename T::value_type;
 
+// get_elem_type
+// Get the element type of T. If T is a scalar, the element type is considered
+// the type of the scalar.
+template <typename T> struct get_elem_type {
+  using type = T;
+};
+template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
+  using type = T;
+};
+template <typename T, int N> struct get_elem_type<vec<T, N>> {
+  using type = T;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                               OperationCurrentT, Indexes...>> {
+  using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
+};
+template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
+
 // change_base_type_t
 template <typename T, typename B> struct change_base_type {
   using type = B;
@@ -215,8 +239,8 @@ template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
 
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
-using is_gen_based_on_type_sizeof =
-    std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
+inline constexpr bool is_gen_based_on_type_sizeof_v =
+    S<T>::value && (sizeof(vector_element_t<T>) == N);
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
