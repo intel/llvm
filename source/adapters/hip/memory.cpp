@@ -274,7 +274,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
           return AllocSize;
         } else if constexpr (std::is_same_v<T, SurfaceMem>) {
           HIP_ARRAY3D_DESCRIPTOR ArrayDescriptor;
-          UR_CHECK_ERROR(hipArray3DGetDescriptor(&ArrayDescriptor, Mem.Array));
+#if HIP_VERSION_MAJOR >= 5 && HIP_VERSION_MINOR >= 6
+          UR_CHECK_ERROR(
+              hipArray3DGetDescriptor(&ArrayDescriptor, Mem.getArray()));
+#else
+          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
           const auto PixelSizeBytes =
               GetHipFormatPixelSize(ArrayDescriptor.Format) *
               ArrayDescriptor.NumChannels;
@@ -535,10 +540,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   try {
-
     HIP_ARRAY3D_DESCRIPTOR ArrayInfo;
+#if HIP_VERSION_MAJOR >= 5 && HIP_VERSION_MINOR >= 6
     UR_CHECK_ERROR(hipArray3DGetDescriptor(
-        &ArrayInfo, std::get<SurfaceMem>(hMemory->Mem).Array));
+        &ArrayInfo, std::get<SurfaceMem>(hMemory->Mem).getArray()));
+#else
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
 
     const auto hip2urFormat =
         [](hipArray_Format HipFormat) -> ur_image_channel_type_t {
