@@ -128,6 +128,16 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
   // able to remove), or non-regular files. Underlying tools may have
   // intentionally not overwritten them.
 
+  Arg *DumpDeviceCodeArg =
+      getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+
+  std::string ExpectedDir = DumpDeviceCodeArg->getValue();
+  std::string ActualFile(File);
+  if (TheDriver.isDumpDeviceCodeEnabled()) {
+    if (ActualFile.find(ExpectedDir) != std::string::npos)
+      return false;
+  }
+
   if (!llvm::sys::fs::can_write(File) || !llvm::sys::fs::is_regular_file(File))
     return true;
 
@@ -153,11 +163,9 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
 
     if (File.second == types::TY_Tempfilelist ||
         File.second == types::TY_Tempfiletable ||
-        File.second == types::TY_FPGA_Dependencies_List ||
-        File.second == types::TY_Filetable) {
+        File.second == types::TY_FPGA_Dependencies_List) {
       // These are temporary files and need to be removed.
-      bool IsTable = File.second == types::TY_Tempfiletable ||
-                     File.second == types::TY_Filetable;
+      bool IsTable = File.second == types::TY_Tempfiletable;
 
       if (IsTable) {
         if (llvm::sys::fs::exists(File.first)) {
@@ -168,28 +176,22 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
           }
 
           llvm::util::SimpleTable &Table = *T->get();
-          // Device code files(.spv files) have TY_Filetable type when
-          // -fsycl-dump-device-code option is passed.
-          // We remove all columns except "Code" column from the table and save
-          // the .spv files.
-          if (File.second == types::TY_Filetable) {
-            llvm::Error Res = Table.peelColumns({"Code"});
-            if (Res)
-              Success = false;
-          }
+
           std::vector<std::string> TmpFileNames;
           Table.linearize(TmpFileNames);
 
           for (const auto &TmpFileName : TmpFileNames) {
-            if (!TmpFileName.empty() && File.second != types::TY_Filetable)
+            if (!TmpFileName.empty())
               Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
           }
         }
       } else {
         std::ifstream ListFile(File.first);
         std::string TmpFileName;
-        while (std::getline(ListFile, TmpFileName) && !TmpFileName.empty())
+        while (std::getline(ListFile, TmpFileName)) {
+
           Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
+        }
       }
     }
     Success &= CleanupFile(File.first, IssueErrors);

@@ -5679,17 +5679,9 @@ class OffloadingActionBuilder final {
                   FileTableTformJobAction::COL_ZERO);
               PostLinkAction = MergeAllTablesIntoOne;
             }
-            // Device code files(.spv files) from FileTableTformJobAction will
-            // have TY_Filetable type when -fsycl-dump-device-code option is
-            // passed, otherwise TY_Tempfiletable.
-            bool IsDumpDeviceCodeEnabled =
-                C.getDriver().isDumpDeviceCodeEnabled();
-            types::ID FileTableTformType = IsDumpDeviceCodeEnabled
-                                               ? types::TY_Filetable
-                                               : types::TY_Tempfiletable;
             ActionList TformInputs{PostLinkAction, BuildCodeAction};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, FileTableTformType, FileTableTformType);
+                TformInputs, TY_Tempfiletable, TY_Tempfiletable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);

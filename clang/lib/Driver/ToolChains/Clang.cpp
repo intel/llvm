@@ -10082,19 +10082,23 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     // If fsycl-dump-device-code is passed, put the output files from llvm-spirv
     // into the path provided in fsycl-dump-device-code.
     if (C.getDriver().isDumpDeviceCodeEnabled()) {
-      SmallString<128> DeviceCodeFilesPath;
-      Arg *DumpDeviceCodePath =
+      SmallString<128> OutputDir;
+
+      Arg *DumpDeviceCodeArg =
           C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
-      DeviceCodeFilesPath =
-          (DumpDeviceCodePath ? DumpDeviceCodePath->getValue() : "");
+
+      OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+
+      llvm::sys::path::remove_filename(OutputDir);
+
       // If the output directory path is empty, put the llvm-spirv output in the
       // current directory.
-      if (DeviceCodeFilesPath.empty())
-        llvm::sys::path::native(DeviceCodeFilesPath = "./");
+      if (OutputDir.empty())
+        llvm::sys::path::native(OutputDir = "./");
       else
-        DeviceCodeFilesPath.append(llvm::sys::path::get_separator());
+        OutputDir.append(llvm::sys::path::get_separator());
       ForeachArgs.push_back(
-          C.getArgs().MakeArgString("--out-dir=" + DeviceCodeFilesPath));
+          C.getArgs().MakeArgString("--out-dir=" + OutputDir));
     }
 
     StringRef ParallelJobs =
