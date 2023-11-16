@@ -583,10 +583,10 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-T operatorOP=(const T &);
+T operatorOP(const T &);
 ----
 a|
-Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#^#.
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
 Compound assignment operators. Return result by value.
 Available only if the corresponding non-compound operator is available for `T`.
@@ -594,7 +594,7 @@ Equivalent to:
 ```c++
 T tmp = *this;     // Reads from memory
                    // with annotations
-tmp OP= val;
+tmp OP val;
 *this = tmp;       // Writes to memory
                    // with annotations
 return tmp;
