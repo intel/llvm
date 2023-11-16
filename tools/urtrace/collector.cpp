@@ -331,7 +331,7 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
     if (cli_args.no_args) {
         args_str << "...";
     } else {
-        ur::extras::printFunctionParams(
+        extras::printFunctionParams(
             args_str, (enum ur_function_t)args->function_id, args->args_data);
     }
 

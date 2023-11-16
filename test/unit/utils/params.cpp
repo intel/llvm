@@ -405,7 +405,6 @@ typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
     Implementations;
 
 using ::testing::MatchesRegex;
-using namespace ur::print;
 
 TYPED_TEST_SUITE(ParamsTest, Implementations, );
 

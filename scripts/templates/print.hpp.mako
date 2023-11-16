@@ -108,8 +108,6 @@ def findMemberType(_item):
     %endif
 </%def>
 
-namespace ${x} {
-namespace print {
 ## API functions declarations #################################################
 namespace details {
 template <typename T> struct is_handle : std::false_type {};
@@ -436,7 +434,6 @@ template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *p
     return ${X}_RESULT_SUCCESS;
 }
 } // namespace details
-} // namespace print
 
 namespace extras {
 ///////////////////////////////////////////////////////////////////////////////
@@ -447,8 +444,6 @@ namespace extras {
 ///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
 ///         - `NULL == params`
 ${X}_APIEXPORT inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostream &os, ur_function_t function, const void *params) {
-    using namespace print;
-
     if (!params) {
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -466,6 +461,5 @@ ${X}_APIEXPORT inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostrea
     return ${X}_RESULT_SUCCESS;
 }
 } // namespace extras
-} // namespace ${x}
 
 #endif /* ${X}_PRINT_HPP */

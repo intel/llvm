@@ -16,7 +16,6 @@
 #include "ur_print.hpp"
 
 namespace logger {
-using namespace ur::print;
 
 class Sink {
   public:
