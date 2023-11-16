@@ -12,7 +12,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/TargetHelpers.h"
-#include "llvm/Transforms/Utils/Cloning.h"  
+#include "llvm/Transforms/Utils/Cloning.h"
 
 namespace llvm {
 
