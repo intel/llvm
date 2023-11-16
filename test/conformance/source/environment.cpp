@@ -179,6 +179,16 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
                 std::string(&arg[std::strlen("--platform=")]);
         }
     }
+
+    /* If a platform was not provided using the --platform command line option,
+     * check if environment variable is set to use as a fallback. */
+    if (options.platform_name.empty()) {
+        const char *env_platform = std::getenv("UR_CTS_ADAPTER_PLATFORM");
+        if (env_platform) {
+            options.platform_name = env_platform;
+        }
+    }
+
     return options;
 }
 
