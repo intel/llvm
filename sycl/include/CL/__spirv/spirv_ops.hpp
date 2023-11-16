@@ -171,6 +171,9 @@ template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL TempRetT
 __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, TempArgT, TempArgT);
 
+template <class RetT, class HandleT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ConvertHandleToSamplerINTEL(HandleT);
+
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
 
