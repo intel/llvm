@@ -157,6 +157,16 @@ void TestVectorAddWithAnnotatedMMHosts() {
     std::cout << raw[i] << std::endl;
   }
 
+  class test {
+    int n;
+
+  public:
+    test(int n_) : n(n_) {}
+    test(const test &t) { n = t.n; }
+  };
+  // expected-warning@+1 {{T is non-trivially copyable type, some operatorsmight invoke the copy constructor}}
+  annotated_ptr<test> non_trivially_copyable;
+
   free(raw, q);
 }
 
