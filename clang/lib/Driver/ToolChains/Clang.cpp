@@ -9707,7 +9707,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
-    assert(((Inputs[0].getType() != types::TY_Filetable) ||
+    assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
             (Inputs.size() == 1)) &&
            "wrong usage of clang-offload-wrapper with SYCL");
     const InputInfo &I = Inputs[0];

@@ -5681,7 +5681,7 @@ class OffloadingActionBuilder final {
             }
             ActionList TformInputs{PostLinkAction, BuildCodeAction};
             auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, TY_Tempfiletable, TY_Tempfiletable);
+                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
             ReplaceFilesAction->addReplaceColumnTform(
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);

@@ -110,7 +110,6 @@ TYPE("spirv",                    SPIRV,        INVALID,         "spv",    phases
 TYPE("sycl-fatbin",              SYCL_FATBIN,  INVALID,         nullptr,  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfilelist",             Tempfilelist, INVALID,         "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempfiletable",            Tempfiletable,INVALID,         "table",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
-TYPE("filetable",                Filetable,    INVALID,         "table",  phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("tempAOCOfilelist",         TempAOCOfilelist, INVALID,     "txt",    phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("archive",                  Archive,      INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)
 TYPE("wholearchive",             WholeArchive, INVALID,         "a",      phases::Compile, phases::Backend, phases::Assemble, phases::Link)

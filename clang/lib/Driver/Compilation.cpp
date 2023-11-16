@@ -47,7 +47,6 @@ Compilation::Compilation(const Driver &D, const ToolChain &_DefaultToolChain,
 Compilation::~Compilation() {
   // Remove temporary files. This must be done before arguments are freed, as
   // the file names might be derived from the input arguments.
-
   if (!TheDriver.isSaveTempsEnabled() && !ForceKeepTempFiles)
     CleanupFileList(TempFiles);
 
