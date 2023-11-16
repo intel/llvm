@@ -70,7 +70,7 @@ public:
         SPIRVVersion(static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0)),
         GeneratorId(SPIRVGEN_KhronosLLVMSPIRVTranslator), GeneratorVer(0),
         InstSchema(SPIRVISCH_Default), SrcLang(SourceLanguageOpenCL_C),
-        SrcLangVer(102000) {
+        SrcLangVer(102000), BoolTy(nullptr), VoidTy(nullptr) {
     AddrModel = sizeof(size_t) == 32 ? AddressingModelPhysical32
                                      : AddressingModelPhysical64;
     // OpenCL memory model requires Kernel capability
@@ -533,7 +533,10 @@ private:
   SPIRVStringMap StrMap;
   SPIRVCapMap CapMap;
   SPIRVUnknownStructFieldMap UnknownStructFieldMap;
-  std::map<unsigned, SPIRVTypeInt *> IntTypeMap;
+  SPIRVTypeBool *BoolTy;
+  SPIRVTypeVoid *VoidTy;
+  SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
+  SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
   std::map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
@@ -927,7 +930,12 @@ template <class T> T *SPIRVModuleImpl::addType(T *Ty) {
 }
 
 SPIRVTypeVoid *SPIRVModuleImpl::addVoidType() {
-  return addType(new SPIRVTypeVoid(this, getId()));
+  SPIRVTypeVoid *V = VoidTy;
+  if (!V) {
+    V = addType(new SPIRVTypeVoid(this, getId()));
+    VoidTy = V;
+  }
+  return V;
 }
 
 SPIRVTypeArray *SPIRVModuleImpl::addArrayType(SPIRVType *ElementType,
@@ -936,7 +944,12 @@ SPIRVTypeArray *SPIRVModuleImpl::addArrayType(SPIRVType *ElementType,
 }
 
 SPIRVTypeBool *SPIRVModuleImpl::addBoolType() {
-  return addType(new SPIRVTypeBool(this, getId()));
+  SPIRVTypeBool *B = BoolTy;
+  if (!B) {
+    B = addType(new SPIRVTypeBool(this, getId()));
+    BoolTy = B;
+  }
+  return B;
 }
 
 SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
@@ -949,8 +962,12 @@ SPIRVTypeInt *SPIRVModuleImpl::addIntegerType(unsigned BitWidth) {
 }
 
 SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth) {
-  SPIRVTypeFloat *T = addType(new SPIRVTypeFloat(this, getId(), BitWidth));
-  return T;
+  auto Loc = FloatTypeMap.find(BitWidth);
+  if (Loc != FloatTypeMap.end())
+    return Loc->second;
+  auto *Ty = new SPIRVTypeFloat(this, getId(), BitWidth);
+  FloatTypeMap[BitWidth] = Ty;
+  return addType(Ty);
 }
 
 SPIRVTypePointer *
