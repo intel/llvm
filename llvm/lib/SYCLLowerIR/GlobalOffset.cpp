@@ -309,8 +309,8 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     // In order to keep the signatures of functions called by the kernel
     // unified, the pass has to copy global offset to an array allocated in
     // addrspace(3). This is done as kernels can't allocate and fill the
-    // array in constant address space, which would be required for the case
-    // with no global offset.
+    // array in constant address space.
+    // Not required any longer, but left due to deprecatedness.
     if (IsKernel && AT == ArchType::AMDHSA) {
       BasicBlock *EntryBlock = &NewFunc->getEntryBlock();
       IRBuilder<> Builder(EntryBlock, EntryBlock->getFirstInsertionPt());
