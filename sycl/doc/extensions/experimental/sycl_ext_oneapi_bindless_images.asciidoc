@@ -652,17 +652,23 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
-  sycl::addressing_mode addressing;
-  sycl::coordinate_normalization_mode coordinate;
-  sycl::filtering_mode filtering;
-  sycl::filtering_mode mipmap_filtering;
-  float min_mipmap_level_clamp;
-  float max_mipmap_level_clamp;
-  float max_anisotropy;
+  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  sycl::coordinate_normalization_mode coordinate =
+      sycl::coordinate_normalization_mode::unnormalized;
+  sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
+  sycl::filtering_mode mipmap_filtering = sycl::filtering_mode::nearest;
+  float min_mipmap_level_clamp = 0.f;
+  float max_mipmap_level_clamp = 0.f;
+  float max_anisotropy = 0.f;
 };
 
 }
 ```
+
+The `bindless_image_sampler` shall be default constructible and follow by-value 
+semantics. The value for the addressing mode, `addressing_mode::none`, 
+represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
+`addressing_mode::repeat`.
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -1997,4 +2003,6 @@ These features still need to be handled:
                    restrictions on image types
 |4.8|2023-10-25| - Change the name of `map_external_memory_array` to 
                    `map_external_image_memory` to avoid CUDA terminology
+|4.9|2023-11-13| - Add that the bindless sampler is default constructible 
+                   and follows by-value semantics
 |======================
