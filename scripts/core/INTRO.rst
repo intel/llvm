@@ -66,7 +66,7 @@ The following design philosophies are adopted to reduce Host-side overhead:
 
     + This should be handled by validation layer(s)
 
-  - By default, neither the driver nor device provide may provide any protection against the following:
+  - By default, the driver or device may not provide any protection against the following:
 
     + Invalid API programming
     + Invalid function arguments
