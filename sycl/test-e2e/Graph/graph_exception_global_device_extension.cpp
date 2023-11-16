@@ -16,7 +16,7 @@ sycl::ext::oneapi::experimental::device_global<int, TestProperties>
 
 enum OperationPath { Explicit, RecordReplay, Shortcut };
 
-template <OperationPath PathKind, typename T> void test(queue Queue) {
+template <OperationPath PathKind> void test(queue Queue) {
   int MemcpyWrite = 42, CopyWrite = 24, MemcpyRead = 1, CopyRead = 2;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
