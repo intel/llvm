@@ -726,6 +726,19 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
+void modifiable_command_graph::addGraphLeafDependencies(node Node) {
+  // Find all exit nodes in the current graph and add them to the dependency
+  // vector
+  std::shared_ptr<detail::node_impl> DstImpl =
+      sycl::detail::getSyclObjImpl(Node);
+  graph_impl::WriteLock Lock(impl->MMutex);
+  for (auto &NodeImpl : impl->MNodeStorage) {
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
+      impl->makeEdge(NodeImpl, DstImpl);
+    }
+  }
+}
+
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {
   std::shared_ptr<detail::node_impl> SenderImpl =
       sycl::detail::getSyclObjImpl(Src);
