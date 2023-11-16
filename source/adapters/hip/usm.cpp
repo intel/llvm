@@ -190,9 +190,6 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 #endif
       return ReturnValue(UR_USM_TYPE_UNKNOWN);
     }
-    case UR_USM_ALLOC_INFO_BASE_PTR:
-    case UR_USM_ALLOC_INFO_SIZE:
-      return UR_RESULT_ERROR_INVALID_VALUE;
     case UR_USM_ALLOC_INFO_DEVICE: {
       // get device index associated with this pointer
       UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
@@ -222,6 +219,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       }
       return ReturnValue(Pool);
     }
+    case UR_USM_ALLOC_INFO_BASE_PTR:
+    case UR_USM_ALLOC_INFO_SIZE:
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
     }
