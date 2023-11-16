@@ -526,8 +526,8 @@ class annotated_ref {
     operator T() const;
     T operator=(const T &) const;
     T operator=(const annotated_ref&) const;
-    // OP is: +, -, *, /, %, <<, >>, &, |, ^
-    T operatorOP=(const T &) const;
+    // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
+    T operatorOP(const T &) const;
     T operator++() const;
     T operator++(int) const;
     T operator--() const;
@@ -603,14 +603,16 @@ return tmp;
 a|
 [source,c++]
 ----
-T operator++();
-T operator++(int);
-T operator--();
-T operator--(int);
+T operator++() const;
+T operator++(int) const;
+T operator--() const;
+T operator--(int) const;
 ----
 |
-increment and decrement operator of annotated_ref. The annotations are applied
-when the object `T` is loaded and stored to the memory.
+Increment and decrement operator of annotated_ref. Increment/Decrement the object `T`
+referenced by this wrapper via `T`'s Increment/Decrement operator.
+
+The annotations are applied when the object `T` is loaded and stored to the memory.
 |===
 
 == Issues related to `annotated_ptr`
