@@ -21,30 +21,29 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
 
-// Primary template should never be deduced. Needed to establish which 
+// Primary template should never be deduced. Needed to establish which
 // parameters fpga_mem can be templated on
 template <typename T, typename PropertyListT =
                           ext::oneapi::experimental::empty_properties_t>
-class fpga_mem  {
+class fpga_mem {
 
-    static_assert(
+  static_assert(
       ext::oneapi::experimental::is_property_list<PropertyListT>::value,
       "Property list is invalid.");
 };
 
-// Template specialization that all calls should use. Separates Props from 
+// Template specialization that all calls should use. Separates Props from
 // properties_t which allows the class to apply Props as attributes.
-template <typename T, typename... Props> class
+template <typename T, typename... Props>
+class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_attributes_global_variable(
         "sycl-resource",
         ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
         "DEFAULT",
-        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...
-      )
-    ]]
+        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-fpga_mem<T, ext::oneapi::experimental::detail::properties_t<Props...>> {
+    fpga_mem<T, ext::oneapi::experimental::detail::properties_t<Props...>> {
 
 protected:
   T val
@@ -56,7 +55,8 @@ protected:
           "sycl-resource",
           ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
           "DEFAULT",
-          ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+          ext::oneapi::experimental::detail::PropertyMetaInfo<
+              Props>::value...)]]
 #endif
       ;
 
@@ -96,11 +96,13 @@ public:
   // there is an implicit conversion from "fpga_mem" to "T&".
 
   template <typename propertyT> static constexpr bool has_property() {
-    return ext::oneapi::experimental::detail::properties_t<Props...>::template has_property<propertyT>();
+    return ext::oneapi::experimental::detail::properties_t<
+        Props...>::template has_property<propertyT>();
   }
 
   template <typename propertyT> static constexpr auto get_property() {
-    return ext::oneapi::experimental::detail::properties_t<Props...>::template get_property<propertyT>();
+    return ext::oneapi::experimental::detail::properties_t<
+        Props...>::template get_property<propertyT>();
   }
 };
 
