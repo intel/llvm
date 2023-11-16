@@ -356,6 +356,7 @@ class param_traits:
     RE_RELEASE  = r".*\[release\].*"
     RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
     RE_TAGGED   = r".*\[tagged_by\((.+)\)].*"
+    RE_BOUNDS   = r".*\[bounds\((.+),\s*(.+)\)].*"
 
     @classmethod
     def is_mbz(cls, item):
@@ -412,6 +413,13 @@ class param_traits:
             return True if re.match(cls.RE_TAGGED, item['desc']) else False
         except:
             return False
+
+    @classmethod
+    def is_bounds(cls, item):
+        try:
+            return True if re.match(cls.RE_BOUNDS, item['desc']) else False
+        except:
+            return False
     
     @classmethod
     def tagged_member(cls, item):
@@ -452,6 +460,22 @@ class param_traits:
     @classmethod
     def typename_size(cls, item):
         match = re.match(cls.RE_TYPENAME, item['desc'])
+        if match:
+            return match.group(2)
+        else:
+            return None
+
+    @classmethod
+    def bounds_offset(cls, item):
+        match = re.match(cls.RE_BOUNDS, item['desc'])
+        if match:
+            return match.group(1)
+        else:
+            return None
+
+    @classmethod
+    def bounds_size(cls, item):
+        match = re.match(cls.RE_BOUNDS, item['desc'])
         if match:
             return match.group(2)
         else:
@@ -1041,7 +1065,35 @@ def make_pfncb_param_type(namespace, tags, obj):
 
 """
 Public:
-    returns a dict of auto-generated c++ parameter validation checks
+    returns an appropriate bounds helper function call for an entry point
+    parameter with the [bounds] tag
+"""
+def get_bounds_check(param, bounds_error):
+    # Images need their own helper, since function signature wise they would be
+    # identical to buffer rect
+    bounds_function = 'boundsImage' if 'image' in param['name'].lower() else 'bounds'
+    bounds_check = "auto {0} = {1}({2}, {3}, {4})".format(
+        bounds_error,
+        bounds_function,
+        param["name"],
+        param_traits.bounds_offset(param),
+        param_traits.bounds_size(param),
+    )
+    bounds_check += '; {0} != UR_RESULT_SUCCESS'.format(bounds_error)
+
+    # USM bounds checks need the queue handle parameter to be able to use the
+    # GetMemAllocInfo entry point
+    if type_traits.is_pointer(param['type']):
+        # If no `hQueue` parameter exists that should have been caught at spec
+        # generation.
+        return re.sub(r'bounds\(', 'bounds(hQueue, ', bounds_check)
+
+    return bounds_check
+
+"""
+Public:
+    returns a dict of auto-generated c++ parameter validation checks for the
+    given function (specified by `obj`)
 """
 def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
     checks = {}
@@ -1054,6 +1106,13 @@ def make_param_checks(namespace, tags, obj, cpp=False, meta=None):
                     if key not in checks:
                         checks[key] = []
                     checks[key].append(subt(namespace, tags, code.group(1), False, cpp))
+
+    for p in obj.get('params', []):
+        if param_traits.is_bounds(p):
+            if 'boundsError' not in checks:
+                checks['boundsError'] = []
+            checks['boundsError'].append(get_bounds_check(p, 'boundsError'))
+
     return checks
 
 """

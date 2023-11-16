@@ -12512,10 +12512,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phQueue));
 
     os << ", ";
-    os << ".ptr = ";
+    os << ".pMem = ";
 
     ur::details::printPtr(os,
-                          *(params->pptr));
+                          *(params->ppMem));
 
     os << ", ";
     os << ".patternSize = ";
