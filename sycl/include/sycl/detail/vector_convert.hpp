@@ -534,7 +534,8 @@ NativeToT convertImpl(NativeFromT Value) {
     return ConvertFToU<NativeFromT, NativeToT, VecSize, ElemTy, RoundingMode>(
         Value);
   else {
-    static_assert(is_sint_to_from_uint<FromT, ToT>::value);
+    static_assert(is_sint_to_from_uint<FromT, ToT>::value,
+                  "Unexpected conversion type");
     static_assert(VecSize == 1, "Conversion between signed and unsigned data "
                                 "types is only available for scalars");
     // vec::convert is underspecified and therefore it is not entirely clear
