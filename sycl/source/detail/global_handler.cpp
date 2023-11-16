@@ -25,6 +25,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <delayimp.h>
 #endif
 
 #include <vector>
@@ -296,6 +297,7 @@ void GlobalHandler::drainThreadPool() {
 void shutdown() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   Handler->unloadPlugins();
+  __FUnloadDelayLoadedDLL2("ze_loader.dll");
 }
 #else
 void shutdown() {

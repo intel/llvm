@@ -86,6 +86,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (WIN32) 
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+    target_link_libraries(${LIB_NAME} PRIVATE delayimp)
   endif()
 
   if (MSVC)
