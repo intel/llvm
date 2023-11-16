@@ -768,7 +768,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
       typename sycl::detail::opencl_image_type<coordSize, access::mode::read,
                                                access::target::image>::type;
   OCLImageTy ImageObj =
-      __spirv_ConvertHandleToSamplerINTEL<OCLImageTy>(imageHandle.raw_handle);
+      __spirv_ConvertHandleToImageINTEL<OCLImageTy>(imageHandle.raw_handle);
   return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(ImageObj, coords);
 #endif
 #else
