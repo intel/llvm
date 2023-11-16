@@ -401,4 +401,18 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
+    ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnBuildExp = nullptr;
+  pDdiTable->pfnCompileExp = nullptr;
+  pDdiTable->pfnLinkExp = nullptr;
+
+  return UR_RESULT_SUCCESS;
+}
 } // extern "C"

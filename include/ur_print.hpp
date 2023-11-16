@@ -17,8 +17,6 @@
 #include <bitset>
 #include <ostream>
 
-namespace ur {
-namespace print {
 namespace details {
 template <typename T>
 struct is_handle : std::false_type {};
@@ -15865,7 +15863,6 @@ inline ur_result_t printPtr(std::ostream &os, const T *ptr) {
     return UR_RESULT_SUCCESS;
 }
 } // namespace details
-} // namespace print
 
 namespace extras {
 ///////////////////////////////////////////////////////////////////////////////
@@ -15876,8 +15873,6 @@ namespace extras {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         - `NULL == params`
 UR_APIEXPORT inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_t function, const void *params) {
-    using namespace print;
-
     if (!params) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -16441,6 +16436,5 @@ UR_APIEXPORT inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     return UR_RESULT_SUCCESS;
 }
 } // namespace extras
-} // namespace ur
 
 #endif /* UR_PRINT_HPP */
