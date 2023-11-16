@@ -764,17 +764,9 @@ public:
     if constexpr (!std::is_same_v<DataT, convertT>) {
       // Dummy conversion for cases like vec<signed char> -> vec<char>
       vec<convertT, NumElements> Result;
-      for (size_t I = 0; I < NumElements; ++I) {
-        // We are not converting to convertT directly here, but instead using
-        // vec_data_t<convertT> - this is due to really weird handling of
-        // std::byte (see uses of _HAS_STD_BYTE macro) which effectively
-        // replaces std::byte with std::uint8_t. Using that data type helper
-        // helps to workaround any compilation issues on that path.
-        // FIXME: convert directly to convertT once std::byte handling is fixed.
-        Result.setValue(
-            I, vec_data<convertT>::get(static_cast<vec_data_t<convertT>>(
-                   vec_data<DataT>::get(getValue(I)))));
-      }
+      for (size_t I = 0; I < NumElements; ++I)
+        Result.setValue(I, static_cast<convertT>(getValue(I)));
+
       return Result;
     } else {
       // No conversion necessary
