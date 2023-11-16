@@ -324,7 +324,6 @@ vint32ptr0 = [MultiPtr("int32_t", parent_idx=0), RawPtr(Vec(["int32_t"]))]
 # To help resolve template arguments, these are given the index of their parent
 # argument.
 elementtype0 = [ElementType(0)]
-unsignedtype0 = [ConversionTraitType("make_unsigned_t", 0)]
 samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
 samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
 intelements0 = [ConversionTraitType("int_elements_t", 0)]
@@ -400,7 +399,6 @@ builtin_types = {
   "intnptr0" : intnptr0,
   "vint32nptr0" : vint32ptr0,
   "elementtype0" : elementtype0,
-  "unsignedtype0" : unsignedtype0,
   "samesizesignedint0" : samesizesignedint0,
   "samesizeunsignedint0" : samesizeunsignedint0,
   "intelements0" : intelements0,
@@ -691,15 +689,19 @@ class RelDef(DefCommon):
     invoke_args = ', '.join(get_invoke_args(arg_types, arg_names))
     return f'  return detail::RelConverter<{return_type}>::apply(__sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<detail::internal_rel_ret_t<{return_type}>>({invoke_args}));'
 
-def custom_signed_abs_scalar_invoke(return_type, _, arg_names):
-  """Generates the custom body for signed scalar `abs`."""
-  args = ' ,'.join(arg_names)
-  return f'return static_cast<{return_type}>(__sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}));'
+def get_custom_unsigned_to_signed_scalar_invoke(invoke_name):
+  """
+  Creates a function for generating the custom body for invocations returning
+  an unsigned scalar value, which will in turn be converted to a signed value.
+  """
+  return (lambda return_type, _, arg_names: f'return static_cast<{return_type}>(__sycl_std::__invoke_{invoke_name}<detail::make_unsigned_t<{return_type}>>({" ,".join(arg_names)}));')
 
-def custom_signed_abs_vec_invoke(return_type, arg_types, arg_names):
-  """Generates the custom body for signed vector `abs`."""
-  args = ' ,'.join(get_invoke_args(arg_types, arg_names))
-  return f'return __sycl_std::__invoke_s_abs<detail::make_unsigned_t<{return_type}>>({args}).template convert<detail::get_elem_type_t<{return_type}>>();'
+def get_custom_unsigned_to_signed_vec_invoke(invoke_name):
+  """
+  Creates a function for generating the custom body for invocations returning
+  an unsigned scalar value, which will in turn be converted to a signed value.
+  """
+  return (lambda return_type, arg_types, arg_names: f'return __sycl_std::__invoke_{invoke_name}<detail::make_unsigned_t<{return_type}>>({" ,".join(get_invoke_args(arg_types, arg_names))}).template convert<detail::get_elem_type_t<{return_type}>>();')
 
 def get_custom_any_all_vec_invoke(invoke_name):
   """
@@ -873,8 +875,10 @@ sycl_builtins = {# Math functions
                  "tgamma": [Def("genfloat", ["genfloat"])],
                  "trunc": [Def("genfloat", ["genfloat"])],
                  # Integer functions
-                 "abs_diff": [Def("unsignedtype0", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
-                              Def("unsignedtype0", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
+                 "abs_diff": [Def("sigeninteger", ["sigeninteger", "sigeninteger"], custom_invoke=get_custom_unsigned_to_signed_scalar_invoke("s_abs_diff"), template_scalar_args=True),
+                              Def("vigeninteger", ["vigeninteger", "vigeninteger"], custom_invoke=get_custom_unsigned_to_signed_vec_invoke("s_abs_diff")),
+                              Def("migeninteger", ["migeninteger", "migeninteger"], marray_use_loop=True),
+                              Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
                  "add_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
                              Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
                  "hadd": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
@@ -971,8 +975,8 @@ sycl_builtins = {# Math functions
                  "abs": [Def("genfloat", ["genfloat"],
                              deprecation_message="abs for floating point types is non-standard and has been deprecated. Please use fabs instead.",
                              invoke_prefix="f", template_scalar_args=True),
-                         Def("sigeninteger", ["sigeninteger"], custom_invoke=custom_signed_abs_scalar_invoke, template_scalar_args=True),
-                         Def("vigeninteger", ["vigeninteger"], custom_invoke=custom_signed_abs_vec_invoke),
+                         Def("sigeninteger", ["sigeninteger"], custom_invoke=get_custom_unsigned_to_signed_scalar_invoke("s_abs"), template_scalar_args=True),
+                         Def("vigeninteger", ["vigeninteger"], custom_invoke=get_custom_unsigned_to_signed_vec_invoke("s_abs")),
                          Def("migeninteger", ["migeninteger"], marray_use_loop=True),
                          Def("ugeninteger", ["ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
                  # Geometric functions
