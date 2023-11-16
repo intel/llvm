@@ -24,8 +24,8 @@
 #include <sycl/detail/spinlock.hpp>
 
 #ifdef _WIN32
-#include <windows.h>
 #include <delayimp.h>
+#include <windows.h>
 #endif
 
 #include <vector>
