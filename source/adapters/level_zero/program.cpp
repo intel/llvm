@@ -256,11 +256,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
-    ur_context_handle_t Context, ///< [in] handle of the context instance.
+    ur_context_handle_t Context,   ///< [in] handle of the context instance.
+    uint32_t numDevices,           ///< [in] number of devices
+    ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to
+                                   ///< array of device handles
     uint32_t Count, ///< [in] number of program handles in `phPrograms`.
     const ur_program_handle_t *Programs, ///< [in][range(0, count)] pointer to
                                          ///< array of program handles.
-    uint32_t numDevices, ur_device_handle_t *phDevices,
     const char *Options, ///< [in][optional] pointer to linker options
                          ///< null-terminated string.
     ur_program_handle_t
