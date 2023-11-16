@@ -23,8 +23,10 @@
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #endif
 
-namespace llvm {
-void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
+using namespace llvm;
+using namespace sycl::utils;
+
+void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
@@ -41,4 +43,3 @@ void addSYCLNativeCPUBackendPasses(llvm::ModulePassManager &MPM,
   MPM.addPass(PrepareSYCLNativeCPUPass());
   MPM.addPass(RenameKernelSYCLNativeCPUPass());
 }
-} // namespace llvm
