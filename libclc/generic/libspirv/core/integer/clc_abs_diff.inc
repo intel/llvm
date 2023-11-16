@@ -12,6 +12,6 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __clc_abs_diff(__CLC_GENTYPE x,
   __CLC_GENTYPE ax = x < gentype_zero ? -x : x;
   __CLC_GENTYPE ay = y < gentype_zero ? -y : y;
   return (x < gentype_zero) == (y < gentype_zero)
-      ? ((x > y) ? (x - y) : (y - x))
-      : (ax + ay);
+             ? ((x > y) ? (x - y) : (y - x))
+             : (ax + ay);
 }
