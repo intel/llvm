@@ -600,12 +600,6 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
-  // Diagnose FPAccuracy option validity.
-  if (!LangOpts.FPAccuracyVal.empty())
-    for (const auto &F : LangOpts.FPAccuracyFuncMap)
-      Diags.Report(diag::warn_function_fp_accuracy_already_set)
-          << F.second << F.first;
-
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
@@ -3712,6 +3706,14 @@ static void checkFPAccuracyIsValid(StringRef ValElement,
         << "-ffp-accuracy" << ValElement;
 }
 
+static void replaceFPAccuracyVal(DiagnosticsEngine &Diags, StringRef ValElement,
+                                 StringRef Opt1, StringRef Opt2,
+                                 std::pair<std::string, std::string> Func) {
+  Diags.Report(diag::warn_drv_fp_accuracy_override)
+      << Opt1 << Opt2 << Func.first;
+  Func.second = ValElement.str();
+}
+
 void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
                                              DiagnosticsEngine &Diags) {
   for (StringRef Values : Args.getAllArgValues(OPT_ffp_builtin_accuracy_EQ)) {
@@ -3727,6 +3729,13 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
         if (ValElement.size() == 1) {
           checkFPAccuracyIsValid(ValElement[0], Diags);
           Opts.FPAccuracyVal = ValElement[0].str();
+          // if FPAccuracyFuncMap is not empty, visit it and update
+          // the values of the FPAccuracy of each function in the map;
+          // last fp-accuracy option in the command line wins.
+          for (auto &F : Opts.FPAccuracyFuncMap) {
+            replaceFPAccuracyVal(Diags, ValElement[0], ValuesArr[1],
+                                 ValuesArr[0], F);
+          }
         }
         // The option is of the form -ffp-accuracy=value:[f1, ... fn].
         if (ValElement.size() == 2) {
@@ -3741,9 +3750,18 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
             checkFPAccuracyIsValid(ValElement[0], Diags);
             // No need to fill the map if the FPaccuracy is 'default'.
             // The default builtin will be generated.
-            if (!ValElement[0].equals("default"))
-              Opts.FPAccuracyFuncMap.insert(
-                  {FuncName.str(), ValElement[0].str()});
+            if (!ValElement[0].equals("default")) {
+              // if FPAccuracyFuncMap of this function has been prviously set
+              // update its value; the last fp-accuracy option in the command
+              // line wins.
+              if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
+                replaceFPAccuracyVal(Diags, ValElement[0], ValuesArr[1],
+                                     ValuesArr[0], *FuncMap);
+              } else {
+                Opts.FPAccuracyFuncMap.insert(
+                    {FuncName.str(), ValElement[0].str()});
+              }
+            }
           }
         }
       }
