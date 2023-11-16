@@ -16905,53 +16905,53 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_ocl_s_abs(__clc_vec16_int64_t);
 
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint8_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t
     __spirv_ocl_s_abs_diff(__clc_int8_t, __clc_int8_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint8_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int8_t
     __spirv_ocl_s_abs_diff(__clc_vec2_int8_t, __clc_vec2_int8_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint8_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int8_t
     __spirv_ocl_s_abs_diff(__clc_vec3_int8_t, __clc_vec3_int8_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint8_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int8_t
     __spirv_ocl_s_abs_diff(__clc_vec4_int8_t, __clc_vec4_int8_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint8_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int8_t
     __spirv_ocl_s_abs_diff(__clc_vec8_int8_t, __clc_vec8_int8_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint8_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int8_t
     __spirv_ocl_s_abs_diff(__clc_vec16_int8_t, __clc_vec16_int8_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint16_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int16_t
     __spirv_ocl_s_abs_diff(__clc_int16_t, __clc_int16_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint16_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int16_t
     __spirv_ocl_s_abs_diff(__clc_vec2_int16_t, __clc_vec2_int16_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint16_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int16_t
     __spirv_ocl_s_abs_diff(__clc_vec3_int16_t, __clc_vec3_int16_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint16_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int16_t
     __spirv_ocl_s_abs_diff(__clc_vec4_int16_t, __clc_vec4_int16_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint16_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int16_t
     __spirv_ocl_s_abs_diff(__clc_vec8_int16_t, __clc_vec8_int16_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint16_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int16_t
     __spirv_ocl_s_abs_diff(__clc_vec16_int16_t, __clc_vec16_int16_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint32_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int32_t
     __spirv_ocl_s_abs_diff(__clc_int32_t, __clc_int32_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint32_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int32_t
     __spirv_ocl_s_abs_diff(__clc_vec2_int32_t, __clc_vec2_int32_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint32_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int32_t
     __spirv_ocl_s_abs_diff(__clc_vec3_int32_t, __clc_vec3_int32_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint32_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int32_t
     __spirv_ocl_s_abs_diff(__clc_vec4_int32_t, __clc_vec4_int32_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint32_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int32_t
     __spirv_ocl_s_abs_diff(__clc_vec8_int32_t, __clc_vec8_int32_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint32_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int32_t
     __spirv_ocl_s_abs_diff(__clc_vec16_int32_t, __clc_vec16_int32_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_uint64_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int64_t
     __spirv_ocl_s_abs_diff(__clc_int64_t, __clc_int64_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_uint64_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec2_int64_t
     __spirv_ocl_s_abs_diff(__clc_vec2_int64_t, __clc_vec2_int64_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_uint64_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec3_int64_t
     __spirv_ocl_s_abs_diff(__clc_vec3_int64_t, __clc_vec3_int64_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_uint64_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec4_int64_t
     __spirv_ocl_s_abs_diff(__clc_vec4_int64_t, __clc_vec4_int64_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_uint64_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec8_int64_t
     __spirv_ocl_s_abs_diff(__clc_vec8_int64_t, __clc_vec8_int64_t);
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
+_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int64_t
     __spirv_ocl_s_abs_diff(__clc_vec16_int64_t, __clc_vec16_int64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_int8_t

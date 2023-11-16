@@ -15,141 +15,141 @@
 
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast
-__attribute__((overloadable)) __clc_uint8_t
+__attribute__((overloadable)) __clc_int8_t
 test___spirv_ocl_s_abs_diff(__clc_int8_t args_0, __clc_int8_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec2_uint8_t
+__attribute__((overloadable)) __clc_vec2_int8_t
 test___spirv_ocl_s_abs_diff(__clc_vec2_int8_t args_0,
                             __clc_vec2_int8_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec3_uint8_t
+__attribute__((overloadable)) __clc_vec3_int8_t
 test___spirv_ocl_s_abs_diff(__clc_vec3_int8_t args_0,
                             __clc_vec3_int8_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec4_uint8_t
+__attribute__((overloadable)) __clc_vec4_int8_t
 test___spirv_ocl_s_abs_diff(__clc_vec4_int8_t args_0,
                             __clc_vec4_int8_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec8_uint8_t
+__attribute__((overloadable)) __clc_vec8_int8_t
 test___spirv_ocl_s_abs_diff(__clc_vec8_int8_t args_0,
                             __clc_vec8_int8_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec16_uint8_t
+__attribute__((overloadable)) __clc_vec16_int8_t
 test___spirv_ocl_s_abs_diff(__clc_vec16_int8_t args_0,
                             __clc_vec16_int8_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_uint16_t
+__attribute__((overloadable)) __clc_int16_t
 test___spirv_ocl_s_abs_diff(__clc_int16_t args_0, __clc_int16_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec2_uint16_t
+__attribute__((overloadable)) __clc_vec2_int16_t
 test___spirv_ocl_s_abs_diff(__clc_vec2_int16_t args_0,
                             __clc_vec2_int16_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec3_uint16_t
+__attribute__((overloadable)) __clc_vec3_int16_t
 test___spirv_ocl_s_abs_diff(__clc_vec3_int16_t args_0,
                             __clc_vec3_int16_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec4_uint16_t
+__attribute__((overloadable)) __clc_vec4_int16_t
 test___spirv_ocl_s_abs_diff(__clc_vec4_int16_t args_0,
                             __clc_vec4_int16_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec8_uint16_t
+__attribute__((overloadable)) __clc_vec8_int16_t
 test___spirv_ocl_s_abs_diff(__clc_vec8_int16_t args_0,
                             __clc_vec8_int16_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec16_uint16_t
+__attribute__((overloadable)) __clc_vec16_int16_t
 test___spirv_ocl_s_abs_diff(__clc_vec16_int16_t args_0,
                             __clc_vec16_int16_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_uint32_t
+__attribute__((overloadable)) __clc_int32_t
 test___spirv_ocl_s_abs_diff(__clc_int32_t args_0, __clc_int32_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec2_uint32_t
+__attribute__((overloadable)) __clc_vec2_int32_t
 test___spirv_ocl_s_abs_diff(__clc_vec2_int32_t args_0,
                             __clc_vec2_int32_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec3_uint32_t
+__attribute__((overloadable)) __clc_vec3_int32_t
 test___spirv_ocl_s_abs_diff(__clc_vec3_int32_t args_0,
                             __clc_vec3_int32_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec4_uint32_t
+__attribute__((overloadable)) __clc_vec4_int32_t
 test___spirv_ocl_s_abs_diff(__clc_vec4_int32_t args_0,
                             __clc_vec4_int32_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec8_uint32_t
+__attribute__((overloadable)) __clc_vec8_int32_t
 test___spirv_ocl_s_abs_diff(__clc_vec8_int32_t args_0,
                             __clc_vec8_int32_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec16_uint32_t
+__attribute__((overloadable)) __clc_vec16_int32_t
 test___spirv_ocl_s_abs_diff(__clc_vec16_int32_t args_0,
                             __clc_vec16_int32_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_uint64_t
+__attribute__((overloadable)) __clc_int64_t
 test___spirv_ocl_s_abs_diff(__clc_int64_t args_0, __clc_int64_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec2_uint64_t
+__attribute__((overloadable)) __clc_vec2_int64_t
 test___spirv_ocl_s_abs_diff(__clc_vec2_int64_t args_0,
                             __clc_vec2_int64_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec3_uint64_t
+__attribute__((overloadable)) __clc_vec3_int64_t
 test___spirv_ocl_s_abs_diff(__clc_vec3_int64_t args_0,
                             __clc_vec3_int64_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec4_uint64_t
+__attribute__((overloadable)) __clc_vec4_int64_t
 test___spirv_ocl_s_abs_diff(__clc_vec4_int64_t args_0,
                             __clc_vec4_int64_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec8_uint64_t
+__attribute__((overloadable)) __clc_vec8_int64_t
 test___spirv_ocl_s_abs_diff(__clc_vec8_int64_t args_0,
                             __clc_vec8_int64_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);
 }
 
-__attribute__((overloadable)) __clc_vec16_uint64_t
+__attribute__((overloadable)) __clc_vec16_int64_t
 test___spirv_ocl_s_abs_diff(__clc_vec16_int64_t args_0,
                             __clc_vec16_int64_t args_1) {
   return __spirv_ocl_s_abs_diff(args_0, args_1);

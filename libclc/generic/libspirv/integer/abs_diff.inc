@@ -12,7 +12,7 @@
 #define DECL __spirv_ocl_u_abs_diff
 #endif
 
-_CLC_OVERLOAD _CLC_DEF __CLC_U_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y) {
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE DECL(__CLC_GENTYPE x, __CLC_GENTYPE y) {
   return __clc_abs_diff(x, y);
 }
 
