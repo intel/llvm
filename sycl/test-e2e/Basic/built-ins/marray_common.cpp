@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{%{build} -o -fpreview %t_preview.out%}
+// RUN: %if preview-breaking-changes-supported %{%{build} -o -fpreview-breaking-changes %t_preview.out%}
 // RUN: %if preview-breaking-changes-supported %{%{run} %t_preview.out%}
 
 #ifdef _WIN32
