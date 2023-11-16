@@ -121,7 +121,10 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &UnmappedFlag : UnmappedMemAdviceFlags) {
     if (URAdviceFlags & UnmappedFlag) {
-      throw UR_RESULT_ERROR_INVALID_ENUMERATION;
+      setErrorMessage("Memory advice ignored because the CUDA backend does not "
+                      "support some of the specified flags",
+                      UR_RESULT_SUCCESS);
+      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
   }
 
@@ -1355,7 +1358,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  unsigned int PointerRangeSize = 0;
+  std::ignore = flags;
+
+  size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
@@ -1363,7 +1368,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 
   // Certain cuda devices and Windows do not have support for some Unified
   // Memory features. cuMemPrefetchAsync requires concurrent memory access
-  // for managed memory. Therfore, ignore prefetch hint if concurrent managed
+  // for managed memory. Therefore, ignore prefetch hint if concurrent managed
   // memory access is not available.
   if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
     setErrorMessage("Prefetch hint ignored as device does not support "
@@ -1380,10 +1385,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
                     UR_RESULT_SUCCESS);
     return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
-
-  // flags is currently unused so fail if set
-  if (flags != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
@@ -1415,7 +1416,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  unsigned int PointerRangeSize = 0;
+  size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
