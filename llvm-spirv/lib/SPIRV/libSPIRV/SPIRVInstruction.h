@@ -3294,10 +3294,17 @@ template <Op OC>
 class SPIRVBfloat16ConversionINTELInstBase : public SPIRVUnaryInst<OC> {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      return getVec(internal::CapabilityBfloat16ConversionINTEL,
+                    internal::CapabilityJointMatrixBF16ComponentTypeINTEL);
     return getVec(internal::CapabilityBfloat16ConversionINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      this->getModule()->addExtension(ExtensionID::SPV_INTEL_joint_matrix);
     return ExtensionID::SPV_INTEL_bfloat16_conversion;
   }
 
@@ -3326,8 +3333,25 @@ protected:
     }
 
     auto InstName = OpCodeNameMap::map(OC);
-    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    auto *Module = this->getModule();
+    SPIRVErrorLog &SPVErrLog = Module->getErrorLog();
 
+    // Cooperative matrix type is allowed as input/output of the instruction
+    // if SPV_INTEL_joint_matrix is enabled
+    if (ResCompTy->isTypeCooperativeMatrixKHR()) {
+      SPVErrLog.checkError(
+          Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_joint_matrix),
+          SPIRVEC_InvalidInstruction,
+          InstName + "\nCan be used with "
+                     "cooperative matrices only when SPV_INTEL_joint_matrix is "
+                     "enabled\n");
+      assert(InCompTy->isTypeCooperativeMatrixKHR() &&
+             "Input must also be a cooperative matrix");
+      ResCompTy = static_cast<SPIRVTypeCooperativeMatrixKHR *>(ResCompTy)
+                      ->getCompType();
+      InCompTy =
+          static_cast<SPIRVTypeCooperativeMatrixKHR *>(InCompTy)->getCompType();
+    }
     if (OC == internal::OpConvertFToBF16INTEL) {
       SPVErrLog.checkError(
           ResCompTy->isTypeInt(16), SPIRVEC_InvalidInstruction,
@@ -3679,10 +3703,17 @@ template <Op OC>
 class SPIRVTensorFloat32RoundingINTELInstBase : public SPIRVUnaryInst<OC> {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      return getVec(internal::CapabilityTensorFloat32RoundingINTEL,
+                    internal::CapabilityJointMatrixTF32ComponentTypeINTEL);
     return getVec(internal::CapabilityTensorFloat32RoundingINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
+    SPIRVType *ResCompTy = this->getType();
+    if (ResCompTy->isTypeCooperativeMatrixKHR())
+      this->getModule()->addExtension(ExtensionID::SPV_INTEL_joint_matrix);
     return ExtensionID::SPV_INTEL_tensor_float32_conversion;
   }
 
@@ -3711,7 +3742,25 @@ protected:
     }
 
     auto InstName = OpCodeNameMap::map(OC);
-    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+    auto *Module = this->getModule();
+    SPIRVErrorLog &SPVErrLog = Module->getErrorLog();
+
+    // Cooperative matrix type is allowed as input/output of the instruction
+    // if SPV_INTEL_joint_matrix is enabled
+    if (ResCompTy->isTypeCooperativeMatrixKHR()) {
+      SPVErrLog.checkError(
+          Module->isAllowedToUseExtension(ExtensionID::SPV_INTEL_joint_matrix),
+          SPIRVEC_InvalidInstruction,
+          InstName + "\nCan be used with "
+                     "cooperative matrices only when SPV_INTEL_joint_matrix is "
+                     "enabled\n");
+      assert(InCompTy->isTypeCooperativeMatrixKHR() &&
+             "Input must also be a cooperative matrix");
+      ResCompTy = static_cast<SPIRVTypeCooperativeMatrixKHR *>(ResCompTy)
+                      ->getCompType();
+      InCompTy =
+          static_cast<SPIRVTypeCooperativeMatrixKHR *>(InCompTy)->getCompType();
+    }
 
     SPVErrLog.checkError(
         ResCompTy->isTypeFloat(32), SPIRVEC_InvalidInstruction,
