@@ -190,6 +190,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
 
     // Return supported for the UR command-buffer experimental feature
     SupportedExtensions += ("ur_exp_command_buffer ");
+    // Return supported for the UR multi-device compile experimental feature
+    SupportedExtensions += ("ur_exp_multi_device_compile ");
 
     return ReturnValue(SupportedExtensions.c_str());
   }
