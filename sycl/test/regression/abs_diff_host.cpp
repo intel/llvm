@@ -12,7 +12,12 @@
 #include <type_traits>
 
 template <typename T> void check() {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  using UT = T;
+#else
   using UT = std::make_unsigned_t<T>;
+#endif
+
   constexpr T MaxVal = std::numeric_limits<T>::max();
   constexpr T MinVal = std::numeric_limits<T>::min();
   constexpr UT UMaxVal = MaxVal;

@@ -21,10 +21,16 @@ namespace d = s::detail;
 namespace __host_std {
 namespace {
 
-template <typename T> inline std::make_unsigned_t<T> __abs_diff(T x, T y) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename T> using __abs_diff_return_t = T;
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename T> using __abs_diff_return_t = std::make_unsigned_t<T>;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
+template <typename T> inline __abs_diff_return_t<T> __abs_diff(T x, T y) {
   static_assert(std::is_integral<T>::value,
                 "Only integral types are supported");
-  using UT = std::make_unsigned_t<T>;
+  using UT = __abs_diff_return_t<T>;
 
   // We need to be careful to avoid undefined behavior from signed integer
   // overflow. That is, if only one of the operands are negative we can overflow
@@ -298,26 +304,25 @@ MAKE_1V_2V(sycl_host_u_abs_diff, s::cl_uint, s::cl_uint, s::cl_uint)
 MAKE_1V_2V(sycl_host_u_abs_diff, s::cl_ulong, s::cl_ulong, s::cl_ulong)
 
 // s_abs_diff
-__SYCL_EXPORT s::cl_uchar sycl_host_s_abs_diff(s::cl_char x,
-                                               s::cl_char y) __NOEXC {
+__SYCL_EXPORT s::cl_char sycl_host_s_abs_diff(s::cl_char x,
+                                              s::cl_char y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_ushort sycl_host_s_abs_diff(s::cl_short x,
-                                                s::cl_short y) __NOEXC {
+__SYCL_EXPORT s::cl_short sycl_host_s_abs_diff(s::cl_short x,
+                                               s::cl_short y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_uint sycl_host_s_abs_diff(s::cl_int x,
-                                              s::cl_int y) __NOEXC {
+__SYCL_EXPORT s::cl_int sycl_host_s_abs_diff(s::cl_int x, s::cl_int y) __NOEXC {
   return __abs_diff(x, y);
 }
-__SYCL_EXPORT s::cl_ulong sycl_host_s_abs_diff(s::cl_long x,
-                                               s::cl_long y) __NOEXC {
+__SYCL_EXPORT s::cl_long sycl_host_s_abs_diff(s::cl_long x,
+                                              s::cl_long y) __NOEXC {
   return __abs_diff(x, y);
 }
-MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_uchar, s::cl_char, s::cl_char)
-MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_ushort, s::cl_short, s::cl_short)
-MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_uint, s::cl_int, s::cl_int)
-MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_ulong, s::cl_long, s::cl_long)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_char, s::cl_char, s::cl_char)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_short, s::cl_short, s::cl_short)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_int, s::cl_int, s::cl_int)
+MAKE_1V_2V(sycl_host_s_abs_diff, s::cl_long, s::cl_long, s::cl_long)
 
 // u_add_sat
 __SYCL_EXPORT s::cl_uchar sycl_host_u_add_sat(s::cl_uchar x,

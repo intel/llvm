@@ -542,7 +542,7 @@ def : ConstOCLSPVBuiltin<"rotate", [AIGenTypeN, AIGenTypeN, AIGenTypeN]>;
 
 def : ConstOCLSPVBuiltin<"s_abs", [AUIGenTypeN, ASIGenTypeN]>;
 
-def : ConstOCLSPVBuiltin<"s_abs_diff", [AUIGenTypeN, ASIGenTypeN, ASIGenTypeN]>;
+def : ConstOCLSPVBuiltin<"s_abs_diff", [ASIGenTypeN, ASIGenTypeN, ASIGenTypeN]>;
 
 foreach name = ["s_add_sat",
                 "s_hadd", "s_rhadd",

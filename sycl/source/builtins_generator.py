@@ -324,7 +324,6 @@ vint32ptr0 = [MultiPtr("int32_t", parent_idx=0), RawPtr(Vec(["int32_t"]))]
 # To help resolve template arguments, these are given the index of their parent
 # argument.
 elementtype0 = [ElementType(0)]
-unsignedtype0 = [ConversionTraitType("make_unsigned_t", 0)]
 samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
 samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
 intelements0 = [ConversionTraitType("int_elements_t", 0)]
@@ -400,7 +399,6 @@ builtin_types = {
   "intnptr0" : intnptr0,
   "vint32nptr0" : vint32ptr0,
   "elementtype0" : elementtype0,
-  "unsignedtype0" : unsignedtype0,
   "samesizesignedint0" : samesizesignedint0,
   "samesizeunsignedint0" : samesizeunsignedint0,
   "intelements0" : intelements0,
@@ -873,8 +871,8 @@ sycl_builtins = {# Math functions
                  "tgamma": [Def("genfloat", ["genfloat"])],
                  "trunc": [Def("genfloat", ["genfloat"])],
                  # Integer functions
-                 "abs_diff": [Def("unsignedtype0", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
-                              Def("unsignedtype0", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
+                 "abs_diff": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
+                              Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
                  "add_sat": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),
                              Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_prefix="u_", marray_use_loop=True, template_scalar_args=True)],
                  "hadd": [Def("igeninteger", ["igeninteger", "igeninteger"], invoke_prefix="s_", marray_use_loop=True, template_scalar_args=True),

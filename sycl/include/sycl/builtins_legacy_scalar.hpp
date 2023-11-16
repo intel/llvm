@@ -14,6 +14,7 @@
 
 #include <sycl/access/access.hpp>              // for address_space, decorated
 #include <sycl/aliases.hpp>                    // for half
+#include <sycl/bit_cast.hpp>                   // for bit_cast
 #include <sycl/detail/boolean.hpp>             // for Boolean
 #include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
@@ -533,7 +534,7 @@ std::enable_if_t<detail::is_ugeninteger_v<T>, T> abs_diff(T x, T y) {
 template <typename T>
 std::enable_if_t<detail::is_igeninteger_v<T>, detail::make_unsigned_t<T>>
 abs_diff(T x, T y) {
-  return __sycl_std::__invoke_s_abs_diff<detail::make_unsigned_t<T>>(x, y);
+  return (detail::make_unsigned_t<T>)__sycl_std::__invoke_s_abs_diff<T>(x, y);
 }
 
 // geninteger add_sat (geninteger x, geninteger y)
