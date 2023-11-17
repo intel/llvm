@@ -27017,11 +27017,13 @@ Register X86TargetLowering::getRegisterByName(const char* RegName, LLT VT,
   const TargetFrameLowering &TFI = *Subtarget.getFrameLowering();
 
   Register Reg = StringSwitch<unsigned>(RegName)
-                       .Case("esp", X86::ESP)
-                       .Case("rsp", X86::RSP)
-                       .Case("ebp", X86::EBP)
-                       .Case("rbp", X86::RBP)
-                       .Default(0);
+                     .Case("esp", X86::ESP)
+                     .Case("rsp", X86::RSP)
+                     .Case("ebp", X86::EBP)
+                     .Case("rbp", X86::RBP)
+                     .Case("r14", X86::R14)
+                     .Case("r15", X86::R15)
+                     .Default(0);
 
   if (Reg == X86::EBP || Reg == X86::RBP) {
     if (!TFI.hasFP(MF))
@@ -49794,8 +49796,8 @@ static SDValue combineLoad(SDNode *N, SelectionDAG &DAG,
     }
   }
 
-  // If we also broadcast this to a wider type, then just extract the lowest
-  // subvector.
+  // If we also load/broadcast this to a wider type, then just extract the
+  // lowest subvector.
   if (Ext == ISD::NON_EXTLOAD && Subtarget.hasAVX() && Ld->isSimple() &&
       (RegVT.is128BitVector() || RegVT.is256BitVector())) {
     SDValue Ptr = Ld->getBasePtr();
@@ -49803,8 +49805,9 @@ static SDValue combineLoad(SDNode *N, SelectionDAG &DAG,
     for (SDNode *User : Chain->uses()) {
       if (User != N &&
           (User->getOpcode() == X86ISD::SUBV_BROADCAST_LOAD ||
-           User->getOpcode() == X86ISD::VBROADCAST_LOAD) &&
-          cast<MemIntrinsicSDNode>(User)->getChain() == Chain &&
+           User->getOpcode() == X86ISD::VBROADCAST_LOAD ||
+           ISD::isNormalLoad(User)) &&
+          cast<MemSDNode>(User)->getChain() == Chain &&
           !User->hasAnyUseOfValue(1) &&
           User->getValueSizeInBits(0).getFixedValue() >
               RegVT.getFixedSizeInBits()) {
@@ -49817,9 +49820,13 @@ static SDValue combineLoad(SDNode *N, SelectionDAG &DAG,
           Extract = DAG.getBitcast(RegVT, Extract);
           return DCI.CombineTo(N, Extract, SDValue(User, 1));
         }
-        if (User->getOpcode() == X86ISD::VBROADCAST_LOAD &&
+        if ((User->getOpcode() == X86ISD::VBROADCAST_LOAD ||
+             (ISD::isNormalLoad(User) &&
+              cast<LoadSDNode>(User)->getBasePtr() != Ptr)) &&
             getTargetConstantFromBasePtr(Ptr)) {
-          // See if we are loading a constant that has also been broadcast.
+          // See if we are loading a constant that has also been broadcast or
+          // we are loading a constant that also matches in the lower
+          // bits of a longer constant (but from a different constant pool ptr).
           APInt Undefs, UserUndefs;
           SmallVector<APInt> Bits, UserBits;
           if (getTargetConstantBitsFromNode(SDValue(N, 0), 8, Undefs, Bits) &&

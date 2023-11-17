@@ -1999,6 +1999,7 @@ void LLParser::parseOptionalDLLStorageClass(unsigned &Res) {
 ///   ::= 'amdgpu_kernel'
 ///   ::= 'tailcc'
 ///   ::= 'm68k_rtdcc'
+///   ::= 'graalcc'
 ///   ::= 'cc' UINT
 ///
 bool LLParser::parseOptionalCallingConv(unsigned &CC) {
@@ -2067,6 +2068,7 @@ bool LLParser::parseOptionalCallingConv(unsigned &CC) {
   case lltok::kw_amdgpu_kernel:  CC = CallingConv::AMDGPU_KERNEL; break;
   case lltok::kw_tailcc:         CC = CallingConv::Tail; break;
   case lltok::kw_m68k_rtdcc:     CC = CallingConv::M68k_RTD; break;
+  case lltok::kw_graalcc:        CC = CallingConv::GRAAL; break;
   case lltok::kw_cc: {
       Lex.Lex();
       return parseUInt32(CC);
@@ -5486,9 +5488,13 @@ bool LLParser::parseDIExpression(MDNode *&Result, bool IsDistinct) {
   return false;
 }
 
+bool LLParser::parseDIArgList(MDNode *&Result, bool IsDistinct) {
+  return parseDIArgList(Result, IsDistinct, nullptr);
+}
 /// ParseDIArgList:
 ///   ::= !DIArgList(i32 7, i64 %0)
-bool LLParser::parseDIArgList(Metadata *&MD, PerFunctionState *PFS) {
+bool LLParser::parseDIArgList(MDNode *&Result, bool IsDistinct,
+                              PerFunctionState *PFS) {
   assert(PFS && "Expected valid function state");
   assert(Lex.getKind() == lltok::MetadataVar && "Expected metadata type name");
   Lex.Lex();
@@ -5508,7 +5514,7 @@ bool LLParser::parseDIArgList(Metadata *&MD, PerFunctionState *PFS) {
   if (parseToken(lltok::rparen, "expected ')' here"))
     return true;
 
-  MD = DIArgList::get(Context, Args);
+  Result = GET_OR_DISTINCT(DIArgList, (Context, Args));
   return false;
 }
 
@@ -5622,17 +5628,13 @@ bool LLParser::parseValueAsMetadata(Metadata *&MD, const Twine &TypeMsg,
 ///  ::= !DILocation(...)
 bool LLParser::parseMetadata(Metadata *&MD, PerFunctionState *PFS) {
   if (Lex.getKind() == lltok::MetadataVar) {
+    MDNode *N;
     // DIArgLists are a special case, as they are a list of ValueAsMetadata and
     // so parsing this requires a Function State.
     if (Lex.getStrVal() == "DIArgList") {
-      Metadata *AL;
-      if (parseDIArgList(AL, PFS))
+      if (parseDIArgList(N, false, PFS))
         return true;
-      MD = AL;
-      return false;
-    }
-    MDNode *N;
-    if (parseSpecializedMDNode(N)) {
+    } else if (parseSpecializedMDNode(N)) {
       return true;
     }
     MD = N;

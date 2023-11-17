@@ -306,6 +306,11 @@ Attribute Changes in Clang
   to reduce the size of the destroy functions for coroutines which are known to
   be destroyed after having reached the final suspend point.
 
+- Clang now introduced ``[[clang::coro_return_type]]`` and ``[[clang::coro_wrapper]]``
+  attributes. A function returning a type marked with ``[[clang::coro_return_type]]``
+  should be a coroutine. A non-coroutine function marked with ``[[clang::coro_wrapper]]``
+  is still allowed to return the such a type. This is helpful for analyzers to recognize coroutines from the function signatures.
+
 Improvements to Clang's diagnostics
 -----------------------------------
 - Clang constexpr evaluator now prints template arguments when displaying
@@ -444,6 +449,8 @@ Improvements to Clang's diagnostics
 - ``-Wzero-as-null-pointer-constant`` diagnostic is no longer emitted when using ``__null``
   (or, more commonly, ``NULL`` when the platform defines it as ``__null``) to be more consistent
   with GCC.
+- Clang will warn on deprecated specializations used in system headers when their instantiation
+  is caused by user code.
 
 Improvements to Clang's time-trace
 ----------------------------------
