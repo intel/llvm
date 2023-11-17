@@ -9121,6 +9121,9 @@ public:
     /// The type of an exception.
     UPPC_ExceptionType,
 
+    /// Explicit specialization.
+    UPPC_ExplicitSpecialization,
+
     /// Partial specialization.
     UPPC_PartialSpecialization,
 
@@ -13885,6 +13888,10 @@ public:
   /// depending on FD and the current compilation settings.
   void maybeAddCUDAHostDeviceAttrs(FunctionDecl *FD,
                                    const LookupResult &Previous);
+
+  /// May add implicit CUDAHostAttr and CUDADeviceAttr attributes to a
+  /// trivial cotr/dtor that does not have host and device attributes.
+  void maybeAddCUDAHostDeviceAttrsToTrivialCtorDtor(FunctionDecl *FD);
 
   /// May add implicit CUDAConstantAttr attribute to VD, depending on VD
   /// and current compilation settings.
