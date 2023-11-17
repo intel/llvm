@@ -296,6 +296,9 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
+  if(!F) {
+    report_fatal_error("Error when inserting Native CPU builtin");
+  }
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
