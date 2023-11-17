@@ -161,7 +161,6 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
   for (const auto &File : Files) {
     // Temporary file lists contain files that need to be cleaned. The
     // file containing the information is also removed
-
     if (File.second == types::TY_Tempfilelist ||
         File.second == types::TY_Tempfiletable ||
         File.second == types::TY_FPGA_Dependencies_List) {
@@ -179,7 +178,7 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
           llvm::util::SimpleTable &Table = *T->get();
 
           std::vector<std::string> TmpFileNames;
-          Table.linearize(TmpFileNames);
+          T->get()->linearize(TmpFileNames);
 
           for (const auto &TmpFileName : TmpFileNames) {
             if (!TmpFileName.empty())
@@ -189,10 +188,8 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
       } else {
         std::ifstream ListFile(File.first);
         std::string TmpFileName;
-        while (std::getline(ListFile, TmpFileName)) {
-
+        while (std::getline(ListFile, TmpFileName))
           Success &= CleanupFile(TmpFileName.c_str(), IssueErrors);
-        }
       }
     }
     Success &= CleanupFile(File.first, IssueErrors);
