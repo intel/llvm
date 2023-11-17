@@ -211,14 +211,14 @@ public:
                          CompareT comp_ = {})
       : comp(comp_), scratch(scratch_.data()), scratch_size(scratch_.size()) {}
 
-  template <typename Group, typename Properties>
-  std::tuple<T, U> operator()(Group g, T key, U value, Properties property) {
+  //template <typename Group, typename Properties>
+  //std::tuple<T, U> operator()(Group g, T key, U value, Properties property = {}) {
+  template <typename Group>
+  std::tuple<T, U> operator()(Group g, T key, U value) {
 
     static_assert(ElementsPerWorkItem == 1,
                   "ElementsPerWorkItem must be equal 1");
-
-    (void)property;
-
+                  
     using KeyValue = std::tuple<T, U>;
     auto this_comp = this->comp;
     auto comp_key_value = [this_comp](const KeyValue &lhs,
@@ -233,11 +233,13 @@ public:
 
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
-                  sycl::span<U, ElementsPerWorkItem> values) {
-    // Properties property) {
+                  sycl::span<U, ElementsPerWorkItem> values,
+                  Properties property = {}) {
+
     (void)g;
     (void)keys;
     (void)values;
+    (void)property;
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_linear_range();
     if (scratch_size >=
@@ -462,12 +464,13 @@ public:
       ++last_bit;
   }
 
-  // template <typename Group> std::tuple<T, U> operator()(Group g, T key, U
-  // val) {
-  template <typename Group> std::tuple<T, U> operator()(T key, U val) {
+  template <typename Group> std::tuple<T, U> operator()(Group g, T key, U
+   val) {
+  //template <typename Group> std::tuple<T, U> operator()(T key, U val) {
     static_assert(ElementsPerWorkItem == 1, "ElementsPerWorkItem must be 1");
     T key_result[]{key};
     U val_result[]{val};
+    (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
 
 #if 0
@@ -487,7 +490,7 @@ public:
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
                   sycl::span<U, ElementsPerWorkItem> vals,
-                  Properties property) {
+                  Properties property = {}) {
     (void)g;
     (void)keys;
     (void)vals;
