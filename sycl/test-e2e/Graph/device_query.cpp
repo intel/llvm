@@ -9,6 +9,10 @@
 int main() {
   queue Queue;
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   auto Device = Queue.get_device();
 
   exp_ext::graph_support_level SupportsGraphs =

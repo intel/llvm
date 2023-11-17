@@ -1,4 +1,3 @@
-// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
@@ -19,6 +18,10 @@ isSubmittedOrRunningCommand(sycl::info::event_command_status Status) {
 
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 

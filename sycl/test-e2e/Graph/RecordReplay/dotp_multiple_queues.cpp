@@ -1,4 +1,3 @@
-// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -15,6 +14,11 @@ int main() {
       property::queue::in_order{},
       sycl::ext::intel::property::queue::no_immediate_command_list{}};
   queue QueueA{Properties};
+
+  if (!are_graphs_supported(QueueA)) {
+    return 0;
+  }
+
   queue QueueB{QueueA.get_context(), QueueA.get_device(), Properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};

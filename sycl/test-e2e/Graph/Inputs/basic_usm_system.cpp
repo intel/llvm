@@ -6,6 +6,10 @@
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   if (!Queue.get_device().has(sycl::aspect::usm_system_allocations)) {
     return 0;
   }
