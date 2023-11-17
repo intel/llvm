@@ -25,7 +25,7 @@ using namespace llvm;
 
 namespace {
 
-static void fixCallingConv(Function *F) {
+static void fixFunctionAttributes(Function *F) {
   // The frame-pointer=all and the "byval" attributes lead to code generation
   // that conflicts with the Kernel declaration that we emit in the Native CPU
   // helper header (in which all the kernel argument are void* or scalars).
@@ -158,7 +158,7 @@ ConvertToMuxBuiltinsSYCLNativeCPUPass::run(Module &M,
   bool ModuleChanged = false;
   for (auto &F : M) {
     if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL) {
-      fixCallingConv(&F);
+      fixFunctionAttributes(&F);
       setIsKernelEntryPt(F);
     }
   }
