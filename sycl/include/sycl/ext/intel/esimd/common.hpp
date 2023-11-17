@@ -425,7 +425,7 @@ enum class fence_flush_op : uint8_t {
   evict = 1,      /// R/W: evict dirty lines; R/W and RO: invalidate clean lines
   invalidate = 2, /// R/W and RO: invalidate all clean lines;
 
-  // enum with the value 4 is reserved;
+  // enum with the value 3 is reserved;
 
   clean = 4 /// R/W: dirty lines are written to memory, but retained in
             /// cache in clean state; RO: no effect.
