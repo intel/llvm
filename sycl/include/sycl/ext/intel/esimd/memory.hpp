@@ -3675,18 +3675,18 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> src0,
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = expand_data_size(finalize_data_size<T, DS>());
-  constexpr lsc_vector_size _VS = to_lsc_vector_size<1>();
-  constexpr lsc_data_order _Transposed = lsc_data_order::nontranspose;
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size VS = to_lsc_vector_size<1>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
   simd<MsgT, N> Msg_data = lsc_format_input<MsgT>(src0);
   auto si = get_surface_index(acc);
   simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L2H, _AddressScale, _ImmOffset,
-                                _DS, _VS, _Transposed, N>(
+      __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
+                                EDS, VS, Transposed, N>(
           pred.data(), offsets.data(), Msg_data.data(), si);
   return lsc_format_ret<T>(Tmp);
 #endif
