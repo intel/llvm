@@ -260,7 +260,7 @@ bool test_acc(queue q, const Config &cfg) {
     return true;
   } else {
     // Remove once 1 and 2 are supported
-    if constexpr (n_args != 0)
+    if constexpr (n_args == 2)
       return true;
 
     std::cout << "Accessor Testing " << "op=" << to_string(op)
@@ -315,6 +315,19 @@ bool test_acc(queue q, const Config &cfg) {
                   atomic_update<op, T>(arr_acc, offsets, props);
                 else
                   atomic_update<op, T>(arr_acc, offsets);
+              }
+            } else if constexpr (n_args == 1) {
+              simd<T, N> v0 = ImplF<T, N>::arg0(i);
+              if constexpr (UseMask) {
+                if constexpr (UseProperties)
+                  atomic_update<op>(arr_acc, offsets, v0, m, props);
+                else
+                  atomic_update<op>(arr_acc, offsets, v0, m);
+              } else {
+                if constexpr (UseProperties)
+                  atomic_update<op>(arr_acc, offsets, v0, props);
+                else
+                  atomic_update<op>(arr_acc, offsets, v0);
               }
             }
           }
