@@ -10,9 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "../common.hpp"
 #include <cstddef>
 
-#define SG_SZ 8
 constexpr size_t TN = 8;
 
 #include "../element_wise_abc_impl.hpp"

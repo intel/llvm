@@ -11,12 +11,9 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
 
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 8
 constexpr size_t TN = 8;
 
 #include "../element_wise_ops_impl.hpp"

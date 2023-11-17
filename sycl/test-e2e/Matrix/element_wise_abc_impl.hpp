@@ -6,24 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <iostream>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define TM 8
 #define TK 32
 
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
+class imatrix;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K,
           int vnniFactor>
@@ -36,14 +24,20 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<T1, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t wg_size = get_wg_size<imatrix>(q);
+
   q.submit([&](handler &cgh) {
      accessor accC{bufC, cgh};
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * wg_size}, {1, 1 * wg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -69,14 +63,14 @@ void matrix_elem_wise_ops(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            joint_matrix_load(
                sg, sub_b,
                accB.template get_multi_ptr<access::decorated::no>() +
-                   sg_starty / SG_SZ * TN * vnniFactor,
+                   sg_starty / wg_size * TN * vnniFactor,
                N * vnniFactor);
            joint_matrix_apply(sg, sub_b, [](T2 &x) { x += 1; });
 
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / wg_size * TN,
                N, layout::row_major);
            joint_matrix_apply(sg, sub_c, [](T1 &x) { x += 1; });
          }); // parallel for

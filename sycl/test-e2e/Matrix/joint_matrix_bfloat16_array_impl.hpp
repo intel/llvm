@@ -6,12 +6,13 @@
 //
 //===-------------------------------------------------------------------------===//
 
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 static constexpr int TM = 8;
 static constexpr int TK = 16;
 static constexpr int JM_ARRAY_SZ = 2;
+
+class imatrix;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
@@ -23,14 +24,20 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
+  size_t wg_size = get_wg_size<imatrix>(q);
+
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * wg_size}, {1, 1 * wg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
            // Matrix API has to be accessed by all the workitems in a
            // subgroup. These functions will be called once by the subgroup.
            // No code divergence between the workitems.
@@ -57,7 +64,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
+                     (k * TK / 2) * (N * 2) + sg_starty / wg_size * TN * 2,
                  N * 2);
 
              for (int i = 0; i < JM_ARRAY_SZ; ++i) {
@@ -75,7 +82,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  sg, sub_c[i],
                  accC.template get_multi_ptr<access::decorated::no>() +
                      (sg_startx * TM * JM_ARRAY_SZ + TM * i) * N +
-                     sg_starty / SG_SZ * TN,
+                     sg_starty / wg_size * TN,
                  N, layout::row_major);
          }); // parallel for
    }).wait();

@@ -1,10 +1,9 @@
-#include <iostream>
-
-using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 constexpr size_t TM = 8;
 constexpr size_t TK = 16;
+
+class imatrix;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -26,11 +25,15 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   auto pC = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(C);
 
-  q.submit([&](handler &cgh) {
-     cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
+  size_t wg_size = get_wg_size<imatrix>(q);
 
+  q.submit([&](handler &cgh) {
+     cgh.parallel_for<class imatrix>(
+         nd_range<2>({NDRangeM, NDRangeN * wg_size}, {1, 1 * wg_size}),
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
@@ -59,14 +62,14 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
              // Assume we alreay in vnni format.
              // bounds-checked load where width and height are added
              joint_matrix_load_checked(
-                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
+                 sg, sub_b, pB + k * N + sg_starty / wg_size * TN * vnniFactor,
                  N * vnniFactor, K / vnniFactor, N * vnniFactor);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            // bounds-checked store where width and height are added
            joint_matrix_store_checked(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
-               layout::row_major, M, N);
+               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / wg_size * TN,
+               N, layout::row_major, M, N);
          }); // parallel for
    }).wait();
 }
