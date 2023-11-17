@@ -5497,7 +5497,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 ///               simd_view<T, RegionTy> src0,
 ///               simd_mask<N> mask, props = {});                // (acc-au1-3)
 ///
-/// A variation of \c atomic_update API with src0 represented as
+/// A variation of \c atomic_update API with \c src0 represented as
 /// \c simd_view object.
 ///
 /// Atomically updates \c N memory locations represented by an accessor and
@@ -5547,7 +5547,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 ///               simd_view<T, RegionTy> src0,
 ///               props = {});                                   // (acc-au1-4)
 ///
-/// A variation of \c atomic_update API with src0 represented as
+/// A variation of \c atomic_update API with \c src0 represented as
 /// \c simd_view object and no mask operand.
 ///
 /// Atomically updates \c N memory locations represented by an accessor and
@@ -5731,8 +5731,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 ///               simd_view<T, RegionTy> src0,
 ///               simd_mask<N> mask, props = {});                // (acc-au1-7)
 ///
-/// A variation of \c atomic_update API with byte_offset and src0 represented as
-/// \c simd_view objects.
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view objects.
 ///
 /// @tparam Op The atomic operation - can be one of the following:
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
@@ -5779,8 +5779,8 @@ atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
 ///               simd_view<T, RegionTy> src0,
 ///               props = {});                                   // (acc-au1-8)
 ///
-/// A variation of \c atomic_update API with byte_offset and src0 represented as
-/// \c simd_view objects and no mask operand.
+/// A variation of \c atomic_update API with \c byte_offset and \c src0
+/// represented as \c simd_view objects and no mask operand.
 ///
 /// @tparam Op The atomic operation - can be one of the following:
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
