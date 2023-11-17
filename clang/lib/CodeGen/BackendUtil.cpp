@@ -53,6 +53,7 @@
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -92,6 +93,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
+#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -517,6 +519,8 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
   Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
   Options.MCOptions.AsSecureLogFile = CodeGenOpts.AsSecureLogFile;
+  Options.MCOptions.PPCUseFullRegisterNames =
+      CodeGenOpts.PPCUseFullRegisterNames;
   Options.MisExpect = CodeGenOpts.MisExpect;
 
   return true;
@@ -938,6 +942,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           << PluginFN << toString(PassPlugin.takeError());
     }
   }
+  for (auto PassCallback : CodeGenOpts.PassBuilderCallbacks)
+    PassCallback(PB);
 #define HANDLE_EXTENSION(Ext)                                                  \
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
 #include "llvm/Support/Extension.def"
@@ -966,12 +972,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
     if (LangOpts.SYCLIsDevice)
-      PB.registerPipelineStartEPCallback(
-          [&](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
-            MPM.addPass(
-                SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
-          });
+      PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
+                                             OptimizationLevel Level) {
+        MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
+        MPM.addPass(SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
+        MPM.addPass(SYCLPropagateJointMatrixUsagePass());
+      });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
@@ -1077,8 +1083,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    const bool PrepareForThinOrUnifiedLTO =
-        PrepareForThinLTO || (PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
       MPM.addPass(PB.buildO0DefaultPipeline(OptimizationLevel::O0,
                                       PrepareForLTO || PrepareForThinLTO));
@@ -1207,6 +1211,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     outs() << "\n";
     return;
   }
+
+  if (LangOpts.HIPStdPar && !LangOpts.CUDAIsDevice &&
+      LangOpts.HIPStdParInterposeAlloc)
+    MPM.addPass(HipStdParAllocationInterpositionPass());
 
   // Now that we have all of the passes ready, run them.
   {

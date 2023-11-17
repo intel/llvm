@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: enable esimd_emulator when supported
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

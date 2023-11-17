@@ -131,8 +131,8 @@ int main() {
   Queue.memcpy(Output.data(), Z, N * sizeof(int), E).wait();
 
   for (size_t i = 0; i < N; i++) {
-    int ref = reference(i);
-    assert(Output[i] == ref);
+    int Ref = reference(i);
+    assert(check_value(i, Ref, Output[i], "Output"));
   }
 
   sycl::free(X, Queue);

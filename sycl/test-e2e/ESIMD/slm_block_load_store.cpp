@@ -8,7 +8,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// UNSUPPORTED: esimd_emulator
 //
 // Note: "lin" format below is used for Win L0 as well.
 // REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576

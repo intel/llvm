@@ -3,13 +3,13 @@
 // RUN:  echo "void foo() {}" > %t.c
 // RUN:  echo "void foo2() {}" > %t2.c
 // RUN:  %clang -target x86_64-pc-windows-msvc -c -o %t.o %t.c
-// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fintelfpga -c -o %t2.o %t2.c
+// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fintelfpga -c -o %t2.o %t2.c
 // RUN:  clang-offload-wrapper -o %t-aoco.bc -host=x86_64-pc-windows-msvc -kind=sycl -target=fpga_aoco-intel-unknown %t.aoco
 // RUN:  llc -filetype=obj -o %t-aoco.o %t-aoco.bc
 // RUN:  llvm-ar crv %t_aoco.a %t.o %t2.o %t-aoco.o
-// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware %t_aoco.a %s -ccc-print-phases 2>&1 \
+// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware %t_aoco.a %s -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-PHASES-WIN %s
-// RUN:  %clangxx -target x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware %t_aoco.a %s -ccc-print-phases 2>&1 \
+// RUN:  %clangxx -target x86_64-pc-windows-msvc -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -Xshardware %t_aoco.a %s -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-AOCO-PHASES-WIN %s
 // CHK-FPGA-AOCO-PHASES-WIN: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // CHK-FPGA-AOCO-PHASES-WIN: 1: input, "[[INPUTCPP:.+\.cpp]]", c++, (host-sycl)
@@ -42,9 +42,9 @@
 // CHK-FPGA-AOCO-PHASES-WIN: 28: offload, "host-sycl (x86_64-pc-windows-msvc)" {11}, "device-sycl (spir64_fpga-unknown-unknown)" {27}, image
 
 /// aoco test, checking tools
-// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -Xshardware -### %s 2>&1 \
+// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -Xshardware -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-AOCO %s
-// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -Xshardware -### %s 2>&1 \
+// RUN:  %clang_cl --target=x86_64-pc-windows-msvc -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t_aoco.a -Xshardware -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-AOCO %s
 // CHK-FPGA-AOCO: clang-offload-bundler{{.*}} "-type=aoo" "-excluded-targets=sycl-fpga_aoco-intel-unknown" "-targets=sycl-spir64_fpga-unknown-unknown" "-input=[[INPUTLIB:.+\.a]]" "-output=[[LIBLIST:.+\.txt]]" "-unbundle"
 // CHK-FPGA-AOCO: spirv-to-ir-wrapper{{.*}} "[[LIBLIST]]" "-o" "[[LIBLIST2:.+\.txt]]"

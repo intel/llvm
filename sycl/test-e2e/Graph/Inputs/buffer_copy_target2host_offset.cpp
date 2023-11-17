@@ -41,8 +41,8 @@ int main() {
   }
 
   for (size_t i = 0; i < Size; i++) {
-    assert(ReferenceA[i] == DataA[i]);
-    assert(ReferenceB[i] == DataB[i]);
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
   }
 
   return 0;

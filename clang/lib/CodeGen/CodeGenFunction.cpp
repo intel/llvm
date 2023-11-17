@@ -758,6 +758,24 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  auto attrAsMDArg = [&](Expr *E) {
+    const auto *CE = cast<ConstantExpr>(E);
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    return llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()));
+  };
+
+  if (const auto *A = FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+    Fn->setMetadata("min_work_groups_per_cu",
+                    llvm::MDNode::get(Context, {attrAsMDArg(A->getValue())}));
+  }
+
+  if (const auto *A =
+          FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+    Fn->setMetadata("max_work_groups_per_mp",
+                    llvm::MDNode::get(Context, {attrAsMDArg(A->getValue())}));
+  }
+
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
 
@@ -1559,7 +1577,7 @@ QualType CodeGenFunction::BuildFunctionArgList(GlobalDecl GD,
 
       auto *Implicit = ImplicitParamDecl::Create(
           getContext(), Param->getDeclContext(), Param->getLocation(),
-          /*Id=*/nullptr, getContext().getSizeType(), ImplicitParamDecl::Other);
+          /*Id=*/nullptr, getContext().getSizeType(), ImplicitParamKind::Other);
       SizeArguments[Param] = Implicit;
       Args.push_back(Implicit);
     }
@@ -2882,7 +2900,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
   }
 
   unsigned AS = VTy->getPointerAddressSpace();
-  llvm::Type *Int8VPtrTy = llvm::Type::getInt8PtrTy(CGM.getLLVMContext(), AS);
+  llvm::Type *Int8VPtrTy = llvm::PointerType::get(CGM.getLLVMContext(), AS);
   llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
                                        {Int8VPtrTy, CGM.ConstGlobalsPtrTy});
   V = Builder.CreateBitCast(V, Int8VPtrTy);
@@ -2949,10 +2967,15 @@ void CodeGenFunction::checkTargetFeatures(SourceLocation Loc,
   std::string MissingFeature;
   llvm::StringMap<bool> CallerFeatureMap;
   CGM.getContext().getFunctionFeatureMap(CallerFeatureMap, FD);
+  // When compiling in HipStdPar mode we have to be conservative in rejecting
+  // target specific features in the FE, and defer the possible error to the
+  // AcceleratorCodeSelection pass, wherein iff an unsupported target builtin is
+  // referenced by an accelerator executable function, we emit an error.
+  bool IsHipStdPar = getLangOpts().HIPStdPar && getLangOpts().CUDAIsDevice;
   if (BuiltinID) {
     StringRef FeatureList(CGM.getContext().BuiltinInfo.getRequiredFeatures(BuiltinID));
     if (!Builtin::evaluateRequiredTargetFeatures(
-        FeatureList, CallerFeatureMap)) {
+        FeatureList, CallerFeatureMap) && !IsHipStdPar) {
       CGM.getDiags().Report(Loc, diag::err_builtin_needs_feature)
           << TargetDecl->getDeclName()
           << FeatureList;
@@ -2985,7 +3008,7 @@ void CodeGenFunction::checkTargetFeatures(SourceLocation Loc,
         return false;
       }
       return true;
-    }))
+    }) && !IsHipStdPar)
       CGM.getDiags().Report(Loc, diag::err_function_needs_feature)
           << FD->getDeclName() << TargetDecl->getDeclName() << MissingFeature;
   } else if (!FD->isMultiVersion() && FD->hasAttr<TargetAttr>()) {
@@ -2994,7 +3017,8 @@ void CodeGenFunction::checkTargetFeatures(SourceLocation Loc,
 
     for (const auto &F : CalleeFeatureMap) {
       if (F.getValue() && (!CallerFeatureMap.lookup(F.getKey()) ||
-                           !CallerFeatureMap.find(F.getKey())->getValue()))
+                           !CallerFeatureMap.find(F.getKey())->getValue()) &&
+          !IsHipStdPar)
         CGM.getDiags().Report(Loc, diag::err_function_needs_feature)
             << FD->getDeclName() << TargetDecl->getDeclName() << F.getKey();
     }

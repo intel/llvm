@@ -63,5 +63,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   )
 endif()
 
+if(CUDA_cupti_LIBRARY)
+  target_compile_definitions(pi_cuda PRIVATE
+    "-DCUPTI_LIB_PATH=\"${CUDA_cupti_LIBRARY}\"")
+endif()
+
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
 

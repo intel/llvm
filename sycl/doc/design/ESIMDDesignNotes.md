@@ -219,11 +219,6 @@ SYCL runtime (RT) has a few places where ESIMD is handled specially:
   adds `-vc-codegen` JIT options, which makes Intel GPU runtime use the vector
   backend (aka 'VC BE') to JIT-compile the device binary (SPIR-V).
   [Link](https://github.com/intel/llvm/blob/d7a7de79f8a6498bae52331f4789adcac76b8e8c/sycl/source/detail/program_manager/program_manager.cpp#L412).
-- Code related to ESIMD emulator support and ESIMD kernel invocation via ESIMD
-  emulator. Plugin
-  [sources](https://github.com/intel/llvm/blob/sycl/sycl/plugins/esimd_emulator/pi_esimd_emulator.cpp),
-  ESIMD kernel invocation via the emulator
-  [link](https://github.com/intel/llvm/blob/d7a7de79f8a6498bae52331f4789adcac76b8e8c/sycl/source/detail/scheduler/commands.cpp#L2369).
 
 ## TODOs
 

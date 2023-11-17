@@ -1,3 +1,4 @@
+; REQUIRES: cuda
 ; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext \
 ; RUN:   -passes=sycl-kernel-fusion --sycl-info-path %S/check-remapping.yaml \
 ; RUN:   -S %s | FileCheck %s
