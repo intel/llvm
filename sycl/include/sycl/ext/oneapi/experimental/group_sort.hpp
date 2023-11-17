@@ -181,7 +181,7 @@ std::tuple<T, U> sort_key_value_over_group(
 template <typename Group, typename T, typename U, std::size_t Extent,
           std::size_t ElementsPerWorkItem, typename Compare,
           typename Property = detail::is_blocked>
-void sort_key_value_over_group(
+std::tuple<T, U> sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec,
     sycl::span<T, ElementsPerWorkItem> keys,
     sycl::span<U, ElementsPerWorkItem> values, Compare comp,
@@ -197,7 +197,7 @@ void sort_key_value_over_group(
 template <typename Group, typename T, typename U, std::size_t Extent,
           std::size_t ElementsPerWorkItem,
           typename Property = detail::is_blocked>
-void sort_key_value_over_group(
+std::tuple<T, U> sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec,
     sycl::span<T, ElementsPerWorkItem> keys,
     sycl::span<U, ElementsPerWorkItem> values, Property property = {}) {
