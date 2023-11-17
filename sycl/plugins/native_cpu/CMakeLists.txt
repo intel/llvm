@@ -26,17 +26,6 @@ add_sycl_plugin(native_cpu
 
 
 if(NATIVECPU_USE_OCK)
-  # TODO: I'm not sure why we need this here, but we get errors when configuring without it 
-  if(NOT CMAKE_CLC_COMPILE_OBJECT)
-    set(CMAKE_CLC_COMPILE_OBJECT
-      "<CMAKE_CLC_COMPILER> <DEFINES> <INCLUDES> <FLAGS> -o <OBJECT> -c <SOURCE> -emit-llvm")
-  endif()
-  if(NOT CMAKE_CLC_CREATE_STATIC_LIBRARY)
-    set(CMAKE_CLC_CREATE_STATIC_LIBRARY
-      "<CMAKE_CLC_ARCHIVE> -o <TARGET> <OBJECTS>")
-  endif()
-  set(CMAKE_INCLUDE_FLAG_CLC "-I")
-
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
    GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
