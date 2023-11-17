@@ -274,7 +274,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
           return AllocSize;
         } else if constexpr (std::is_same_v<T, SurfaceMem>) {
           HIP_ARRAY3D_DESCRIPTOR ArrayDescriptor;
-#if HIP_VERSION_MAJOR >= 5 && HIP_VERSION_MINOR >= 6
+#if HIP_VERSION >= 50600000
           UR_CHECK_ERROR(
               hipArray3DGetDescriptor(&ArrayDescriptor, Mem.getArray()));
 #else
@@ -541,7 +541,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
 
   try {
     HIP_ARRAY3D_DESCRIPTOR ArrayInfo;
-#if HIP_VERSION_MAJOR >= 5 && HIP_VERSION_MINOR >= 6
+#if HIP_VERSION >= 50600000
     UR_CHECK_ERROR(hipArray3DGetDescriptor(
         &ArrayInfo, std::get<SurfaceMem>(hMemory->Mem).getArray()));
 #else
