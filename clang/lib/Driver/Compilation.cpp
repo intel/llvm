@@ -175,8 +175,6 @@ bool Compilation::CleanupFileList(const TempFileList &Files,
             continue;
           }
 
-          llvm::util::SimpleTable &Table = *T->get();
-
           std::vector<std::string> TmpFileNames;
           T->get()->linearize(TmpFileNames);
 

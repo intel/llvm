@@ -10089,8 +10089,6 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
       OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
 
-      llvm::sys::path::remove_filename(OutputDir);
-
       // If the output directory path is empty, put the llvm-spirv output in the
       // current directory.
       if (OutputDir.empty())
