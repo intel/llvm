@@ -203,9 +203,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 # Expand device-specific condtions (%if ... %{ ... %}).
                 tmp_script = [ cmd ]
                 conditions = {x: True for x in sycl_device.split(':')}
-                for op_sys in ['linux', 'windows']:
-                    if op_sys in test.config.available_features:
-                        conditions[op_sys] = True
+                for cond_features in ['linux', 'windows', 'preview-breaking-changes-supported']:
+                    if cond_features in test.config.available_features:
+                        conditions[cond_features] = True
 
                 tmp_script = lit.TestRunner.applySubstitutions(
                     tmp_script, [], conditions, recursion_limit=test.config.recursiveExpansionLimit)
