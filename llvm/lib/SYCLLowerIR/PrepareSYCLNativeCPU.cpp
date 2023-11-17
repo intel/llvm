@@ -228,6 +228,9 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
       FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
+  if(!F) {
+    report_fatal_error("Error while replacing mux builtins");
+  }
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
@@ -270,6 +273,9 @@ static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
   static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
+  if(!F) {
+    report_fatal_error("Error while replacing mux builtins");
+  }
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
@@ -301,6 +307,9 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
     static FunctionType *FTy = FunctionType::get(RetTy, {ValTy, PtrTy}, false);
     auto FCallee = M.getOrInsertFunction(Name, FTy);
     auto *F = dyn_cast<Function>(FCallee.getCallee());
+    if(!F) {
+      report_fatal_error("Error while replacing mux builtins");
+    }
     IRBuilder<> Builder(Ctx);
     BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
     Builder.SetInsertPoint(BB);
