@@ -21,6 +21,7 @@
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
@@ -136,7 +137,7 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
         DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
     std::string ActualFile(File);
     if (ActualFile.find(ExpectedDir) != std::string::npos &&
-        ActualFile.find(".spv") != std::string::npos)
+        llvm::sys::path::extension(ActualFile).equals(".spv"))
       return false;
   }
 
