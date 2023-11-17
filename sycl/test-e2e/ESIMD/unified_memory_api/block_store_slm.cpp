@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//==------------------------------------------------------------------------==//
 // REQUIRES-INTEL-DRIVER: win: 101.4887
 // Somehow the driver version check above does not work, i.e. Windows CI runs
 // the test with 31.0.101.4502 (if opencl:gpu) and 1.3.26370 (if level-zero:gpu)
