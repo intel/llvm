@@ -761,11 +761,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
-#else
-  // TODO: add SPIRV part for unsampled image read
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -797,11 +793,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
-#else
-  // TODO: add SPIRV part for sampled image read
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
@@ -829,11 +821,7 @@ DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
-#else
-  // TODO: add SPIRV for mipmap level read
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -863,11 +851,7 @@ DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "components for 1D, 2D, and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
-#else
-  // TODO: add SPIRV part for mipmap grad read
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -898,11 +882,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
-#else
-  // TODO: add SPIRV for mipmap level read
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -935,11 +915,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "components for 1D, 2D, and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
   return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
-#else
-  // TODO: add SPIRV part for mipmap grad read
-#endif
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
@@ -969,7 +945,7 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
   __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords,
                        detail::convert_color_nvptx(color));
 #else
-  // TODO: add SPIRV part for unsampled image write
+  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, coords, color);
 #endif
 #else
   assert(false); // Bindless images not yet implemented on host

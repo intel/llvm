@@ -22,15 +22,15 @@ int main() {
   constexpr bool TestPVCFeatures = true;
   bool Passed = true;
 
-  Passed &= test_block_store<int8_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_store<int16_t, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_usm<int8_t, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_usm<int16_t, !TestPVCFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp16))
-    Passed &= test_block_store<sycl::half, !TestPVCFeatures>(Q);
-  Passed &= test_block_store<uint32_t, !TestPVCFeatures>(Q);
-  Passed &= test_block_store<float, !TestPVCFeatures>(Q);
-  Passed &= test_block_store<int64_t, !TestPVCFeatures>(Q);
+    Passed &= test_block_store_usm<sycl::half, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_usm<uint32_t, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_usm<float, !TestPVCFeatures>(Q);
+  Passed &= test_block_store_usm<int64_t, !TestPVCFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
-    Passed &= test_block_store<double, !TestPVCFeatures>(Q);
+    Passed &= test_block_store_usm<double, !TestPVCFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

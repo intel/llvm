@@ -314,19 +314,6 @@ template <typename Type, int NumElements> class vec {
 
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
-  // This represents HOW  we will approach the underlying value, so as to
-  // benefit from vector speed improvements
-  using VectorDataType =
-      typename detail::VecStorage<DataT, NumElements>::VectorDataType;
-
-  VectorDataType &getAsVector() {
-    return *reinterpret_cast<VectorDataType *>(m_Data.data());
-  }
-
-  const VectorDataType &getAsVector() const {
-    return *reinterpret_cast<const VectorDataType *>(m_Data.data());
-  }
-
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
   static constexpr size_t Sz = sizeof(DataT) * AdjustedNum;
   static constexpr bool IsSizeGreaterThanMaxAlign =
@@ -516,7 +503,8 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  using vector_t = VectorDataType;
+  using vector_t =
+      typename detail::VecStorage<DataT, NumElements>::VectorDataType;
 #else
   using vector_t = DataType;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
@@ -713,7 +701,7 @@ public:
     if constexpr (!IsUsingArrayOnDevice) {
       return m_Data;
     } else {
-      auto ptr = bit_cast<const VectorDataType *>((&m_Data)->data());
+      auto ptr = bit_cast<const vector_t *>((&m_Data)->data());
       return *ptr;
     }
   }
@@ -787,18 +775,26 @@ public:
                   "Unsupported convertT");
     using T = vec_data_t<DataT>;
     using R = vec_data_t<convertT>;
+    using OpenCLT = detail::ConvertToOpenCLType_t<T>;
+    using OpenCLR = detail::ConvertToOpenCLType_t<R>;
     vec<convertT, NumElements> Result;
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) && defined(__SYCL_DEVICE_ONLY__)
+    using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
+    using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
     // Whole vector conversion can only be done, if:
     constexpr bool canUseNativeVectorConvert =
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    // - we are in preview breaking changes mode
 #ifdef __NVPTX__
         // - we are not on CUDA, see intel/llvm#11840
         false &&
 #endif
         // - both vectors are represented using native vector types;
         NativeVec && vec<convertT, NumElements>::NativeVec &&
+        // - vec storage has an equivalent OpenCL native vector it is implicitly
+        //   convertible to. There are some corner cases where it is not the
+        //   case with char, long and long long types.
+        std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
+        std::is_convertible_v<decltype(Result.m_Data), OpenCLVecR> &&
         // - it is not a signed to unsigned (or vice versa) conversion
         //   see comments within 'convertImpl' for more details;
         !detail::is_sint_to_from_uint<T, R>::value &&
@@ -808,23 +804,14 @@ public:
         //   defined, there is no guarantee that integer conversion yields
         //   right results here;
         !std::is_same_v<convertT, bool>;
-#else
-        // vec<T, N>::NativeVec is not available
-        false;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
     if constexpr (canUseNativeVectorConvert) {
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#ifdef __SYCL_DEVICE_ONLY__
-      Result.m_Data = detail::convertImpl<
-          T, R, roundingMode, NumElements, VectorDataType,
-          typename vec<convertT, NumElements>::VectorDataType>(m_Data);
-#endif // __SYCL_DEVICE_ONLY
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-    } else {
+      Result.m_Data = detail::convertImpl<T, R, roundingMode, NumElements,
+                                          OpenCLVecT, OpenCLVecR>(m_Data);
+    } else
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&
+       // defined(__SYCL_DEVICE_ONLY__)
+    {
       // Otherwise, we fallback to per-element conversion:
-      using OpenCLT = detail::ConvertToOpenCLType_t<vec_data_t<DataT>>;
-      using OpenCLR = detail::ConvertToOpenCLType_t<vec_data_t<convertT>>;
       for (size_t I = 0; I < NumElements; ++I) {
         Result.setValue(
             I, vec_data<convertT>::get(
@@ -997,7 +984,7 @@ public:
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret{};                                                                 \
     if constexpr (NativeVec)                                                   \
-      Ret.getAsVector() = getAsVector() BINOP Rhs.getAsVector();               \
+      Ret.m_Data = m_Data BINOP Rhs.m_Data;                                    \
     else                                                                       \
       for (size_t I = 0; I < NumElements; ++I)                                 \
         Ret.setValue(I, (DataT)(vec_data<DataT>::get(getValue(                 \
@@ -2273,14 +2260,10 @@ template <typename T, int N> struct VecStorageImpl {
   using VectorDataType = T __attribute__((ext_vector_type(N)));
 };
 #else // __SYCL_DEVICE_ONLY__
-
-template <typename T, int N> struct VecStorageImpl;
-#define __SYCL_DEFINE_VECSTORAGE_IMPL(type, cl_type, num)                      \
-  template <> struct VecStorageImpl<type, num> {                               \
-    using DataType = std::array<type, (num == 3) ? 4 : num>;                   \
-    using VectorDataType = ::cl_##cl_type##num;                                \
-  };
-#endif // SYCL_DEVICE_ONLY
+template <typename T, int N> struct VecStorageImpl {
+  using DataType = std::array<T, (N == 3) ? 4 : N>;
+};
+#endif // __SYCL_DEVICE_ONLY__
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
@@ -2298,7 +2281,6 @@ template <typename T, int N> struct VecStorageImpl;
     using DataType = ::cl_##cl_type##num;                                      \
   };
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
-#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(type, cl_type)                  \
@@ -2322,12 +2304,15 @@ __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE(double, double)
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL_FOR_TYPE
 #undef __SYCL_DEFINE_VECSTORAGE_IMPL
 #endif // ifndef __SYCL_USE_EXT_VECTOR_TYPE__
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 // Single element bool
 template <> struct VecStorage<bool, 1, void> {
   using DataType = bool;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = bool;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
@@ -2339,30 +2324,53 @@ struct VecStorage<bool, N, typename std::enable_if_t<isValidVectorSize(N)>> {
                                                 std::int32_t, std::int64_t>,
                               N>::DataType;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType =
       typename VecStorageImpl<select_apply_cl_t<bool, std::int8_t, std::int16_t,
                                                 std::int32_t, std::int64_t>,
                               N>::VectorDataType;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
+
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+// Single element byte. Multiple elements will propagate through a later
+// specialization.
+template <> struct VecStorage<std::byte, 1, void> {
+  using DataType = std::int8_t;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __SYCL_DEVICE_ONLY__
+  using VectorDataType = std::int8_t;
+#endif // __SYCL_DEVICE_ONLY__
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+};
+#endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
 // Single element signed integers
 template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sigeninteger_v<T>>> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   using DataType = select_apply_cl_t<T, std::int8_t, std::int16_t, std::int32_t,
                                      std::int64_t>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+  using DataType = T;
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = DataType;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
 // Single element unsigned integers
 template <typename T>
 struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   using DataType = select_apply_cl_t<T, std::uint8_t, std::uint16_t,
                                      std::uint32_t, std::uint64_t>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+  using DataType = T;
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = DataType;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
@@ -2370,10 +2378,11 @@ struct VecStorage<T, 1, typename std::enable_if_t<is_sugeninteger_v<T>>> {
 template <typename T>
 struct VecStorage<
     T, 1, typename std::enable_if_t<!is_half_v<T> && is_sgenfloat_v<T>>> {
-  using DataType =
-      select_apply_cl_t<T, std::false_type, std::false_type, float, double>;
+  using DataType = T;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = DataType;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 // Multiple elements signed/unsigned integers and floating-point (except half)
@@ -2386,9 +2395,11 @@ struct VecStorage<
   using DataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType, N>::DataType;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType =
       typename VecStorageImpl<typename VecStorage<T, 1>::DataType,
                               N>::VectorDataType;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
 
@@ -2396,22 +2407,27 @@ struct VecStorage<
 template <> struct VecStorage<half, 1, void> {
   using DataType = sycl::detail::half_impl::StorageT;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifdef __SYCL_DEVICE_ONLY__
   using VectorDataType = sycl::detail::half_impl::StorageT;
+#endif // __SYCL_DEVICE_ONLY__
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 };
+
 // Multiple elements half
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) && defined(__SYCL_DEVICE_ONLY__)
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
     using VectorDataType = sycl::detail::half_impl::Vec##Num##StorageT;        \
   };
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
+#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&
+      // defined(__SYCL_DEVICE_ONLY__)
 #define __SYCL_DEFINE_HALF_VECSTORAGE(Num)                                     \
   template <> struct VecStorage<half, Num, void> {                             \
     using DataType = sycl::detail::half_impl::Vec##Num##StorageT;              \
   };
-#endif
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&
+       // defined(__SYCL_DEVICE_ONLY__)
 
 __SYCL_DEFINE_HALF_VECSTORAGE(2)
 __SYCL_DEFINE_HALF_VECSTORAGE(3)
