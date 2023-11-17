@@ -784,7 +784,7 @@ public:
     using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
     if constexpr (NativeVec && vec<convertT, NumElements>::NativeVec &&
                   std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
-                  std::is_convertible_v<decltype(Result.m_Data), OpenCLR>) {
+                  std::is_convertible_v<decltype(Result.m_Data), OpenCLVecR>) {
       // If both vectors are representable as native vectors and these native
       // vectors can be converted to valid OpenCL representations, then we can
       // use a single vector-wide operation to do a conversion:
