@@ -812,9 +812,9 @@ struct get_device_info_impl<
       };
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
       auto GetArchNum = [](const architecture &arch) {
-        NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD_REVERSE);
+        NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD_ARCH);
       };
-      float ArchNum = std::stof(GetArchNum(DeviceArch));
+      float ComputeCapability = std::stof(GetArchNum(DeviceArch));
       std::vector<combination> sm_70_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
@@ -864,19 +864,18 @@ struct get_device_info_impl<
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
            matrix_type::fp16, matrix_type::fp64}};
-      if (ArchNum >= 8.0) {
+      if (ComputeCapability >= 8.0) {
+        std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
+                  std::back_inserter(sm_80_combinations));
         std::move(sm_72_combinations.begin(), sm_72_combinations.end(),
-                  std::back_inserter(sm_70_combinations));
-        std::move(sm_80_combinations.begin(), sm_80_combinations.end(),
-                  std::back_inserter(sm_70_combinations));
-        return std::move(sm_70_combinations);
-      } else if (ArchNum >= 7.2) {
-        std::move(sm_72_combinations.begin(), sm_72_combinations.end(),
-                  std::back_inserter(sm_70_combinations));
-        return std::move(sm_70_combinations);
-      } else if (ArchNum >= 7.0) {
-        return std::move(sm_70_combinations);
-      }
+                  std::back_inserter(sm_80_combinations));
+        return sm_80_combinations;
+      } else if (ComputeCapability >= 7.2) {
+        std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
+                  std::back_inserter(sm_72_combinations));
+        return sm_72_combinations;
+      } else if (ComputeCapability >= 7.0) 
+          return sm_70_combinations;
     }
     return {};
   }
