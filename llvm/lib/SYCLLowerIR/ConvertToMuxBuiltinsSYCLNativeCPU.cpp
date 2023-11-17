@@ -18,6 +18,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/TargetParser/Triple.h"
 #include <map>
 
@@ -94,8 +95,12 @@ Function *getMuxBarrierFunc(Module &M) {
   auto *Int32Ty = Type::getInt32Ty(Ctx);
   static auto *MuxFTy = FunctionType::get(Type::getVoidTy(Ctx),
                                           {Int32Ty, Int32Ty, Int32Ty}, false);
-  auto F = M.getOrInsertFunction(MuxBarrier, MuxFTy);
-  return cast<Function>(F.getCallee());
+  auto FCallee = M.getOrInsertFunction(MuxBarrier, MuxFTy);
+  auto *F = dyn_cast<Function>(FCallee.getCallee());
+  if(!F) {
+    report_fatal_error("Error while inserting mux builtins");
+  }
+  return F;
 }
 
 static constexpr const char *MuxKernelAttrName = "mux-kernel";
