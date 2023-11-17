@@ -139,11 +139,8 @@ protected:
 // capabilities.
 class USMProxyPool {
 public:
-  umf_result_t initialize(umf_memory_provider_handle_t *Providers,
-                          size_t NumProviders) noexcept {
-    std::ignore = NumProviders;
-
-    this->hProvider = Providers[0];
+  umf_result_t initialize(umf_memory_provider_handle_t Provider) noexcept {
+    this->hProvider = Provider;
     return UMF_RESULT_SUCCESS;
   }
   void *malloc(size_t Size) noexcept { return aligned_malloc(Size, 0); }
