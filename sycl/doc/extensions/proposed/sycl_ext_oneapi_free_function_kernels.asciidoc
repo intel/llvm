@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_raw_kernel
+= sycl_ext_oneapi_free_function_kernels
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -77,10 +77,10 @@ they must have a defined order to their arguments because the application sets
 the argument values by their "index" via `handler::set_arg(index, value)`.
 Because variables captured by lambda expressions have no defined order, we need
 some other way to define kernel arguments for use with the
-sycl_ext_oneapi_kernel_compiler extension, and the sycl_ext_oneapi_raw_kernel
-extension provides that mechanism.
-The "raw kernel" feature is a separate extension, though, because it can also
-be used independently from sycl_ext_oneapi_kernel_compiler.
+sycl_ext_oneapi_kernel_compiler extension, and the
+sycl_ext_oneapi_free_function_kernels extension provides that mechanism.
+The "free function kernel" feature is a separate extension, though, because it
+can also be used independently from sycl_ext_oneapi_kernel_compiler.
 For example, some users may find it more familiar to define kernels as plain
 functions or they might have other reasons to prefer a clean separation between
 host and device code.
@@ -93,7 +93,7 @@ host and device code.
 This extension provides a feature-test macro as described in the core SYCL
 specification.
 An implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_RAW_KERNEL`
+`SYCL_EXT_ONEAPI_FREE_FUNCTION_KERNELS`
 to one of the values defined in the table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
@@ -110,33 +110,33 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== Defining a raw kernel
+=== Defining a free function kernel
 
-A raw kernel is a normal C++ function definition, where the function definition
-is decorated with one of the following compile-time properties: `range_kernel`,
-`nd_range_kernel`, or `single_task_kernel`.
+A free function kernel is a normal C++ function definition, where the function
+definition is decorated with one of the following compile-time properties:
+`range_kernel`, `nd_range_kernel`, or `single_task_kernel`.
 Each of these properties takes a template parameter `Name`, which serves as the
 name of the kernel, similar to the `KernelName` template parameter to
 `parallel_for` for a standard SYCL kernel.
-When a raw kernel has a name, the type used as the name must not be used to
-name any other kernel in the application (either a raw kernel or a "named"
-standard kernel).
-The type used to name a raw kernel has the same limitations as the type used to
-name a standard SYCL kernel as specified in section 5.2 "Naming of kernels" of
-the core SYCL specification.
-A raw kernel may be defined as a function template, however, all instantiations
-of the function must have a unique name, which implies that the type used to
-name the kernel is also somehow templated.
+When a free function kernel has a name, the type used as the name must not be
+used to name any other kernel in the application (either a free function kernel
+or a "named" standard kernel).
+The type used to name a free function kernel has the same limitations as the
+type used to name a standard SYCL kernel as specified in section 5.2 "Naming of
+kernels" of the core SYCL specification.
+A free function kernel may be defined as a function template, however, all
+instantiations of the function must have a unique name, which implies that the
+type used to name the kernel is also somehow templated.
 
-Usually, a raw kernel must have a type-name because the type-name is used to
-obtain a `kernel` object that represents the raw kernel, and a `kernel` object
-is needed in order to enqueue the kernel.
-However, when raw kernels are used with the
+Usually, a free function kernel must have a type-name because the type-name is
+used to obtain a `kernel` object that represents the free function kernel, and
+a `kernel` object is needed in order to enqueue the kernel.
+However, when free function kernels are used with the
 link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
 sycl_ext_oneapi_kernel_compiler] extension, it is possible to obtain the
 `kernel` even without a type-name.
-In this case, the raw kernel can be unnamed by letting the `Name` template
-parameter have its default value of `void`.
+In this case, the free function kernel can be unnamed by letting the `Name`
+template parameter have its default value of `void`.
 
 The following table provides additional details about these compile-time
 properties.
@@ -163,8 +163,8 @@ struct is_property_key<range_kernel_key> : std::true_type {};
 ----
 !====
 
-Indicates that the function is a raw kernel that is invoked with a simple
-`range` iteration space of `Dims` dimensions.
+Indicates that the function is a free function kernel that is invoked with a
+simple `range` iteration space of `Dims` dimensions.
 When the `Name` parameter is not `void`, it is a type that represents the name
 of the kernel.
 
@@ -214,7 +214,7 @@ struct is_property_key<nd_range_kernel_key> : std::true_type {};
 ----
 !====
 
-Indicates that the function is a raw kernel that is invoked with an
+Indicates that the function is a free function kernel that is invoked with an
 `nd_range` iteration space of `Dims` dimensions.
 When the `Name` parameter is not `void`, it is a type that represents the name
 of the kernel.
@@ -265,8 +265,8 @@ struct is_property_key<single_task_kernel_key> : std::true_type {};
 ----
 !====
 
-Indicates that the function is a raw kernel that is invoked via `single_task`
-(i.e. without any iteration space).
+Indicates that the function is a free function kernel that is invoked via
+`single_task` (i.e. without any iteration space).
 When the `Name` parameter is not `void`, it is a type that represents the name
 of the kernel.
 
@@ -287,14 +287,14 @@ The type-name of the kernel.
 !====
 |====
 
-When a function is defined as a raw kernel, each parameter to the function is
-a kernel argument, which must abide by the rules for allowable kernel parameter
-types specified in section 4.12.4 "Rules for parameter passing to kernels" of
-the core SYCL specification.
+When a function is defined as a free function kernel, each parameter to the
+function is a kernel argument, which must abide by the rules for allowable
+kernel parameter types specified in section 4.12.4 "Rules for parameter passing
+to kernels" of the core SYCL specification.
 The function's return type must be `void`.
 
-The following example demonstrates how a raw kernel can be defined using the
-`range_kernel` property:
+The following example demonstrates how a free function kernel can be defined
+using the `range_kernel` property:
 
 ```
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -309,14 +309,16 @@ void iota(float start, float *ptr) {
 
 === Interaction with the kernel bundle APIs
 
-Raw kernels work with the kernel bundle APIs defined in section 4.11 "Kernel
-bundles" of the core SYCL specification in a natural way.
+Free function kernels work with the kernel bundle APIs defined in section 4.11
+"Kernel bundles" of the core SYCL specification in a natural way.
 Any kernel bundle API that accepts a kernel's type-name may be used with the
-type-name of a raw kernel.
+type-name of a free function kernel.
 In fact, an application must use the kernel bundle APIs in order to invoke a
-raw kernel because the application must first obtain a `kernel` object.
-Typically, the application first obtains a kernel bundle from the raw kernel's
-name and then obtains its `kernel` object as shown in the following example:
+free function kernel because the application must first obtain a `kernel`
+object.
+Typically, the application first obtains a kernel bundle from the free function
+kernel's name and then obtains its `kernel` object as shown in the following
+example:
 
 ```
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -332,7 +334,7 @@ int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
 
-  // Get a kernel bundle that contains the raw kernel "my_iota".
+  // Get a kernel bundle that contains the free function kernel "my_iota".
   auto exe_bndl =
     sycl::get_kernel_bundle<my_iota, sycl::bundle_state::executable>(ctxt);
 
@@ -341,24 +343,24 @@ int main() {
 }
 ```
 
-=== Enqueuing a raw kernel and setting parameter values
+=== Enqueuing a free function kernel and setting parameter values
 
-Once the application obtains a `kernel` object for a raw kernel, it can enqueue
-the kernel to a device using any of the SYCL functions that allow a kernel to
-be enqueued via a `kernel` object.
-The application must enqueue the raw kernel according to its type.
-For example, a raw kernel defined via `range_kernel` can be enqueued by calling
-the `handler::parallel_for` overload taking a `range`.
-A raw kernel defined via `nd_range_kernel` can be enqueued by calling the
-`handler::parallel_for` overload taking an `nd_range`.
-A raw kernel defined via `single_task_kernel` can be enqueued by calling
-`handler::single_task`.
+Once the application obtains a `kernel` object for a free function kernel, it
+can enqueue the kernel to a device using any of the SYCL functions that allow
+a kernel to be enqueued via a `kernel` object.
+The application must enqueue the free function kernel according to its type.
+For example, a free function kernel defined via `range_kernel` can be enqueued
+by calling the `handler::parallel_for` overload taking a `range`.
+A free function kernel defined via `nd_range_kernel` can be enqueued by calling
+the `handler::parallel_for` overload taking an `nd_range`.
+A free function kernel defined via `single_task_kernel` can be enqueued by
+calling `handler::single_task`.
 
-Attempting to enqueue a raw kernel using a mechanism that does not match its
-type results in undefined behavior.
-Attempting to enqueue a raw kernel with a `range` or `nd_range` whose
-dimensionality does not match the raw kernel definition results in undefined
-behavior.
+Attempting to enqueue a free function kernel using a mechanism that does not
+match its type results in undefined behavior.
+Attempting to enqueue a free function kernel with a `range` or `nd_range` whose
+dimensionality does not match the free function kernel definition results in
+undefined behavior.
 
 The application is also responsible for setting the values of any kernel
 arguments when the kernel is enqueued.
@@ -371,10 +373,11 @@ Failing to set the value of a kernel argument results in undefined behavior.
 
 In a standard SYCL kernel, the iteration ID is passed as a parameter to the
 kernel's callable object.
-However, this is not the case for a raw kernel because the function parameters
-are used to pass the kernel arguments instead.
-Therefore, a raw kernel must obtain the iteration ID in some other way.
-Typically, a raw kernel uses the free functions specified in
+However, this is not the case for a free function kernel because the function
+parameters are used to pass the kernel arguments instead.
+Therefore, a free function kernel must obtain the iteration ID in some other
+way.
+Typically, a free function kernel uses the free functions specified in
 link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
 sycl_ext_oneapi_free_function_queries] for this purpose.
 
@@ -382,9 +385,9 @@ sycl_ext_oneapi_free_function_queries] for this purpose.
 
 If the implementation supports
 link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
-sycl_ext_oneapi_kernel_properties], a raw kernel may be decorated with these
-properties by applying the properties to the function definition as illustrated
-below.
+sycl_ext_oneapi_kernel_properties], a free function kernel may be decorated
+with these properties by applying the properties to the function definition as
+illustrated below.
 
 ```
 struct my_iota;
@@ -400,10 +403,11 @@ As with standard SYCL kernels, these properties can be queried via
 `kernel::get_info` using either the `info::kernel::attributes` information
 descriptor or the `info::kernel_device_specific` information descriptors.
 
-== Raw kernels that are function templates
+== Free function kernels that are function templates
 
-A raw kernel may be defined as a function template, however, any instantiation
-that is submitted at runtime must be instantiated at compile time.
+A free function kernel may be defined as a function template, however, any
+instantiation that is submitted at runtime must be instantiated at compile
+time.
 Normally, the application does this with an explicit template instantiation as
 shown below:
 
@@ -424,7 +428,7 @@ template void iota<float>(float, float *);
 As noted earlier, each instantiation must have a unique type-name, as
 illustrated in the example above.
 The application can use this type-name to obtain the `kernel` object for the
-raw kernel:
+free function kernel:
 
 ```
 sycl::kernel myiota_int = exe_bndl.get_kernel<my_iota<int>>();
@@ -434,8 +438,8 @@ sycl::kernel myiota_float = exe_bndl.get_kernel<my_iota<float>>();
 
 == Example
 
-The following example demonstrates how to define a raw kernel and then enqueue
-it on a device.
+The following example demonstrates how to define a free function kernel and then
+enqueue it on a device.
 
 ```
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -455,7 +459,7 @@ void main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
 
-  // Get a kernel bundle that contains the raw kernel "my_iota".
+  // Get a kernel bundle that contains the free function kernel "my_iota".
   auto exe_bndl =
     sycl::get_kernel_bundle<my_iota, sycl::bundle_state::executable>(ctxt);
 
@@ -485,7 +489,8 @@ void main() {
   Rather, the front-end simply passes the properties verbatim into the
   generated LLVM IR.
   If we want to avoid teaching the front-end about these property names, we
-  could instead change the syntax for declaring a raw kernel to be like this:
+  could instead change the syntax for declaring a free function kernel to be
+  like this:
 +
 ```
 SYCL_EXT_ONEAPI_RANGE_KERNEL(1, my_iota)
@@ -496,7 +501,7 @@ void iota(float start, float *ptr) {
 +
 Here, the macro `SYCL_EXT_ONEAPI_RANGE_KERNEL` would expand to two things.
 One part of the expansion would be a C++ attribute that tells the front-end
-that this function is a raw "range" kernel with the given type-name.
+that this function is a free function "range" kernel with the given type-name.
 Another part of the expansion would add the same IR attributes as the
 `range_kernel` property (assuming there is even a need to represent this
 information in the IR).
@@ -529,7 +534,7 @@ instead of the property.
   big limitation because `accessor` and `local_accessor` would both be
   prohibited.
   If we add this restriction, the front-end should diagnose an error if a
-  raw kernel is defined to take such an argument.
+  free function kernel is defined to take such an argument.
 
 * There is a similar problem with kernel arguments that have been optimized.
   Consider a kernel that uses an `accessor`.
@@ -538,9 +543,9 @@ instead of the property.
   corresponding kernel argument.
   Again, we can handle this by making `handler::set_arg` smart enough to know
   which member variables have been optimized away.
-  Alternatively, we can disable these optimizations for raw kernels.
-  We also have to consider the behavior when a raw kernel has a formal
-  parameter that is unused (or optimized away) inside the kernel.
+  Alternatively, we can disable these optimizations for free function kernels.
+  We also have to consider the behavior when a free function kernel has a
+  formal parameter that is unused (or optimized away) inside the kernel.
   Can the compiler optimize away such an argument?
   If so, `handler::set_arg` would need to be smart enough to treat an attempt
   to set the value of such an argument as a no-op.
@@ -548,8 +553,9 @@ instead of the property.
   interpreting the argument index of arguments that follow an optimized-away
   argument.
 
-* We currently say it is UB if there is a mismatch between a raw kernel's type
-  or dimensionality and the call to `parallel_for` or `single_task`.
+* We currently say it is UB if there is a mismatch between a free function
+  kernel's type or dimensionality and the call to `parallel_for` or
+  `single_task`.
   Should we go a step further and require an exception to be thrown in these
   cases?
   I'm pretty sure we can implement this in {dpcpp}, but I'm not sure about a
@@ -557,7 +563,7 @@ instead of the property.
   However, I'm not sure _any_ of this can be implemented without compiler
   support.
 
-* We currently say it is UB if a raw kernel is enqueued without setting a value
-  for each of its arguments.
+* We currently say it is UB if a free function kernel is enqueued without
+  setting a value for each of its arguments.
   Should we go a step further and require an exception in this case?
   This seems easier to implement, even for library-only.
