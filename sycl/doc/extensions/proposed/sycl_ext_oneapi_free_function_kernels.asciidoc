@@ -568,6 +568,39 @@ int main() {
 
 == Issues
 
+* We're pretty sure that we want to define some syntax that allows a free
+  function kernel to be enqueued using the APIs defined in
+  link:../proposed/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions], but we haven't settled on the exact API
+  yet.
+  One option is like this:
++
+```
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
+void iota(float start, float *ptr) { /*...*/  }
+
+int main() {
+  sycl::queue q;
+  float *ptr = sycl::malloc_shared<float>(N, q);
+  sycl::parallel_for<iota>(q, {N}, 1.f, ptr);
+}
+```
++
+Another option is like this:
++
+```
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
+void iota(float start, float *ptr) { /*...*/  }
+
+int main() {
+  sycl::queue q;
+  float *ptr = sycl::malloc_shared<float>(N, q);
+  sycl::parallel_for(q, {N}, kfp<iota>, 1.f, ptr);
+}
+```
++
+Where `kfp` would have some nicer name.
+
 * Can the front-end define a trait like this, which returns true only if the
   address is a free function kernel:
 +
@@ -611,6 +644,19 @@ user passes an invalid address to the kernel bundle functions like
   The `handler::set_arg` function would also need to account for this when
   interpreting the argument index of arguments that follow an optimized-away
   argument.
+
+* What happens if the user defines the kernel function with a default parameter
+  value?
+  Ideally, the caller could omit the call to `handler::set_arg` in this case,
+  but that seems hard to implement and would cost extra cycles whenever setting
+  a kernel argument.
+  Another option is to have the front-end diagnose an error in this case, but
+  that requires some special logic in the front-end.
+  FWIW, nvcc seems to allow default parameter values for kernels, and the
+  call site can omit the corresponding argument value when using the triple
+  chevron syntax.
+  However, the argument value cannot be omitted when invoking the kernel via
+  `cuLaunchKernel`.
 
 * We currently say it is UB if there is a mismatch between a free function
   kernel's type or dimensionality and the call to `parallel_for` or
