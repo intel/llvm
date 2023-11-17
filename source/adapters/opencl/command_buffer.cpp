@@ -164,8 +164,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
-      hCommandBuffer->CLCommandBuffer,
-      nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       srcOffset, dstOffset, size, numSyncPointsInWaitList, pSyncPointWaitList,
       pSyncPoint, nullptr));
@@ -197,8 +196,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferRectKHR(
-      hCommandBuffer->CLCommandBuffer,
-      nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       OpenCLOriginRect, OpenCLDstRect, OpenCLRegion, srcRowPitch, srcSlicePitch,
       dstRowPitch, dstSlicePitch, numSyncPointsInWaitList, pSyncPointWaitList,
@@ -284,8 +282,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferFillExp(
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
   CL_RETURN_ON_FAILURE(clCommandFillBufferKHR(
-      hCommandBuffer->CLCommandBuffer,
-      nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr,
       cl_adapter::cast<cl_mem>(hBuffer), pPattern, patternSize, offset, size,
       numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint, nullptr));
 
