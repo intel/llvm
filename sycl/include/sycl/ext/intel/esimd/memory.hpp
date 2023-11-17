@@ -5733,6 +5733,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 ///
 /// A variation of \c atomic_update API with byte_offset and src0 represented as
 /// \c simd_view objects.
+///
 /// @tparam Op The atomic operation - can be one of the following:
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
