@@ -17,6 +17,11 @@
 // RUN: -Wno-return-type -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-F3 %s
 
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown \
+// RUN: "-ffp-builtin-accuracy=high:sin medium" -Wno-return-type \
+// RUN: -Wno-implicit-function-declaration -emit-llvm -o - %s \
+// RUN: | FileCheck --check-prefixes=CHECK-F4 %s
+
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -ffp-builtin-accuracy=sycl \
 // RUN: -D SPIR -Wno-implicit-function-declaration -emit-llvm -o - %s \
 // RUN: | FileCheck --check-prefix=CHECK-SPIR %s
@@ -192,6 +197,42 @@ double rsqrt(double);
 // CHECK-F3: attributes #[[ATTR_F3_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
 // CHECK-F3: attributes #[[ATTR_F3_LOW]] = {{.*}}"fpbuiltin-max-error"="67108864.0"
 //
+// CHECK-LABEL-F4: define dso_local void @f1
+// CHECK-F4: call double @llvm.fpbuiltin.acos.f64(double %conv) #[[ATTR_F4_MEDIUM:[0-9]+]]
+// CHECK-F4: call double @llvm.fpbuiltin.acosh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.asin.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.asinh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.atan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.atan2.f64(double {{.*}}, double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.atanh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.cosh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.erf.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.erfc.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.exp10.f64(double {{.*}})
+// CHECK-F4: call double @llvm.fpbuiltin.exp2.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.expm1.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.fadd.f64(double {{.*}}, double {{.*}})
+// CHECK-F4: call double @llvm.fpbuiltin.fdiv.f64(double {{.*}}, double {{.*}})
+// CHECK-F4: call double @llvm.fpbuiltin.fmul.f64(double {{.*}}, double {{.*}})
+// CHECK-F4: call double @llvm.fpbuiltin.frem.f64(double {{.*}}, double {{.*}})
+// CHECK-F4: call double @llvm.fpbuiltin.fsub.f64(double {{.*}}, double {{.*}})
+// CHECK-F4: call double @llvm.fpbuiltin.hypot.f64(double {{.*}}, double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.ldexp.f64(double {{.*}}, i32 {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.log.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.log1p.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.log2.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.pow.f64(double {{.*}}, double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.rsqrt.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr %p1, ptr %p2)
+// CHECK-F4: call double @llvm.fpbuiltin.sinh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.tanh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f1
 // CHECK-SPIR: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_SYCL1:[0-9]+]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.acosh.f64(double {{.*}}) #[[ATTR_SYCL1]]
@@ -289,6 +330,14 @@ void f1(float a, float b) {
 // CHECK-F2: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call float @tanf(float noundef {{.*}})
+//
+// CHECK-LABEL-F4: define dso_local void @f2
+// CHECK-F4: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call float @tanf(float {{.*}})
 //
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f2
 // CHECK-SPIR: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_SYCL1]]
