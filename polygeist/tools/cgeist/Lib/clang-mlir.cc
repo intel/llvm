@@ -65,6 +65,28 @@ static llvm::cl::opt<bool>
 /*                               MLIRScanner                                  */
 /******************************************************************************/
 
+arith::FastMathFlagsAttr
+MLIRScanner::getFastMathFlags(clang::FPOptions FPFeatures) {
+  arith::FastMathFlags FMF =
+      arith::FastMathFlags::none |
+      (FPFeatures.getAllowFPReassociate() ? arith::FastMathFlags::reassoc
+                                          : arith::FastMathFlags::none) |
+      (FPFeatures.getNoHonorNaNs() ? arith::FastMathFlags::nnan
+                                   : arith::FastMathFlags::none) |
+      (FPFeatures.getNoHonorInfs() ? arith::FastMathFlags::ninf
+                                   : arith::FastMathFlags::none) |
+      (FPFeatures.getNoSignedZero() ? arith::FastMathFlags::nsz
+                                    : arith::FastMathFlags::none) |
+      (FPFeatures.getAllowReciprocal() ? arith::FastMathFlags::arcp
+                                       : arith::FastMathFlags::none) |
+      (FPFeatures.getAllowApproxFunc() ? arith::FastMathFlags::afn
+                                       : arith::FastMathFlags::none) |
+      (FPFeatures.allowFPContractAcrossStatement()
+           ? arith::FastMathFlags::contract
+           : arith::FastMathFlags::none);
+  return Builder.getAttr<arith::FastMathFlagsAttr>(FMF);
+}
+
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, OwningOpRef<ModuleOp> &Module,
                          LowerToInfo &LTInfo, InsertionContext FuncContext)
     : Glob(Glob), Function(), FuncContext(FuncContext), Module(Module),
@@ -813,7 +835,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       Next = Builder.create<arith::AddFOp>(
           Loc, Prev,
           Builder.create<arith::ConstantFloatOp>(
-              Loc, APFloat(FT.getFloatSemantics(), "1"), FT));
+              Loc, APFloat(FT.getFloatSemantics(), "1"), FT),
+          getFastMathFlags(
+              U->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
     } else if (auto MT = dyn_cast<MemRefType>(Ty)) {
       auto Shape = std::vector<int64_t>(MT.getShape());
       Shape[0] = ShapedType::kDynamic;
@@ -860,7 +884,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       Next = Builder.create<arith::SubFOp>(
           Loc, Prev,
           Builder.create<arith::ConstantFloatOp>(
-              Loc, APFloat(FT.getFloatSemantics(), "1"), FT));
+              Loc, APFloat(FT.getFloatSemantics(), "1"), FT),
+          getFastMathFlags(
+              U->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
     } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Ty)) {
       auto ITy = IntegerType::get(Builder.getContext(), 64);
       Next = Builder.create<LLVM::GEPOp>(

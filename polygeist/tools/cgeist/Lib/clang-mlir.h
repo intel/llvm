@@ -349,7 +349,8 @@ private:
   /// `sycl` dialect.
   mlir::Operation *createSYCLMathOp(llvm::StringRef FunctionName,
                                     mlir::ValueRange Operands,
-                                    mlir::Type ReturnType);
+                                    mlir::Type ReturnType,
+                                    mlir::arith::FastMathFlagsAttr FMF);
 
   /// Creates an instance of a SYCL grid operation replacing a call to \param
   /// Callee.
@@ -401,6 +402,9 @@ private:
                                        mlir::ValueRange Args);
 
 public:
+  /// Return `arith.fastmath` attribute corresponding to input \p FPFeatures.
+  mlir::arith::FastMathFlagsAttr getFastMathFlags(clang::FPOptions FPFeatures);
+
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
               LowerToInfo &LTInfo, InsertionContext FuncContext);
 

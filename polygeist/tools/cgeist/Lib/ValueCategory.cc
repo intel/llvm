@@ -652,7 +652,8 @@ static ValueCategory IntBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
 
 template <typename OpTy>
 static ValueCategory FPBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
-                             mlir::Value LHS, mlir::Value RHS) {
+                             mlir::Value LHS, mlir::Value RHS,
+                             FastMathFlagsAttr FMF) {
   assert(LHS.getType() == RHS.getType() &&
          "Cannot operate on values of different types");
   assert(mlirclang::isFPOrFPVectorTy(LHS.getType()) &&
@@ -660,7 +661,7 @@ static ValueCategory FPBinOp(mlir::OpBuilder &Builder, mlir::Location Loc,
 
   CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
 
-  return {Builder.createOrFold<OpTy>(Loc, LHS, RHS), false};
+  return {Builder.createOrFold<OpTy>(Loc, LHS, RHS, FMF), false};
 }
 
 template <typename OpTy>
@@ -682,10 +683,10 @@ ValueCategory ValueCategory::Mul(OpBuilder &Builder, Location Loc, Value RHS,
   return NUWNSWBinOp<arith::MulIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
 }
 
-ValueCategory ValueCategory::FMul(OpBuilder &Builder, Location Loc,
-                                  Value RHS) const {
+ValueCategory ValueCategory::FMul(OpBuilder &Builder, Location Loc, Value RHS,
+                                  FastMathFlagsAttr FMF) const {
   CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
-  return FPBinOp<arith::MulFOp>(Builder, Loc, val, RHS);
+  return FPBinOp<arith::MulFOp>(Builder, Loc, val, RHS, FMF);
 }
 
 static bool isComplexRepresentation(Type Ty) {
@@ -750,10 +751,10 @@ ValueCategory ValueCategory::CMul(OpBuilder &Builder, Location Loc,
   return initComplex(Builder, Loc, RealResult, ImgResult);
 }
 
-ValueCategory ValueCategory::FDiv(OpBuilder &Builder, Location Loc,
-                                  Value RHS) const {
+ValueCategory ValueCategory::FDiv(OpBuilder &Builder, Location Loc, Value RHS,
+                                  FastMathFlagsAttr FMF) const {
   CGEIST_WARNING(warnUnconstrainedOp<arith::DivFOp>());
-  return FPBinOp<arith::DivFOp>(Builder, Loc, val, RHS);
+  return FPBinOp<arith::DivFOp>(Builder, Loc, val, RHS, FMF);
 }
 
 ValueCategory ValueCategory::UDiv(OpBuilder &Builder, Location Loc, Value RHS,
@@ -800,13 +801,14 @@ ValueCategory ValueCategory::Add(OpBuilder &Builder, Location Loc, Value RHS,
   return NUWNSWBinOp<arith::AddIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
 }
 
-ValueCategory ValueCategory::FAdd(OpBuilder &Builder, Location Loc,
-                                  Value RHS) const {
-  return FPBinOp<arith::AddFOp>(Builder, Loc, val, RHS);
+ValueCategory ValueCategory::FAdd(OpBuilder &Builder, Location Loc, Value RHS,
+                                  FastMathFlagsAttr FMF) const {
+  return FPBinOp<arith::AddFOp>(Builder, Loc, val, RHS, FMF);
 }
 
 ValueCategory ValueCategory::FMA(OpBuilder &Builder, Location Loc,
-                                 ValueCategory Addend, bool NegMul,
+                                 ValueCategory Addend,
+                                 arith::FastMathFlagsAttr FMF, bool NegMul,
                                  bool NegAdd) const {
   auto MulOp = val.getDefiningOp<arith::MulFOp>();
 
@@ -815,13 +817,14 @@ ValueCategory ValueCategory::FMA(OpBuilder &Builder, Location Loc,
   Value MulOp0 = MulOp.getLhs();
   Value MulOp1 = MulOp.getRhs();
   if (NegMul)
-    MulOp0 =
-        ValueCategory(MulOp0, /*IsReference=*/false).FNeg(Builder, Loc).val;
+    MulOp0 = ValueCategory(MulOp0, /*IsReference=*/false)
+                 .FNeg(Builder, Loc, FMF)
+                 .val;
   if (NegAdd)
-    Addend = Addend.FNeg(Builder, Loc);
+    Addend = Addend.FNeg(Builder, Loc, FMF);
 
   return ValueCategory(
-      Builder.create<math::FmaOp>(Loc, MulOp0, MulOp1, Addend.val),
+      Builder.create<math::FmaOp>(Loc, MulOp0, MulOp1, Addend.val, FMF),
       /*IsReference=*/false);
 }
 
@@ -855,9 +858,9 @@ ValueCategory ValueCategory::Sub(OpBuilder &Builder, Location Loc, Value RHS,
   return NUWNSWBinOp<arith::SubIOp>(Builder, Loc, val, RHS, HasNUW, HasNSW);
 }
 
-ValueCategory ValueCategory::FSub(OpBuilder &Builder, Location Loc,
-                                  Value RHS) const {
-  return FPBinOp<arith::SubFOp>(Builder, Loc, val, RHS);
+ValueCategory ValueCategory::FSub(OpBuilder &Builder, Location Loc, Value RHS,
+                                  FastMathFlagsAttr FMF) const {
+  return FPBinOp<arith::SubFOp>(Builder, Loc, val, RHS, FMF);
 }
 
 ValueCategory ValueCategory::CReal(OpBuilder &Builder, Location Loc) const {
@@ -960,15 +963,17 @@ ValueCategory ValueCategory::InBoundsGEPOrSubIndex(OpBuilder &Builder,
 }
 
 template <typename OpTy>
-ValueCategory FPUnaryOp(OpBuilder &Builder, Location Loc, Value Val) {
+ValueCategory FPUnaryOp(OpBuilder &Builder, Location Loc, Value Val,
+                        FastMathFlagsAttr FMF) {
   assert(mlirclang::isFPOrFPVectorTy(Val.getType()) &&
          "Expecting FP or FP vector operand type");
   CGEIST_WARNING(warnUnconstrainedOp<arith::NegFOp>());
-  return {Builder.createOrFold<OpTy>(Loc, Val), false};
+  return {Builder.createOrFold<OpTy>(Loc, Val, FMF), false};
 }
 
-ValueCategory ValueCategory::FNeg(OpBuilder &Builder, Location Loc) const {
-  return FPUnaryOp<arith::NegFOp>(Builder, Loc, val);
+ValueCategory ValueCategory::FNeg(OpBuilder &Builder, Location Loc,
+                                  FastMathFlagsAttr FMF) const {
+  return FPUnaryOp<arith::NegFOp>(Builder, Loc, val, FMF);
 }
 
 ValueCategory ValueCategory::Shl(OpBuilder &Builder, Location Loc, Value RHS,
