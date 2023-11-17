@@ -491,3 +491,19 @@ func.func @test_math_ops_vector_of_half(%arg0 : !sycl_vec_sycl_half_2_, %arg1 : 
   
   return
 }
+
+// CHECK-LABEL: test_fastmath
+func.func @test_fastmath(%arg0 : f32, %arg1 : f32, %arg2 : f32) {
+  // CHECK: %{{.*}} = math.ceil %arg0 fastmath<fast>  : f32
+  %c0 = sycl.math.ceil %arg0 fastmath<fast> : f32
+  // CHECK: %{{.*}} = math.copysign %arg0, %arg1 fastmath<fast> : f32
+  %c1 = sycl.math.copysign %arg0, %arg1 fastmath<reassoc,nnan,ninf,nsz,arcp,contract,afn>  : f32
+  // CHECK: %{{.*}} = math.cos  %arg0 : f32
+  %c2 = sycl.math.cos %arg0 fastmath<none>  : f32
+  // CHECK: %{{.*}} = math.exp %arg0 fastmath<ninf> : f32
+  %e2 = sycl.math.exp %arg0 fastmath<ninf> : f32
+  // CHECK: %{{.*}} = math.exp2 %arg0 fastmath<fast> : f32
+  %e0 = sycl.math.exp2 %arg0 fastmath<fast> : f32
+
+  return
+}

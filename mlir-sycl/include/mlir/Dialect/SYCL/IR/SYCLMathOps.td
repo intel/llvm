@@ -13,6 +13,7 @@
 #ifndef SYCL_MATH_OPS
 #define SYCL_MATH_OPS
 
+include "mlir/Dialect/Arith/IR/ArithBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,7 +39,6 @@ def SYCLMathFunc : SYCLOpTrait<"SYCLMathFunc">;
 // can be applied to scalars and vectors.
 // TODO: Support marrarys.
 // TODO: Consider VectorUnrollOpInterface, ElementwiseMappable.
-// TODO: Consider arith::FastMathFlags.
 class SYCL_MathOp<string mnemonic, list<Trait> traits = []> :
     SYCL_Op<"math." # mnemonic, traits # [SYCLMathFunc, Pure]>;
 
@@ -46,27 +46,39 @@ class SYCL_FloatUnaryOp<string mnemonic, string synopsis = "",
                         list<Trait> traits = []> :
     SYCL_MathOp<mnemonic, traits # [AllTypesMatch<["x", "result"]>]> {
   let summary = synopsis # ".";
-  let arguments = (ins SYCL_Genfloat:$x);
+  let arguments = (ins SYCL_Genfloat:$x,
+                       DefaultValuedAttr<
+                           Arith_FastMathAttr,
+                           "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs SYCL_Genfloat:$result);
-  let assemblyFormat = [{ $x attr-dict `:` type($result) }];
+  let assemblyFormat = [{ $x (`fastmath` `` $fastmath^)?
+                             attr-dict `:` type($result) }];
 }
 
 class SYCL_FloatBinaryOp<string mnemonic, string synopsis = "",
                          list<Trait> traits = []> :
     SYCL_MathOp<mnemonic, traits # [AllTypesMatch<["x", "y", "result"]>]> {
   let summary = synopsis # ".";
-  let arguments = (ins SYCL_Genfloat:$x, SYCL_Genfloat:$y);
+  let arguments = (ins SYCL_Genfloat:$x, SYCL_Genfloat:$y,
+                       DefaultValuedAttr<
+                           Arith_FastMathAttr,
+                           "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs SYCL_Genfloat:$result);
-  let assemblyFormat = [{ $x `,` $y attr-dict `:` type($result) }];
+  let assemblyFormat = [{ $x `,` $y (`fastmath` `` $fastmath^)?
+                             attr-dict `:` type($result) }];
 }
 
 class SYCL_FloatTernaryOp<string mnemonic, string synopsis = "",
                           list<Trait> traits = []> :
     SYCL_MathOp<mnemonic, traits # [AllTypesMatch<["a", "b", "c", "result"]>]> {
   let summary = synopsis # ".";
-  let arguments = (ins SYCL_Genfloat:$a, SYCL_Genfloat:$b, SYCL_Genfloat:$c);
+  let arguments = (ins SYCL_Genfloat:$a, SYCL_Genfloat:$b, SYCL_Genfloat:$c,
+                       DefaultValuedAttr<
+                           Arith_FastMathAttr,
+                           "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs SYCL_Genfloat:$result);
-  let assemblyFormat = [{ $a `,` $b `,` $c attr-dict `:` type($result) }];
+  let assemblyFormat = [{ $a `,` $b `,` $c (`fastmath` `` $fastmath^)?
+                             attr-dict `:` type($result) }];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
