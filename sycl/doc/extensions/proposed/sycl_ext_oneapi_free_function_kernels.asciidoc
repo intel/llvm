@@ -43,8 +43,6 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
-  sycl_ext_oneapi_properties]
 * link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
   sycl_ext_oneapi_free_function_queries]
 
@@ -114,109 +112,79 @@ supports.
 === Defining a free function kernel
 
 A free function kernel is a normal C++ function definition, where the function
-declaration is decorated with one of the following compile-time properties:
-`range_kernel`, `nd_range_kernel`, or `single_task_kernel`.
+declaration is decorated with one of the following macros:
+`SYCL_EXT_ONEAPI_RANGE_KERNEL`, `SYCL_EXT_ONEAPI_ND_RANGE_KERNEL`, or
+`SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL`.
 
-The following table provides additional details about these compile-time
-properties.
+When a function declaration is decorated with one of these macros, the
+following rules must be observed:
+
+* The position of the macro decoration must be the same as the position allowed
+  for C++ attribute decorations on the function declaration.
+  For example:
++
+```
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
+void iota(float start, float *ptr);
+```
+
+* The macro decoration must appear on the first declaration of the function
+  in the translation unit.
+  Redeclarations of the function may optionally be decorated with the same
+  macro if the macro arguments are the same.
+  The effect is the same regardless of whether redeclaration are so decorated.
+
+* The same function may be decorated with at most one of these macros.
+  However, the same function may be decorated multiple times with the same
+  macro (with the same arguments).
+  Programs that decorate the same function with more than one of these macros
+  or with multiple instances of the same macro with different arguments are ill
+  formed.
+
+* If a function is decorated with one of these macros in one translation unit,
+  that function must also be decorated with the same macro (with the same
+  arguments) in all other translation units.
+
+The following table provides additional details about these macros:
 
 |====
 a|
-*`range_kernel` property*
-
 [frame=all,grid=none]
 !====
 a!
 [source]
 ----
-struct range_kernel_key {
-  template <int Dims>
-  using value_t = property_value<range_kernel_key, Dims>;
-};
-
-template<int Dims>
-inline constexpr range_kernel_key::value_t<Dims> range_kernel;
-
-template<>
-struct is_property_key<range_kernel_key> : std::true_type {};
+#define SYCL_EXT_ONEAPI_RANGE_KERNEL(Dims) /*unspecified*/
 ----
 !====
 
 Indicates that the function is a free function kernel that is invoked with a
 simple `range` iteration space of `Dims` dimensions.
-
-The `property_value` struct has the following member variables:
-
-[%header,cols="1,1"]
-!====
-!Member
-!Description
-
-a!
-[source]
-----
-static constexpr int dimensions = Dims
-----
-!
-The number of dimensions of the kernel's range.
-!====
+The `Dims` parameter must be an integral constant expression that specifies a
+valid number of dimensions for the `range` class.
 
 a|
-*`nd_range_kernel` property*
-
 [frame=all,grid=none]
 !====
 a!
 [source]
 ----
-struct nd_range_kernel_key {
-  template <int Dims>
-  using value_t = property_value<nd_range_kernel_key, Dims>;
-};
-
-template<int Dims>
-inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
-
-template<>
-struct is_property_key<nd_range_kernel_key> : std::true_type {};
+#define SYCL_EXT_ONEAPI_ND_RANGE_KERNEL(Dims) /*unspecified*/
 ----
 !====
 
 Indicates that the function is a free function kernel that is invoked with an
 `nd_range` iteration space of `Dims` dimensions.
-
-The `property_value` struct has the following member variables:
-
-[%header,cols="1,1"]
-!====
-!Member
-!Description
-
-a!
-[source]
-----
-static constexpr int dimensions = Dims
-----
-!
-The number of dimensions of the kernel's range.
-!====
+The `Dims` parameter must be an integral constant expression that specifies a
+valid number of dimensions for the `nd_range` class.
 
 a|
-*`single_task_kernel` property*
-
 [frame=all,grid=none]
 !====
 a!
 [source]
 ----
-struct single_task_kernel_key {
-  using value_t = property_value<single_task_kernel_key>;
-};
-
-inline constexpr single_task_kernel_key::value_t single_task_kernel;
-
-template<>
-struct is_property_key<single_task_kernel_key> : std::true_type {};
+#define SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL /*unspecified */
 ----
 !====
 
@@ -230,17 +198,19 @@ kernel parameter types specified in section 4.12.4 "Rules for parameter passing
 to kernels" of the core SYCL specification.
 The function's return type must be `void`.
 
-The following example demonstrates how a free function kernel can be defined
-using the `range_kernel` property:
+The following example demonstrates how a free function kernel using a
+3-dimensional nd-range iteration space can be defined:
 
 ```
-namespace syclex = sycl::ext::oneapi::experimental;
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
+SYCL_EXT_ONEAPI_ND_RANGE_KERNEL(3)
 void iota(float start, float *ptr) {
    // ...
 }
 ```
+
+A function decorated with one of these macros can still be called from host
+code.
+The macro has no effect in such cases.
 
 === New kernel bundle member functions
 
@@ -447,12 +417,13 @@ Once the application obtains a `kernel` object for a free function kernel, it
 can enqueue the kernel to a device using any of the SYCL functions that allow
 a kernel to be enqueued via a `kernel` object.
 The application must enqueue the free function kernel according to its type.
-For example, a free function kernel defined via `range_kernel` can be enqueued
-by calling the `handler::parallel_for` overload taking a `range`.
-A free function kernel defined via `nd_range_kernel` can be enqueued by calling
-the `handler::parallel_for` overload taking an `nd_range`.
-A free function kernel defined via `single_task_kernel` can be enqueued by
-calling `handler::single_task`.
+For example, a free function kernel defined via `SYCL_EXT_ONEAPI_RANGE_KERNEL`
+can be enqueued by calling the `handler::parallel_for` overload taking a
+`range`.
+A free function kernel defined via `SYCL_EXT_ONEAPI_ND_RANGE_KERNEL` can be
+enqueued by calling the `handler::parallel_for` overload taking an `nd_range`.
+A free function kernel defined via `SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL` can be
+enqueued by calling `handler::single_task`.
 
 Attempting to enqueue a free function kernel using a mechanism that does not
 match its type results in undefined behavior.
@@ -488,16 +459,20 @@ sycl_ext_oneapi_free_function_queries] for this purpose.
 If the implementation supports
 link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
 sycl_ext_oneapi_kernel_properties], a free function kernel may be decorated
-with these properties by applying the properties to the function definition as
+with these properties by applying the properties to the function declaration as
 illustrated below.
 
 ```
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::nd_range_kernel<1>)
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::work_group_size<32>)
 void iota(float start, float *ptr) {
    // ...
 }
 ```
+
+The `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` decorations may appear either before or
+after the macro decorations that identify the function as a free function
+kernel.
 
 As with standard SYCL kernels, these properties can be queried via
 `kernel::get_info` using either the `info::kernel::attributes` information
@@ -516,7 +491,7 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 static constexpr size_t NUM = 1024;
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
 void iota(float start, float *ptr) {
   // Get the ID of this kernel iteration.
   size_t id = syclex::this_kernel::get_id();
@@ -556,17 +531,17 @@ cases.
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template<typename T>
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
 void iota(T start, T *ptr) {
   // ...
 }
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::single_task_kernel)
+SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL
 void ping(float *x) {
   // ...
 }
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::single_task_kernel)
+SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL
 void ping(int *x) {
   // ...
 }
@@ -598,48 +573,6 @@ bool is_kernel_function_v;
 If the front-end can provide this, we can provide a nice diagnostic when the
 user passes an invalid address to the kernel bundle functions like
 `template<auto *Func> kernel_id get_kernel_id()`.
-
-* The front-end team has expressed concern about implementing this syntax
-  because it requires the front-end to recognize the property names
-  `range_kernel`, `nd_range_kernel`, and `single_task_kernel`.
-  This is necessary because the front-end must know that functions decorated
-  with these properties are device code, and it must somehow get the kernel
-  name in order to generate the integration header.
-  Currently, the front-end does not intrinsicly know any of the property names.
-  Rather, the front-end simply passes the properties verbatim into the
-  generated LLVM IR.
-  If we want to avoid teaching the front-end about these property names, we
-  could instead change the syntax for declaring a free function kernel to be
-  like this:
-+
-```
-SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
-void iota(float start, float *ptr) {
-  // ...
-}
-```
-+
-Here, the macro `SYCL_EXT_ONEAPI_RANGE_KERNEL` would expand to two things.
-One part of the expansion would be a C++ attribute that tells the front-end
-that this function is a free function "range" kernel.
-Another part of the expansion would add the same IR attributes as the
-`range_kernel` property (assuming there is even a need to represent this
-information in the IR).
-There are two drawbacks to this approach.
-One is purely aesthetic: we would need to add a new macro to the language
-instead of using our existing property mechanism.
-The other relates to error messages.
-Error messages with macros tend to be worse when the user passes incorrect
-parameters.
-+
-This same issue exists also for the extension
-link:https://github.com/intel/llvm/pull/10540[
-sycl_ext_oneapi_virtual_functions] because that extension adds the property
-`indirectly_callable<name>` which must be used to decorate virtual functions
-that can be called from device code.
-Again, the front-end would either need to recognize this property name, or we
-would need to use a new macro like `SYCL_EXT_ONEAPI_INDIRECTLY_CALLABLE(name)`
-instead of the property.
 
 * We need to investigate whether there will be problems passing kernel
   arguments that are "decomposed" by the front-end.
