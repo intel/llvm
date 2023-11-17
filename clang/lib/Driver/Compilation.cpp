@@ -135,7 +135,8 @@ bool Compilation::CleanupFile(const char *File, bool IssueErrors) const {
     std::string ExpectedDir =
         DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "";
     std::string ActualFile(File);
-    if (ActualFile.find(ExpectedDir) != std::string::npos)
+    if (ActualFile.find(ExpectedDir) != std::string::npos &&
+        ActualFile.find(".spv") != std::string::npos)
       return false;
   }
 
