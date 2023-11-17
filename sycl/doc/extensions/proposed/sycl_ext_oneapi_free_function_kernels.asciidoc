@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -113,30 +114,8 @@ supports.
 === Defining a free function kernel
 
 A free function kernel is a normal C++ function definition, where the function
-definition is decorated with one of the following compile-time properties:
+declaration is decorated with one of the following compile-time properties:
 `range_kernel`, `nd_range_kernel`, or `single_task_kernel`.
-Each of these properties takes a template parameter `Name`, which serves as the
-name of the kernel, similar to the `KernelName` template parameter to
-`parallel_for` for a standard SYCL kernel.
-When a free function kernel has a name, the type used as the name must not be
-used to name any other kernel in the application (either a free function kernel
-or a "named" standard kernel).
-The type used to name a free function kernel has the same limitations as the
-type used to name a standard SYCL kernel as specified in section 5.2 "Naming of
-kernels" of the core SYCL specification.
-A free function kernel may be defined as a function template, however, all
-instantiations of the function must have a unique name, which implies that the
-type used to name the kernel is also somehow templated.
-
-Usually, a free function kernel must have a type-name because the type-name is
-used to obtain a `kernel` object that represents the free function kernel, and
-a `kernel` object is needed in order to enqueue the kernel.
-However, when free function kernels are used with the
-link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
-sycl_ext_oneapi_kernel_compiler] extension, it is possible to obtain the
-`kernel` even without a type-name.
-In this case, the free function kernel can be unnamed by letting the `Name`
-template parameter have its default value of `void`.
 
 The following table provides additional details about these compile-time
 properties.
@@ -151,12 +130,12 @@ a!
 [source]
 ----
 struct range_kernel_key {
-  template <int Dims, typename Name>
-  using value_t = property_value<range_kernel_key, Dims, Name>;
+  template <int Dims>
+  using value_t = property_value<range_kernel_key, Dims>;
 };
 
-template<int Dims, typename Name = void>
-inline constexpr range_kernel_key::value_t<Dims, Name> range_kernel;
+template<int Dims>
+inline constexpr range_kernel_key::value_t<Dims> range_kernel;
 
 template<>
 struct is_property_key<range_kernel_key> : std::true_type {};
@@ -165,11 +144,8 @@ struct is_property_key<range_kernel_key> : std::true_type {};
 
 Indicates that the function is a free function kernel that is invoked with a
 simple `range` iteration space of `Dims` dimensions.
-When the `Name` parameter is not `void`, it is a type that represents the name
-of the kernel.
 
-The `property_value` struct has the following member variables and type
-aliases:
+The `property_value` struct has the following member variables:
 
 [%header,cols="1,1"]
 !====
@@ -183,14 +159,6 @@ static constexpr int dimensions = Dims
 ----
 !
 The number of dimensions of the kernel's range.
-
-a!
-[source]
-----
-using name = Name
-----
-!
-The type-name of the kernel.
 !====
 
 a|
@@ -202,12 +170,12 @@ a!
 [source]
 ----
 struct nd_range_kernel_key {
-  template <int Dims, typename Name>
-  using value_t = property_value<nd_range_kernel_key, Dims, Name>;
+  template <int Dims>
+  using value_t = property_value<nd_range_kernel_key, Dims>;
 };
 
-template<int Dims, typename Name = void>
-inline constexpr nd_range_kernel_key::value_t<Dims, Name> nd_range_kernel;
+template<int Dims>
+inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
 template<>
 struct is_property_key<nd_range_kernel_key> : std::true_type {};
@@ -216,11 +184,8 @@ struct is_property_key<nd_range_kernel_key> : std::true_type {};
 
 Indicates that the function is a free function kernel that is invoked with an
 `nd_range` iteration space of `Dims` dimensions.
-When the `Name` parameter is not `void`, it is a type that represents the name
-of the kernel.
 
-The `property_value` struct has the following member variables and type
-aliases:
+The `property_value` struct has the following member variables:
 
 [%header,cols="1,1"]
 !====
@@ -234,14 +199,6 @@ static constexpr int dimensions = Dims
 ----
 !
 The number of dimensions of the kernel's range.
-
-a!
-[source]
-----
-using name = Name
-----
-!
-The type-name of the kernel.
 !====
 
 a|
@@ -253,12 +210,10 @@ a!
 [source]
 ----
 struct single_task_kernel_key {
-  template <typename Name>
-  using value_t = property_value<single_task_kernel_key, Name>;
+  using value_t = property_value<single_task_kernel_key>;
 };
 
-template<typename Name = void>
-inline constexpr single_task_kernel_key::value_t<Name> single_task_kernel;
+inline constexpr single_task_kernel_key::value_t single_task_kernel;
 
 template<>
 struct is_property_key<single_task_kernel_key> : std::true_type {};
@@ -267,24 +222,6 @@ struct is_property_key<single_task_kernel_key> : std::true_type {};
 
 Indicates that the function is a free function kernel that is invoked via
 `single_task` (i.e. without any iteration space).
-When the `Name` parameter is not `void`, it is a type that represents the name
-of the kernel.
-
-The `property_value` struct has the following member type alias:
-
-[%header,cols="1,1"]
-!====
-!Member
-!Description
-
-a!
-[source]
-----
-using name = Name
-----
-!
-The type-name of the kernel.
-!====
 |====
 
 When a function is defined as a free function kernel, each parameter to the
@@ -299,49 +236,210 @@ using the `range_kernel` property:
 ```
 namespace syclex = sycl::ext::oneapi::experimental;
 
-struct my_iota;
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1, my_iota>)
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
 void iota(float start, float *ptr) {
    // ...
 }
 ```
 
-=== Interaction with the kernel bundle APIs
+=== New kernel bundle member functions
 
-Free function kernels work with the kernel bundle APIs defined in section 4.11
-"Kernel bundles" of the core SYCL specification in a natural way.
-Any kernel bundle API that accepts a kernel's type-name may be used with the
-type-name of a free function kernel.
-In fact, an application must use the kernel bundle APIs in order to invoke a
-free function kernel because the application must first obtain a `kernel`
-object.
-Typically, the application first obtains a kernel bundle from the free function
-kernel's name and then obtains its `kernel` object as shown in the following
-example:
+This extension adds the following new functions which add kernel bundle support
+for free function kernels:
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func>
+kernel_id get_kernel_id();
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Preconditions_: The address `Func` must be the address of some free function
+kernel that is defined in the calling application.
+
+[_Note:_ The function `Func` need not be defined in the same translation unit
+as the call to `get_kernel_id`.
+_{endnote}_]
+
+_Returns:_ The kernel identifier that is associated with that kernel.
+
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, bundle_state State>                                // (1)
+kernel_bundle<State> get_kernel_bundle(const context& ctxt);
+
+template <auto *Func, bundle_state State>                                // (2)
+kernel_bundle<State> get_kernel_bundle(const context& ctxt,
+                                       const std::vector<device>& devs);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Preconditions_: The address `Func` must be the address of some free function
+kernel that is defined in the calling application.
+
+_Returns: (1)_ The same value as
+`get_kernel_bundle<State>(ctxt, ctxt.get_devices(), {get_kernel_id<Func>()})`.
+
+_Returns: (2)_ The same value as
+`get_kernel_bundle<State>(ctxt, devs, {get_kernel_id<Func>()})`.
+
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, bundle_state State>                                     // (1)
+bool has_kernel_bundle(const context& ctxt);
+
+template <auto *Func, bundle_state State>                                     // (2)
+bool has_kernel_bundle(const context& ctxt, const std::vector<device>& devs);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Preconditions_: The address `Func` must be the address of some free function
+kernel that is defined in the calling application.
+
+_Returns: (1)_ The same value as
+`has_kernel_bundle<State>(ctxt, {get_kernel_id<Func>()})`.
+
+_Returns: (2)_ The same value as
+`has_kernel_bundle<State>(ctxt, devs, {get_kernel_id<Func>()})`.
+
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func> bool is_compatible(const device& dev);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Preconditions_: The address `Func` must be the address of some free function
+kernel that is defined in the calling application.
+
+_Returns:_ The same value as
+`is_compatible<State>({get_kernel_id<Func>()}, dev)`.
+
+|====
+
+This extension also adds the following new member functions to the
+`kernel_bundle` class:
 
 ```
-namespace syclex = sycl::ext::oneapi::experimental;
+namespace sycl {
 
-struct my_iota;
+template <bundle_state State>
+class kernel_bundle {
+  // ...
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1, my_iota>)
-void iota(float start, float *ptr) {
-   // ...
-}
+  template<auto *Func>
+  bool ext_oneapi_has_kernel();
 
-int main() {
-  sycl::queue q;
-  sycl::context ctxt = q.get_context();
+  template<auto *Func>
+  bool ext_oneapi_has_kernel(const device &dev);
 
-  // Get a kernel bundle that contains the free function kernel "my_iota".
-  auto exe_bndl =
-    sycl::get_kernel_bundle<my_iota, sycl::bundle_state::executable>(ctxt);
+  template<auto *Func>
+  kernel ext_oneapi_get_kernel();
+};
 
-  // Get a kernel object for the "my_iota" function from that bundle.
-  sycl::kernel myiota = exe_bndl.get_kernel<my_iota>();
-}
+} // namespace sycl
 ```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+template<auto *Func>                           // (1)
+bool ext_oneapi_has_kernel()
+
+template<auto *Func>                           // (2)
+bool ext_oneapi_has_kernel(const device &dev)
+----
+!====
+
+_Preconditions_: The address `Func` must be the address of some free function
+kernel that is defined in the calling application.
+
+_Returns: (1)_: The value `true` only if the kernel bundle contains the free
+function kernel whose address is `Func`.
+
+_Returns: (2)_: The value `true` only if the kernel bundle contains the free
+function kernel whose address is `Func` and if that kernel is compatible with
+the device `dev`.
+
+!====
+a!
+[source]
+----
+template<auto *Func>
+kernel ext_oneapi_get_kernel()
+----
+!====
+
+_Constraints:_ This function is available only when `State` is
+`bundle_state::executable`.
+
+_Preconditions_: The address `Func` must be the address of some free function
+kernel that is defined in the calling application.
+
+_Returns:_ If the kernel whose address is `Func` resides in this kernel bundle,
+returns the `kernel` object representing that kernel.
+
+_Throws_: An `exception` with the error code `errc::invalid` if the kernel with
+address `Func` does not reside in this kernel bundle.
+|====
+
+=== Behavior with kernel bundle functions in the core SYCL specification
+
+Free function kernels that are defined by the application have a corresponding
+kernel identifier (`kernel_id`) and are contained by the device images in the
+SYCL application.
+This section defines the ramifications this has on the kernel bundle functions
+defined by the core SYCL specification.
+
+* The function `get_kernel_ids()` returns the kernel identifiers for any free
+  function kernels defined by the application, in addition to identifiers for
+  any kernels defined as lambda expressions or named kernel objects.
+
+* The kernel bundle returned by
+  `get_kernel_bundle(const context&, const std::vector<device>& devs)` contains
+  all of the free function kernels defined by the application that are
+  compatible with at least one of the devices in `devs`, in addition to all of
+  the kernels defined as lambda expressions or named kernel objects that are
+  compatible with one of these devices.
+
+* The function `has_kernel_bundle(const context&, const std::vector<device>&)`
+  considers free function kernels defined by the application when computing its
+  return value.
+
+The information descriptor `info::kernel::num_args` may be used to query a
+`kernel` object that represents a free function kernel.
+The return value tells the number of formal parameters in the function's
+definition.
 
 === Enqueuing a free function kernel and setting parameter values
 
@@ -368,6 +466,10 @@ For example, when enqueuing a kernel with `handler::parallel_for` or
 `handler::single_task`, the kernel argument values must be set via
 `handler::set_arg` or `handler::set_args`.
 Failing to set the value of a kernel argument results in undefined behavior.
+The type of the value passed to `handler::set_arg` or `handler::set_args` must
+be the same as the type of the corresponding formal parameter in the free
+function kernel.
+Passing a value with a mismatched type results in undefined behavior.
 
 === Obtaining the iteration id for a kernel
 
@@ -377,7 +479,7 @@ However, this is not the case for a free function kernel because the function
 parameters are used to pass the kernel arguments instead.
 Therefore, a free function kernel must obtain the iteration ID in some other
 way.
-Typically, a free function kernel uses the free functions specified in
+Typically, a free function kernel uses the functions specified in
 link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
 sycl_ext_oneapi_free_function_queries] for this purpose.
 
@@ -390,9 +492,7 @@ with these properties by applying the properties to the function definition as
 illustrated below.
 
 ```
-struct my_iota;
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::nd_range_kernel<1, my_iota>)
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::nd_range_kernel<1>)
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::work_group_size<32>)
 void iota(float start, float *ptr) {
    // ...
@@ -403,40 +503,10 @@ As with standard SYCL kernels, these properties can be queried via
 `kernel::get_info` using either the `info::kernel::attributes` information
 descriptor or the `info::kernel_device_specific` information descriptors.
 
-== Free function kernels that are function templates
-
-A free function kernel may be defined as a function template, however, any
-instantiation that is submitted at runtime must be instantiated at compile
-time.
-Normally, the application does this with an explicit template instantiation as
-shown below:
-
-```
-template<typename T>
-struct my_iota;
-
-template<typename T>
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1, my_iota<T>>)
-void iota(T start, T *ptr) {
-   // ...
-}
-
-template void iota<int>(int, int *);
-template void iota<float>(float, float *);
-```
-
-As noted earlier, each instantiation must have a unique type-name, as
-illustrated in the example above.
-The application can use this type-name to obtain the `kernel` object for the
-free function kernel:
-
-```
-sycl::kernel myiota_int = exe_bndl.get_kernel<my_iota<int>>();
-sycl::kernel myiota_float = exe_bndl.get_kernel<my_iota<float>>();
-```
-
 
 == Example
+
+=== Basic invocation
 
 The following example demonstrates how to define a free function kernel and then
 enqueue it on a device.
@@ -444,10 +514,9 @@ enqueue it on a device.
 ```
 namespace syclex = sycl::ext::oneapi::experimental;
 
-struct my_iota;
 static constexpr size_t NUM = 1024;
 
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1, my_iota>)
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
 void iota(float start, float *ptr) {
   // Get the ID of this kernel iteration.
   size_t id = syclex::this_kernel::get_id();
@@ -459,25 +528,76 @@ void main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
 
-  // Get a kernel bundle that contains the free function kernel "my_iota".
+  // Get a kernel bundle that contains the free function kernel "iota".
   auto exe_bndl =
-    sycl::get_kernel_bundle<my_iota, sycl::bundle_state::executable>(ctxt);
+    syclex::get_kernel_bundle<iota, sycl::bundle_state::executable>(ctxt);
 
-  // Get a kernel object for the "my_iota" function from that bundle.
-  sycl::kernel myiota = exe_bndl.get_kernel<my_iota>();
+  // Get a kernel object for the "iota" function from that bundle.
+  sycl::kernel k_iota = exe_bndl.ext_oneapi_get_kernel<iota>();
 
   float *ptr = sycl::malloc_shared<float>(NUM, q);
   q.submit([&](sycl::handler &cgh) {
     // Set the values of the kernel arguments.
     cgh.set_args(3.14f, ptr);
 
-    cgh.parallel_for({NUM}, myiota);
+    cgh.parallel_for({NUM}, k_iota);
   }).wait();
+}
+```
+
+=== Free function kernels which are templates or overloaded
+
+A free function kernel may be defined as a function template.
+It is also legal to define several overloads for a free function kernel.
+The following example demonstrates how to get a kernel identifier in such
+cases.
+
+```
+namespace syclex = sycl::ext::oneapi::experimental;
+
+template<typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::range_kernel<1>)
+void iota(T start, T *ptr) {
+  // ...
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::single_task_kernel)
+void ping(float *x) {
+  // ...
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclex::single_task_kernel)
+void ping(int *x) {
+  // ...
+}
+
+int main() {
+  // When the free function kernel is templated, pass the address of a
+  // specific instantiation.
+  sycl::kernel_id iota_float = syclex::get_kernel_id<iota<float>>();
+  sycl::kernel_id iota_int = syclex::get_kernel_id<iota<int>>();
+
+  // When there are multiple overloads of a free function kernel, use a cast
+  // to disambiguate.
+  sycl::kernel_id ping_float = syclex::get_kernel_id<(void(*)(float))ping>();
+  sycl::kernel_id ping_int = syclex::get_kernel_id<(void(*)(int))ping>();
 }
 ```
 
 
 == Issues
+
+* Can the front-end define a trait like this, which returns true only if the
+  address is a free function kernel:
++
+```
+template <auto *Func>
+bool is_kernel_function_v;
+```
++
+If the front-end can provide this, we can provide a nice diagnostic when the
+user passes an invalid address to the kernel bundle functions like
+`template<auto *Func> kernel_id get_kernel_id()`.
 
 * The front-end team has expressed concern about implementing this syntax
   because it requires the front-end to recognize the property names
@@ -493,7 +613,7 @@ void main() {
   like this:
 +
 ```
-SYCL_EXT_ONEAPI_RANGE_KERNEL(1, my_iota)
+SYCL_EXT_ONEAPI_RANGE_KERNEL(1)
 void iota(float start, float *ptr) {
   // ...
 }
@@ -501,7 +621,7 @@ void iota(float start, float *ptr) {
 +
 Here, the macro `SYCL_EXT_ONEAPI_RANGE_KERNEL` would expand to two things.
 One part of the expansion would be a C++ attribute that tells the front-end
-that this function is a free function "range" kernel with the given type-name.
+that this function is a free function "range" kernel.
 Another part of the expansion would add the same IR attributes as the
 `range_kernel` property (assuming there is even a need to represent this
 information in the IR).
