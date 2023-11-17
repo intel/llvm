@@ -87,7 +87,7 @@ template <int N> inline bool any(simd_mask<N> m, simd_mask<N> ignore_mask) {
 // The main test function
 
 template <class T, int N, template <class, int> class ImplF, bool UseMask>
-bool test(queue q) {
+bool test_slm(queue q) {
   constexpr auto op = ImplF<T, N>::atomic_op;
   using CurAtomicOpT = decltype(op);
   constexpr int n_args = ImplF<T, N>::n_args;
@@ -174,6 +174,128 @@ bool test(queue q) {
         // TODO: replace this API with unified version.
         auto data0 = lsc_slm_gather<T>(slm_offsets);
         data0.copy_to(arr);
+      });
+    });
+    e.wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    free(arr, q);
+    return false;
+  }
+  int err_cnt = 0;
+
+  for (int i = 0; i < size; ++i) {
+    T gold = ImplF<T, N>::gold(i, UseMask);
+    T test = arr[i];
+
+    if ((gold != test) && (++err_cnt < 10)) {
+      if (err_cnt == 1) {
+        std::cout << "\n";
+      }
+      std::cout << "  failed at index " << i << ": " << test << " != " << gold
+                << "(gold)\n";
+    }
+  }
+  if (err_cnt > 0) {
+    std::cout << "  FAILED\n  pass rate: "
+              << ((float)(size - err_cnt) / (float)size) * 100.0f << "% ("
+              << (size - err_cnt) << "/" << size << ")\n";
+  } else {
+    std::cout << " passed\n";
+  }
+  free(arr, q);
+  return err_cnt == 0;
+}
+
+template <class T, int N, template <class, int> class ImplF, bool UseMask>
+bool test_slm_acc(queue q) {
+  constexpr auto op = ImplF<T, N>::atomic_op;
+  using CurAtomicOpT = decltype(op);
+  constexpr int n_args = ImplF<T, N>::n_args;
+
+  std::cout << "SLM ACC testing" << " op=" << to_string(op)
+            << " T=" << esimd_test::type_name<T>() << " N=" << N << "\n\t"
+            << " UseMask=" << (UseMask ? "true" : "false")
+            << "{ thr_per_group=" << threads_per_group
+            << " n_groups=" << n_groups << " start_ind=" << start_ind
+            << " masked_lane=" << masked_lane << " repeat=" << repeat
+            << " stride=" << stride << " }...";
+
+  constexpr size_t size = start_ind + (N - 1) * stride + 1;
+  T *arr = malloc_shared<T>(size, q);
+  constexpr int n_threads = threads_per_group * n_groups;
+
+  for (int i = 0; i < size; ++i) {
+    arr[i] = ImplF<T, N>::init(i);
+  }
+
+  range<1> glob_rng(n_threads);
+  range<1> loc_rng(threads_per_group);
+  nd_range<1> rng(glob_rng, loc_rng);
+
+  try {
+    auto e = q.submit([&](handler &cgh) {
+      local_accessor<T, 1> LocalAcc(threads_per_group * N, cgh);
+      cgh.parallel_for(rng, [=](sycl::nd_item<1> NDI) SYCL_ESIMD_KERNEL {
+        int i = NDI.get_global_id(0);
+        uint16_t LocalID = NDI.get_local_id(0);
+        simd<uint32_t, N> offsets(start_ind * sizeof(T), stride * sizeof(T));
+
+        if (LocalID == 0)
+          for (int I = 0; I < threads_per_group * N; I++)
+            LocalAcc[I] = arr[i * N + I];
+        barrier();
+
+        simd_mask<N> m = 1;
+        if constexpr (UseMask) {
+          if (masked_lane < N)
+            m[masked_lane] = 0;
+        }
+        // Intra-work group barrier.
+        barrier();
+
+        // the atomic operation itself applied in a loop:
+        for (int cnt = 0; cnt < repeat; ++cnt) {
+          if constexpr (n_args == 0) {
+            if constexpr (UseMask) {
+              atomic_update<op, T>(LocalAcc, offsets, m);
+            } else {
+              atomic_update<op, T>(LocalAcc, offsets);
+            }
+          } else if constexpr (n_args == 1) {
+            simd<T, N> v0 = ImplF<T, N>::arg0(i);
+            if constexpr (UseMask) {
+              atomic_update<op, T>(LocalAcc, offsets, v0, m);
+            } else {
+              atomic_update<op, T>(LocalAcc, offsets, v0);
+            }
+          } else if constexpr (n_args == 2) {
+            simd<T, N> new_val = ImplF<T, N>::arg0(i); // new value
+            simd<T, N> exp_val = ImplF<T, N>::arg1(i); // expected value
+            // do compare-and-swap in a loop until we get expected value;
+            // arg0 and arg1 must provide values which guarantee the loop
+            // is not endless:
+            if constexpr (UseMask) {
+              for (simd<T, N> old_val = atomic_update<op, T>(
+                       LocalAcc, offsets, new_val, exp_val, m);
+                   any(old_val < exp_val, !m);
+                   old_val = atomic_update<op, T>(LocalAcc, offsets, new_val,
+                                                  exp_val, m))
+                ;
+            } else {
+              for (simd<T, N> old_val = atomic_update<op, T>(LocalAcc, offsets,
+                                                             new_val, exp_val);
+                   any(old_val < exp_val, !m);
+                   old_val = atomic_update<op, T>(LocalAcc, offsets, new_val,
+                                                  exp_val))
+                ;
+            }
+          }
+        }
+        barrier();
+        if (LocalID == 0)
+          for (int I = 0; I < threads_per_group * N; I++)
+            arr[i * N + I] = LocalAcc[I];
       });
     });
     e.wait();
@@ -416,34 +538,43 @@ struct ImplLSCFcmpwr : ImplCmpxchgBase<T, N, atomic_op, atomic_op::fcmpxchg> {};
 
 // ----------------- Main function and test combinations.
 
+template <bool UseAcc, class T, int N, template <class, int> class ImplF,
+          bool UseMask>
+auto run_test(queue q) {
+  if constexpr (UseAcc)
+    return test_slm_acc<T, N, ImplF, UseMask>(q);
+  else
+    return test_slm<T, N, ImplF, UseMask>(q);
+}
+
 template <int N, template <class, int> class Op, bool UseMask,
-          bool UsePVCFeatures, int SignMask = (Signed | Unsigned)>
+          bool UsePVCFeatures, bool UseAcc, int SignMask = (Signed | Unsigned)>
 bool test_int_types(queue q) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
     if constexpr (UsePVCFeatures)
-      passed &= test<int16_t, N, Op, UseMask>(q);
+      passed &= run_test<UseAcc, int16_t, N, Op, UseMask>(q);
 
-    passed &= test<int32_t, N, Op, UseMask>(q);
+    passed &= run_test<UseAcc, int32_t, N, Op, UseMask>(q);
     if constexpr (std::is_same_v<Op<int64_t, N>, ImplCmpxchg<int64_t, N>>) {
-      passed &= test<int64_t, N, Op, UseMask>(q);
+      passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
     }
   }
 
   if constexpr (SignMask & Unsigned) {
     if constexpr (UsePVCFeatures)
-      passed &= test<uint16_t, N, Op, UseMask>(q);
+      passed &= run_test<UseAcc, uint16_t, N, Op, UseMask>(q);
 
-    passed &= test<uint32_t, N, Op, UseMask>(q);
+    passed &= run_test<UseAcc, uint32_t, N, Op, UseMask>(q);
     if constexpr (std::is_same_v<Op<uint64_t, N>, ImplCmpxchg<uint64_t, N>>) {
-      passed &= test<uint64_t, N, Op, UseMask>(q);
+      passed &= run_test<UseAcc, uint64_t, N, Op, UseMask>(q);
     }
   }
   return passed;
 }
 
 template <int N, template <class, int> class Op, bool UseMask,
-          bool UsePVCFeatures>
+          bool UsePVCFeatures, bool UseAcc>
 bool test_fp_types(queue q) {
   bool passed = true;
   if constexpr (UsePVCFeatures) {
@@ -455,96 +586,111 @@ bool test_fp_types(queue q) {
                                  ImplLSCFcmpwr<sycl::half, N>>) {
       auto dev = q.get_device();
       if (dev.has(sycl::aspect::fp16)) {
-        passed &= test<sycl::half, N, Op, UseMask>(q);
+        passed &= run_test<UseAcc, sycl::half, N, Op, UseMask>(q);
       }
     }
   }
-  passed &= test<float, N, Op, UseMask>(q);
+  passed &= run_test<UseAcc, float, N, Op, UseMask>(q);
   return passed;
 }
 
 template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
-          int SignMask = (Signed | Unsigned)>
+          bool UseAcc, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q) {
   bool passed = true;
-  passed &= test_int_types<1, Op, UseMask, UsePVCFeatures, SignMask>(q);
-  passed &= test_int_types<2, Op, UseMask, UsePVCFeatures, SignMask>(q);
-  passed &= test_int_types<4, Op, UseMask, UsePVCFeatures, SignMask>(q);
-  passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, SignMask>(q);
-  passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, SignMask>(q);
+  passed &= test_int_types<1, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &= test_int_types<2, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &= test_int_types<4, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &=
+      test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
 
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
-    passed &= test_int_types<32, Op, UseMask, UsePVCFeatures, SignMask>(q);
-    passed &= test_int_types<64, Op, UseMask, UsePVCFeatures, SignMask>(q);
+    passed &=
+        test_int_types<32, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+    passed &=
+        test_int_types<64, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
     // non power of two values are supported only in newer driver.
     // TODO: Enable this when the new driver reaches test infrastructure
     // (v27556).
 #if 0
-    passed &= test_int_types<12, Op, UseMask, UsePVCFeatures, SignMask>(q);
-    passed &= test_int_types<33, Op, UseMask, UsePVCFeatures, SignMask>(q);
+    passed &= test_int_types<12, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+    passed &= test_int_types<33, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
 #endif
   }
 
   return passed;
 }
 
-template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures>
+template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
+          bool UseAcc>
 bool test_fp_types_and_sizes(queue q) {
   bool passed = true;
-  passed &= test_fp_types<1, Op, UseMask, UsePVCFeatures>(q);
-  passed &= test_fp_types<2, Op, UseMask, UsePVCFeatures>(q);
-  passed &= test_fp_types<4, Op, UseMask, UsePVCFeatures>(q);
-  passed &= test_fp_types<8, Op, UseMask, UsePVCFeatures>(q);
-  passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures>(q);
+  passed &= test_fp_types<1, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_fp_types<2, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_fp_types<4, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_fp_types<8, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures, UseAcc>(q);
 
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
-    passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures>(q);
-    passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures>(q);
+    passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+    passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures, UseAcc>(q);
 #if 0
-    passed &= test_fp_types<33, Op, UseMask, UsePVCFeatures>(q);
-    passed &= test_fp_types<65, Op, UseMask, UsePVCFeatures>(q);
+    passed &= test_fp_types<33, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+    passed &= test_fp_types<65, Op, UseMask, UsePVCFeatures, UseAcc>(q);
 #endif
   }
   return passed;
 }
 
-template <bool UseMask, bool UsePVCFeatures> int test_with_mask(queue q) {
+template <bool UseMask, bool UsePVCFeatures, bool UseAcc>
+int test_with_mask(queue q) {
   bool passed = true;
 #ifndef CMPXCHG_TEST
-  passed &= test_int_types_and_sizes<ImplInc, UseMask, UsePVCFeatures>(q);
-  passed &= test_int_types_and_sizes<ImplDec, UseMask, UsePVCFeatures>(q);
-
-  passed &= test_int_types_and_sizes<ImplIntAdd, UseMask, UsePVCFeatures>(q);
-  passed &= test_int_types_and_sizes<ImplIntSub, UseMask, UsePVCFeatures>(q);
-
   passed &=
-      test_int_types_and_sizes<ImplSMax, UseMask, UsePVCFeatures, Signed>(q);
+      test_int_types_and_sizes<ImplInc, UseMask, UsePVCFeatures, UseAcc>(q);
   passed &=
-      test_int_types_and_sizes<ImplSMin, UseMask, UsePVCFeatures, Signed>(q);
+      test_int_types_and_sizes<ImplDec, UseMask, UsePVCFeatures, UseAcc>(q);
 
   passed &=
-      test_int_types_and_sizes<ImplUMax, UseMask, UsePVCFeatures, Unsigned>(q);
+      test_int_types_and_sizes<ImplIntAdd, UseMask, UsePVCFeatures, UseAcc>(q);
   passed &=
-      test_int_types_and_sizes<ImplUMin, UseMask, UsePVCFeatures, Unsigned>(q);
+      test_int_types_and_sizes<ImplIntSub, UseMask, UsePVCFeatures, UseAcc>(q);
+
+  passed &= test_int_types_and_sizes<ImplSMax, UseMask, UsePVCFeatures, UseAcc,
+                                     Signed>(q);
+  passed &= test_int_types_and_sizes<ImplSMin, UseMask, UsePVCFeatures, UseAcc,
+                                     Signed>(q);
+
+  passed &= test_int_types_and_sizes<ImplUMax, UseMask, UsePVCFeatures, UseAcc,
+                                     Unsigned>(q);
+  passed &= test_int_types_and_sizes<ImplUMin, UseMask, UsePVCFeatures, UseAcc,
+                                     Unsigned>(q);
 
   if constexpr (UsePVCFeatures) {
-    passed &= test_fp_types_and_sizes<ImplLSCFmax, UseMask, UsePVCFeatures>(q);
-    passed &= test_fp_types_and_sizes<ImplLSCFmin, UseMask, UsePVCFeatures>(q);
+    passed &=
+        test_fp_types_and_sizes<ImplLSCFmax, UseMask, UseAcc, UsePVCFeatures>(
+            q);
+    passed &=
+        test_fp_types_and_sizes<ImplLSCFmin, UseMask, UseAcc, UsePVCFeatures>(
+            q);
 
     // Check load/store operations.
-    passed &= test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures>(q);
-    passed &= test_int_types_and_sizes<ImplStore, UseMask, UsePVCFeatures>(q);
-    passed &= test_fp_types_and_sizes<ImplStore, UseMask, UsePVCFeatures>(q);
-  } else {
-    // These operations are not supported by LSC SLM.
-    passed &= test_fp_types_and_sizes<ImplFmax, UseMask, UsePVCFeatures>(q);
-    passed &= test_fp_types_and_sizes<ImplFmin, UseMask, UsePVCFeatures>(q);
+    passed &=
+        test_int_types_and_sizes<ImplLoad, UseMask, UseAcc, UsePVCFeatures>(q);
+    passed &=
+        test_int_types_and_sizes<ImplStore, UseMask, UseAcc, UsePVCFeatures>(q);
+    passed &=
+        test_fp_types_and_sizes<ImplStore, UseMask, UsePVCFeatures, UseAcc>(q);
   }
 #else
-  passed &= test_int_types_and_sizes<ImplCmpxchg, UseMask, UsePVCFeatures>(q);
-  passed &= test_fp_types_and_sizes<ImplLSCFcmpwr, UseMask, UsePVCFeatures>(q);
+  passed &=
+      test_int_types_and_sizes<ImplCmpxchg, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &=
+      test_fp_types_and_sizes<ImplLSCFcmpwr, UseMask, UsePVCFeatures, UseAcc>(
+          q);
 #endif
   return passed;
 }
@@ -553,9 +699,22 @@ template <bool UsePVCFeatures> bool test_main(queue q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
+  constexpr const bool UseAcc = true;
 
-  passed &= test_with_mask<UseMask, UsePVCFeatures>(q);
-  passed &= test_with_mask<!UseMask, UsePVCFeatures>(q);
+  passed &= test_with_mask<UseMask, UsePVCFeatures, !UseAcc>(q);
+  passed &= test_with_mask<!UseMask, UsePVCFeatures, !UseAcc>(q);
+
+  return passed;
+}
+
+template <bool UsePVCFeatures> bool test_main_acc(queue q) {
+  bool passed = true;
+
+  constexpr const bool UseMask = true;
+  constexpr const bool UseAcc = true;
+
+  passed &= test_with_mask<UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_with_mask<!UseMask, UsePVCFeatures, UseAcc>(q);
 
   return passed;
 }
