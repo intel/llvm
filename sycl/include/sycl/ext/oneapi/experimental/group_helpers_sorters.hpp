@@ -211,11 +211,13 @@ public:
                          CompareT comp_ = {})
       : comp(comp_), scratch(scratch_.data()), scratch_size(scratch_.size()) {}
 
-  template <typename Group>
-  std::tuple<T, U> operator()(Group g, T key, U value) {
+  template <typename Group, typename Properties>
+  std::tuple<T, U> operator()(Group g, T key, U value, Properties property) {
 
     static_assert(ElementsPerWorkItem == 1,
                   "ElementsPerWorkItem must be equal 1");
+
+    (void)property;
 
     using KeyValue = std::tuple<T, U>;
     auto this_comp = this->comp;
