@@ -19,6 +19,11 @@ on:
         required: false
         default: ""
 
+concurrency:
+  #  Cancel a currently running workflow from the same PR, branch or tag.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build
