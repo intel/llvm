@@ -194,7 +194,6 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using reference = sycl::ext::oneapi::experimental::annotated_ref<
       T, typename unpack<filtered_properties>::type>;
 
-#ifdef __SYCL_DEVICE_ONLY__
 #ifdef __ENABLE_USM_ADDR_SPACE__
   using global_pointer_t = std::conditional_t<
       detail::IsUsmKindDevice<property_list_t>::value,
@@ -206,11 +205,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #else
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
 #endif // __ENABLE_USM_ADDR_SPACE__
-#else
-  using global_pointer_t = T *;
-#endif // __SYCL_DEVICE_ONLY__
 
-  global_pointer_t m_Ptr;
+  T *m_Ptr;
 
   template <typename T2, typename PropertyListT> friend class annotated_ptr;
 
@@ -229,11 +225,10 @@ public:
 
   explicit annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {
+      : m_Ptr(Ptr) {}
 
     if (!std::is_trivially_copyable_v<T>)
       non_trivially_copyable();
-  }
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -241,7 +236,7 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {
+      : m_Ptr(Ptr) {
 
     if (!std::is_trivially_copyable_v<T>)
       non_trivially_copyable();

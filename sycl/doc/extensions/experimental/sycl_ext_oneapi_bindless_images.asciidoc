@@ -505,16 +505,19 @@ namespace sycl::ext::oneapi::experimental {
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
-  raw_image_handle_type image_handle;
+
+  unsampled_image_handle(raw_image_handle_type raw_handle);
+
+  raw_image_handle_type raw_handle;
 };
 
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
-  using raw_sampler_handle_type = /* Implementation defined */
 
-  raw_image_handle_type image_handle;
-  raw_sampler_handle_type sampler_handle;
+  sampled_image_handle(raw_image_handle_type raw_image_handle);
+
+  raw_image_handle_type raw_handle;
 };
 
 // Creating an unsampled image from an `image_mem_handle`
@@ -616,6 +619,9 @@ with error code `sycl::errc::runtime`.
 
 The `unsampled_image_handle` and `sampled_image_handle` types shall be 
 default-constructible, copy-constructible, and device-copyable.
+
+The `unsampled_image_handle` and `sampled_image_handle` types have a 
+constructor to allow creation of the types from a `raw_image_handle_type`
 
 [NOTE]
 ====
@@ -973,9 +979,7 @@ Inside a kernel, it's possible to read an image via `read_image`, passing
 the image handle. For the form that takes `unsampled_image_handle`, image data 
 will be fetched exactly as is in device memory. For the form that takes a 
 `sampled_image_handle`, the image will be sampled according to the 
-`bindless_image_sampler` that was passed to the image upon construction. The 
-sampler handle is included in the `sampled_image_handle` as 
-`sampled_image_handle::raw_sampler_handle`. 
+`bindless_image_sampler` that was passed to the image upon construction.
 
 The returned data will be of templated type `DataT`, which is specified by the 
 user, and should map to the type that the image was created with (a combination 
@@ -2005,4 +2009,12 @@ These features still need to be handled:
                    `map_external_image_memory` to avoid CUDA terminology
 |4.9|2023-11-13| - Add that the bindless sampler is default constructible 
                    and follows by-value semantics
+|4.10|2023-11-15| - Added constructors for `sampled_image_handle` and 
+                    `unsampled_image_handle` structs.
+                  - Removed `raw_sampler_handle` member from 
+                    `sampled_image_handle` struct. Awaiting LevelZero 
+                    and SPIR-V extensions to mature before before deciding 
+                    whether a `raw_sampler_handle` member is necessary.
+                  - Renamed `image_handle` members in `sampled_image_handle` and
+                    `unsampled_image_handle` structs to `raw_handle`.
 |======================
