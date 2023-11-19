@@ -227,8 +227,8 @@ public:
                          const property_list_t & = properties{}) noexcept
       : m_Ptr(Ptr) {}
 
-    if (!std::is_trivially_copyable_v<T>)
-      non_trivially_copyable();
+  if (!std::is_trivially_copyable_v<T>)
+    non_trivially_copyable();
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
