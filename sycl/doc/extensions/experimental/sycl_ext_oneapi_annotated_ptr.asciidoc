@@ -182,6 +182,28 @@ properties. The implementation of the class defined here should preserve the
 information provided as compile-time constant properties through all uses of the
 pointer unless noted otherwise.
 
+.Not recommended Usage Example
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
+  MyType(const MyType& otherM) {
+     ...
+  }
+};
+
+struct MyKernel {
+  annotated_ptr<MyType, properties<PropA>> a; //non-trivially-copyable type
+  ...
+  void operator()() const {
+    ...
+  }
+};
+----
+It is not recommended to apply `annotated_ptr` to a non-trivially-copyable type `T`. After
+dereferencing an `annotated_ptr` to an `annotated_ref`, many operators in `annotated_ref` are
+return-by-value and pass-by-valuem, and thus might result in inefficient memory copies.
+
 .Unsupported Usage Example
 [source,c++]
 ----
@@ -525,7 +547,7 @@ class annotated_ref {
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
     template <typename TT>
-    T operator=(TT&&) const;
+    T operator=(T) const;
     T operator=(const annotated_ref&) const;
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
     template <typename TT>
@@ -558,8 +580,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-template <typename TT>
-T operator=(TT&&);
+T operator=(T);
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper via perfect forwarding,
