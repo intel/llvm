@@ -165,7 +165,7 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
   Type InputElemType = getPtr().getType().getElementType();
   switch (getElemSizeInBits()) {
     case 32:
-    if (!InputElemType.isF32()) // || !InputElemType.isBFloat32Type();
+    if (!InputElemType.isF32())
       return this->emitOpError(
          "element of size 32 should be of type bf32 or f32");
     if (TileWidth != 8)
@@ -221,7 +221,7 @@ LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
   Type InputElemType = getPtr().getType().getElementType();
   switch (getElemSizeInBits()) {
     case 32:
-    if (!InputElemType.isF32()) // || !InputElemType.isBFloat32Type();
+    if (!InputElemType.isF32())
       return this->emitOpError(
          "element of size 32 should be of type bf32 or f32");
     if (TileWidth != 8)
