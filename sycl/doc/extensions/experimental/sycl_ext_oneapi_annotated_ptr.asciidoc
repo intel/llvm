@@ -202,7 +202,7 @@ struct MyKernel {
 ----
 It is not recommended to apply `annotated_ptr` to a non-trivially-copyable type `T`. After
 dereferencing an `annotated_ptr` to an `annotated_ref`, many operators in `annotated_ref` are
-return-by-value and pass-by-valuem, and thus might result in inefficient memory copies.
+return-by-value and pass-by-value, and thus might result in inefficient memory copies.
 
 .Unsupported Usage Example
 [source,c++]
@@ -546,12 +546,10 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    template <typename TT>
     T operator=(T) const;
     T operator=(const annotated_ref&) const;
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    template <typename TT>
-    T operatorOP(TT&&) const;
+    T operatorOP(T) const;
     T operator++();
     T operator++(int);
     T operator--();
@@ -583,7 +581,7 @@ a|
 T operator=(T);
 ----
 |
-Writes an object of type `T` to the location referenced by this wrapper via perfect forwarding,
+Writes an object of type `T` to the location referenced by this wrapper,
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
@@ -607,8 +605,7 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-template <typename TT>
-T operatorOP(TT&&);
+T operatorOP(T);
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
