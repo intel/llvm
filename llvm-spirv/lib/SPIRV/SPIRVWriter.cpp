@@ -3155,7 +3155,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
-    SPIRVDBG(spvdbgs() << "[tryParseAnnotationString]: AnnotationString: " << Name.str() << "\n");
+    SPIRVDBG(spvdbgs() << "[tryParseAnnotationString]: AnnotationString: "
+                       << Name.str() << "\n");
 
     unsigned DecorationKind = 0;
     if (!Name.getAsInteger(10, DecorationKind)) {
@@ -3283,7 +3284,8 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
       if (I.first != DecorationUserSemantic)
         continue;
 
-    SPIRVDBG(spvdbgs() << "[addAnnotationDecorations]: Decoration: " << I.first << '\n');
+    SPIRVDBG(spvdbgs() << "[addAnnotationDecorations]: Decoration: " << I.first
+                       << '\n');
     switch (I.first) {
     case DecorationUserSemantic:
       M->getErrorLog().checkError(I.second.size() == 1,
