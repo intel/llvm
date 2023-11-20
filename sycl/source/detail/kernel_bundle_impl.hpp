@@ -527,15 +527,14 @@ public:
                             "The kernel bundle does not contain the kernel "
                             "identified by kernelId.");
 
-    sycl::detail::pi::PiKernel Kernel = nullptr;
-    const KernelArgMask *ArgMask = nullptr;
-    std::tie(Kernel, std::ignore, ArgMask) =
+    auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask);
+    std::shared_ptr<kernel_impl> KernelImpl =
+        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
+                                      SelectedImage, Self, ArgMask, CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
