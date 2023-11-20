@@ -8,7 +8,7 @@
 // REQUIRES: matrix-xmx8
 
 // TODO: Currently fails and regularly times out on DG2. Re-enable when this has
-//       been addressed. 
+//       been addressed.
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
