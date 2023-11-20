@@ -264,10 +264,9 @@ bool test_acc(queue q, const Config &cfg) {
       return true;
     } else {
 
-      std::cout << "Accessor Testing "
-                << "op=" << to_string(op) << " n_args=" << n_args
-                << " T=" << esimd_test::type_name<T>() << " N=" << N
-                << " UseMask=" << (UseMask ? "true" : "false")
+      std::cout << "Accessor Testing " << "op=" << to_string(op)
+                << " n_args=" << n_args << " T=" << esimd_test::type_name<T>()
+                << " N=" << N << " UseMask=" << (UseMask ? "true" : "false")
                 << " UseProperties=" << (UseProperties ? "true" : "false")
                 << "\n\t" << cfg << "...";
 
