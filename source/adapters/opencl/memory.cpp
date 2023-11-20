@@ -264,7 +264,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       *phBuffer = reinterpret_cast<ur_mem_handle_t>(FuncPtr(
           CLContext, PropertiesIntel.data(), static_cast<cl_mem_flags>(flags),
           size, pProperties->pHost, cl_adapter::cast<cl_int *>(&RetErr)));
-      CL_RETURN_ON_FAILURE(RetErr);
+      return mapCLErrorToUR(RetErr);
     }
   }
 

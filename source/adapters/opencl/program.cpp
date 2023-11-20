@@ -120,13 +120,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     const uint8_t *pBinary, const ur_program_properties_t *,
     ur_program_handle_t *phProgram) {
 
-  cl_int BinaryStatus;
+  const cl_device_id Devices[1] = {cl_adapter::cast<cl_device_id>(hDevice)};
+  const size_t Lengths[1] = {size};
+  cl_int BinaryStatus[1];
   cl_int CLResult;
   *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithBinary(
       cl_adapter::cast<cl_context>(hContext), cl_adapter::cast<cl_uint>(1u),
-      cl_adapter::cast<const cl_device_id *>(&hDevice), &size, &pBinary,
-      &BinaryStatus, &CLResult));
-  CL_RETURN_ON_FAILURE(BinaryStatus);
+      Devices, Lengths, &pBinary, BinaryStatus, &CLResult));
+  CL_RETURN_ON_FAILURE(BinaryStatus[0]);
   CL_RETURN_ON_FAILURE(CLResult);
 
   return UR_RESULT_SUCCESS;
