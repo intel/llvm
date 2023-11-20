@@ -12,9 +12,9 @@
 #include "kernel_entry_points.h"
 #endif
 
+#include <ur_util.hpp>
 #include <uur/environment.h>
 #include <uur/utils.h>
-#include <ur_util.hpp>
 
 namespace uur {
 
