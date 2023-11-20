@@ -47,9 +47,9 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
   constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
   T *Out = sycl::aligned_alloc_shared<T>(Alignment, Size, Q);
-  T Out_val = esimd_test::getRandomValue<T>();
+  T OutVal = esimd_test::getRandomValue<T>();
   for (int i = 0; i < Size; i++)
-    Out[i] = Out_val;
+    Out[i] = OutVal;
 
   try {
     Q.submit([&](handler &cgh) {
@@ -116,7 +116,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
     return false;
   }
 
-  bool Passed = verify(Out_val, Out, Size, N, UseMask);
+  bool Passed = verify(OutVal, Out, Size, N, UseMask);
 
   sycl::free(Out, Q);
 
@@ -141,9 +141,9 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
   sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
   constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
   shared_vector Out(Size, shared_allocator{Q});
-  T Out_val = esimd_test::getRandomValue<T>();
+  T OutVal = esimd_test::getRandomValue<T>();
   for (int i = 0; i < Size; i++)
-    Out[i] = Out_val;
+    Out[i] = OutVal;
 
   try {
     buffer<T, 1> OutBuf(Out);
@@ -213,7 +213,7 @@ bool testACC(queue Q, uint32_t Groups, uint32_t Threads,
     return false;
   }
 
-  bool Passed = verify(Out_val, Out.data(), Size, N, UseMask);
+  bool Passed = verify(OutVal, Out.data(), Size, N, UseMask);
 
   return Passed;
 }
@@ -224,7 +224,6 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
   using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared, 16>;
   using shared_vector = std::vector<T, shared_allocator>;
   constexpr uint16_t GroupSize = 8;
-
   uint32_t Size = Groups * GroupSize * N;
 
   std::cout << "SLM case: T=" << esimd_test::type_name<T>() << ",N=" << N
@@ -237,10 +236,10 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
 
   constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
 
-  shared_vector Out(GroupSize, shared_allocator{Q});
-  T Out_val = esimd_test::getRandomValue<T>();
+  shared_vector Out(Size, shared_allocator{Q});
+  T OutVal = esimd_test::getRandomValue<T>();
   for (int i = 0; i < Size; i++)
-    Out[i] = Out_val;
+    Out[i] = OutVal;
 
   try {
     Q.submit([&](handler &CGH) {
@@ -256,26 +255,48 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
          uint32_t ElemOff = GlobalID * N;
          simd<T, N> Vals(ElemOff, 1);
 
+         if (LocalID == 0) {
+           for (int I = 0; I < Size; I++) {
+             simd<T, 1> InVec(OutVal);
+             slm_block_store(I * sizeof(T), InVec);
+           }
+         }
+         barrier();
+
          if constexpr (UseMask) {
            simd_mask<1> Mask = (GlobalID + 1) & 0x1;
-           simd<T, N> PassThru = Out_val;
-           if constexpr (CheckProperties)
-             slm_block_store(LocalElemOffset, Vals, Mask, StorePropertiesT{});
-           else
-             slm_block_store(LocalElemOffset, Vals, Mask);
-           Vals = slm_block_load<T, N>(LocalElemOffset, Mask, PassThru);
            Vals += 6;
-           slm_block_store(LocalElemOffset, Vals, Mask);
-           Vals = slm_block_load<T, N>(LocalElemOffset, Mask, PassThru);
+           if constexpr (CheckProperties) {
+             if (GlobalID % 2 == 0)
+               slm_block_store<T, N>(LocalElemOffset, Vals, Mask,
+                                     StorePropertiesT{});
+             else
+               slm_block_store<T, N>(LocalElemOffset,
+                                     Vals.template select<N, 1>(), Mask,
+                                     StorePropertiesT{});
+           }
+
+           else
+             slm_block_store<T, N>(LocalElemOffset, Vals, Mask);
+
+           Vals = slm_block_load<T, N>(LocalElemOffset);
+
          } else {
            if constexpr (CheckProperties)
-             slm_block_store(LocalElemOffset, Vals, StorePropertiesT{});
+             if (GlobalID % 2 == 0)
+
+               slm_block_store<T, N>(LocalElemOffset, Vals, StorePropertiesT{});
+             else
+               slm_block_store<T, N>(LocalElemOffset,
+                                     Vals.template select<N, 1>(),
+                                     StorePropertiesT{});
+
            else
-             slm_block_store(LocalElemOffset, Vals);
+             slm_block_store<T, N>(LocalElemOffset, Vals);
 
            Vals = slm_block_load<T, N>(LocalElemOffset);
            Vals += 6;
-           slm_block_store(LocalElemOffset, Vals);
+           slm_block_store<T, N>(LocalElemOffset, Vals);
            Vals = slm_block_load<T, N>(LocalElemOffset);
          }
          Vals.copy_to(OutPtr + ElemOff);
@@ -286,7 +307,7 @@ bool testSLM(queue Q, uint32_t Groups, StorePropertiesT StoreProperties) {
     return false;
   }
 
-  bool Passed = verify(Out_val, Out.data(), Size, N, UseMask);
+  bool Passed = verify(OutVal, Out.data(), Size, N, UseMask);
 
   return Passed;
 }
@@ -312,9 +333,9 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
   constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
 
   shared_vector Out(GroupSize, shared_allocator{Q});
-  T Out_val = esimd_test::getRandomValue<T>();
+  T OutVal = esimd_test::getRandomValue<T>();
   for (int i = 0; i < Size; i++)
-    Out[i] = Out_val;
+    Out[i] = OutVal;
 
   try {
     Q.submit([&](handler &CGH) {
@@ -332,35 +353,83 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
          uint32_t ElemOff = GlobalID * N;
          simd<T, N> Vals(ElemOff, 1);
 
+         if (LocalID == 0) {
+           for (int I = 0; I < Size; I++) {
+             simd<T, 1> InVec(OutVal);
+             block_store(LocalAcc, I * sizeof(T), InVec);
+           }
+         }
+         barrier();
+
          if constexpr (UseMask) {
            simd_mask<1> Mask = (GlobalID + 1) & 0x1;
-           simd<T, N> PassThru = Out_val;
-           if constexpr (CheckProperties)
-             block_store(LocalAcc, LocalElemOffset, Vals, Mask,
-                         StorePropertiesT{});
-           else {
-             if (LocalElemOffset == 0)
-               block_store(LocalAcc, Vals, Mask);
-             else
-               block_store(LocalAcc, LocalElemOffset, Vals, Mask);
-           }
-           Vals = block_load<T, N>(LocalAcc, LocalElemOffset, Mask, PassThru);
            Vals += 6;
-           block_store(LocalAcc, LocalElemOffset, Vals, Mask);
-           Vals = block_load<T, N>(LocalAcc, LocalElemOffset, Mask, PassThru);
-         } else {
-           if constexpr (CheckProperties)
-             block_store(LocalAcc, LocalElemOffset, Vals, StorePropertiesT{});
-           else {
-             if (LocalElemOffset == 0)
-               block_store(LocalAcc, Vals);
-             else
-               block_store(LocalAcc, LocalElemOffset, Vals);
+           if constexpr (CheckProperties) {
+             if (LocalElemOffset == 0) {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, Vals, Mask, StorePropertiesT{});
+               else
+                 block_store<T, N>(LocalAcc, Vals.template select<N, 1>(), Mask,
+                                   StorePropertiesT{});
+             } else {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals, Mask,
+                                   StorePropertiesT{});
+               else
+                 block_store<T, N>(LocalAcc, LocalElemOffset,
+                                   Vals.template select<N, 1>(), Mask,
+                                   StorePropertiesT{});
+             }
+           } else {
+             if (LocalElemOffset == 0) {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, Vals, Mask);
+               else
+                 block_store<T, N>(LocalAcc, Vals.template select<N, 1>(),
+                                   Mask);
+             } else {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals, Mask);
+               else
+                 block_store<T, N>(LocalAcc, LocalElemOffset,
+                                   Vals.template select<N, 1>(), Mask);
+             }
            }
-
+           Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
+         } else {
+           if constexpr (CheckProperties) {
+             if (LocalElemOffset == 0) {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, Vals, StorePropertiesT{});
+               else
+                 block_store<T, N>(LocalAcc, Vals.template select<N, 1>(),
+                                   StorePropertiesT{});
+             } else {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals,
+                                   StorePropertiesT{});
+               else
+                 block_store<T, N>(LocalAcc, LocalElemOffset,
+                                   Vals.template select<N, 1>(),
+                                   StorePropertiesT{});
+             }
+           } else {
+             if (LocalElemOffset == 0) {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, Vals);
+               else
+                 block_store<T, N>(LocalAcc, Vals.template select<N, 1>());
+             } else {
+               if (GlobalID % 2 == 0)
+                 block_store<T, N>(LocalAcc, LocalElemOffset, Vals);
+               else
+                 block_store<T, N>(LocalAcc, LocalElemOffset,
+                                   Vals.template select<N, 1>());
+             }
+           }
            Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
            Vals += 6;
-           block_store(LocalAcc, LocalElemOffset, Vals);
+           block_store<T, N>(LocalAcc, LocalElemOffset, Vals);
            Vals = block_load<T, N>(LocalAcc, LocalElemOffset);
          }
          Vals.copy_to(OutPtr + ElemOff);
@@ -371,7 +440,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
     return false;
   }
 
-  bool Passed = verify(Out_val, Out.data(), Size, N, UseMask);
+  bool Passed = verify(OutVal, Out.data(), Size, N, UseMask);
 
   return Passed;
 }
@@ -578,8 +647,10 @@ template <typename T, bool TestPVCFeatures> bool test_block_store_slm(queue Q) {
 
     constexpr int I32Factor =
         std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
-    constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
-    properties PVCProps{alignment<ReqiredAlignment>};
+    constexpr size_t RequiredAlignment = sizeof(T) <= 4 ? 4 : 8;
+    properties PVCProps{alignment<RequiredAlignment>,
+                        cache_hint_L1<cache_hint::write_back>,
+                        cache_hint_L2<cache_hint::write_back>};
 
     // Test block_store() that is available on PVC:
     // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
@@ -612,9 +683,9 @@ bool test_block_store_local_acc_slm(queue Q) {
 
   bool Passed = true;
 
-  // Test slm_block_store() from SLM that doesn't use the mask is implemented
+  // Test block_store() from SLM that doesn't use the mask is implemented
   // for any N > 1.
-  // Ensure that for every call of slm_block_store(offset, ...)
+  // Ensure that for every call of block_store(local_accessor, offset, ...)
   // the 'alignment' property is specified correctly.
   properties Align16Props{alignment<16>};
   properties AlignElemProps{alignment<sizeof(T)>};
@@ -664,7 +735,9 @@ bool test_block_store_local_acc_slm(queue Q) {
     constexpr int I32Factor =
         std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
     constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
-    properties PVCProps{alignment<ReqiredAlignment>};
+    properties PVCProps{alignment<ReqiredAlignment>,
+                        cache_hint_L1<cache_hint::write_back>,
+                        cache_hint_L2<cache_hint::write_back>};
 
     // Test block_store() that is available on PVC:
     // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).

@@ -1523,6 +1523,7 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
 __ESIMD_API void lsc_slm_block_store(uint32_t offset,
                                      __ESIMD_NS::simd<T, NElts> vals) {
+  // Make sure we generate an LSC block store
   constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
   __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
   __ESIMD_NS::simd_mask<1> pred = 1;

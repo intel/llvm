@@ -514,7 +514,8 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
   simd<int, N> valsi = 1;
   int *ptri = reinterpret_cast<int *>(ptrf);
   simd_mask<1> mask = 1;
-
+  auto view = vals.select<N, 1>();
+  auto viewi = valsi.select<N, 1>();
   // CHECK: call void @llvm.genx.lsc.store.stateless.v1i1.v1i64.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
   block_store(ptrf, vals, store_props_a);
 
@@ -568,28 +569,35 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
   // Now try SLM block_store() with and without cache hints that are ignored.
 
-  // CHECK: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 16
-  slm_block_store(byte_offset32, vals, store_props_b);
+  // CHECK-COUNT-2: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 16
+  slm_block_store<float, N>(byte_offset32, vals, store_props_b);
+  slm_block_store<float, N>(byte_offset32, view, store_props_b);
 
-  // CHECK: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 16
-  slm_block_store(byte_offset32, vals, store_props_a);
+  // CHECK-COUNT-2: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 16
+  slm_block_store<float, N>(byte_offset32, vals, store_props_a);
+  slm_block_store<float, N>(byte_offset32, view, store_props_a);
 
   // Now try SLM block_store() with a predicate.
 
-  // CHECK: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
-  slm_block_store(byte_offset32, valsi, mask, store_props_b);
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  slm_block_store<int, N>(byte_offset32, valsi, mask, store_props_b);
+  slm_block_store<int, N>(byte_offset32, viewi, mask, store_props_b);
 
   // Now try block_store() accepting local accessor.
 
-  // CHECK: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 8
-  block_store(local_acc, vals, store_props_d);
+  // CHECK-COUNT-2: store <4 x float> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 8
+  block_store<float, N>(local_acc, vals, store_props_d);
+  block_store<float, N>(local_acc, view, store_props_d);
 
-  // CHECK: store <4 x i32> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 8
-  block_store(local_acc, byte_offset32, valsi, store_props_d);
+  // CHECK-COUNT-2: store <4 x i32> {{[^)]+}}, ptr addrspace(3) {{[^)]+}}, align 8
+  block_store<int, N>(local_acc, byte_offset32, valsi, store_props_d);
+  block_store<int, N>(local_acc, byte_offset32, viewi, store_props_d);
 
-  // CHECK: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
-  block_store(local_acc, vals, mask, store_props_a);
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4f32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x float> {{[^)]+}}, i32 0)
+  block_store<float, N>(local_acc, vals, mask, store_props_a);
+  block_store<float, N>(local_acc, view, mask, store_props_a);
 
-  // CHECK: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
-  block_store(local_acc, byte_offset32, valsi, mask, store_props_c);
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.store.slm.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 0)
+  block_store<int, N>(local_acc, byte_offset32, valsi, mask, store_props_c);
+  block_store<int, N>(local_acc, byte_offset32, viewi, mask, store_props_c);
 }

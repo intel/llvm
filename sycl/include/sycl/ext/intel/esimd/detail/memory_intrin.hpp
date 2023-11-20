@@ -157,7 +157,7 @@ __ESIMD_INTRIN void __esimd_slm_block_st(uint32_t offset,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// SLM scatter.
+/// SLM block_store/scatter.
 /// Supported platforms: DG2, PVC
 ///
 /// Scatters elements located to slm.
