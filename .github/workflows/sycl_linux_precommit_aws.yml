@@ -13,10 +13,10 @@ on:
     workflows: [SYCL Pre Commit on Linux]
     types:
       - completed
+
 jobs:
   create-check:
     runs-on: [Linux, build]
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/github-script@v6
         with:
@@ -38,7 +38,6 @@ jobs:
 
   aws-start:
     runs-on: ubuntu-20.04
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment: aws
     steps:
       - uses: actions/checkout@v3
