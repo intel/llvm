@@ -95,4 +95,26 @@ void setInsertionPoint(OpBuilder &Builder, InsertionContext FuncContext,
   }
 }
 
+arith::FastMathFlagsAttr getFastMathFlags(mlir::Builder &Builder,
+                                          clang::FPOptions FPFeatures) {
+  arith::FastMathFlags FMF =
+      arith::FastMathFlags::none |
+      (FPFeatures.getAllowFPReassociate() ? arith::FastMathFlags::reassoc
+                                          : arith::FastMathFlags::none) |
+      (FPFeatures.getNoHonorNaNs() ? arith::FastMathFlags::nnan
+                                   : arith::FastMathFlags::none) |
+      (FPFeatures.getNoHonorInfs() ? arith::FastMathFlags::ninf
+                                   : arith::FastMathFlags::none) |
+      (FPFeatures.getNoSignedZero() ? arith::FastMathFlags::nsz
+                                    : arith::FastMathFlags::none) |
+      (FPFeatures.getAllowReciprocal() ? arith::FastMathFlags::arcp
+                                       : arith::FastMathFlags::none) |
+      (FPFeatures.getAllowApproxFunc() ? arith::FastMathFlags::afn
+                                       : arith::FastMathFlags::none) |
+      (FPFeatures.allowFPContractAcrossStatement()
+           ? arith::FastMathFlags::contract
+           : arith::FastMathFlags::none);
+  return Builder.getAttr<arith::FastMathFlagsAttr>(FMF);
+}
+
 } // namespace mlirclang

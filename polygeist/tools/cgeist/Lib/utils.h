@@ -9,6 +9,8 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "clang/Basic/LangOptions.h"
 #include "llvm/Support/CommandLine.h"
 
 extern llvm::cl::opt<bool> SuppressWarnings;
@@ -76,6 +78,9 @@ mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
 /// InsertionContext \p FuncContext.
 void setInsertionPoint(mlir::OpBuilder &Builder, InsertionContext FuncContext,
                        mlir::ModuleOp Module);
+
+mlir::arith::FastMathFlagsAttr getFastMathFlags(mlir::Builder &B,
+                                                clang::FPOptions FPFeatures);
 
 } // namespace mlirclang
 

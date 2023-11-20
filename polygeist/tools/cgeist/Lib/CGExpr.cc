@@ -8,6 +8,7 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/IR/Verifier.h"
@@ -1447,8 +1448,9 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
 
       if (!Op && OptRetType.has_value())
         Op = createSYCLMathOp(Func->getNameAsString(), Args, OptRetType.value(),
-                              getFastMathFlags(Expr->getFPFeaturesInEffect(
-                                  Glob.getCGM().getLangOpts())));
+                              mlirclang::getFastMathFlags(
+                                  Builder, Expr->getFPFeaturesInEffect(
+                                               Glob.getCGM().getLangOpts())));
 
       if (!Op)
         Op = Builder.create<mlir::sycl::SYCLCallOp>(
@@ -1541,8 +1543,8 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     else
       V = Builder.create<arith::AddFOp>(
           Loc, V, A1,
-          getFastMathFlags(
-              BO->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
+          mlirclang::getFastMathFlags(
+              Builder, BO->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
 
     return ValueCategory(V, false);
   }
@@ -2126,6 +2128,9 @@ public:
   constexpr BinaryOperator::Opcode getOpcode() const { return Opcode; }
   FPOptions getFPFeatures() const { return FPFeatures; }
   constexpr const Expr *getExpr() const { return E; }
+  arith::FastMathFlagsAttr getFastMathFlags(Builder &B) const {
+    return mlirclang::getFastMathFlags(B, FPFeatures);
+  }
 
 private:
   const ValueCategory LHS;
@@ -2773,7 +2778,7 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
   assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
 
   if (mlirclang::isFPOrFPVectorTy(LHS.val.getType()))
-    return LHS.FMul(Builder, Loc, RHS, getFastMathFlags(Info.getFPFeatures()));
+    return LHS.FMul(Builder, Loc, RHS, Info.getFastMathFlags(Builder));
   return LHS.Mul(Builder, Loc, RHS);
 }
 
@@ -2803,7 +2808,7 @@ ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
             << "Not applying OpenCL/HIP precision options.\n";
       }
     });
-    return LHS.FDiv(Builder, Loc, RHS, getFastMathFlags(Info.getFPFeatures()));
+    return LHS.FDiv(Builder, Loc, RHS, Info.getFastMathFlags(Builder));
   }
   if (Info.getType()->hasUnsignedIntegerRepresentation())
     return LHS.UDiv(Builder, Loc, RHS);
@@ -2978,11 +2983,11 @@ ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
   assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
 
   if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
-    std::optional<ValueCategory> FMulAdd = tryEmitFMulAdd(
-        Info, Builder, Loc, getFastMathFlags(Info.getFPFeatures()));
+    std::optional<ValueCategory> FMulAdd =
+        tryEmitFMulAdd(Info, Builder, Loc, Info.getFastMathFlags(Builder));
     return FMulAdd ? *FMulAdd
                    : LHS.FAdd(Builder, Loc, RHS.val,
-                              getFastMathFlags(Info.getFPFeatures()));
+                              Info.getFastMathFlags(Builder));
   }
 
   return LHS.Add(Builder, Loc, RHS.val);
@@ -3002,12 +3007,12 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
     }
     assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
     if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
-      std::optional<ValueCategory> FMulAdd = tryEmitFMulAdd(
-          Info, Builder, Loc, getFastMathFlags(Info.getFPFeatures()),
-          /*IsSub=*/true);
+      std::optional<ValueCategory> FMulAdd =
+          tryEmitFMulAdd(Info, Builder, Loc, Info.getFastMathFlags(Builder),
+                         /*IsSub=*/true);
       return FMulAdd ? *FMulAdd
                      : LHS.FSub(Builder, Loc, RHS.val,
-                                getFastMathFlags(Info.getFPFeatures()));
+                                Info.getFastMathFlags(Builder));
     }
     return LHS.Sub(Builder, Loc, RHS.val);
   }
@@ -3187,7 +3192,7 @@ ValueCategory MLIRScanner::VisitMinus(UnaryOperator *E,
 
   // Generate a unary FNeg for FP ops.
   if (mlirclang::isFPOrFPVectorTy(Op.val.getType()))
-    return Op.FNeg(Builder, Loc, getFastMathFlags(FPO));
+    return Op.FNeg(Builder, Loc, mlirclang::getFastMathFlags(Builder, FPO));
 
   // Emit unary minus with EmitBinSub so we handle overflow cases etc.
   const ValueCategory Zero =
