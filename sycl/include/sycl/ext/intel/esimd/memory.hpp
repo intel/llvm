@@ -3662,16 +3662,15 @@ __ESIMD_API std::enable_if_t<
         sycl::detail::acc_properties::is_accessor_v<AccessorTy> &&
         !sycl::detail::acc_properties::is_local_accessor_v<AccessorTy>,
     simd<T, N>>
-atomic_update_impl(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> src0,
-                   simd_mask<N> pred) {
+atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
+                   simd<T, N> src0, simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
-                                                    offsets, src0, pred);
+                                                    byte_offset, src0, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
   static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
                 "Unsupported offset type");
-  check_lsc_vector_size<1>();
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   check_cache_hint<cache_action::atomic, L1H, L2H>();
@@ -3682,12 +3681,12 @@ atomic_update_impl(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> src0,
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Msg_data = lsc_format_input<MsgT>(src0);
+  simd<MsgT, N> Src0Msg = lsc_format_input<MsgT>(src0);
   auto si = get_surface_index(acc);
   simd<MsgT, N> Tmp =
       __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
                                 EDS, VS, Transposed, N>(
-          pred.data(), offsets.data(), Msg_data.data(), si);
+          pred.data(), byte_offset.data(), Src0Msg.data(), si);
   return lsc_format_ret<T>(Tmp);
 #endif
 }
@@ -5440,8 +5439,9 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
     static_assert(sizeof(T) == 4, "Only 32 bit data is supported");
     const auto si = __ESIMD_NS::get_surface_index(acc);
     using Tx = typename detail::__raw_t<T>;
-    return __esimd_dword_atomic1<Op, Tx, N>(mask.data(), si, byte_offset.data(),
-                                            src0.data());
+    return __esimd_dword_atomic1<Op, Tx, N>(
+        mask.data(), si, byte_offset.data(),
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<Tx, N>>(src0.data()));
   }
 #endif
 }

@@ -2698,7 +2698,7 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam Op is operation type.
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
-/// @tparam DS is the data size (unused/obsolete).
+/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
@@ -2736,7 +2736,7 @@ lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd_mask<N> pred = 1) {
 /// @tparam Op is operation type.
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
-/// @tparam DS is the data size (unused/obsolete).
+/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @param p is the base pointer.
@@ -2850,7 +2850,7 @@ lsc_atomic_update(T *p, Toffset offset, __ESIMD_NS::simd<T, N> src0,
 /// @tparam Op is operation type.
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
-/// @tparam DS is the data size (unused/obsolete).
+/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
@@ -2909,7 +2909,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam Op is operation type.
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
-/// @tparam DS is the data size (unused/obsolete).
+/// @tparam DS is the data size.
 /// @tparam L1H is L1 cache hint.
 /// @tparam L3H is L3 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
