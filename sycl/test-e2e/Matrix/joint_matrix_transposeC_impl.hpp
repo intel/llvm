@@ -1,27 +1,3 @@
-
-template <typename T1, typename T2>
-bool matrix_compare_exact(unsigned int rows, unsigned int cols, T1 *src,
-                          T2 *ref) {
-  bool res = true;
-  for (int i = 0; i < rows; i++) {
-    for (int j = 0; j < cols; j++) {
-      if (src[i * cols + j] != ref[i * cols + j]) {
-        res = false;
-      }
-    }
-  }
-  return res;
-}
-
-template <typename T>
-void matrix_transpose(unsigned int rows, unsigned int cols, T *dst, T *src) {
-  for (unsigned int i = 0; i < rows; i++) {
-    for (unsigned int j = 0; j < cols; j++) {
-      dst[i + j * rows] = src[i * cols + j];
-    }
-  }
-}
-
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
@@ -30,6 +6,9 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
                            queue q) {
   size_t M = NUM_ROWS;
   size_t N = NUM_COLS;
+
+  static_assert((NUM_ROWS % TM) == 0);
+  static_assert((NUM_COLS % TN) == 0);
 
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
@@ -75,9 +54,9 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
    }).wait();
 }
 
-template <size_t TM> bool run_matrix_test() {
-  static constexpr size_t MATRIX_M = 1024;
-  static constexpr size_t MATRIX_N = 1024;
+template <size_t TM> void run_matrix_test() {
+  static constexpr size_t MATRIX_M = TM * 128;
+  static constexpr size_t MATRIX_N = TN * 128;
 
   queue q;
   float *input = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
@@ -95,36 +74,28 @@ template <size_t TM> bool run_matrix_test() {
 
   // we use exact comparison as no low precision calculation is used in this
   // test
-  bool res =
-      matrix_compare_exact(MATRIX_M, MATRIX_N, out_col_major, ref_col_major) &&
-      matrix_compare_exact(MATRIX_M, MATRIX_N, out_row_major, input);
-
+  bool res = matrix_compare<float, float, true>(MATRIX_M, MATRIX_N,
+                                                out_col_major, ref_col_major) &&
+             matrix_compare<float, float, true>(MATRIX_M, MATRIX_N,
+                                                out_row_major, input);
   free(input, q);
   free(out_col_major, q);
   free(out_row_major, q);
   free(ref_col_major, q);
-  return res;
+  assert(res);
+  return;
 }
 
 int main() {
-  bool res = true;
-  if (res)
-    res = run_matrix_test<8>();
-  if (res)
-    res = run_matrix_test<7>();
-  if (res)
-    res = run_matrix_test<6>();
-  if (res)
-    res = run_matrix_test<5>();
-  if (res)
-    res = run_matrix_test<4>();
-  if (res)
-    res = run_matrix_test<3>();
-  if (res)
-    res = run_matrix_test<2>();
-  if (res)
-    res = run_matrix_test<1>();
+  run_matrix_test<8>();
+  run_matrix_test<7>();
+  run_matrix_test<6>();
+  run_matrix_test<5>();
+  run_matrix_test<4>();
+  run_matrix_test<3>();
+  run_matrix_test<2>();
+  run_matrix_test<1>();
 
-  std::cout << (res ? "passed" : "failed") << std::endl;
-  return !res;
+  std::cout << "Passed\n";
+  return 0;
 }
