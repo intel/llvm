@@ -98,8 +98,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
     return ReturnValue(bool{false});
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
-    return ReturnValue(static_cast<uint32_t>(
-          hDevice->tp.num_threads()));
+    return ReturnValue(static_cast<uint32_t>(hDevice->tp.num_threads()));
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
     return ReturnValue(uint32_t{0});
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS:
@@ -139,7 +138,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     return ReturnValue(uint32_t{3});
   case UR_DEVICE_INFO_PARTITION_TYPE:
-    return ReturnValue(ur_device_partition_property_t{});
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
@@ -159,8 +161,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
-  // todo: how can we query vector width in a platform
-  // indipendent way?
+  // TODO: How can we query vector width in a platform
+  // independent way?
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
     return ReturnValue(uint32_t{32});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
@@ -266,7 +268,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(bool{1});
   case UR_DEVICE_INFO_BFLOAT16:
-    return ReturnValue(bool{1});
+    return ReturnValue(bool{0});
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     return ReturnValue(bool{0});
   case UR_DEVICE_INFO_IMAGE_SRGB:

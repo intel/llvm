@@ -1,39 +1,37 @@
-//===----------- threadpool.hpp - Native CPU Threadpool --------------------===//
+//===----------- threadpool.hpp - Native CPU Threadpool
+//--------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#pragma once 
+#pragma once
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
 #include <functional>
 #include <future>
+#include <iostream>
 #include <mutex>
 #include <numeric>
 #include <queue>
 #include <string>
 #include <thread>
 #include <vector>
-#include <iostream>
 
 namespace native_cpu {
-
 
 using worker_task_t = std::function<void(size_t)>;
 
 namespace detail {
 
 class worker_thread {
- public:
-  
+public:
   // Initializes state, but does not start the worker thread
   worker_thread() noexcept : m_isRunning(false), m_numTasks(0) {}
 
-  
   // Creates and launches the worker thread
   inline void start(size_t threadId) {
     std::lock_guard<std::mutex> lock(m_workMutex);
@@ -43,7 +41,7 @@ class worker_thread {
     m_threadId = threadId;
     m_worker = std::thread([this]() {
       while (true) {
-        // pin the thread to the cpu 
+        // pin the thread to the cpu
         std::unique_lock<std::mutex> lock(m_workMutex);
         // Wait until there's work available
         m_startWorkCondition.wait(
@@ -65,11 +63,10 @@ class worker_thread {
       }
     });
 
-    
     m_isRunning = true;
   }
 
-  inline void schedule(const worker_task_t& task) {
+  inline void schedule(const worker_task_t &task) {
     {
       std::lock_guard<std::mutex> lock(m_workMutex);
       // Add the task to the queue
@@ -85,7 +82,6 @@ class worker_thread {
     return m_numTasks.load();
   }
 
-  
   // Waits for all tasks to finish and destroys the worker thread
   inline void stop() {
     {
@@ -100,11 +96,10 @@ class worker_thread {
     }
   }
 
-  
   // Checks whether the thread pool is currently running threads
   inline bool is_running() const noexcept { return m_isRunning; }
 
- private:
+private:
   // Unique ID identifying the thread in the threadpool
   size_t m_threadId;
   std::thread m_worker;
@@ -120,44 +115,44 @@ class worker_thread {
   std::atomic<size_t> m_numTasks;
 };
 
-
 // Implementation of a thread pool. The worker threads are created and
-//       ready at construction. This class mainly holds the interface for
-//       scheduling a task to the most appropriate thread and handling input
-//       parameters and futures.
+// ready at construction. This class mainly holds the interface for
+// scheduling a task to the most appropriate thread and handling input
+// parameters and futures.
 class simple_thread_pool {
- public:
+public:
   simple_thread_pool(size_t numThreads = 0) noexcept : m_isRunning(false) {
     this->resize(numThreads);
+    this->start();
   }
 
-  
+  ~simple_thread_pool() { this->stop(); }
+
   // Creates and launches the worker threads
   inline void start() {
     if (this->is_running()) {
       return;
     }
     size_t threadId = 0;
-    for (auto& t : m_workers) {
+    for (auto &t : m_workers) {
       t.start(threadId);
       threadId++;
     }
     m_isRunning.store(true, std::memory_order_release);
   }
 
-  
   // Waits for all tasks to finish and destroys the worker threads
   inline void stop() {
-    for (auto& t : m_workers) {
+    for (auto &t : m_workers) {
       t.stop();
     }
     m_isRunning.store(false, std::memory_order_release);
   }
 
   inline void resize(size_t numThreads) {
-    char* envVar = std::getenv("SYCL_NATIVE_CPU_HOST_THREADS");
-    if(envVar){
-    	numThreads = std::stoul(envVar);
+    char *envVar = std::getenv("SYCL_NATIVE_CPU_HOST_THREADS");
+    if (envVar) {
+      numThreads = std::stoul(envVar);
     }
     if (numThreads == 0) {
       numThreads = std::thread::hardware_concurrency();
@@ -167,7 +162,7 @@ class simple_thread_pool {
     }
   }
 
-  inline void schedule(const worker_task_t& task) {
+  inline void schedule(const worker_task_t &task) {
     // Schedule the task on the best available worker thread
     this->best_worker().schedule(task);
   }
@@ -181,7 +176,7 @@ class simple_thread_pool {
   inline size_t num_pending_tasks() const noexcept {
     return std::accumulate(std::begin(m_workers), std::end(m_workers),
                            size_t(0),
-                           [](size_t numTasks, const worker_thread& t) {
+                           [](size_t numTasks, const worker_thread &t) {
                              return (numTasks + t.num_pending_tasks());
                            });
   }
@@ -192,51 +187,43 @@ class simple_thread_pool {
     }
   }
 
- protected:
+protected:
   // Determines which thread is the most appropriate for having work
   // scheduled
-  worker_thread& best_worker() noexcept {
+  worker_thread &best_worker() noexcept {
     return *std::min_element(
         std::begin(m_workers), std::end(m_workers),
-        [](const worker_thread& w1, const worker_thread& w2) {
+        [](const worker_thread &w1, const worker_thread &w2) {
           // Prefer threads whose task queues are shorter
           // This is just an approximation, it doesn't need to be exact
           return (w1.num_pending_tasks() < w2.num_pending_tasks());
         });
   }
 
- private:
+private:
   std::vector<worker_thread> m_workers;
 
   std::atomic<bool> m_isRunning;
 };
 } // namespace detail
 
-
-template <typename ThreadPoolT>
-class threadpool_interface {
+template <typename ThreadPoolT> class threadpool_interface {
   ThreadPoolT threadpool;
+
 public:
-  void start() {
-    threadpool.start();
-  }
+  void start() { threadpool.start(); }
 
-  void stop() {
-    threadpool.stop();
-  }
+  void stop() { threadpool.stop(); }
 
-  size_t num_threads() const noexcept { 
-    return threadpool.num_threads();
-  }
+  size_t num_threads() const noexcept { return threadpool.num_threads(); }
 
   threadpool_interface(size_t numThreads) : threadpool(numThreads) {}
   threadpool_interface() : threadpool(0) {}
 
-  std::future<void> schedule_task(worker_task_t &&task) {
+  auto schedule_task(worker_task_t &&task) {
     auto workerTask = std::make_shared<std::packaged_task<void(size_t)>>(
-        [task](auto&& PH1) { return task(std::forward<decltype(PH1)>(PH1)); });
-    threadpool.schedule(
-        [=](size_t threadId) { (*workerTask)(threadId); });
+        [task](auto &&PH1) { return task(std::forward<decltype(PH1)>(PH1)); });
+    threadpool.schedule([=](size_t threadId) { (*workerTask)(threadId); });
     return workerTask->get_future();
   }
 };
@@ -244,4 +231,3 @@ public:
 using threadpool_t = threadpool_interface<detail::simple_thread_pool>;
 
 } // namespace native_cpu
-

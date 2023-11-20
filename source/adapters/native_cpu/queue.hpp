@@ -12,8 +12,7 @@
 #include "device.hpp"
 
 struct ur_queue_handle_t_ : RefCounted {
-  ur_device_handle_t_ *device;
+  ur_device_handle_t_ *const device;
 
   ur_queue_handle_t_(ur_device_handle_t_ *device) : device(device) {}
-
 };
