@@ -55,14 +55,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/PietroGhg/unified-runtime.git")
   # commit 534071e52f84bad1dd7fb210a360414507f3b3ae
   # Merge: 9fc82304 d164792b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Wed Nov 15 10:51:54 2023 +0000
   #     Merge pull request #1077 from fabiomestre/fabio/combines_fixes_cuda_hip
   #     [CUDA][HIP] Combined CTS Fixes
-  set(UNIFIED_RUNTIME_TAG 534071e52f84bad1dd7fb210a360414507f3b3ae)
+  set(UNIFIED_RUNTIME_TAG pietro/refcounting)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
