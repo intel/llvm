@@ -16,10 +16,10 @@
 #include <cuda.h>
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <cupti.h>
-#include <dlfcn.h>
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 #include "tracing.hpp"
+#include "ur_lib_loader.hpp"
 #include <exception>
 #include <iostream>
 
@@ -42,8 +42,9 @@ using cuptiEnableCallback_fn = CUPTIAPI
 CUptiResult (*)(uint32_t enable, CUpti_SubscriberHandle subscriber,
                 CUpti_CallbackDomain domain, CUpti_CallbackId cbid);
 
-#define LOAD_CUPTI_SYM(p, x)                                                   \
-  p->x = (cupti##x##_fn)dlsym(p->Library, "cupti" #x);
+#define LOAD_CUPTI_SYM(p, lib, x)                                              \
+  p->x = (cupti##x##_fn)ur_loader::LibLoader::getFunctionPtr(lib.get(),        \
+                                                             "cupti" #x);
 
 #else
 using tracing_event_t = void *;
@@ -58,7 +59,7 @@ struct cuda_tracing_context_t_ {
   tracing_event_t CallEvent = nullptr;
   tracing_event_t DebugEvent = nullptr;
   subscriber_handle_t Subscriber = nullptr;
-  void *Library = nullptr;
+  ur_loader::LibLoader::Lib Library;
   cuptiSubscribe_fn Subscribe = nullptr;
   cuptiUnsubscribe_fn Unsubscribe = nullptr;
   cuptiEnableDomain_fn EnableDomain = nullptr;
@@ -137,18 +138,19 @@ bool loadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx) {
     return false;
   if (Ctx->Library)
     return true;
-  Ctx->Library = dlopen(CUPTI_LIB_PATH, RTLD_NOW);
-  if (!Ctx->Library)
+  auto Lib{ur_loader::LibLoader::loadAdapterLibrary(CUPTI_LIB_PATH)};
+  if (!Lib)
     return false;
-  LOAD_CUPTI_SYM(Ctx, Subscribe)
-  LOAD_CUPTI_SYM(Ctx, Unsubscribe)
-  LOAD_CUPTI_SYM(Ctx, EnableDomain)
-  LOAD_CUPTI_SYM(Ctx, EnableCallback)
+  LOAD_CUPTI_SYM(Ctx, Lib, Subscribe)
+  LOAD_CUPTI_SYM(Ctx, Lib, Unsubscribe)
+  LOAD_CUPTI_SYM(Ctx, Lib, EnableDomain)
+  LOAD_CUPTI_SYM(Ctx, Lib, EnableCallback)
   if (!Ctx->Subscribe || !Ctx->Unsubscribe || !Ctx->EnableDomain ||
       !Ctx->EnableCallback) {
     unloadCUDATracingLibrary(Ctx);
     return false;
   }
+  Ctx->Library = std::move(Lib);
   return true;
 #else
   (void)Ctx;
@@ -164,8 +166,8 @@ void unloadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx) {
   Ctx->Unsubscribe = nullptr;
   Ctx->EnableDomain = nullptr;
   Ctx->EnableCallback = nullptr;
-  dlclose(Ctx->Library);
-  Ctx->Library = nullptr;
+
+  Ctx->Library.reset();
 #else
   (void)Ctx;
 #endif // XPTI_ENABLE_INSTRUMENTATION
