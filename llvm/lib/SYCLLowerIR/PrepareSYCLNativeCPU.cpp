@@ -227,10 +227,7 @@ static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   static FunctionType *FTy =
       FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto *F = dyn_cast<Function>(FCallee.getCallee());
-  if(!F) {
-    report_fatal_error("Error while replacing mux builtins");
-  }
+  auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
@@ -272,10 +269,7 @@ static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
   static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto *F = dyn_cast<Function>(FCallee.getCallee());
-  if(!F) {
-    report_fatal_error("Error while replacing mux builtins");
-  }
+  auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
@@ -306,10 +300,7 @@ static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
     Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
     static FunctionType *FTy = FunctionType::get(RetTy, {ValTy, PtrTy}, false);
     auto FCallee = M.getOrInsertFunction(Name, FTy);
-    auto *F = dyn_cast<Function>(FCallee.getCallee());
-    if(!F) {
-      report_fatal_error("Error while replacing mux builtins");
-    }
+    auto *F = cast<Function>(FCallee.getCallee());
     IRBuilder<> Builder(Ctx);
     BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
     Builder.SetInsertPoint(BB);
@@ -371,9 +362,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (!Glob)
       continue;
     for (const auto &Use : Glob->uses()) {
-      auto I = dyn_cast<CallInst>(Use.getUser());
-      if (!I)
-        report_fatal_error("Unsupported Value in SYCL Native CPU\n");
+      auto I = cast<CallInst>(Use.getUser());
       if (!IsNativeCPUKernel(I->getFunction())) {
         // only use the threadlocal if we have kernels calling builtins
         // indirectly
@@ -436,9 +425,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     Function *const Glob = Entry.first;
     for (const auto &Use : Glob->uses()) {
       auto *ReplaceFunc = getReplaceFunc(M, Entry.second, StateType);
-      auto I = dyn_cast<CallInst>(Use.getUser());
-      if (!I)
-        report_fatal_error("Unsupported Value in SYCL Native CPU\n");
+      auto I = cast<CallInst>(Use.getUser());
       SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
       Args.push_back(getStateArg(I->getFunction(), CurrentStatePointerTLS));
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
