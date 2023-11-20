@@ -49,9 +49,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  hQueue->decrementReferenceCount();
-  if(hQueue->getReferenceCount() == 0)
-    delete hQueue;
+  decrementOrDelete(hQueue);
 
   return UR_RESULT_SUCCESS;
 }
