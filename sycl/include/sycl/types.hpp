@@ -1074,7 +1074,7 @@ public:
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
-  vec<rel_t, NumElements> operator RELLOGOP(const vec &Rhs) const {            \
+  vec<rel_t, NumElements> operator RELLOGOP(const vec & Rhs) const {           \
     vec<rel_t, NumElements> Ret{};                                             \
     /* This special case is needed since there are no standard operator||   */ \
     /* or operator&& functions for std::array.                              */ \
@@ -1100,7 +1100,7 @@ public:
                                 (std::is_fundamental_v<vec_data_t<T>> ||       \
                                  std::is_same_v<T, half>),                     \
                             vec<rel_t, NumElements>>                           \
-  operator RELLOGOP(const T &Rhs) const {                                      \
+  operator RELLOGOP(const T & Rhs) const {                                     \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
 #else
