@@ -182,9 +182,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  hKernel->decrementReferenceCount();
-  if(hKernel->getReferenceCount() == 0)
-    delete hKernel;
+  decrementOrDelete(hKernel);
 
   return UR_RESULT_SUCCESS;
 }

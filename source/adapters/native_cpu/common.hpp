@@ -11,6 +11,7 @@
 #pragma once
 
 #include "ur/ur.hpp"
+#include <mutex>
 
 constexpr size_t MaxMessageSize = 256;
 
@@ -63,8 +64,17 @@ struct _ur_object {
 
 struct RefCounted {
   std::atomic_uint32_t _refCount;
+  std::mutex _mutex;
   void incrementReferenceCount() { _refCount++; }
   void decrementReferenceCount() { _refCount--; }
   RefCounted() : _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
 };
+
+template <typename T>
+inline void decrementOrDelete(T* refC) {
+  refC->decrementReferenceCount();
+  std::lock_guard<std::mutex> lock(refC->_mutex);
+  if (refC->getReferenceCount() == 0)
+    delete refC;
+}
