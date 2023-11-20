@@ -44,7 +44,7 @@ struct OneToOneMappingPattern : public OpConversionPattern<SYCLOpT> {
     // `op` has a native MLIR type, hence we can just replace it with its
     // counterpart in the `math` dialect.
     NamedAttribute fastmath = rewriter.getNamedAttr(
-        MathOpT::getFastMathAttrName(), adaptor.getFastmathAttr());
+        SYCLOpT::getFastMathAttrName(), adaptor.getFastmathAttr());
     rewriter.replaceOpWithNewOp<MathOpT>(op, adaptor.getOperands(), fastmath);
   }
 };

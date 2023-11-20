@@ -349,7 +349,8 @@ private:
   /// `sycl` dialect.
   mlir::Operation *createSYCLMathOp(llvm::StringRef FunctionName,
                                     mlir::ValueRange Operands,
-                                    mlir::Type ReturnType);
+                                    mlir::Type ReturnType,
+                                    mlir::arith::FastMathFlagsAttr FMF);
 
   /// Creates an instance of a SYCL grid operation replacing a call to \param
   /// Callee.

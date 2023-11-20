@@ -14,6 +14,7 @@
 #define SYCL_MATH_OPS
 
 include "mlir/Dialect/Arith/IR/ArithBase.td"
+include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +41,10 @@ def SYCLMathFunc : SYCLOpTrait<"SYCLMathFunc">;
 // TODO: Support marrarys.
 // TODO: Consider VectorUnrollOpInterface, ElementwiseMappable.
 class SYCL_MathOp<string mnemonic, list<Trait> traits = []> :
-    SYCL_Op<"math." # mnemonic, traits # [SYCLMathFunc, Pure]>;
+    SYCL_Op<"math." # mnemonic,
+            traits # [SYCLMathFunc,
+                      DeclareOpInterfaceMethods<ArithFastMathInterface>,
+                      Pure]>;
 
 class SYCL_FloatUnaryOp<string mnemonic, string synopsis = "",
                         list<Trait> traits = []> :

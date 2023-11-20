@@ -8,6 +8,7 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/IR/Verifier.h"
@@ -1205,9 +1206,10 @@ MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
   return cast<sycl::SYCLMethodOpInterface>(op);
 }
 
-mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
-                                               mlir::ValueRange Operands,
-                                               mlir::Type ReturnType) {
+mlir::Operation *
+MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
+                              mlir::ValueRange Operands, mlir::Type ReturnType,
+                              mlir::arith::FastMathFlagsAttr FMF) {
   constexpr std::size_t NumMathFuncs{18};
   // Sorted array
   // clang-format off
@@ -1261,8 +1263,13 @@ mlir::Operation *MLIRScanner::createSYCLMathOp(llvm::StringRef FunctionName,
   }
 
   StringRef OpName(Iter->second);
+  // We need a placeholder sycl.math operation type to get the attribute name
+  using PlaceholderMathOp = sycl::SYCLCeilOp;
+  NamedAttribute FastMathAttr =
+      Builder.getNamedAttr(PlaceholderMathOp::getFastMathAttrName(), FMF);
   return tryToCreateOperation(Builder, Loc, Builder.getStringAttr(OpName),
-                              MathFuncOperands, /*types=*/ReturnType);
+                              MathFuncOperands, /*types=*/ReturnType,
+                              FastMathAttr);
 }
 
 Operation *MLIRScanner::createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
@@ -1440,8 +1447,10 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
                  .value_or(nullptr);
 
       if (!Op && OptRetType.has_value())
-        Op =
-            createSYCLMathOp(Func->getNameAsString(), Args, OptRetType.value());
+        Op = createSYCLMathOp(Func->getNameAsString(), Args, OptRetType.value(),
+                              mlirclang::getFastMathFlags(
+                                  Builder, Expr->getFPFeaturesInEffect(
+                                               Glob.getCGM().getLangOpts())));
 
       if (!Op)
         Op = Builder.create<mlir::sycl::SYCLCallOp>(
@@ -1532,7 +1541,10 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     if (isa<mlir::IntegerType>(Ty))
       V = Builder.create<arith::AddIOp>(Loc, V, A1);
     else
-      V = Builder.create<arith::AddFOp>(Loc, V, A1);
+      V = Builder.create<arith::AddFOp>(
+          Loc, V, A1,
+          mlirclang::getFastMathFlags(
+              Builder, BO->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
 
     return ValueCategory(V, false);
   }
@@ -2116,6 +2128,9 @@ public:
   constexpr BinaryOperator::Opcode getOpcode() const { return Opcode; }
   FPOptions getFPFeatures() const { return FPFeatures; }
   constexpr const Expr *getExpr() const { return E; }
+  arith::FastMathFlagsAttr getFastMathFlags(Builder &B) const {
+    return mlirclang::getFastMathFlags(B, FPFeatures);
+  }
 
 private:
   const ValueCategory LHS;
@@ -2130,10 +2145,9 @@ private:
 // op and if so, build the fmuladd.
 //
 // Checks that (a) the operation is fusable, and (b) -ffp-contract=on.
-static std::optional<ValueCategory> tryEmitFMulAdd(const BinOpInfo &Op,
-                                                   OpBuilder &Builder,
-                                                   Location Loc,
-                                                   bool IsSub = false) {
+static std::optional<ValueCategory>
+tryEmitFMulAdd(const BinOpInfo &Op, OpBuilder &Builder, Location Loc,
+               arith::FastMathFlagsAttr FMF, bool IsSub = false) {
   const BinaryOperator::Opcode Opcode = Op.getOpcode();
 
   assert((Opcode == BO_Add || Opcode == BO_AddAssign || Opcode == BO_Sub ||
@@ -2164,17 +2178,18 @@ static std::optional<ValueCategory> tryEmitFMulAdd(const BinOpInfo &Op,
   // there's no point creating a muladd operation.
   constexpr auto tryEmit = [](OpBuilder &Builder, Location Loc,
                               ValueCategory Original, ValueCategory LHS,
-                              ValueCategory RHS, bool NegLHS, bool NegMul,
+                              ValueCategory RHS, arith::FastMathFlagsAttr FMF,
+                              bool NegLHS, bool NegMul,
                               bool NegAdd) -> std::optional<ValueCategory> {
     auto LHSOp = LHS.val.getDefiningOp<arith::MulFOp>();
     if (LHSOp && (LHS.val.use_empty() || NegLHS))
-      return LHS.FMA(Builder, Loc, RHS, NegMul, NegAdd);
+      return LHS.FMA(Builder, Loc, RHS, FMF, NegMul, NegAdd);
     return {};
   };
   std::optional<ValueCategory> Res =
-      tryEmit(Builder, Loc, Op.getLHS(), LHS, RHS, NegLHS, NegLHS, IsSub);
+      tryEmit(Builder, Loc, Op.getLHS(), LHS, RHS, FMF, NegLHS, NegLHS, IsSub);
   return Res ? Res
-             : tryEmit(Builder, Loc, Op.getRHS(), RHS, LHS, NegRHS,
+             : tryEmit(Builder, Loc, Op.getRHS(), RHS, LHS, FMF, NegRHS,
                        IsSub ^ NegRHS, false);
 }
 
@@ -2763,7 +2778,7 @@ ValueCategory MLIRScanner::EmitBinMul(const BinOpInfo &Info) {
   assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
 
   if (mlirclang::isFPOrFPVectorTy(LHS.val.getType()))
-    return LHS.FMul(Builder, Loc, RHS);
+    return LHS.FMul(Builder, Loc, RHS, Info.getFastMathFlags(Builder));
   return LHS.Mul(Builder, Loc, RHS);
 }
 
@@ -2793,7 +2808,7 @@ ValueCategory MLIRScanner::EmitBinDiv(const BinOpInfo &Info) {
             << "Not applying OpenCL/HIP precision options.\n";
       }
     });
-    return LHS.FDiv(Builder, Loc, RHS);
+    return LHS.FDiv(Builder, Loc, RHS, Info.getFastMathFlags(Builder));
   }
   if (Info.getType()->hasUnsignedIntegerRepresentation())
     return LHS.UDiv(Builder, Loc, RHS);
@@ -2968,8 +2983,11 @@ ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
   assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
 
   if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
-    std::optional<ValueCategory> FMulAdd = tryEmitFMulAdd(Info, Builder, Loc);
-    return FMulAdd ? *FMulAdd : LHS.FAdd(Builder, Loc, RHS.val);
+    std::optional<ValueCategory> FMulAdd =
+        tryEmitFMulAdd(Info, Builder, Loc, Info.getFastMathFlags(Builder));
+    return FMulAdd ? *FMulAdd
+                   : LHS.FAdd(Builder, Loc, RHS.val,
+                              Info.getFastMathFlags(Builder));
   }
 
   return LHS.Add(Builder, Loc, RHS.val);
@@ -2990,8 +3008,11 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
     assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
     if (mlirclang::isFPOrFPVectorTy(LHS.val.getType())) {
       std::optional<ValueCategory> FMulAdd =
-          tryEmitFMulAdd(Info, Builder, Loc, /*IsSub=*/true);
-      return FMulAdd ? *FMulAdd : LHS.FSub(Builder, Loc, RHS.val);
+          tryEmitFMulAdd(Info, Builder, Loc, Info.getFastMathFlags(Builder),
+                         /*IsSub=*/true);
+      return FMulAdd ? *FMulAdd
+                     : LHS.FSub(Builder, Loc, RHS.val,
+                                Info.getFastMathFlags(Builder));
     }
     return LHS.Sub(Builder, Loc, RHS.val);
   }
@@ -3167,16 +3188,17 @@ ValueCategory MLIRScanner::VisitMinus(UnaryOperator *E,
   else
     Op = Visit(E->getSubExpr());
 
+  clang::FPOptions FPO = E->getFPFeaturesInEffect(Glob.getCGM().getLangOpts());
+
   // Generate a unary FNeg for FP ops.
   if (mlirclang::isFPOrFPVectorTy(Op.val.getType()))
-    return Op.FNeg(Builder, Loc);
+    return Op.FNeg(Builder, Loc, mlirclang::getFastMathFlags(Builder, FPO));
 
   // Emit unary minus with EmitBinSub so we handle overflow cases etc.
   const ValueCategory Zero =
       ValueCategory::getNullValue(Builder, Loc, Op.val.getType());
-  return EmitBinSub(
-      BinOpInfo{Zero, Op, E->getType(), BinaryOperator::Opcode::BO_Sub,
-                E->getFPFeaturesInEffect(Glob.getCGM().getLangOpts()), E});
+  return EmitBinSub(BinOpInfo{Zero, Op, E->getType(),
+                              BinaryOperator::Opcode::BO_Sub, FPO, E});
 }
 
 ValueCategory MLIRScanner::VisitImag(UnaryOperator *E, QualType PromotionType) {

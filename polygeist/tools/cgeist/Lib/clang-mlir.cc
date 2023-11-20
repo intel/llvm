@@ -813,7 +813,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       Next = Builder.create<arith::AddFOp>(
           Loc, Prev,
           Builder.create<arith::ConstantFloatOp>(
-              Loc, APFloat(FT.getFloatSemantics(), "1"), FT));
+              Loc, APFloat(FT.getFloatSemantics(), "1"), FT),
+          mlirclang::getFastMathFlags(
+              Builder, U->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
     } else if (auto MT = dyn_cast<MemRefType>(Ty)) {
       auto Shape = std::vector<int64_t>(MT.getShape());
       Shape[0] = ShapedType::kDynamic;
@@ -860,7 +862,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       Next = Builder.create<arith::SubFOp>(
           Loc, Prev,
           Builder.create<arith::ConstantFloatOp>(
-              Loc, APFloat(FT.getFloatSemantics(), "1"), FT));
+              Loc, APFloat(FT.getFloatSemantics(), "1"), FT),
+          mlirclang::getFastMathFlags(
+              Builder, U->getFPFeaturesInEffect(Glob.getCGM().getLangOpts())));
     } else if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Ty)) {
       auto ITy = IntegerType::get(Builder.getContext(), 64);
       Next = Builder.create<LLVM::GEPOp>(

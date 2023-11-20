@@ -143,7 +143,7 @@ public:
                     mlir::Value RHS, bool HasNUW = false,
                     bool HasNSW = false) const;
   ValueCategory FMul(mlir::OpBuilder &Builder, mlir::Location Loc,
-                     mlir::Value RHS) const;
+                     mlir::Value RHS, mlir::arith::FastMathFlagsAttr FMF) const;
   ValueCategory CMul(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
 
@@ -157,7 +157,7 @@ public:
   ValueCategory ExactUDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
                           mlir::Value RHS) const;
   ValueCategory FDiv(mlir::OpBuilder &Builder, mlir::Location Loc,
-                     mlir::Value RHS) const;
+                     mlir::Value RHS, mlir::arith::FastMathFlagsAttr FMF) const;
 
   ValueCategory URem(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
@@ -172,21 +172,23 @@ public:
                     mlir::Value RHS, bool HasNUW = false,
                     bool HasNSW = false) const;
 
-  ValueCategory FNeg(mlir::OpBuilder &Builder, mlir::Location Loc) const;
+  ValueCategory FNeg(mlir::OpBuilder &Builder, mlir::Location Loc,
+                     mlir::arith::FastMathFlagsAttr FMF) const;
   ValueCategory Neg(mlir::OpBuilder &Builder, mlir::Location Loc,
                     bool HasNUW = false, bool HasNSW = false) const;
   ValueCategory Add(mlir::OpBuilder &Builder, mlir::Location Loc,
                     mlir::Value RHS, bool HasNUW = false,
                     bool HasNSW = false) const;
   ValueCategory FAdd(mlir::OpBuilder &Builder, mlir::Location Loc,
-                     mlir::Value RHS) const;
+                     mlir::Value RHS, mlir::arith::FastMathFlagsAttr FMF) const;
   ValueCategory FMA(mlir::OpBuilder &Builder, mlir::Location Loc,
-                    ValueCategory Addend, bool NegMul, bool NegAdd) const;
+                    ValueCategory Addend, mlir::arith::FastMathFlagsAttr FMF,
+                    bool NegMul, bool NegAdd) const;
   ValueCategory Sub(mlir::OpBuilder &Builder, mlir::Location Loc,
                     mlir::Value RHS, bool HasNUW = false,
                     bool HasNSW = false) const;
   ValueCategory FSub(mlir::OpBuilder &Builder, mlir::Location Loc,
-                     mlir::Value RHS) const;
+                     mlir::Value RHS, mlir::arith::FastMathFlagsAttr FMF) const;
   ValueCategory CAdd(mlir::OpBuilder &Builder, mlir::Location Loc,
                      mlir::Value RHS) const;
 
