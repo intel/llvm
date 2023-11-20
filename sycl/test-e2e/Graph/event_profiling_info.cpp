@@ -86,7 +86,7 @@ int main() {
               {sycl::ext::intel::property::queue::no_immediate_command_list{},
                sycl::property::queue::enable_profiling()}};
 
-  const size_t Size = 1000000;
+  const size_t Size = 100000;
   int Data[Size] = {0};
   for (size_t I = 0; I < Size; ++I) {
     Data[I] = I;
