@@ -392,11 +392,11 @@ event handler::finalize() {
         // Graph-wide barriers take precedence over previous one.
         // We therefore remove the previous ones from ExtraDependencies list.
         // The current barrier is then added to this list in the graph_impl.
-        std::vector<detail::EventImplPtr> MEventsBarriers;
-        MEventsBarriers = GraphImpl->removeBarriersFromExtraDependencies();
+        std::vector<detail::EventImplPtr> EventsBarriers =
+            GraphImpl->removeBarriersFromExtraDependencies();
         MEventsWaitWithBarrier.insert(std::end(MEventsWaitWithBarrier),
-                                      std::begin(MEventsBarriers),
-                                      std::end(MEventsBarriers));
+                                      std::begin(EventsBarriers),
+                                      std::end(EventsBarriers));
       }
       CGData.MEvents.insert(std::end(CGData.MEvents),
                             std::begin(MEventsWaitWithBarrier),
