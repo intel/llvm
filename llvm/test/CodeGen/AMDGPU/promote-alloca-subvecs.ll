@@ -400,3 +400,87 @@ define void @store_2xi32_into_double(double %foo) {
 
   ret void
 }
+
+; Check we handle loading/storing a subvector using non-constant indexes.
+define <4 x i16> @nonconst_indexes(i1 %cond, i32 %otheridx, <4 x i16> %store) #0 {
+; CHECK-LABEL: define <4 x i16> @nonconst_indexes
+; CHECK-SAME: (i1 [[COND:%.*]], i32 [[OTHERIDX:%.*]], <4 x i16> [[STORE:%.*]]) {
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    br i1 [[COND]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    br label [[FINALLY:%.*]]
+; CHECK:       else:
+; CHECK-NEXT:    br label [[FINALLY]]
+; CHECK:       finally:
+; CHECK-NEXT:    [[INDEX_1:%.*]] = phi i32 [ 0, [[THEN]] ], [ [[OTHERIDX]], [[ELSE]] ]
+; CHECK-NEXT:    [[INDEX_2:%.*]] = phi i32 [ 2, [[THEN]] ], [ [[OTHERIDX]], [[ELSE]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = extractelement <4 x i16> [[STORE]], i64 0
+; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <16 x i16> undef, i16 [[TMP0]], i32 [[INDEX_1]]
+; CHECK-NEXT:    [[TMP2:%.*]] = add i32 [[INDEX_1]], 1
+; CHECK-NEXT:    [[TMP3:%.*]] = extractelement <4 x i16> [[STORE]], i64 1
+; CHECK-NEXT:    [[TMP4:%.*]] = insertelement <16 x i16> [[TMP1]], i16 [[TMP3]], i32 [[TMP2]]
+; CHECK-NEXT:    [[TMP5:%.*]] = add i32 [[INDEX_1]], 2
+; CHECK-NEXT:    [[TMP6:%.*]] = extractelement <4 x i16> [[STORE]], i64 2
+; CHECK-NEXT:    [[TMP7:%.*]] = insertelement <16 x i16> [[TMP4]], i16 [[TMP6]], i32 [[TMP5]]
+; CHECK-NEXT:    [[TMP8:%.*]] = add i32 [[INDEX_1]], 3
+; CHECK-NEXT:    [[TMP9:%.*]] = extractelement <4 x i16> [[STORE]], i64 3
+; CHECK-NEXT:    [[TMP10:%.*]] = insertelement <16 x i16> [[TMP7]], i16 [[TMP9]], i32 [[TMP8]]
+; CHECK-NEXT:    [[TMP11:%.*]] = extractelement <16 x i16> [[TMP10]], i32 [[INDEX_2]]
+; CHECK-NEXT:    [[TMP12:%.*]] = insertelement <4 x i16> poison, i16 [[TMP11]], i64 0
+; CHECK-NEXT:    [[TMP13:%.*]] = add i32 [[INDEX_2]], 1
+; CHECK-NEXT:    [[TMP14:%.*]] = extractelement <16 x i16> [[TMP10]], i32 [[TMP13]]
+; CHECK-NEXT:    [[TMP15:%.*]] = insertelement <4 x i16> [[TMP12]], i16 [[TMP14]], i64 1
+; CHECK-NEXT:    [[TMP16:%.*]] = add i32 [[INDEX_2]], 2
+; CHECK-NEXT:    [[TMP17:%.*]] = extractelement <16 x i16> [[TMP10]], i32 [[TMP16]]
+; CHECK-NEXT:    [[TMP18:%.*]] = insertelement <4 x i16> [[TMP15]], i16 [[TMP17]], i64 2
+; CHECK-NEXT:    [[TMP19:%.*]] = add i32 [[INDEX_2]], 3
+; CHECK-NEXT:    [[TMP20:%.*]] = extractelement <16 x i16> [[TMP10]], i32 [[TMP19]]
+; CHECK-NEXT:    [[TMP21:%.*]] = insertelement <4 x i16> [[TMP18]], i16 [[TMP20]], i64 3
+; CHECK-NEXT:    ret <4 x i16> [[TMP21]]
+;
+entry:
+  %data = alloca [16 x i16], addrspace(5)
+  br i1 %cond, label %then, label %else
+
+then:
+  br label %finally
+
+else:
+  br label %finally
+
+finally:
+  %index.1 = phi i32 [ 0, %then ], [ %otheridx, %else ]
+  %index.2 = phi i32 [ 2, %then ], [ %otheridx, %else ]
+  %ptr.1 = getelementptr inbounds [16 x i16], ptr addrspace(5) %data, i32 0, i32 %index.1
+  %ptr.2 = getelementptr inbounds [16 x i16], ptr addrspace(5) %data, i32 0, i32 %index.2
+  store <4 x i16> %store, ptr addrspace(5) %ptr.1, align 2
+  %load = load <4 x i16>, ptr addrspace(5) %ptr.2, align 2
+  ret <4 x i16> %load
+}
+
+
+; Check the case when the alloca is smaller than the vector size.
+define void @test_smaller_alloca_store(<4 x i32> %store1, <4 x i32> %store2) {
+; CHECK-LABEL: define void @test_smaller_alloca_store
+; CHECK-SAME: (<4 x i32> [[STORE1:%.*]], <4 x i32> [[STORE2:%.*]]) {
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[TMP0:%.*]] = extractelement <4 x i32> [[STORE1]], i64 0
+; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <3 x i32> undef, i32 [[TMP0]], i32 0
+; CHECK-NEXT:    [[TMP2:%.*]] = extractelement <4 x i32> [[STORE1]], i64 1
+; CHECK-NEXT:    [[TMP3:%.*]] = insertelement <3 x i32> [[TMP1]], i32 [[TMP2]], i32 1
+; CHECK-NEXT:    [[TMP4:%.*]] = extractelement <4 x i32> [[STORE1]], i64 2
+; CHECK-NEXT:    [[TMP5:%.*]] = insertelement <3 x i32> [[TMP3]], i32 [[TMP4]], i32 2
+; CHECK-NEXT:    [[TMP6:%.*]] = extractelement <4 x i32> [[STORE2]], i64 0
+; CHECK-NEXT:    [[TMP7:%.*]] = insertelement <3 x i32> [[TMP5]], i32 [[TMP6]], i32 0
+; CHECK-NEXT:    [[TMP8:%.*]] = extractelement <4 x i32> [[STORE2]], i64 1
+; CHECK-NEXT:    [[TMP9:%.*]] = insertelement <3 x i32> [[TMP7]], i32 [[TMP8]], i32 1
+; CHECK-NEXT:    [[TMP10:%.*]] = extractelement <4 x i32> [[STORE2]], i64 2
+; CHECK-NEXT:    [[TMP11:%.*]] = insertelement <3 x i32> [[TMP9]], i32 [[TMP10]], i32 2
+; CHECK-NEXT:    ret void
+;
+entry:
+  %res = alloca <3 x i32>, align 16, addrspace(5)
+  store <4 x i32> %store1, ptr addrspace(5) %res, align 16
+  store <4 x i32> %store2, ptr addrspace(5) %res, align 16
+  ret void
+}

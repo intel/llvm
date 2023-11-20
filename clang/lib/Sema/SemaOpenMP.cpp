@@ -12684,6 +12684,14 @@ StmtResult Sema::ActOnOpenMPAtomicDirective(ArrayRef<OMPClause *> Clauses,
       }
       break;
     }
+    case OMPC_fail: {
+      if (AtomicKind != OMPC_compare) {
+        Diag(C->getBeginLoc(), diag::err_omp_atomic_fail_no_compare)
+            << SourceRange(C->getBeginLoc(), C->getEndLoc());
+        return StmtError();
+      }
+      break;
+    }
     case OMPC_seq_cst:
     case OMPC_acq_rel:
     case OMPC_acquire:
@@ -16885,6 +16893,11 @@ OMPClause *Sema::ActOnOpenMPSimpleClause(
         static_cast<OpenMPAtomicDefaultMemOrderClauseKind>(Argument),
         ArgumentLoc, StartLoc, LParenLoc, EndLoc);
     break;
+  case OMPC_fail:
+    Res = ActOnOpenMPFailClause(
+        static_cast<OpenMPClauseKind>(Argument),
+        ArgumentLoc, StartLoc, LParenLoc, EndLoc);
+    break;
   case OMPC_update:
     Res = ActOnOpenMPUpdateClause(static_cast<OpenMPDependClauseKind>(Argument),
                                   ArgumentLoc, StartLoc, LParenLoc, EndLoc);
@@ -17525,6 +17538,9 @@ OMPClause *Sema::ActOnOpenMPClause(OpenMPClauseKind Kind,
   case OMPC_compare:
     Res = ActOnOpenMPCompareClause(StartLoc, EndLoc);
     break;
+  case OMPC_fail:
+    Res = ActOnOpenMPFailClause(StartLoc, EndLoc);
+    break;
   case OMPC_seq_cst:
     Res = ActOnOpenMPSeqCstClause(StartLoc, EndLoc);
     break;
@@ -17683,6 +17699,24 @@ OMPClause *Sema::ActOnOpenMPCaptureClause(SourceLocation StartLoc,
 OMPClause *Sema::ActOnOpenMPCompareClause(SourceLocation StartLoc,
                                           SourceLocation EndLoc) {
   return new (Context) OMPCompareClause(StartLoc, EndLoc);
+}
+
+OMPClause *Sema::ActOnOpenMPFailClause(SourceLocation StartLoc,
+                                       SourceLocation EndLoc) {
+  return new (Context) OMPFailClause(StartLoc, EndLoc);
+}
+
+OMPClause *Sema::ActOnOpenMPFailClause(
+      OpenMPClauseKind Parameter, SourceLocation KindLoc,
+      SourceLocation StartLoc, SourceLocation LParenLoc,
+      SourceLocation EndLoc) {
+
+  if (!checkFailClauseParameter(Parameter)) {
+    Diag(KindLoc, diag::err_omp_atomic_fail_wrong_or_no_clauses);
+    return nullptr;
+  }
+  return new (Context)
+      OMPFailClause(Parameter, KindLoc, StartLoc, LParenLoc, EndLoc);
 }
 
 OMPClause *Sema::ActOnOpenMPSeqCstClause(SourceLocation StartLoc,
