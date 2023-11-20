@@ -13,8 +13,9 @@
 #include <ur_api.h>
 
 #include "device.hpp"
+#include "common.hpp"
 
-struct ur_context_handle_t_ {
+struct ur_context_handle_t_ : RefCounted {
   ur_context_handle_t_(ur_device_handle_t_ *phDevices) : _device{phDevices} {}
 
   ur_device_handle_t _device;

@@ -38,7 +38,9 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  delete hContext;
+  hContext->decrementReferenceCount();
+  if(hContext->getReferenceCount() == 0)
+    delete hContext;
   return UR_RESULT_SUCCESS;
 }
 

@@ -95,7 +95,9 @@ urProgramRetain(ur_program_handle_t hProgram) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  delete hProgram;
+  hProgram->decrementReferenceCount();
+  if(hProgram->getReferenceCount() == 0)
+    delete hProgram;
 
   return UR_RESULT_SUCCESS;
 }
