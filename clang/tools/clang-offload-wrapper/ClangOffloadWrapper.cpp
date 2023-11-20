@@ -1728,12 +1728,6 @@ int main(int argc, const char **argv) {
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
-  if (BatchMode && Inputs.size() != 1) {
-    reportError(
-        createStringError(errc::invalid_argument,
-                          "batch job table file must be the only input file"));
-    return 1;
-  }
   if (Target.empty()) {
     Target = sys::getProcessTriple();
     if (Verbose)
