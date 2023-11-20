@@ -71,7 +71,7 @@ class annotated_ref {
 
 [[deprecated("T is a non-trivially-copyable type, some operators"
              "might invoke the copy constructor!")]] void
-non_trivially_copyable(){};
+T_is_non_trivially_copyable(){};
 
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
@@ -228,7 +228,7 @@ public:
       : m_Ptr(Ptr) {
 
     if (!std::is_trivially_copyable_v<T>)
-      non_trivially_copyable();
+      T_is_non_trivially_copyable();
   }
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
@@ -240,7 +240,7 @@ public:
       : m_Ptr(Ptr) {
 
     if (!std::is_trivially_copyable_v<T>)
-      non_trivially_copyable();
+      T_is_non_trivially_copyable();
 
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
