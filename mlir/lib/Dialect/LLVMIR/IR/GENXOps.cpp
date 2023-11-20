@@ -162,6 +162,7 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
         "4th operand (base pitch) should be >= 2nd operand (base width)");
 
   uint32_t TileWidth = getTileWidth();
+  uint32_t TileHeight = getTileHeight();
   Type InputElemType = getPtr().getType().getElementType();
   switch (getElemSizeInBits()) {
     case 32:
@@ -171,6 +172,8 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
     if (TileWidth != 8)
       return this->emitOpError("tile_width for 32 bit elements should be equal "
                                "to systolic depth, i.e., 8 elements");
+    if (TileHeight != 8)
+      return this->emitOpError("tile_height for 32 bit elements should be 8");
       break;
 
     case 16:
@@ -180,6 +183,8 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
     if (TileWidth != 16)
       return this->emitOpError("tile_width for 16 bit elements should be equal "
                                "to systolic depth times 2, i.e., 16 elements");
+    if (TileHeight != 16)
+      return this->emitOpError("tile_height for 16 bit elements should be 16");
       break;
 
     case 8:
@@ -189,6 +194,8 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
     if (TileWidth != 32)
       return this->emitOpError("tile_width for 8 bit elements should be equal "
                                "to systolic depth times 4, i.e., 32 elements");
+    if (TileHeight != 32)
+      return this->emitOpError("tile_height for 8 bit elements should be 32");
       break;
 
     default:
@@ -218,6 +225,7 @@ LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
         "4th operand (base pitch) should be >= 2nd operand (base width)");
 
   uint32_t TileWidth = getTileWidth();
+  uint32_t TileHeight = getTileHeight();
   Type InputElemType = getPtr().getType().getElementType();
   switch (getElemSizeInBits()) {
     case 32:
@@ -227,6 +235,8 @@ LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
     if (TileWidth != 8)
       return this->emitOpError("tile_width for 32 bit elements should be equal "
                                "to systolic depth, i.e., 8 elements");
+    if (TileHeight != 8)
+      return this->emitOpError("tile_height for 32 bit elements should be 8");
       break;
 
     case 16:
@@ -236,6 +246,8 @@ LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
     if (TileWidth != 16)
       return this->emitOpError("tile_width for 16 bit elements should be equal "
                                "to systolic depth times 2, i.e., 16 elements");
+    if (TileHeight != 16)
+      return this->emitOpError("tile_height for 16 bit elements should be 16");
       break;
 
     case 8:
@@ -245,6 +257,8 @@ LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
     if (TileWidth != 32)
       return this->emitOpError("tile_width for 8 bit elements should be equal "
                                "to systolic depth times 4, i.e., 32 elements");
+    if (TileHeight != 32)
+      return this->emitOpError("tile_height for 8 bit elements should be 32");
       break;
 
     default:

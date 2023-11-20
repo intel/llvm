@@ -154,6 +154,30 @@ func.func @matrix_2Dblockload(%ptr : !llvm.ptr<i8>, %base_width : i32, %base_hei
 
 // -----
 
+func.func @matrix_2Dblockload(%ptr : !llvm.ptr<f32>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32) {
+  // expected-error @+1 {{'genx.matrix.2Dblockload' op tile_height for 32 bit elements should be 8}}
+  %0 = genx.matrix.2Dblockload %ptr, %base_width, %base_height, %base_pitch, %x, %y {elem_size_in_bits=32:i32, tile_width=8:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<f32>, i32, i32, i32, i32, i32) -> vector<8xf32>
+  llvm.return
+}
+
+// -----
+
+func.func @matrix_2Dblockload(%ptr : !llvm.ptr<f16>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32) {
+  // expected-error @+1 {{'genx.matrix.2Dblockload' op tile_height for 16 bit elements should be 16}}
+  %0 = genx.matrix.2Dblockload %ptr, %base_width, %base_height, %base_pitch, %x, %y {elem_size_in_bits=16:i32, tile_width=16:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<f16>, i32, i32, i32, i32, i32) -> vector<16xf16>
+  llvm.return
+}
+
+// -----
+
+func.func @matrix_2Dblockload(%ptr : !llvm.ptr<i8>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32) {
+  // expected-error @+1 {{'genx.matrix.2Dblockload' op tile_height for 8 bit elements should be 32}}
+  %0 = genx.matrix.2Dblockload %ptr, %base_width, %base_height, %base_pitch, %x, %y {elem_size_in_bits=8:i32, tile_width=32:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<i8>, i32, i32, i32, i32, i32) -> vector<32xi8>
+  llvm.return
+}
+
+// -----
+
 func.func @matrix_2Dblockstore(%ptr : !llvm.ptr<i32>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<4xi32>) {
   // expected-error @+1 {{'genx.matrix.2Dblockstore' op expecting 'elem_size_in_bits' to be 8, 16, or 32}}
   genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=64:i32, tile_width=4:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<i32>, i32, i32, i32, i32, i32, vector<4xi32>)
@@ -223,6 +247,30 @@ func.func @matrix_2Dblockstore(%ptr : !llvm.ptr<f16>, %base_width : i32, %base_h
 func.func @matrix_2Dblockstore(%ptr : !llvm.ptr<i8>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<4xi8>) {
   // expected-error @+1 {{'genx.matrix.2Dblockstore' op tile_width for 8 bit elements should be equal to systolic depth times 4, i.e., 32 elements}}
   genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=8:i32, tile_width=4:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<i8>, i32, i32, i32, i32, i32, vector<4xi8>)
+  llvm.return
+}
+
+// -----
+
+func.func @matrix_2Dblockstore(%ptr : !llvm.ptr<f32>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<8xf32>) {
+  // expected-error @+1 {{'genx.matrix.2Dblockstore' op tile_height for 32 bit elements should be 8}}
+  genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=32:i32, tile_width=8:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<f32>, i32, i32, i32, i32, i32, vector<8xf32>)
+  llvm.return
+}
+
+// -----
+
+func.func @matrix_2Dblockstore(%ptr : !llvm.ptr<f16>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<16xf16>) {
+  // expected-error @+1 {{'genx.matrix.2Dblockstore' op tile_height for 16 bit elements should be 16}}
+  genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=16:i32, tile_width=16:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<f16>, i32, i32, i32, i32, i32, vector<16xf16>)
+  llvm.return
+}
+
+// -----
+
+func.func @matrix_2Dblockstore(%ptr : !llvm.ptr<i8>, %base_width : i32, %base_height : i32, %base_pitch : i32, %x : i32, %y : i32, %stored_val : vector<32xi8>) {
+  // expected-error @+1 {{'genx.matrix.2Dblockstore' op tile_height for 8 bit elements should be 32}}
+  genx.matrix.2Dblockstore %ptr, %base_width, %base_height, %base_pitch, %x, %y, %stored_val {elem_size_in_bits=8:i32, tile_width=32:i32, tile_height=1:i32, v_blocks=1:i32, transpose=false, vnni_transform=false} : (!llvm.ptr<i8>, i32, i32, i32, i32, i32, vector<32xi8>)
   llvm.return
 }
 
