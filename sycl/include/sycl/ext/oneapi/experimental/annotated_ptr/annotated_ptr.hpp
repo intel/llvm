@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/intel/experimental/cache_control_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
@@ -159,9 +160,22 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
   // buffer_location and alignment are allowed for annotated_ref
+  // Cache controls are allowed for annotated_ptr
   using allowed_properties =
       std::tuple<decltype(ext::intel::experimental::buffer_location<0>),
-                 decltype(ext::oneapi::experimental::alignment<0>)>;
+                 decltype(ext::oneapi::experimental::alignment<0>),
+                 decltype(ext::intel::experimental::read_hint<
+                          ext::intel::experimental::cache_control<
+                              ext::intel::experimental::cache_mode::cached,
+                              cache_level::L1>>),
+                 decltype(ext::intel::experimental::read_assertion<
+                          ext::intel::experimental::cache_control<
+                              ext::intel::experimental::cache_mode::cached,
+                              cache_level::L1>>),
+                 decltype(ext::intel::experimental::write_hint<
+                          ext::intel::experimental::cache_control<
+                              ext::intel::experimental::cache_mode::cached,
+                              cache_level::L1>>)>;
   using filtered_properties =
       typename PropertiesFilter<allowed_properties, Props...>::tuple;
 
@@ -176,7 +190,6 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
   using reference = sycl::ext::oneapi::experimental::annotated_ref<
       T, typename unpack<filtered_properties>::type>;
 
-#ifdef __SYCL_DEVICE_ONLY__
 #ifdef __ENABLE_USM_ADDR_SPACE__
   using global_pointer_t = std::conditional_t<
       detail::IsUsmKindDevice<property_list_t>::value,
@@ -188,11 +201,8 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #else
   using global_pointer_t = typename decorated_global_ptr<T>::pointer;
 #endif // __ENABLE_USM_ADDR_SPACE__
-#else
-  using global_pointer_t = T *;
-#endif // __SYCL_DEVICE_ONLY__
 
-  global_pointer_t m_Ptr;
+  T *m_Ptr;
 
   template <typename T2, typename PropertyListT> friend class annotated_ptr;
 
@@ -205,33 +215,13 @@ __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {
 #endif
 
 public:
-  static constexpr bool is_valid_property_list =
-      is_property_list<property_list_t>::value;
-  static_assert(is_valid_property_list, "Property list is invalid.");
-  static constexpr bool contains_valid_properties =
-      check_property_list<T *, Props...>::value;
-  static_assert(contains_valid_properties,
-                "The property list contains invalid property.");
-  // check the set if FPGA specificed properties are used
-  static constexpr bool hasValidFPGAProperties =
-      detail::checkValidFPGAPropertySet<Props...>::value;
-  static_assert(hasValidFPGAProperties,
-                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
-                "can only be set with BufferLocation together.");
-  // check if conduit and register_map properties are specified together
-  static constexpr bool hasConduitAndRegisterMapProperties =
-      detail::checkHasConduitAndRegisterMap<Props...>::value;
-  static_assert(hasConduitAndRegisterMapProperties,
-                "The properties conduit and register_map cannot be "
-                "specified at the same time.");
-
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(const annotated_ptr &) = default;
 
   explicit annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {}
+      : m_Ptr(Ptr) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -239,7 +229,7 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {
+      : m_Ptr(Ptr) {
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,
         detail::merged_properties_t<property_list_t,
@@ -346,6 +336,34 @@ public:
   template <typename PropertyT> static constexpr auto get_property() {
     return property_list_t::template get_property<PropertyT>();
   }
+
+  // *************************************************************************
+  // All static error checking is added here instead of placing inside neat
+  // functions to minimize the number lines printed out when an assert
+  // is triggered.
+  // static constexprs are used to ensure that the triggered assert prints
+  // a message that is very readable. Without these, the assert will
+  // print out long templated names
+  // *************************************************************************
+  static constexpr bool is_valid_property_list =
+      is_property_list<property_list_t>::value;
+  static_assert(is_valid_property_list, "Property list is invalid.");
+  static constexpr bool contains_valid_properties =
+      check_property_list<T *, Props...>::value;
+  static_assert(contains_valid_properties,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static constexpr bool hasValidFPGAProperties =
+      detail::checkValidFPGAPropertySet<Props...>::value;
+  static_assert(hasValidFPGAProperties,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
+                "can only be set with BufferLocation together.");
+  // check if conduit and register_map properties are specified together
+  static constexpr bool hasConduitAndRegisterMapProperties =
+      detail::checkHasConduitAndRegisterMap<Props...>::value;
+  static_assert(hasConduitAndRegisterMapProperties,
+                "The properties conduit and register_map cannot be "
+                "specified at the same time.");
 };
 
 } // namespace experimental

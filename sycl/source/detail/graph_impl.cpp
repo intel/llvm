@@ -726,6 +726,19 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
+void modifiable_command_graph::addGraphLeafDependencies(node Node) {
+  // Find all exit nodes in the current graph and add them to the dependency
+  // vector
+  std::shared_ptr<detail::node_impl> DstImpl =
+      sycl::detail::getSyclObjImpl(Node);
+  graph_impl::WriteLock Lock(impl->MMutex);
+  for (auto &NodeImpl : impl->MNodeStorage) {
+    if ((NodeImpl->MSuccessors.size() == 0) && (NodeImpl != DstImpl)) {
+      impl->makeEdge(NodeImpl, DstImpl);
+    }
+  }
+}
+
 void modifiable_command_graph::make_edge(node &Src, node &Dest) {
   std::shared_ptr<detail::node_impl> SenderImpl =
       sycl::detail::getSyclObjImpl(Src);
@@ -830,6 +843,18 @@ bool modifiable_command_graph::end_recording(
     QueueStateChanged |= this->end_recording(Queue);
   }
   return QueueStateChanged;
+}
+
+void modifiable_command_graph::print_graph(std::string path,
+                                           bool verbose) const {
+  graph_impl::ReadLock Lock(impl->MMutex);
+  if (path.substr(path.find_last_of(".") + 1) == "dot") {
+    impl->printGraphAsDot(path, verbose);
+  } else {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "DOT graph is the only format supported at the moment.");
+  }
 }
 
 executable_command_graph::executable_command_graph(

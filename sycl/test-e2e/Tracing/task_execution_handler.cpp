@@ -19,7 +19,7 @@ int main() {
     // CHECK-DAG:          sym_column_no : {{.*}}
     // CHECK-DAG:          sym_function_name : {{.*}}
     // CHECK-DAG:          kernel_name : {{.*}}
-    // CHECK-DAG:          sym_source_file_name : {{.*}}/task_execution_handler.cpp
+    // CHECK-DAG:          sym_source_file_name : {{.*}}task_execution_handler.cpp
     // CHECK-DAG:          sycl_device_name : {{.*}}
     // CHECK-DAG:          sycl_device_type : {{.*}}
     // CHECK-DAG:          sym_line_no : {{.*}}
@@ -30,7 +30,7 @@ int main() {
     // CHECK-DAG:          sym_column_no : {{.*}}
     // CHECK-DAG:          sym_function_name : {{.*}}
     // CHECK-DAG:          kernel_name : {{.*}}
-    // CHECK-DAG:          sym_source_file_name : {{.*}}/task_execution_handler.cpp
+    // CHECK-DAG:          sym_source_file_name : {{.*}}task_execution_handler.cpp
     // CHECK-DAG:          sycl_device_name : {{.*}}
     // CHECK-DAG:          sycl_device_type : {{.*}}
     // CHECK-DAG:          sym_line_no : {{.*}}

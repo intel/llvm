@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t.out %}
 
 // NOTE: Compile the test fully to ensure the library exports the right host
 // symbols.
