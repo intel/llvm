@@ -15,7 +15,7 @@ on:
       - completed
 
 concurrency:
-  #  Cancel a currently running workflow from the workflow display title
+  #  Cancel a currently running workflow from the workflow display title.
   group: ${{ github.workflow }}-${{ github.event.workflow_run.display_title }}
   cancel-in-progress: true
 
