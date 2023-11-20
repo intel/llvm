@@ -641,6 +641,24 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+/// Memory fence.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Kind is the Sfid shaded function.
+/// @tparam FenceOp is the fence operation.
+/// @tparam Scope is the operation scope.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+template <uint8_t Kind, uint8_t FenceOp, uint8_t Scope, int N>
+__ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // Predicated (masked) scaled gather from a surface.
 //
 // Template (compile-time constant) parameters:
