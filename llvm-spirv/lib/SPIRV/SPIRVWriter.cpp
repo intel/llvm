@@ -180,24 +180,6 @@ static void translateSEVDecoration(Attribute Sev, SPIRVValue *Val) {
     Val->addDecorate(DecorationSingleElementVectorINTEL);
 }
 
-static AllocaInst* trace2Alloca(Value* GEP) {
-  if(!GEP) return nullptr;
-
-  Value* I = GEP;
-
-  while(!isa<AllocaInst>(I)) {
-    if ( auto* New = dyn_cast<GetElementPtrInst>(I)) {
-      I = New->getPointerOperand();
-    } else if (auto* New = dyn_cast<CastInst>(I)) {
-      I = New->getOperand(0);
-    } else {
-      // don't know how to deal with User.
-      return nullptr; 
-    }
-  }
-  return cast<AllocaInst>(I);
-}
-
 LLVMToSPIRVBase::LLVMToSPIRVBase(SPIRVModule *SMod)
     : BuiltinCallHelper(ManglingRules::None), M(nullptr), Ctx(nullptr),
       BM(SMod), SrcLang(0), SrcLangVer(0) {
@@ -3162,8 +3144,6 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_buffer_location);
   const bool AllowFPGALatencyControl =
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fpga_latency_control);
-  
-  SPIRVDBG(spvdbgs() << "Artem: tryParseAnnotationString: AllowFPGAMemAttr: " << AllowFPGAMemAttr << "\n");
 
   bool ValidDecorationFound = false;
   DecorationsInfoVec DecorationsVec;
@@ -3175,7 +3155,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
-    SPIRVDBG(spvdbgs() << "Artem: tryParseAnnotationString: Name: " << Name.str() << "\n");
+    SPIRVDBG(spvdbgs() << "[tryParseAnnotationString]: AnnotationString: " << Name.str() << "\n");
 
     unsigned DecorationKind = 0;
     if (!Name.getAsInteger(10, DecorationKind)) {
@@ -3303,8 +3283,7 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
       if (I.first != DecorationUserSemantic)
         continue;
 
-    SPIRVDBG(spvdbgs() << "Artem [addAnnotationDecorations]: SPIRVEntry: "
-                     << E->getName() << ": Decoration: " << I.first << '\n');
+    SPIRVDBG(spvdbgs() << "[addAnnotationDecorations]: Decoration: " << I.first << '\n');
     switch (I.first) {
     case DecorationUserSemantic:
       M->getErrorLog().checkError(I.second.size() == 1,
@@ -3446,8 +3425,9 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
       if (I.first != DecorationUserSemantic)
         continue;
 
-        SPIRVDBG(spvdbgs() << "Artem [addAnnotationDecorationsForStructMember]: SPIRVEntry: "
-                     << E->getName() << ": MemberNumber: " << MemberNumber << " Decoration: " << I.first << '\n');
+    SPIRVDBG(
+        spvdbgs() << "[addAnnotationDecorationsForStructMember]: MemberNumber: "
+                  << MemberNumber << " Decoration: " << I.first << '\n');
 
     switch (I.first) {
     case DecorationUserSemantic:
@@ -3496,7 +3476,7 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
     default:
       M->getErrorLog().checkError(
           I.second.size() == 1, SPIRVEC_InvalidLlvmModule,
-          std::string("Member decoration requires a single argument. \nArtem: addAnnotationDecorationsForStructMember: Decoration ID:").append(std::to_string(I.first)));
+          std::string("Member decoration requires a single argument. \n"));
       SPIRVWord Result = 0;
       StringRef(I.second[0]).getAsInteger(10, Result);
       E->addMemberDecorate(MemberNumber, I.first, Result);
@@ -3768,9 +3748,6 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       MemoryAccess[0] |= MemoryAccessVolatileMask;
     return MemoryAccess;
   };
-
-    SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: ";
-            II->dump());
 
   // LLVM intrinsics with known translation to SPIR-V are handled here. They
   // also must be registered at isKnownIntrinsic function in order to make
@@ -4170,8 +4147,6 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     DecorationsInfoVec Decorations =
         tryParseAnnotationString(BM, AnnotationString).MemoryAttributesVec;
 
-    SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: var_annotation on: " << SV->getName()<< "\n");
-
     // If we didn't find any IntelFPGA-specific decorations, let's add the whole
     // annotation string as UserSemantic Decoration
     if (Decorations.empty()) {
@@ -4209,30 +4184,23 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return transValue(BI, BB);
     }
 
-    auto DecorateOnPointer = [&](Value *DecorateOn) {
-      SPIRVDBG(spvdbgs() << "Artem [transIntrinsicInst]: DecorateOnPointer: subj: "; DecorateOn->dump());
-      SPIRVValue *DecSubj = transValue(DecorateOn, BB);
-      if (Decorations.empty()) {
-        DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
-          DecSubj, AnnotationString.c_str()));
-      } else { 
-        addAnnotationDecorations(
-            DecSubj, Decorations.MemoryAttributesVec);
-        // Apply the LSU parameter decoration to the pointer result of a GEP
-        // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
-        // Decorating the member itself with a MemberDecoration is not feasible,
-        // because multiple accesses to the struct-held memory can require
-        // different LSU parameters.
-        addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
-          addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
-        }
+    SPIRVValue *DecSubj = transValue(AnnotSubj, BB);
+    if (Decorations.empty()) {
+      DecSubj->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(DecSubj, AnnotationString.c_str()));
+    } else {
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAttributesVec);
+      // Apply the LSU parameter decoration to the pointer result of a GEP
+      // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
+      // Decorating the member itself with a MemberDecoration is not feasible,
+      // because multiple accesses to the struct-held memory can require
+      // different LSU parameters.
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
+      if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
+        addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
+        addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
       }
-      return DecSubj;
-    };
-
-    SPIRVValue *DecSubj = DecorateOnPointer(AnnotSubj);
+    }
     return DecSubj;
   }
   case Intrinsic::stacksave: {
@@ -5279,9 +5247,6 @@ bool isEmptyLLVMModule(Module *M) {
 }
 
 bool LLVMToSPIRVBase::translate() {
-  SPIRVDBG(spvdbgs() << "Artem: translate: Module: "; M->dump());
-  SPIRVDBG(spvdbgs() << "\nArtem: translate: Module: end\n");
-
   BM->setGeneratorVer(KTranslatorVer);
 
   if (isEmptyLLVMModule(M))
