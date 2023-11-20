@@ -12,7 +12,7 @@
 // The second run is to check that there are no leaks reported with the embedded
 // ZE_DEBUG=4 testing capability.
 
-#include "./graph_common.hpp"
+#include "graph_common.hpp"
 
 #define GRAPH_TESTS_VERBOSE_PRINT 0
 
