@@ -752,10 +752,9 @@ public:
     if constexpr (!std::is_same_v<DataT, convertT>) {
       // Dummy conversion for cases like vec<signed char> -> vec<char>
       vec<convertT, NumElements> Result;
-      for (size_t I = 0; I < NumElements; ++I) {
-        Result.setValue(I, vec_data<convertT>::get(static_cast<convertT>(
-                               vec_data<DataT>::get(getValue(I)))));
-      }
+      for (size_t I = 0; I < NumElements; ++I)
+        Result.setValue(I, static_cast<convertT>(getValue(I)));
+
       return Result;
     } else {
       // No conversion necessary
@@ -779,15 +778,33 @@ public:
     using OpenCLT = detail::ConvertToOpenCLType_t<T>;
     using OpenCLR = detail::ConvertToOpenCLType_t<R>;
     vec<convertT, NumElements> Result;
+
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES) && defined(__SYCL_DEVICE_ONLY__)
     using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
     using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
-    if constexpr (NativeVec && vec<convertT, NumElements>::NativeVec &&
-                  std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
-                  std::is_convertible_v<decltype(Result.m_Data), OpenCLR>) {
-      // If both vectors are representable as native vectors and these native
-      // vectors can be converted to valid OpenCL representations, then we can
-      // use a single vector-wide operation to do a conversion:
+    // Whole vector conversion can only be done, if:
+    constexpr bool canUseNativeVectorConvert =
+#ifdef __NVPTX__
+        // - we are not on CUDA, see intel/llvm#11840
+        false &&
+#endif
+        // - both vectors are represented using native vector types;
+        NativeVec && vec<convertT, NumElements>::NativeVec &&
+        // - vec storage has an equivalent OpenCL native vector it is implicitly
+        //   convertible to. There are some corner cases where it is not the
+        //   case with char, long and long long types.
+        std::is_convertible_v<decltype(m_Data), OpenCLVecT> &&
+        std::is_convertible_v<decltype(Result.m_Data), OpenCLVecR> &&
+        // - it is not a signed to unsigned (or vice versa) conversion
+        //   see comments within 'convertImpl' for more details;
+        !detail::is_sint_to_from_uint<T, R>::value &&
+        // - destination type is not bool. bool is stored as integer under the
+        //   hood and therefore conversion to bool looks like conversion between
+        //   two integer types. Since bit pattern for true and false is not
+        //   defined, there is no guarantee that integer conversion yields
+        //   right results here;
+        !std::is_same_v<convertT, bool>;
+    if constexpr (canUseNativeVectorConvert) {
       Result.m_Data = detail::convertImpl<T, R, roundingMode, NumElements,
                                           OpenCLVecT, OpenCLVecR>(m_Data);
     } else
@@ -803,9 +820,6 @@ public:
       }
     }
 
-    if constexpr (std::is_same_v<convertT, bool>) {
-      Result.ConvertToDataT();
-    }
     return Result;
   }
 
