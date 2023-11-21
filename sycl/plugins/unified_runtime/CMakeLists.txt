@@ -56,14 +56,20 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 79c28d0f0713f58358d5080653d95803fd131749
-  # Merge: 25e0b603 45d76b78
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Fri Jan 12 16:14:44 2024 +0000
-  #     Merge pull request #1186 from hdelan/device-global-hip
-  #     [HIP] Add support for global variable read write
-  set(UNIFIED_RUNTIME_TAG 79c28d0f0713f58358d5080653d95803fd131749)
+  set(UNIFIED_RUNTIME_REPO "git@github.com:przemektmalon/unified-runtime.git")
+  # commit 16c6dc262451cf1b7dcb7d8021904a968c4a16ee
+  # Author: Przemek Malon <przemek.malon@codeplay.com>
+  # Date:   Wed Nov 29 11:25:34 2023 +0000
+  #   [Bindless][Exp] Add device queries for sampled image fetch  
+  #     Added the following queries for device capabilities of fetching sampled
+  #     images:
+  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM
+  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D
+  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM
+  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
+  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
+  #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
+  set(UNIFIED_RUNTIME_TAG aa442a391c79692af279aaeda74da63c9ba6a489)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

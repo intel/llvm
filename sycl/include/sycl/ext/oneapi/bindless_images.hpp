@@ -733,6 +733,28 @@ template <typename CoordT> constexpr void assert_unsampled_coords() {
   }
 }
 
+template <typename CoordT> constexpr bool are_floating_coords() {
+  if constexpr (is_vec_v<CoordT>) {
+    return std::is_same_v<typename CoordT::element_type, float>;
+  } else {
+    return std::is_same_v<CoordT, float>;
+  }
+}
+
+template <typename CoordT> constexpr bool are_integer_coords() {
+  if constexpr (is_vec_v<CoordT>) {
+    return std::is_same_v<typename CoordT::element_type, int>;
+  } else {
+    return std::is_same_v<CoordT, int>;
+  }
+}
+
+template <typename CoordT> constexpr void assert_coords_type() {
+  static_assert(are_floating_coords<CoordT>() || are_integer_coords<CoordT>(),
+                "Expected coordinates to be of `float` or `int` type, or "
+                "vectors of these types.");
+}
+
 // assert coords or elements of coords is of a float type
 template <typename CoordT> constexpr void assert_sampled_coords() {
   if constexpr (std::is_scalar_v<CoordT>) {
@@ -813,7 +835,8 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float4 for
- *           1D, 2D, and 3D, respectively
+ *           1D, 2D, and 3D sampling, respectively. And int, int2, or int4 for
+ *           1D, 2D, and 3D fetching, respectively.
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to fetch image data
  *  @return  Sampled image data
@@ -827,23 +850,32 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
-  detail::assert_sampled_coords<CoordT>();
+  detail::assert_coords_type<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
                 "for 1D, 2D and 3D images, respectively.");
+  static_assert(sizeof(HintT) == sizeof(DataT),
+                "When trying to read a user-defined type, HintT must be of "
+                "the same size as the user-defined DataT.");
+  static_assert(detail::is_recognized_standard_type<HintT>(),
+                "HintT must always be a recognized standard type");
 
 #ifdef __SYCL_DEVICE_ONLY__
-  if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+  if constexpr (detail::are_floating_coords<CoordT>()) {
+    if constexpr (detail::is_recognized_standard_type<DataT>()) {
+      return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+    } else {
+      return sycl::bit_cast<DataT>(
+          __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+    }
   } else {
-    static_assert(sizeof(HintT) == sizeof(DataT),
-                  "When trying to read a user-defined type, HintT must be of "
-                  "the same size as the user-defined DataT.");
-    static_assert(detail::is_recognized_standard_type<HintT>(),
-                  "HintT must always be a recognized standard type");
-    return sycl::bit_cast<DataT>(
-        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+    if constexpr (detail::is_recognized_standard_type<DataT>()) {
+      return __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords);
+    } else {
+      return sycl::bit_cast<DataT>(
+          __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords));
+    }
   }
 #else
   assert(false); // Bindless images not yet implemented on host.

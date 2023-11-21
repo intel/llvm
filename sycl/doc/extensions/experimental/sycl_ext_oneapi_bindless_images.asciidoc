@@ -983,8 +983,16 @@ void write_image(unsampled_image_handle &ImageHandle,
 Inside a kernel, it's possible to read an image via `read_image`, passing 
 the image handle. For the form that takes `unsampled_image_handle`, image data 
 will be fetched exactly as is in device memory. For the form that takes a 
-`sampled_image_handle`, the image will be sampled according to the 
+`sampled_image_handle`, the image data will either be sampled or fetched, 
+depending on the type of `CoordT` passed. If the coordinates are 
+floating-point, the image will be sampled according to the 
 `bindless_image_sampler` that was passed to the image upon construction.
+If the coordinates are integers, the image data will be fetched, and no 
+sampling operations will be performed, the `bindless_image_sampler` passed to 
+the image upon creation has no effect when fetching sampled image data with 
+integer coordinates. Note that not all devices may support fetching of sampled 
+image data depending on the dimension or backing memory type. We provide 
+device aspect queries for this in <<querying_sampled_image_fetch_support>>.
 
 The user is required to pass a `DataT` template parameter, which specifies the
 return type of the `read_image` function. If `DataT` is not a recognized 
@@ -1015,8 +1023,11 @@ For reading and writing of unsampled images, coordinates are specified by `int`,
 `sycl::vec<int, 2>`, and `sycl::vec<int, 4>` for 1D, 2D, and 3D images, 
 respectively.
 
-Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
+Sampled image "sampled reads" take `float`, `sycl::vec<float, 2>`, and 
 `sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
+
+Sampled image "fetch reads" take `int`, `sycl::vec<int, 2>`, and 
+`sycl::vec<int, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
 
 Note that in the case of 3D reads or writes, coordinates for 3D images take a 
 vector of size 4, not 3, as the fourth element in the coordinate vector is 
@@ -1064,6 +1075,36 @@ struct my_short2 {
 When providing the above types as `DataT` parameters to an image read function, 
 the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and 
 `sycl::vec<short, 2>`, respectively.
+
+=== Querying sampled image fetch support [[querying_sampled_image_fetch_support]]
+
+We provide the following device queries to query support for sampled image 
+fetch with various backing memory types and dimensionalities.
+
+The device aspect descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor | Description
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm` | 
+ Indicates if the device is capable of fetching USM backed 1D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_1d` | 
+ Indicates if the device is capable of fetching non-USM backed 1D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm` | 
+ Indicates if the device is capable of fetching USM backed 2D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_2d` | 
+ Indicates if the device is capable of fetching non-USM backed 2D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm` | 
+ Indicates if the device is capable of fetching USM backed 3D 
+ sampled image data.
+|`aspect::ext_oneapi_bindless_sampled_image_fetch_3d` | 
+ Indicates if the device is capable of fetching non-USM backed 3D 
+ sampled image data.
+|======================
 
 == Mipmapped images
 
@@ -2060,4 +2101,6 @@ These features still need to be handled:
                    wording around what types are allowed to be read or written.
                  - Allow `read_image` and `read_mipmap` to return a 
                    user-defined type.
+|5.1|2024-01-16| - Allow fetching of sampled image data by passing integer 
+                   coordinates to `read_image`.
 |======================

@@ -1837,6 +1837,8 @@ _CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 3, Dv4_i, Dv4_DF16_, v4f16, int4
 
 // <--- TEXTURES --->
 
+// <--- Texture sampling (float coords) --->
+
 // Int
 int4 __nvvm_tex_1d_v4i32_f32(unsigned long,
                              float) __asm("__clc_llvm_nvvm_tex_1d_v4i32_f32");
@@ -2269,6 +2271,249 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv4_f
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f, float x, x)
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f, float2 coord, coord.x, coord.y)
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+
+// <--- Texture fetching (integer coords) --->
+
+// Int
+int4 __nvvm_tex_1d_v4i32_i32(unsigned long,
+                             int) __asm("__clc_llvm_nvvm_tex_1d_v4i32_s32");
+int4 __nvvm_tex_2d_v4i32_i32(unsigned long, int,
+                             int) __asm("__clc_llvm_nvvm_tex_2d_v4i32_s32");
+int4 __nvvm_tex_3d_v4i32_i32(unsigned long, int, int,
+                             int) __asm("__clc_llvm_nvvm_tex_3d_v4i32_s32");
+
+// Unsigned int
+uint4 __nvvm_tex_1d_v4j32_i32(unsigned long,
+                              int) __asm("__clc_llvm_nvvm_tex_1d_v4j32_s32");
+uint4 __nvvm_tex_2d_v4j32_i32(unsigned long, int,
+                              int) __asm("__clc_llvm_nvvm_tex_2d_v4j32_s32");
+uint4 __nvvm_tex_3d_v4j32_i32(unsigned long, int, int,
+                              int) __asm("__clc_llvm_nvvm_tex_3d_v4j32_s32");
+
+// Float
+float4 __nvvm_tex_1d_v4f32_i32(unsigned long,
+                               int) __asm("__clc_llvm_nvvm_tex_1d_v4f32_s32");
+float4 __nvvm_tex_2d_v4f32_i32(unsigned long, int,
+                               int) __asm("__clc_llvm_nvvm_tex_2d_v4f32_s32");
+float4 __nvvm_tex_3d_v4f32_i32(unsigned long, int, int,
+                               int) __asm("__clc_llvm_nvvm_tex_3d_v4f32_s32");
+
+// Macro to generate texture vec4 fetches
+#define _CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(                  \
+    elem_t, fetch_elem_t, dimension, vec_size, fetch_vec_size, coord_input,    \
+    coord_parameter)                                                           \
+  elem_t##4 __nvvm_tex_##dimension##d_##vec_size##_i32(                        \
+      unsigned long imageHandle, coord_input) {                                \
+    fetch_elem_t##4 a = __nvvm_tex_##dimension##d_##fetch_vec_size##_i32(      \
+        imageHandle, coord_parameter);                                         \
+    return cast_##fetch_elem_t##4_to_##elem_t##4(a);                           \
+  }
+
+// Macro to generate texture vec2 fetches
+#define _CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(                  \
+    elem_t, fetch_elem_t, dimension, vec_size, fetch_vec_size, coord_input,    \
+    coord_parameter)                                                           \
+  elem_t##2 __nvvm_tex_##dimension##d_##vec_size##_i32(                        \
+      unsigned long imageHandle, coord_input) {                                \
+    fetch_elem_t##4 a = __nvvm_tex_##dimension##d_##fetch_vec_size##_i32(      \
+        imageHandle, coord_parameter);                                         \
+    return cast_##fetch_elem_t##4_to_##elem_t##2(a);                           \
+  }
+
+// Macro to generate texture singular data type fetches
+#define _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(                      \
+    elem_t, fetch_elem_t, dimension, vec_size, fetch_vec_size, coord_input,    \
+    coord_parameter)                                                           \
+  elem_t __nvvm_tex_##dimension##d_##vec_size##_i32(unsigned long imageHandle, \
+                                                    coord_input) {             \
+    return (elem_t)__nvvm_tex_##dimension##d_##fetch_vec_size##_i32(           \
+        imageHandle, coord_parameter)[0];                                      \
+  }
+
+#define COORD_INPUT_1D int x
+#define COORD_INPUT_2D int x, int y
+#define COORD_INPUT_3D int x, int y, int z
+
+#define COORD_PARAMS_1D x
+#define COORD_PARAMS_2D x, y
+#define COORD_PARAMS_3D x, y, z
+
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(short, int, 1, v4i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(short, int, 2, v4i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(short, int, 3, v4i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 1, v4t16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 2, v4t16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 3, v4t16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(char, int, 1, v4i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(char, int, 2, v4i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(char, int, 3, v4i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 1, v4h8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 2, v4h8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 3, v4h8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(half, float, 1, v4f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(half, float, 2, v4f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN(half, float, 3, v4f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D)
+
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(float, float, 1, v2f32, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(float, float, 2, v2f32, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(float, float, 3, v2f32, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(int, int, 1, v2i32, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(int, int, 2, v2i32, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(int, int, 3, v2i32, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(uint, uint, 1, v2j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(uint, uint, 2, v2j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(uint, uint, 3, v2j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(short, int, 1, v2i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(short, int, 2, v2i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(short, int, 3, v2i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 1, v2t16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 2, v2t16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 3, v2t16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(char, int, 1, v2i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(char, int, 2, v2i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(char, int, 3, v2i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 1, v2h8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 2, v2h8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 3, v2h8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(half, float, 1, v2f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(half, float, 2, v2f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN(half, float, 3, v2f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D)
+
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(float, float, 1, f32, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(float, float, 2, f32, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(float, float, 3, f32, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(int, int, 1, i32, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(int, int, 2, i32, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(int, int, 3, i32, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(uint, uint, 1, j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(uint, uint, 2, j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(uint, uint, 3, j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(short, int, 1, i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(short, int, 2, i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(short, int, 3, i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 1, t16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 2, t16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(ushort, uint, 3, t16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(char, int, 1, i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(char, int, 2, i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(char, int, 3, i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 1, h8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 2, h8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(uchar, uint, 3, h8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(half, float, 1, f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(half, float, 2, f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D)
+_CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN(half, float, 3, f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D)
+
+
+#undef COORD_INPUT_1D
+#undef COORD_INPUT_2D
+#undef COORD_INPUT_3D
+
+#undef COORD_PARAMS_1D
+#undef COORD_PARAMS_2D
+#undef COORD_PARAMS_3D
+
+#undef _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN
+#undef _CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN
+#undef _CLC_DEFINE_BINDLESS_VEC4THUNK_TEXTURE_FETCH_BUILTIN
+
+#define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(                       \
+    elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
+    ...)                                                                       \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      18, __spirv_ImageFetch, I##elem_t_mangled,                               \
+      coord_mangled##ET_T0_T1_)(ulong imageHandle, coord_input) {              \
+    return __nvvm_tex_##dimension##d_##vec_size##_i32(imageHandle,             \
+                                                      __VA_ARGS__);            \
+  }
+
+// Int
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int, 1, i, i32, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int, 2, i, i32, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int, 3, i, i32, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int2, 1, Dv2_i, v2i32, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int2, 2, Dv2_i, v2i32, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int2, 3, Dv2_i, v2i32, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int4, 1, Dv4_i, v4i32, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(int4, 3, Dv4_i, v4i32, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+
+// Unsigned int
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint, 1, j, j32, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint, 2, j, j32, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint, 3, j, j32, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint2, 1, Dv2_j, v2j32, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint4, 1, Dv4_j, v4j32, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+
+// Short
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short, 1, s, i16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short, 2, s, i16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short, 3, s, i16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short2, 1, Dv2_s, v2i16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short2, 3, Dv2_s, v2i16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short4, 1, Dv4_s, v4i16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(short4, 3, Dv4_s, v4i16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+
+// Unsigned short
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort, 1, t, t16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort, 2, t, t16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort, 3, t, t16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort2, 1, Dv2_t, v2t16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort2, 2, Dv2_t, v2t16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort2, 3, Dv2_t, v2t16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort4, 1, Dv4_t, v4t16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort4, 2, Dv4_t, v4t16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+
+// Char
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 1, a, i8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 2, a, i8, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char, 3, a, i8, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 1, Dv2_a, v2i8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char2, 3, Dv2_a, v2i8, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 1, Dv4_a, v4i8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(char4, 3, Dv4_a, v4i8, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+
+// Unsigned Char
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar, 1, h, h8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar, 2, h, h8, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar, 3, h, h8, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar2, 1, Dv2_h, v2h8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar2, 2, Dv2_h, v2h8, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar2, 3, Dv2_h, v2h8, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar4, 1, Dv4_h, v4h8, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar4, 2, Dv4_h, v4h8, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(uchar4, 3, Dv4_h, v4h8, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+
+// Float
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float, 1, f, f32, i, uint x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float, 2, f, f32, Dv2_i, uint2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float, 3, f, f32, Dv4_i, uint4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float2, 1, Dv2_f, v2f32, i, uint x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float2, 2, Dv2_f, v2f32, S0_, uint2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float2, 3, Dv2_f, v2f32, Dv4_i, uint4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float4, 1, Dv4_f, v4f32, i, uint x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_i, uint2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(float4, 3, Dv4_f, v4f32, S0_, uint4 coord, coord.x, coord.y, coord.z)
+
+// Half
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 1, DF16_, f16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 2, DF16_, f16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half, 3, DF16_, f16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 1, Dv2_DF16_, v2f16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, int x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i, int2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_i, int4 coord, coord.x, coord.y, coord.z)
 
 
 // <--- MIPMAP --->

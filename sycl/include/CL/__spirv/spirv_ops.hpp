@@ -199,6 +199,9 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageWrite(ImageT, CoordT, ValT);
 template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
 
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageFetch(ImageT, TempArgT);
+
 template <typename ImageT, typename SampledType>
 extern __DPCPP_SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT,
                                                               __ocl_sampler_t);
