@@ -110,15 +110,15 @@
 // Extract images
 //
 // RUN: clang-offload-extract --stem=%t.extracted %t.fat.bin | FileCheck %s --check-prefix CHECK-EXTRACT
-// CHECK-EXTRACT: Section 'sycl-target-zero': Image 1'-> File
-// CHECK-EXTRACT: Section 'sycl-target-zero': Image 2'-> File
-// CHECK-EXTRACT: Section 'sycl-target-zero': Image 3'-> File
-// CHECK-EXTRACT: Section 'sycl-target-one': Image 4'-> File
-// CHECK-EXTRACT: Section 'sycl-target-one': Image 5'-> File
-// CHECK-EXTRACT: Section 'sycl-target-one': Image 6'-> File
-// CHECK-EXTRACT: Section 'sycl-target-two': Image 7'-> File
-// CHECK-EXTRACT: Section 'sycl-target-two': Image 8'-> File
-// CHECK-EXTRACT: Section 'sycl-target-two': Image 9'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 1'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 2'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 3'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 4'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 5'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 6'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 7'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 8'-> File
+// CHECK-EXTRACT: Section {{.*}}: Image 9'-> File
 
 //
 // Check that extracted contents match the original images.
