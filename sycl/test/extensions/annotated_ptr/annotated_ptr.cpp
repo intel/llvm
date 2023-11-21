@@ -164,7 +164,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
     test(int n_) : n(n_) {}
     test(const test &t) { n = t.n; }
   };
-  // expected-warning@+1 {{T is non-trivially copyable type, some operatorsmight invoke the copy constructor}}
+  // expected-error@+1 {{encapsulating annotated_ptr with non-trivially-copyable is not supported}}
   annotated_ptr<test> non_trivially_copyable;
 
   free(raw, q);
