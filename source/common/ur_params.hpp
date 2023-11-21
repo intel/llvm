@@ -1141,6 +1141,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_ADAPTER_GET_INFO:
         os << "UR_FUNCTION_ADAPTER_GET_INFO";
         break;
+
+    case UR_FUNCTION_PROGRAM_BUILD_EXP:
+        os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
+        break;
+
+    case UR_FUNCTION_PROGRAM_COMPILE_EXP:
+        os << "UR_FUNCTION_PROGRAM_COMPILE_EXP";
+        break;
+
+    case UR_FUNCTION_PROGRAM_LINK_EXP:
+        os << "UR_FUNCTION_PROGRAM_LINK_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -14008,6 +14020,39 @@ operator<<(std::ostream &os, const struct ur_program_build_params_t *params) {
 }
 
 inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_program_build_exp_params_t *params) {
+
+    os << ".hProgram = ";
+
+    ur_params::serializePtr(os, *(params->phProgram));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0;
+         *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    ur_params::serializePtr(os, *(params->ppOptions));
+
+    return os;
+}
+
+inline std::ostream &
 operator<<(std::ostream &os, const struct ur_program_compile_params_t *params) {
 
     os << ".hContext = ";
@@ -14027,12 +14072,100 @@ operator<<(std::ostream &os, const struct ur_program_compile_params_t *params) {
     return os;
 }
 
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_program_compile_exp_params_t *params) {
+
+    os << ".hProgram = ";
+
+    ur_params::serializePtr(os, *(params->phProgram));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0;
+         *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    ur_params::serializePtr(os, *(params->ppOptions));
+
+    return os;
+}
+
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_program_link_params_t *params) {
 
     os << ".hContext = ";
 
     ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".count = ";
+
+    os << *(params->pcount);
+
+    os << ", ";
+    os << ".phPrograms = {";
+    for (size_t i = 0; *(params->pphPrograms) != NULL && i < *params->pcount;
+         ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphPrograms))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pOptions = ";
+
+    ur_params::serializePtr(os, *(params->ppOptions));
+
+    os << ", ";
+    os << ".phProgram = ";
+
+    ur_params::serializePtr(os, *(params->pphProgram));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_program_link_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur_params::serializePtr(os, *(params->phContext));
+
+    os << ", ";
+    os << ".numDevices = ";
+
+    os << *(params->pnumDevices);
+
+    os << ", ";
+    os << ".phDevices = {";
+    for (size_t i = 0;
+         *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphDevices))[i]);
+    }
+    os << "}";
 
     os << ", ";
     os << ".count = ";
@@ -15731,11 +15864,20 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_PROGRAM_BUILD: {
         os << (const struct ur_program_build_params_t *)params;
     } break;
+    case UR_FUNCTION_PROGRAM_BUILD_EXP: {
+        os << (const struct ur_program_build_exp_params_t *)params;
+    } break;
     case UR_FUNCTION_PROGRAM_COMPILE: {
         os << (const struct ur_program_compile_params_t *)params;
     } break;
+    case UR_FUNCTION_PROGRAM_COMPILE_EXP: {
+        os << (const struct ur_program_compile_exp_params_t *)params;
+    } break;
     case UR_FUNCTION_PROGRAM_LINK: {
         os << (const struct ur_program_link_params_t *)params;
+    } break;
+    case UR_FUNCTION_PROGRAM_LINK_EXP: {
+        os << (const struct ur_program_link_exp_params_t *)params;
     } break;
     case UR_FUNCTION_PROGRAM_RETAIN: {
         os << (const struct ur_program_retain_params_t *)params;
