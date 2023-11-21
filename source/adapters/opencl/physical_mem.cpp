@@ -11,7 +11,6 @@
 #include "physical_mem.hpp"
 #include "common.hpp"
 #include "context.hpp"
-#include "event.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t, ur_device_handle_t, size_t,
