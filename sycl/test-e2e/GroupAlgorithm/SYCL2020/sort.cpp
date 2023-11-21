@@ -446,26 +446,37 @@ void RunSortKeyValueOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
     std::sort(It, KeysSorted.end(), Comp);
 
     // TODO: Check data as well
+    if constexpr (!std::is_same_v<CustomType, T>) {
+      std::cout << "Reference data: " << std::endl;
+      for (auto &El : KeysSorted)
+        std::cout << El << " ";
+      std::cout << std::endl;
 
-    /* std::cout << "Reference data: " << std::endl; */
-    /* for(auto &El: KeysSorted) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
+      std::cout << "DataToSortCase0 data: " << std::endl;
+      for (auto &El : DataToSortCase0)
+        std::cout << El << " ";
+      std::cout << std::endl;
 
-    /* std::cout << "DataToSortCase0 data: " << std::endl; */
-    /* for(auto &El: DataToSortCase0) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
+      std::cout << "KeysToSortCase1 data: " << std::endl;
+      for (auto &El : KeysToSortCase1)
+        std::cout << El << " ";
+      std::cout << std::endl;
 
-    /* std::cout << "KeysToSortCase0 data: " << std::endl; */
-    /* for(auto &El: KeysToSortCase0) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
+      std::cout << "KeysToSortCase2 data: " << std::endl;
+      for (auto &El : KeysToSortCase2)
+        std::cout << El << " ";
+      std::cout << std::endl;
 
-    /* std::cout << "InputData data: " << std::endl; */
-    /* for(auto &El: DataToSort) */
-    /*     std::cout << El << " "; */
-    /* std::cout << std::endl; */
+      std::cout << "KeysToSortCase3 data: " << std::endl;
+      for (auto &El : KeysToSortCase3)
+        std::cout << El << " ";
+      std::cout << std::endl;
+
+      std::cout << "InputData data: " << std::endl;
+      for (auto &El : DataToSort)
+        std::cout << El << " ";
+      std::cout << std::endl;
+    }
 
     if constexpr (std::is_same_v<Compare, std::less<T>>)
       assert(KeysToSortCase0 == KeysSorted);
@@ -502,7 +513,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
-        T, 1, Compare>::memory_required(sycl::memory_scope::sub_group,
+        T, Compare, 1>::memory_required(sycl::memory_scope::sub_group,
                                         ReqSubGroupSize);
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
@@ -510,7 +521,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
   } else {
     // A single chunk of memory for each work-group
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
-        T, 1, Compare>::memory_required(sycl::memory_scope::work_group,
+        T, Compare, 1>::memory_required(sycl::memory_scope::work_group,
                                         NumOfElements);
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
@@ -587,7 +598,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
              AccToSort2[GlobalLinearID] = oneapi_exp::sort_over_group(
                  Group, AccToSort2[GlobalLinearID],
-                 oneapi_exp::default_sorters::group_sorter<T, 1, Compare>(
+                 oneapi_exp::default_sorters::group_sorter<T, Compare, 1>(
                      sycl::span{ScratchPtrDefault,
                                 LocalMemorySizeDefault})); // (6) default
 

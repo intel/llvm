@@ -35,14 +35,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-namespace detail {
-
-// TODO: Convert to SYCL properties
-struct is_blocked {};
-struct is_striped {};
-
-} // namespace detail
-
 // ---- group helpers
 template <typename Group, size_t Extent> class group_with_scratchpad {
   Group g;
@@ -214,6 +206,7 @@ public:
                   sycl::span<U, ElementsPerWorkItem> values,
                   Properties property = {}) {
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)property;
     auto range_size = g.get_local_linear_range();
     if (scratch_size >=
         memory_required(Group::fence_scope, g.get_local_range().size())) {
