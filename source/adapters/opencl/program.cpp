@@ -120,13 +120,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     const uint8_t *pBinary, const ur_program_properties_t *,
     ur_program_handle_t *phProgram) {
 
-  cl_int BinaryStatus;
+  const cl_device_id Devices[1] = {cl_adapter::cast<cl_device_id>(hDevice)};
+  const size_t Lengths[1] = {size};
+  cl_int BinaryStatus[1];
   cl_int CLResult;
   *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithBinary(
       cl_adapter::cast<cl_context>(hContext), cl_adapter::cast<cl_uint>(1u),
-      cl_adapter::cast<const cl_device_id *>(&hDevice), &size, &pBinary,
-      &BinaryStatus, &CLResult));
-  CL_RETURN_ON_FAILURE(BinaryStatus);
+      Devices, Lengths, &pBinary, BinaryStatus, &CLResult));
+  CL_RETURN_ON_FAILURE(BinaryStatus[0]);
   CL_RETURN_ON_FAILURE(CLResult);
 
   return UR_RESULT_SUCCESS;
@@ -176,11 +177,17 @@ static cl_int mapURProgramInfoToCL(ur_program_info_t URPropName) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        mapURProgramInfoToCL(propName),
-                                        propSize, pPropValue, pPropSizeRet));
-
+  size_t CheckPropSize = 0;
+  auto ClResult = clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
+                                   mapURProgramInfoToCL(propName), propSize,
+                                   pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClResult);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -249,30 +256,30 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
-
-  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-
-  switch (propName) {
-  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
-    cl_program_binary_type cl_value;
+  if (propName == UR_PROGRAM_BUILD_INFO_BINARY_TYPE) {
+    UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+    cl_program_binary_type BinaryType;
     CL_RETURN_ON_FAILURE(clGetProgramBuildInfo(
         cl_adapter::cast<cl_program>(hProgram),
         cl_adapter::cast<cl_device_id>(hDevice),
         mapURProgramBuildInfoToCL(propName), sizeof(cl_program_binary_type),
-        &cl_value, nullptr));
-    return ReturnValue(mapCLBinaryTypeToUR(cl_value));
-  case UR_PROGRAM_BUILD_INFO_LOG:
-  case UR_PROGRAM_BUILD_INFO_OPTIONS:
-  case UR_PROGRAM_BUILD_INFO_STATUS:
-    CL_RETURN_ON_FAILURE(
-        clGetProgramBuildInfo(cl_adapter::cast<cl_program>(hProgram),
-                              cl_adapter::cast<cl_device_id>(hDevice),
-                              mapURProgramBuildInfoToCL(propName), propSize,
-                              pPropValue, pPropSizeRet));
-    return UR_RESULT_SUCCESS;
-  default:
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        &BinaryType, nullptr));
+    return ReturnValue(mapCLBinaryTypeToUR(BinaryType));
   }
+  size_t CheckPropSize = 0;
+  cl_int ClErr = clGetProgramBuildInfo(cl_adapter::cast<cl_program>(hProgram),
+                                       cl_adapter::cast<cl_device_id>(hDevice),
+                                       mapURProgramBuildInfoToCL(propName),
+                                       propSize, pPropValue, &CheckPropSize);
+  if (pPropValue && CheckPropSize != propSize) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+  CL_RETURN_ON_FAILURE(ClErr);
+  if (pPropSizeRet) {
+    *pPropSizeRet = CheckPropSize;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -299,9 +306,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t,
-    const ur_program_native_properties_t *, ur_program_handle_t *phProgram) {
-
+    const ur_program_native_properties_t *pProperties,
+    ur_program_handle_t *phProgram) {
   *phProgram = reinterpret_cast<ur_program_handle_t>(hNativeProgram);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urProgramRetain(*phProgram);
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -316,20 +326,58 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
   CL_RETURN_ON_FAILURE(clGetProgramInfo(CLProg, CL_PROGRAM_CONTEXT, sizeof(Ctx),
                                         &Ctx, &RetSize));
 
-  cl_ext::clSetProgramSpecializationConstant_fn F = nullptr;
-  const ur_result_t URResult = cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, cl_ext::ExtFuncPtrCache->clSetProgramSpecializationConstantCache,
-      cl_ext::SetProgramSpecializationConstantName, &F);
+  std::unique_ptr<std::vector<cl_device_id>> DevicesInCtx;
+  cl_adapter::getDevicesFromContext(cl_adapter::cast<ur_context_handle_t>(Ctx),
+                                    DevicesInCtx);
 
-  if (URResult != UR_RESULT_SUCCESS) {
-    return URResult;
+  cl_platform_id CurPlatform;
+  clGetDeviceInfo((*DevicesInCtx)[0], CL_DEVICE_PLATFORM,
+                  sizeof(cl_platform_id), &CurPlatform, nullptr);
+
+  oclv::OpenCLVersion PlatVer;
+  cl_adapter::getPlatformVersion(CurPlatform, PlatVer);
+
+  bool UseExtensionLookup = false;
+  if (PlatVer < oclv::V2_2) {
+    UseExtensionLookup = true;
+  } else {
+    for (cl_device_id Dev : *DevicesInCtx) {
+      oclv::OpenCLVersion DevVer;
+
+      cl_adapter::getDeviceVersion(Dev, DevVer);
+
+      if (DevVer < oclv::V2_2) {
+        UseExtensionLookup = true;
+        break;
+      }
+    }
   }
 
-  for (uint32_t i = 0; i < count; ++i) {
-    CL_RETURN_ON_FAILURE(F(CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
-                           pSpecConstants[i].pValue));
-  }
+  if (UseExtensionLookup == false) {
+    for (uint32_t i = 0; i < count; ++i) {
+      CL_RETURN_ON_FAILURE(clSetProgramSpecializationConstant(
+          CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
+          pSpecConstants[i].pValue));
+    }
+  } else {
+    cl_ext::clSetProgramSpecializationConstant_fn
+        SetProgramSpecializationConstant = nullptr;
+    const ur_result_t URResult = cl_ext::getExtFuncFromContext<
+        decltype(SetProgramSpecializationConstant)>(
+        Ctx, cl_ext::ExtFuncPtrCache->clSetProgramSpecializationConstantCache,
+        cl_ext::SetProgramSpecializationConstantName,
+        &SetProgramSpecializationConstant);
 
+    if (URResult != UR_RESULT_SUCCESS) {
+      return URResult;
+    }
+
+    for (uint32_t i = 0; i < count; ++i) {
+      CL_RETURN_ON_FAILURE(SetProgramSpecializationConstant(
+          CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
+          pSpecConstants[i].pValue));
+    }
+  }
   return UR_RESULT_SUCCESS;
 }
 

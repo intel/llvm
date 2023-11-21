@@ -3,8 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(HIP_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "HIP adapter directory")
-
 set(TARGET_NAME ur_adapter_hip)
 
 # Set default UR HIP platform to AMD
