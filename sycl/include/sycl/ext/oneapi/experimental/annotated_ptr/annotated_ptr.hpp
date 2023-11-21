@@ -32,7 +32,12 @@ namespace experimental {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(T rhs) const { return *this = *this op rhs; }
+  T operator op##=(T rhs) const {                                              \
+    T t = *this;                                                               \
+    t op## = rhs;                                                              \
+    *this = t;                                                                 \
+    return t;                                                                  \
+  }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -118,20 +123,34 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
-  T operator++() { return *this += 1; }
-
-  T operator++(int) {
-    const T t = *this;
-    *this = (t + 1);
+  T operator++() const {
+    T t = *this;
+    ++t;
+    *this = t;
     return t;
   }
 
-  T operator--() { return *this -= 1; }
+  T operator++(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2++;
+    *this = t2;
+    return t1;
+  }
 
-  T operator--(int) {
-    const T t = *this;
-    *this = (t - 1);
+  T operator--() const {
+    T t = *this;
+    --t;
+    *this = t;
     return t;
+  }
+
+  T operator--(int) const {
+    T t1 = *this;
+    T t2 = t1;
+    t2--;
+    *this = t2;
+    return t1;
   }
 
   template <class T2, class P2> friend class annotated_ptr;

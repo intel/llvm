@@ -269,6 +269,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-user-wrappers", "internal"},
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
+#if !defined(_WIN32)
+  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
+      {"libsycl-sanitizer", "internal"}};
+#endif
 
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList) {
     for (const DeviceLibOptInfo &Lib : LibsList) {
@@ -298,6 +302,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
+#if !defined(_WIN32)
+  if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
+                               options::OPT_fno_sanitize_EQ)) {
+    if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        addLibraries(SYCLDeviceSanitizerLibs);
+    }
+  }
+#endif
   return LibraryList;
 }
 
