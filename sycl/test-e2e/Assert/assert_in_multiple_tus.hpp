@@ -44,7 +44,7 @@ int main(int Argc, const char *Argv[]) {
   queue Q;
   enqueueKernel_1_fromFile1(&Q);
   enqueueKernel_2_fromFile2(&Q);
-//  Q.wait();
+  // Q.wait();
 
   std::cout << "The test ended." << std::endl;
   return 0;

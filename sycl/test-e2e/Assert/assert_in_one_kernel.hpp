@@ -22,7 +22,7 @@ void assertTest() {
     CGH.parallel_for<class TheKernel>(
         numOfItems, [=](item<1> Item) { kernelFunc(&Acc[0], Item[0]); });
   });
-// Q.wait();
+  // Q.wait();
 }
 
 int main(int Argc, const char *Argv[]) {
