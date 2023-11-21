@@ -416,25 +416,6 @@ __esimd_lsc_xatomic_slm_2(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-/// Memory fence.
-/// Supported platforms: DG2, PVC
-///
-/// @tparam Kind is the Sfid shaded function.
-/// @tparam FenceOp is the fence operation.
-/// @tparam Scope is the operation scope.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
-          __ESIMD_ENS::lsc_scope Scope, int N>
-__ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
 __ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
