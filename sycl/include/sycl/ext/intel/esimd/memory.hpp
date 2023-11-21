@@ -5627,6 +5627,26 @@ template <uint8_t cntl> __ESIMD_API void fence() { __esimd_fence(cntl); }
 __SYCL_DEPRECATED("use fence<fence_mask>()")
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
+/// Memory fence.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Kind is the memory kind.
+/// @tparam FenceOp is the fence cache flush operation to apply after fence.
+/// @tparam Scope is the fence operation scope.
+template <memory_kind Kind = memory_kind::global,
+          fence_flush_op FenceOp = fence_flush_op::none,
+          fence_scope Scope = fence_scope::group>
+__ESIMD_API void fence() {
+  static_assert(
+      Kind != memory_kind::local ||
+          (FenceOp == fence_flush_op::none && Scope == fence_scope::group),
+      "SLM fence must have 'none' lsc_fence_op and 'group' scope");
+  constexpr int N = 16;
+  simd_mask<N> Mask = 1;
+  __esimd_lsc_fence<static_cast<uint8_t>(Kind), static_cast<uint8_t>(FenceOp),
+                    static_cast<uint8_t>(Scope), N>(Mask.data());
+}
+
 /// Generic work-group barrier.
 /// Performs barrier synchronization for all threads within the same thread
 /// group. The barrier instruction causes the executing thread to wait until
