@@ -1,4 +1,3 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using ZE_DEBUG
@@ -6,8 +5,8 @@
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as executable graph update not implemented yet
-// XFAIL: *
+// Skip as executable graph update not implemented yet
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_EXPLICIT
 

@@ -14,6 +14,7 @@ compiler and runtime.
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
 | `SYCL_CACHE_PERSISTENT` | Integer | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
+| `SYCL_CACHE_IN_MEM` | '1' or '0' | Enable ('1') or disable ('0') in-memory caching of device compiled code. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is '1'. |
 | `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches cache eviction off when the variable is set. |
 | `SYCL_CACHE_MAX_SIZE` | Positive integer | Cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
 | `SYCL_CACHE_THRESHOLD` | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
@@ -41,7 +42,7 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <accept-filter> ::= <term>
 <discard-filter> ::= !<term>
 <term> ::= <backend>:<devices>
-<backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
+<backend> ::= { * | level_zero | opencl | cuda | hip }  // case insensitive
 <devices> ::= <device>[,<device>...]
 <device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
@@ -160,6 +161,20 @@ A `sycl::exception` with `sycl::errc::invalid` is thrown during submission of a 
 If this environment variable is not set, the preferred work-group size for reductions is implementation defined.
 
 Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions to 32 on CPUs and to 16 on all other devices.
+
+## Range Rounding Environment Variables
+
+For a description of parallel for range rounding in DPC++ see
+[Parallel For Range Rounding][range-rounding].
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE`   | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS`  | `MinFactorX:GoodFactor:MinRangeX` | `MinFactorX`: The minimum range that the rounded range should be a multiple of (Default 16)  |
+|  |  | `GoodFactor`: The preferred range that the rounded range be a multiple of (Default 32)  |
+|  |  | `MinRangeX`: The minimum X dimension of the range such that range rounding is activated (Default 1024) |
+
 
 ## Controlling DPC++ Level Zero Plugin
 
@@ -290,3 +305,4 @@ variables in production code.</span>
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 [xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md
+[range-rounding]: https://github.com/intel/llvm/blob/sycl/doc/design/ParallelForRangeRounding.md

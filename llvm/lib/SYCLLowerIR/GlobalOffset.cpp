@@ -59,11 +59,21 @@ ModulePass *llvm::createGlobalOffsetPassLegacy() {
   return new GlobalOffsetLegacy();
 }
 
+// Recursive helper function to collect Loads from GEPs in a BFS fashion.
+static void getLoads(Instruction *P, SmallVectorImpl<Instruction *> &Traversed,
+                     SmallVectorImpl<LoadInst *> &Loads) {
+  Traversed.push_back(P);
+  if (auto *L = dyn_cast<LoadInst>(P)) // Base case for recursion
+    Loads.push_back(L);
+  else {
+    assert(isa<GetElementPtrInst>(*P));
+    for (Value *V : P->users())
+      getLoads(cast<Instruction>(V), Traversed, Loads);
+  }
+}
+
 // New PM implementation.
 PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
-  if (!EnableGlobalOffset)
-    return PreservedAnalyses::all();
-
   AT = TargetHelpers::getArchType(M);
   Function *ImplicitOffsetIntrinsic = M.getFunction(Intrinsic::getName(
       AT == ArchType::Cuda
@@ -73,33 +83,62 @@ PreservedAnalyses GlobalOffsetPass::run(Module &M, ModuleAnalysisManager &) {
   if (!ImplicitOffsetIntrinsic || ImplicitOffsetIntrinsic->use_empty())
     return PreservedAnalyses::all();
 
-  // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
-  // happy with ADDRESS_SPACE_GENERIC (0).
-  TargetAS = AT == ArchType::Cuda ? 0 : 5;
-  /// The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
-  /// to be 3, use it for the implicit argument pointer type.
-  KernelImplicitArgumentType =
-      ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
-  ImplicitOffsetPtrType =
-      Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
-  assert((ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
-         "Implicit offset intrinsic does not return the expected type");
+  if (!EnableGlobalOffset) {
+    SmallVector<CallInst *, 4> Worklist;
+    SmallVector<LoadInst *, 4> LI;
+    SmallVector<Instruction *, 4> PtrUses;
 
-  SmallVector<KernelPayload, 4> KernelPayloads;
-  TargetHelpers::populateKernels(M, KernelPayloads, AT);
+    // Collect all GEPs and Loads from the intrinsic's CallInsts
+    for (Value *V : ImplicitOffsetIntrinsic->users()) {
+      Worklist.push_back(cast<CallInst>(V));
+      for (Value *V2 : V->users())
+        getLoads(cast<Instruction>(V2), PtrUses, LI);
+    }
 
-  // Validate kernels and populate entry map
-  EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
+    // Replace each use of a collected Load with a Constant 0
+    for (LoadInst *L : LI)
+      L->replaceAllUsesWith(ConstantInt::get(L->getType(), 0));
 
-  // Add implicit parameters to all direct and indirect users of the offset
-  addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
+    // Remove all collected Loads and GEPs from the kernel.
+    // PtrUses is returned by `getLoads` in topological order.
+    // Walk it backwards so we don't violate users.
+    for (auto *I : reverse(PtrUses))
+      I->eraseFromParent();
+
+    // Remove all collected CallInsts from the kernel.
+    for (CallInst *CI : Worklist) {
+      auto *I = cast<Instruction>(CI);
+      I->eraseFromParent();
+    }
+  } else {
+    // For AMD allocas and pointers have to be to CONSTANT_PRIVATE (5), NVVM is
+    // happy with ADDRESS_SPACE_GENERIC (0).
+    TargetAS = AT == ArchType::Cuda ? 0 : 5;
+    /// The value for NVVM's adDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
+    /// to be 3, use it for the implicit argument pointer type.
+    KernelImplicitArgumentType =
+        ArrayType::get(Type::getInt32Ty(M.getContext()), 3);
+    ImplicitOffsetPtrType =
+        Type::getInt32Ty(M.getContext())->getPointerTo(TargetAS);
+    assert(
+        (ImplicitOffsetIntrinsic->getReturnType() == ImplicitOffsetPtrType) &&
+        "Implicit offset intrinsic does not return the expected type");
+
+    SmallVector<KernelPayload, 4> KernelPayloads;
+    TargetHelpers::populateKernels(M, KernelPayloads, AT);
+
+    // Validate kernels and populate entry map
+    EntryPointMetadata = generateKernelMDNodeMap(M, KernelPayloads);
+
+    // Add implicit parameters to all direct and indirect users of the offset
+    addImplicitParameterToCallers(M, ImplicitOffsetIntrinsic, nullptr);
+  }
 
   // Assert that all uses of `ImplicitOffsetIntrinsic` are removed and delete
   // it.
   assert(ImplicitOffsetIntrinsic->use_empty() &&
          "Not all uses of intrinsic removed");
   ImplicitOffsetIntrinsic->eraseFromParent();
-
   return PreservedAnalyses::none();
 }
 

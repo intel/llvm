@@ -1,12 +1,11 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out %GPU_CHECK_PLACEHOLDER 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
-// Expected fail as sycl streams aren't implemented yet
-// XFAIL: *
+// Skip as sycl streams aren't implemented yet
+// REQUIRES: NOT_YET_IMPLEMENTED
 
 #define GRAPH_E2E_EXPLICIT
 
