@@ -5562,6 +5562,9 @@ def regcall4 : Flag<["-"], "regcall4">, Group<m_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Set __regcall4 as a default calling convention to respect __regcall ABI v.4">,
   MarshallingInfoFlag<LangOpts<"RegCall4">>;
+def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption, CLOption]>,
+  HelpText<"Dump device code into the user provided directory.">;
 def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
   HelpText<"Save intermediate compilation results.">;
