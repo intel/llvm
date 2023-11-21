@@ -92,8 +92,7 @@ sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value, Compare comp) {
   return sort_over_group(
       exec.get_group(), value,
-      // experimental::default_sorter<Compare>(exec.get_memory(), comp));
-      default_sorters::group_sorter<T, 1, Compare>(exec.get_memory(), comp));
+      default_sorters::group_sorter<T, Compare, 1>(exec.get_memory(), comp));
 }
 
 template <typename Group, typename T, size_t Extent>
@@ -101,7 +100,6 @@ std::enable_if_t<sycl::is_group_v<std::decay_t<Group>>, T>
 sort_over_group(experimental::group_with_scratchpad<Group, Extent> exec,
                 T value) {
   return sort_over_group(exec.get_group(), value,
-                         //  experimental::default_sorter<>(exec.get_memory()));
                          default_sorters::group_sorter<T>(exec.get_memory()));
 }
 
@@ -159,20 +157,20 @@ std::tuple<T, U> sort_key_value_over_group(Group g, T key, U value,
 #endif
 }
 
-template <typename GroupHelper, typename T, typename U, typename Compare,
-          typename Group, std::size_t Extent,
-          typename Property = detail::is_blocked>
+template <typename Group, typename T, typename U, std::size_t Extent,
+          typename Compare,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
 std::tuple<T, U> sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec, T key, U value,
-    Compare comp, Property property = {}) {
+    Compare comp, Properties properties = {}) {
   return sort_key_value_over_group(
       exec.get_group(), key, value,
       default_sorters::group_key_value_sorter<T, U, Compare>(exec.get_memory(),
                                                              comp),
-      property);
+      properties);
 }
 
-template <typename T, typename U, typename Group, std::size_t Extent>
+template <typename Group, typename T, typename U, std::size_t Extent>
 std::tuple<T, U> sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec, T key, U value) {
   return sort_key_value_over_group(
@@ -181,48 +179,47 @@ std::tuple<T, U> sort_key_value_over_group(
 }
 
 // key value sorting
-template <std::size_t ElementsPerWorkItem, typename Group, typename T,
-          typename U, typename ArraySorter,
-          typename Property = detail::is_blocked>
+template <typename Group, typename T, typename U,
+          std::size_t ElementsPerWorkItem, typename Sorter,
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
 void sort_key_value_over_group(Group group,
                                sycl::span<T, ElementsPerWorkItem> keys,
                                sycl::span<U, ElementsPerWorkItem> values,
-                               ArraySorter array_sorter,
-                               Property property = {}) {
-  array_sorter(group, keys, values, property);
+                               Sorter sorter, Properties properties = {}) {
+  sorter(group, keys, values, properties);
 }
 
 // TODO: Check for property type
 template <typename Group, typename T, typename U, std::size_t Extent,
           std::size_t ElementsPerWorkItem,
-          typename Property = detail::is_blocked>
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
 void sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec,
     sycl::span<T, ElementsPerWorkItem> keys,
-    sycl::span<U, ElementsPerWorkItem> values, Property property = {}) {
+    sycl::span<U, ElementsPerWorkItem> values, Properties properties = {}) {
 
   experimental::sort_key_value_over_group(
       exec.get_group(), keys, values,
       experimental::default_sorters::group_key_value_sorter<
           T, U, std::less<>, ElementsPerWorkItem>(exec.get_memory()),
-      property);
+      properties);
 }
 
 // key value sorting with compare
 template <typename Group, typename T, typename U, std::size_t Extent,
           std::size_t ElementsPerWorkItem, typename Compare,
-          typename Property = detail::is_blocked>
+          typename Properties = ext::oneapi::experimental::empty_properties_t>
 void sort_key_value_over_group(
     experimental::group_with_scratchpad<Group, Extent> exec,
     sycl::span<T, ElementsPerWorkItem> keys,
     sycl::span<U, ElementsPerWorkItem> values, Compare comp,
-    Property property = {}) {
+    Properties properties = {}) {
 
   experimental::sort_key_value_over_group(
       exec.get_group(), keys, values,
       experimental::default_sorters::group_key_value_sorter<
           T, U, Compare, ElementsPerWorkItem>(exec.get_memory(), comp),
-      property);
+      properties);
 }
 
 } // namespace ext::oneapi::experimental

@@ -71,42 +71,20 @@ public:
 
   template <typename Group, typename Ptr>
   void operator()(Group g, Ptr first, Ptr last) {
-    (void)g;
-    (void)first;
-    (void)last;
 #ifdef __SYCL_DEVICE_ONLY__
     using T = typename sycl::detail::GetValueType<Ptr>::type;
     if (scratch_size >= memory_required<T>(Group::fence_scope, last - first))
       sycl::detail::merge_sort(g, first, last - first, comp, scratch);
       // TODO: it's better to add else branch
 #else
-
+    (void)g;
+    (void)first;
+    (void)last;
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
         "default_sorters::joint_sorter constructor is not supported on host "
         "device.");
 #endif
-  }
-
-  template <typename Group, typename T> T operator()(Group g, T val) {
-#ifdef __SYCL_DEVICE_ONLY__
-    auto range_size = g.get_local_range().size();
-    if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
-      size_t local_id = g.get_local_linear_id();
-      T *temp = reinterpret_cast<T *>(scratch);
-      ::new (temp + local_id) T(val);
-      sycl::detail::merge_sort(g, temp, range_size, comp,
-                               scratch + range_size * sizeof(T));
-      val = temp[local_id];
-    }
-    // TODO: it's better to add else branch
-#else
-    (void)g;
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter operator() is not supported on host device.");
-#endif
-    return val;
   }
 
   template <typename T>
@@ -116,22 +94,20 @@ public:
   }
 };
 
-template <typename T, std::size_t ElementsPerWorkItem = 1,
-          typename CompareT = std::less<>>
+template <typename T, typename Compare = std::less<>,
+          std::size_t ElementsPerWorkItem = 1>
 class group_sorter {
-  CompareT comp;
+  Compare comp;
   std::byte *scratch;
   std::size_t scratch_size;
 
 public:
   template <std::size_t Extent>
   group_sorter(sycl::span<std::byte, Extent> scratch_,
-               CompareT comp_ = CompareT{})
+               Compare comp_ = Compare{})
       : comp(comp_), scratch(scratch_.data()), scratch_size(scratch_.size()) {}
 
   template <typename Group> T operator()(Group g, T val) {
-    (void)g;
-    (void)val;
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_range().size();
     if (scratch_size >= memory_required(Group::fence_scope, range_size)) {
@@ -144,6 +120,8 @@ public:
     }
     return val;
 #else
+    (void)g;
+    (void)val;
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
         "default_sorter operator() is not supported on host device.");
@@ -225,21 +203,16 @@ public:
                                       const KeyValue &rhs) {
       return this_comp(std::get<0>(lhs).front(), std::get<0>(rhs).front());
     };
-    return group_sorter<KeyValue, ElementsPerWorkItem,
-                        decltype(comp_key_value)>(
-        sycl::span{scratch, scratch_size},
-        comp_key_value)(g, KeyValue(key, value));
+    return group_sorter<KeyValue, decltype(comp_key_value),
+                        ElementsPerWorkItem>(sycl::span{scratch, scratch_size},
+                                             comp_key_value)(
+        g, KeyValue(key, value));
   }
 
   template <typename Group, typename Properties>
   void operator()(Group g, sycl::span<T, ElementsPerWorkItem> keys,
                   sycl::span<U, ElementsPerWorkItem> values,
                   Properties property = {}) {
-
-    (void)g;
-    (void)keys;
-    (void)values;
-    (void)property;
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_linear_range();
     if (scratch_size >=
@@ -279,14 +252,19 @@ public:
         values[i] = std::get<1>(temp)[shift];
       }
     }
-    // TODO: add else branch
+#else
+    (void)g;
+    (void)keys;
+    (void)values;
+    (void)property;
 #endif
   }
 
   static constexpr std::size_t memory_required(sycl::memory_scope scope,
                                                std::size_t range_size) {
-    return group_sorter<std::tuple<T, U>, ElementsPerWorkItem,
-                        CompareT>::memory_required(scope, range_size);
+    return group_sorter<std::tuple<T, U>, CompareT,
+                        ElementsPerWorkItem>::memory_required(scope,
+                                                              range_size);
   }
 };
 
@@ -308,7 +286,7 @@ template <typename T> struct ConvertToComp<T, sorting_order::descending> {
 
 namespace radix_sorters {
 
-template <typename ValT, sorting_order OrderT = sorting_order::ascending,
+template <typename T, sorting_order Order = sorting_order::ascending,
           unsigned int BitsPerPass = 4>
 class joint_sorter {
 
@@ -322,13 +300,13 @@ class joint_sorter {
 public:
   template <std::size_t Extent>
   joint_sorter(sycl::span<std::byte, Extent> scratch_,
-               const std::bitset<sizeof(ValT) * CHAR_BIT> mask =
-                   std::bitset<sizeof(ValT) * CHAR_BIT>(
+               const std::bitset<sizeof(T) * CHAR_BIT> mask =
+                   std::bitset<sizeof(T) * CHAR_BIT>(
                        (std::numeric_limits<unsigned long long>::max)()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
-    static_assert((std::is_arithmetic<ValT>::value ||
-                   std::is_same<ValT, sycl::half>::value ||
-                   std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
+    static_assert((std::is_arithmetic<T>::value ||
+                   std::is_same<T, sycl::half>::value ||
+                   std::is_same<T, sycl::ext::oneapi::bfloat16>::value),
                   "radix sort is not supported for the given type");
     first_bit = 0;
     while (first_bit < mask.size() && !mask[first_bit])
@@ -341,16 +319,16 @@ public:
 
   template <typename GroupT, typename PtrT>
   void operator()(GroupT g, PtrT first, PtrT last) {
-    (void)g;
-    (void)first;
-    (void)last;
 #ifdef __SYCL_DEVICE_ONLY__
     sycl::detail::privateDynamicSort</*is_key_value=*/false,
-                                     OrderT == sorting_order::ascending,
+                                     Order == sorting_order::ascending,
                                      /*empty*/ 1, BitsPerPass>(
         g, first, /*empty*/ first, (last - first) > 0 ? (last - first) : 0,
         scratch, first_bit, last_bit);
 #else
+    (void)g;
+    (void)first;
+    (void)last;
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
         "radix_sorters::joint_sorter is not supported on host device.");
@@ -361,7 +339,7 @@ public:
                                                std::size_t range_size) {
     // Scope is not important so far
     (void)scope;
-    return range_size * sizeof(ValT) +
+    return range_size * sizeof(T) +
            (1 << bits) * range_size * sizeof(uint32_t) + alignof(uint32_t);
   }
 };
@@ -471,15 +449,12 @@ public:
     U val_result[]{val};
     (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
-
-#if 0
     sycl::detail::privateStaticSort<
         /*is_key_value=*/true,
         /*is_blocked=*/true, 1, bits>(
-        g, key_result, val_result, Order == sorting_order::ascending,
-        scratch, sycl::detail::Builder::getNDItem<Group::dimensions>(),
-        first_bit, last_bit);
-#endif
+        g, key_result, val_result, Order == sorting_order::ascending, scratch,
+        sycl::detail::Builder::getNDItem<Group::dimensions>(), first_bit,
+        last_bit);
 #endif
     key = key_result[0];
     val = val_result[0];
