@@ -214,6 +214,7 @@ public:
                   sycl::span<U, ElementsPerWorkItem> values,
                   Properties property = {}) {
 #ifdef __SYCL_DEVICE_ONLY__
+    (void)property;
     auto range_size = g.get_local_linear_range();
     if (scratch_size >=
         memory_required(Group::fence_scope, g.get_local_range().size())) {
