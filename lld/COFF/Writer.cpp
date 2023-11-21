@@ -31,6 +31,7 @@
 #include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/RandomNumberGenerator.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/xxhash.h"
 #include <algorithm>
 #include <cstdio>
@@ -110,7 +111,7 @@ public:
       // "the timestamp field is really a hash", or a 4-byte size field
       // followed by that many bytes containing a longer hash (with the
       // lowest 4 bytes usually being the timestamp in little-endian order).
-      // Consider storing the full 8 bytes computed by xxHash64 here.
+      // Consider storing the full 8 bytes computed by xxh3_64bits here.
       fillEntry(d, COFF::IMAGE_DEBUG_TYPE_REPRO, 0, 0, 0);
     }
   }
@@ -320,7 +321,10 @@ private:
 };
 } // anonymous namespace
 
-void lld::coff::writeResult(COFFLinkerContext &ctx) { Writer(ctx).run(); }
+void lld::coff::writeResult(COFFLinkerContext &ctx) {
+  llvm::TimeTraceScope timeScope("Write output(s)");
+  Writer(ctx).run();
+}
 
 void OutputSection::addChunk(Chunk *c) {
   chunks.push_back(c);
@@ -563,16 +567,21 @@ void Writer::finalizeAddresses() {
   int pass = 0;
   int margin = 1024 * 100;
   while (true) {
+    llvm::TimeTraceScope timeScope2("Add thunks pass");
+
     // First check whether we need thunks at all, or if the previous pass of
     // adding them turned out ok.
     bool rangesOk = true;
     size_t numChunks = 0;
-    for (OutputSection *sec : ctx.outputSections) {
-      if (!verifyRanges(sec->chunks)) {
-        rangesOk = false;
-        break;
+    {
+      llvm::TimeTraceScope timeScope3("Verify ranges");
+      for (OutputSection *sec : ctx.outputSections) {
+        if (!verifyRanges(sec->chunks)) {
+          rangesOk = false;
+          break;
+        }
+        numChunks += sec->chunks.size();
       }
-      numChunks += sec->chunks.size();
     }
     if (rangesOk) {
       if (pass > 0)
@@ -596,8 +605,11 @@ void Writer::finalizeAddresses() {
     // Try adding thunks everywhere where it is needed, with a margin
     // to avoid things going out of range due to the added thunks.
     bool addressesChanged = false;
-    for (OutputSection *sec : ctx.outputSections)
-      addressesChanged |= createThunks(sec, margin);
+    {
+      llvm::TimeTraceScope timeScope3("Create thunks");
+      for (OutputSection *sec : ctx.outputSections)
+        addressesChanged |= createThunks(sec, margin);
+    }
     // If the verification above thought we needed thunks, we should have
     // added some.
     assert(addressesChanged);
@@ -615,6 +627,8 @@ void Writer::writePEChecksum() {
   if (!ctx.config.writeCheckSum) {
     return;
   }
+
+  llvm::TimeTraceScope timeScope("PE checksum");
 
   // https://docs.microsoft.com/en-us/windows/win32/debug/pe-format#checksum
   uint32_t *buf = (uint32_t *)buffer->getBufferStart();
@@ -650,42 +664,44 @@ void Writer::writePEChecksum() {
 
 // The main function of the writer.
 void Writer::run() {
-  ScopedTimer t1(ctx.codeLayoutTimer);
+  {
+    llvm::TimeTraceScope timeScope("Write PE");
+    ScopedTimer t1(ctx.codeLayoutTimer);
 
-  createImportTables();
-  createSections();
-  appendImportThunks();
-  // Import thunks must be added before the Control Flow Guard tables are added.
-  createMiscChunks();
-  createExportTable();
-  mergeSections();
-  removeUnusedSections();
-  finalizeAddresses();
-  removeEmptySections();
-  assignOutputSectionIndices();
-  setSectionPermissions();
-  createSymbolAndStringTable();
+    createImportTables();
+    createSections();
+    appendImportThunks();
+    // Import thunks must be added before the Control Flow Guard tables are
+    // added.
+    createMiscChunks();
+    createExportTable();
+    mergeSections();
+    removeUnusedSections();
+    finalizeAddresses();
+    removeEmptySections();
+    assignOutputSectionIndices();
+    setSectionPermissions();
+    createSymbolAndStringTable();
 
-  if (fileSize > UINT32_MAX)
-    fatal("image size (" + Twine(fileSize) + ") " +
-        "exceeds maximum allowable size (" + Twine(UINT32_MAX) + ")");
+    if (fileSize > UINT32_MAX)
+      fatal("image size (" + Twine(fileSize) + ") " +
+            "exceeds maximum allowable size (" + Twine(UINT32_MAX) + ")");
 
-  openFile(ctx.config.outputFile);
-  if (ctx.config.is64()) {
-    writeHeader<pe32plus_header>();
-  } else {
-    writeHeader<pe32_header>();
+    openFile(ctx.config.outputFile);
+    if (ctx.config.is64()) {
+      writeHeader<pe32plus_header>();
+    } else {
+      writeHeader<pe32_header>();
+    }
+    writeSections();
+    checkLoadConfig();
+    sortExceptionTable();
+
+    // Fix up the alignment in the TLS Directory's characteristic field,
+    // if a specific alignment value is needed
+    if (tlsAlignment)
+      fixTlsAlignment();
   }
-  writeSections();
-  checkLoadConfig();
-  sortExceptionTable();
-
-  // Fix up the alignment in the TLS Directory's characteristic field,
-  // if a specific alignment value is needed
-  if (tlsAlignment)
-    fixTlsAlignment();
-
-  t1.stop();
 
   if (!ctx.config.pdbPath.empty() && ctx.config.debug) {
     assert(buildId);
@@ -701,6 +717,7 @@ void Writer::run() {
   if (errorCount())
     return;
 
+  llvm::TimeTraceScope timeScope("Commit PE to disk");
   ScopedTimer t2(ctx.outputCommitTimer);
   if (auto e = buffer->commit())
     fatal("failed to write output '" + buffer->getPath() +
@@ -736,7 +753,7 @@ void Writer::fixPartialSectionChars(StringRef name, uint32_t chars) {
     PartialSection *pSec = it.second;
     StringRef curName = pSec->name;
     if (!curName.consume_front(name) ||
-        (!curName.empty() && !curName.startswith("$")))
+        (!curName.empty() && !curName.starts_with("$")))
       continue;
     if (pSec->characteristics == chars)
       continue;
@@ -769,7 +786,7 @@ bool Writer::fixGnuImportChunks() {
   // with alphabetical ordering of the object files within a library.
   for (auto it : partialSections) {
     PartialSection *pSec = it.second;
-    if (!pSec->name.startswith(".idata"))
+    if (!pSec->name.starts_with(".idata"))
       continue;
 
     if (!pSec->chunks.empty())
@@ -857,9 +874,9 @@ static bool shouldStripSectionSuffix(SectionChunk *sc, StringRef name,
     return false;
   if (!sc || !sc->isCOMDAT())
     return false;
-  return name.startswith(".text$") || name.startswith(".data$") ||
-         name.startswith(".rdata$") || name.startswith(".pdata$") ||
-         name.startswith(".xdata$") || name.startswith(".eh_frame$");
+  return name.starts_with(".text$") || name.starts_with(".data$") ||
+         name.starts_with(".rdata$") || name.starts_with(".pdata$") ||
+         name.starts_with(".xdata$") || name.starts_with(".eh_frame$");
 }
 
 void Writer::sortSections() {
@@ -878,6 +895,7 @@ void Writer::sortSections() {
 
 // Create output section objects and add them to OutputSections.
 void Writer::createSections() {
+  llvm::TimeTraceScope timeScope("Output sections");
   // First, create the builtin sections.
   const uint32_t data = IMAGE_SCN_CNT_INITIALIZED_DATA;
   const uint32_t bss = IMAGE_SCN_CNT_UNINITIALIZED_DATA;
@@ -924,7 +942,7 @@ void Writer::createSections() {
     if (shouldStripSectionSuffix(sc, name, ctx.config.mingw))
       name = name.split('$').first;
 
-    if (name.startswith(".tls"))
+    if (name.starts_with(".tls"))
       tlsAlignment = std::max(tlsAlignment, c->getAlignment());
 
     PartialSection *pSec = createPartialSection(name,
@@ -985,7 +1003,7 @@ void Writer::createSections() {
       // Move discardable sections named .debug_ to the end, after other
       // discardable sections. Stripping only removes the sections named
       // .debug_* - thus try to avoid leaving holes after stripping.
-      if (s->name.startswith(".debug_"))
+      if (s->name.starts_with(".debug_"))
         return 3;
       return 2;
     }
@@ -1003,6 +1021,7 @@ void Writer::createSections() {
 }
 
 void Writer::createMiscChunks() {
+  llvm::TimeTraceScope timeScope("Misc chunks");
   Configuration *config = &ctx.config;
 
   for (MergeChunk *p : ctx.mergeChunkInstances) {
@@ -1068,6 +1087,7 @@ void Writer::createMiscChunks() {
 // IdataContents class abstracted away the details for us,
 // so we just let it create chunks and add them to the section.
 void Writer::createImportTables() {
+  llvm::TimeTraceScope timeScope("Import tables");
   // Initialize DLLOrder so that import entries are ordered in
   // the same order as in the command line. (That affects DLL
   // initialization order, and this ordering is MSVC-compatible.)
@@ -1097,6 +1117,7 @@ void Writer::appendImportThunks() {
   if (ctx.importFileInstances.empty())
     return;
 
+  llvm::TimeTraceScope timeScope("Import thunks");
   for (ImportFile *file : ctx.importFileInstances) {
     if (!file->live)
       continue;
@@ -1128,6 +1149,7 @@ void Writer::appendImportThunks() {
 }
 
 void Writer::createExportTable() {
+  llvm::TimeTraceScope timeScope("Export table");
   if (!edataSec->chunks.empty()) {
     // Allow using a custom built export table from input object files, instead
     // of having the linker synthesize the tables.
@@ -1143,11 +1165,12 @@ void Writer::createExportTable() {
   }
   // Warn on exported deleting destructor.
   for (auto e : ctx.config.exports)
-    if (e.sym && e.sym->getName().startswith("??_G"))
+    if (e.sym && e.sym->getName().starts_with("??_G"))
       warn("export of deleting dtor: " + toString(ctx, *e.sym));
 }
 
 void Writer::removeUnusedSections() {
+  llvm::TimeTraceScope timeScope("Remove unused sections");
   // Remove sections that we can be sure won't get content, to avoid
   // allocating space for their section headers.
   auto isUnused = [this](OutputSection *s) {
@@ -1163,11 +1186,13 @@ void Writer::removeUnusedSections() {
 // The Windows loader doesn't seem to like empty sections,
 // so we remove them if any.
 void Writer::removeEmptySections() {
+  llvm::TimeTraceScope timeScope("Remove empty sections");
   auto isEmpty = [](OutputSection *s) { return s->getVirtualSize() == 0; };
   llvm::erase_if(ctx.outputSections, isEmpty);
 }
 
 void Writer::assignOutputSectionIndices() {
+  llvm::TimeTraceScope timeScope("Output sections indices");
   // Assign final output section indices, and assign each chunk to its output
   // section.
   uint32_t idx = 1;
@@ -1258,6 +1283,7 @@ std::optional<coff_symbol16> Writer::createSymbol(Defined *def) {
 }
 
 void Writer::createSymbolAndStringTable() {
+  llvm::TimeTraceScope timeScope("Symbol and string table");
   // PE/COFF images are limited to 8 byte section names. Longer names can be
   // supported by writing a non-standard string table, but this string table is
   // not mapped at runtime and the long names will therefore be inaccessible.
@@ -1266,9 +1292,7 @@ void Writer::createSymbolAndStringTable() {
   // solution where discardable sections have long names preserved and
   // non-discardable sections have their names truncated, to ensure that any
   // section which is mapped at runtime also has its name mapped at runtime.
-  bool HasDwarfSection = false;
   for (OutputSection *sec : ctx.outputSections) {
-    HasDwarfSection |= sec->name.startswith(".debug_");
     if (sec->name.size() <= COFF::NameSize)
       continue;
     if ((sec->header.Characteristics & IMAGE_SCN_MEM_DISCARDABLE) == 0)
@@ -1281,7 +1305,7 @@ void Writer::createSymbolAndStringTable() {
     sec->setStringTableOff(addEntryToStringTable(sec->name));
   }
 
-  if (ctx.config.debugDwarf || ctx.config.debugSymtab || HasDwarfSection) {
+  if (ctx.config.debugDwarf || ctx.config.debugSymtab) {
     for (ObjFile *file : ctx.objFileInstances) {
       for (Symbol *b : file->getSymbols()) {
         auto *d = dyn_cast_or_null<Defined>(b);
@@ -1322,6 +1346,7 @@ void Writer::createSymbolAndStringTable() {
 }
 
 void Writer::mergeSections() {
+  llvm::TimeTraceScope timeScope("Merge sections");
   if (!pdataSec->chunks.empty()) {
     firstPdata = pdataSec->chunks.front();
     lastPdata = pdataSec->chunks.back();
@@ -1355,6 +1380,7 @@ void Writer::mergeSections() {
 // Visits all sections to assign incremental, non-overlapping RVAs and
 // file offsets.
 void Writer::assignAddresses() {
+  llvm::TimeTraceScope timeScope("Assign addresses");
   Configuration *config = &ctx.config;
 
   sizeOfHeaders = dosStubSize + sizeof(PEMagic) + sizeof(coff_file_header) +
@@ -1369,6 +1395,7 @@ void Writer::assignAddresses() {
   uint64_t rva = alignTo(sizeOfHeaders, config->align);
 
   for (OutputSection *sec : ctx.outputSections) {
+    llvm::TimeTraceScope timeScope("Section: ", sec->name);
     if (sec == relocSec)
       addBaserels();
     uint64_t rawSize = 0, virtualSize = 0;
@@ -1438,7 +1465,16 @@ template <typename PEHeaderTy> void Writer::writeHeader() {
   // Write COFF header
   auto *coff = reinterpret_cast<coff_file_header *>(buf);
   buf += sizeof(*coff);
-  coff->Machine = config->machine;
+  switch (config->machine) {
+  case ARM64EC:
+    coff->Machine = AMD64;
+    break;
+  case ARM64X:
+    coff->Machine = ARM64;
+    break;
+  default:
+    coff->Machine = config->machine;
+  }
   coff->NumberOfSections = ctx.outputSections.size();
   coff->Characteristics = IMAGE_FILE_EXECUTABLE_IMAGE;
   if (config->largeAddressAware)
@@ -1733,20 +1769,22 @@ void Writer::createGuardCFTables() {
   SymbolRVASet ehContTargets;
   for (ObjFile *file : ctx.objFileInstances) {
     // If the object was compiled with /guard:cf, the address taken symbols
-    // are in .gfids$y sections, the longjmp targets are in .gljmp$y sections,
-    // and ehcont targets are in .gehcont$y sections. If the object was not
-    // compiled with /guard:cf, we assume there were no setjmp and ehcont
-    // targets, and that all code symbols with relocations are possibly
-    // address-taken.
+    // are in .gfids$y sections, and the longjmp targets are in .gljmp$y
+    // sections. If the object was not compiled with /guard:cf, we assume there
+    // were no setjmp targets, and that all code symbols with relocations are
+    // possibly address-taken.
     if (file->hasGuardCF()) {
       markSymbolsForRVATable(file, file->getGuardFidChunks(), addressTakenSyms);
       markSymbolsForRVATable(file, file->getGuardIATChunks(), giatsRVASet);
       getSymbolsFromSections(file, file->getGuardIATChunks(), giatsSymbols);
       markSymbolsForRVATable(file, file->getGuardLJmpChunks(), longJmpTargets);
-      markSymbolsForRVATable(file, file->getGuardEHContChunks(), ehContTargets);
     } else {
       markSymbolsWithRelocations(file, addressTakenSyms);
     }
+    // If the object was compiled with /guard:ehcont, the ehcont targets are in
+    // .gehcont$y sections.
+    if (file->hasGuardEHCont())
+      markSymbolsForRVATable(file, file->getGuardEHContChunks(), ehContTargets);
   }
 
   // Mark the image entry as address-taken.
@@ -1787,7 +1825,7 @@ void Writer::createGuardCFTables() {
   // Add the ehcont target table unless the user told us not to.
   if (config->guardCF & GuardCFLevel::EHCont)
     maybeAddRVATable(std::move(ehContTargets), "__guard_eh_cont_table",
-                     "__guard_eh_cont_count", true);
+                     "__guard_eh_cont_count");
 
   // Set __guard_flags, which will be used in the load config to indicate that
   // /guard:cf was enabled.
@@ -1938,6 +1976,7 @@ void Writer::insertCtorDtorSymbols() {
 // Handles /section options to allow users to overwrite
 // section attributes.
 void Writer::setSectionPermissions() {
+  llvm::TimeTraceScope timeScope("Sections permissions");
   for (auto &p : ctx.config.section) {
     StringRef name = p.first;
     uint32_t perm = p.second;
@@ -1949,6 +1988,7 @@ void Writer::setSectionPermissions() {
 
 // Write section contents to a mmap'ed file.
 void Writer::writeSections() {
+  llvm::TimeTraceScope timeScope("Write sections");
   uint8_t *buf = buffer->getBufferStart();
   for (OutputSection *sec : ctx.outputSections) {
     uint8_t *secBuf = buf + sec->getFileOff();
@@ -1965,6 +2005,8 @@ void Writer::writeSections() {
 }
 
 void Writer::writeBuildId() {
+  llvm::TimeTraceScope timeScope("Write build ID");
+
   // There are two important parts to the build ID.
   // 1) If building with debug info, the COFF debug directory contains a
   //    timestamp as well as a Guid and Age of the PDB.
@@ -1992,7 +2034,7 @@ void Writer::writeBuildId() {
       config->mingw && config->debug && config->pdbPath.empty();
 
   if (config->repro || generateSyntheticBuildId)
-    hash = xxHash64(outputFileData);
+    hash = xxh3_64bits(outputFileData);
 
   if (config->repro)
     timestamp = static_cast<uint32_t>(hash);
@@ -2021,6 +2063,7 @@ void Writer::writeBuildId() {
 void Writer::sortExceptionTable() {
   if (!firstPdata)
     return;
+  llvm::TimeTraceScope timeScope("Sort exception table");
   // We assume .pdata contains function table entries only.
   auto bufAddr = [&](Chunk *c) {
     OutputSection *os = ctx.getOutputSection(c);
@@ -2114,6 +2157,7 @@ void Writer::addBaserels() {
   for (OutputSection *sec : ctx.outputSections) {
     if (sec->header.Characteristics & IMAGE_SCN_MEM_DISCARDABLE)
       continue;
+    llvm::TimeTraceScope timeScope("Base relocations: ", sec->name);
     // Collect all locations for base relocations.
     for (Chunk *c : sec->chunks)
       c->getBaserels(&v);

@@ -105,6 +105,13 @@ public:
       } else if constexpr (std::is_same_v<T, parser::ActionStmt>) {
         return std::visit(
             common::visitors{
+                [&](const common::Indirection<parser::CallStmt> &x) {
+                  addEvaluation(lower::pft::Evaluation{
+                      removeIndirection(x), pftParentStack.back(),
+                      stmt.position, stmt.label});
+                  checkForRoundingModeCall(x.value());
+                  return true;
+                },
                 [&](const common::Indirection<parser::IfStmt> &x) {
                   convertIfStmt(x.value(), stmt.position, stmt.label);
                   return false;
@@ -120,6 +127,24 @@ public:
       }
     }
     return true;
+  }
+
+  /// Check for a call statement that could modify the fp rounding mode.
+  void checkForRoundingModeCall(const parser::CallStmt &callStmt) {
+    const auto &pd = std::get<parser::ProcedureDesignator>(callStmt.call.t);
+    const auto *callName = std::get_if<parser::Name>(&pd.u);
+    if (!callName)
+      return;
+    const Fortran::semantics::Symbol &procSym = callName->symbol->GetUltimate();
+    llvm::StringRef procName = toStringRef(procSym.name());
+    if (!procName.startswith("ieee_set_"))
+      return;
+    if (procName == "ieee_set_rounding_mode_0" ||
+        procName == "ieee_set_modes_0" || procName == "ieee_set_status_0")
+      evaluationListStack.back()
+          ->back()
+          .getOwningProcedure()
+          ->mayModifyRoundingMode = true;
   }
 
   /// Convert an IfStmt into an IfConstruct, retaining the IfStmt as the
@@ -324,11 +349,21 @@ private:
   }
 
   void exitConstructOrDirective() {
+    auto isOpenMPLoopConstruct = [](Fortran::lower::pft::Evaluation *eval) {
+      if (const auto *ompConstruct = eval->getIf<parser::OpenMPConstruct>())
+        if (std::holds_alternative<parser::OpenMPLoopConstruct>(
+                ompConstruct->u))
+          return true;
+      return false;
+    };
+
     rewriteIfGotos();
     auto *eval = constructAndDirectiveStack.back();
-    if (eval->isExecutableDirective()) {
+    if (eval->isExecutableDirective() && !isOpenMPLoopConstruct(eval)) {
       // A construct at the end of an (unstructured) OpenACC or OpenMP
       // construct region must have an exit target inside the region.
+      // This is not applicable to the OpenMP loop construct since the
+      // end of the loop is an available target inside the region.
       Fortran::lower::pft::EvaluationList &evaluationList =
           *eval->evaluationList;
       if (!evaluationList.empty() && evaluationList.back().isConstruct()) {
@@ -726,7 +761,7 @@ private:
           [&](const parser::CallStmt &s) {
             // Look for alternate return specifiers.
             const auto &args =
-                std::get<std::list<parser::ActualArgSpec>>(s.v.t);
+                std::get<std::list<parser::ActualArgSpec>>(s.call.t);
             for (const auto &arg : args) {
               const auto &actual = std::get<parser::ActualArg>(arg.t);
               if (const auto *altReturn =

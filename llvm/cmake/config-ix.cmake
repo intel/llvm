@@ -10,6 +10,7 @@ include(CheckCXXSymbolExists)
 include(CheckFunctionExists)
 include(CheckStructHasMember)
 include(CheckCCompilerFlag)
+include(CheckCSourceCompiles)
 include(CMakePushCheckState)
 
 include(CheckCompilerVersion)
@@ -63,12 +64,17 @@ check_include_file(valgrind/valgrind.h HAVE_VALGRIND_VALGRIND_H)
 check_include_file(fenv.h HAVE_FENV_H)
 check_symbol_exists(FE_ALL_EXCEPT "fenv.h" HAVE_DECL_FE_ALL_EXCEPT)
 check_symbol_exists(FE_INEXACT "fenv.h" HAVE_DECL_FE_INEXACT)
+check_c_source_compiles("
+        void *foo() {
+          return __builtin_thread_pointer();
+        }
+        int main(void) { return 0; }"
+        HAVE_BUILTIN_THREAD_POINTER)
 
 check_include_file(mach/mach.h HAVE_MACH_MACH_H)
 check_include_file(CrashReporterClient.h HAVE_CRASHREPORTERCLIENT_H)
 if(APPLE)
-  include(CheckCSourceCompiles)
-  CHECK_C_SOURCE_COMPILES("
+  check_c_source_compiles("
      static const char *__crashreporter_info__ = 0;
      asm(\".desc ___crashreporter_info__, 0x10\");
      int main(void) { return 0; }"
@@ -246,17 +252,6 @@ else()
   set(LLVM_ENABLE_TERMINFO 0)
 endif()
 
-check_library_exists(xar xar_open "" LLVM_HAVE_LIBXAR)
-if(LLVM_HAVE_LIBXAR)
-  message(STATUS "The xar file format has been deprecated: LLVM_HAVE_LIBXAR might be removed in the future.")
-  # The xar file format has been deprecated since macOS 12.0.
-  if (CMAKE_OSX_DEPLOYMENT_TARGET VERSION_GREATER_EQUAL 12)
-    set(LLVM_HAVE_LIBXAR 0)
-  else()
-    set(XAR_LIB xar)
-  endif()
-endif()
-
 # function checks
 check_symbol_exists(arc4random "stdlib.h" HAVE_DECL_ARC4RANDOM)
 find_package(Backtrace)
@@ -299,7 +294,6 @@ check_symbol_exists(getrlimit "sys/types.h;sys/time.h;sys/resource.h" HAVE_GETRL
 check_symbol_exists(posix_spawn spawn.h HAVE_POSIX_SPAWN)
 check_symbol_exists(pread unistd.h HAVE_PREAD)
 check_symbol_exists(sbrk unistd.h HAVE_SBRK)
-check_symbol_exists(strerror string.h HAVE_STRERROR)
 check_symbol_exists(strerror_r string.h HAVE_STRERROR_R)
 check_symbol_exists(strerror_s string.h HAVE_DECL_STRERROR_S)
 check_symbol_exists(setenv stdlib.h HAVE_SETENV)
@@ -456,6 +450,7 @@ get_host_triple(LLVM_INFERRED_HOST_TRIPLE)
 
 set(LLVM_HOST_TRIPLE "${LLVM_INFERRED_HOST_TRIPLE}" CACHE STRING
     "Host on which LLVM binaries will run")
+message(STATUS "LLVM host triple: ${LLVM_HOST_TRIPLE}")
 
 # Determine the native architecture.
 string(TOLOWER "${LLVM_TARGET_ARCH}" LLVM_NATIVE_ARCH)

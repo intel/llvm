@@ -76,12 +76,12 @@ struct std::formatter<status, CharT> {
     case CharT('}'):
       return begin;
     default:
-      throw_format_error("The format-spec type has a type not supported for a status argument");
+      throw_format_error("The type option contains an invalid value for a status formatting argument");
     }
 
     ++begin;
     if (begin != end && *begin != CharT('}'))
-      throw_format_error("The format-spec should consume the input or end with a '}'");
+      throw_format_error("The format specifier should consume the input or end with a '}'");
 
     return begin;
   }
@@ -134,11 +134,10 @@ struct std::formatter<status, CharT> {
   }
 
 private:
-  void throw_format_error(const char* s) const {
+  [[noreturn]] void throw_format_error([[maybe_unused]] const char* s) const {
 #ifndef TEST_HAS_NO_EXCEPTIONS
     throw std::format_error(s);
 #else
-    (void)s;
     std::abort();
 #endif
   }
@@ -206,7 +205,7 @@ std::basic_string<CharT> get_colons() {
 }
 
 constexpr std::string_view get_format_types() {
-  return "aAbBcdeEfFgGopsxX"
+  return "aAbBcdeEfFgGopPsxX"
 #if TEST_STD_VER > 20
          "?"
 #endif

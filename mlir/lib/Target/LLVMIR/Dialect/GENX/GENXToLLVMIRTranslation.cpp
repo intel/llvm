@@ -233,7 +233,7 @@ public:
     auto attachMetadata = [&](StringRef name) {
       SmallVector<llvm::Metadata *, 3> metadata;
       llvm::Type *i64 = llvm::IntegerType::get(llvmContext, 64);
-      for (int64_t i : extractFromI64ArrayAttr(attrVal)) {
+      for (int64_t i : extractFromIntegerArrayAttr<int64_t>(attrVal)) {
         llvm::Constant *constant = llvm::ConstantInt::get(i64, i);
         metadata.push_back(llvm::ConstantAsMetadata::get(constant));
       }

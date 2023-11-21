@@ -508,6 +508,10 @@ struct ClientCapabilities {
   /// textDocument.completion.completionItem.documentationFormat
   MarkupKind CompletionDocumentationFormat = MarkupKind::PlainText;
 
+  /// The client has support for completion item label details.
+  /// textDocument.completion.completionItem.labelDetailsSupport.
+  bool CompletionLabelDetail = false;
+
   /// Client supports CodeAction return value for textDocument/codeAction.
   /// textDocument.codeAction.codeActionLiteralSupport.
   bool CodeActionStructure = false;
@@ -588,7 +592,7 @@ bool fromJSON(const llvm::json::Value &, ConfigurationSettings &,
 /// Clangd extension: parameters configurable at `initialize` time.
 /// LSP defines this type as `any`.
 struct InitializationOptions {
-  // What we can change throught the didChangeConfiguration request, we can
+  // What we can change through the didChangeConfiguration request, we can
   // also set through the initialize request (initializationOptions field).
   ConfigurationSettings ConfigSettings;
 
@@ -958,16 +962,6 @@ struct Diagnostic {
 };
 llvm::json::Value toJSON(const Diagnostic &);
 
-/// A LSP-specific comparator used to find diagnostic in a container like
-/// std:map.
-/// We only use the required fields of Diagnostic to do the comparison to avoid
-/// any regression issues from LSP clients (e.g. VScode), see
-/// https://git.io/vbr29
-struct LSPDiagnosticCompare {
-  bool operator()(const Diagnostic &LHS, const Diagnostic &RHS) const {
-    return std::tie(LHS.range, LHS.message) < std::tie(RHS.range, RHS.message);
-  }
-};
 bool fromJSON(const llvm::json::Value &, Diagnostic &, llvm::json::Path);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Diagnostic &);
 
@@ -1277,10 +1271,27 @@ enum class InsertTextFormat {
   Snippet = 2,
 };
 
+/// Additional details for a completion item label.
+struct CompletionItemLabelDetails {
+  /// An optional string which is rendered less prominently directly after label
+	/// without any spacing. Should be used for function signatures or type
+  /// annotations.
+  std::string detail;
+
+  /// An optional string which is rendered less prominently after
+	/// CompletionItemLabelDetails.detail. Should be used for fully qualified
+	/// names or file path.
+  std::string description;
+};
+llvm::json::Value toJSON(const CompletionItemLabelDetails &);
+
 struct CompletionItem {
   /// The label of this completion item. By default also the text that is
   /// inserted when selecting this completion.
   std::string label;
+
+  /// Additional details for the label.
+  std::optional<CompletionItemLabelDetails> labelDetails;
 
   /// The kind of this completion item. Based of the kind an icon is chosen by
   /// the editor.
@@ -1341,6 +1352,10 @@ struct CompletionItem {
 };
 llvm::json::Value toJSON(const CompletionItem &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const CompletionItem &);
+
+/// Remove the labelDetails field (for clients that don't support it).
+/// Places the information into other fields of the completion item.
+void removeCompletionLabelDetails(CompletionItem &);
 
 bool operator<(const CompletionItem &, const CompletionItem &);
 
@@ -1646,6 +1661,16 @@ enum class InlayHintKind {
   /// Uses designator syntax, e.g. `.first:`.
   /// This is a clangd extension.
   Designator = 3,
+
+  /// A hint after function, type or namespace definition, indicating the
+  /// defined symbol name of the definition.
+  ///
+  /// An example of a decl name hint in this position:
+  ///    void func() {
+  ///    } ^
+  /// Uses comment-like syntax like "// func".
+  /// This is a clangd extension.
+  BlockEnd = 4,
 
   /// Other ideas for hints that are not currently implemented:
   ///

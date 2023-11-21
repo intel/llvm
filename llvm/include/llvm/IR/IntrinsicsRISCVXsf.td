@@ -1,3 +1,15 @@
+//===- IntrinsicsRISCVXsf.td - SiFive intrinsics -----------*- tablegen -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines all of the SiFive vendor intrinsics for RISC-V.
+//
+//===----------------------------------------------------------------------===//
+
 class VCIXSuffix<string range> {
   list<string> suffix = !cond(!eq(range, "c"): ["e8mf8", "e8mf4", "e8mf2", "e8m1", "e8m2", "e8m4", "e8m8"],
                               !eq(range, "s"): ["e16mf4", "e16mf2", "e16m1", "e16m2", "e16m4", "e16m8"],
@@ -81,38 +93,38 @@ let TargetPrefix = "riscv" in {
       defvar range = ["c", "s", "i", "l"];
       foreach r = range in {
         foreach s = VCIXSuffix<r>.suffix in {
-          def "int_riscv_sf_vc_" # t # "_se_" # s : RISCVSFCustomVC_X</*HasDst*/0, /*HasSE*/1, ImmScalar>;
+          def "int_riscv_sf_vc_" # t # "_se_" # s : RISCVSFCustomVC_X<HasDst=0, HasSE=1, ImmScalar=ImmScalar>;
         }
       }
-      def "int_riscv_sf_vc_v_" # t # "_se" : RISCVSFCustomVC_X</*HasDst*/1, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t         : RISCVSFCustomVC_X</*HasDst*/1, /*HasSE*/0, ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "_se" : RISCVSFCustomVC_X<HasDst=1, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t         : RISCVSFCustomVC_X<HasDst=1, HasSE=0, ImmScalar=ImmScalar>;
     }
   }
 
   multiclass RISCVSFCustomVC_XV<list<string> type> {
     foreach t = type in {
       defvar ImmScalar = !eq(t, "i");
-      def "int_riscv_sf_vc_" # t # "v_se"   : RISCVSFCustomVC_XV</*HasDst*/0, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t # "v_se" : RISCVSFCustomVC_XV</*HasDst*/1, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t # "v"    : RISCVSFCustomVC_XV</*HasDst*/1, /*HasSE*/0, ImmScalar>;
+      def "int_riscv_sf_vc_" # t # "v_se"   : RISCVSFCustomVC_XV<HasDst=0, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "v_se" : RISCVSFCustomVC_XV<HasDst=1, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "v"    : RISCVSFCustomVC_XV<HasDst=1, HasSE=0, ImmScalar=ImmScalar>;
     }
   }
 
   multiclass RISCVSFCustomVC_XVV<list<string> type> {
     foreach t = type in {
       defvar ImmScalar = !eq(t, "i");
-      def "int_riscv_sf_vc_" # t # "vv_se"   : RISCVSFCustomVC_XVV</*HasDst*/0, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t # "vv_se" : RISCVSFCustomVC_XVV</*HasDst*/1, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t # "vv"    : RISCVSFCustomVC_XVV</*HasDst*/1, /*HasSE*/0, ImmScalar>;
+      def "int_riscv_sf_vc_" # t # "vv_se"   : RISCVSFCustomVC_XVV<HasDst=0, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "vv_se" : RISCVSFCustomVC_XVV<HasDst=1, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "vv"    : RISCVSFCustomVC_XVV<HasDst=1, HasSE=0, ImmScalar=ImmScalar>;
     }
   }
 
   multiclass RISCVSFCustomVC_XVW<list<string> type> {
     foreach t = type in {
       defvar ImmScalar = !eq(t, "i");
-      def "int_riscv_sf_vc_" # t # "vw_se"   : RISCVSFCustomVC_XVW</*HasDst*/0, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t # "vw_se" : RISCVSFCustomVC_XVW</*HasDst*/1, /*HasSE*/1, ImmScalar>;
-      def "int_riscv_sf_vc_v_" # t # "vw"    : RISCVSFCustomVC_XVW</*HasDst*/1, /*HasSE*/0, ImmScalar>;
+      def "int_riscv_sf_vc_" # t # "vw_se"   : RISCVSFCustomVC_XVW<HasDst=0, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "vw_se" : RISCVSFCustomVC_XVW<HasDst=1, HasSE=1, ImmScalar=ImmScalar>;
+      def "int_riscv_sf_vc_v_" # t # "vw"    : RISCVSFCustomVC_XVW<HasDst=1, HasSE=0, ImmScalar=ImmScalar>;
     }
   }
 

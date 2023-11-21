@@ -584,7 +584,7 @@ SDValue SparcTargetLowering::LowerFormalArguments_32(
     };
     unsigned NumAllocated = CCInfo.getFirstUnallocated(ArgRegs);
     const MCPhysReg *CurArgReg = ArgRegs+NumAllocated, *ArgRegEnd = ArgRegs+6;
-    unsigned ArgOffset = CCInfo.getNextStackOffset();
+    unsigned ArgOffset = CCInfo.getStackSize();
     if (NumAllocated == 6)
       ArgOffset += StackOffset;
     else {
@@ -703,7 +703,7 @@ SDValue SparcTargetLowering::LowerFormalArguments_64(
   //
   // The va_start intrinsic needs to know the offset to the first variable
   // argument.
-  unsigned ArgOffset = CCInfo.getNextStackOffset();
+  unsigned ArgOffset = CCInfo.getStackSize();
   SparcMachineFunctionInfo *FuncInfo = MF.getInfo<SparcMachineFunctionInfo>();
   // Skip the 128 bytes of register save area.
   FuncInfo->setVarArgsFrameOffset(ArgOffset + ArgArea +
@@ -773,8 +773,8 @@ bool SparcTargetLowering::IsEligibleForTailCallOptimization(
   // Do not tail call opt if the stack is used to pass parameters.
   // 64-bit targets have a slightly higher limit since the ABI requires
   // to allocate some space even when all the parameters fit inside registers.
-  unsigned StackOffsetLimit = Subtarget->is64Bit() ? 48 : 0;
-  if (CCInfo.getNextStackOffset() > StackOffsetLimit)
+  unsigned StackSizeLimit = Subtarget->is64Bit() ? 48 : 0;
+  if (CCInfo.getStackSize() > StackSizeLimit)
     return false;
 
   // Do not tail call opt if either the callee or caller returns
@@ -816,7 +816,7 @@ SparcTargetLowering::LowerCall_32(TargetLowering::CallLoweringInfo &CLI,
                                  CCInfo, CLI, DAG.getMachineFunction());
 
   // Get the size of the outgoing arguments stack space requirement.
-  unsigned ArgsSize = CCInfo.getNextStackOffset();
+  unsigned ArgsSize = CCInfo.getStackSize();
 
   // Keep stack frames 8-byte aligned.
   ArgsSize = (ArgsSize+7) & ~7;
@@ -1204,7 +1204,7 @@ SparcTargetLowering::LowerCall_64(TargetLowering::CallLoweringInfo &CLI,
   // Called functions expect 6 argument words to exist in the stack frame, used
   // or not.
   unsigned StackReserved = 6 * 8u;
-  unsigned ArgsSize = std::max(StackReserved, CCInfo.getNextStackOffset());
+  unsigned ArgsSize = std::max<unsigned>(StackReserved, CCInfo.getStackSize());
 
   // Keep stack frames 16-byte aligned.
   ArgsSize = alignTo(ArgsSize, 16);
@@ -1748,6 +1748,7 @@ SparcTargetLowering::SparcTargetLowering(const TargetMachine &TM,
   if (!Subtarget->is64Bit()) {
     // These libcalls are not available in 32-bit.
     setLibcallName(RTLIB::MULO_I64, nullptr);
+    setLibcallName(RTLIB::MUL_I128, nullptr);
     setLibcallName(RTLIB::SHL_I128, nullptr);
     setLibcallName(RTLIB::SRL_I128, nullptr);
     setLibcallName(RTLIB::SRA_I128, nullptr);
@@ -2031,7 +2032,7 @@ void SparcTargetLowering::computeKnownBitsForTargetNode
     Known2 = DAG.computeKnownBits(Op.getOperand(0), Depth + 1);
 
     // Only known if known in both the LHS and RHS.
-    Known = KnownBits::commonBits(Known, Known2);
+    Known = Known.intersectWith(Known2);
     break;
   }
 }
@@ -3427,15 +3428,13 @@ getSingleConstraintMatchWeight(AsmOperandInfo &info,
 
 /// LowerAsmOperandForConstraint - Lower the specified operand into the Ops
 /// vector.  If it is invalid, don't add anything to Ops.
-void SparcTargetLowering::
-LowerAsmOperandForConstraint(SDValue Op,
-                             std::string &Constraint,
-                             std::vector<SDValue> &Ops,
-                             SelectionDAG &DAG) const {
+void SparcTargetLowering::LowerAsmOperandForConstraint(
+    SDValue Op, StringRef Constraint, std::vector<SDValue> &Ops,
+    SelectionDAG &DAG) const {
   SDValue Result;
 
   // Only support length 1 constraints for now.
-  if (Constraint.length() > 1)
+  if (Constraint.size() > 1)
     return;
 
   char ConstraintLetter = Constraint[0];
@@ -3642,4 +3641,12 @@ bool SparcTargetLowering::useLoadStackGuardNode() const {
 void SparcTargetLowering::insertSSPDeclarations(Module &M) const {
   if (!Subtarget->isTargetLinux())
     return TargetLowering::insertSSPDeclarations(M);
+}
+
+void SparcTargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
+                                                        SDNode *Node) const {
+  assert(MI.getOpcode() == SP::SUBCCrr || MI.getOpcode() == SP::SUBCCri);
+  // If the result is dead, replace it with %g0.
+  if (!Node->hasAnyUseOfValue(0))
+    MI.getOperand(0).setReg(SP::G0);
 }

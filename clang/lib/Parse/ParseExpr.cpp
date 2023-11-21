@@ -23,6 +23,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/Basic/PrettyStackTrace.h"
+#include "clang/Lex/LiteralSupport.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
@@ -217,6 +218,15 @@ ExprResult Parser::ParseConstantExpression() {
   // C++98 and C++11 have no such rule, but this is only a defect in C++98.
   EnterExpressionEvaluationContext ConstantEvaluated(
       Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  return ParseConstantExpressionInExprEvalContext(NotTypeCast);
+}
+
+ExprResult Parser::ParseArrayBoundExpression() {
+  EnterExpressionEvaluationContext ConstantEvaluated(
+      Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+  // If we parse the bound of a VLA... we parse a non-constant
+  // constant-expression!
+  Actions.ExprEvalContexts.back().InConditionallyConstantEvaluateContext = true;
   return ParseConstantExpressionInExprEvalContext(NotTypeCast);
 }
 
@@ -792,6 +802,7 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [GNU]   '__builtin_FILE' '(' ')'
 /// [CLANG] '__builtin_FILE_NAME' '(' ')'
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
+/// [MS]    '__builtin_FUNCSIG' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
 /// [GNU]   '__builtin_source_location' '(' ')'
@@ -1009,7 +1020,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     if (getLangOpts().CPlusPlus)
       Diag(Tok, diag::warn_cxx98_compat_nullptr);
     else
-      Diag(Tok, getLangOpts().C2x ? diag::warn_c2x_compat_keyword
+      Diag(Tok, getLangOpts().C23 ? diag::warn_c23_compat_keyword
                                   : diag::ext_c_nullptr) << Tok.getName();
 
     Res = Actions.ActOnCXXNullPtrLiteral(ConsumeToken());
@@ -1126,6 +1137,8 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
           REVERTIBLE_TYPE_TRAIT(__is_unsigned);
           REVERTIBLE_TYPE_TRAIT(__is_void);
           REVERTIBLE_TYPE_TRAIT(__is_volatile);
+          REVERTIBLE_TYPE_TRAIT(__reference_binds_to_temporary);
+          REVERTIBLE_TYPE_TRAIT(__reference_constructs_from_temporary);
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait)                                     \
   REVERTIBLE_TYPE_TRAIT(RTT_JOIN(__, Trait));
 #include "clang/Basic/TransformTypeTraits.def"
@@ -1296,9 +1309,17 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_L__FUNCTION__:   // primary-expression: L__FUNCTION__ [MS]
   case tok::kw_L__FUNCSIG__:    // primary-expression: L__FUNCSIG__ [MS]
   case tok::kw___PRETTY_FUNCTION__:  // primary-expression: __P..Y_F..N__ [GNU]
-    Res = Actions.ActOnPredefinedExpr(Tok.getLocation(), SavedKind);
-    ConsumeToken();
-    break;
+    // Function local predefined macros are represented by PredefinedExpr except
+    // when Microsoft extensions are enabled and one of these macros is adjacent
+    // to a string literal or another one of these macros.
+    if (!(getLangOpts().MicrosoftExt &&
+          tokenIsLikeStringLiteral(Tok, getLangOpts()) &&
+          tokenIsLikeStringLiteral(NextToken(), getLangOpts()))) {
+      Res = Actions.ActOnPredefinedExpr(Tok.getLocation(), SavedKind);
+      ConsumeToken();
+      break;
+    }
+    [[fallthrough]]; // treat MS function local macros as concatenable strings
   case tok::string_literal:    // primary-expression: string-literal
   case tok::wide_string_literal:
   case tok::utf8_string_literal:
@@ -1321,6 +1342,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___builtin_FILE:
   case tok::kw___builtin_FILE_NAME:
   case tok::kw___builtin_FUNCTION:
+  case tok::kw___builtin_FUNCSIG:
   case tok::kw___builtin_LINE:
   case tok::kw___builtin_source_location:
     if (NotPrimaryExpression)
@@ -1551,6 +1573,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw_typename:
   case tok::kw_typeof:
   case tok::kw___vector:
+  case tok::kw__Accum:
+  case tok::kw__Fract:
+  case tok::kw__Sat:
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
   {
@@ -2293,7 +2318,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
 ///           typeof ( expressions )
 ///           typeof ( type-name )
 /// [GNU/C++] typeof unary-expression
-/// [C2x]   typeof-specifier:
+/// [C23]   typeof-specifier:
 ///           typeof '(' typeof-specifier-argument ')'
 ///           typeof_unqual '(' typeof-specifier-argument ')'
 ///
@@ -2490,8 +2515,8 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
   if (getLangOpts().CPlusPlus &&
       OpTok.isOneOf(tok::kw_alignof, tok::kw__Alignof))
     Diag(OpTok, diag::warn_cxx98_compat_alignof);
-  else if (getLangOpts().C2x && OpTok.is(tok::kw_alignof))
-    Diag(OpTok, diag::warn_c2x_compat_keyword) << OpTok.getName();
+  else if (getLangOpts().C23 && OpTok.is(tok::kw_alignof))
+    Diag(OpTok, diag::warn_c23_compat_keyword) << OpTok.getName();
 
   EnterExpressionEvaluationContext Unevaluated(
       Actions, Sema::ExpressionEvaluationContext::Unevaluated,
@@ -2547,6 +2572,7 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
 /// [GNU]   '__builtin_FILE' '(' ')'
 /// [CLANG] '__builtin_FILE_NAME' '(' ')'
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
+/// [MS]    '__builtin_FUNCSIG' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
 /// [GNU]   '__builtin_source_location' '(' ')'
@@ -2783,6 +2809,7 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
   case tok::kw___builtin_FILE:
   case tok::kw___builtin_FILE_NAME:
   case tok::kw___builtin_FUNCTION:
+  case tok::kw___builtin_FUNCSIG:
   case tok::kw___builtin_LINE:
   case tok::kw___builtin_source_location: {
     // Attempt to consume the r-paren.
@@ -2799,6 +2826,8 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
         return SourceLocExpr::FileName;
       case tok::kw___builtin_FUNCTION:
         return SourceLocExpr::Function;
+      case tok::kw___builtin_FUNCSIG:
+        return SourceLocExpr::FuncSig;
       case tok::kw___builtin_LINE:
         return SourceLocExpr::Line;
       case tok::kw___builtin_COLUMN:
@@ -3250,16 +3279,34 @@ Parser::ParseCompoundLiteralExpression(ParsedType Ty,
 ///         string-literal
 /// \verbatim
 ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral) {
-  assert(isTokenStringLiteral() && "Not a string literal!");
+  return ParseStringLiteralExpression(AllowUserDefinedLiteral,
+                                      /*Unevaluated=*/false);
+}
 
-  // String concat.  Note that keywords like __func__ and __FUNCTION__ are not
-  // considered to be strings for concatenation purposes.
+ExprResult Parser::ParseUnevaluatedStringLiteralExpression() {
+  return ParseStringLiteralExpression(/*AllowUserDefinedLiteral=*/false,
+                                      /*Unevaluated=*/true);
+}
+
+ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral,
+                                                bool Unevaluated) {
+  assert(tokenIsLikeStringLiteral(Tok, getLangOpts()) &&
+         "Not a string-literal-like token!");
+
+  // String concatenation.
+  // Note: some keywords like __FUNCTION__ are not considered to be strings
+  // for concatenation purposes, unless Microsoft extensions are enabled.
   SmallVector<Token, 4> StringToks;
 
   do {
     StringToks.push_back(Tok);
-    ConsumeStringToken();
-  } while (isTokenStringLiteral());
+    ConsumeAnyToken();
+  } while (tokenIsLikeStringLiteral(Tok, getLangOpts()));
+
+  if (Unevaluated) {
+    assert(!AllowUserDefinedLiteral && "UDL are always evaluated");
+    return Actions.ActOnUnevaluatedStringLiteral(StringToks);
+  }
 
   // Pass the set of string tokens, ready for concatenation, to the actions.
   return Actions.ActOnStringLiteral(StringToks,
@@ -3280,6 +3327,12 @@ ExprResult Parser::ParseStringLiteralExpression(bool AllowUserDefinedLiteral) {
 ///           type-name : assignment-expression
 ///           default : assignment-expression
 /// \endverbatim
+///
+/// As an extension, Clang also accepts:
+/// \verbatim
+///   generic-selection:
+///          _Generic ( type-name, generic-assoc-list )
+/// \endverbatim
 ExprResult Parser::ParseGenericSelectionExpression() {
   assert(Tok.is(tok::kw__Generic) && "_Generic keyword expected");
   if (!getLangOpts().C11)
@@ -3290,8 +3343,20 @@ ExprResult Parser::ParseGenericSelectionExpression() {
   if (T.expectAndConsume())
     return ExprError();
 
+  // We either have a controlling expression or we have a controlling type, and
+  // we need to figure out which it is.
+  TypeResult ControllingType;
   ExprResult ControllingExpr;
-  {
+  if (isTypeIdForGenericSelection()) {
+    ControllingType = ParseTypeName();
+    if (ControllingType.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return ExprError();
+    }
+    const auto *LIT = cast<LocInfoType>(ControllingType.get().get());
+    SourceLocation Loc = LIT->getTypeSourceInfo()->getTypeLoc().getBeginLoc();
+    Diag(Loc, diag::ext_generic_with_type_arg);
+  } else {
     // C11 6.5.1.1p3 "The controlling expression of a generic selection is
     // not evaluated."
     EnterExpressionEvaluationContext Unevaluated(
@@ -3356,10 +3421,13 @@ ExprResult Parser::ParseGenericSelectionExpression() {
   if (T.getCloseLocation().isInvalid())
     return ExprError();
 
-  return Actions.ActOnGenericSelectionExpr(KeyLoc, DefaultLoc,
-                                           T.getCloseLocation(),
-                                           ControllingExpr.get(),
-                                           Types, Exprs);
+  void *ExprOrTy = ControllingExpr.isUsable()
+                       ? ControllingExpr.get()
+                       : ControllingType.get().getAsOpaquePtr();
+
+  return Actions.ActOnGenericSelectionExpr(
+      KeyLoc, DefaultLoc, T.getCloseLocation(), ControllingExpr.isUsable(),
+      ExprOrTy, Types, Exprs);
 }
 
 /// Parse A C++1z fold-expression after the opening paren and optional
@@ -3461,7 +3529,7 @@ bool Parser::ParseExpressionList(SmallVectorImpl<Expr *> &Exprs,
       Expr = Actions.ActOnPackExpansion(Expr.get(), ConsumeToken());
     else if (Tok.is(tok::code_completion)) {
       // There's nothing to suggest in here as we parsed a full expression.
-      // Instead fail and propogate the error since caller might have something
+      // Instead fail and propagate the error since caller might have something
       // the suggest, e.g. signature help in function call. Note that this is
       // performed before pushing the \p Expr, so that signature help can report
       // current argument correctly.

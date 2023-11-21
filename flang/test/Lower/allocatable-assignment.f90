@@ -736,8 +736,8 @@ subroutine test_cst_char(x, c)
   character(10), allocatable  :: x(:)
   character(12) :: c(20)
 ! CHECK:         %[[VAL_2:.*]]:2 = fir.unboxchar %[[VAL_1]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
-! CHECK:         %[[VAL_3:.*]] = arith.constant 12 : index
 ! CHECK:         %[[VAL_4:.*]] = fir.convert %[[VAL_2]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.array<20x!fir.char<1,12>>>
+! CHECK:         %[[VAL_3:.*]] = arith.constant 12 : index
 ! CHECK:         %[[VAL_5:.*]] = arith.constant 20 : index
 ! CHECK:         %[[VAL_6:.*]] = arith.constant 20 : index
 ! CHECK:         %[[VAL_7:.*]] = fir.shape %[[VAL_5]] : (index) -> !fir.shape<1>
@@ -1242,7 +1242,7 @@ subroutine test_both_sides_with_elemental_call(x)
 ! CHECK:       }
 end subroutine
 
-! CHECK: fir.global internal @[[error_message]] constant : !fir.char<1,76> {
+! CHECK: fir.global linkonce @[[error_message]] constant : !fir.char<1,76> {
 ! CHECK:   %[[msg:.*]] = fir.string_lit "array left hand side must be allocated when the right hand side is a scalar\00"(76) : !fir.char<1,76>
 ! CHECK:   fir.has_value %[[msg:.*]] : !fir.char<1,76>
 ! CHECK: }

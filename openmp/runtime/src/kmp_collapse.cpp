@@ -25,11 +25,45 @@
 // OMPTODO: different style of comments (see kmp_sched)
 // OMPTODO: OMPT/OMPD
 
+// avoid inadevertently using a library based abs
+template <typename T> T __kmp_abs(const T val) {
+  return (val < 0) ? -val : val;
+}
+kmp_uint32 __kmp_abs(const kmp_uint32 val) { return val; }
+kmp_uint64 __kmp_abs(const kmp_uint64 val) { return val; }
+
 //----------------------------------------------------------------------------
 // Common functions for working with rectangular and non-rectangular loops
 //----------------------------------------------------------------------------
 
-template <typename T> int sign(T val) { return (T(0) < val) - (val < T(0)); }
+template <typename T> int __kmp_sign(T val) {
+  return (T(0) < val) - (val < T(0));
+}
+
+template <typename T> class CollapseAllocator {
+  typedef T *pT;
+
+private:
+  static const size_t allocaSize = 32; // size limit for stack allocations
+                                       // (8 bytes x 4 nested loops)
+  char stackAlloc[allocaSize];
+  static constexpr size_t maxElemCount = allocaSize / sizeof(T);
+  pT pTAlloc;
+
+public:
+  CollapseAllocator(size_t n) : pTAlloc(reinterpret_cast<pT>(stackAlloc)) {
+    if (n > maxElemCount) {
+      pTAlloc = reinterpret_cast<pT>(__kmp_allocate(n * sizeof(T)));
+    }
+  }
+  ~CollapseAllocator() {
+    if (pTAlloc != reinterpret_cast<pT>(stackAlloc)) {
+      __kmp_free(pTAlloc);
+    }
+  }
+  T &operator[](int index) { return pTAlloc[index]; }
+  operator const pT() { return pTAlloc; }
+};
 
 //----------Loop canonicalization---------------------------------------------
 
@@ -129,7 +163,7 @@ kmp_loop_nest_iv_t kmp_calculate_trip_count_XX(
       // kmp_loop_nest_iv_t anyway
       bounds->trip_count =
           static_cast<kmp_loop_nest_iv_t>(bounds->ub0 - bounds->lb0) /
-              std::abs(bounds->step) +
+              __kmp_abs(bounds->step) +
           1;
     }
   } else if (bounds->comparison == comparison_t::comp_greater_or_eq) {
@@ -142,7 +176,7 @@ kmp_loop_nest_iv_t kmp_calculate_trip_count_XX(
       // kmp_loop_nest_iv_t anyway
       bounds->trip_count =
           static_cast<kmp_loop_nest_iv_t>(bounds->lb0 - bounds->ub0) /
-              std::abs(bounds->step) +
+              __kmp_abs(bounds->step) +
           1;
     }
   } else {
@@ -456,8 +490,7 @@ __kmpc_calc_original_ivs_rectang(ident_t *loc, kmp_loop_nest_iv_t new_iv,
                                  /*out*/ kmp_uint64 *original_ivs,
                                  kmp_index_t n) {
 
-  kmp_iterations_t iterations =
-      (kmp_iterations_t)__kmp_allocate(sizeof(kmp_loop_nest_iv_t) * n);
+  CollapseAllocator<kmp_loop_nest_iv_t> iterations(n);
 
   // First, calc corresponding iteration in every original loop:
   for (kmp_index_t ind = n; ind > 0;) {
@@ -478,7 +511,6 @@ __kmpc_calc_original_ivs_rectang(ident_t *loc, kmp_loop_nest_iv_t new_iv,
 
     kmp_calc_one_iv_rectang(bounds, /*in/out*/ original_ivs, iterations, ind);
   }
-  __kmp_free(iterations);
 }
 
 //----------------------------------------------------------------------------
@@ -656,16 +688,16 @@ void kmp_calc_new_bounds_XX(
     T old_lb1 = bbounds.lb1;
     T old_ub1 = bbounds.ub1;
 
-    if (sign(old_lb1) != sign(old_ub1)) {
+    if (__kmp_sign(old_lb1) != __kmp_sign(old_ub1)) {
       // With this shape we can adjust to a rectangle:
       bbounds.lb1 = 0;
       bbounds.ub1 = 0;
     } else {
       // get upper and lower bounds to be parallel
       // with values in the old range.
-      // Note: std::abs didn't work here.
-      if (((sign(old_lb1) == -1) && (old_lb1 < old_ub1)) ||
-          ((sign(old_lb1) == 1) && (old_lb1 > old_ub1))) {
+      // Note: abs didn't work here.
+      if (((old_lb1 < 0) && (old_lb1 < old_ub1)) ||
+          ((old_lb1 > 0) && (old_lb1 > old_ub1))) {
         bbounds.lb1 = old_ub1;
       } else {
         bbounds.ub1 = old_lb1;
@@ -802,13 +834,13 @@ kmp_calc_number_of_iterations_XX(const bounds_infoXX_template<T> *bounds,
     iterations =
         (static_cast<T>(original_ivs[ind]) - bounds->lb0 -
          bounds->lb1 * static_cast<T>(original_ivs[bounds->outer_iv])) /
-        std::abs(bounds->step);
+        __kmp_abs(bounds->step);
   } else {
     KMP_DEBUG_ASSERT(bounds->comparison == comparison_t::comp_greater_or_eq);
     iterations = (bounds->lb0 +
                   bounds->lb1 * static_cast<T>(original_ivs[bounds->outer_iv]) -
                   static_cast<T>(original_ivs[ind])) /
-                 std::abs(bounds->step);
+                 __kmp_abs(bounds->step);
   }
 
   return iterations;
@@ -917,9 +949,7 @@ bool kmp_calc_original_ivs_for_start(const bounds_info_t *original_bounds_nest,
                                      /*out*/ kmp_point_t original_ivs) {
 
   // Iterations in the original space, multiplied by step:
-  kmp_iterations_t iterations =
-      (kmp_iterations_t)__kmp_allocate(sizeof(kmp_loop_nest_iv_t) * n);
-
+  CollapseAllocator<kmp_loop_nest_iv_t> iterations(n);
   for (kmp_index_t ind = n; ind > 0;) {
     --ind;
     iterations[ind] = 0;
@@ -929,7 +959,6 @@ bool kmp_calc_original_ivs_for_start(const bounds_info_t *original_bounds_nest,
   bool b = kmp_calc_original_ivs_from_iterations(original_bounds_nest, n,
                                                  /*in/out*/ original_ivs,
                                                  /*in/out*/ iterations, 0);
-  __kmp_free(iterations);
   return b;
 }
 
@@ -941,9 +970,7 @@ bool kmp_calc_next_original_ivs(const bounds_info_t *original_bounds_nest,
                                 kmp_index_t n, const kmp_point_t original_ivs,
                                 /*out*/ kmp_point_t next_original_ivs) {
   // Iterations in the original space, multiplied by step (so can be negative):
-  kmp_iterations_t iterations =
-      (kmp_iterations_t)__kmp_allocate(sizeof(kmp_loop_nest_iv_t) * n);
-
+  CollapseAllocator<kmp_loop_nest_iv_t> iterations(n);
   // First, calc corresponding iteration in every original loop:
   for (kmp_index_t ind = 0; ind < n; ++ind) {
     auto bounds = &(original_bounds_nest[ind]);
@@ -962,7 +989,6 @@ bool kmp_calc_next_original_ivs(const bounds_info_t *original_bounds_nest,
   bool b = kmp_calc_original_ivs_from_iterations(
       original_bounds_nest, n, /*in/out*/ next_original_ivs, iterations, ind);
 
-  __kmp_free(iterations);
   return b;
 }
 
@@ -1125,13 +1151,7 @@ bool kmp_calc_original_ivs_for_chunk_end(
     /*out*/ kmp_point_t original_ivs) {
 
   // Iterations in the expanded space:
-  kmp_iterations_t iterations =
-      (kmp_iterations_t)__kmp_allocate(sizeof(kmp_loop_nest_iv_t) * n);
-
-#if defined(KMP_DEBUG)
-  auto new_iv_saved = new_iv;
-#endif
-
+  CollapseAllocator<kmp_loop_nest_iv_t> iterations(n);
   // First, calc corresponding iteration in every modified loop:
   for (kmp_index_t ind = n; ind > 0;) {
     --ind;
@@ -1163,7 +1183,6 @@ bool kmp_calc_original_ivs_for_chunk_end(
       // Too big (or too small for >=).
       if (ind == 0) {
         // Need to reduce to the end.
-        __kmp_free(iterations);
         return false;
       } else {
         // Go to next iteration on outer loop:
@@ -1194,7 +1213,6 @@ bool kmp_calc_original_ivs_for_chunk_end(
     ++ind;
   }
 
-  __kmp_free(iterations);
   return true;
 }
 
@@ -1288,9 +1306,7 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
 
   kmp_canonicalize_loop_nest(loc, /*in/out*/ original_bounds_nest, n);
 
-  bounds_info_internal_t *updated_bounds_nest =
-      (bounds_info_internal_t *)__kmp_allocate(sizeof(bounds_info_internal_t) *
-                                               n);
+  CollapseAllocator<bounds_info_internal_t> updated_bounds_nest(n);
 
   for (kmp_index_t i = 0; i < n; ++i) {
     updated_bounds_nest[i].b = original_bounds_nest[i];
@@ -1305,7 +1321,6 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
 
   if (total == 0) {
     // Loop won't execute:
-    __kmp_free(updated_bounds_nest);
     return FALSE;
   }
 
@@ -1319,20 +1334,11 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
 
   KMP_DEBUG_ASSERT(tid < nth);
 
-  kmp_point_t original_ivs_start =
-      (kmp_point_t)__kmp_allocate(sizeof(kmp_uint64) * n);
-  kmp_point_t original_ivs_end =
-      (kmp_point_t)__kmp_allocate(sizeof(kmp_uint64) * n);
-  kmp_point_t original_ivs_next_start =
-      (kmp_point_t)__kmp_allocate(sizeof(kmp_uint64) * n);
+  CollapseAllocator<kmp_uint64> original_ivs_start(n);
 
   if (!kmp_calc_original_ivs_for_start(original_bounds_nest, n,
                                        /*out*/ original_ivs_start)) {
     // Loop won't execute:
-    __kmp_free(updated_bounds_nest);
-    __kmp_free(original_ivs_start);
-    __kmp_free(original_ivs_end);
-    __kmp_free(original_ivs_next_start);
     return FALSE;
   }
 
@@ -1351,10 +1357,6 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
   //  if (plastiter != NULL) {
   //    *plastiter = TRUE;
   //  }
-  //  __kmp_free(updated_bounds_nest);
-  //  __kmp_free(original_ivs_start);
-  //  __kmp_free(original_ivs_end);
-  //  __kmp_free(original_ivs_next_start);
   //  return TRUE;
   //}
 
@@ -1388,6 +1390,7 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
       new_iv += curr_chunk_size - 1;
     }
 
+    CollapseAllocator<kmp_uint64> original_ivs_end(n);
     if ((nth == 1) || (new_iv >= total - 1)) {
       // Do this one till the end - just in case we miscalculated
       // and either too much is left to process or new_iv is a bit too big:
@@ -1418,10 +1421,6 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
     if (last_iter && (tid != 0)) {
       // We are done, this was last chunk, but no chunk for current thread was
       // found:
-      __kmp_free(updated_bounds_nest);
-      __kmp_free(original_ivs_start);
-      __kmp_free(original_ivs_end);
-      __kmp_free(original_ivs_next_start);
       return FALSE;
     }
 
@@ -1429,6 +1428,7 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
       // We found the chunk for this thread, now we need to check if it's the
       // last chunk or not:
 
+      CollapseAllocator<kmp_uint64> original_ivs_next_start(n);
       if (last_iter ||
           !kmp_calc_next_original_ivs(original_bounds_nest, n, original_ivs_end,
                                       /*out*/ original_ivs_next_start)) {
@@ -1450,10 +1450,6 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
         chunk_bounds_nest[i].ub1_u64 = 0;
       }
 
-      __kmp_free(updated_bounds_nest);
-      __kmp_free(original_ivs_start);
-      __kmp_free(original_ivs_end);
-      __kmp_free(original_ivs_next_start);
       return TRUE;
     }
 
@@ -1475,9 +1471,5 @@ __kmpc_for_collapsed_init(ident_t *loc, kmp_int32 gtid,
                                                original_ivs_start, n);
   }
 
-  __kmp_free(updated_bounds_nest);
-  __kmp_free(original_ivs_start);
-  __kmp_free(original_ivs_end);
-  __kmp_free(original_ivs_next_start);
   return FALSE;
 }

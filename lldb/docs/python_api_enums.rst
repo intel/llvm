@@ -504,7 +504,7 @@ ValueType
 
 .. py:data:: eValueTypeVariableArgument
 
-   Funfction argument variable.
+   Function argument variable.
 
 .. py:data:: eValueTypeVariableLocal
 
@@ -876,6 +876,7 @@ CommandArgumentType
 .. py:data:: eArgTypeColumnNum
 .. py:data:: eArgTypeModuleUUID
 .. py:data:: eArgTypeLastArg
+.. py:data:: eArgTypeCompletionType
 
 .. _SymbolType:
 

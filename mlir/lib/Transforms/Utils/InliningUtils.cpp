@@ -166,7 +166,7 @@ static void handleArgumentImpl(InlinerInterface &interface, OpBuilder &builder,
   SmallVector<DictionaryAttr> argAttrs(
       callable.getCallableRegion()->getNumArguments(),
       builder.getDictionaryAttr({}));
-  if (ArrayAttr arrayAttr = callable.getCallableArgAttrs()) {
+  if (ArrayAttr arrayAttr = callable.getArgAttrsAttr()) {
     assert(arrayAttr.size() == argAttrs.size());
     for (auto [idx, attr] : llvm::enumerate(arrayAttr))
       argAttrs[idx] = cast<DictionaryAttr>(attr);
@@ -191,7 +191,7 @@ static void handleResultImpl(InlinerInterface &interface, OpBuilder &builder,
   // Unpack the result attributes if there are any.
   SmallVector<DictionaryAttr> resAttrs(results.size(),
                                        builder.getDictionaryAttr({}));
-  if (ArrayAttr arrayAttr = callable.getCallableResAttrs()) {
+  if (ArrayAttr arrayAttr = callable.getResAttrsAttr()) {
     assert(arrayAttr.size() == resAttrs.size());
     for (auto [idx, attr] : llvm::enumerate(arrayAttr))
       resAttrs[idx] = cast<DictionaryAttr>(attr);
@@ -266,7 +266,7 @@ inlineRegionImpl(InlinerInterface &interface, Region *src, Block *inlineBlock,
 
   // Remap the locations of the inlined operations if a valid source location
   // was provided.
-  if (inlineLoc && !inlineLoc->isa<UnknownLoc>())
+  if (inlineLoc && !llvm::isa<UnknownLoc>(*inlineLoc))
     remapInlinedLocations(newBlocks, *inlineLoc);
 
   // If the blocks were moved in-place, make sure to remap any necessary
@@ -434,7 +434,7 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
   if (src->empty())
     return failure();
   auto *entryBlock = &src->front();
-  ArrayRef<Type> callableResultTypes = callable.getCallableResults();
+  ArrayRef<Type> callableResultTypes = callable.getResultTypes();
 
   // Make sure that the number of arguments and results matchup between the call
   // and the region.

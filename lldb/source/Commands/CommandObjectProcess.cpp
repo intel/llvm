@@ -147,9 +147,8 @@ public:
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   Options *GetOptions() override { return &m_all_options; }
@@ -1026,9 +1025,8 @@ public:
     if (!m_exe_ctx.HasProcessScope())
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -1180,7 +1178,7 @@ public:
     UnixSignalsSP signals = m_exe_ctx.GetProcessPtr()->GetUnixSignals();
     int signo = signals->GetFirstSignalNumber();
     while (signo != LLDB_INVALID_SIGNAL_NUMBER) {
-      request.TryCompleteCurrentArg(signals->GetSignalAsCString(signo));
+      request.TryCompleteCurrentArg(signals->GetSignalAsStringRef(signo));
       signo = signals->GetNextSignalNumber(signo);
     }
   }
@@ -1308,6 +1306,13 @@ public:
 
   Options *GetOptions() override { return &m_options; }
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
+  }
+
   class CommandOptions : public Options {
   public:
     CommandOptions() = default;
@@ -1356,6 +1361,7 @@ protected:
     if (process_sp) {
       if (command.GetArgumentCount() == 1) {
         FileSpec output_file(command.GetArgumentAtIndex(0));
+        FileSystem::Instance().Resolve(output_file);
         SaveCoreStyle corefile_style = m_options.m_requested_save_core_style;
         Status error =
             PluginManager::SaveCore(process_sp, output_file, corefile_style,
@@ -1629,13 +1635,13 @@ public:
     str.Printf("===========  =====  =====  ======\n");
   }
 
-  void PrintSignal(Stream &str, int32_t signo, const char *sig_name,
+  void PrintSignal(Stream &str, int32_t signo, llvm::StringRef sig_name,
                    const UnixSignalsSP &signals_sp) {
     bool stop;
     bool suppress;
     bool notify;
 
-    str.Printf("%-11s  ", sig_name);
+    str.Format("{0, -11}  ", sig_name);
     if (signals_sp->GetSignalInfo(signo, suppress, stop, notify)) {
       bool pass = !suppress;
       str.Printf("%s  %s  %s", (pass ? "true " : "false"),
@@ -1662,7 +1668,7 @@ public:
     {
       int32_t signo = signals_sp->GetFirstSignalNumber();
       while (signo != LLDB_INVALID_SIGNAL_NUMBER) {
-        PrintSignal(str, signo, signals_sp->GetSignalAsCString(signo),
+        PrintSignal(str, signo, signals_sp->GetSignalAsStringRef(signo),
                     signals_sp);
         signo = signals_sp->GetNextSignalNumber(signo);
       }

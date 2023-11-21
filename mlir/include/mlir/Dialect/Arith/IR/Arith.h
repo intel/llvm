@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_ARITH_IR_ARITH_H_
 #define MLIR_DIALECT_ARITH_IR_ARITH_H_
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
@@ -121,12 +122,28 @@ bool applyCmpPredicate(arith::CmpFPredicate predicate, const APFloat &lhs,
                        const APFloat &rhs);
 
 /// Returns the identity value attribute associated with an AtomicRMWKind op.
+/// `useOnlyFiniteValue` defines whether the identity value should steer away
+/// from infinity representations or anything that is not a proper finite
+/// number.
+/// E.g., The identity value for maxf is in theory `-Inf`, but if we want to
+/// stay in the finite range, it would be `BiggestRepresentableNegativeFloat`.
+/// The purpose of this boolean is to offer constants that will play nice
+/// with fast math related optimizations.
 TypedAttr getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
-                               OpBuilder &builder, Location loc);
+                               OpBuilder &builder, Location loc,
+                               bool useOnlyFiniteValue = false);
+
+/// Return the identity numeric value associated to the give op. Return
+/// std::nullopt if there is no known neutral element.
+/// If `op` has `FastMathFlags::ninf`, only finite values will be used
+/// as neutral element.
+std::optional<TypedAttr> getNeutralElement(Operation *op);
 
 /// Returns the identity value associated with an AtomicRMWKind op.
+/// \see getIdentityValueAttr for a description of what `useOnlyFiniteValue`
+/// does.
 Value getIdentityValue(AtomicRMWKind op, Type resultType, OpBuilder &builder,
-                       Location loc);
+                       Location loc, bool useOnlyFiniteValue = false);
 
 /// Returns the value obtained by applying the reduction operation kind
 /// associated with a binary AtomicRMWKind op to `lhs` and `rhs`.

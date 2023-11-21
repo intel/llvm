@@ -29,7 +29,6 @@ namespace llvm {
 class AAResults;
 class AssumptionCache;
 class BasicBlock;
-class CmpInst;
 class DemandedBits;
 class DominatorTree;
 class Function;
@@ -91,9 +90,6 @@ private:
   ///       every time we run into a memory barrier.
   void collectSeedInstructions(BasicBlock *BB);
 
-  /// Try to vectorize a chain that starts at two arithmetic instrs.
-  bool tryToVectorizePair(Value *A, Value *B, slpvectorizer::BoUpSLP &R);
-
   /// Try to vectorize a list of operands.
   /// \param MaxVFOnly Vectorize only using maximal allowed register size.
   /// \returns true if a value was vectorized.
@@ -144,14 +140,14 @@ private:
                                   slpvectorizer::BoUpSLP &R);
 
   /// Tries to vectorize \p CmpInts. \Returns true on success.
-  bool vectorizeCmpInsts(ArrayRef<CmpInst *> CmpInsts, BasicBlock *BB,
+  template <typename ItT>
+  bool vectorizeCmpInsts(iterator_range<ItT> CmpInsts, BasicBlock *BB,
                          slpvectorizer::BoUpSLP &R);
 
-  /// Tries to vectorize constructs started from CmpInst, InsertValueInst or
+  /// Tries to vectorize constructs started from InsertValueInst or
   /// InsertElementInst instructions.
-  bool vectorizeSimpleInstructions(InstSetVector &Instructions, BasicBlock *BB,
-                                   slpvectorizer::BoUpSLP &R,
-                                   bool AtTerminator);
+  bool vectorizeInserts(InstSetVector &Instructions, BasicBlock *BB,
+                        slpvectorizer::BoUpSLP &R);
 
   /// Scan the basic block and look for patterns that are likely to start
   /// a vectorization chain.

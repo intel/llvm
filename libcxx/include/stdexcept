@@ -74,7 +74,7 @@ _LIBCPP_END_NAMESPACE_STD
 namespace std  // purposefully not using versioning namespace
 {
 
-class _LIBCPP_EXCEPTION_ABI logic_error
+class _LIBCPP_EXPORTED_FROM_ABI logic_error
     : public exception
 {
 #ifndef _LIBCPP_ABI_VCRUNTIME
@@ -97,7 +97,7 @@ public:
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI runtime_error
+class _LIBCPP_EXPORTED_FROM_ABI runtime_error
     : public exception
 {
 #ifndef _LIBCPP_ABI_VCRUNTIME
@@ -120,7 +120,7 @@ public:
 #endif // _LIBCPP_ABI_VCRUNTIME
 };
 
-class _LIBCPP_EXCEPTION_ABI domain_error
+class _LIBCPP_EXPORTED_FROM_ABI domain_error
     : public logic_error
 {
 public:
@@ -129,11 +129,12 @@ public:
 
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI domain_error(const domain_error&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI domain_error& operator=(const domain_error&) _NOEXCEPT = default;
     ~domain_error() _NOEXCEPT override;
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI invalid_argument
+class _LIBCPP_EXPORTED_FROM_ABI invalid_argument
     : public logic_error
 {
 public:
@@ -142,11 +143,12 @@ public:
 
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI invalid_argument(const invalid_argument&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI invalid_argument& operator=(const invalid_argument&) _NOEXCEPT = default;
     ~invalid_argument() _NOEXCEPT override;
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI length_error
+class _LIBCPP_EXPORTED_FROM_ABI length_error
     : public logic_error
 {
 public:
@@ -154,11 +156,12 @@ public:
     _LIBCPP_INLINE_VISIBILITY explicit length_error(const char* __s)   : logic_error(__s) {}
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI length_error(const length_error&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI length_error& operator=(const length_error&) _NOEXCEPT = default;
     ~length_error() _NOEXCEPT override;
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI out_of_range
+class _LIBCPP_EXPORTED_FROM_ABI out_of_range
     : public logic_error
 {
 public:
@@ -167,11 +170,12 @@ public:
 
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI out_of_range(const out_of_range&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI out_of_range& operator=(const out_of_range&) _NOEXCEPT = default;
     ~out_of_range() _NOEXCEPT override;
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI range_error
+class _LIBCPP_EXPORTED_FROM_ABI range_error
     : public runtime_error
 {
 public:
@@ -180,11 +184,12 @@ public:
 
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI range_error(const range_error&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI range_error& operator=(const range_error&) _NOEXCEPT = default;
     ~range_error() _NOEXCEPT override;
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI overflow_error
+class _LIBCPP_EXPORTED_FROM_ABI overflow_error
     : public runtime_error
 {
 public:
@@ -193,11 +198,12 @@ public:
 
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI overflow_error(const overflow_error&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI overflow_error& operator=(const overflow_error&) _NOEXCEPT = default;
     ~overflow_error() _NOEXCEPT override;
 #endif
 };
 
-class _LIBCPP_EXCEPTION_ABI underflow_error
+class _LIBCPP_EXPORTED_FROM_ABI underflow_error
     : public runtime_error
 {
 public:
@@ -206,6 +212,7 @@ public:
 
 #ifndef _LIBCPP_ABI_VCRUNTIME
     _LIBCPP_HIDE_FROM_ABI underflow_error(const underflow_error&) _NOEXCEPT = default;
+    _LIBCPP_HIDE_FROM_ABI underflow_error& operator=(const underflow_error&) _NOEXCEPT = default;
     ~underflow_error() _NOEXCEPT override;
 #endif
 };
@@ -215,7 +222,7 @@ public:
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 // in the dylib
-_LIBCPP_NORETURN _LIBCPP_FUNC_VIS void __throw_runtime_error(const char*);
+_LIBCPP_NORETURN _LIBCPP_EXPORTED_FROM_ABI void __throw_runtime_error(const char*);
 
 _LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
 void __throw_logic_error(const char*__msg)

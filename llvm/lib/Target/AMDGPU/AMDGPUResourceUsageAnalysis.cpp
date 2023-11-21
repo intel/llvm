@@ -104,6 +104,7 @@ bool AMDGPUResourceUsageAnalysis::runOnModule(Module &M) {
 
   MachineModuleInfo &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
   const TargetMachine &TM = TPC->getTM<TargetMachine>();
+  const MCSubtargetInfo &STI = *TM.getMCSubtargetInfo();
   bool HasIndirectCall = false;
 
   CallGraph CG = CallGraph(M);
@@ -111,7 +112,8 @@ bool AMDGPUResourceUsageAnalysis::runOnModule(Module &M) {
 
   // By default, for code object v5 and later, track only the minimum scratch
   // size
-  if (AMDGPU::getCodeObjectVersion(M) >= AMDGPU::AMDHSA_COV5) {
+  if (AMDGPU::getCodeObjectVersion(M) >= AMDGPU::AMDHSA_COV5 ||
+      STI.getTargetTriple().getOS() == Triple::AMDPAL) {
     if (!AssumedStackSizeForDynamicSizeObjects.getNumOccurrences())
       AssumedStackSizeForDynamicSizeObjects = 0;
     if (!AssumedStackSizeForExternalCall.getNumOccurrences())
@@ -183,7 +185,7 @@ AMDGPUResourceUsageAnalysis::analyzeResourceUsage(
   //
   // If we only have implicit uses of flat_scr on flat instructions, it is not
   // really needed.
-  if (Info.UsesFlatScratch && !MFI->hasFlatScratchInit() &&
+  if (Info.UsesFlatScratch && !MFI->getUserSGPRInfo().hasFlatScratchInit() &&
       (!hasAnyNonFlatUseOfReg(MRI, *TII, AMDGPU::FLAT_SCR) &&
        !hasAnyNonFlatUseOfReg(MRI, *TII, AMDGPU::FLAT_SCR_LO) &&
        !hasAnyNonFlatUseOfReg(MRI, *TII, AMDGPU::FLAT_SCR_HI))) {

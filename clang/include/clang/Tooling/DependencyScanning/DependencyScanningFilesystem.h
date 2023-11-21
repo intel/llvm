@@ -215,6 +215,7 @@ class DependencyScanningFilesystemLocalCache {
 public:
   /// Returns entry associated with the filename or nullptr if none is found.
   const CachedFileSystemEntry *findEntryByFilename(StringRef Filename) const {
+    assert(llvm::sys::path::is_absolute_gnu(Filename));
     auto It = Cache.find(Filename);
     return It == Cache.end() ? nullptr : It->getValue();
   }
@@ -224,6 +225,7 @@ public:
   const CachedFileSystemEntry &
   insertEntryForFilename(StringRef Filename,
                          const CachedFileSystemEntry &Entry) {
+    assert(llvm::sys::path::is_absolute_gnu(Filename));
     const auto *InsertedEntry = Cache.insert({Filename, &Entry}).first->second;
     assert(InsertedEntry == &Entry && "entry already present");
     return *InsertedEntry;
@@ -269,32 +271,6 @@ public:
   }
 };
 
-enum class ScanFile { Yes, No };
-enum class CacheStatFailure { Yes, No };
-
-struct PathPolicy {
-  /// Implies caching of all open and stat results.
-  unsigned Enable : 1;
-  /// Controls whether a file will be scanned for dependency directives.
-  unsigned ScanFile : 1;
-  /// Explicitly disables stat failure caching when false.
-  unsigned CacheStatFailure : 1;
-
-  static PathPolicy fallThrough() { return {false, false, false}; }
-
-  static PathPolicy cache(enum ScanFile SF,
-                          enum CacheStatFailure CSF = CacheStatFailure::Yes) {
-    return {true, SF == ScanFile::Yes, CSF == CacheStatFailure::Yes};
-  }
-
-private:
-  PathPolicy(bool E, bool SF, bool CSF)
-      : Enable(E), ScanFile(SF), CacheStatFailure(CSF) {}
-};
-
-/// Determine caching and scanning behavior based on file extension.
-PathPolicy getPolicy(StringRef Filename);
-
 /// A virtual file system optimized for the dependency discovery.
 ///
 /// It is primarily designed to work with source files whose contents was
@@ -308,36 +284,39 @@ class DependencyScanningWorkerFilesystem : public llvm::vfs::ProxyFileSystem {
 public:
   DependencyScanningWorkerFilesystem(
       DependencyScanningFilesystemSharedCache &SharedCache,
-      IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
-      : ProxyFileSystem(std::move(FS)), SharedCache(SharedCache) {}
+      IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS);
 
   llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override;
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
   openFileForRead(const Twine &Path) override;
 
+  std::error_code setCurrentWorkingDirectory(const Twine &Path) override;
+
   /// Returns entry for the given filename.
   ///
   /// Attempts to use the local and shared caches first, then falls back to
   /// using the underlying filesystem.
-  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename) {
-    return getOrCreateFileSystemEntry(Filename, getPolicy(Filename));
-  }
+  llvm::ErrorOr<EntryRef>
+  getOrCreateFileSystemEntry(StringRef Filename,
+                             bool DisableDirectivesScanning = false);
 
 private:
-  /// Same as the public version, but with explicit PathPolicy parameter.
-  llvm::ErrorOr<EntryRef> getOrCreateFileSystemEntry(StringRef Filename,
-                                                     PathPolicy Policy);
+  /// Check whether the file should be scanned for preprocessor directives.
+  bool shouldScanForDirectives(StringRef Filename);
 
   /// For a filename that's not yet associated with any entry in the caches,
   /// uses the underlying filesystem to either look up the entry based in the
   /// shared cache indexed by unique ID, or creates new entry from scratch.
+  /// \p FilenameForLookup will always be an absolute path, and different than
+  /// \p OriginalFilename if \p OriginalFilename is relative.
   llvm::ErrorOr<const CachedFileSystemEntry &>
-  computeAndStoreResult(StringRef Filename, PathPolicy Policy);
+  computeAndStoreResult(StringRef OriginalFilename,
+                        StringRef FilenameForLookup);
 
   /// Scan for preprocessor directives for the given entry if necessary and
   /// returns a wrapper object with reference semantics.
   EntryRef scanForDirectivesIfNecessary(const CachedFileSystemEntry &Entry,
-                                        StringRef Filename, PathPolicy Policy);
+                                        StringRef Filename, bool Disable);
 
   /// Represents a filesystem entry that has been stat-ed (and potentially read)
   /// and that's about to be inserted into the cache as `CachedFileSystemEntry`.
@@ -415,6 +394,12 @@ private:
   /// The local cache is used by the worker thread to cache file system queries
   /// locally instead of querying the global cache every time.
   DependencyScanningFilesystemLocalCache LocalCache;
+
+  /// The working directory to use for making relative paths absolute before
+  /// using them for cache lookups.
+  llvm::ErrorOr<std::string> WorkingDirForCacheLookup;
+
+  void updateWorkingDirForCacheLookup();
 };
 
 } // end namespace dependencies

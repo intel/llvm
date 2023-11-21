@@ -55,6 +55,9 @@ def warn_fe_backend_unsupported_fp_exceptions : Warning<
 def warn_fe_backend_invalid_feature_flag : Warning<
     "feature flag '%0' must start with either '+' to enable the feature or '-'"
     " to disable it; flag ignored">, InGroup<InvalidCommandLineArgument>;
+def warn_fe_backend_readonly_feature_flag : Warning<
+    "feature flag '%0' is ignored since the feature is read only">,
+    InGroup<InvalidCommandLineArgument>;
 
 def err_incompatible_fp_eval_method_options : Error<
     "option 'ffp-eval-method' cannot be used with option "
@@ -258,6 +261,11 @@ def err_test_module_file_extension_version : Error<
   "test module file extension '%0' has different version (%1.%2) than expected "
   "(%3.%4)">;
 
+def warn_eagerly_load_for_standard_cplusplus_modules : Warning<
+  "the form '-fmodule-file=<BMI-path>' is deprecated for standard C++ named modules;"
+  "consider to use '-fmodule-file=<module-name>=<BMI-path>' instead">,
+  InGroup<DiagGroup<"eager-load-cxx-named-modules">>;
+
 def err_missing_vfs_overlay_file : Error<
   "virtual filesystem overlay file '%0' not found">, DefaultFatal;
 def err_invalid_vfs_overlay : Error<
@@ -280,6 +288,8 @@ def err_avx_calling_convention : Error<warn_avx_calling_convention.Summary>;
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;
+def err_alias_to_common : Error<
+  "alias to a variable in a common section is not allowed">;
 def note_alias_requires_mangled_name : Note<
   "the %select{function or variable|function}0 specified in an %select{alias|ifunc}1 must refer to its mangled name">;
 def note_alias_mangled_name_alternative: Note<

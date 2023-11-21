@@ -35,7 +35,8 @@ static void or32AArch64Imm(void *L, uint64_t Imm) {
 }
 
 template <class T> static void write(bool isBE, void *P, T V) {
-  isBE ? write<T, support::big>(P, V) : write<T, support::little>(P, V);
+  isBE ? write<T, llvm::endianness::big>(P, V)
+       : write<T, llvm::endianness::little>(P, V);
 }
 
 static void write32AArch64Addr(void *L, uint64_t Imm) {
@@ -479,7 +480,9 @@ void RuntimeDyldELF::resolveAArch64Relocation(const SectionEntry &Section,
 
     assert(isInt<16>(BranchImm));
 
-    *TargetPtr &= 0xfff8001fU;
+    uint32_t RawInstr = *(support::little32_t *)TargetPtr;
+    *(support::little32_t *)TargetPtr = RawInstr & 0xfff8001fU;
+
     // Immediate:15:2 goes in bits 18:5 of TBZ, TBNZ
     or32le(TargetPtr, (BranchImm & 0x0000FFFC) << 3);
     break;

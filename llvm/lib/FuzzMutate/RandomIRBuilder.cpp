@@ -27,7 +27,12 @@ using namespace fuzzerop;
 static std::vector<BasicBlock *> getDominators(BasicBlock *BB) {
   std::vector<BasicBlock *> ret;
   DominatorTree DT(*BB->getParent());
-  DomTreeNode *Node = DT[BB]->getIDom();
+  DomTreeNode *Node = DT.getNode(BB);
+  // It's possible that an orphan block is not in the dom tree. In that case we
+  // just return nothing.
+  if (!Node)
+    return ret;
+  Node = Node->getIDom();
   while (Node && Node->getBlock()) {
     ret.push_back(Node->getBlock());
     // Get parent block.
@@ -41,7 +46,12 @@ static std::vector<BasicBlock *> getDominators(BasicBlock *BB) {
 static std::vector<BasicBlock *> getDominatees(BasicBlock *BB) {
   DominatorTree DT(*BB->getParent());
   std::vector<BasicBlock *> ret;
-  for (DomTreeNode *Child : DT[BB]->children())
+  DomTreeNode *Parent = DT.getNode(BB);
+  // It's possible that an orphan block is not in the dom tree. In that case we
+  // just return nothing.
+  if (!Parent)
+    return ret;
+  for (DomTreeNode *Child : Parent->children())
     ret.push_back(Child->getBlock());
   uint64_t Idx = 0;
   while (Idx < ret.size()) {
@@ -193,7 +203,7 @@ Value *RandomIRBuilder::newSource(BasicBlock &BB, ArrayRef<Instruction *> Insts,
   RS.sample(Pred.generate(Srcs, KnownTypes));
 
   // If we can find a pointer to load from, use it half the time.
-  Value *Ptr = findPointer(BB, Insts, Srcs, Pred);
+  Value *Ptr = findPointer(BB, Insts);
   if (Ptr) {
     // Create load from the chosen pointer
     auto IP = BB.getFirstInsertionPt();
@@ -201,10 +211,8 @@ Value *RandomIRBuilder::newSource(BasicBlock &BB, ArrayRef<Instruction *> Insts,
       IP = ++I->getIterator();
       assert(IP != BB.end() && "guaranteed by the findPointer");
     }
-    // For opaque pointers, pick the type independently.
-    Type *AccessTy = Ptr->getType()->isOpaquePointerTy()
-                         ? RS.getSelection()->getType()
-                         : Ptr->getType()->getNonOpaquePointerElementType();
+    // Pick the type independently.
+    Type *AccessTy = RS.getSelection()->getType();
     auto *NewLoad = new LoadInst(AccessTy, Ptr, "L", &*IP);
 
     // Only sample this load if it really matches the descriptor
@@ -355,7 +363,7 @@ Instruction *RandomIRBuilder::connectToSink(BasicBlock &BB,
 
 Instruction *RandomIRBuilder::newSink(BasicBlock &BB,
                                       ArrayRef<Instruction *> Insts, Value *V) {
-  Value *Ptr = findPointer(BB, Insts, {V}, matchFirstType());
+  Value *Ptr = findPointer(BB, Insts);
   if (!Ptr) {
     if (uniform(Rand, 0, 1)) {
       Type *Ty = V->getType();
@@ -369,27 +377,14 @@ Instruction *RandomIRBuilder::newSink(BasicBlock &BB,
 }
 
 Value *RandomIRBuilder::findPointer(BasicBlock &BB,
-                                    ArrayRef<Instruction *> Insts,
-                                    ArrayRef<Value *> Srcs, SourcePred Pred) {
-  auto IsMatchingPtr = [&Srcs, &Pred](Instruction *Inst) {
+                                    ArrayRef<Instruction *> Insts) {
+  auto IsMatchingPtr = [](Instruction *Inst) {
     // Invoke instructions sometimes produce valid pointers but currently
     // we can't insert loads or stores from them
     if (Inst->isTerminator())
       return false;
 
-    if (auto *PtrTy = dyn_cast<PointerType>(Inst->getType())) {
-      if (PtrTy->isOpaque())
-        return true;
-
-      // We can never generate loads from non first class or non sized types
-      Type *ElemTy = PtrTy->getNonOpaquePointerElementType();
-      if (!ElemTy->isSized() || !ElemTy->isFirstClassType())
-        return false;
-
-      // TODO: Check if this is horribly expensive.
-      return Pred.matches(Srcs, UndefValue::get(ElemTy));
-    }
-    return false;
+    return Inst->getType()->isPointerTy();
   };
   if (auto RS = makeSampler(Rand, make_filter_range(Insts, IsMatchingPtr)))
     return RS.getSelection();

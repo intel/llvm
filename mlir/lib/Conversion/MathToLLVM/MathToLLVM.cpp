@@ -9,6 +9,7 @@
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 
 #include "mlir/Conversion/ArithCommon/AttrToLLVMConverter.h"
+#include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/VectorPattern.h"
@@ -77,12 +78,10 @@ struct IntOpWithFlagLowering : public ConvertOpToLLVMPattern<MathOp> {
 
     auto loc = op.getLoc();
     auto resultType = op.getResult().getType();
-    auto boolZero = rewriter.getBoolAttr(false);
 
     if (!isa<LLVM::LLVMArrayType>(operandType)) {
-      LLVM::ConstantOp zero = rewriter.create<LLVM::ConstantOp>(loc, boolZero);
       rewriter.replaceOpWithNewOp<LLVMOp>(op, resultType, adaptor.getOperand(),
-                                          zero);
+                                          false);
       return success();
     }
 
@@ -93,10 +92,8 @@ struct IntOpWithFlagLowering : public ConvertOpToLLVMPattern<MathOp> {
     return LLVM::detail::handleMultidimensionalVectors(
         op.getOperation(), adaptor.getOperands(), *this->getTypeConverter(),
         [&](Type llvm1DVectorTy, ValueRange operands) {
-          LLVM::ConstantOp zero =
-              rewriter.create<LLVM::ConstantOp>(loc, boolZero);
           return rewriter.create<LLVMOp>(loc, llvm1DVectorTy, operands[0],
-                                         zero);
+                                         false);
         },
         rewriter);
   }
@@ -105,7 +102,8 @@ struct IntOpWithFlagLowering : public ConvertOpToLLVMPattern<MathOp> {
 using CountLeadingZerosOpLowering =
     IntOpWithFlagLowering<math::CountLeadingZerosOp, LLVM::CountLeadingZerosOp>;
 using CountTrailingZerosOpLowering =
-    IntOpWithFlagLowering<math::CountTrailingZerosOp, LLVM::CountTrailingZerosOp>;
+    IntOpWithFlagLowering<math::CountTrailingZerosOp,
+                          LLVM::CountTrailingZerosOp>;
 using AbsIOpLowering = IntOpWithFlagLowering<math::AbsIOp, LLVM::AbsOp>;
 
 // A `expm1` is converted into `exp - 1`.
@@ -333,4 +331,32 @@ void mlir::populateMathToLLVMConversionPatterns(LLVMTypeConverter &converter,
     FTruncOpLowering
   >(converter);
   // clang-format on
+}
+
+//===----------------------------------------------------------------------===//
+// ConvertToLLVMPatternInterface implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Implement the interface to convert Math to LLVM.
+struct MathToLLVMDialectInterface : public ConvertToLLVMPatternInterface {
+  using ConvertToLLVMPatternInterface::ConvertToLLVMPatternInterface;
+  void loadDependentDialects(MLIRContext *context) const final {
+    context->loadDialect<LLVM::LLVMDialect>();
+  }
+
+  /// Hook for derived dialect interface to provide conversion patterns
+  /// and mark dialect legal for the conversion target.
+  void populateConvertToLLVMConversionPatterns(
+      ConversionTarget &target, LLVMTypeConverter &typeConverter,
+      RewritePatternSet &patterns) const final {
+    populateMathToLLVMConversionPatterns(typeConverter, patterns);
+  }
+};
+} // namespace
+
+void mlir::registerConvertMathToLLVMInterface(DialectRegistry &registry) {
+  registry.addExtension(+[](MLIRContext *ctx, math::MathDialect *dialect) {
+    dialect->addInterfaces<MathToLLVMDialectInterface>();
+  });
 }

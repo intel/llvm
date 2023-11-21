@@ -113,16 +113,16 @@ public:
 
     // Reconstruct the filenames that would satisfy this directive...
     llvm::SmallString<256> Buf;
-    auto NotFoundRelativeTo = [&](const DirectoryEntry *DE) {
-      Buf = DE->getName();
+    auto NotFoundRelativeTo = [&](DirectoryEntryRef DE) {
+      Buf = DE.getName();
       llvm::sys::path::append(Buf, FileName);
       llvm::sys::path::remove_dots(Buf, /*remove_dot_dot=*/true);
       Out.insert(Buf);
     };
     // ...relative to the including file.
     if (!IsAngled) {
-      if (const FileEntry *IncludingFile =
-              SM.getFileEntryForID(SM.getFileID(IncludeTok.getLocation())))
+      if (OptionalFileEntryRef IncludingFile =
+              SM.getFileEntryRefForID(SM.getFileID(IncludeTok.getLocation())))
         if (IncludingFile->getDir())
           NotFoundRelativeTo(IncludingFile->getDir());
     }
@@ -132,7 +132,7 @@ public:
              Search.search_dir_end())) {
       // No support for frameworks or header maps yet.
       if (Dir.isNormalDir())
-        NotFoundRelativeTo(Dir.getDir());
+        NotFoundRelativeTo(*Dir.getDirRef());
     }
   }
 };
@@ -550,19 +550,19 @@ llvm::ErrorOr<PrecompiledPreamble> PrecompiledPreamble::Build(
 
   SourceManager &SourceMgr = Clang->getSourceManager();
   for (auto &Filename : PreambleDepCollector->getDependencies()) {
-    auto FileOrErr = Clang->getFileManager().getFile(Filename);
-    if (!FileOrErr ||
-        *FileOrErr == SourceMgr.getFileEntryForID(SourceMgr.getMainFileID()))
+    auto MaybeFile = Clang->getFileManager().getOptionalFileRef(Filename);
+    if (!MaybeFile ||
+        MaybeFile == SourceMgr.getFileEntryRefForID(SourceMgr.getMainFileID()))
       continue;
-    auto File = *FileOrErr;
-    if (time_t ModTime = File->getModificationTime()) {
-      FilesInPreamble[File->getName()] =
-          PrecompiledPreamble::PreambleFileHash::createForFile(File->getSize(),
+    auto File = *MaybeFile;
+    if (time_t ModTime = File.getModificationTime()) {
+      FilesInPreamble[File.getName()] =
+          PrecompiledPreamble::PreambleFileHash::createForFile(File.getSize(),
                                                                ModTime);
     } else {
       llvm::MemoryBufferRef Buffer =
           SourceMgr.getMemoryBufferForFileOrFake(File);
-      FilesInPreamble[File->getName()] =
+      FilesInPreamble[File.getName()] =
           PrecompiledPreamble::PreambleFileHash::createForMemoryBuffer(Buffer);
     }
   }
@@ -719,7 +719,7 @@ void PrecompiledPreamble::AddImplicitPreamble(
 void PrecompiledPreamble::OverridePreamble(
     CompilerInvocation &CI, IntrusiveRefCntPtr<llvm::vfs::FileSystem> &VFS,
     llvm::MemoryBuffer *MainFileBuffer) const {
-  auto Bounds = ComputePreambleBounds(*CI.getLangOpts(), *MainFileBuffer, 0);
+  auto Bounds = ComputePreambleBounds(CI.getLangOpts(), *MainFileBuffer, 0);
   configurePreamble(Bounds, CI, VFS, MainFileBuffer);
 }
 

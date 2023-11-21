@@ -22,13 +22,16 @@
 #include "mlir/Dialect/LLVMIR/Transforms/LegalizeForExport.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPInterfaces.h"
+#include "mlir/IR/AttrTypeSubElements.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Target/LLVMIR/LLVMTranslationInterface.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
+#include "mlir/Transforms/RegionUtils.h"
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -69,7 +72,7 @@ translateDataLayout(DataLayoutSpecInterface attribute,
   std::string llvmDataLayout;
   llvm::raw_string_ostream layoutStream(llvmDataLayout);
   for (DataLayoutEntryInterface entry : attribute.getEntries()) {
-    auto key = entry.getKey().dyn_cast<StringAttr>();
+    auto key = llvm::dyn_cast_if_present<StringAttr>(entry.getKey());
     if (!key)
       continue;
     if (key.getValue() == DLTIDialect::kDataLayoutEndiannessKey) {
@@ -108,7 +111,7 @@ translateDataLayout(DataLayoutSpecInterface attribute,
   // specified in entries. Where possible, data layout queries are used instead
   // of directly inspecting the entries.
   for (DataLayoutEntryInterface entry : attribute.getEntries()) {
-    auto type = entry.getKey().dyn_cast<Type>();
+    auto type = llvm::dyn_cast_if_present<Type>(entry.getKey());
     if (!type)
       continue;
     // Data layout for the index type is irrelevant at this point.
@@ -349,6 +352,15 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
         llvmType,
         intAttr.getValue().sextOrTrunc(llvmType->getIntegerBitWidth()));
   if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
+    const llvm::fltSemantics &sem = floatAttr.getValue().getSemantics();
+    // Special case for 8-bit floats, which are represented by integers due to
+    // the lack of native fp8 types in LLVM at the moment. Additionally, handle
+    // targets (like AMDGPU) that don't implement bfloat and convert all bfloats
+    // to i16.
+    unsigned floatWidth = APFloat::getSizeInBits(sem);
+    if (llvmType->isIntegerTy(floatWidth))
+      return llvm::ConstantInt::get(llvmType,
+                                    floatAttr.getValue().bitcastToAPInt());
     if (llvmType !=
         llvm::Type::getFloatingPointTy(llvmType->getContext(),
                                        floatAttr.getValue().getSemantics())) {
@@ -444,7 +456,7 @@ ModuleTranslation::ModuleTranslation(Operation *module,
       debugTranslation(
           std::make_unique<DebugTranslation>(module, *this->llvmModule)),
       loopAnnotationTranslation(std::make_unique<LoopAnnotationTranslation>(
-          *this, module, *this->llvmModule)),
+          *this, *this->llvmModule)),
       typeTranslator(this->llvmModule->getContext()),
       iface(module->getContext()) {
   assert(satisfiesLLVMModule(mlirModule) &&
@@ -560,25 +572,7 @@ void mlir::LLVM::detail::connectPHINodes(Region &region,
   }
 }
 
-/// Sort function blocks topologically.
-SetVector<Block *>
-mlir::LLVM::detail::getTopologicallySortedBlocks(Region &region) {
-  // For each block that has not been visited yet (i.e. that has no
-  // predecessors), add it to the list as well as its successors.
-  SetVector<Block *> blocks;
-  for (Block &b : region) {
-    if (blocks.count(&b) == 0) {
-      llvm::ReversePostOrderTraversal<Block *> traversal(&b);
-      blocks.insert(traversal.begin(), traversal.end());
-    }
-  }
-  assert(blocks.size() == region.getBlocks().size() &&
-         "some blocks are not sorted");
-
-  return blocks;
-}
-
-llvm::Value *mlir::LLVM::detail::createIntrinsicCall(
+llvm::CallInst *mlir::LLVM::detail::createIntrinsicCall(
     llvm::IRBuilderBase &builder, llvm::Intrinsic::ID intrinsic,
     ArrayRef<llvm::Value *> args, ArrayRef<llvm::Type *> tys) {
   llvm::Module *module = builder.GetInsertBlock()->getModule();
@@ -646,6 +640,10 @@ LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments,
 
     if (failed(convertOperation(op, builder)))
       return failure();
+
+    // Set the branch weight metadata on the translated instruction.
+    if (auto iface = dyn_cast<BranchWeightOpInterface>(op))
+      setBranchWeightsMetadata(iface);
   }
 
   return success();
@@ -713,6 +711,12 @@ LogicalResult ModuleTranslation::convertGlobals() {
         op.getThreadLocal_() ? llvm::GlobalValue::GeneralDynamicTLSModel
                              : llvm::GlobalValue::NotThreadLocal,
         addrSpace);
+
+    if (std::optional<mlir::SymbolRefAttr> comdat = op.getComdat()) {
+      auto selectorOp = cast<ComdatSelectorOp>(
+          SymbolTable::lookupNearestSymbolFrom(op, *comdat));
+      var->setComdat(comdatMapping.lookup(selectorOp));
+    }
 
     if (op.getUnnamedAddr().has_value())
       var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.getUnnamedAddr()));
@@ -797,7 +801,7 @@ static LogicalResult checkedAddLLVMFnAttribute(Location loc,
     if (value.empty())
       return emitError(loc) << "LLVM attribute '" << key << "' expects a value";
 
-    int result;
+    int64_t result;
     if (!value.getAsInteger(/*Radix=*/0, result))
       llvmFunc->addFnAttr(
           llvm::Attribute::get(llvmFunc->getContext(), kind, result));
@@ -878,8 +882,18 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
       llvmFunc->setPersonalityFn(pfunc);
   }
 
-  if (auto gc = func.getGarbageCollector())
-    llvmFunc->setGC(gc->str());
+  if (std::optional<StringRef> section = func.getSection())
+    llvmFunc->setSection(*section);
+
+  if (func.getArmStreaming())
+    llvmFunc->addFnAttr("aarch64_pstate_sm_enabled");
+  else if (func.getArmLocallyStreaming())
+    llvmFunc->addFnAttr("aarch64_pstate_sm_body");
+
+  if (auto attr = func.getVscaleRange())
+    llvmFunc->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
+        getLLVMContext(), attr->getMinRange().getInt(),
+        attr->getMaxRange().getInt()));
 
   // First, create all blocks so we can jump to them.
   llvm::LLVMContext &llvmContext = llvmFunc->getContext();
@@ -891,7 +905,7 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
 
   // Then, convert blocks one by one in topological order to ensure defs are
   // converted before uses.
-  auto blocks = detail::getTopologicallySortedBlocks(func.getBody());
+  auto blocks = getTopologicallySortedBlocks(func.getBody());
   for (Block *bb : blocks) {
     llvm::IRBuilder<> builder(llvmContext);
     if (failed(convertBlock(*bb, bb->isEntryBlock(), builder)))
@@ -1003,6 +1017,22 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
 
     // Convert visibility attribute.
     llvmFunc->setVisibility(convertVisibilityToLLVM(function.getVisibility_()));
+
+    // Convert the comdat attribute.
+    if (std::optional<mlir::SymbolRefAttr> comdat = function.getComdat()) {
+      auto selectorOp = cast<ComdatSelectorOp>(
+          SymbolTable::lookupNearestSymbolFrom(function, *comdat));
+      llvmFunc->setComdat(comdatMapping.lookup(selectorOp));
+    }
+
+    if (auto gc = function.getGarbageCollector())
+      llvmFunc->setGC(gc->str());
+
+    if (auto unnamedAddr = function.getUnnamedAddr())
+      llvmFunc->setUnnamedAddr(convertUnnamedAddrToLLVM(*unnamedAddr));
+
+    if (auto alignment = function.getAlignment())
+      llvmFunc->setAlignment(llvm::MaybeAlign(*alignment));
   }
 
   return success();
@@ -1011,9 +1041,13 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
 LogicalResult ModuleTranslation::convertFunctions() {
   // Convert functions.
   for (auto function : getModuleBody(mlirModule).getOps<LLVMFuncOp>()) {
-    // Ignore external functions.
-    if (function.isExternal())
+    // Do not convert external functions, but do process dialect attributes
+    // attached to them.
+    if (function.isExternal()) {
+      if (failed(convertDialectAttributes(function)))
+        return failure();
       continue;
+    }
 
     if (failed(convertOneFunction(function)))
       return failure();
@@ -1022,8 +1056,20 @@ LogicalResult ModuleTranslation::convertFunctions() {
   return success();
 }
 
-LogicalResult ModuleTranslation::createAccessGroupMetadata() {
-  return loopAnnotationTranslation->createAccessGroupMetadata();
+LogicalResult ModuleTranslation::convertComdats() {
+  for (auto comdatOp : getModuleBody(mlirModule).getOps<ComdatOp>()) {
+    for (auto selectorOp : comdatOp.getOps<ComdatSelectorOp>()) {
+      llvm::Module *module = getLLVMModule();
+      if (module->getComdatSymbolTable().contains(selectorOp.getSymName()))
+        return emitError(selectorOp.getLoc())
+               << "comdat selection symbols must be unique even in different "
+                  "comdat regions";
+      llvm::Comdat *comdat = module->getOrInsertComdat(selectorOp.getSymName());
+      comdat->setSelectionKind(convertComdatToLLVM(selectorOp.getComdat()));
+      comdatMapping.try_emplace(selectorOp, comdat);
+    }
+  }
+  return success();
 }
 
 void ModuleTranslation::setAccessGroupsMetadata(AccessGroupOpInterface op,
@@ -1032,71 +1078,56 @@ void ModuleTranslation::setAccessGroupsMetadata(AccessGroupOpInterface op,
     inst->setMetadata(llvm::LLVMContext::MD_access_group, node);
 }
 
-LogicalResult ModuleTranslation::createAliasScopeMetadata() {
-  mlirModule->walk([&](LLVM::MetadataOp metadatas) {
-    // Create the domains first, so they can be reference below in the scopes.
-    DenseMap<Operation *, llvm::MDNode *> aliasScopeDomainMetadataMapping;
-    metadatas.walk([&](LLVM::AliasScopeDomainMetadataOp op) {
-      llvm::LLVMContext &ctx = llvmModule->getContext();
-      llvm::SmallVector<llvm::Metadata *, 2> operands;
-      operands.push_back({}); // Placeholder for self-reference
-      if (std::optional<StringRef> description = op.getDescription())
-        operands.push_back(llvm::MDString::get(ctx, *description));
-      llvm::MDNode *domain = llvm::MDNode::get(ctx, operands);
-      domain->replaceOperandWith(0, domain); // Self-reference for uniqueness
-      aliasScopeDomainMetadataMapping.insert({op, domain});
-    });
-
-    // Now create the scopes, referencing the domains created above.
-    metadatas.walk([&](LLVM::AliasScopeMetadataOp op) {
-      llvm::LLVMContext &ctx = llvmModule->getContext();
-      assert(isa<LLVM::MetadataOp>(op->getParentOp()));
-      auto metadataOp = dyn_cast<LLVM::MetadataOp>(op->getParentOp());
-      Operation *domainOp =
-          SymbolTable::lookupNearestSymbolFrom(metadataOp, op.getDomainAttr());
-      llvm::MDNode *domain = aliasScopeDomainMetadataMapping.lookup(domainOp);
-      assert(domain && "Scope's domain should already be valid");
-      llvm::SmallVector<llvm::Metadata *, 3> operands;
-      operands.push_back({}); // Placeholder for self-reference
-      operands.push_back(domain);
-      if (std::optional<StringRef> description = op.getDescription())
-        operands.push_back(llvm::MDString::get(ctx, *description));
-      llvm::MDNode *scope = llvm::MDNode::get(ctx, operands);
-      scope->replaceOperandWith(0, scope); // Self-reference for uniqueness
-      aliasScopeMetadataMapping.insert({op, scope});
-    });
-  });
-  return success();
-}
-
 llvm::MDNode *
-ModuleTranslation::getAliasScope(Operation *op,
-                                 SymbolRefAttr aliasScopeRef) const {
-  StringAttr metadataName = aliasScopeRef.getRootReference();
-  StringAttr scopeName = aliasScopeRef.getLeafReference();
-  auto metadataOp = SymbolTable::lookupNearestSymbolFrom<LLVM::MetadataOp>(
-      op->getParentOp(), metadataName);
-  Operation *aliasScopeOp =
-      SymbolTable::lookupNearestSymbolFrom(metadataOp, scopeName);
-  return aliasScopeMetadataMapping.lookup(aliasScopeOp);
+ModuleTranslation::getOrCreateAliasScope(AliasScopeAttr aliasScopeAttr) {
+  auto [scopeIt, scopeInserted] =
+      aliasScopeMetadataMapping.try_emplace(aliasScopeAttr, nullptr);
+  if (!scopeInserted)
+    return scopeIt->second;
+  llvm::LLVMContext &ctx = llvmModule->getContext();
+  // Convert the domain metadata node if necessary.
+  auto [domainIt, insertedDomain] = aliasDomainMetadataMapping.try_emplace(
+      aliasScopeAttr.getDomain(), nullptr);
+  if (insertedDomain) {
+    llvm::SmallVector<llvm::Metadata *, 2> operands;
+    // Placeholder for self-reference.
+    operands.push_back({});
+    if (StringAttr description = aliasScopeAttr.getDomain().getDescription())
+      operands.push_back(llvm::MDString::get(ctx, description));
+    domainIt->second = llvm::MDNode::get(ctx, operands);
+    // Self-reference for uniqueness.
+    domainIt->second->replaceOperandWith(0, domainIt->second);
+  }
+  // Convert the scope metadata node.
+  assert(domainIt->second && "Scope's domain should already be valid");
+  llvm::SmallVector<llvm::Metadata *, 3> operands;
+  // Placeholder for self-reference.
+  operands.push_back({});
+  operands.push_back(domainIt->second);
+  if (StringAttr description = aliasScopeAttr.getDescription())
+    operands.push_back(llvm::MDString::get(ctx, description));
+  scopeIt->second = llvm::MDNode::get(ctx, operands);
+  // Self-reference for uniqueness.
+  scopeIt->second->replaceOperandWith(0, scopeIt->second);
+  return scopeIt->second;
 }
 
-llvm::MDNode *ModuleTranslation::getAliasScopes(
-    Operation *op, ArrayRef<SymbolRefAttr> aliasScopeRefs) const {
+llvm::MDNode *ModuleTranslation::getOrCreateAliasScopes(
+    ArrayRef<AliasScopeAttr> aliasScopeAttrs) {
   SmallVector<llvm::Metadata *> nodes;
-  nodes.reserve(aliasScopeRefs.size());
-  for (SymbolRefAttr aliasScopeRef : aliasScopeRefs)
-    nodes.push_back(getAliasScope(op, aliasScopeRef));
+  nodes.reserve(aliasScopeAttrs.size());
+  for (AliasScopeAttr aliasScopeAttr : aliasScopeAttrs)
+    nodes.push_back(getOrCreateAliasScope(aliasScopeAttr));
   return llvm::MDNode::get(getLLVMContext(), nodes);
 }
 
 void ModuleTranslation::setAliasScopeMetadata(AliasAnalysisOpInterface op,
                                               llvm::Instruction *inst) {
-  auto populateScopeMetadata = [&](ArrayAttr aliasScopeRefs, unsigned kind) {
-    if (!aliasScopeRefs || aliasScopeRefs.empty())
+  auto populateScopeMetadata = [&](ArrayAttr aliasScopeAttrs, unsigned kind) {
+    if (!aliasScopeAttrs || aliasScopeAttrs.empty())
       return;
-    llvm::MDNode *node = getAliasScopes(
-        op, llvm::to_vector(aliasScopeRefs.getAsRange<SymbolRefAttr>()));
+    llvm::MDNode *node = getOrCreateAliasScopes(
+        llvm::to_vector(aliasScopeAttrs.getAsRange<AliasScopeAttr>()));
     inst->setMetadata(kind, node);
   };
 
@@ -1106,14 +1137,8 @@ void ModuleTranslation::setAliasScopeMetadata(AliasAnalysisOpInterface op,
                         llvm::LLVMContext::MD_noalias);
 }
 
-llvm::MDNode *ModuleTranslation::getTBAANode(Operation *op,
-                                             SymbolRefAttr tagRef) const {
-  StringAttr metadataName = tagRef.getRootReference();
-  StringAttr tagName = tagRef.getLeafReference();
-  auto metadataOp = SymbolTable::lookupNearestSymbolFrom<LLVM::MetadataOp>(
-      op->getParentOp(), metadataName);
-  Operation *tagOp = SymbolTable::lookupNearestSymbolFrom(metadataOp, tagName);
-  return tbaaMetadataMapping.lookup(tagOp);
+llvm::MDNode *ModuleTranslation::getTBAANode(TBAATagAttr tbaaAttr) const {
+  return tbaaMetadataMapping.lookup(tbaaAttr);
 }
 
 void ModuleTranslation::setTBAAMetadata(AliasAnalysisOpInterface op,
@@ -1132,99 +1157,72 @@ void ModuleTranslation::setTBAAMetadata(AliasAnalysisOpInterface op,
     return;
   }
 
-  SymbolRefAttr tagRef = cast<SymbolRefAttr>(tagRefs[0]);
-  llvm::MDNode *node = getTBAANode(op, tagRef);
+  llvm::MDNode *node = getTBAANode(cast<TBAATagAttr>(tagRefs[0]));
   inst->setMetadata(llvm::LLVMContext::MD_tbaa, node);
+}
+
+void ModuleTranslation::setBranchWeightsMetadata(BranchWeightOpInterface op) {
+  DenseI32ArrayAttr weightsAttr = op.getBranchWeightsOrNull();
+  if (!weightsAttr)
+    return;
+
+  llvm::Instruction *inst = isa<CallOp>(op) ? lookupCall(op) : lookupBranch(op);
+  assert(inst && "expected the operation to have a mapping to an instruction");
+  SmallVector<uint32_t> weights(weightsAttr.asArrayRef());
+  inst->setMetadata(
+      llvm::LLVMContext::MD_prof,
+      llvm::MDBuilder(getLLVMContext()).createBranchWeights(weights));
 }
 
 LogicalResult ModuleTranslation::createTBAAMetadata() {
   llvm::LLVMContext &ctx = llvmModule->getContext();
   llvm::IntegerType *offsetTy = llvm::IntegerType::get(ctx, 64);
 
-  // Walk TBAA metadata and create MDNode's with placeholder
-  // operands for the references of other TBAA nodes.
-  for (auto metadata : getModuleBody(mlirModule).getOps<LLVM::MetadataOp>()) {
-    for (auto &op : metadata.getBody().getOps()) {
-      SmallVector<llvm::Metadata *> operands;
-      if (auto rootOp = dyn_cast<LLVM::TBAARootMetadataOp>(op)) {
-        operands.push_back(llvm::MDString::get(ctx, rootOp.getIdentity()));
-      } else if (auto tdOp = dyn_cast<LLVM::TBAATypeDescriptorOp>(op)) {
-        operands.push_back(llvm::MDString::get(
-            ctx, tdOp.getIdentity().value_or(llvm::StringRef{})));
-        for (int64_t offset : tdOp.getOffsets()) {
-          // Use temporary MDNode as the placeholder for the member type
-          // to prevent uniquing the type descriptor nodes until they are
-          // finalized.
-          operands.push_back(
-              llvm::MDNode::getTemporary(ctx, std::nullopt).release());
-          operands.push_back(llvm::ConstantAsMetadata::get(
-              llvm::ConstantInt::get(offsetTy, offset)));
-        }
-      } else if (auto tagOp = dyn_cast<LLVM::TBAATagOp>(op)) {
-        // Use temporary MDNode's as the placeholders for the base and access
-        // types to prevent uniquing the tag nodes until they are finalized.
-        operands.push_back(
-            llvm::MDNode::getTemporary(ctx, std::nullopt).release());
-        operands.push_back(
-            llvm::MDNode::getTemporary(ctx, std::nullopt).release());
-        operands.push_back(llvm::ConstantAsMetadata::get(
-            llvm::ConstantInt::get(offsetTy, tagOp.getOffset())));
-        if (tagOp.getConstant())
-          operands.push_back(llvm::ConstantAsMetadata::get(
-              llvm::ConstantInt::get(offsetTy, 1)));
-      }
+  // Walk the entire module and create all metadata nodes for the TBAA
+  // attributes. The code below relies on two invariants of the
+  // `AttrTypeWalker`:
+  // 1. Attributes are visited in post-order: Since the attributes create a DAG,
+  //    this ensures that any lookups into `tbaaMetadataMapping` for child
+  //    attributes succeed.
+  // 2. Attributes are only ever visited once: This way we don't leak any
+  //    LLVM metadata instances.
+  AttrTypeWalker walker;
+  walker.addWalk([&](TBAARootAttr root) {
+    tbaaMetadataMapping.insert(
+        {root, llvm::MDNode::get(ctx, llvm::MDString::get(ctx, root.getId()))});
+  });
 
-      if (operands.empty())
-        continue;
-
-      tbaaMetadataMapping.insert({&op, llvm::MDNode::get(ctx, operands)});
+  walker.addWalk([&](TBAATypeDescriptorAttr descriptor) {
+    SmallVector<llvm::Metadata *> operands;
+    operands.push_back(llvm::MDString::get(ctx, descriptor.getId()));
+    for (TBAAMemberAttr member : descriptor.getMembers()) {
+      operands.push_back(tbaaMetadataMapping.lookup(member.getTypeDesc()));
+      operands.push_back(llvm::ConstantAsMetadata::get(
+          llvm::ConstantInt::get(offsetTy, member.getOffset())));
     }
-  }
 
-  // Walk TBAA metadata second time and update the placeholder
-  // references.
-  for (auto metadata : getModuleBody(mlirModule).getOps<LLVM::MetadataOp>()) {
-    for (auto &op : metadata.getBody().getOps()) {
-      SmallVector<StringRef> refNames;
-      SmallVector<int64_t> operandIndices;
-      if (auto tdOp = dyn_cast<LLVM::TBAATypeDescriptorOp>(op)) {
-        // The type references are in 1, 3, 5, etc. positions.
-        unsigned opNum = 1;
-        for (Attribute typeAttr : tdOp.getMembers()) {
-          refNames.push_back(cast<FlatSymbolRefAttr>(typeAttr).getValue());
-          operandIndices.push_back(opNum);
-          opNum += 2;
-        }
-      } else if (auto tagOp = dyn_cast<LLVM::TBAATagOp>(op)) {
-        refNames.push_back(tagOp.getBaseType());
-        operandIndices.push_back(0);
-        refNames.push_back(tagOp.getAccessType());
-        operandIndices.push_back(1);
-      }
+    tbaaMetadataMapping.insert({descriptor, llvm::MDNode::get(ctx, operands)});
+  });
 
-      if (refNames.empty())
-        continue;
+  walker.addWalk([&](TBAATagAttr tag) {
+    SmallVector<llvm::Metadata *> operands;
 
-      llvm::MDNode *descNode = tbaaMetadataMapping.lookup(&op);
-      for (auto [refName, opNum] : llvm::zip(refNames, operandIndices)) {
-        // refDef availability in the parent MetadataOp
-        // is checked by module verifier.
-        Operation *refDef = SymbolTable::lookupSymbolIn(metadata, refName);
-        llvm::MDNode *refNode = tbaaMetadataMapping.lookup(refDef);
-        if (!refNode) {
-          op.emitOpError() << "llvm::MDNode missing for the member '@"
-                           << refName << "'";
-          return failure();
-        }
-        auto *tempMD = cast<llvm::MDNode>(descNode->getOperand(opNum).get());
-        descNode->replaceOperandWith(opNum, refNode);
-        // Deallocate temporary MDNode's explicitly.
-        // Note that each temporary node has a single use by creation,
-        // so it is valid to deallocate it here.
-        llvm::MDNode::deleteTemporary(tempMD);
-      }
-    }
-  }
+    operands.push_back(tbaaMetadataMapping.lookup(tag.getBaseType()));
+    operands.push_back(tbaaMetadataMapping.lookup(tag.getAccessType()));
+
+    operands.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(offsetTy, tag.getOffset())));
+    if (tag.getConstant())
+      operands.push_back(
+          llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(offsetTy, 1)));
+
+    tbaaMetadataMapping.insert({tag, llvm::MDNode::get(ctx, operands)});
+  });
+
+  mlirModule->walk([&](AliasAnalysisOpInterface analysisOpInterface) {
+    if (auto attr = analysisOpInterface.getTBAATagsOrNull())
+      walker.walk(attr);
+  });
 
   return success();
 }
@@ -1260,17 +1258,16 @@ llvm::OpenMPIRBuilder *ModuleTranslation::getOpenMPBuilder() {
     ompBuilder = std::make_unique<llvm::OpenMPIRBuilder>(*llvmModule);
     ompBuilder->initialize();
 
-    bool isDevice = false;
-    if (auto offloadMod =
-            dyn_cast<mlir::omp::OffloadModuleInterface>(mlirModule))
-      isDevice = offloadMod.getIsDevice();
-
-    // TODO: set the flags when available
-    llvm::OpenMPIRBuilderConfig Config(
-        isDevice, /* IsTargetCodegen */ false,
-        /* HasRequiresUnifiedSharedMemory */ false,
-        /* OpenMPOffloadMandatory */ false);
-    ompBuilder->setConfig(Config);
+    // Flags represented as top-level OpenMP dialect attributes are set in
+    // `OpenMPDialectLLVMIRTranslationInterface::amendOperation()`. Here we set
+    // the default configuration.
+    ompBuilder->setConfig(llvm::OpenMPIRBuilderConfig(
+        /* IsTargetDevice = */ false, /* IsGPU = */ false,
+        /* OpenMPOffloadMandatory = */ false,
+        /* HasRequiresReverseOffload = */ false,
+        /* HasRequiresUnifiedAddress = */ false,
+        /* HasRequiresUnifiedSharedMemory = */ false,
+        /* HasRequiresDynamicAllocators = */ false));
   }
   return ompBuilder.get();
 }
@@ -1297,7 +1294,7 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
   m->getContext()->getOrLoadDialect<LLVM::LLVMDialect>();
   auto llvmModule = std::make_unique<llvm::Module>(name, llvmContext);
   if (auto dataLayoutAttr =
-          m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
+          m->getDiscardableAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
     llvmModule->setDataLayout(cast<StringAttr>(dataLayoutAttr).getValue());
   } else {
     FailureOr<llvm::DataLayout> llvmDataLayout(llvm::DataLayout(""));
@@ -1317,7 +1314,7 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
     llvmModule->setDataLayout(*llvmDataLayout);
   }
   if (auto targetTripleAttr =
-          m->getAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
+          m->getDiscardableAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
     llvmModule->setTargetTriple(cast<StringAttr>(targetTripleAttr).getValue());
 
   // Inject declarations for `malloc` and `free` functions that can be used in
@@ -1347,32 +1344,38 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   LLVM::ensureDistinctSuccessors(module);
 
   ModuleTranslation translator(module, std::move(llvmModule));
+  llvm::IRBuilder<> llvmBuilder(llvmContext);
+
+  // Convert module before functions and operations inside, so dialect
+  // attributes can be used to change dialect-specific global configurations via
+  // `amendOperation()`. These configurations can then influence the translation
+  // of operations afterwards.
+  if (failed(translator.convertOperation(*module, llvmBuilder)))
+    return nullptr;
+
+  if (failed(translator.convertComdats()))
+    return nullptr;
   if (failed(translator.convertFunctionSignatures()))
     return nullptr;
   if (failed(translator.convertGlobals()))
     return nullptr;
-  if (failed(translator.createAccessGroupMetadata()))
-    return nullptr;
-  if (failed(translator.createAliasScopeMetadata()))
-    return nullptr;
   if (failed(translator.createTBAAMetadata()))
-    return nullptr;
-  if (failed(translator.convertFunctions()))
     return nullptr;
 
   // Convert other top-level operations if possible.
-  llvm::IRBuilder<> llvmBuilder(llvmContext);
   for (Operation &o : getModuleBody(module).getOperations()) {
     if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::GlobalCtorsOp,
-             LLVM::GlobalDtorsOp, LLVM::MetadataOp>(&o) &&
+             LLVM::GlobalDtorsOp, LLVM::ComdatOp>(&o) &&
         !o.hasTrait<OpTrait::IsTerminator>() &&
         failed(translator.convertOperation(o, llvmBuilder))) {
       return nullptr;
     }
   }
 
-  // Convert module itself.
-  if (failed(translator.convertOperation(*module, llvmBuilder)))
+  // Operations in function bodies with symbolic references must be converted
+  // after the top-level operations they refer to are declared, so we do it
+  // last.
+  if (failed(translator.convertFunctions()))
     return nullptr;
 
   if (llvm::verifyModule(*translator.llvmModule, &llvm::errs()))

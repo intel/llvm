@@ -125,6 +125,7 @@ size_t __kmp_sys_min_stksize = KMP_MIN_STKSIZE;
 int __kmp_sys_max_nth = KMP_MAX_NTH;
 int __kmp_max_nth = 0;
 int __kmp_cg_max_nth = 0;
+int __kmp_task_max_nth = 0;
 int __kmp_teams_max_nth = 0;
 int __kmp_threads_capacity = 0;
 int __kmp_dflt_team_nth = 0;
@@ -154,7 +155,8 @@ int __kmp_hier_max_units[kmp_hier_layer_e::LAYER_LAST + 1];
 int __kmp_hier_threads_per[kmp_hier_layer_e::LAYER_LAST + 1];
 kmp_hier_sched_env_t __kmp_hier_scheds = {0, 0, NULL, NULL, NULL};
 #endif
-int __kmp_dflt_blocktime = KMP_DEFAULT_BLOCKTIME;
+int __kmp_dflt_blocktime = KMP_DEFAULT_BLOCKTIME; // in microseconds
+char __kmp_blocktime_units = 'm'; // Units specified in KMP_BLOCKTIME
 bool __kmp_wpolicy_passive = false;
 #if KMP_USE_MONITOR
 int __kmp_monitor_wakeups = KMP_MIN_MONITOR_WAKEUPS;
@@ -557,4 +559,17 @@ int __kmp_nesting_mode = 0;
 int __kmp_nesting_mode_nlevels = 1;
 int *__kmp_nesting_nth_level;
 
+#if OMPX_TASKGRAPH
+// TDG record & replay
+int __kmp_tdg_dot = 0;
+kmp_int32 __kmp_max_tdgs = 100;
+kmp_tdg_info_t **__kmp_global_tdgs = NULL;
+kmp_int32 __kmp_curr_tdg_idx =
+    0; // Id of the current TDG being recorded or executed
+kmp_int32 __kmp_num_tdg = 0;
+kmp_int32 __kmp_successors_size = 10; // Initial succesor size list for
+                                      // recording
+std::atomic<kmp_int32> __kmp_tdg_task_id = 0;
+#endif
 // end of file //
+

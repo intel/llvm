@@ -3,6 +3,7 @@
 #file = #llvm.di_file<"foo.mlir" in "/foo/">
 #variable = #llvm.di_local_variable<scope = #file>
 #variableAddr = #llvm.di_local_variable<scope = #file>
+#label = #llvm.di_label<scope = #file>
 
 func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
   %0 = llvm.mlir.constant(42 : i32) : i32
@@ -11,16 +12,18 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
   %1 = llvm.load %ptr { alignment = 8 } : !llvm.ptr -> i32
   llvm.intr.dbg.value #variable = %0 : i32
   llvm.intr.dbg.declare #variableAddr = %ptr : !llvm.ptr
+  llvm.intr.dbg.label #label
   %byte = llvm.mlir.constant(43 : i8) : i8
-  %volatile = llvm.mlir.constant(1 : i1) : i1
-  "llvm.intr.memset"(%ptr, %byte, %0, %volatile) : (!llvm.ptr, i8, i32, i1) -> ()
-  "llvm.intr.memmove"(%ptr, %ptr, %0, %volatile) : (!llvm.ptr, !llvm.ptr, i32, i1) -> ()
-  "llvm.intr.memcpy"(%ptr, %ptr, %0, %volatile) : (!llvm.ptr, !llvm.ptr, i32, i1) -> ()
+  %true = llvm.mlir.constant(1 : i1) : i1
+  "llvm.intr.memset"(%ptr, %byte, %0) <{isVolatile = true}> : (!llvm.ptr, i8, i32) -> ()
+  "llvm.intr.memmove"(%ptr, %ptr, %0) <{isVolatile = true}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
+  "llvm.intr.memcpy"(%ptr, %ptr, %0) <{isVolatile = true}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
+  "llvm.intr.assume"(%true) : (i1) -> ()
   llvm.fence release
   %2 = llvm.atomicrmw add %ptr, %0 monotonic : !llvm.ptr, i32
   %3 = llvm.cmpxchg %ptr, %0, %1 acq_rel monotonic : !llvm.ptr, i32
   llvm.inline_asm has_side_effects "foo", "bar" : () -> ()
-  llvm.cond_br %volatile, ^bb1, ^bb2
+  llvm.cond_br %true, ^bb1, ^bb2
 ^bb1:
   llvm.unreachable
 ^bb2:
@@ -36,9 +39,11 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
 // CHECK: %[[RES:.+]] = llvm.load %[[PTR]]
 // CHECK: llvm.intr.dbg.value #{{.+}} = %[[CST]]
 // CHECK: llvm.intr.dbg.declare #{{.+}} = %[[PTR]]
+// CHECK: llvm.intr.dbg.label #{{.+}}
 // CHECK: "llvm.intr.memset"(%[[PTR]]
 // CHECK: "llvm.intr.memmove"(%[[PTR]], %[[PTR]]
 // CHECK: "llvm.intr.memcpy"(%[[PTR]], %[[PTR]]
+// CHECK: "llvm.intr.assume"
 // CHECK: llvm.fence release
 // CHECK: llvm.atomicrmw add %[[PTR]], %[[CST]] monotonic
 // CHECK: llvm.cmpxchg %[[PTR]], %[[CST]], %[[RES]] acq_rel monotonic
@@ -48,48 +53,6 @@ func.func @inner_func_inlinable(%ptr : !llvm.ptr) -> i32 {
 func.func @test_inline(%ptr : !llvm.ptr) -> i32 {
   %0 = call @inner_func_inlinable(%ptr) : (!llvm.ptr) -> i32
   return %0 : i32
-}
-
-// -----
-
-llvm.metadata @metadata {
-  llvm.access_group @group
-  llvm.return
-}
-
-llvm.func @inlinee(%ptr : !llvm.ptr) -> i32 {
-  %0 = llvm.load %ptr { access_groups = [@metadata::@group] } : !llvm.ptr -> i32
-  llvm.return %0 : i32
-}
-
-// CHECK-LABEL: func @test_not_inline
-llvm.func @test_not_inline(%ptr : !llvm.ptr) -> i32 {
-  // CHECK-NEXT: llvm.call @inlinee
-  %0 = llvm.call @inlinee(%ptr) : (!llvm.ptr) -> (i32)
-  llvm.return %0 : i32
-}
-
-// -----
-
-llvm.metadata @metadata {
-  llvm.access_group @group
-  llvm.return
-}
-
-func.func private @with_mem_attr(%ptr : !llvm.ptr) {
-  %0 = llvm.mlir.constant(42 : i32) : i32
-  // Do not inline load/store operations that carry attributes requiring
-  // handling while inlining, until this is supported by the inliner.
-  llvm.store %0, %ptr { access_groups = [@metadata::@group] }: i32, !llvm.ptr
-  return
-}
-
-// CHECK-LABEL: func.func @test_not_inline
-// CHECK-NEXT: call @with_mem_attr
-// CHECK-NEXT: return
-func.func @test_not_inline(%ptr : !llvm.ptr) {
-  call @with_mem_attr(%ptr) : (!llvm.ptr) -> ()
-  return
 }
 
 // -----
@@ -578,7 +541,7 @@ llvm.func @test_ignored_attrs(%ptr : !llvm.ptr, %x : i32) {
 
 // -----
 
-llvm.func @disallowed_arg_attr(%ptr : !llvm.ptr { llvm.noalias }) {
+llvm.func @disallowed_arg_attr(%ptr : !llvm.ptr { llvm.inalloca = i64 }) {
   llvm.return
 }
 
@@ -591,13 +554,44 @@ llvm.func @test_disallow_arg_attr(%ptr : !llvm.ptr) {
 
 // -----
 
-llvm.func @disallowed_res_attr(%ptr : !llvm.ptr) -> (!llvm.ptr { llvm.noalias }) {
-  llvm.return %ptr : !llvm.ptr
+#callee = #llvm.access_group<id = distinct[0]<>>
+#caller = #llvm.access_group<id = distinct[1]<>>
+
+llvm.func @inlinee(%ptr : !llvm.ptr) -> i32 {
+  %0 = llvm.load %ptr { access_groups = [#callee] } : !llvm.ptr -> i32
+  llvm.return %0 : i32
 }
 
-// CHECK-LABEL: @test_disallow_res_attr
-// CHECK-NEXT: llvm.call
-llvm.func @test_disallow_res_attr(%ptr : !llvm.ptr) {
-  llvm.call @disallowed_res_attr(%ptr) : (!llvm.ptr) -> (!llvm.ptr)
-  llvm.return
+// CHECK-DAG: #[[$CALLEE:.*]] = #llvm.access_group<id = {{.*}}>
+// CHECK-DAG: #[[$CALLER:.*]] = #llvm.access_group<id = {{.*}}>
+
+// CHECK-LABEL: func @caller
+// CHECK: llvm.load
+// CHECK-SAME: access_groups = [#[[$CALLEE]], #[[$CALLER]]]
+llvm.func @caller(%ptr : !llvm.ptr) -> i32 {
+  %0 = llvm.call @inlinee(%ptr) { access_groups = [#caller] } : (!llvm.ptr) -> (i32)
+  llvm.return %0 : i32
+}
+
+// -----
+
+#caller = #llvm.access_group<id = distinct[1]<>>
+
+llvm.func @inlinee(%ptr : !llvm.ptr) -> i32 {
+  %0 = llvm.load %ptr : !llvm.ptr -> i32
+  llvm.return %0 : i32
+}
+
+// CHECK-DAG: #[[$CALLER:.*]] = #llvm.access_group<id = {{.*}}>
+
+// CHECK-LABEL: func @caller
+// CHECK: llvm.load
+// CHECK-SAME: access_groups = [#[[$CALLER]]]
+// CHECK: llvm.store
+// CHECK-SAME: access_groups = [#[[$CALLER]]]
+llvm.func @caller(%ptr : !llvm.ptr) -> i32 {
+  %c5 = llvm.mlir.constant(5 : i32) : i32
+  %0 = llvm.call @inlinee(%ptr) { access_groups = [#caller] } : (!llvm.ptr) -> (i32)
+  llvm.store %c5, %ptr { access_groups = [#caller] } : i32, !llvm.ptr
+  llvm.return %0 : i32
 }

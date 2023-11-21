@@ -208,7 +208,8 @@ void Serializer::processMemoryModel() {
 LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
                                             NamedAttribute attr) {
   auto attrName = attr.getName().strref();
-  auto decorationName = llvm::convertToCamelFromSnakeCase(attrName, true);
+  auto decorationName =
+      llvm::convertToCamelFromSnakeCase(attrName, /*capitalizeFirst=*/true);
   auto decoration = spirv::symbolizeDecoration(decorationName);
   if (!decoration) {
     return emitError(
@@ -218,6 +219,18 @@ LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
   }
   SmallVector<uint32_t, 1> args;
   switch (*decoration) {
+  case spirv::Decoration::LinkageAttributes: {
+    // Get the value of the Linkage Attributes
+    // e.g., LinkageAttributes=["linkageName", linkageType].
+    auto linkageAttr = llvm::dyn_cast<spirv::LinkageAttributesAttr>(attr.getValue());
+    auto linkageName = linkageAttr.getLinkageName();
+    auto linkageType = linkageAttr.getLinkageType().getValue();
+    // Encode the Linkage Name (string literal to uint32_t).
+    spirv::encodeStringLiteralInto(args, linkageName);
+    // Encode LinkageType & Add the Linkagetype to the args.
+    args.push_back(static_cast<uint32_t>(linkageType));
+    break;
+  }
   case spirv::Decoration::Binding:
   case spirv::Decoration::DescriptorSet:
   case spirv::Decoration::Location:
@@ -581,6 +594,28 @@ LogicalResult Serializer::prepareBasicType(
   }
 
   if (auto cooperativeMatrixType =
+          dyn_cast<spirv::CooperativeMatrixType>(type)) {
+    uint32_t elementTypeID = 0;
+    if (failed(processTypeImpl(loc, cooperativeMatrixType.getElementType(),
+                               elementTypeID, serializationCtx))) {
+      return failure();
+    }
+    typeEnum = spirv::Opcode::OpTypeCooperativeMatrixKHR;
+    auto getConstantOp = [&](uint32_t id) {
+      auto attr = IntegerAttr::get(IntegerType::get(type.getContext(), 32), id);
+      return prepareConstantInt(loc, attr);
+    };
+    operands.push_back(elementTypeID);
+    operands.push_back(
+        getConstantOp(static_cast<uint32_t>(cooperativeMatrixType.getScope())));
+    operands.push_back(getConstantOp(cooperativeMatrixType.getRows()));
+    operands.push_back(getConstantOp(cooperativeMatrixType.getColumns()));
+    operands.push_back(
+        getConstantOp(static_cast<uint32_t>(cooperativeMatrixType.getUse())));
+    return success();
+  }
+
+  if (auto cooperativeMatrixType =
           dyn_cast<spirv::CooperativeMatrixNVType>(type)) {
     uint32_t elementTypeID = 0;
     if (failed(processTypeImpl(loc, cooperativeMatrixType.getElementType(),
@@ -833,8 +868,7 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
   auto resultID = getNextID();
   APInt value = intAttr.getValue();
   unsigned bitwidth = value.getBitWidth();
-  bool isSigned = value.isSignedIntN(bitwidth);
-
+  bool isSigned = intAttr.getType().isSignedInteger();
   auto opcode =
       isSpec ? spirv::Opcode::OpSpecConstant : spirv::Opcode::OpConstant;
 

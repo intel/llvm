@@ -10,6 +10,7 @@
 #include "DwarfUtils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
@@ -36,7 +37,6 @@
 using namespace llvm;
 using namespace dwarf;
 using namespace utils;
-using ::testing::HasSubstr;
 
 namespace {
 

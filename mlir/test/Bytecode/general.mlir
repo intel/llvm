@@ -1,8 +1,5 @@
 // RUN: mlir-opt -allow-unregistered-dialect -emit-bytecode %s | mlir-opt -allow-unregistered-dialect | FileCheck %s
 
-// Bytecode currently does not support big-endian platforms
-// UNSUPPORTED: target=s390x-{{.*}}
-
 // CHECK-LABEL: "bytecode.test1"
 // CHECK-NEXT:    "unregistered.op"() {test_attr = #test.dynamic_singleton} : () -> ()
 // CHECK-NEXT:    "bytecode.empty"() : () -> ()
@@ -32,7 +29,7 @@
   }
   "bytecode.branch"()[^secondBlock] : () -> ()
 
-^secondBlock(%arg1: i32, %arg2: !bytecode.int, %arg3: !pdl.operation):
+^secondBlock(%arg1: i32 loc(unknown), %arg2: !bytecode.int, %arg3: !pdl.operation loc(unknown)):
   "bytecode.regions"() ({
     "bytecode.operands"(%arg1, %arg2, %arg3) : (i32, !bytecode.int, !pdl.operation) -> ()
     "bytecode.return"() : () -> ()

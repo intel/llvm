@@ -395,9 +395,10 @@ void Parser::ParseLexedMethodDeclaration(LateParsedMethodDeclaration &LM) {
         DefArgResult = ParseBraceInitializer();
       } else
         DefArgResult = ParseAssignmentExpression();
-      DefArgResult = Actions.CorrectDelayedTyposInExpr(DefArgResult);
+      DefArgResult = Actions.CorrectDelayedTyposInExpr(DefArgResult, Param);
       if (DefArgResult.isInvalid()) {
-        Actions.ActOnParamDefaultArgumentError(Param, EqualLoc);
+        Actions.ActOnParamDefaultArgumentError(Param, EqualLoc,
+                                               /*DefaultArg=*/nullptr);
       } else {
         if (Tok.isNot(tok::eof) || Tok.getEofData() != Param) {
           // The last two tokens are the terminator and the saved value of
@@ -838,6 +839,7 @@ bool Parser::ConsumeAndStoreUntil(tok::TokenKind T1, tok::TokenKind T2,
     case tok::annot_module_begin:
     case tok::annot_module_end:
     case tok::annot_module_include:
+    case tok::annot_repl_input_end:
       // Ran out of tokens.
       return false;
 
@@ -1244,6 +1246,7 @@ bool Parser::ConsumeAndStoreInitializer(CachedTokens &Toks,
     case tok::annot_module_begin:
     case tok::annot_module_end:
     case tok::annot_module_include:
+    case tok::annot_repl_input_end:
       // Ran out of tokens.
       return false;
 

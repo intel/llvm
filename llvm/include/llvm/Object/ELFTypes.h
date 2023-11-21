@@ -24,8 +24,6 @@
 namespace llvm {
 namespace object {
 
-using support::endianness;
-
 template <class ELFT> struct Elf_Ehdr_Impl;
 template <class ELFT> struct Elf_Shdr_Impl;
 template <class ELFT> struct Elf_Sym_Impl;
@@ -92,10 +90,10 @@ public:
   using Off = packed<uint>;
 };
 
-using ELF32LE = ELFType<support::little, false>;
-using ELF32BE = ELFType<support::big, false>;
-using ELF64LE = ELFType<support::little, true>;
-using ELF64BE = ELFType<support::big, true>;
+using ELF32LE = ELFType<llvm::endianness::little, false>;
+using ELF32BE = ELFType<llvm::endianness::big, false>;
+using ELF64LE = ELFType<llvm::endianness::little, true>;
+using ELF64BE = ELFType<llvm::endianness::big, true>;
 
 // Use an alignment of 2 for the typedefs since that is the worst case for
 // ELF files in archives.
@@ -742,7 +740,7 @@ template <class ELFT> struct Elf_CGProfile_Impl {
 template <class ELFT>
 struct Elf_Mips_RegInfo;
 
-template <support::endianness TargetEndianness>
+template <llvm::endianness TargetEndianness>
 struct Elf_Mips_RegInfo<ELFType<TargetEndianness, false>> {
   LLVM_ELF_IMPORT_TYPES(TargetEndianness, false)
   Elf_Word ri_gprmask;     // bit-mask of used general registers
@@ -750,7 +748,7 @@ struct Elf_Mips_RegInfo<ELFType<TargetEndianness, false>> {
   Elf_Addr ri_gp_value;    // gp register value
 };
 
-template <support::endianness TargetEndianness>
+template <llvm::endianness TargetEndianness>
 struct Elf_Mips_RegInfo<ELFType<TargetEndianness, true>> {
   LLVM_ELF_IMPORT_TYPES(TargetEndianness, true)
   Elf_Word ri_gprmask;     // bit-mask of used general registers
@@ -800,15 +798,19 @@ struct BBAddrMap {
   // Struct representing the BBAddrMap information for one basic block.
   struct BBEntry {
     struct Metadata {
-      bool HasReturn : 1;   // If this block ends with a return (or tail call).
-      bool HasTailCall : 1; // If this block ends with a tail call.
-      bool IsEHPad : 1;     // If this is an exception handling block.
-      bool CanFallThrough : 1; // If this block can fall through to its next.
+      bool HasReturn : 1;         // If this block ends with a return (or tail
+                                  // call).
+      bool HasTailCall : 1;       // If this block ends with a tail call.
+      bool IsEHPad : 1;           // If this is an exception handling block.
+      bool CanFallThrough : 1;    // If this block can fall through to its next.
+      bool HasIndirectBranch : 1; // If this block ends with an indirect branch
+                                  // (branch via a register).
 
       bool operator==(const Metadata &Other) const {
         return HasReturn == Other.HasReturn &&
                HasTailCall == Other.HasTailCall && IsEHPad == Other.IsEHPad &&
-               CanFallThrough == Other.CanFallThrough;
+               CanFallThrough == Other.CanFallThrough &&
+               HasIndirectBranch == Other.HasIndirectBranch;
       }
 
       // Encodes this struct as a uint32_t value.
@@ -816,7 +818,8 @@ struct BBAddrMap {
         return static_cast<uint32_t>(HasReturn) |
                (static_cast<uint32_t>(HasTailCall) << 1) |
                (static_cast<uint32_t>(IsEHPad) << 2) |
-               (static_cast<uint32_t>(CanFallThrough) << 3);
+               (static_cast<uint32_t>(CanFallThrough) << 3) |
+               (static_cast<uint32_t>(HasIndirectBranch) << 4);
       }
 
       // Decodes and returns a Metadata struct from a uint32_t value.
@@ -824,7 +827,8 @@ struct BBAddrMap {
         Metadata MD{/*HasReturn=*/static_cast<bool>(V & 1),
                     /*HasTailCall=*/static_cast<bool>(V & (1 << 1)),
                     /*IsEHPad=*/static_cast<bool>(V & (1 << 2)),
-                    /*CanFallThrough=*/static_cast<bool>(V & (1 << 3))};
+                    /*CanFallThrough=*/static_cast<bool>(V & (1 << 3)),
+                    /*HasIndirectBranch=*/static_cast<bool>(V & (1 << 4))};
         if (MD.encode() != V)
           return createStringError(
               std::error_code(), "invalid encoding for BBEntry::Metadata: 0x%x",
@@ -850,6 +854,7 @@ struct BBAddrMap {
     bool hasTailCall() const { return MD.HasTailCall; }
     bool isEHPad() const { return MD.IsEHPad; }
     bool canFallThrough() const { return MD.CanFallThrough; }
+    bool hasIndirectBranch() const { return MD.HasIndirectBranch; }
   };
   std::vector<BBEntry> BBEntries; // Basic block entries for this function.
 

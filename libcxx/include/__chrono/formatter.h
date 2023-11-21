@@ -38,13 +38,12 @@
 #include <__format/format_functions.h>
 #include <__format/format_parse_context.h>
 #include <__format/formatter.h>
-#include <__format/formatter_output.h>
 #include <__format/parser_std_format_spec.h>
+#include <__format/write_escaped.h>
 #include <__memory/addressof.h>
 #include <cmath>
 #include <ctime>
 #include <sstream>
-#include <string>
 #include <string_view>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -53,7 +52,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if _LIBCPP_STD_VER >= 20 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+#if _LIBCPP_STD_VER >= 20
 
 namespace __formatter {
 
@@ -101,12 +100,12 @@ __format_sub_seconds(const chrono::duration<_Rep, _Period>& __value, basic_strin
     // https://godbolt.org/z/6dsbnW8ba
     std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
                    _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}.0f}"),
-                   __fraction.count(),
+                   chrono::duration_cast<typename chrono::hh_mm_ss<__duration>::precision>(__fraction).count(),
                    chrono::hh_mm_ss<__duration>::fractional_width);
   else
     std::format_to(std::ostreambuf_iterator<_CharT>{__sstr},
                    _LIBCPP_STATICALLY_WIDEN(_CharT, "{:0{}}"),
-                   __fraction.count(),
+                   chrono::duration_cast<typename chrono::hh_mm_ss<__duration>::precision>(__fraction).count(),
                    chrono::hh_mm_ss<__duration>::fractional_width);
 }
 
@@ -270,20 +269,19 @@ _LIBCPP_HIDE_FROM_ABI void __format_chrono_using_chrono_specs(
         //
         // TODO FMT evaluate the comment above.
 
-#  if defined(__GLIBC__) || defined(_AIX)
+#  if defined(__GLIBC__) || defined(_AIX) || defined(_WIN32)
       case _CharT('y'):
         // Glibc fails for negative values, AIX for positive values too.
         __sstr << std::format(_LIBCPP_STATICALLY_WIDEN(_CharT, "{:02}"), (std::abs(__t.tm_year + 1900)) % 100);
         break;
-#  endif // defined(__GLIBC__) || defined(_AIX)
+#  endif // defined(__GLIBC__) || defined(_AIX) || defined(_WIN32)
 
-      case _CharT('Y'): {
-        int __year = __t.tm_year + 1900;
-        if (__year < 1000)
-          __formatter::__format_year(__year, __sstr);
-        else
-          __facet.put({__sstr}, __sstr, _CharT(' '), std::addressof(__t), std::to_address(__s), std::to_address(__it + 1));
-      } break;
+      case _CharT('Y'):
+        // Depending on the platform's libc the range of supported years is
+        // limited. Intead of of testing all conditions use the internal
+        // implementation unconditionally.
+        __formatter::__format_year(__t.tm_year + 1900, __sstr);
+        break;
 
       case _CharT('F'): {
         int __year = __t.tm_year + 1900;
@@ -515,19 +513,19 @@ __format_chrono(const _Tp& __value,
     } else {
       // Test __weekday_name_ before __weekday_ to give a better error.
       if (__specs.__chrono_.__weekday_name_ && !__formatter::__weekday_name_ok(__value))
-        std::__throw_format_error("formatting a weekday name needs a valid weekday");
+        std::__throw_format_error("Formatting a weekday name needs a valid weekday");
 
       if (__specs.__chrono_.__weekday_ && !__formatter::__weekday_ok(__value))
-        std::__throw_format_error("formatting a weekday needs a valid weekday");
+        std::__throw_format_error("Formatting a weekday needs a valid weekday");
 
       if (__specs.__chrono_.__day_of_year_ && !__formatter::__date_ok(__value))
-        std::__throw_format_error("formatting a day of year needs a valid date");
+        std::__throw_format_error("Formatting a day of year needs a valid date");
 
       if (__specs.__chrono_.__week_of_year_ && !__formatter::__date_ok(__value))
-        std::__throw_format_error("formatting a week of year needs a valid date");
+        std::__throw_format_error("Formatting a week of year needs a valid date");
 
       if (__specs.__chrono_.__month_name_ && !__formatter::__month_name_ok(__value))
-        std::__throw_format_error("formatting a month name from an invalid month number");
+        std::__throw_format_error("Formatting a month name from an invalid month number");
 
       if constexpr (__is_hh_mm_ss<_Tp>) {
         // Note this is a pedantic intepretation of the Standard. A hh_mm_ss
@@ -546,7 +544,7 @@ __format_chrono(const _Tp& __value,
         //   - Write it as not valid,
         //   - or write the number of days.
         if (__specs.__chrono_.__hour_ && __value.hours().count() > 23)
-          std::__throw_format_error("formatting a hour needs a valid value");
+          std::__throw_format_error("Formatting a hour needs a valid value");
 
         if (__value.is_negative())
           __sstr << _CharT('-');
@@ -556,9 +554,7 @@ __format_chrono(const _Tp& __value,
     }
   }
 
-  // TODO FMT Use the stringstream's view after P0408R7 has been implemented.
-  basic_string<_CharT> __str = __sstr.str();
-  return __formatter::__write_string(basic_string_view<_CharT>{__str}, __ctx.out(), __specs);
+  return __formatter::__write_string(__sstr.view(), __ctx.out(), __specs);
 }
 
 } // namespace __formatter
@@ -827,7 +823,7 @@ public:
     return _Base::__parse(__ctx, __format_spec::__fields_chrono, __format_spec::__flags::__time);
   }
 };
-#endif // if _LIBCPP_STD_VER >= 20 && !defined(_LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
+#endif // if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
 

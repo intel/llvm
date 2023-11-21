@@ -197,7 +197,7 @@ INTERCEPTOR(void*, pvalloc, uptr size) {
 #endif // SANITIZER_INTERCEPT_PVALLOC
 
 #if SANITIZER_INTERCEPT_CFREE
-INTERCEPTOR(void, cfree, void *p) ALIAS(WRAPPER_NAME(free));
+INTERCEPTOR(void, cfree, void *p) ALIAS(WRAP(free));
 #define LSAN_MAYBE_INTERCEPT_CFREE INTERCEPT_FUNCTION(cfree)
 #else
 #define LSAN_MAYBE_INTERCEPT_CFREE
@@ -440,14 +440,18 @@ INTERCEPTOR(int, pthread_create, void *th, void *attr,
             void *(*callback)(void *), void *param) {
   ENSURE_LSAN_INITED;
   EnsureMainThreadIDIsCorrect();
+
+  bool detached = [attr]() {
+    int d = 0;
+    return attr && !pthread_attr_getdetachstate(attr, &d) && IsStateDetached(d);
+  }();
+
   __sanitizer_pthread_attr_t myattr;
   if (!attr) {
     pthread_attr_init(&myattr);
     attr = &myattr;
   }
   AdjustStackSize(attr);
-  int detached = 0;
-  pthread_attr_getdetachstate(attr, &detached);
   uptr this_tid = GetCurrentThreadId();
   int result;
   {
@@ -457,11 +461,9 @@ INTERCEPTOR(int, pthread_create, void *th, void *attr,
     // objects, the latter are calculated by obscure pointer arithmetic.
     ScopedInterceptorDisabler disabler;
     GetThreadArgRetval().Create(detached, {callback, param}, [&]() -> uptr {
-      result = REAL(pthread_create)(th, attr,
-                                    IsStateDetached(detached)
-                                        ? ThreadStartFunc<true>
-                                        : ThreadStartFunc<false>,
-                                    (void *)this_tid);
+      result = REAL(pthread_create)(
+          th, attr, detached ? ThreadStartFunc<true> : ThreadStartFunc<false>,
+          (void *)this_tid);
       return result ? 0 : *(uptr *)(th);
     });
   }
@@ -531,6 +533,7 @@ INTERCEPTOR(void, _exit, int status) {
 }
 
 #define COMMON_INTERCEPT_FUNCTION(name) INTERCEPT_FUNCTION(name)
+#define SIGNAL_INTERCEPTOR_ENTER() ENSURE_LSAN_INITED
 #include "sanitizer_common/sanitizer_signal_interceptors.inc"
 
 #endif  // SANITIZER_POSIX

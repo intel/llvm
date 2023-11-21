@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -58,7 +57,12 @@
 // including the <format> header.
 
 #include <concepts>
+#include <cstddef>
 #include <format>
+#include <string_view>
+#include <string>
+#include <tuple>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -88,7 +92,7 @@ static_assert(std::semiregular<std::formatter<float, char>>);
 static_assert(std::semiregular<std::formatter<double, char>>);
 static_assert(std::semiregular<std::formatter<long double, char>>);
 
-static_assert(std::semiregular<std::formatter<nullptr_t, char>>);
+static_assert(std::semiregular<std::formatter<std::nullptr_t, char>>);
 static_assert(std::semiregular<std::formatter<void*, char>>);
 static_assert(std::semiregular<std::formatter<const void*, char>>);
 
@@ -126,7 +130,7 @@ static_assert(std::semiregular<std::formatter<float, wchar_t>>);
 static_assert(std::semiregular<std::formatter<double, wchar_t>>);
 static_assert(std::semiregular<std::formatter<long double, wchar_t>>);
 
-static_assert(std::semiregular<std::formatter<nullptr_t, wchar_t>>);
+static_assert(std::semiregular<std::formatter<std::nullptr_t, wchar_t>>);
 static_assert(std::semiregular<std::formatter<void*, wchar_t>>);
 static_assert(std::semiregular<std::formatter<const void*, wchar_t>>);
 

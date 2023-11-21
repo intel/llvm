@@ -163,7 +163,7 @@ public:
                                StringRef Constraint, MVT VT) const override;
 
   // Lower operand with C_Immediate and C_Other constraint type
-  void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
+  void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                     std::vector<SDValue> &Ops,
                                     SelectionDAG &DAG) const override;
 
@@ -187,7 +187,8 @@ public:
   Register
   getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
-  unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const override;
+  InlineAsm::ConstraintCode
+  getInlineAsmMemConstraint(StringRef ConstraintCode) const override;
 
 private:
   unsigned GetAlignedArgumentStackSize(unsigned StackSize,
@@ -245,6 +246,7 @@ private:
                           const SmallVectorImpl<ISD::InputArg> &Ins,
                           const SDLoc &DL, SelectionDAG &DAG,
                           SmallVectorImpl<SDValue> &InVals) const;
+  SDValue LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
 
   /// LowerFormalArguments - transform physical registers into virtual
   /// registers and generate load operations for arguments places on the stack.
@@ -268,6 +270,20 @@ private:
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
+
+  SDValue LowerExternalSymbolCall(SelectionDAG &DAG, SDLoc loc,
+                                  llvm::StringRef SymbolName,
+                                  ArgListTy &&ArgList) const;
+  SDValue getTLSGetAddr(GlobalAddressSDNode *GA, SelectionDAG &DAG,
+                        unsigned TargetFlags) const;
+  SDValue getM68kReadTp(SDLoc Loc, SelectionDAG &DAG) const;
+
+  SDValue LowerTLSGeneralDynamic(GlobalAddressSDNode *GA,
+                                 SelectionDAG &DAG) const;
+  SDValue LowerTLSLocalDynamic(GlobalAddressSDNode *GA,
+                               SelectionDAG &DAG) const;
+  SDValue LowerTLSInitialExec(GlobalAddressSDNode *GA, SelectionDAG &DAG) const;
+  SDValue LowerTLSLocalExec(GlobalAddressSDNode *GA, SelectionDAG &DAG) const;
 
   bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
                               SDValue C) const override;

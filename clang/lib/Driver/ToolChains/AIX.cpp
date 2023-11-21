@@ -12,6 +12,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Path.h"
@@ -29,6 +30,7 @@ void aix::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfoList &Inputs,
                                   const ArgList &Args,
                                   const char *LinkingOutput) const {
+  const Driver &D = getToolChain().getDriver();
   ArgStringList CmdArgs;
 
   const bool IsArch32Bit = getToolChain().getTriple().isArch32Bit();
@@ -36,6 +38,11 @@ void aix::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   // Only support 32 and 64 bit.
   if (!IsArch32Bit && !IsArch64Bit)
     llvm_unreachable("Unsupported bit width value.");
+
+  if (Arg *A = C.getArgs().getLastArg(options::OPT_G)) {
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << A->getSpelling() << D.getTargetTriple();
+  }
 
   // Specify the mode in which the as(1) command operates.
   if (IsArch32Bit) {
@@ -112,6 +119,11 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (!(IsArch32Bit || IsArch64Bit))
     llvm_unreachable("Unsupported bit width value.");
 
+  if (Arg *A = C.getArgs().getLastArg(options::OPT_G)) {
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << A->getSpelling() << D.getTargetTriple();
+  }
+
   // Force static linking when "-static" is present.
   if (Args.hasArg(options::OPT_static))
     CmdArgs.push_back("-bnso");
@@ -120,6 +132,17 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_shared)) {
     CmdArgs.push_back("-bM:SRE");
     CmdArgs.push_back("-bnoentry");
+  }
+
+  if (Args.hasFlag(options::OPT_mxcoff_roptr, options::OPT_mno_xcoff_roptr,
+                   false)) {
+    if (Args.hasArg(options::OPT_shared))
+      D.Diag(diag::err_roptr_cannot_build_shared);
+
+    // The `-mxcoff-roptr` option places constants in RO sections as much as
+    // possible. Then `-bforceimprw` changes such sections to RW if they contain
+    // imported symbols that need to be resolved.
+    CmdArgs.push_back("-bforceimprw");
   }
 
   // PGO instrumentation generates symbols belonging to special sections, and
@@ -398,13 +421,34 @@ void AIX::AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
   llvm_unreachable("Unexpected C++ library type; only libc++ is supported.");
 }
 
+void AIX::addClangTargetOptions(
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CC1Args,
+    Action::OffloadKind DeviceOffloadingKind) const {
+  Args.AddLastArg(CC1Args, options::OPT_mignore_xcoff_visibility);
+  Args.AddLastArg(CC1Args, options::OPT_mdefault_visibility_export_mapping_EQ);
+  Args.addOptInFlag(CC1Args, options::OPT_mxcoff_roptr, options::OPT_mno_xcoff_roptr);
+
+  if (Args.hasFlag(options::OPT_fxl_pragma_pack,
+                   options::OPT_fno_xl_pragma_pack, true))
+    CC1Args.push_back("-fxl-pragma-pack");
+}
+
 void AIX::addProfileRTLibs(const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) const {
-  // Add linker option -u__llvm_profile_runtime to cause runtime
-  // initialization to occur.
-  if (needsProfileRT(Args))
+  if (needsProfileRT(Args)) {
+    // Add linker option -u__llvm_profile_runtime to cause runtime
+    // initialization to occur.
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
+
+    if (const auto *A =
+            Args.getLastArgNoClaim(options::OPT_fprofile_update_EQ)) {
+      StringRef Val = A->getValue();
+      if (Val == "atomic" || Val == "prefer-atomic")
+        CmdArgs.push_back("-latomic");
+    }
+  }
+
   ToolChain::addProfileRTLibs(Args, CmdArgs);
 }
 

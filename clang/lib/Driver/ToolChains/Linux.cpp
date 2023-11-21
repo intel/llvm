@@ -213,7 +213,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     : Generic_ELF(D, Triple, Args) {
   GCCInstallation.init(Triple, Args);
   Multilibs = GCCInstallation.getMultilibs();
-  SelectedMultilib = GCCInstallation.getMultilib();
+  SelectedMultilibs.assign({GCCInstallation.getMultilib()});
   llvm::Triple::ArchType Arch = Triple.getArch();
   std::string SysRoot = computeSysRoot();
   ToolChain::path_list &PPaths = getProgramPaths();
@@ -257,8 +257,8 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   const bool IsRISCV = Triple.isRISCV();
   const bool IsCSKY = Triple.isCSKY();
 
-  if (IsCSKY)
-    SysRoot = SysRoot + SelectedMultilib.osSuffix();
+  if (IsCSKY && !SelectedMultilibs.empty())
+    SysRoot = SysRoot + SelectedMultilibs.back().osSuffix();
 
   if ((IsMips || IsCSKY) && !SysRoot.empty())
     ExtraOpts.push_back("--sysroot=" + SysRoot);
@@ -426,9 +426,17 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
 
   const Distro Distro(getDriver().getVFS(), Triple);
 
-  if (Triple.isAndroid())
+  if (Triple.isAndroid()) {
+    if (getSanitizerArgs(Args).needsHwasanRt() &&
+        !Triple.isAndroidVersionLT(34) && Triple.isArch64Bit()) {
+      // On Android 14 and newer, there is a special linker_hwasan64 that
+      // allows to run HWASan binaries on non-HWASan system images. This
+      // is also available on HWASan system images, so we can just always
+      // use that instead.
+      return "/system/bin/linker_hwasan64";
+    }
     return Triple.isArch64Bit() ? "/system/bin/linker64" : "/system/bin/linker";
-
+  }
   if (Triple.isMusl()) {
     std::string ArchName;
     bool IsArm = false;
@@ -787,18 +795,16 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   Res |= SanitizerKind::Memory;
   Res |= SanitizerKind::Vptr;
   Res |= SanitizerKind::SafeStack;
-  if (IsX86_64 || IsMIPS64 || IsAArch64)
+  if (IsX86_64 || IsMIPS64 || IsAArch64 || IsLoongArch64)
     Res |= SanitizerKind::DataFlow;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsArmArch || IsPowerPC64 ||
       IsRISCV64 || IsSystemZ || IsHexagon || IsLoongArch64)
     Res |= SanitizerKind::Leak;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsPowerPC64 || IsSystemZ ||
-      IsLoongArch64)
+      IsLoongArch64 || IsRISCV64)
     Res |= SanitizerKind::Thread;
   if (IsX86_64 || IsSystemZ)
     Res |= SanitizerKind::KernelMemory;
-  if (IsX86 || IsX86_64)
-    Res |= SanitizerKind::Function;
   if (IsX86_64 || IsMIPS64 || IsAArch64 || IsX86 || IsMIPS || IsArmArch ||
       IsPowerPC64 || IsHexagon || IsLoongArch64 || IsRISCV64)
     Res |= SanitizerKind::Scudo;
@@ -808,6 +814,9 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   if (IsX86_64 || IsAArch64) {
     Res |= SanitizerKind::KernelHWAddress;
   }
+  // Work around "Cannot represent a difference across sections".
+  if (getTriple().getArch() == llvm::Triple::ppc64)
+    Res &= ~SanitizerKind::Function;
   return Res;
 }
 

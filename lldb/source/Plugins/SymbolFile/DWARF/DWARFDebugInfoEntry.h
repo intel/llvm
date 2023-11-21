@@ -12,14 +12,15 @@
 #include "SymbolFileDWARF.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include "DWARFAbbreviationDeclaration.h"
+#include "DWARFAttribute.h"
 #include "DWARFBaseDIE.h"
-#include "DWARFDebugAbbrev.h"
 #include "DWARFDebugRanges.h"
 #include <map>
 #include <optional>
 #include <set>
 #include <vector>
+
+#include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
 
 class DWARFDeclContext;
 
@@ -92,8 +93,8 @@ public:
       uint64_t fail_value,
       bool check_specification_or_abstract_origin = false) const;
 
-  size_t GetAttributeAddressRanges(
-      DWARFUnit *cu, DWARFRangeList &ranges, bool check_hi_lo_pc,
+  DWARFRangeList GetAttributeAddressRanges(
+      DWARFUnit *cu, bool check_hi_lo_pc,
       bool check_specification_or_abstract_origin = false) const;
 
   const char *GetName(const DWARFUnit *cu) const;
@@ -111,7 +112,7 @@ public:
       std::optional<int> &call_column,
       lldb_private::DWARFExpressionList *frame_base = nullptr) const;
 
-  const DWARFAbbreviationDeclaration *
+  const llvm::DWARFAbbreviationDeclaration *
   GetAbbreviationDeclarationPtr(const DWARFUnit *cu) const;
 
   lldb::offset_t GetFirstAttributeOffset() const;

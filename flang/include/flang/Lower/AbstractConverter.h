@@ -101,6 +101,9 @@ public:
   virtual bool
   createHostAssociateVarClone(const Fortran::semantics::Symbol &sym) = 0;
 
+  virtual void
+  createHostAssociateVarCloneDealloc(const Fortran::semantics::Symbol &sym) = 0;
+
   virtual void copyHostAssociateVar(
       const Fortran::semantics::Symbol &sym,
       mlir::OpBuilder::InsertPoint *copyAssignIP = nullptr) = 0;
@@ -209,12 +212,10 @@ public:
 
   /// Register a runtime derived type information object symbol to ensure its
   /// object will be generated as a global.
-  virtual void registerRuntimeTypeInfo(mlir::Location loc,
-                                       SymbolRef typeInfoSym) = 0;
-
-  virtual void registerDispatchTableInfo(
-      mlir::Location loc,
-      const Fortran::semantics::DerivedTypeSpec *typeSpec) = 0;
+  virtual void
+  registerTypeInfo(mlir::Location loc, SymbolRef typeInfoSym,
+                   const Fortran::semantics::DerivedTypeSpec &typeSpec,
+                   fir::RecordType type) = 0;
 
   //===--------------------------------------------------------------------===//
   // Locations
@@ -227,6 +228,9 @@ public:
   /// Generate the location as converted from a CharBlock
   virtual mlir::Location genLocation(const Fortran::parser::CharBlock &) = 0;
 
+  /// Get the converter's current scope
+  virtual const Fortran::semantics::Scope &getCurrentScope() = 0;
+
   //===--------------------------------------------------------------------===//
   // FIR/MLIR
   //===--------------------------------------------------------------------===//
@@ -237,11 +241,18 @@ public:
   virtual mlir::ModuleOp &getModuleOp() = 0;
   /// Get the MLIRContext
   virtual mlir::MLIRContext &getMLIRContext() = 0;
-  /// Unique a symbol
+  /// Unique a symbol (add a containing scope specific prefix)
   virtual std::string mangleName(const Fortran::semantics::Symbol &) = 0;
-  /// Unique a derived type
+  /// Unique a derived type (add a containing scope specific prefix)
   virtual std::string
   mangleName(const Fortran::semantics::DerivedTypeSpec &) = 0;
+  /// Unique a compiler generated name (add a containing scope specific prefix)
+  virtual std::string mangleName(std::string &) = 0;
+  /// Return the field name for a derived type component inside a fir.record
+  /// type.
+  virtual std::string
+  getRecordTypeFieldName(const Fortran::semantics::Symbol &component) = 0;
+
   /// Get the KindMap.
   virtual const fir::KindMapping &getKindMap() = 0;
 

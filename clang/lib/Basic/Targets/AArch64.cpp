@@ -39,6 +39,12 @@ static constexpr Builtin::Info BuiltinInfo[] = {
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
+  {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+#include "clang/Basic/BuiltinsSME.def"
+
+#define BUILTIN(ID, TYPE, ATTRS)                                               \
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
 #define LANGBUILTIN(ID, TYPE, ATTRS, LANG)                                     \
   {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, LANG},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
@@ -238,8 +244,6 @@ void AArch64TargetInfo::fillValidCPUList(
 void AArch64TargetInfo::getTargetDefinesARMV81A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   Builder.defineMacro("__ARM_FEATURE_QRDMX", "1");
-  Builder.defineMacro("__ARM_FEATURE_ATOMICS", "1");
-  Builder.defineMacro("__ARM_FEATURE_CRC32", "1");
 }
 
 void AArch64TargetInfo::getTargetDefinesARMV82A(const LangOptions &Opts,
@@ -332,19 +336,20 @@ void AArch64TargetInfo::getTargetDefinesARMV94A(const LangOptions &Opts,
 void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
                                          MacroBuilder &Builder) const {
   // Target identification.
-  Builder.defineMacro("__aarch64__");
+  if (getTriple().isWindowsArm64EC()) {
+    // Define the same set of macros as would be defined on x86_64 to ensure that
+    // ARM64EC datatype layouts match those of x86_64 compiled code
+    Builder.defineMacro("__amd64__");
+    Builder.defineMacro("__amd64");
+    Builder.defineMacro("__x86_64");
+    Builder.defineMacro("__x86_64__");
+    Builder.defineMacro("__arm64ec__");
+  } else {
+    Builder.defineMacro("__aarch64__");
+  }
+
   // Inline assembly supports AArch64 flag outputs.
   Builder.defineMacro("__GCC_ASM_FLAG_OUTPUTS__");
-  // For bare-metal.
-  if (getTriple().getOS() == llvm::Triple::UnknownOS &&
-      getTriple().isOSBinFormatELF())
-    Builder.defineMacro("__ELF__");
-
-  // Target properties.
-  if (!getTriple().isOSWindows() && getTriple().isArch64Bit()) {
-    Builder.defineMacro("_LP64");
-    Builder.defineMacro("__LP64__");
-  }
 
   std::string CodeModel = getTargetOpts().CodeModel;
   if (CodeModel == "default")
@@ -421,7 +426,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasCRC)
     Builder.defineMacro("__ARM_FEATURE_CRC32", "1");
 
-  if (HasRCPC)
+  if (HasRCPC3)
+    Builder.defineMacro("__ARM_FEATURE_RCPC", "3");
+  else if (HasRCPC)
     Builder.defineMacro("__ARM_FEATURE_RCPC", "1");
 
   if (HasFMV)
@@ -677,6 +684,7 @@ bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
       .Case("bti", HasBTI)
       .Cases("ls64", "ls64_v", "ls64_accdata", HasLS64)
       .Case("wfxt", HasWFxT)
+      .Case("rcpc3", HasRCPC3)
       .Default(false);
 }
 
@@ -784,16 +792,19 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     if (Feature == "+sme") {
       HasSME = true;
       HasBFloat16 = true;
+      HasFullFP16 = true;
     }
     if (Feature == "+sme-f64f64") {
       HasSME = true;
       HasSMEF64F64 = true;
       HasBFloat16 = true;
+      HasFullFP16 = true;
     }
     if (Feature == "+sme-i16i64") {
       HasSME = true;
       HasSMEI16I64 = true;
       HasBFloat16 = true;
+      HasFullFP16 = true;
     }
     if (Feature == "+sb")
       HasSB = true;
@@ -931,6 +942,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasD128 = true;
     if (Feature == "+gcs")
       HasGCS = true;
+    if (Feature == "+rcpc3")
+      HasRCPC3 = true;
   }
 
   // Check features that are manually disabled by command line options.
@@ -966,7 +979,7 @@ bool AArch64TargetInfo::initFeatureMap(
   // Parse the CPU and add any implied features.
   std::optional<llvm::AArch64::CpuInfo> CpuInfo = llvm::AArch64::parseCpu(CPU);
   if (CpuInfo) {
-    uint64_t Exts = CpuInfo->getImpliedExtensions();
+    auto Exts = CpuInfo->getImpliedExtensions();
     std::vector<StringRef> CPUFeats;
     llvm::AArch64::getExtensionFeatures(Exts, CPUFeats);
     for (auto F : CPUFeats) {
@@ -1162,7 +1175,11 @@ const char *const AArch64TargetInfo::GCCRegNames[] = {
 
     // SVE predicate registers
     "p0",  "p1",  "p2",  "p3",  "p4",  "p5",  "p6",  "p7",  "p8",  "p9",  "p10",
-    "p11", "p12", "p13", "p14", "p15"
+    "p11", "p12", "p13", "p14", "p15",
+
+    // SVE predicate-as-counter registers
+    "pn0",  "pn1",  "pn2",  "pn3",  "pn4",  "pn5",  "pn6",  "pn7",  "pn8",
+    "pn9",  "pn10", "pn11", "pn12", "pn13", "pn14", "pn15"
 };
 
 ArrayRef<const char *> AArch64TargetInfo::getGCCRegNames() const {
@@ -1282,8 +1299,9 @@ bool AArch64TargetInfo::validateAsmConstraint(
     Info.setAllowsRegister();
     return true;
   case 'U':
-    if (Name[1] == 'p' && (Name[2] == 'l' || Name[2] == 'a')) {
-      // SVE predicate registers ("Upa"=P0-15, "Upl"=P0-P7)
+    if (Name[1] == 'p' &&
+        (Name[2] == 'l' || Name[2] == 'a' || Name[2] == 'h')) {
+      // SVE predicate registers ("Upa"=P0-15, "Upl"=P0-P7, "Uph"=P8-P15)
       Info.setAllowsRegister();
       Name += 2;
       return true;
@@ -1459,7 +1477,13 @@ MicrosoftARM64TargetInfo::MicrosoftARM64TargetInfo(const llvm::Triple &Triple,
 void MicrosoftARM64TargetInfo::getTargetDefines(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   WindowsARM64TargetInfo::getTargetDefines(Opts, Builder);
-  Builder.defineMacro("_M_ARM64", "1");
+  if (getTriple().isWindowsArm64EC()) {
+    Builder.defineMacro("_M_X64", "100");
+    Builder.defineMacro("_M_AMD64", "100");
+    Builder.defineMacro("_M_ARM64EC", "1");
+  } else {
+    Builder.defineMacro("_M_ARM64", "1");
+  }
 }
 
 TargetInfo::CallingConvKind
@@ -1523,7 +1547,6 @@ void DarwinAArch64TargetInfo::getOSDefines(const LangOptions &Opts,
   else
     Builder.defineMacro("__ARM64_ARCH_8__");
   Builder.defineMacro("__ARM_NEON__");
-  Builder.defineMacro("__LITTLE_ENDIAN__");
   Builder.defineMacro("__REGISTER_PREFIX__", "");
   Builder.defineMacro("__arm64", "1");
   Builder.defineMacro("__arm64__", "1");

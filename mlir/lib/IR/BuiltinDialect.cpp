@@ -60,6 +60,11 @@ struct BuiltinOpAsmDialectInterface : public OpAsmDialectInterface {
       os << "loc";
       return AliasResult::OverridableAlias;
     }
+    if (auto distinct = llvm::dyn_cast<DistinctAttr>(attr))
+      if (!llvm::isa<UnitAttr>(distinct.getReferencedAttr())) {
+        os << "distinct";
+        return AliasResult::OverridableAlias;
+      }
     return AliasResult::NoAlias;
   }
 
@@ -217,10 +222,12 @@ UnrealizedConversionCastOp::fold(FoldAdaptor adaptor,
   return success();
 }
 
-bool UnrealizedConversionCastOp::areCastCompatible(TypeRange inputs,
-                                                   TypeRange outputs) {
-  // `UnrealizedConversionCastOp` is agnostic of the input/output types.
-  return true;
+LogicalResult UnrealizedConversionCastOp::verify() {
+  // TODO: The verifier of external models is not called. This op verifier can
+  // be removed when that is fixed.
+  if (getNumResults() == 0)
+    return emitOpError() << "expected at least one result for cast operation";
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

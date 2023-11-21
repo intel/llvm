@@ -82,9 +82,10 @@ struct AMDGPUOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
           ExtReg = MIRBuilder.buildBitcast(S32, ExtReg).getReg(0);
       }
 
-      auto ToSGPR = MIRBuilder.buildIntrinsic(Intrinsic::amdgcn_readfirstlane,
-                                              {MRI.getType(ExtReg)}, false)
-        .addReg(ExtReg);
+      auto ToSGPR = MIRBuilder
+                        .buildIntrinsic(Intrinsic::amdgcn_readfirstlane,
+                                        {MRI.getType(ExtReg)})
+                        .addReg(ExtReg);
       ExtReg = ToSGPR.getReg(0);
     }
 
@@ -454,27 +455,28 @@ static void allocateHSAUserSGPRs(CCState &CCInfo,
                                  const SIRegisterInfo &TRI,
                                  SIMachineFunctionInfo &Info) {
   // FIXME: How should these inputs interact with inreg / custom SGPR inputs?
-  if (Info.hasPrivateSegmentBuffer()) {
+  const GCNUserSGPRUsageInfo &UserSGPRInfo = Info.getUserSGPRInfo();
+  if (UserSGPRInfo.hasPrivateSegmentBuffer()) {
     Register PrivateSegmentBufferReg = Info.addPrivateSegmentBuffer(TRI);
     MF.addLiveIn(PrivateSegmentBufferReg, &AMDGPU::SGPR_128RegClass);
     CCInfo.AllocateReg(PrivateSegmentBufferReg);
   }
 
-  if (Info.hasDispatchPtr()) {
+  if (UserSGPRInfo.hasDispatchPtr()) {
     Register DispatchPtrReg = Info.addDispatchPtr(TRI);
     MF.addLiveIn(DispatchPtrReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(DispatchPtrReg);
   }
 
   const Module *M = MF.getFunction().getParent();
-  if (Info.hasQueuePtr() &&
+  if (UserSGPRInfo.hasQueuePtr() &&
       AMDGPU::getCodeObjectVersion(*M) < AMDGPU::AMDHSA_COV5) {
     Register QueuePtrReg = Info.addQueuePtr(TRI);
     MF.addLiveIn(QueuePtrReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(QueuePtrReg);
   }
 
-  if (Info.hasKernargSegmentPtr()) {
+  if (UserSGPRInfo.hasKernargSegmentPtr()) {
     MachineRegisterInfo &MRI = MF.getRegInfo();
     Register InputPtrReg = Info.addKernargSegmentPtr(TRI);
     const LLT P4 = LLT::pointer(AMDGPUAS::CONSTANT_ADDRESS, 64);
@@ -485,13 +487,13 @@ static void allocateHSAUserSGPRs(CCState &CCInfo,
     CCInfo.AllocateReg(InputPtrReg);
   }
 
-  if (Info.hasDispatchID()) {
+  if (UserSGPRInfo.hasDispatchID()) {
     Register DispatchIDReg = Info.addDispatchID(TRI);
     MF.addLiveIn(DispatchIDReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(DispatchIDReg);
   }
 
-  if (Info.hasFlatScratchInit()) {
+  if (UserSGPRInfo.hasFlatScratchInit()) {
     Register FlatScratchInitReg = Info.addFlatScratchInit(TRI);
     MF.addLiveIn(FlatScratchInitReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(FlatScratchInitReg);
@@ -512,8 +514,6 @@ bool AMDGPUCallLowering::lowerFormalArgumentsKernel(
   const SITargetLowering &TLI = *getTLI<SITargetLowering>();
   const DataLayout &DL = F.getParent()->getDataLayout();
 
-  Info->allocateKnownAddressLDSGlobal(F);
-
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(F.getCallingConv(), F.isVarArg(), MF, ArgLocs, F.getContext());
 
@@ -521,7 +521,7 @@ bool AMDGPUCallLowering::lowerFormalArgumentsKernel(
 
   unsigned i = 0;
   const Align KernArgBaseAlign(16);
-  const unsigned BaseOffset = Subtarget->getExplicitKernelArgOffset(F);
+  const unsigned BaseOffset = Subtarget->getExplicitKernelArgOffset();
   uint64_t ExplicitArgOffset = 0;
 
   // TODO: Align down to dword alignment and extract bits for extending loads.
@@ -596,19 +596,18 @@ bool AMDGPUCallLowering::lowerFormalArguments(
   const SIRegisterInfo *TRI = Subtarget.getRegisterInfo();
   const DataLayout &DL = F.getParent()->getDataLayout();
 
-  Info->allocateKnownAddressLDSGlobal(F);
-
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CC, F.isVarArg(), MF, ArgLocs, F.getContext());
+  const GCNUserSGPRUsageInfo &UserSGPRInfo = Info->getUserSGPRInfo();
 
-  if (Info->hasImplicitBufferPtr()) {
+  if (UserSGPRInfo.hasImplicitBufferPtr()) {
     Register ImplicitBufferPtrReg = Info->addImplicitBufferPtr(*TRI);
     MF.addLiveIn(ImplicitBufferPtrReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(ImplicitBufferPtrReg);
   }
 
   // FIXME: This probably isn't defined for mesa
-  if (Info->hasFlatScratchInit() && !Subtarget.isAmdPalOS()) {
+  if (UserSGPRInfo.hasFlatScratchInit() && !Subtarget.isAmdPalOS()) {
     Register FlatScratchInitReg = Info->addFlatScratchInit(*TRI);
     MF.addLiveIn(FlatScratchInitReg, &AMDGPU::SGPR_64RegClass);
     CCInfo.AllocateReg(FlatScratchInitReg);
@@ -726,7 +725,7 @@ bool AMDGPUCallLowering::lowerFormalArguments(
   if (!handleAssignments(Handler, SplitArgs, CCInfo, ArgLocs, B))
     return false;
 
-  uint64_t StackOffset = Assigner.StackOffset;
+  uint64_t StackSize = Assigner.StackSize;
 
   // Start adding system SGPRs.
   if (IsEntryFunc) {
@@ -741,7 +740,7 @@ bool AMDGPUCallLowering::lowerFormalArguments(
   // the caller's stack. So, whenever we lower formal arguments, we should keep
   // track of this information, since we might lower a tail call in this
   // function later.
-  Info->setBytesInStackArgArea(StackOffset);
+  Info->setBytesInStackArgArea(StackSize);
 
   // Move back to the end of the basic block.
   B.setMBB(MBB);
@@ -1059,7 +1058,7 @@ bool AMDGPUCallLowering::areCalleeOutgoingArgsTailCallable(
 
   // Make sure that they can fit on the caller's stack.
   const SIMachineFunctionInfo *FuncInfo = MF.getInfo<SIMachineFunctionInfo>();
-  if (OutInfo.getNextStackOffset() > FuncInfo->getBytesInStackArgArea()) {
+  if (OutInfo.getStackSize() > FuncInfo->getBytesInStackArgArea()) {
     LLVM_DEBUG(dbgs() << "... Cannot fit call operands on caller's stack.\n");
     return false;
   }
@@ -1230,7 +1229,7 @@ bool AMDGPUCallLowering::lowerTailCall(
 
     // The callee will pop the argument stack as a tail call. Thus, we must
     // keep it 16-byte aligned.
-    NumBytes = alignTo(OutInfo.getNextStackOffset(), ST.getStackAlignment());
+    NumBytes = alignTo(OutInfo.getStackSize(), ST.getStackAlignment());
 
     // FPDiff will be negative if this tail call requires more space than we
     // would automatically have in our incoming argument space. Positive if we
@@ -1359,6 +1358,9 @@ bool AMDGPUCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   auto MIB = MIRBuilder.buildInstrNoInsert(Opc);
   MIB.addDef(TRI->getReturnAddressReg(MF));
 
+  if (!Info.IsConvergent)
+    MIB.setMIFlag(MachineInstr::NoConvergent);
+
   if (!addCallTargetOperands(MIB, MIRBuilder, Info))
     return false;
 
@@ -1396,7 +1398,7 @@ bool AMDGPUCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   handleImplicitCallArguments(MIRBuilder, MIB, ST, *MFI, ImplicitArgRegs);
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = CCInfo.getNextStackOffset();
+  unsigned NumBytes = CCInfo.getStackSize();
 
   // If Callee is a reg, since it is used by a target specific
   // instruction, it must have a register class matching the

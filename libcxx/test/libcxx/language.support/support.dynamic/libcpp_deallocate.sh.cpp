@@ -13,13 +13,13 @@
 // using those with -faligned-allocation results in a link error.
 // XFAIL: availability-aligned_allocation-missing
 
-// Libcxx when built for z/OS doesn't contain the aligned allocation functions,
+// Libc++ when built for z/OS doesn't contain the aligned allocation functions,
 // nor does the dynamic library shipped with z/OS.
 // UNSUPPORTED: target={{.+}}-zos{{.*}}
 
 // XFAIL: sanitizer-new-delete && !hwasan
 
-// It fails with clang-14 or clang-16, but passes with clang-15.
+// TODO: Investigate this failure
 // UNSUPPORTED: ubsan
 
 // GCC doesn't support the aligned-allocation flags.

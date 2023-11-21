@@ -30,8 +30,9 @@ namespace format {
   TYPE(ArrayInitializerLSquare)                                                \
   TYPE(ArraySubscriptLSquare)                                                  \
   TYPE(AttributeColon)                                                         \
+  TYPE(AttributeLParen)                                                        \
   TYPE(AttributeMacro)                                                         \
-  TYPE(AttributeParen)                                                         \
+  TYPE(AttributeRParen)                                                        \
   TYPE(AttributeSquare)                                                        \
   TYPE(BinaryOperator)                                                         \
   TYPE(BitFieldColon)                                                          \
@@ -41,7 +42,7 @@ namespace format {
   TYPE(CaseLabelColon)                                                         \
   TYPE(CastRParen)                                                             \
   TYPE(ClassLBrace)                                                            \
-  TYPE(CompoundRequirementLBrace)                                              \
+  TYPE(ClassRBrace)                                                            \
   /* ternary ?: expression */                                                  \
   TYPE(ConditionalExpr)                                                        \
   /* the condition in an if statement */                                       \
@@ -51,6 +52,7 @@ namespace format {
   TYPE(ConflictStart)                                                          \
   /* l_brace of if/for/while */                                                \
   TYPE(ControlStatementLBrace)                                                 \
+  TYPE(ControlStatementRBrace)                                                 \
   TYPE(CppCastLParen)                                                          \
   TYPE(CSharpGenericTypeConstraint)                                            \
   TYPE(CSharpGenericTypeConstraintColon)                                       \
@@ -61,11 +63,14 @@ namespace format {
   TYPE(CSharpStringLiteral)                                                    \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
+  TYPE(CtorDtorDeclName)                                                       \
   TYPE(DesignatedInitializerLSquare)                                           \
   TYPE(DesignatedInitializerPeriod)                                            \
   TYPE(DictLiteral)                                                            \
   TYPE(ElseLBrace)                                                             \
+  TYPE(ElseRBrace)                                                             \
   TYPE(EnumLBrace)                                                             \
+  TYPE(EnumRBrace)                                                             \
   TYPE(FatArrow)                                                               \
   TYPE(ForEachMacro)                                                           \
   TYPE(FunctionAnnotationRParen)                                               \
@@ -102,7 +107,9 @@ namespace format {
   TYPE(MacroBlockBegin)                                                        \
   TYPE(MacroBlockEnd)                                                          \
   TYPE(ModulePartitionColon)                                                   \
+  TYPE(NamespaceLBrace)                                                        \
   TYPE(NamespaceMacro)                                                         \
+  TYPE(NamespaceRBrace)                                                        \
   TYPE(NonNullAssertion)                                                       \
   TYPE(NullCoalescingEqual)                                                    \
   TYPE(NullCoalescingOperator)                                                 \
@@ -122,6 +129,7 @@ namespace format {
   TYPE(PureVirtualSpecifier)                                                   \
   TYPE(RangeBasedForLoopColon)                                                 \
   TYPE(RecordLBrace)                                                           \
+  TYPE(RecordRBrace)                                                           \
   TYPE(RegexLiteral)                                                           \
   TYPE(RequiresClause)                                                         \
   TYPE(RequiresClauseInARequiresExpression)                                    \
@@ -132,7 +140,13 @@ namespace format {
   TYPE(StartOfName)                                                            \
   TYPE(StatementAttributeLikeMacro)                                            \
   TYPE(StatementMacro)                                                         \
+  /* A string that is part of a string concatenation. For C#, JavaScript, and  \
+   * Java, it is used for marking whether a string needs parentheses around it \
+   * if it is to be split into parts joined by `+`. For Verilog, whether       \
+   * braces need to be added to split it. Not used for other languages. */     \
+  TYPE(StringInConcatenation)                                                  \
   TYPE(StructLBrace)                                                           \
+  TYPE(StructRBrace)                                                           \
   TYPE(StructuredBindingLSquare)                                               \
   TYPE(TemplateCloser)                                                         \
   TYPE(TemplateOpener)                                                         \
@@ -141,9 +155,11 @@ namespace format {
   TYPE(TrailingReturnArrow)                                                    \
   TYPE(TrailingUnaryOperator)                                                  \
   TYPE(TypeDeclarationParen)                                                   \
+  TYPE(TypeName)                                                               \
   TYPE(TypenameMacro)                                                          \
   TYPE(UnaryOperator)                                                          \
   TYPE(UnionLBrace)                                                            \
+  TYPE(UnionRBrace)                                                            \
   TYPE(UntouchableMacroFunc)                                                   \
   /* Like in 'assign x = 0, y = 1;' . */                                       \
   TYPE(VerilogAssignComma)                                                     \
@@ -156,6 +172,9 @@ namespace format {
   /* list of port connections or parameters in a module instantiation */       \
   TYPE(VerilogInstancePortComma)                                               \
   TYPE(VerilogInstancePortLParen)                                              \
+  /* A parenthesized list within which line breaks are inserted by the         \
+   * formatter, for example the list of ports in a module header. */           \
+  TYPE(VerilogMultiLineListLParen)                                             \
   /* for the base in a number literal, not including the quote */              \
   TYPE(VerilogNumberBase)                                                      \
   /* like `(strong1, pull0)` */                                                \
@@ -415,6 +434,12 @@ public:
   /// and thereby e.g. leave an empty line between two function definitions.
   unsigned NewlinesBefore = 0;
 
+  /// The number of newlines immediately before the \c Token after formatting.
+  ///
+  /// This is used to avoid overlapping whitespace replacements when \c Newlines
+  /// is recomputed for a finalized preprocessor branching directive.
+  int Newlines = -1;
+
   /// The offset just past the last '\n' in this token's leading
   /// whitespace (relative to \c WhiteSpaceStart). 0 if there is no '\n'.
   unsigned LastNewlineOffset = 0;
@@ -601,6 +626,10 @@ public:
 
   bool isStringLiteral() const { return tok::isStringLiteral(Tok.getKind()); }
 
+  bool isAttribute() const {
+    return isOneOf(tok::kw___attribute, tok::kw___declspec, TT_AttributeMacro);
+  }
+
   bool isObjCAtKeyword(tok::ObjCKeywordKind Kind) const {
     return Tok.isObjCAtKeyword(Kind);
   }
@@ -616,9 +645,10 @@ public:
 
   bool canBePointerOrReferenceQualifier() const {
     return isOneOf(tok::kw_const, tok::kw_restrict, tok::kw_volatile,
-                   tok::kw___attribute, tok::kw__Nonnull, tok::kw__Nullable,
+                   tok::kw__Nonnull, tok::kw__Nullable,
                    tok::kw__Null_unspecified, tok::kw___ptr32, tok::kw___ptr64,
-                   tok::kw___funcref, TT_AttributeMacro);
+                   tok::kw___funcref) ||
+           isAttribute();
   }
 
   /// Determine whether the token is a simple-type-specifier.
@@ -691,31 +721,22 @@ public:
   /// Returns \c true if this is a keyword that can be used
   /// like a function call (e.g. sizeof, typeid, ...).
   bool isFunctionLikeKeyword() const {
-    switch (Tok.getKind()) {
-    case tok::kw_throw:
-    case tok::kw_typeid:
-    case tok::kw_return:
-    case tok::kw_sizeof:
-    case tok::kw_alignof:
-    case tok::kw_alignas:
-    case tok::kw_decltype:
-    case tok::kw_noexcept:
-    case tok::kw_static_assert:
-    case tok::kw__Atomic:
-    case tok::kw___attribute:
-#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
-#include "clang/Basic/TransformTypeTraits.def"
-    case tok::kw_requires:
+    if (isAttribute())
       return true;
-    default:
-      return false;
-    }
+
+    return isOneOf(tok::kw_throw, tok::kw_typeid, tok::kw_return,
+                   tok::kw_sizeof, tok::kw_alignof, tok::kw_alignas,
+                   tok::kw_decltype, tok::kw_noexcept, tok::kw_static_assert,
+                   tok::kw__Atomic,
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) tok::kw___##Trait,
+#include "clang/Basic/TransformTypeTraits.def"
+                   tok::kw_requires);
   }
 
   /// Returns \c true if this is a string literal that's like a label,
   /// e.g. ends with "=" or ":".
   bool isLabelString() const {
-    if (!is(tok::string_literal))
+    if (isNot(tok::string_literal))
       return false;
     StringRef Content = TokenText;
     if (Content.startswith("\"") || Content.startswith("'"))
@@ -764,6 +785,9 @@ public:
       Tok = Tok->Next;
     return Tok;
   }
+
+  /// Returns \c true if this token ends a block indented initializer list.
+  [[nodiscard]] bool isBlockIndentedInitRBrace(const FormatStyle &Style) const;
 
   /// Returns \c true if this tokens starts a block-type list, i.e. a
   /// list that should be indented with a block indent.

@@ -42,8 +42,8 @@ struct TransferReadOpInterface
     return false;
   }
 
-  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
-                                            const AnalysisState &state) const {
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &opOperand,
+                                      const AnalysisState &state) const {
     return {};
   }
 
@@ -71,6 +71,37 @@ struct TransferReadOpInterface
 struct TransferWriteOpInterface
     : public DstBufferizableOpInterfaceExternalModel<TransferWriteOpInterface,
                                                      vector::TransferWriteOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              const AnalysisState &state) const {
+    auto writeOp = cast<vector::TransferWriteOp>(op);
+
+    // Does not bufferize to a memory read if the vector completely overwrites
+    // the buffer.
+
+    // Destination must have static shape.
+    if (!writeOp.getShapedType().hasStaticShape())
+      return true;
+
+    // All offsets must be 0.
+    for (Value offset : writeOp.getIndices()) {
+      if (getConstantIntValue(offset) != 0)
+        return true;
+    }
+
+    // There is no mask.
+    if (writeOp.isMasked())
+      return true;
+
+    // Must write at least the full dimension size.
+    for (auto [d0, d1] : llvm::zip(writeOp.getShapedType().getShape(),
+                                   writeOp.getVectorType().getShape())) {
+      if (d0 > d1)
+        return true;
+    }
+
+    return false;
+  }
+
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
     auto writeOp = cast<vector::TransferWriteOp>(op);
@@ -111,8 +142,8 @@ struct GatherOpInterface
     return false;
   }
 
-  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
-                                            const AnalysisState &state) const {
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &opOperand,
+                                      const AnalysisState &state) const {
     return {};
   }
 
@@ -138,13 +169,13 @@ struct MaskOpInterface
     : public BufferizableOpInterface::ExternalModel<MaskOpInterface,
                                                     vector::MaskOp> {
   AliasingOpOperandList
-  getAliasingOpOperands(Operation *op, OpResult opResult,
+  getAliasingOpOperands(Operation *op, Value value,
                         const AnalysisState &state) const {
     // MaskOps do not have tensor OpOperands. The yielded values are the result
     // of the wrapped op.
     auto maskOp = cast<vector::MaskOp>(op);
     size_t resultNum = std::distance(op->getOpResults().begin(),
-                                     llvm::find(op->getOpResults(), opResult));
+                                     llvm::find(op->getOpResults(), value));
     auto yieldOp =
         cast<vector::YieldOp>(maskOp.getMaskRegion().front().getTerminator());
     return {{&yieldOp->getOpOperand(resultNum), BufferRelation::Equivalent}};
@@ -234,8 +265,8 @@ struct YieldOpInterface
     return false;
   }
 
-  AliasingOpResultList getAliasingOpResults(Operation *op, OpOperand &opOperand,
-                                            const AnalysisState &state) const {
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &opOperand,
+                                      const AnalysisState &state) const {
     return {{op->getParentOp()->getResult(opOperand.getOperandNumber()),
              BufferRelation::Equivalent}};
   }

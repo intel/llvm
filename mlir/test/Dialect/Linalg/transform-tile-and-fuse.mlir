@@ -32,7 +32,7 @@ module {
         ins(%C, %6 : tensor<?xf32>, tensor<?x?xf32>)
         outs(%D : tensor<?x?xf32>) {
     ^bb0(%arg2: f32, %arg3: f32, %arg4: f32):
-      %16 = arith.maxf %arg3, %cst : f32
+      %16 = arith.maximumf %arg3, %cst : f32
       %17 = arith.cmpf ogt, %arg2, %cst : f32
       %18 = arith.select %17, %cst, %16 : f32
       linalg.yield %18 : f32
@@ -41,22 +41,24 @@ module {
   }
 
   transform.sequence failures(propagate) {
-  ^bb1(%arg1: !pdl.operation):
+  ^bb1(%arg1: !transform.any_op):
     // Find the root and all producers.
-    %root = transform.structured.match attributes{"__root__"} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %producers = transform.structured.match attributes{"__producer__"} in %arg1 : (!pdl.operation) -> !pdl.operation
+    %root = transform.structured.match attributes{"__root__"} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %producers = transform.structured.match attributes{"__producer__"} in %arg1 : (!transform.any_op) -> !transform.any_op
 
     // Tile the root.
-    %forall_op, %tiled_op = transform.structured.tile_to_forall_op %root num_threads [10, 20]
+    %tiled_op, %forall_op = transform.structured.tile_using_forall %root num_threads [10, 20]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     // Fuse all producers.
     transform.structured.fuse_into_containing_op %producers into %forall_op
+      : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
   }
 }
 
 // -----
 
-// Inverse the order of the payload ops passed to the tile_to_forall_op
+// Inverse the order of the payload ops passed to the tile_using_forall
 // op. Fusion should still work.
 
 module {
@@ -89,7 +91,7 @@ module {
         ins(%C, %6 : tensor<?xf32>, tensor<?x?xf32>)
         outs(%D : tensor<?x?xf32>) {
     ^bb0(%arg2: f32, %arg3: f32, %arg4: f32):
-      %16 = arith.maxf %arg3, %cst : f32
+      %16 = arith.maximumf %arg3, %cst : f32
       %17 = arith.cmpf ogt, %arg2, %cst : f32
       %18 = arith.select %17, %cst, %16 : f32
       linalg.yield %18 : f32
@@ -98,16 +100,18 @@ module {
   }
 
   transform.sequence failures(propagate) {
-  ^bb1(%arg1: !pdl.operation):
+  ^bb1(%arg1: !transform.any_op):
     // Find the root and all producers.
-    %root = transform.structured.match attributes{"__root__"} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %producers = transform.structured.match attributes{"__producer__"} in %arg1 : (!pdl.operation) -> !pdl.operation
-    %reversed_producers = transform.test_reverse_payload_ops %producers
+    %root = transform.structured.match attributes{"__root__"} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %producers = transform.structured.match attributes{"__producer__"} in %arg1 : (!transform.any_op) -> !transform.any_op
+    %reversed_producers = transform.test_reverse_payload_ops %producers : (!transform.any_op) -> !transform.any_op
 
     // Tile the root.
-    %forall_op, %tiled_op = transform.structured.tile_to_forall_op %root num_threads [10, 20]
+    %tiled_op, %forall_op = transform.structured.tile_using_forall %root num_threads [10, 20]
+         : (!transform.any_op) -> (!transform.any_op, !transform.any_op)
 
     // Fuse all producers.
     transform.structured.fuse_into_containing_op %reversed_producers into %forall_op
+      : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
   }
 }

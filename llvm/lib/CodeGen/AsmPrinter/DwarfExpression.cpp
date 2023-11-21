@@ -414,6 +414,7 @@ void DwarfExpression::beginEntryValueExpression(
 
   SavedLocationKind = LocationKind;
   LocationKind = Register;
+  LocationFlags |= EntryValue;
   IsEmittingEntryValue = true;
   enableTemporaryBuffer();
 }
@@ -566,6 +567,12 @@ bool DwarfExpression::addExpression(
     case dwarf::DW_OP_dup:
     case dwarf::DW_OP_push_object_address:
     case dwarf::DW_OP_over:
+    case dwarf::DW_OP_eq:
+    case dwarf::DW_OP_ne:
+    case dwarf::DW_OP_gt:
+    case dwarf::DW_OP_ge:
+    case dwarf::DW_OP_lt:
+    case dwarf::DW_OP_le:
       emitOp(OpNum);
       break;
     case dwarf::DW_OP_deref:

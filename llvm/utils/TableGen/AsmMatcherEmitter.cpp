@@ -630,6 +630,17 @@ struct MatchableInfo {
         return false;
     }
 
+    // For X86 AVX/AVX512 instructions, we prefer vex encoding because the
+    // vex encoding size is smaller. Since X86InstrSSE.td is included ahead
+    // of X86InstrAVX512.td, the AVX instruction ID is less than AVX512 ID.
+    // We use the ID to sort AVX instruction before AVX512 instruction in
+    // matching table.
+    if (TheDef->isSubClassOf("Instruction") &&
+        TheDef->getValueAsBit("HasPositionOrder") &&
+        RHS.TheDef->isSubClassOf("Instruction") &&
+        RHS.TheDef->getValueAsBit("HasPositionOrder"))
+      return TheDef->getID() < RHS.TheDef->getID();
+
     // Give matches that require more features higher precedence. This is useful
     // because we cannot define AssemblerPredicates with the negation of
     // processor features. For example, ARM v6 "nop" may be either a HINT or
@@ -638,15 +649,6 @@ struct MatchableInfo {
     // requires V6 while MOV does not.
     if (RequiredFeatures.size() != RHS.RequiredFeatures.size())
       return RequiredFeatures.size() > RHS.RequiredFeatures.size();
-
-    // For X86 AVX/AVX512 instructions, we prefer vex encoding because the
-    // vex encoding size is smaller. Since X86InstrSSE.td is included ahead
-    // of X86InstrAVX512.td, the AVX instruction ID is less than AVX512 ID.
-    // We use the ID to sort AVX instruction before AVX512 instruction in
-    // matching table.
-    if (TheDef->isSubClassOf("Instruction") &&
-        TheDef->getValueAsBit("HasPositionOrder"))
-      return TheDef->getID() < RHS.TheDef->getID();
 
     return false;
   }
@@ -2925,7 +2927,7 @@ emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
 
   // Emit the operand class switch to call the correct custom parser for
   // the found operand class.
-  OS << "OperandMatchResultTy " << Target.getName() << ClassName << "::\n"
+  OS << "ParseStatus " << Target.getName() << ClassName << "::\n"
      << "tryCustomParseOperand(OperandVector"
      << " &Operands,\n                      unsigned MCK) {\n\n"
      << "  switch(MCK) {\n";
@@ -2938,15 +2940,15 @@ emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
   }
 
   OS << "  default:\n";
-  OS << "    return MatchOperand_NoMatch;\n";
+  OS << "    return ParseStatus::NoMatch;\n";
   OS << "  }\n";
-  OS << "  return MatchOperand_NoMatch;\n";
+  OS << "  return ParseStatus::NoMatch;\n";
   OS << "}\n\n";
 
   // Emit the static custom operand parser. This code is very similar with
   // the other matcher. Also use MatchResultTy here just in case we go for
   // a better error handling.
-  OS << "OperandMatchResultTy " << Target.getName() << ClassName << "::\n"
+  OS << "ParseStatus " << Target.getName() << ClassName << "::\n"
      << "MatchOperandParserImpl(OperandVector"
      << " &Operands,\n                       StringRef Mnemonic,\n"
      << "                       bool ParseForAllFeatures) {\n";
@@ -2977,7 +2979,7 @@ emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
   }
 
   OS << "  if (MnemonicRange.first == MnemonicRange.second)\n";
-  OS << "    return MatchOperand_NoMatch;\n\n";
+  OS << "    return ParseStatus::NoMatch;\n\n";
 
   OS << "  for (const OperandMatchEntry *it = MnemonicRange.first,\n"
      << "       *ie = MnemonicRange.second; it != ie; ++it) {\n";
@@ -3003,14 +3005,13 @@ emitCustomOperandParsing(raw_ostream &OS, CodeGenTarget &Target,
   if (ParserName.empty())
     ParserName = "tryCustomParseOperand";
   OS << "    // call custom parse method to handle the operand\n";
-  OS << "    OperandMatchResultTy Result = " << ParserName
-     << "(Operands, it->Class);\n";
-  OS << "    if (Result != MatchOperand_NoMatch)\n";
+  OS << "    ParseStatus Result = " << ParserName << "(Operands, it->Class);\n";
+  OS << "    if (!Result.isNoMatch())\n";
   OS << "      return Result;\n";
   OS << "  }\n\n";
 
   OS << "  // Okay, we had no match.\n";
-  OS << "  return MatchOperand_NoMatch;\n";
+  OS << "  return ParseStatus::NoMatch;\n";
   OS << "}\n\n";
 }
 
@@ -3203,7 +3204,7 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
   Record *AsmParser = Target.getAsmParser();
   StringRef ClassName = AsmParser->getValueAsString("AsmParserClassName");
 
-  emitSourceFileHeader("Assembly Matcher Source Fragment", OS);
+  emitSourceFileHeader("Assembly Matcher Source Fragment", OS, Records);
 
   // Compute the information on the instructions to match.
   AsmMatcherInfo Info(AsmParser, Target, Records);
@@ -3306,12 +3307,12 @@ void AsmMatcherEmitter::run(raw_ostream &OS) {
 
 
   if (!Info.OperandMatchInfo.empty()) {
-    OS << "  OperandMatchResultTy MatchOperandParserImpl(\n";
+    OS << "  ParseStatus MatchOperandParserImpl(\n";
     OS << "    OperandVector &Operands,\n";
     OS << "    StringRef Mnemonic,\n";
     OS << "    bool ParseForAllFeatures = false);\n";
 
-    OS << "  OperandMatchResultTy tryCustomParseOperand(\n";
+    OS << "  ParseStatus tryCustomParseOperand(\n";
     OS << "    OperandVector &Operands,\n";
     OS << "    unsigned MCK);\n\n";
   }

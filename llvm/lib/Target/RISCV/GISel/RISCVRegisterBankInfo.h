@@ -31,7 +31,13 @@ protected:
 /// This class provides the information for the target register banks.
 class RISCVRegisterBankInfo final : public RISCVGenRegisterBankInfo {
 public:
-  RISCVRegisterBankInfo(const TargetRegisterInfo &TRI);
+  RISCVRegisterBankInfo(unsigned HwMode);
+
+  const RegisterBank &getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                             LLT Ty) const override;
+
+  const InstructionMapping &
+  getInstrMapping(const MachineInstr &MI) const override;
 };
 } // end namespace llvm
 #endif

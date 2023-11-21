@@ -555,6 +555,14 @@ size_t ObjectFileELF::GetModuleSpecifications(
     if (header.Parse(data, &header_offset)) {
       if (data_sp) {
         ModuleSpec spec(file);
+        // In Android API level 23 and above, bionic dynamic linker is able to
+        // load .so file directly from zip file. In that case, .so file is
+        // page aligned and uncompressed, and this module spec should retain the
+        // .so file offset and file size to pass through the information from
+        // lldb-server to LLDB. For normal file, file_offset should be 0,
+        // length should be the size of the file.
+        spec.SetObjectOffset(file_offset);
+        spec.SetObjectSize(length);
 
         const uint32_t sub_type = subTypeFromElfHeader(header);
         spec.GetArchitecture().SetArchitecture(
@@ -586,8 +594,12 @@ size_t ObjectFileELF::GetModuleSpecifications(
                       __FUNCTION__, file.GetPath().c_str());
           }
 
+          // When ELF file does not contain GNU build ID, the later code will
+          // calculate CRC32 with this data_sp file_offset and length. It is
+          // important for Android zip .so file, which is a slice of a file,
+          // to not access the outside of the file slice range.
           if (data_sp->GetByteSize() < length)
-            data_sp = MapFileData(file, -1, file_offset);
+            data_sp = MapFileData(file, length, file_offset);
           if (data_sp)
             data.SetData(data_sp);
           // In case there is header extension in the section #0, the header we
@@ -923,6 +935,16 @@ lldb_private::Address ObjectFileELF::GetEntryPointAddress() {
 }
 
 Address ObjectFileELF::GetBaseAddress() {
+  if (GetType() == ObjectFile::eTypeObjectFile) {
+    for (SectionHeaderCollIter I = std::next(m_section_headers.begin());
+         I != m_section_headers.end(); ++I) {
+      const ELFSectionHeaderInfo &header = *I;
+      if (header.sh_flags & SHF_ALLOC)
+        return Address(GetSectionList()->FindSectionByID(SectionIndex(I)), 0);
+    }
+    return LLDB_INVALID_ADDRESS;
+  }
+
   for (const auto &EnumPHdr : llvm::enumerate(ProgramHeaders())) {
     const ELFProgramHeader &H = EnumPHdr.value();
     if (H.p_type != PT_LOAD)
@@ -1661,11 +1683,13 @@ static SectionType GetSectionTypeFromName(llvm::StringRef Name) {
       .Case(".ARM.exidx", eSectionTypeARMexidx)
       .Case(".ARM.extab", eSectionTypeARMextab)
       .Cases(".bss", ".tbss", eSectionTypeZeroFill)
+      .Case(".ctf", eSectionTypeDebug)
       .Cases(".data", ".tdata", eSectionTypeData)
       .Case(".eh_frame", eSectionTypeEHFrame)
       .Case(".gnu_debugaltlink", eSectionTypeDWARFGNUDebugAltLink)
       .Case(".gosymtab", eSectionTypeGoSymtab)
       .Case(".text", eSectionTypeCode)
+      .Case(".swift_ast", eSectionTypeSwiftModules)
       .Default(eSectionTypeOther);
 }
 
@@ -1750,7 +1774,12 @@ class VMAddressProvider {
   VMRange GetVMRange(const ELFSectionHeader &H) {
     addr_t Address = H.sh_addr;
     addr_t Size = H.sh_flags & SHF_ALLOC ? H.sh_size : 0;
-    if (ObjectType == ObjectFile::Type::eTypeObjectFile && Segments.empty() && (H.sh_flags & SHF_ALLOC)) {
+
+    // When this is a debug file for relocatable file, the address is all zero
+    // and thus needs to use accumulate method
+    if ((ObjectType == ObjectFile::Type::eTypeObjectFile ||
+         (ObjectType == ObjectFile::Type::eTypeDebugInfo && H.sh_addr == 0)) &&
+        Segments.empty() && (H.sh_flags & SHF_ALLOC)) {
       NextVMAddress =
           llvm::alignTo(NextVMAddress, std::max<addr_t>(H.sh_addralign, 1));
       Address = NextVMAddress;
@@ -3440,10 +3469,28 @@ ObjectFile::Strata ObjectFileELF::CalculateStrata() {
 
   case llvm::ELF::ET_EXEC:
     // 2 - Executable file
-    // TODO: is there any way to detect that an executable is a kernel
-    // related executable by inspecting the program headers, section headers,
-    // symbols, or any other flag bits???
-    return eStrataUser;
+    {
+      SectionList *section_list = GetSectionList();
+      if (section_list) {
+        static ConstString loader_section_name(".interp");
+        SectionSP loader_section =
+            section_list->FindSectionByName(loader_section_name);
+        if (loader_section) {
+          char buffer[256];
+          size_t read_size =
+              ReadSectionData(loader_section.get(), 0, buffer, sizeof(buffer));
+
+          // We compare the content of .interp section
+          // It will contains \0 when counting read_size, so the size needs to
+          // decrease by one
+          llvm::StringRef loader_name(buffer, read_size - 1);
+          llvm::StringRef freebsd_kernel_loader_name("/red/herring");
+          if (loader_name.equals(freebsd_kernel_loader_name))
+            return eStrataKernel;
+        }
+      }
+      return eStrataUser;
+    }
 
   case llvm::ELF::ET_DYN:
     // 3 - Shared object file

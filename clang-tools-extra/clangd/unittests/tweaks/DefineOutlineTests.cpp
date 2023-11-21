@@ -11,8 +11,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using ::testing::ElementsAre;
-
 namespace clang {
 namespace clangd {
 namespace {
@@ -135,6 +133,12 @@ TEST_F(DefineOutlineTest, ApplyTest) {
           "void fo^o() { return; }",
           "void foo() ;",
           "void foo() { return; }",
+      },
+      // Inline specifier.
+      {
+          "inline void fo^o() { return; }",
+          " void foo() ;",
+          " void foo() { return; }",
       },
       // Default args.
       {
@@ -318,6 +322,17 @@ TEST_F(DefineOutlineTest, ApplyTest) {
               explicit explicit Foo(int) ;
             };)cpp",
           "  Foo::Foo(int) {}\n",
+      },
+      {
+          R"cpp(
+            struct A {
+              inline void f^oo(int) {}
+            };)cpp",
+          R"cpp(
+            struct A {
+               void foo(int) ;
+            };)cpp",
+          " void A::foo(int) {}\n",
       },
       // Destrctors
       {

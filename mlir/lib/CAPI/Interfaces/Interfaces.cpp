@@ -47,7 +47,7 @@ SmallVector<Value> unwrapOperands(intptr_t nOperands, MlirValue *operands) {
 DictionaryAttr unwrapAttributes(MlirAttribute attributes) {
   DictionaryAttr attributeDict;
   if (!mlirAttributeIsNull(attributes))
-    attributeDict = unwrap(attributes).cast<DictionaryAttr>();
+    attributeDict = llvm::cast<DictionaryAttr>(unwrap(attributes));
   return attributeDict;
 }
 
@@ -152,7 +152,7 @@ MlirLogicalResult mlirInferShapedTypeOpInterfaceInferReturnTypes(
   bool hasRank;
   intptr_t rank;
   const int64_t *shapeData;
-  for (ShapedTypeComponents t : inferredTypeComponents) {
+  for (const ShapedTypeComponents &t : inferredTypeComponents) {
     if (t.hasRank()) {
       hasRank = true;
       rank = t.getDims().size();

@@ -9,8 +9,6 @@
 #ifndef LLDB_LLDB_PRIVATE_TYPES_H
 #define LLDB_LLDB_PRIVATE_TYPES_H
 
-#if defined(__cplusplus)
-
 #include "lldb/lldb-private.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -121,8 +119,8 @@ using ValueObjectProviderTy =
 
 typedef void (*DebuggerDestroyCallback)(lldb::user_id_t debugger_id,
                                         void *baton);
+typedef bool (*CommandOverrideCallbackWithResult)(
+    void *baton, const char **argv, lldb_private::CommandReturnObject &result);
 } // namespace lldb_private
-
-#endif // #if defined(__cplusplus)
 
 #endif // LLDB_LLDB_PRIVATE_TYPES_H

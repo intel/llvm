@@ -568,6 +568,15 @@ class TargetRegisterInfo;
     bool StressSched;
 #endif
 
+    // This class is designed to be passed by reference only. Copy constructor
+    // is declared as deleted here to make the derived classes have deleted
+    // implicit-declared copy constructor, which suppresses the warnings from
+    // static analyzer when the derived classes own resources that are freed in
+    // their destructors, but don't have user-written copy constructors (rule
+    // of three).
+    ScheduleDAG(const ScheduleDAG &) = delete;
+    ScheduleDAG &operator=(const ScheduleDAG &) = delete;
+
     explicit ScheduleDAG(MachineFunction &mf);
 
     virtual ~ScheduleDAG();
@@ -757,7 +766,7 @@ class TargetRegisterInfo;
     /// be added from SUnit \p X to SUnit \p Y.
     void AddPredQueued(SUnit *Y, SUnit *X);
 
-    /// Updates the topological ordering to accommodate an an edge to be
+    /// Updates the topological ordering to accommodate an edge to be
     /// removed from the specified node \p N from the predecessors of the
     /// current node \p M.
     void RemovePred(SUnit *M, SUnit *N);

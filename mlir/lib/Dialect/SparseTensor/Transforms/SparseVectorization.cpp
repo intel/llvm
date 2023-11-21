@@ -56,8 +56,7 @@ static bool isInvariantArg(BlockArgument arg, Block *block) {
 
 /// Constructs vector type for element type.
 static VectorType vectorType(VL vl, Type etp) {
-  unsigned numScalableDims = vl.enableVLAVectorization;
-  return VectorType::get(vl.vectorLength, etp, numScalableDims);
+  return VectorType::get(vl.vectorLength, etp, vl.enableVLAVectorization);
 }
 
 /// Constructs vector type from a memref value.
@@ -505,8 +504,15 @@ static bool vectorizeExpr(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
 /// that analysis and rewriting code stay in sync.
 static bool vectorizeStmt(PatternRewriter &rewriter, scf::ForOp forOp, VL vl,
                           bool codegen) {
-  Location loc = forOp.getLoc();
   Block &block = forOp.getRegion().front();
+  // For loops with single yield statement (as below) could be generated
+  // when custom reduce is used with unary operation.
+  // for (...)
+  //   yield c_0
+  if (block.getOperations().size() <= 1)
+    return false;
+
+  Location loc = forOp.getLoc();
   scf::YieldOp yield = cast<scf::YieldOp>(block.getTerminator());
   auto &last = *++block.rbegin();
   scf::ForOp forOpNew;

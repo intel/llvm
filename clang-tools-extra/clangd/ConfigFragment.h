@@ -235,10 +235,6 @@ struct Fragment {
     /// - std::nullopt
     std::optional<Located<std::string>> UnusedIncludes;
 
-
-    /// Enable emitting diagnostics using stale preambles.
-    std::optional<Located<bool>> AllowStalePreamble;
-
     /// Controls if clangd should analyze missing #include directives.
     /// clangd will warn if no header providing a symbol is `#include`d
     /// (missing) directly, and suggest adding it.
@@ -322,10 +318,21 @@ struct Fragment {
     std::optional<Located<bool>> DeducedTypes;
     /// Show designators in aggregate initialization.
     std::optional<Located<bool>> Designators;
+    /// Show defined symbol names at the end of a definition block.
+    std::optional<Located<bool>> BlockEnd;
     /// Limit the length of type name hints. (0 means no limit)
     std::optional<Located<uint32_t>> TypeNameLimit;
   };
   InlayHintsBlock InlayHints;
+
+  /// Configures semantic tokens that are produced by clangd.
+  struct SemanticTokensBlock {
+    /// Disables clangd to produce semantic tokens for the given kinds.
+    std::vector<Located<std::string>> DisabledKinds;
+    /// Disables clangd to assign semantic tokens with the given modifiers.
+    std::vector<Located<std::string>> DisabledModifiers;
+  };
+  SemanticTokensBlock SemanticTokens;
 };
 
 } // namespace config

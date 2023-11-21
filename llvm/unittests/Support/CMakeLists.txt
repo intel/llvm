@@ -14,6 +14,7 @@ add_llvm_unittest(SupportTests
   BinaryStreamTest.cpp
   BLAKE3Test.cpp
   BlockFrequencyTest.cpp
+  BalancedPartitioningTest.cpp
   BranchProbabilityTest.cpp
   CachePruningTest.cpp
   CrashRecoveryTest.cpp
@@ -40,7 +41,6 @@ add_llvm_unittest(SupportTests
   ExtensibleRTTITest.cpp
   FileCollectorTest.cpp
   FileOutputBufferTest.cpp
-  FileUtilitiesTest.cpp
   FormatVariadicTest.cpp
   FSUniqueIDTest.cpp
   GlobPatternTest.cpp
@@ -74,13 +74,14 @@ add_llvm_unittest(SupportTests
   ScaledNumberTest.cpp
   ScopedPrinterTest.cpp
   SHA256.cpp
+  SignalsTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
   SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
   TarWriterTest.cpp
-  TaskQueueTest.cpp
   ThreadPool.cpp
+  ThreadSafeAllocatorTest.cpp
   Threading.cpp
   TimerTest.cpp
   TimeProfilerTest.cpp
@@ -89,8 +90,8 @@ add_llvm_unittest(SupportTests
   TypeSizeTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
-  TrigramIndexTest.cpp
   UnicodeTest.cpp
+  UTCTimeTest.cpp
   VersionTupleTest.cpp
   VirtualFileSystemTest.cpp
   WithColorTest.cpp
@@ -103,6 +104,9 @@ add_llvm_unittest(SupportTests
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
   xxhashTest.cpp
+
+  DEPENDS
+  intrinsics_gen
   )
 
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport)

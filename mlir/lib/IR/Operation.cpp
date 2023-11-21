@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
@@ -91,7 +92,7 @@ Operation *Operation::create(Location location, OperationName name,
   unsigned numSuccessors = successors.size();
   unsigned numOperands = operands.size();
   unsigned numResults = resultTypes.size();
-  int opPropertiesAllocSize = name.getOpPropertyByteSize();
+  int opPropertiesAllocSize = llvm::alignTo<8>(name.getOpPropertyByteSize());
 
   // If the operation is known to have no operands, don't allocate an operand
   // storage.
@@ -303,18 +304,34 @@ DictionaryAttr Operation::getAttrDictionary() {
 void Operation::setAttrs(DictionaryAttr newAttrs) {
   assert(newAttrs && "expected valid attribute dictionary");
   if (getPropertiesStorageSize()) {
-    attrs = DictionaryAttr::get(getContext(), {});
-    for (const NamedAttribute &attr : newAttrs)
-      setAttr(attr.getName(), attr.getValue());
-    return;
+    // We're spliting the providing DictionaryAttr by removing the inherentAttr
+    // which will be stored in the properties.
+    SmallVector<NamedAttribute> discardableAttrs;
+    discardableAttrs.reserve(newAttrs.size());
+    for (NamedAttribute attr : newAttrs) {
+      if (getInherentAttr(attr.getName()))
+        setInherentAttr(attr.getName(), attr.getValue());
+      else
+        discardableAttrs.push_back(attr);
+    }
+    if (discardableAttrs.size() != newAttrs.size())
+      newAttrs = DictionaryAttr::get(getContext(), discardableAttrs);
   }
   attrs = newAttrs;
 }
 void Operation::setAttrs(ArrayRef<NamedAttribute> newAttrs) {
   if (getPropertiesStorageSize()) {
-    setAttrs(DictionaryAttr::get(getContext(), {}));
-    for (const NamedAttribute &attr : newAttrs)
-      setAttr(attr.getName(), attr.getValue());
+    // We're spliting the providing array of attributes by removing the inherentAttr
+    // which will be stored in the properties.
+    SmallVector<NamedAttribute> discardableAttrs;
+    discardableAttrs.reserve(newAttrs.size());
+    for (NamedAttribute attr : newAttrs) {
+      if (getInherentAttr(attr.getName()))
+        setInherentAttr(attr.getName(), attr.getValue());
+      else
+        discardableAttrs.push_back(attr);
+    }
+    attrs = DictionaryAttr::get(getContext(), discardableAttrs);
     return;
   }
   attrs = DictionaryAttr::get(getContext(), newAttrs);
@@ -334,15 +351,15 @@ Attribute Operation::getPropertiesAsAttribute() {
     return *getPropertiesStorage().as<Attribute *>();
   return info->getOpPropertiesAsAttribute(this);
 }
-LogicalResult
-Operation::setPropertiesFromAttribute(Attribute attr,
-                                      InFlightDiagnostic *diagnostic) {
+LogicalResult Operation::setPropertiesFromAttribute(
+    Attribute attr, function_ref<InFlightDiagnostic()> emitError) {
   std::optional<RegisteredOperationName> info = getRegisteredInfo();
   if (LLVM_UNLIKELY(!info)) {
     *getPropertiesStorage().as<Attribute *>() = attr;
     return success();
   }
-  return info->setOpPropertiesFromAttribute(this, attr, diagnostic);
+  return info->setOpPropertiesFromAttribute(
+      this->getName(), this->getPropertiesStorage(), attr, emitError);
 }
 
 void Operation::copyProperties(OpaqueProperties rhs) {
@@ -609,6 +626,15 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
   return interface->fold(this, operands, results);
 }
 
+LogicalResult Operation::fold(SmallVectorImpl<OpFoldResult> &results) {
+  // Check if any operands are constants.
+  SmallVector<Attribute> constants;
+  constants.assign(getNumOperands(), Attribute());
+  for (unsigned i = 0, e = getNumOperands(); i != e; ++i)
+    matchPattern(getOperand(i), m_Constant(&constants[i]));
+  return fold(constants, results);
+}
+
 /// Emit an error with the op name prefixed, like "'dim' op " which is
 /// convenient for verifiers.
 InFlightDiagnostic Operation::emitOpError(const Twine &message) {
@@ -771,6 +797,24 @@ InFlightDiagnostic OpState::emitRemark(const Twine &message) {
 //===----------------------------------------------------------------------===//
 // Op Trait implementations
 //===----------------------------------------------------------------------===//
+
+LogicalResult
+OpTrait::impl::foldCommutative(Operation *op, ArrayRef<Attribute> operands,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  // Nothing to fold if there are not at least 2 operands.
+  if (op->getNumOperands() < 2)
+    return failure();
+  // Move all constant operands to the end.
+  OpOperand *operandsBegin = op->getOpOperands().begin();
+  auto isNonConstant = [&](OpOperand &o) {
+    return !static_cast<bool>(operands[std::distance(operandsBegin, &o)]);
+  };
+  auto *firstConstantIt = llvm::find_if_not(op->getOpOperands(), isNonConstant);
+  auto *newConstantIt = std::stable_partition(
+      firstConstantIt, op->getOpOperands().end(), isNonConstant);
+  // Return success if the op was modified.
+  return success(firstConstantIt != newConstantIt);
+}
 
 OpFoldResult OpTrait::impl::foldIdempotent(Operation *op) {
   if (op->getNumOperands() == 1) {
@@ -1037,6 +1081,51 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultType(Operation *op) {
   return success();
 }
 
+LogicalResult OpTrait::impl::verifySameOperandsAndResultRank(Operation *op) {
+  if (failed(verifyAtLeastNOperands(op, 1)))
+    return failure();
+
+  // delegate function that returns true if type is a shaped type with known
+  // rank
+  auto hasRank = [](const Type type) {
+    if (auto shaped_type = dyn_cast<ShapedType>(type))
+      return shaped_type.hasRank();
+
+    return false;
+  };
+
+  auto rankedOperandTypes =
+      llvm::make_filter_range(op->getOperandTypes(), hasRank);
+  auto rankedResultTypes =
+      llvm::make_filter_range(op->getResultTypes(), hasRank);
+
+  // If all operands and results are unranked, then no further verification.
+  if (rankedOperandTypes.empty() && rankedResultTypes.empty())
+    return success();
+
+  // delegate function that returns rank of shaped type with known rank
+  auto getRank = [](const Type type) {
+    return type.cast<ShapedType>().getRank();
+  };
+
+  auto rank = !rankedOperandTypes.empty() ? getRank(*rankedOperandTypes.begin())
+                                          : getRank(*rankedResultTypes.begin());
+
+  for (const auto type : rankedOperandTypes) {
+    if (rank != getRank(type)) {
+      return op->emitOpError("operands don't have matching ranks");
+    }
+  }
+
+  for (const auto type : rankedResultTypes) {
+    if (rank != getRank(type)) {
+      return op->emitOpError("result type has different rank than operands");
+    }
+  }
+
+  return success();
+}
+
 LogicalResult OpTrait::impl::verifyIsTerminator(Operation *op) {
   Block *block = op->getBlock();
   // Verify that the operation is at the end of the respective parent block.
@@ -1255,52 +1344,6 @@ LogicalResult OpTrait::impl::verifyIsIsolatedFromAbove(Operation *isolatedOp) {
 bool OpTrait::hasElementwiseMappableTraits(Operation *op) {
   return op->hasTrait<Elementwise>() && op->hasTrait<Scalarizable>() &&
          op->hasTrait<Vectorizable>() && op->hasTrait<Tensorizable>();
-}
-
-//===----------------------------------------------------------------------===//
-// CastOpInterface
-//===----------------------------------------------------------------------===//
-
-/// Attempt to fold the given cast operation.
-LogicalResult
-impl::foldCastInterfaceOp(Operation *op, ArrayRef<Attribute> attrOperands,
-                          SmallVectorImpl<OpFoldResult> &foldResults) {
-  OperandRange operands = op->getOperands();
-  if (operands.empty())
-    return failure();
-  ResultRange results = op->getResults();
-
-  // Check for the case where the input and output types match 1-1.
-  if (operands.getTypes() == results.getTypes()) {
-    foldResults.append(operands.begin(), operands.end());
-    return success();
-  }
-
-  return failure();
-}
-
-/// Attempt to verify the given cast operation.
-LogicalResult impl::verifyCastInterfaceOp(
-    Operation *op, function_ref<bool(TypeRange, TypeRange)> areCastCompatible) {
-  auto resultTypes = op->getResultTypes();
-  if (resultTypes.empty())
-    return op->emitOpError()
-           << "expected at least one result for cast operation";
-
-  auto operandTypes = op->getOperandTypes();
-  if (!areCastCompatible(operandTypes, resultTypes)) {
-    InFlightDiagnostic diag = op->emitOpError("operand type");
-    if (operandTypes.empty())
-      diag << "s []";
-    else if (llvm::size(operandTypes) == 1)
-      diag << " " << *operandTypes.begin();
-    else
-      diag << "s " << operandTypes;
-    return diag << " and result type" << (resultTypes.size() == 1 ? " " : "s ")
-                << resultTypes << " are cast incompatible";
-  }
-
-  return success();
 }
 
 //===----------------------------------------------------------------------===//

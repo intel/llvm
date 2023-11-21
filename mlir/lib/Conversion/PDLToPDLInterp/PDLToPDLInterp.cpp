@@ -141,7 +141,7 @@ private:
   /// positional value.
   DenseMap<Value, Position *> valueToPosition;
 
-  /// The set of operation values whose whose location will be used for newly
+  /// The set of operation values whose location will be used for newly
   /// generated operations.
   SetVector<Value> locOps;
 
@@ -412,10 +412,10 @@ void PatternLowering::generate(BoolNode *boolNode, Block *&currentBlock,
     auto *ans = cast<TypeAnswer>(answer);
     if (isa<pdl::RangeType>(val.getType()))
       builder.create<pdl_interp::CheckTypesOp>(
-          loc, val, ans->getValue().cast<ArrayAttr>(), success, failure);
+          loc, val, llvm::cast<ArrayAttr>(ans->getValue()), success, failure);
     else
       builder.create<pdl_interp::CheckTypeOp>(
-          loc, val, ans->getValue().cast<TypeAttr>(), success, failure);
+          loc, val, llvm::cast<TypeAttr>(ans->getValue()), success, failure);
     break;
   }
   case Predicates::AttributeQuestion: {
@@ -447,8 +447,9 @@ void PatternLowering::generate(BoolNode *boolNode, Block *&currentBlock,
   }
   case Predicates::ConstraintQuestion: {
     auto *cstQuestion = cast<ConstraintQuestion>(question);
-    builder.create<pdl_interp::ApplyConstraintOp>(loc, cstQuestion->getName(),
-                                                  args, success, failure);
+    builder.create<pdl_interp::ApplyConstraintOp>(
+        loc, cstQuestion->getName(), args, cstQuestion->getIsNegated(), success,
+        failure);
     break;
   }
   default:

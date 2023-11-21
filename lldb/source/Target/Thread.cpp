@@ -76,10 +76,10 @@ enum {
 class ThreadOptionValueProperties
     : public Cloneable<ThreadOptionValueProperties, OptionValueProperties> {
 public:
-  ThreadOptionValueProperties(ConstString name) : Cloneable(name) {}
+  ThreadOptionValueProperties(llvm::StringRef name) : Cloneable(name) {}
 
   const Property *
-  GetPropertyAtIndex(uint32_t idx,
+  GetPropertyAtIndex(size_t idx,
                      const ExecutionContext *exe_ctx) const override {
     // When getting the value for a key from the thread options, we will always
     // try and grab the setting from the current thread if there is one. Else
@@ -100,8 +100,7 @@ public:
 
 ThreadProperties::ThreadProperties(bool is_global) : Properties() {
   if (is_global) {
-    m_collection_sp =
-        std::make_shared<ThreadOptionValueProperties>(ConstString("thread"));
+    m_collection_sp = std::make_shared<ThreadOptionValueProperties>("thread");
     m_collection_sp->Initialize(g_thread_properties);
   } else
     m_collection_sp =
@@ -1623,7 +1622,11 @@ void Thread::SettingsInitialize() {}
 
 void Thread::SettingsTerminate() {}
 
-lldb::addr_t Thread::GetThreadPointer() { return LLDB_INVALID_ADDRESS; }
+lldb::addr_t Thread::GetThreadPointer() {
+  if (m_reg_context_sp)
+    return m_reg_context_sp->GetThreadPointer();
+  return LLDB_INVALID_ADDRESS;
+}
 
 addr_t Thread::GetThreadLocalData(const ModuleSP module,
                                   lldb::addr_t tls_file_addr) {
@@ -1806,7 +1809,7 @@ bool Thread::GetDescription(Stream &strm, lldb::DescriptionLevel level,
           id->GetType() == eStructuredDataTypeInteger) {
         strm.Format("  Activity '{0}', {1:x}\n",
                     name->GetAsString()->GetValue(),
-                    id->GetAsInteger()->GetValue());
+                    id->GetUnsignedIntegerValue());
       }
       printed_activity = true;
     }

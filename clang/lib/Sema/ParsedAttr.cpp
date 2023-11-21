@@ -193,7 +193,9 @@ bool ParsedAttr::isTypeAttr() const { return getInfo().IsType; }
 bool ParsedAttr::isStmtAttr() const { return getInfo().IsStmt; }
 
 bool ParsedAttr::existsInTarget(const TargetInfo &Target) const {
-  return getInfo().existsInTarget(Target);
+  return getInfo().existsInTarget(Target) &&
+         getInfo().spellingExistsInTarget(Target,
+                                          getAttributeSpellingListIndex());
 }
 
 bool ParsedAttr::isKnownToGCC() const { return getInfo().IsKnownToGCC; }
@@ -203,6 +205,11 @@ bool ParsedAttr::isSupportedByPragmaAttribute() const {
 }
 
 bool ParsedAttr::slidesFromDeclToDeclSpecLegacyBehavior() const {
+  if (isRegularKeywordAttribute())
+    // The appurtenance rules are applied strictly for all regular keyword
+    // atributes.
+    return false;
+
   assert(isStandardAttributeSyntax());
 
   // We have historically allowed some type attributes with standard attribute

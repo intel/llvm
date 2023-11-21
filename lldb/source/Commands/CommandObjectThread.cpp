@@ -228,8 +228,11 @@ protected:
           thread->GetIndexID());
       return false;
     }
-    if (m_options.m_extended_backtrace && !GetDebugger().InterruptRequested()) {
-      DoExtendedBacktrace(thread, result);
+    if (m_options.m_extended_backtrace) { 
+      if (!INTERRUPT_REQUESTED(GetDebugger(), 
+                              "Interrupt skipped extended backtrace")) {
+        DoExtendedBacktrace(thread, result);
+      }
     }
 
     return true;
@@ -401,9 +404,9 @@ public:
     if (request.GetCursorIndex())
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eThreadIndexCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_all_options; }
@@ -664,9 +667,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eThreadIndexCompletion, request,
+        nullptr);
   }
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
@@ -1161,9 +1164,9 @@ public:
     if (request.GetCursorIndex())
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eThreadIndexCompletion, request,
+        nullptr);
   }
 
 protected:
@@ -1295,9 +1298,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eThreadIndexCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -1345,9 +1348,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eThreadIndexCompletion, request,
+        nullptr);
   }
 
   bool HandleOneThread(lldb::tid_t tid, CommandReturnObject &result) override {
@@ -1393,9 +1396,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eThreadIndexCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eThreadIndexCompletion, request,
+        nullptr);
   }
 
   bool HandleOneThread(lldb::tid_t tid, CommandReturnObject &result) override {

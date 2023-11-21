@@ -107,6 +107,21 @@ class X86FoldTablesEmitter {
       OS << SimplifiedAttrs << "},\n";
     }
 
+#ifndef NDEBUG
+    // Check that Uses and Defs are same after memory fold.
+    void checkCorrectness() const {
+      auto &RegInstRec = *RegInst->TheDef;
+      auto &MemInstRec = *MemInst->TheDef;
+      auto ListOfUsesReg = RegInstRec.getValueAsListOfDefs("Uses");
+      auto ListOfUsesMem = MemInstRec.getValueAsListOfDefs("Uses");
+      auto ListOfDefsReg = RegInstRec.getValueAsListOfDefs("Defs");
+      auto ListOfDefsMem = MemInstRec.getValueAsListOfDefs("Defs");
+      if (ListOfUsesReg != ListOfUsesMem || ListOfDefsReg != ListOfDefsMem)
+        report_fatal_error("Uses/Defs couldn't be changed after folding " +
+                           RegInstRec.getName() + " to " +
+                           MemInstRec.getName());
+    }
+#endif
   };
 
   // NOTE: We check the fold tables are sorted in X86InstrFoldTables.cpp by the enum of the
@@ -382,12 +397,12 @@ void X86FoldTablesEmitter::addEntryWithFlags(FoldTable &Table,
   Record *RegRec = RegInstr->TheDef;
   Record *MemRec = MemInstr->TheDef;
 
+  Result.NoReverse = S & TB_NO_REVERSE;
+  Result.NoForward = S & TB_NO_FORWARD;
+  Result.FoldLoad = S & TB_FOLDED_LOAD;
+  Result.FoldStore = S & TB_FOLDED_STORE;
+  Result.Alignment = Align(1ULL << ((S & TB_ALIGN_MASK) >> TB_ALIGN_SHIFT));
   if (isManual) {
-    Result.NoReverse = S & TB_NO_REVERSE;
-    Result.NoForward = S & TB_NO_FORWARD;
-    Result.FoldLoad = S & TB_FOLDED_LOAD;
-    Result.FoldStore = S & TB_FOLDED_STORE;
-    Result.Alignment = Align(1ULL << ((S & TB_ALIGN_MASK) >> TB_ALIGN_SHIFT));
     Table[RegInstr] = Result;
     return;
   }
@@ -468,7 +483,9 @@ void X86FoldTablesEmitter::updateTables(const CodeGenInstruction *RegInstr,
 
   // Instructions which Read-Modify-Write should be added to Table2Addr.
   if (!MemOutSize && RegOutSize == 1 && MemInSize == RegInSize) {
-    addEntryWithFlags(Table2Addr, RegInstr, MemInstr, S, 0, IsManual);
+    // X86 would not unfold Read-Modify-Write instructions so add TB_NO_REVERSE.
+    addEntryWithFlags(Table2Addr, RegInstr, MemInstr, S | TB_NO_REVERSE, 0,
+                      IsManual);
     return;
   }
 
@@ -600,6 +617,20 @@ void X86FoldTablesEmitter::run(raw_ostream &o) {
                  &(Target.getInstruction(MemInstIter)), Entry.Strategy, true);
   }
 
+#ifndef NDEBUG
+  auto CheckMemFoldTable = [](const FoldTable &Table) -> void {
+    for (const auto &Record : Table) {
+      auto &FoldEntry = Record.second;
+      FoldEntry.checkCorrectness();
+    }
+  };
+  CheckMemFoldTable(Table2Addr);
+  CheckMemFoldTable(Table0);
+  CheckMemFoldTable(Table1);
+  CheckMemFoldTable(Table2);
+  CheckMemFoldTable(Table3);
+  CheckMemFoldTable(Table4);
+#endif
   // Print all tables.
   printTable(Table2Addr, "Table2Addr", OS);
   printTable(Table0, "Table0", OS);

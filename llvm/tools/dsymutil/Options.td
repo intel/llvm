@@ -69,10 +69,6 @@ def yaml_input: Flag<["-", "--"], "y">,
   HelpText<"Treat the input file is a YAML debug map rather than a binary.">,
   Group<grp_general>;
 
-def papertrail: F<"papertrail">,
-  HelpText<"Embed warnings in the linked DWARF debug info.">,
-  Group<grp_general>;
-
 def assembly: Flag<["-", "--"], "S">,
   HelpText<"Output textual assembly instead of a binary dSYM companion file.">,
   Group<grp_general>;
@@ -194,3 +190,14 @@ def remarks_output_format: Separate<["--", "-"], "remarks-output-format">,
   HelpText<"Specify the format to be used when serializing the linked remarks.">,
   Group<grp_general>;
 def: Joined<["--", "-"], "remarks-output-format=">, Alias<remarks_output_format>;
+
+def remarks_drop_without_debug: Flag<["--", "-"], "remarks-drop-without-debug">,
+  HelpText<"Drop remarks without valid debug locations. Without this flags, "
+           "all remarks are kept.">,
+  Group<grp_general>;
+
+def linker: Separate<["--", "-"], "linker">,
+  MetaVarName<"<DWARF linker type>">,
+  HelpText<"Specify the desired type of DWARF linker. Defaults to 'apple'">,
+  Group<grp_general>;
+def: Joined<["--", "-"], "linker=">, Alias<linker>;

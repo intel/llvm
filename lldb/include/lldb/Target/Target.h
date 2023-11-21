@@ -167,6 +167,8 @@ public:
 
   bool GetEnableSyntheticValue() const;
 
+  bool ShowHexVariableValuesWithLeadingZeroes() const;
+
   uint32_t GetMaxZeroPaddingInFloatFormat() const;
 
   uint32_t GetMaximumNumberOfChildrenToDisplay() const;
@@ -554,6 +556,17 @@ public:
 
   bool IsDummyTarget() const { return m_is_dummy_target; }
 
+  const std::string &GetLabel() const { return m_label; }
+
+  /// Set a label for a target.
+  ///
+  /// The label cannot be used by another target or be only integral.
+  ///
+  /// \return
+  ///     The label for this target or an error if the label didn't match the
+  ///     requirements.
+  llvm::Error SetLabel(llvm::StringRef label);
+
   /// Find a binary on the system and return its Module,
   /// or return an existing Module that is already in the Target.
   ///
@@ -640,6 +653,8 @@ public:
   }
 
   lldb::BreakpointSP GetBreakpointByID(lldb::break_id_t break_id);
+
+  lldb::BreakpointSP CreateBreakpointAtUserEntry(Status &error);
 
   // Use this to create a file and line breakpoint to a given module or all
   // module it is nullptr
@@ -928,7 +943,7 @@ public:
       LoadDependentFiles load_dependent_files = eLoadDependentsDefault);
 
   bool LoadScriptingResources(std::list<Status> &errors,
-                              Stream *feedback_stream = nullptr,
+                              Stream &feedback_stream,
                               bool continue_on_error = true) {
     return m_images.LoadScriptingResourcesInTarget(
         this, errors, feedback_stream, continue_on_error);
@@ -1299,8 +1314,8 @@ public:
 
     bool GetAutoContinue() const { return m_auto_continue; }
 
-    void GetDescription(Stream *s, lldb::DescriptionLevel level) const;
-    virtual void GetSubclassDescription(Stream *s,
+    void GetDescription(Stream &s, lldb::DescriptionLevel level) const;
+    virtual void GetSubclassDescription(Stream &s,
                                         lldb::DescriptionLevel level) const = 0;
 
   protected:
@@ -1323,7 +1338,7 @@ public:
 
     StopHookResult HandleStop(ExecutionContext &exc_ctx,
                               lldb::StreamSP output_sp) override;
-    void GetSubclassDescription(Stream *s,
+    void GetSubclassDescription(Stream &s,
                                 lldb::DescriptionLevel level) const override;
 
   private:
@@ -1345,7 +1360,7 @@ public:
     Status SetScriptCallback(std::string class_name,
                              StructuredData::ObjectSP extra_args_sp);
 
-    void GetSubclassDescription(Stream *s,
+    void GetSubclassDescription(Stream &s,
                                 lldb::DescriptionLevel level) const override;
 
   private:
@@ -1520,6 +1535,7 @@ protected:
   /// detect that code is running on the private state thread.
   std::recursive_mutex m_private_mutex;
   Arch m_arch;
+  std::string m_label;
   ModuleList m_images; ///< The list of images for this process (shared
                        /// libraries and anything dynamically loaded).
   SectionLoadHistory m_section_load_history;

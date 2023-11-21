@@ -268,6 +268,19 @@ bool MCPlusBuilder::clearOffset(MCInst &Inst) {
   return true;
 }
 
+std::optional<MCSymbol *> MCPlusBuilder::getLabel(const MCInst &Inst) const {
+  if (auto Label = tryGetAnnotationAs<MCSymbol *>(Inst, MCAnnotation::kLabel))
+    return *Label;
+  return std::nullopt;
+}
+
+bool MCPlusBuilder::setLabel(MCInst &Inst, MCSymbol *Label,
+                             AllocatorIdTy AllocatorId) {
+  getOrCreateAnnotationAs<MCSymbol *>(Inst, MCAnnotation::kLabel, AllocatorId) =
+      Label;
+  return true;
+}
+
 bool MCPlusBuilder::hasAnnotation(const MCInst &Inst, unsigned Index) const {
   const MCInst *AnnotationInst = getAnnotationInst(Inst);
   if (!AnnotationInst)
@@ -332,8 +345,7 @@ void MCPlusBuilder::getClobberedRegs(const MCInst &Inst,
   for (MCPhysReg ImplicitDef : InstInfo.implicit_defs())
     Regs |= getAliases(ImplicitDef, /*OnlySmaller=*/false);
 
-  for (unsigned I = 0, E = InstInfo.getNumDefs(); I != E; ++I) {
-    const MCOperand &Operand = Inst.getOperand(I);
+  for (const MCOperand &Operand : defOperands(Inst)) {
     assert(Operand.isReg());
     Regs |= getAliases(Operand.getReg(), /*OnlySmaller=*/false);
   }
@@ -366,8 +378,7 @@ void MCPlusBuilder::getWrittenRegs(const MCInst &Inst, BitVector &Regs) const {
   for (MCPhysReg ImplicitDef : InstInfo.implicit_defs())
     Regs |= getAliases(ImplicitDef, /*OnlySmaller=*/true);
 
-  for (unsigned I = 0, E = InstInfo.getNumDefs(); I != E; ++I) {
-    const MCOperand &Operand = Inst.getOperand(I);
+  for (const MCOperand &Operand : defOperands(Inst)) {
     assert(Operand.isReg());
     Regs |= getAliases(Operand.getReg(), /*OnlySmaller=*/true);
   }
@@ -414,12 +425,9 @@ void MCPlusBuilder::getSrcRegs(const MCInst &Inst, BitVector &Regs) const {
   for (MCPhysReg ImplicitUse : InstInfo.implicit_uses())
     Regs |= getAliases(ImplicitUse, /*OnlySmaller=*/true);
 
-  for (unsigned I = InstInfo.getNumDefs(), E = InstInfo.getNumOperands();
-       I != E; ++I) {
-    if (!Inst.getOperand(I).isReg())
-      continue;
-    Regs |= getAliases(Inst.getOperand(I).getReg(), /*OnlySmaller=*/true);
-  }
+  for (const MCOperand &Operand : useOperands(Inst))
+    if (Operand.isReg())
+      Regs |= getAliases(Operand.getReg(), /*OnlySmaller=*/true);
 }
 
 bool MCPlusBuilder::hasDefOfPhysReg(const MCInst &MI, unsigned Reg) const {
@@ -430,7 +438,7 @@ bool MCPlusBuilder::hasDefOfPhysReg(const MCInst &MI, unsigned Reg) const {
 bool MCPlusBuilder::hasUseOfPhysReg(const MCInst &MI, unsigned Reg) const {
   const MCInstrDesc &InstInfo = Info->get(MI.getOpcode());
   for (int I = InstInfo.NumDefs; I < InstInfo.NumOperands; ++I)
-    if (MI.getOperand(I).isReg() &&
+    if (MI.getOperand(I).isReg() && MI.getOperand(I).getReg() &&
         RegInfo->isSubRegisterEq(Reg, MI.getOperand(I).getReg()))
       return true;
   for (MCPhysReg ImplicitUse : InstInfo.implicit_uses()) {

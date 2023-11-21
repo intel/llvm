@@ -1819,7 +1819,8 @@ void Parser::HandlePragmaAttribute() {
     ConsumeToken();
   };
 
-  if (Tok.is(tok::l_square) && NextToken().is(tok::l_square)) {
+  if ((Tok.is(tok::l_square) && NextToken().is(tok::l_square)) ||
+      Tok.isRegularKeywordAttribute()) {
     // Parse the CXX11 style attribute.
     ParseCXX11AttributeSpecifier(Attrs);
   } else if (Tok.is(tok::kw___attribute)) {
@@ -4041,7 +4042,6 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
 
   PP.Lex(Tok);
   II = Tok.getIdentifierInfo();
-  StringRef IntrinsicClass = II->getName();
   if (!II || !(II->isStr("vector") || II->isStr("sifive_vector"))) {
     PP.Diag(Tok.getLocation(), diag::warn_pragma_invalid_argument)
         << PP.getSpelling(Tok) << "riscv" << /*Expected=*/true
@@ -4056,8 +4056,8 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  if (IntrinsicClass == "vector")
+  if (II->isStr("vector"))
     Actions.DeclareRISCVVBuiltins = true;
-  else if (IntrinsicClass == "sifive_vector")
-    Actions.DeclareRISCVVectorBuiltins = true;
+  else if (II->isStr("sifive_vector"))
+    Actions.DeclareRISCVSiFiveVectorBuiltins = true;
 }

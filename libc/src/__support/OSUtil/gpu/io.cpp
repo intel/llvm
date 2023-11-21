@@ -10,14 +10,14 @@
 
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/RPC/rpc_client.h"
-#include "src/string/memory_utils/memcpy_implementations.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 void write_to_stderr(cpp::string_view msg) {
-  rpc::Client::Port port = rpc::client.open<rpc::PRINT_TO_STDERR>();
+  rpc::Client::Port port = rpc::client.open<RPC_WRITE_TO_STDERR>();
   port.send_n(msg.data(), msg.size());
+  port.recv([](rpc::Buffer *) { /* void */ });
   port.close();
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

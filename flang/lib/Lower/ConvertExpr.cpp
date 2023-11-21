@@ -590,13 +590,15 @@ absentBoxToUnallocatedBox(fir::FirOpBuilder &builder, mlir::Location loc,
 // associations.
 template <typename A>
 const Fortran::semantics::Symbol &getFirstSym(const A &obj) {
-  return obj.GetFirstSymbol().GetUltimate();
+  const Fortran::semantics::Symbol &sym = obj.GetFirstSymbol();
+  return sym.HasLocalLocality() ? sym : sym.GetUltimate();
 }
 
 // Helper to get the ultimate last symbol.
 template <typename A>
 const Fortran::semantics::Symbol &getLastSym(const A &obj) {
-  return obj.GetLastSymbol().GetUltimate();
+  const Fortran::semantics::Symbol &sym = obj.GetLastSymbol();
+  return sym.HasLocalLocality() ? sym : sym.GetUltimate();
 }
 
 // Return true if TRANSPOSE should be lowered without a runtime call.
@@ -720,11 +722,8 @@ public:
     mlir::Type noneTy = mlir::NoneType::get(builder.getContext());
     mlir::Type polyRefTy = fir::PointerType::get(noneTy);
     mlir::Type boxType = fir::BoxType::get(polyRefTy);
-    mlir::Value nullConst = builder.createNullConstant(loc, polyRefTy);
     mlir::Value tempBox =
-        builder.createTemporary(loc, boxType, /*shape=*/mlir::ValueRange{});
-    mlir::Value nullBox = builder.create<fir::EmboxOp>(loc, boxType, nullConst);
-    builder.create<fir::StoreOp>(loc, nullBox, tempBox);
+        fir::factory::genNullBoxStorage(builder, loc, boxType);
     return fir::MutableBoxValue(tempBox,
                                 /*lenParameters=*/mlir::ValueRange{},
                                 /*mutableProperties=*/{});
@@ -850,7 +849,7 @@ public:
   ExtValue genval(Fortran::semantics::SymbolRef sym) {
     mlir::Location loc = getLoc();
     ExtValue var = gen(sym);
-    if (const fir::UnboxedValue *s = var.getUnboxed())
+    if (const fir::UnboxedValue *s = var.getUnboxed()) {
       if (fir::isa_ref_type(s->getType())) {
         // A function with multiple entry points returning different types
         // tags all result variables with one of the largest types to allow
@@ -862,9 +861,23 @@ public:
           if (addr.getType() != resultType)
             addr = builder.createConvert(loc, builder.getRefType(resultType),
                                          addr);
+        } else if (sym->test(Fortran::semantics::Symbol::Flag::CrayPointee)) {
+          // get the corresponding Cray pointer
+          auto ptrSym = Fortran::lower::getCrayPointer(sym);
+          ExtValue ptr = gen(ptrSym);
+          mlir::Value ptrVal = fir::getBase(ptr);
+          mlir::Type ptrTy = converter.genType(*ptrSym);
+
+          ExtValue pte = gen(sym);
+          mlir::Value pteVal = fir::getBase(pte);
+
+          mlir::Value cnvrt = Fortran::lower::addCrayPointerInst(
+              loc, builder, ptrVal, ptrTy, pteVal.getType());
+          addr = builder.create<fir::LoadOp>(loc, cnvrt);
         }
         return genLoad(addr);
       }
+    }
     return var;
   }
 
@@ -924,7 +937,7 @@ public:
       if (isDerivedTypeWithLenParameters(sym))
         TODO(loc, "component with length parameters in structure constructor");
 
-      llvm::StringRef name = toStringRef(sym.name());
+      std::string name = converter.getRecordTypeFieldName(sym);
       // FIXME: type parameters must come from the derived-type-spec
       mlir::Value field = builder.create<fir::FieldIndexOp>(
           loc, fieldTy, name, ty,
@@ -1463,7 +1476,7 @@ public:
     for (const Fortran::evaluate::Component *field : list) {
       auto recTy = ty.cast<fir::RecordType>();
       const Fortran::semantics::Symbol &sym = getLastSym(*field);
-      llvm::StringRef name = toStringRef(sym.name());
+      std::string name = converter.getRecordTypeFieldName(sym);
       coorArgs.push_back(builder.create<fir::FieldIndexOp>(
           loc, fldTy, name, recTy, fir::getTypeParams(obj)));
       ty = recTy.getType(name);
@@ -1554,6 +1567,21 @@ public:
       args.push_back(builder.create<mlir::arith::SubIOp>(loc, ty, val, lb));
     }
     mlir::Value base = fir::getBase(array);
+
+    auto baseSym = getFirstSym(aref);
+    if (baseSym.test(Fortran::semantics::Symbol::Flag::CrayPointee)) {
+      // get the corresponding Cray pointer
+      auto ptrSym = Fortran::lower::getCrayPointer(baseSym);
+
+      fir::ExtendedValue ptr = gen(ptrSym);
+      mlir::Value ptrVal = fir::getBase(ptr);
+      mlir::Type ptrTy = ptrVal.getType();
+
+      mlir::Value cnvrt = Fortran::lower::addCrayPointerInst(
+          loc, builder, ptrVal, ptrTy, base.getType());
+      base = builder.create<fir::LoadOp>(loc, cnvrt);
+    }
+
     mlir::Type eleTy = fir::dyn_cast_ptrOrBoxEleTy(base.getType());
     if (auto classTy = eleTy.dyn_cast<fir::ClassType>())
       eleTy = classTy.getEleTy();
@@ -1754,8 +1782,7 @@ public:
   /// Helper to lower intrinsic arguments for inquiry intrinsic.
   ExtValue
   lowerIntrinsicArgumentAsInquired(const Fortran::lower::SomeExpr &expr) {
-    if (Fortran::evaluate::IsAllocatableOrPointerObject(
-            expr, converter.getFoldingContext()))
+    if (Fortran::evaluate::IsAllocatableOrPointerObject(expr))
       return genMutableBoxValue(expr);
     /// Do not create temps for array sections whose properties only need to be
     /// inquired: create a descriptor that will be inquired.
@@ -1890,8 +1917,7 @@ public:
       fir::ArgLoweringRule argRules =
           fir::lowerIntrinsicArgumentAs(*argLowering, arg.index());
       if (argRules.handleDynamicOptional &&
-          Fortran::evaluate::MayBePassedAsAbsentOptional(
-              *expr, converter.getFoldingContext())) {
+          Fortran::evaluate::MayBePassedAsAbsentOptional(*expr)) {
         ExtValue optional = lowerIntrinsicArgumentAsInquired(*expr);
         mlir::Value isPresent = genActualIsPresentTest(builder, loc, optional);
         switch (argRules.lowerAs) {
@@ -1931,7 +1957,7 @@ public:
     }
     // Let the intrinsic library lower the intrinsic procedure call
     return Fortran::lower::genIntrinsicCall(builder, getLoc(), name, resultType,
-                                            operands, stmtCtx);
+                                            operands, stmtCtx, &converter);
   }
 
   /// helper to detect statement functions
@@ -2156,7 +2182,27 @@ public:
 
     auto doCopyIn = [&]() -> ExtValue {
       ExtValue temp = genArrayTempFromMold(actualArg, tempName);
-      if (!arg.mayBeReadByCall()) {
+      if (!arg.mayBeReadByCall() &&
+          // INTENT(OUT) dummy argument finalization, automatically
+          // done when the procedure is invoked, may imply reading
+          // the argument value in the finalization routine.
+          // So we need to make a copy, if finalization may occur.
+          // TODO: do we have to avoid the copying for an actual
+          // argument of type that does not require finalization?
+          !arg.mayRequireIntentoutFinalization() &&
+          // ALLOCATABLE dummy argument may require finalization.
+          // If it has to be automatically deallocated at the end
+          // of the procedure invocation (9.7.3.2 p. 2),
+          // then the finalization may happen if the actual argument
+          // is allocated (7.5.6.3 p. 2).
+          !arg.hasAllocatableAttribute()) {
+        // We have to initialize the temp if it may have components
+        // that need initialization. If there are no components
+        // requiring initialization, then the call is a no-op.
+        if (getElementTypeOf(temp).isa<fir::RecordType>()) {
+          mlir::Value tempBox = fir::getBase(builder.createBox(loc, temp));
+          fir::runtime::genDerivedTypeInitialize(builder, loc, tempBox);
+        }
         return temp;
       }
       if (!isActualArgBox || inlineCopyInOutForBoxes) {
@@ -2164,12 +2210,16 @@ public:
         return temp;
       }
 
-      // Generate Assign() call to copy data from the actualArg
-      // to a temporary.
+      // Generate AssignTemporary() call to copy data from the actualArg
+      // to a temporary. AssignTemporary() will initialize the temporary,
+      // if needed, before doing the assignment, which is required
+      // since the temporary's components (if any) are uninitialized
+      // at this point.
       mlir::Value destBox = fir::getBase(builder.createBox(loc, temp));
       mlir::Value boxRef = builder.createTemporary(loc, destBox.getType());
       builder.create<fir::StoreOp>(loc, destBox, boxRef);
-      fir::runtime::genAssign(builder, loc, boxRef, fir::getBase(actualArg));
+      fir::runtime::genAssignTemporary(builder, loc, boxRef,
+                                       fir::getBase(actualArg));
       return temp;
     };
 
@@ -2275,21 +2325,37 @@ public:
         genArrayCopy(copyOutPair.var, copyOutPair.temp);
         return;
       }
-      // Generate Assign() call to copy data from the temporary
+      // Generate CopyOutAssign() call to copy data from the temporary
       // to the actualArg. Note that in case the actual argument
-      // is ALLOCATABLE/POINTER the Assign() implementation
+      // is ALLOCATABLE/POINTER the CopyOutAssign() implementation
       // should not engage its reallocation, because the temporary
       // is rank, shape and type compatible with it.
+      // Moreover, CopyOutAssign() guarantees that there will be no
+      // finalization for the LHS even if it is of a derived type
+      // with finalization.
       mlir::Value srcBox =
           fir::getBase(builder.createBox(loc, copyOutPair.temp));
       mlir::Value destBox =
           fir::getBase(builder.createBox(loc, copyOutPair.var));
       mlir::Value destBoxRef = builder.createTemporary(loc, destBox.getType());
       builder.create<fir::StoreOp>(loc, destBox, destBoxRef);
-      fir::runtime::genAssign(builder, loc, destBoxRef, srcBox);
+      fir::runtime::genCopyOutAssign(builder, loc, destBoxRef, srcBox,
+                                     /*skipToInit=*/true);
     };
     if (!copyOutPair.restrictCopyAndFreeAtRuntime) {
       doCopyOut();
+
+      if (fir::getElementTypeOf(copyOutPair.temp).isa<fir::RecordType>()) {
+        // Destroy components of the temporary (if any).
+        // If there are no components requiring destruction, then the call
+        // is a no-op.
+        mlir::Value tempBox =
+            fir::getBase(builder.createBox(loc, copyOutPair.temp));
+        fir::runtime::genDerivedTypeDestroyWithoutFinalization(builder, loc,
+                                                               tempBox);
+      }
+
+      // Deallocate the top-level entity of the temporary.
       builder.create<fir::FreeMemOp>(loc, fir::getBase(copyOutPair.temp));
       return;
     }
@@ -2297,6 +2363,17 @@ public:
     builder.genIfThen(loc, *copyOutPair.restrictCopyAndFreeAtRuntime)
         .genThen([&]() {
           doCopyOut();
+          if (fir::getElementTypeOf(copyOutPair.temp).isa<fir::RecordType>()) {
+            // Destroy components of the temporary (if any).
+            // If there are no components requiring destruction, then the call
+            // is a no-op.
+            mlir::Value tempBox =
+                fir::getBase(builder.createBox(loc, copyOutPair.temp));
+            fir::runtime::genDerivedTypeDestroyWithoutFinalization(builder, loc,
+                                                                   tempBox);
+          }
+
+          // Deallocate the top-level entity of the temporary.
           builder.create<fir::FreeMemOp>(loc, fir::getBase(copyOutPair.temp));
         })
         .end();
@@ -2313,8 +2390,7 @@ public:
   std::pair<ExtValue, mlir::Value>
   prepareActualThatMayBeAbsent(const Fortran::lower::SomeExpr &expr) {
     mlir::Location loc = getLoc();
-    if (Fortran::evaluate::IsAllocatableOrPointerObject(
-            expr, converter.getFoldingContext())) {
+    if (Fortran::evaluate::IsAllocatableOrPointerObject(expr)) {
       // Fortran 2018 15.5.2.12 point 1: If unallocated/disassociated,
       // it is as if the argument was absent. The main care here is to
       // not do a copy-in/copy-out because the temp address, even though
@@ -2417,8 +2493,8 @@ public:
         // not passed.
         return {genTempExtAddr(expr), std::nullopt};
       ExtValue baseAddr;
-      if (arg.isOptional() && Fortran::evaluate::MayBePassedAsAbsentOptional(
-                                  expr, converter.getFoldingContext())) {
+      if (arg.isOptional() &&
+          Fortran::evaluate::MayBePassedAsAbsentOptional(expr)) {
         auto [actualArgBind, isPresent] = prepareActualThatMayBeAbsent(expr);
         const ExtValue &actualArg = actualArgBind;
         if (!needsCopy)
@@ -2552,8 +2628,7 @@ public:
           continue;
         }
         if (fir::isPointerType(argTy) &&
-            !Fortran::evaluate::IsObjectPointer(
-                *expr, converter.getFoldingContext())) {
+            !Fortran::evaluate::IsObjectPointer(*expr)) {
           // Passing a non POINTER actual argument to a POINTER dummy argument.
           // Create a pointer of the dummy argument type and assign the actual
           // argument to it.
@@ -2571,26 +2646,14 @@ public:
         }
         // Passing a POINTER to a POINTER, or an ALLOCATABLE to an ALLOCATABLE.
         fir::MutableBoxValue mutableBox = genMutableBoxValue(*expr);
+        if (fir::isAllocatableType(argTy) && arg.isIntentOut() &&
+            Fortran::semantics::IsBindCProcedure(*procRef.proc().GetSymbol()))
+          Fortran::lower::genDeallocateIfAllocated(converter, mutableBox, loc);
         mlir::Value irBox =
             fir::factory::getMutableIRBox(builder, loc, mutableBox);
         caller.placeInput(arg, irBox);
         if (arg.mayBeModifiedByCall())
           mutableModifiedByCall.emplace_back(std::move(mutableBox));
-        if (fir::isAllocatableType(argTy) && arg.isIntentOut() &&
-            Fortran::semantics::IsBindCProcedure(*procRef.proc().GetSymbol())) {
-          if (mutableBox.isDerived() || mutableBox.isPolymorphic() ||
-              mutableBox.isUnlimitedPolymorphic()) {
-            mlir::Value isAlloc = fir::factory::genIsAllocatedOrAssociatedTest(
-                builder, loc, mutableBox);
-            builder.genIfThen(loc, isAlloc)
-                .genThen([&]() {
-                  Fortran::lower::genDeallocateBox(converter, mutableBox, loc);
-                })
-                .end();
-          } else {
-            Fortran::lower::genDeallocateBox(converter, mutableBox, loc);
-          }
-        }
         continue;
       }
       if (arg.passBy == PassBy::BaseAddress || arg.passBy == PassBy::BoxChar ||
@@ -2680,8 +2743,7 @@ public:
           }
 
         } else if (arg.isOptional() &&
-                   Fortran::evaluate::IsAllocatableOrPointerObject(
-                       *expr, converter.getFoldingContext())) {
+                   Fortran::evaluate::IsAllocatableOrPointerObject(*expr)) {
           // Before lowering to an address, handle the allocatable/pointer
           // actual argument to optional fir.box dummy. It is legal to pass
           // unallocated/disassociated entity to an optional. In this case, an
@@ -2972,10 +3034,13 @@ private:
 };
 } // namespace
 
+#define CONCAT(x, y) CONCAT2(x, y)
+#define CONCAT2(x, y) x##y
+
 // Helper for changing the semantics in a given context. Preserves the current
 // semantics which is resumed when the "push" goes out of scope.
 #define PushSemantics(PushVal)                                                 \
-  [[maybe_unused]] auto pushSemanticsLocalVariable##__LINE__ =                 \
+  [[maybe_unused]] auto CONCAT(pushSemanticsLocalVariable, __LINE__) =         \
       Fortran::common::ScopedSet(semant, PushVal);
 
 static bool isAdjustedArrayElementType(mlir::Type t) {
@@ -3273,8 +3338,7 @@ public:
     setPointerAssignmentBounds(lbounds, ubounds);
     if (rhs.Rank() == 0 ||
         (Fortran::evaluate::UnwrapWholeSymbolOrComponentDataRef(rhs) &&
-         Fortran::evaluate::IsAllocatableOrPointerObject(
-             rhs, converter.getFoldingContext()))) {
+         Fortran::evaluate::IsAllocatableOrPointerObject(rhs))) {
       lowerScalarAssignment(lhs, rhs);
       return;
     }
@@ -4482,7 +4546,7 @@ private:
   }
 
   /// If there were temporaries created for this element evaluation, finalize
-  /// and deallocate the resources now. This should be done just prior the the
+  /// and deallocate the resources now. This should be done just prior to the
   /// fir::ResultOp at the end of the innermost loop.
   void finalizeElementCtx() {
     if (elementCtx) {
@@ -4516,6 +4580,14 @@ private:
         return [=](IterSpace iters) -> ExtValue {
           return placeScalarValueInMemory(builder, loc, cc(iters), storageType);
         };
+      } else if (isArray(x)) {
+        // An array reference is needed, but the indices used in its path must
+        // still be retrieved by value.
+        assert(!nextPathSemant && "Next path semantics already set!");
+        nextPathSemant = ConstituentSemantics::RefTransparent;
+        CC cc = genarr(x);
+        assert(!nextPathSemant && "Next path semantics wasn't used!");
+        return cc;
       }
     }
     return genarr(x);
@@ -4594,8 +4666,7 @@ private:
         fir::ArgLoweringRule argRules =
             fir::lowerIntrinsicArgumentAs(*argLowering, arg.index());
         if (argRules.handleDynamicOptional &&
-            Fortran::evaluate::MayBePassedAsAbsentOptional(
-                *expr, converter.getFoldingContext())) {
+            Fortran::evaluate::MayBePassedAsAbsentOptional(*expr)) {
           // Currently, there is not elemental intrinsic that requires lowering
           // a potentially absent argument to something else than a value (apart
           // from character MAX/MIN that are handled elsewhere.)
@@ -4678,8 +4749,8 @@ private:
       LLVM_DEBUG(expr->AsFortran(llvm::dbgs()
                                  << "argument: " << arg.firArgument << " = [")
                  << "]\n");
-      if (arg.isOptional() && Fortran::evaluate::MayBePassedAsAbsentOptional(
-                                  *expr, converter.getFoldingContext()))
+      if (arg.isOptional() &&
+          Fortran::evaluate::MayBePassedAsAbsentOptional(*expr))
         TODO(loc,
              "passing dynamically optional argument to elemental procedures");
       switch (arg.passBy) {
@@ -5571,7 +5642,8 @@ private:
   }
 
   /// Base case of generating an array reference,
-  CC genarr(const ExtValue &extMemref, ComponentPath &components) {
+  CC genarr(const ExtValue &extMemref, ComponentPath &components,
+            mlir::Value CrayPtr = nullptr) {
     mlir::Location loc = getLoc();
     mlir::Value memref = fir::getBase(extMemref);
     mlir::Type arrTy = fir::dyn_cast_ptrOrBoxEleTy(memref.getType());
@@ -5716,6 +5788,16 @@ private:
     }
     auto arrLoad = builder.create<fir::ArrayLoadOp>(
         loc, arrTy, memref, shape, slice, fir::getTypeParams(extMemref));
+
+    if (CrayPtr) {
+      mlir::Type ptrTy = CrayPtr.getType();
+      mlir::Value cnvrt = Fortran::lower::addCrayPointerInst(
+          loc, builder, CrayPtr, ptrTy, memref.getType());
+      auto addr = builder.create<fir::LoadOp>(loc, cnvrt);
+      arrLoad = builder.create<fir::ArrayLoadOp>(loc, arrTy, addr, shape, slice,
+                                                 fir::getTypeParams(extMemref));
+    }
+
     mlir::Value arrLd = arrLoad.getResult();
     if (isProjectedCopyInCopyOut()) {
       // Semantics are projected copy-in copy-out.
@@ -5824,8 +5906,8 @@ private:
         fir::valueHasFirAttribute(base, fir::getOptionalAttrName());
     mlir::Type baseType = fir::unwrapRefType(base.getType());
     const bool isBox = baseType.isa<fir::BoxType>();
-    const bool isAllocOrPtr = Fortran::evaluate::IsAllocatableOrPointerObject(
-        expr, converter.getFoldingContext());
+    const bool isAllocOrPtr =
+        Fortran::evaluate::IsAllocatableOrPointerObject(expr);
     mlir::Type arrType = fir::unwrapPassByRefType(baseType);
     mlir::Type eleType = fir::unwrapSequenceType(arrType);
     ExtValue exv = optionalArg;
@@ -6569,9 +6651,9 @@ private:
     mlir::IndexType idxTy = builder.getIndexType();
     mlir::Value one = builder.createIntegerConstant(loc, idxTy, 1);
     bool atBase = true;
-    auto saveSemant = semant;
-    if (isProjectedCopyInCopyOut())
-      semant = ConstituentSemantics::RefTransparent;
+    PushSemantics(isProjectedCopyInCopyOut()
+                      ? ConstituentSemantics::RefTransparent
+                      : nextPathSemantics());
     unsigned index = 0;
     for (const auto &v : llvm::reverse(revPath)) {
       std::visit(
@@ -6644,7 +6726,8 @@ private:
               },
               [&](const Fortran::evaluate::Component *x) {
                 auto fieldTy = fir::FieldType::get(builder.getContext());
-                llvm::StringRef name = toStringRef(getLastSym(*x).name());
+                std::string name =
+                    converter.getRecordTypeFieldName(getLastSym(*x));
                 if (auto recTy = ty.dyn_cast<fir::RecordType>()) {
                   ty = recTy.getType(name);
                   auto fld = builder.create<fir::FieldIndexOp>(
@@ -6680,7 +6763,6 @@ private:
       atBase = false;
       ++index;
     }
-    semant = saveSemant;
     ty = fir::unwrapSequenceType(ty);
     components.applied = true;
     return ty;
@@ -6868,6 +6950,21 @@ private:
     if (x.IsSymbol())
       return genImplicitArrayAccess(getFirstSym(x), components);
     return genImplicitArrayAccess(x.GetComponent(), components);
+  }
+
+  CC genImplicitArrayAccess(const Fortran::semantics::Symbol &x,
+                            ComponentPath &components) {
+    mlir::Value ptrVal = nullptr;
+    if (x.test(Fortran::semantics::Symbol::Flag::CrayPointee)) {
+      auto ptrSym = Fortran::lower::getCrayPointer(x);
+      ExtValue ptr = converter.getSymbolExtendedValue(ptrSym);
+      ptrVal = fir::getBase(ptr);
+    }
+    components.reversePath.push_back(ImplicitSubscripts{});
+    ExtValue exv = asScalarRef(x);
+    lowerPath(exv, components);
+    auto lambda = genarr(exv, components, ptrVal);
+    return [=](IterSpace iters) { return lambda(components.pc(iters)); };
   }
 
   template <typename A>
@@ -7083,6 +7180,18 @@ private:
     return semant == ConstituentSemantics::ByValueArg;
   }
 
+  /// Semantics to use when lowering the next array path.
+  /// If no value was set, the path uses the same semantics as the array.
+  inline ConstituentSemantics nextPathSemantics() {
+    if (nextPathSemant) {
+      ConstituentSemantics sema = nextPathSemant.value();
+      nextPathSemant.reset();
+      return sema;
+    }
+
+    return semant;
+  }
+
   /// Can the loops over the expression be unordered?
   inline bool isUnordered() const { return unordered; }
 
@@ -7131,6 +7240,7 @@ private:
   Fortran::lower::ExplicitIterSpace *explicitSpace = nullptr;
   Fortran::lower::ImplicitIterSpace *implicitSpace = nullptr;
   ConstituentSemantics semant = ConstituentSemantics::RefTransparent;
+  std::optional<ConstituentSemantics> nextPathSemant;
   /// `lbounds`, `ubounds` are used in POINTER value assignments, which may only
   /// occur in an explicit iteration space.
   std::optional<llvm::SmallVector<mlir::Value>> lbounds;
@@ -7499,4 +7609,25 @@ void Fortran::lower::createArrayMergeStores(
   esp.outerLoop = std::nullopt;
   esp.resetBindings();
   esp.incrementCounter();
+}
+
+mlir::Value Fortran::lower::addCrayPointerInst(mlir::Location loc,
+                                               fir::FirOpBuilder &builder,
+                                               mlir::Value ptrVal,
+                                               mlir::Type ptrTy,
+                                               mlir::Type pteTy) {
+
+  mlir::Value empty;
+  mlir::ValueRange emptyRange;
+  auto boxTy = fir::BoxType::get(ptrTy);
+  auto box = builder.create<fir::EmboxOp>(loc, boxTy, ptrVal, empty, empty,
+                                          emptyRange);
+  mlir::Value addrof =
+      (ptrTy.isa<fir::ReferenceType>())
+          ? builder.create<fir::BoxAddrOp>(loc, ptrTy, box)
+          : builder.create<fir::BoxAddrOp>(loc, builder.getRefType(ptrTy), box);
+
+  auto refPtrTy =
+      builder.getRefType(fir::PointerType::get(fir::dyn_cast_ptrEleTy(pteTy)));
+  return builder.createConvert(loc, refPtrTy, addrof);
 }

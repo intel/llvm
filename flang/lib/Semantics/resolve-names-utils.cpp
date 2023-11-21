@@ -353,17 +353,17 @@ Bound ArraySpecAnalyzer::GetBound(const parser::SpecificationExpr &x) {
   return Bound{std::move(expr)};
 }
 
-// If SAVE is set on src, set it on all members of dst
+// If src is SAVE (explicitly or implicitly),
+// set SAVE attribute on all members of dst.
 static void PropagateSaveAttr(
     const EquivalenceObject &src, EquivalenceSet &dst) {
-  if (src.symbol.attrs().test(Attr::SAVE)) {
-    bool isImplicit{src.symbol.implicitAttrs().test(Attr::SAVE)};
+  if (IsSaved(src.symbol)) {
     for (auto &obj : dst) {
       if (!obj.symbol.attrs().test(Attr::SAVE)) {
         obj.symbol.attrs().set(Attr::SAVE);
-        if (isImplicit) {
-          obj.symbol.implicitAttrs().set(Attr::SAVE);
-        }
+        // If the other equivalenced symbol itself is not SAVE,
+        // then adding SAVE here implies that it has to be implicit.
+        obj.symbol.implicitAttrs().set(Attr::SAVE);
       }
     }
   }
@@ -614,7 +614,8 @@ bool EquivalenceSets::CheckObject(const parser::Name &name) {
     msg = "Variable '%s' in common block with BIND attribute"
           " is not allowed in an equivalence set"_err_en_US;
   } else if (const auto *type{symbol.GetType()}) {
-    if (const auto *derived{type->AsDerived()}) {
+    const auto *derived{type->AsDerived()};
+    if (derived && !derived->IsVectorType()) {
       if (const auto *comp{FindUltimateComponent(
               *derived, IsAllocatableOrPointer)}) { // C8106
         msg = IsPointer(*comp)
@@ -916,6 +917,7 @@ void MapSubprogramToNewSymbols(const Symbol &oldSymbol, Symbol &newSymbol,
     if (!dummyArg) {
       newDetails.add_alternateReturn();
     } else if (Symbol *copy{newScope.CopySymbol(*dummyArg)}) {
+      copy->set(Symbol::Flag::Implicit, false);
       newDetails.add_dummyArg(*copy);
       mappings->symbolMap[dummyArg] = copy;
     }

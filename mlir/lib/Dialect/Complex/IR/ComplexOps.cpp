@@ -6,9 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
 
 using namespace mlir;
 using namespace mlir::complex;
@@ -70,6 +73,109 @@ LogicalResult ConstantOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult BitcastOp::fold(FoldAdaptor bitcast) {
+  if (getOperand().getType() == getType())
+    return getOperand();
+
+  return {};
+}
+
+LogicalResult BitcastOp::verify() {
+  auto operandType = getOperand().getType();
+  auto resultType = getType();
+
+  // We allow this to be legal as it can be folded away.
+  if (operandType == resultType)
+    return success();
+
+  if (!operandType.isIntOrFloat() && !isa<ComplexType>(operandType)) {
+    return emitOpError("operand must be int/float/complex");
+  }
+
+  if (!resultType.isIntOrFloat() && !isa<ComplexType>(resultType)) {
+    return emitOpError("result must be int/float/complex");
+  }
+
+  if (isa<ComplexType>(operandType) == isa<ComplexType>(resultType)) {
+    return emitOpError("requires input or output is a complex type");
+  }
+
+  if (isa<ComplexType>(resultType))
+    std::swap(operandType, resultType);
+
+  int32_t operandBitwidth = dyn_cast<ComplexType>(operandType)
+                                .getElementType()
+                                .getIntOrFloatBitWidth() *
+                            2;
+  int32_t resultBitwidth = resultType.getIntOrFloatBitWidth();
+
+  if (operandBitwidth != resultBitwidth) {
+    return emitOpError("casting bitwidths do not match");
+  }
+
+  return success();
+}
+
+struct MergeComplexBitcast final : OpRewritePattern<BitcastOp> {
+  using OpRewritePattern<BitcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BitcastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (auto defining = op.getOperand().getDefiningOp<BitcastOp>()) {
+      rewriter.replaceOpWithNewOp<BitcastOp>(op, op.getType(),
+                                             defining.getOperand());
+      return success();
+    }
+
+    if (auto defining = op.getOperand().getDefiningOp<arith::BitcastOp>()) {
+      rewriter.replaceOpWithNewOp<BitcastOp>(op, op.getType(),
+                                             defining.getOperand());
+      return success();
+    }
+
+    return failure();
+  }
+};
+
+struct MergeArithBitcast final : OpRewritePattern<arith::BitcastOp> {
+  using OpRewritePattern<arith::BitcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::BitcastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (auto defining = op.getOperand().getDefiningOp<complex::BitcastOp>()) {
+      rewriter.replaceOpWithNewOp<complex::BitcastOp>(op, op.getType(),
+                                                      defining.getOperand());
+      return success();
+    }
+
+    return failure();
+  }
+};
+
+struct ArithBitcast final : OpRewritePattern<BitcastOp> {
+  using OpRewritePattern<complex::BitcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BitcastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (isa<ComplexType>(op.getType()) ||
+        isa<ComplexType>(op.getOperand().getType()))
+      return failure();
+
+    rewriter.replaceOpWithNewOp<arith::BitcastOp>(op, op.getType(),
+                                                  op.getOperand());
+    return success();
+  }
+};
+
+void BitcastOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.add<ArithBitcast, MergeComplexBitcast, MergeArithBitcast>(context);
+}
+
+//===----------------------------------------------------------------------===//
 // CreateOp
 //===----------------------------------------------------------------------===//
 
@@ -90,7 +196,8 @@ OpFoldResult CreateOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ImOp::fold(FoldAdaptor adaptor) {
-  ArrayAttr arrayAttr = adaptor.getComplex().dyn_cast_or_null<ArrayAttr>();
+  ArrayAttr arrayAttr =
+      llvm::dyn_cast_if_present<ArrayAttr>(adaptor.getComplex());
   if (arrayAttr && arrayAttr.size() == 2)
     return arrayAttr[1];
   if (auto createOp = getOperand().getDefiningOp<CreateOp>())
@@ -98,17 +205,53 @@ OpFoldResult ImOp::fold(FoldAdaptor adaptor) {
   return {};
 }
 
+namespace {
+template <typename OpKind, int ComponentIndex>
+struct FoldComponentNeg final : OpRewritePattern<OpKind> {
+  using OpRewritePattern<OpKind>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpKind op,
+                                PatternRewriter &rewriter) const override {
+    auto negOp = op.getOperand().template getDefiningOp<NegOp>();
+    if (!negOp)
+      return failure();
+
+    auto createOp = negOp.getComplex().template getDefiningOp<CreateOp>();
+    if (!createOp)
+      return failure();
+
+    Type elementType = createOp.getType().getElementType();
+    assert(isa<FloatType>(elementType));
+
+    rewriter.replaceOpWithNewOp<arith::NegFOp>(
+        op, elementType, createOp.getOperand(ComponentIndex));
+    return success();
+  }
+};
+} // namespace
+
+void ImOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                       MLIRContext *context) {
+  results.add<FoldComponentNeg<ImOp, 1>>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // ReOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ReOp::fold(FoldAdaptor adaptor) {
-  ArrayAttr arrayAttr = adaptor.getComplex().dyn_cast_or_null<ArrayAttr>();
+  ArrayAttr arrayAttr =
+      llvm::dyn_cast_if_present<ArrayAttr>(adaptor.getComplex());
   if (arrayAttr && arrayAttr.size() == 2)
     return arrayAttr[0];
   if (auto createOp = getOperand().getDefiningOp<CreateOp>())
     return createOp.getOperand(0);
   return {};
+}
+
+void ReOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                       MLIRContext *context) {
+  results.add<FoldComponentNeg<ReOp, 0>>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -204,6 +347,29 @@ OpFoldResult ConjOp::fold(FoldAdaptor adaptor) {
   // complex.conj(complex.conj(a)) -> a
   if (auto conjOp = getOperand().getDefiningOp<ConjOp>())
     return conjOp.getOperand();
+
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// MulOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult MulOp::fold(FoldAdaptor adaptor) {
+  auto constant = getRhs().getDefiningOp<ConstantOp>();
+  if (!constant)
+    return {};
+
+  ArrayAttr arrayAttr = constant.getValue();
+  APFloat real = cast<FloatAttr>(arrayAttr[0]).getValue();
+  APFloat imag = cast<FloatAttr>(arrayAttr[1]).getValue();
+
+  if (!imag.isZero())
+    return {};
+
+  // complex.mul(a, complex.constant<1.0, 0.0>) -> a
+  if (real == APFloat(real.getSemantics(), 1))
+    return getLhs();
 
   return {};
 }

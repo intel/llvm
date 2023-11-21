@@ -30,6 +30,10 @@ struct Metadata {
 
 struct DFsanMapUnmapCallback {
   void OnMap(uptr p, uptr size) const { dfsan_set_label(0, (void *)p, size); }
+  void OnMapSecondary(uptr p, uptr size, uptr user_begin,
+                      uptr user_size) const {
+    OnMap(p, size);
+  }
   void OnUnmap(uptr p, uptr size) const { dfsan_set_label(0, (void *)p, size); }
 };
 
@@ -198,6 +202,10 @@ static uptr AllocationSize(const void *p) {
   return b->requested_size;
 }
 
+static uptr AllocationSizeFast(const void *p) {
+  return reinterpret_cast<Metadata *>(allocator.GetMetaData(p))->requested_size;
+}
+
 void *dfsan_malloc(uptr size) {
   return SetErrnoOnNull(DFsanAllocate(size, sizeof(u64), false /*zeroise*/));
 }
@@ -313,3 +321,10 @@ const void *__sanitizer_get_allocated_begin(const void *p) {
 }
 
 uptr __sanitizer_get_allocated_size(const void *p) { return AllocationSize(p); }
+
+uptr __sanitizer_get_allocated_size_fast(const void *p) {
+  DCHECK_EQ(p, __sanitizer_get_allocated_begin(p));
+  uptr ret = AllocationSizeFast(p);
+  DCHECK_EQ(ret, __sanitizer_get_allocated_size(p));
+  return ret;
+}

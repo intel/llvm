@@ -87,6 +87,7 @@ bool hlfir::isFortranVariableType(mlir::Type type) {
         return eleType.isa<fir::BaseBoxType>() || !fir::hasDynamicSize(eleType);
       })
       .Case<fir::BaseBoxType, fir::BoxCharType>([](auto) { return true; })
+      .Case<fir::VectorType>([](auto) { return true; })
       .Default([](mlir::Type) { return false; });
 }
 
@@ -101,6 +102,14 @@ bool hlfir::isFortranScalarCharacterExprType(mlir::Type type) {
   if (auto exprType = type.dyn_cast<hlfir::ExprType>())
     return exprType.isScalar() &&
            exprType.getElementType().isa<fir::CharacterType>();
+  return false;
+}
+
+bool hlfir::isFortranArrayCharacterExprType(mlir::Type type) {
+  if (auto exprType = mlir::dyn_cast<hlfir::ExprType>(type))
+    return exprType.isArray() &&
+           mlir::isa<fir::CharacterType>(exprType.getElementType());
+
   return false;
 }
 
@@ -148,6 +157,17 @@ bool hlfir::isI1Type(mlir::Type type) {
   return false;
 }
 
+bool hlfir::isFortranLogicalArrayObject(mlir::Type type) {
+  if (isBoxAddressType(type))
+    return false;
+  if (auto arrayTy =
+          getFortranElementOrSequenceType(type).dyn_cast<fir::SequenceType>()) {
+    mlir::Type eleTy = arrayTy.getEleTy();
+    return mlir::isa<fir::LogicalType>(eleTy);
+  }
+  return false;
+}
+
 bool hlfir::isMaskArgument(mlir::Type type) {
   if (isBoxAddressType(type))
     return false;
@@ -160,6 +180,13 @@ bool hlfir::isMaskArgument(mlir::Type type) {
 
   // input is a scalar, so allow i1 too
   return mlir::isa<fir::LogicalType>(elementType) || isI1Type(elementType);
+}
+
+bool hlfir::isPolymorphicObject(mlir::Type type) {
+  if (auto exprType = mlir::dyn_cast<hlfir::ExprType>(type))
+    return exprType.isPolymorphic();
+
+  return fir::isPolymorphicType(type);
 }
 
 mlir::Value hlfir::genExprShape(mlir::OpBuilder &builder,
@@ -180,4 +207,9 @@ mlir::Value hlfir::genExprShape(mlir::OpBuilder &builder,
       fir::ShapeType::get(builder.getContext(), expr.getRank());
   fir::ShapeOp shape = builder.create<fir::ShapeOp>(loc, shapeTy, extents);
   return shape.getResult();
+}
+
+bool hlfir::mayHaveAllocatableComponent(mlir::Type ty) {
+  return fir::isPolymorphicType(ty) || fir::isUnlimitedPolymorphicType(ty) ||
+         fir::isRecordWithAllocatableMember(hlfir::getFortranElementType(ty));
 }

@@ -39,10 +39,10 @@
 #include "lldb/Core/DebuggerEvents.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/Host/Config.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Initialization/SystemLifetimeManager.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -781,6 +781,9 @@ SBStructuredData SBDebugger::GetBuildConfiguration() {
   AddBoolConfigEntry(
       *config_up, "editline", LLDB_ENABLE_LIBEDIT,
       "A boolean value that indicates if editline support is enabled in LLDB");
+  AddBoolConfigEntry(*config_up, "editline_wchar", LLDB_EDITLINE_USE_WCHAR,
+                     "A boolean value that indicates if editline wide "
+                     "characters support is enabled in LLDB");
   AddBoolConfigEntry(
       *config_up, "lzma", LLDB_ENABLE_LZMA,
       "A boolean value that indicates if lzma support is enabled in LLDB");
@@ -1326,7 +1329,10 @@ SBDebugger SBDebugger::FindDebuggerWithID(int id) {
 const char *SBDebugger::GetInstanceName() {
   LLDB_INSTRUMENT_VA(this);
 
-  return (m_opaque_sp ? m_opaque_sp->GetInstanceName().AsCString() : nullptr);
+  if (!m_opaque_sp)
+    return nullptr;
+
+  return ConstString(m_opaque_sp->GetInstanceName()).AsCString();
 }
 
 SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
@@ -1334,8 +1340,8 @@ SBError SBDebugger::SetInternalVariable(const char *var_name, const char *value,
   LLDB_INSTRUMENT_VA(var_name, value, debugger_instance_name);
 
   SBError sb_error;
-  DebuggerSP debugger_sp(Debugger::FindDebuggerWithInstanceName(
-      ConstString(debugger_instance_name)));
+  DebuggerSP debugger_sp(
+      Debugger::FindDebuggerWithInstanceName(debugger_instance_name));
   Status error;
   if (debugger_sp) {
     ExecutionContext exe_ctx(
@@ -1356,8 +1362,8 @@ SBDebugger::GetInternalVariableValue(const char *var_name,
                                      const char *debugger_instance_name) {
   LLDB_INSTRUMENT_VA(var_name, debugger_instance_name);
 
-  DebuggerSP debugger_sp(Debugger::FindDebuggerWithInstanceName(
-      ConstString(debugger_instance_name)));
+  DebuggerSP debugger_sp(
+      Debugger::FindDebuggerWithInstanceName(debugger_instance_name));
   Status error;
   if (debugger_sp) {
     ExecutionContext exe_ctx(
@@ -1396,9 +1402,9 @@ const char *SBDebugger::GetPrompt() const {
 
   Log *log = GetLog(LLDBLog::API);
 
-  LLDB_LOGF(log, "SBDebugger(%p)::GetPrompt () => \"%s\"",
-            static_cast<void *>(m_opaque_sp.get()),
-            (m_opaque_sp ? m_opaque_sp->GetPrompt().str().c_str() : ""));
+  LLDB_LOG(log, "SBDebugger({0:x})::GetPrompt () => \"{1}\"",
+           static_cast<void *>(m_opaque_sp.get()),
+           (m_opaque_sp ? m_opaque_sp->GetPrompt() : ""));
 
   return (m_opaque_sp ? ConstString(m_opaque_sp->GetPrompt()).GetCString()
                       : nullptr);
@@ -1487,7 +1493,7 @@ bool SBDebugger::GetDescription(SBStream &description) {
   Stream &strm = description.ref();
 
   if (m_opaque_sp) {
-    const char *name = m_opaque_sp->GetInstanceName().AsCString();
+    const char *name = m_opaque_sp->GetInstanceName().c_str();
     user_id_t id = m_opaque_sp->GetID();
     strm.Printf("Debugger (instance: \"%s\", id: %" PRIu64 ")", name, id);
   } else
@@ -1535,14 +1541,11 @@ bool SBDebugger::SetCurrentPlatformSDKRoot(const char *sysroot) {
 bool SBDebugger::GetCloseInputOnEOF() const {
   LLDB_INSTRUMENT_VA(this);
 
-  return (m_opaque_sp ? m_opaque_sp->GetCloseInputOnEOF() : false);
+  return false;
 }
 
 void SBDebugger::SetCloseInputOnEOF(bool b) {
   LLDB_INSTRUMENT_VA(this, b);
-
-  if (m_opaque_sp)
-    m_opaque_sp->SetCloseInputOnEOF(b);
 }
 
 SBTypeCategory SBDebugger::GetCategory(const char *category_name) {

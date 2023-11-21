@@ -17,12 +17,12 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/BinaryFormat/GOFF.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/ConvertEBCDIC.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 
 namespace llvm {
@@ -82,7 +82,7 @@ private:
   bool isSymbolIndirect(DataRefImpl Symb) const;
 
   // SectionRef.
-  void moveSectionNext(DataRefImpl &Sec) const override{};
+  void moveSectionNext(DataRefImpl &Sec) const override {}
   virtual Expected<StringRef> getSectionName(DataRefImpl Sec) const override {
     return StringRef();
   }
@@ -112,7 +112,7 @@ private:
   const uint8_t *getSectionPrEsdRecord(uint32_t SectionIndex) const;
 
   // RelocationRef.
-  void moveRelocationNext(DataRefImpl &Rel) const override{};
+  void moveRelocationNext(DataRefImpl &Rel) const override {}
   uint64_t getRelocationOffset(DataRefImpl Rel) const override { return 0; }
   symbol_iterator getRelocationSymbol(DataRefImpl Rel) const override {
     DataRefImpl Temp;
@@ -120,7 +120,7 @@ private:
   }
   uint64_t getRelocationType(DataRefImpl Rel) const override { return 0; }
   void getRelocationTypeName(DataRefImpl Rel,
-                             SmallVectorImpl<char> &Result) const override{};
+                             SmallVectorImpl<char> &Result) const override {}
 };
 
 } // namespace object

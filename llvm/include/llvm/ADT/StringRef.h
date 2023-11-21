@@ -264,7 +264,10 @@ namespace llvm {
 
     /// Check if this string starts with the given \p Prefix, ignoring case.
     [[nodiscard]] bool starts_with_insensitive(StringRef Prefix) const;
-    [[nodiscard]] bool startswith_insensitive(StringRef Prefix) const {
+    [[nodiscard]] LLVM_DEPRECATED(
+        "Use starts_with_insensitive instead",
+        "starts_with_insensitive") bool startswith_insensitive(StringRef Prefix)
+        const {
       return starts_with_insensitive(Prefix);
     }
 
@@ -280,7 +283,10 @@ namespace llvm {
 
     /// Check if this string ends with the given \p Suffix, ignoring case.
     [[nodiscard]] bool ends_with_insensitive(StringRef Suffix) const;
-    [[nodiscard]] bool endswith_insensitive(StringRef Suffix) const {
+    [[nodiscard]] LLVM_DEPRECATED(
+        "Use ends_with_insensitive instead",
+        "ends_with_insensitive") bool endswith_insensitive(StringRef Suffix)
+        const {
       return ends_with_insensitive(Suffix);
     }
 
@@ -522,6 +528,17 @@ namespace llvm {
     /// APInt::fromString is superficially similar but assumes the
     /// string is well-formed in the given radix.
     bool getAsInteger(unsigned Radix, APInt &Result) const;
+
+    /// Parse the current string as an integer of the specified \p Radix.  If
+    /// \p Radix is specified as zero, this does radix autosensing using
+    /// extended C rules: 0 is octal, 0x is hex, 0b is binary.
+    ///
+    /// If the string does not begin with a number of the specified radix,
+    /// this returns true to signify the error. The string is considered
+    /// erroneous if empty.
+    /// The portion of the string representing the discovered numeric value
+    /// is removed from the beginning of the string.
+    bool consumeInteger(unsigned Radix, APInt &Result);
 
     /// Parse the current string as an IEEE double-precision floating
     /// point value.  The string must be a well-formed double.

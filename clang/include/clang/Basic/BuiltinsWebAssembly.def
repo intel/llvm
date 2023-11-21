@@ -161,7 +161,7 @@ TARGET_BUILTIN(__builtin_wasm_narrow_u_i16x8_i32x4, "V8UsV4iV4i", "nc", "simd128
 TARGET_BUILTIN(__builtin_wasm_trunc_sat_s_zero_f64x2_i32x4, "V4iV2d", "nc", "simd128")
 TARGET_BUILTIN(__builtin_wasm_trunc_sat_u_zero_f64x2_i32x4, "V4UiV2d", "nc", "simd128")
 
-// Relaxed SIMD builtins (experimental)
+// Relaxed SIMD builtins
 TARGET_BUILTIN(__builtin_wasm_relaxed_madd_f32x4, "V4fV4fV4fV4f", "nc", "relaxed-simd")
 TARGET_BUILTIN(__builtin_wasm_relaxed_nmadd_f32x4, "V4fV4fV4fV4f", "nc", "relaxed-simd")
 TARGET_BUILTIN(__builtin_wasm_relaxed_madd_f64x2, "V2dV2dV2dV2d", "nc", "relaxed-simd")
@@ -200,6 +200,14 @@ TARGET_BUILTIN(__builtin_wasm_ref_null_extern, "i", "nct", "reference-types")
 // attached to the type, therefore SemaChecking will check for the right
 // return type.
 TARGET_BUILTIN(__builtin_wasm_ref_null_func, "i", "nct", "reference-types")
+
+// Table builtins
+TARGET_BUILTIN(__builtin_wasm_table_set,  "viii", "t", "reference-types")
+TARGET_BUILTIN(__builtin_wasm_table_get,  "iii", "t", "reference-types")
+TARGET_BUILTIN(__builtin_wasm_table_size, "zi", "nt", "reference-types")
+TARGET_BUILTIN(__builtin_wasm_table_grow, "iiii", "nt", "reference-types")
+TARGET_BUILTIN(__builtin_wasm_table_fill, "viiii", "t", "reference-types")
+TARGET_BUILTIN(__builtin_wasm_table_copy, "viiiii", "t", "reference-types")
 
 #undef BUILTIN
 #undef TARGET_BUILTIN

@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+using namespace Fortran::common;
 using namespace Fortran::frontend;
 using namespace Fortran::parser;
 using namespace Fortran;
@@ -80,7 +81,7 @@ public:
   READ_FEATURE(AccEndAtomic)
   READ_FEATURE(AccEndBlockDirective)
   READ_FEATURE(AccEndCombinedDirective)
-  READ_FEATURE(AccGangArgument)
+  READ_FEATURE(AccGangArg)
   READ_FEATURE(AccObject)
   READ_FEATURE(AccObjectList)
   READ_FEATURE(AccObjectListWithModifier)
@@ -553,7 +554,7 @@ public:
   READ_FEATURE(OmpAtomicClause)
   READ_FEATURE(OmpAtomicClauseList)
   READ_FEATURE(OmpAtomicDefaultMemOrderClause)
-  READ_FEATURE(OmpAtomicDefaultMemOrderClause::Type)
+  READ_FEATURE(OmpAtomicDefaultMemOrderType)
   READ_FEATURE(OpenMPFlushConstruct)
   READ_FEATURE(OpenMPLoopConstruct)
   READ_FEATURE(OpenMPExecutableAllocate)

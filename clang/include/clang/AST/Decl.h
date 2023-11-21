@@ -452,6 +452,8 @@ public:
     return hasCachedLinkage();
   }
 
+  bool isPlaceholderVar(const LangOptions &LangOpts) const;
+
   /// Looks through UsingDecls and ObjCCompatibleAliasDecls for
   /// the underlying named decl.
   NamedDecl *getUnderlyingDecl() {
@@ -1807,6 +1809,18 @@ public:
     ParmVarDeclBits.IsKNRPromoted = promoted;
   }
 
+  bool isExplicitObjectParameter() const {
+    return ExplicitObjectParameterIntroducerLoc.isValid();
+  }
+
+  void setExplicitObjectParameterLoc(SourceLocation Loc) {
+    ExplicitObjectParameterIntroducerLoc = Loc;
+  }
+
+  SourceLocation getExplicitObjectParamThisLoc() const {
+    return ExplicitObjectParameterIntroducerLoc;
+  }
+
   Expr *getDefaultArg();
   const Expr *getDefaultArg() const {
     return const_cast<ParmVarDecl *>(this)->getDefaultArg();
@@ -1873,7 +1887,10 @@ public:
   static bool classofKind(Kind K) { return K == ParmVar; }
 
 private:
+  friend class ASTDeclReader;
+
   enum { ParameterIndexSentinel = (1 << NumParameterIndexBits) - 1 };
+  SourceLocation ExplicitObjectParameterIntroducerLoc;
 
   void setParameterIndex(unsigned parameterIndex) {
     if (parameterIndex >= ParameterIndexSentinel) {
@@ -2378,6 +2395,21 @@ public:
     return getConstexprKind() == ConstexprSpecKind::Consteval;
   }
 
+  void setBodyContainsImmediateEscalatingExpressions(bool Set) {
+    FunctionDeclBits.BodyContainsImmediateEscalatingExpression = Set;
+  }
+
+  bool BodyContainsImmediateEscalatingExpressions() const {
+    return FunctionDeclBits.BodyContainsImmediateEscalatingExpression;
+  }
+
+  bool isImmediateEscalating() const;
+
+  // The function is a C++ immediate function.
+  // This can be either a consteval function, or an immediate escalating
+  // function containing an immediate escalating expression.
+  bool isImmediateFunction() const;
+
   /// Whether the instantiation of this function is pending.
   /// This bit is set when the decision to instantiate this function is made
   /// and unset if and when the function body is created. That leaves out
@@ -2623,6 +2655,23 @@ public:
   /// parameters have default arguments (in C++).
   unsigned getMinRequiredArguments() const;
 
+  /// Returns the minimum number of non-object arguments needed to call this
+  /// function. This produces the same value as getMinRequiredArguments except
+  /// it does not count the explicit object argument, if any.
+  unsigned getMinRequiredExplicitArguments() const;
+
+  bool hasCXXExplicitFunctionObjectParameter() const;
+
+  unsigned getNumNonObjectParams() const;
+
+  const ParmVarDecl *getNonObjectParameter(unsigned I) const {
+    return getParamDecl(hasCXXExplicitFunctionObjectParameter() ? I + 1 : I);
+  }
+
+  ParmVarDecl *getNonObjectParameter(unsigned I) {
+    return getParamDecl(hasCXXExplicitFunctionObjectParameter() ? I + 1 : I);
+  }
+
   /// Determine whether this function has a single parameter, or multiple
   /// parameters where all but the first have default arguments.
   ///
@@ -2796,9 +2845,7 @@ public:
 
   /// Determine whether this function is a function template
   /// specialization.
-  bool isFunctionTemplateSpecialization() const {
-    return getPrimaryTemplate() != nullptr;
-  }
+  bool isFunctionTemplateSpecialization() const;
 
   /// If this function is actually a function template specialization,
   /// retrieve information about this function template specialization.
@@ -2881,9 +2928,9 @@ public:
 
   /// Specifies that this function declaration is actually a
   /// dependent function template specialization.
-  void setDependentTemplateSpecialization(ASTContext &Context,
-                             const UnresolvedSetImpl &Templates,
-                      const TemplateArgumentListInfo &TemplateArgs);
+  void setDependentTemplateSpecialization(
+      ASTContext &Context, const UnresolvedSetImpl &Templates,
+      const TemplateArgumentListInfo *TemplateArgs);
 
   DependentFunctionTemplateSpecializationInfo *
   getDependentSpecializationInfo() const;
@@ -3041,12 +3088,16 @@ public:
   /// store the data for the anonymous union or struct.
   bool isAnonymousStructOrUnion() const;
 
+  /// Returns the expression that represents the bit width, if this field
+  /// is a bit field. For non-bitfields, this returns \c nullptr.
   Expr *getBitWidth() const {
     if (!BitField)
       return nullptr;
     return hasInClassInitializer() ? InitAndBitWidth->BitWidth : BitWidth;
   }
 
+  /// Computes the bit width of this field, if this is a bit field.
+  /// May not be called on non-bitfields.
   unsigned getBitWidthValue(const ASTContext &Ctx) const;
 
   /// Set the bit-field width for this member.
@@ -3165,6 +3216,8 @@ public:
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K >= firstField && K <= lastField; }
+
+  void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
 };
 
 /// An instance of this object exists for each enum constant
@@ -3710,6 +3763,7 @@ public:
     return getExtInfo()->TemplParamLists[i];
   }
 
+  using TypeDecl::printName;
   void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
 
   void setTemplateParameterListsInfo(ASTContext &Context,
@@ -4324,6 +4378,7 @@ class TopLevelStmtDecl : public Decl {
   friend class ASTDeclWriter;
 
   Stmt *Statement = nullptr;
+  bool IsSemiMissing = false;
 
   TopLevelStmtDecl(DeclContext *DC, SourceLocation L, Stmt *S)
       : Decl(TopLevelStmt, DC, L), Statement(S) {}
@@ -4337,6 +4392,12 @@ public:
   SourceRange getSourceRange() const override LLVM_READONLY;
   Stmt *getStmt() { return Statement; }
   const Stmt *getStmt() const { return Statement; }
+  void setStmt(Stmt *S) {
+    assert(IsSemiMissing && "Operation supported for printing values only!");
+    Statement = S;
+  }
+  bool isSemiMissing() const { return IsSemiMissing; }
+  void setSemiMissing(bool Missing = true) { IsSemiMissing = Missing; }
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == TopLevelStmt; }

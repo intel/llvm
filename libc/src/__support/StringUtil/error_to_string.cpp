@@ -6,36 +6,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/__support/StringUtil/error_to_string.h"
+#include "error_to_string.h"
+#include "platform_errors.h"
 
-#include "src/errno/libc_errno.h" // For error macros
-
-#include "src/__support/CPP/array.h"
 #include "src/__support/CPP/span.h"
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/CPP/stringstream.h"
 #include "src/__support/StringUtil/message_mapper.h"
 #include "src/__support/integer_to_string.h"
-
-#include "src/__support/StringUtil/tables/error_table.h"
+#include "src/__support/macros/attributes.h"
 
 #include <stddef.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace internal {
 
 constexpr size_t max_buff_size() {
   constexpr size_t unknown_str_len = sizeof("Unknown error");
-  constexpr size_t max_num_len =
-      __llvm_libc::IntegerToString::dec_bufsize<int>();
   // the buffer should be able to hold "Unknown error" + ' ' + num_str
-  return (unknown_str_len + 1 + max_num_len) * sizeof(char);
+  return (unknown_str_len + 1 + IntegerToString<int>::buffer_size()) *
+         sizeof(char);
 }
 
 // This is to hold error strings that have to be custom built. It may be
 // rewritten on every call to strerror (or other error to string function).
 constexpr size_t ERR_BUFFER_SIZE = max_buff_size();
-thread_local char error_buffer[ERR_BUFFER_SIZE];
+LIBC_THREAD_LOCAL char error_buffer[ERR_BUFFER_SIZE];
 
 constexpr size_t TOTAL_STR_LEN = total_str_len(PLATFORM_ERRORS);
 
@@ -54,7 +50,7 @@ cpp::string_view build_error_string(int err_num, cpp::span<char> buffer) {
   // if the buffer can't hold "Unknown error" + ' ' + num_str, then just
   // return "Unknown error".
   if (buffer.size() <
-      (sizeof("Unknown error") + 1 + IntegerToString::dec_bufsize<int>()))
+      (sizeof("Unknown error") + 1 + IntegerToString<int>::buffer_size()))
     return const_cast<char *>("Unknown error");
 
   cpp::StringStream buffer_stream(
@@ -78,4 +74,4 @@ cpp::string_view get_error_string(int err_num, cpp::span<char> buffer) {
     return internal::build_error_string(err_num, buffer);
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

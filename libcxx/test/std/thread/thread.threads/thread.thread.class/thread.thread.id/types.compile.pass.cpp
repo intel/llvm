@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 // UNSUPPORTED: no-threads
 
 // <thread>
@@ -31,6 +30,7 @@
 // Note this should be discussed in LEWG.
 
 #include <concepts>
+#include <format>
 #include <thread>
 
 #include "test_macros.h"

@@ -16,7 +16,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/SCF/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
@@ -48,16 +48,15 @@ static bool isShapePreserving(ForOp forOp, int64_t arg) {
       return false;
 
     using tensor::InsertSliceOp;
-    value =
-        llvm::TypeSwitch<Operation *, Value>(opResult.getOwner())
-            .template Case<InsertSliceOp>(
-                [&](InsertSliceOp op) { return op.getDest(); })
-            .template Case<ForOp>([&](ForOp forOp) {
-              return isShapePreserving(forOp, opResult.getResultNumber())
-                         ? forOp.getIterOperands()[opResult.getResultNumber()]
-                         : Value();
-            })
-            .Default([&](auto op) { return Value(); });
+    value = llvm::TypeSwitch<Operation *, Value>(opResult.getOwner())
+                .template Case<InsertSliceOp>(
+                    [&](InsertSliceOp op) { return op.getDest(); })
+                .template Case<ForOp>([&](ForOp forOp) {
+                  return isShapePreserving(forOp, opResult.getResultNumber())
+                             ? forOp.getInitArgs()[opResult.getResultNumber()]
+                             : Value();
+                })
+                .Default([&](auto op) { return Value(); });
   }
   return false;
 }
@@ -144,7 +143,7 @@ struct DimOfLoopResultFolder : public OpRewritePattern<OpTy> {
     if (!isShapePreserving(forOp, resultNumber))
       return failure();
     rewriter.updateRootInPlace(dimOp, [&]() {
-      dimOp.getSourceMutable().assign(forOp.getIterOperands()[resultNumber]);
+      dimOp.getSourceMutable().assign(forOp.getInitArgs()[resultNumber]);
     });
     return success();
   }

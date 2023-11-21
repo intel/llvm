@@ -42,12 +42,10 @@ void InitializePlatformInterceptors();
 // Use macro to describe if specific function should be
 // intercepted on a given platform.
 #if !SANITIZER_WINDOWS
-# define ASAN_INTERCEPT_ATOLL_AND_STRTOLL 1
 # define ASAN_INTERCEPT__LONGJMP 1
 # define ASAN_INTERCEPT_INDEX 1
 # define ASAN_INTERCEPT_PTHREAD_CREATE 1
 #else
-# define ASAN_INTERCEPT_ATOLL_AND_STRTOLL 0
 # define ASAN_INTERCEPT__LONGJMP 0
 # define ASAN_INTERCEPT_INDEX 0
 # define ASAN_INTERCEPT_PTHREAD_CREATE 0
@@ -165,6 +163,12 @@ DECLARE_REAL(char*, strstr, const char *s1, const char *s2)
 // OS X interceptors don't need to be initialized with INTERCEPT_FUNCTION.
 #    define ASAN_INTERCEPT_FUNC(name)
 #  endif  // SANITIZER_APPLE
+
+#define ASAN_INTERCEPTOR_ENTER(ctx, func)                                      \
+  AsanInterceptorContext _ctx = {#func};                                       \
+  ctx = (void *)&_ctx;                                                         \
+  (void) ctx;
+#define COMMON_INTERCEPT_FUNCTION(name) ASAN_INTERCEPT_FUNC(name)
 
 #endif  // !SANITIZER_FUCHSIA
 

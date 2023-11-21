@@ -61,7 +61,9 @@ static cl::opt<bool> ViewBFIAfter("fs-viewbfi-after", cl::Hidden,
                                   cl::init(false),
                                   cl::desc("View BFI after MIR loader"));
 
+namespace llvm {
 extern cl::opt<bool> ImprovedFSDiscriminator;
+}
 char MIRProfileLoaderPass::ID = 0;
 
 INITIALIZE_PASS_BEGIN(MIRProfileLoaderPass, DEBUG_TYPE,
@@ -140,7 +142,7 @@ template <> struct IRTraits<MachineBasicBlock> {
 } // namespace afdo_detail
 
 class MIRProfileLoader final
-    : public SampleProfileLoaderBaseImpl<MachineBasicBlock> {
+    : public SampleProfileLoaderBaseImpl<MachineFunction> {
 public:
   void setInitVals(MachineDominatorTree *MDT, MachinePostDominatorTree *MPDT,
                    MachineLoopInfo *MLI, MachineBlockFrequencyInfo *MBFI,
@@ -195,8 +197,8 @@ protected:
 };
 
 template <>
-void SampleProfileLoaderBaseImpl<
-    MachineBasicBlock>::computeDominanceAndLoopInfo(MachineFunction &F) {}
+void SampleProfileLoaderBaseImpl<MachineFunction>::computeDominanceAndLoopInfo(
+    MachineFunction &F) {}
 
 void MIRProfileLoader::setBranchProbs(MachineFunction &F) {
   LLVM_DEBUG(dbgs() << "\nPropagation complete. Setting branch probs\n");

@@ -12,6 +12,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Lex/DirectoryLookup.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
@@ -21,6 +22,7 @@
 #include "llvm/Support/Path.h"
 #include <cstring>
 #include <optional>
+#include <string>
 
 namespace clang {
 namespace clangd {
@@ -29,7 +31,7 @@ class IncludeStructure::RecordHeaders : public PPCallbacks {
 public:
   RecordHeaders(const CompilerInstance &CI, IncludeStructure *Out)
       : SM(CI.getSourceManager()),
-        HeaderInfo(CI.getPreprocessor().getHeaderSearchInfo()), Out(Out) {}
+        Out(Out) {}
 
   // Record existing #includes - both written and resolved paths. Only #includes
   // in the main file are collected.
@@ -53,8 +55,9 @@ public:
       auto &Inc = Out->MainFileIncludes.back();
       Inc.Written =
           (IsAngled ? "<" + FileName + ">" : "\"" + FileName + "\"").str();
-      Inc.Resolved =
-          std::string(File ? File->getFileEntry().tryGetRealPathName() : "");
+      Inc.Resolved = std::string(
+          File ? getCanonicalPath(*File, SM.getFileManager()).value_or("")
+               : "");
       Inc.HashOffset = SM.getFileOffset(HashLoc);
       Inc.HashLine =
           SM.getLineNumber(SM.getFileID(HashLoc), Inc.HashOffset) - 1;
@@ -119,7 +122,6 @@ private:
   bool inMainFile() const { return Level == 1; }
 
   const SourceManager &SM;
-  HeaderSearch &HeaderInfo;
   // Set after entering the <built-in> file.
   FileID BuiltinFile;
   // Indicates whether <built-in> file is part of include stack.
@@ -177,6 +179,17 @@ void IncludeStructure::collect(const CompilerInstance &CI) {
   MainFileEntry = SM.getFileEntryForID(SM.getMainFileID());
   auto Collector = std::make_unique<RecordHeaders>(CI, this);
   CI.getPreprocessor().addPPCallbacks(std::move(Collector));
+
+  // If we're reusing a preamble, don't repopulate SearchPathsCanonical.
+  // The entries will be the same, but canonicalizing to find out is expensive!
+  if (SearchPathsCanonical.empty()) {
+    for (const auto &Dir :
+         CI.getPreprocessor().getHeaderSearchInfo().search_dir_range()) {
+      if (Dir.getLookupType() == DirectoryLookup::LT_NormalDir)
+        SearchPathsCanonical.emplace_back(
+            SM.getFileManager().getCanonicalName(*Dir.getDirRef()));
+    }
+  }
 }
 
 std::optional<IncludeStructure::HeaderID>
@@ -273,11 +286,11 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   assert(InsertedHeader.valid());
   if (InsertedHeader.Verbatim)
     return InsertedHeader.File;
-  bool IsSystem = false;
+  bool IsAngled = false;
   std::string Suggested;
   if (HeaderSearchInfo) {
     Suggested = HeaderSearchInfo->suggestPathToFileForDiagnostics(
-        InsertedHeader.File, BuildDir, IncludingFile, &IsSystem);
+        InsertedHeader.File, BuildDir, IncludingFile, &IsAngled);
   } else {
     // Calculate include relative to including file only.
     StringRef IncludingDir = llvm::sys::path::parent_path(IncludingFile);
@@ -290,7 +303,7 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   // FIXME: should we allow (some limited number of) "../header.h"?
   if (llvm::sys::path::is_absolute(Suggested))
     return std::nullopt;
-  if (IsSystem)
+  if (IsAngled)
     Suggested = "<" + Suggested + ">";
   else
     Suggested = "\"" + Suggested + "\"";

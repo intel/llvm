@@ -181,7 +181,7 @@ void IntegerRangeAnalysis::visitNonControlFlowArguments(
         if (auto bound =
                 dyn_cast_or_null<IntegerAttr>(loopBound->get<Attribute>()))
           return bound.getValue();
-      } else if (auto value = loopBound->dyn_cast<Value>()) {
+      } else if (auto value = llvm::dyn_cast_if_present<Value>(*loopBound)) {
         const IntegerValueRangeLattice *lattice =
             getLatticeElementFor(op, value);
         if (lattice != nullptr)
@@ -200,7 +200,7 @@ void IntegerRangeAnalysis::visitNonControlFlowArguments(
   if (auto loop = dyn_cast<LoopLikeOpInterface>(op)) {
     std::optional<Value> iv = loop.getSingleInductionVar();
     if (!iv) {
-      return SparseDataFlowAnalysis ::visitNonControlFlowArguments(
+      return SparseForwardDataFlowAnalysis ::visitNonControlFlowArguments(
           op, successor, argLattices, firstIndex);
     }
     std::optional<OpFoldResult> lowerBound = loop.getSingleLowerBound();
@@ -228,6 +228,6 @@ void IntegerRangeAnalysis::visitNonControlFlowArguments(
     return;
   }
 
-  return SparseDataFlowAnalysis::visitNonControlFlowArguments(
+  return SparseForwardDataFlowAnalysis::visitNonControlFlowArguments(
       op, successor, argLattices, firstIndex);
 }

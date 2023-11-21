@@ -9,6 +9,7 @@
 #include "CommandObjectWatchpoint.h"
 #include "CommandObjectWatchpointCommand.h"
 
+#include <memory>
 #include <vector>
 
 #include "llvm/ADT/StringRef.h"
@@ -20,6 +21,7 @@
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
+#include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Variable.h"
 #include "lldb/Symbol/VariableList.h"
 #include "lldb/Target/StackFrame.h"
@@ -289,9 +291,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
 protected:
@@ -365,9 +367,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
 protected:
@@ -446,9 +448,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -569,9 +571,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -694,9 +696,9 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eWatchPointIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eWatchpointIDCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -801,7 +803,7 @@ public:
             "Set a watchpoint on a variable. "
             "Use the '-w' option to specify the type of watchpoint and "
             "the '-s' option to specify the byte size to watch for. "
-            "If no '-w' option is specified, it defaults to write. "
+            "If no '-w' option is specified, it defaults to modify. "
             "If no '-s' option is specified, it defaults to the variable's "
             "byte size. "
             "Note that there are limited hardware resources for watchpoints. "
@@ -846,9 +848,9 @@ corresponding to the byte size of the data type.");
                            OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex() != 0)
       return;
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eVariablePathCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eVariablePathCompletion, request,
+        nullptr);
   }
 
   Options *GetOptions() override { return &m_option_group; }
@@ -876,9 +878,9 @@ protected:
       return false;
     }
 
-    // If no '-w' is specified, default to '-w write'.
+    // If no '-w' is specified, default to '-w modify'.
     if (!m_option_watchpoint.watch_type_specified) {
-      m_option_watchpoint.watch_type = OptionGroupWatchpoint::eWatchWrite;
+      m_option_watchpoint.watch_type = OptionGroupWatchpoint::eWatchModify;
     }
 
     // We passed the sanity check for the command. Proceed to set the
@@ -945,32 +947,53 @@ protected:
     }
 
     // Now it's time to create the watchpoint.
-    uint32_t watch_type = m_option_watchpoint.watch_type;
+    uint32_t watch_type = 0;
+    switch (m_option_watchpoint.watch_type) {
+    case OptionGroupWatchpoint::eWatchModify:
+      watch_type |= LLDB_WATCH_TYPE_MODIFY;
+      break;
+    case OptionGroupWatchpoint::eWatchRead:
+      watch_type |= LLDB_WATCH_TYPE_READ;
+      break;
+    case OptionGroupWatchpoint::eWatchReadWrite:
+      watch_type |= LLDB_WATCH_TYPE_READ | LLDB_WATCH_TYPE_WRITE;
+      break;
+    case OptionGroupWatchpoint::eWatchWrite:
+      watch_type |= LLDB_WATCH_TYPE_WRITE;
+      break;
+    case OptionGroupWatchpoint::eWatchInvalid:
+      break;
+    };
 
     error.Clear();
     WatchpointSP watch_sp =
         target->CreateWatchpoint(addr, size, &compiler_type, watch_type, error);
-    if (watch_sp) {
-      watch_sp->SetWatchSpec(command.GetArgumentAtIndex(0));
-      watch_sp->SetWatchVariable(true);
-      if (var_sp && var_sp->GetDeclaration().GetFile()) {
+    if (!watch_sp) {
+      result.AppendErrorWithFormat(
+          "Watchpoint creation failed (addr=0x%" PRIx64 ", size=%" PRIu64
+          ", variable expression='%s').\n",
+          addr, static_cast<uint64_t>(size), command.GetArgumentAtIndex(0));
+      if (const char *error_message = error.AsCString(nullptr))
+        result.AppendError(error_message);
+      return result.Succeeded();
+    }
+
+    watch_sp->SetWatchSpec(command.GetArgumentAtIndex(0));
+    watch_sp->SetWatchVariable(true);
+    if (var_sp) {
+      if (var_sp->GetDeclaration().GetFile()) {
         StreamString ss;
         // True to show fullpath for declaration file.
         var_sp->GetDeclaration().DumpStopContext(&ss, true);
         watch_sp->SetDeclInfo(std::string(ss.GetString()));
       }
-      output_stream.Printf("Watchpoint created: ");
-      watch_sp->GetDescription(&output_stream, lldb::eDescriptionLevelFull);
-      output_stream.EOL();
-      result.SetStatus(eReturnStatusSuccessFinishResult);
-    } else {
-      result.AppendErrorWithFormat(
-          "Watchpoint creation failed (addr=0x%" PRIx64 ", size=%" PRIu64
-          ", variable expression='%s').\n",
-          addr, (uint64_t)size, command.GetArgumentAtIndex(0));
-      if (error.AsCString(nullptr))
-        result.AppendError(error.AsCString());
+      if (var_sp->GetScope() == eValueTypeVariableLocal)
+        watch_sp->SetupVariableWatchpointDisabler(m_exe_ctx.GetFrameSP());
     }
+    output_stream.Printf("Watchpoint created: ");
+    watch_sp->GetDescription(&output_stream, lldb::eDescriptionLevelFull);
+    output_stream.EOL();
+    result.SetStatus(eReturnStatusSuccessFinishResult);
 
     return result.Succeeded();
   }
@@ -992,7 +1015,7 @@ public:
             "Use the '-l' option to specify the language of the expression. "
             "Use the '-w' option to specify the type of watchpoint and "
             "the '-s' option to specify the byte size to watch for. "
-            "If no '-w' option is specified, it defaults to write. "
+            "If no '-w' option is specified, it defaults to modify. "
             "If no '-s' option is specified, it defaults to the target's "
             "pointer byte size. "
             "Note that there are limited hardware resources for watchpoints. "
@@ -1006,7 +1029,7 @@ public:
         R"(
 Examples:
 
-(lldb) watchpoint set expression -w write -s 1 -- foo + 32
+(lldb) watchpoint set expression -w modify -s 1 -- foo + 32
 
     Watches write access for the 1-byte region pointed to by the address 'foo + 32')");
 
@@ -1066,7 +1089,7 @@ protected:
 
     // If no '-w' is specified, default to '-w write'.
     if (!m_option_watchpoint.watch_type_specified) {
-      m_option_watchpoint.watch_type = OptionGroupWatchpoint::eWatchWrite;
+      m_option_watchpoint.watch_type = OptionGroupWatchpoint::eWatchModify;
     }
 
     // We passed the sanity check for the command. Proceed to set the
@@ -1110,7 +1133,23 @@ protected:
       size = target->GetArchitecture().GetAddressByteSize();
 
     // Now it's time to create the watchpoint.
-    uint32_t watch_type = m_option_watchpoint.watch_type;
+    uint32_t watch_type;
+    switch (m_option_watchpoint.watch_type) {
+    case OptionGroupWatchpoint::eWatchRead:
+      watch_type = LLDB_WATCH_TYPE_READ;
+      break;
+    case OptionGroupWatchpoint::eWatchWrite:
+      watch_type = LLDB_WATCH_TYPE_WRITE;
+      break;
+    case OptionGroupWatchpoint::eWatchModify:
+      watch_type = LLDB_WATCH_TYPE_MODIFY;
+      break;
+    case OptionGroupWatchpoint::eWatchReadWrite:
+      watch_type = LLDB_WATCH_TYPE_READ | LLDB_WATCH_TYPE_WRITE;
+      break;
+    default:
+      watch_type = LLDB_WATCH_TYPE_MODIFY;
+    }
 
     // Fetch the type from the value object, the type of the watched object is
     // the pointee type

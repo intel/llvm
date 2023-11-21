@@ -760,7 +760,7 @@ public:
 /// The null pointer literal (C++11 [lex.nullptr])
 ///
 /// Introduced in C++11, the only literal of type \c nullptr_t is \c nullptr.
-/// This also implements the null pointer literal in C2x (C2x 6.4.1) which is
+/// This also implements the null pointer literal in C23 (C23 6.4.1) which is
 /// intended to have the same semantics as the feature in C++.
 class CXXNullPtrLiteralExpr : public Expr {
 public:
@@ -1146,15 +1146,20 @@ public:
 /// };
 /// \endcode
 class CXXThisExpr : public Expr {
-public:
-  CXXThisExpr(SourceLocation L, QualType Ty, bool IsImplicit)
-      : Expr(CXXThisExprClass, Ty, VK_PRValue, OK_Ordinary) {
+  CXXThisExpr(SourceLocation L, QualType Ty, bool IsImplicit, ExprValueKind VK)
+      : Expr(CXXThisExprClass, Ty, VK, OK_Ordinary) {
     CXXThisExprBits.IsImplicit = IsImplicit;
     CXXThisExprBits.Loc = L;
     setDependence(computeDependence(this));
   }
 
   CXXThisExpr(EmptyShell Empty) : Expr(CXXThisExprClass, Empty) {}
+
+public:
+  static CXXThisExpr *Create(const ASTContext &Ctx, SourceLocation L,
+                             QualType Ty, bool IsImplicit);
+
+  static CXXThisExpr *CreateEmpty(const ASTContext &Ctx);
 
   SourceLocation getLocation() const { return CXXThisExprBits.Loc; }
   void setLocation(SourceLocation L) { CXXThisExprBits.Loc = L; }
@@ -1679,6 +1684,14 @@ public:
   void setArg(unsigned Arg, Expr *ArgExpr) {
     assert(Arg < getNumArgs() && "Arg access out of range!");
     getArgs()[Arg] = ArgExpr;
+  }
+
+  bool isImmediateEscalating() const {
+    return CXXConstructExprBits.IsImmediateEscalating;
+  }
+
+  void setIsImmediateEscalating(bool Set) {
+    CXXConstructExprBits.IsImmediateEscalating = Set;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY;

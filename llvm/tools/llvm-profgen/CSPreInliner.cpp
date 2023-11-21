@@ -11,6 +11,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
+#include "llvm/Transforms/IPO/SampleProfile.h"
 #include <cstdint>
 #include <queue>
 
@@ -35,13 +36,6 @@ STATISTIC(
 // TODO: the actual threshold to be tuned here because the size here is based
 // on machine code not LLVM IR.
 namespace llvm {
-extern cl::opt<int> SampleHotCallSiteThreshold;
-extern cl::opt<int> SampleColdCallSiteThreshold;
-extern cl::opt<int> ProfileInlineGrowthLimit;
-extern cl::opt<int> ProfileInlineLimitMin;
-extern cl::opt<int> ProfileInlineLimitMax;
-extern cl::opt<bool> SortProfiledSCC;
-
 cl::opt<bool> EnableCSPreInliner(
     "csspgo-preinliner", cl::Hidden, cl::init(true),
     cl::desc("Run a global pre-inliner to merge context profile based on "
@@ -56,6 +50,12 @@ static cl::opt<bool> SamplePreInlineReplay(
     "csspgo-replay-preinline", cl::Hidden, cl::init(false),
     cl::desc(
         "Replay previous inlining and adjust context profile accordingly"));
+
+static cl::opt<int> CSPreinlMultiplierForPrevInl(
+    "csspgo-preinliner-multiplier-for-previous-inlining", cl::Hidden,
+    cl::init(100),
+    cl::desc(
+        "Multiplier to bump up callsite threshold for previous inlining."));
 
 CSPreInliner::CSPreInliner(SampleContextTracker &Tracker,
                            ProfiledBinary &Binary, ProfileSummary *Summary)
@@ -153,11 +153,12 @@ uint32_t CSPreInliner::getFuncSize(const ContextTrieNode *ContextNode) {
 }
 
 bool CSPreInliner::shouldInline(ProfiledInlineCandidate &Candidate) {
+  bool WasInlined =
+      Candidate.CalleeSamples->getContext().hasAttribute(ContextWasInlined);
   // If replay inline is requested, simply follow the inline decision of the
   // profiled binary.
   if (SamplePreInlineReplay)
-    return Candidate.CalleeSamples->getContext().hasAttribute(
-        ContextWasInlined);
+    return WasInlined;
 
   unsigned int SampleThreshold = SampleColdCallSiteThreshold;
   uint64_t ColdCountThreshold = ProfileSummaryBuilder::getColdCountThreshold(
@@ -179,11 +180,17 @@ bool CSPreInliner::shouldInline(ProfiledInlineCandidate &Candidate) {
         (NormalizationUpperBound - NormalizationLowerBound);
     if (NormalizedHotness > 1.0)
       NormalizedHotness = 1.0;
-    // Add 1 to to ensure hot callsites get a non-zero threshold, which could
+    // Add 1 to ensure hot callsites get a non-zero threshold, which could
     // happen when SampleColdCallSiteThreshold is 0. This is when we do not
     // want any inlining for cold callsites.
     SampleThreshold = SampleHotCallSiteThreshold * NormalizedHotness * 100 +
                       SampleColdCallSiteThreshold + 1;
+    // Bump up the threshold to favor previous compiler inline decision. The
+    // compiler has more insight and knowledge about functions based on their IR
+    // and attribures and should be able to make a more reasonable inline
+    // decision.
+    if (WasInlined)
+      SampleThreshold *= CSPreinlMultiplierForPrevInl;
   }
 
   return (Candidate.SizeCost < SampleThreshold);

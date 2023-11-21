@@ -233,21 +233,18 @@ Module::Module(const ModuleSpec &module_spec)
 }
 
 Module::Module(const FileSpec &file_spec, const ArchSpec &arch,
-               const ConstString *object_name, lldb::offset_t object_offset,
+               ConstString object_name, lldb::offset_t object_offset,
                const llvm::sys::TimePoint<> &object_mod_time)
     : m_mod_time(FileSystem::Instance().GetModificationTime(file_spec)),
-      m_arch(arch), m_file(file_spec), m_object_offset(object_offset),
-      m_object_mod_time(object_mod_time), m_file_has_changed(false),
-      m_first_file_changed_log(false) {
+      m_arch(arch), m_file(file_spec), m_object_name(object_name),
+      m_object_offset(object_offset), m_object_mod_time(object_mod_time),
+      m_file_has_changed(false), m_first_file_changed_log(false) {
   // Scope for locker below...
   {
     std::lock_guard<std::recursive_mutex> guard(
         GetAllocationModuleCollectionMutex());
     GetModuleCollection().push_back(this);
   }
-
-  if (object_name)
-    m_object_name = *object_name;
 
   Log *log(GetLog(LLDBLog::Object | LLDBLog::Modules));
   if (log != nullptr)
@@ -1047,10 +1044,38 @@ void Module::FindTypes(
     symbols->FindTypes(pattern, languages, searched_symbol_files, types);
 }
 
+static Debugger::DebuggerList 
+DebuggersOwningModuleRequestingInterruption(Module &module) {
+  Debugger::DebuggerList requestors 
+      = Debugger::DebuggersRequestingInterruption();
+  Debugger::DebuggerList interruptors;
+  if (requestors.empty())
+    return interruptors;
+    
+  for (auto debugger_sp : requestors) {
+    if (!debugger_sp->InterruptRequested())
+      continue;
+    if (debugger_sp->GetTargetList()
+        .AnyTargetContainsModule(module))
+      interruptors.push_back(debugger_sp);
+  }
+  return interruptors;
+}
+
 SymbolFile *Module::GetSymbolFile(bool can_create, Stream *feedback_strm) {
   if (!m_did_load_symfile.load()) {
     std::lock_guard<std::recursive_mutex> guard(m_mutex);
     if (!m_did_load_symfile.load() && can_create) {
+      Debugger::DebuggerList interruptors 
+          = DebuggersOwningModuleRequestingInterruption(*this);
+      if (!interruptors.empty()) {
+        for (auto debugger_sp : interruptors) {
+          REPORT_INTERRUPTION(*(debugger_sp.get()), 
+                              "Interrupted fetching symbols for module {0}", 
+                              this->GetFileSpec());
+        }
+        return nullptr;
+      }
       ObjectFile *obj_file = GetObjectFile();
       if (obj_file != nullptr) {
         LLDB_SCOPED_TIMER();
@@ -1257,7 +1282,8 @@ ObjectFile *Module::GetObjectFile() {
           // those values that overwrite unspecified unknown values.
           m_arch.MergeFrom(m_objfile_sp->GetArchitecture());
         } else {
-          ReportError("failed to load objfile for {0}",
+          ReportError("failed to load objfile for {0}\nDebugging will be "
+                      "degraded for this module.",
                       GetFileSpec().GetPath().c_str());
         }
       }
@@ -1471,7 +1497,7 @@ bool Module::IsLoadedInTarget(Target *target) {
 }
 
 bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
-                                           Stream *feedback_stream) {
+                                           Stream &feedback_stream) {
   if (!target) {
     error.SetErrorString("invalid destination Target");
     return false;
@@ -1506,17 +1532,16 @@ bool Module::LoadScriptingResourceInTarget(Target *target, Status &error,
           if (scripting_fspec &&
               FileSystem::Instance().Exists(scripting_fspec)) {
             if (should_load == eLoadScriptFromSymFileWarn) {
-              if (feedback_stream)
-                feedback_stream->Printf(
-                    "warning: '%s' contains a debug script. To run this script "
-                    "in "
-                    "this debug session:\n\n    command script import "
-                    "\"%s\"\n\n"
-                    "To run all discovered debug scripts in this session:\n\n"
-                    "    settings set target.load-script-from-symbol-file "
-                    "true\n",
-                    GetFileSpec().GetFileNameStrippingExtension().GetCString(),
-                    scripting_fspec.GetPath().c_str());
+              feedback_stream.Printf(
+                  "warning: '%s' contains a debug script. To run this script "
+                  "in "
+                  "this debug session:\n\n    command script import "
+                  "\"%s\"\n\n"
+                  "To run all discovered debug scripts in this session:\n\n"
+                  "    settings set target.load-script-from-symbol-file "
+                  "true\n",
+                  GetFileSpec().GetFileNameStrippingExtension().GetCString(),
+                  scripting_fspec.GetPath().c_str());
               return false;
             }
             StreamString scripting_stream;
@@ -1607,8 +1632,8 @@ std::optional<std::string> Module::RemapSourceFile(llvm::StringRef path) const {
 
 void Module::RegisterXcodeSDK(llvm::StringRef sdk_name,
                               llvm::StringRef sysroot) {
-  XcodeSDK sdk(sdk_name.str());
-  auto sdk_path_or_err = HostInfo::GetXcodeSDKPath(sdk);
+  auto sdk_path_or_err =
+      HostInfo::GetSDKRoot(HostInfo::SDKOptions{sdk_name.str()});
 
   if (!sdk_path_or_err) {
     Debugger::ReportError("Error while searching for Xcode SDK: " +

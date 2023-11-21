@@ -55,16 +55,33 @@ def LLVM_AnyFloat : Type<
 def LLVM_AnyPointer : Type<CPred<"::llvm::isa<::mlir::LLVM::LLVMPointerType>($_self)">,
                           "LLVM pointer type", "::mlir::LLVM::LLVMPointerType">;
 
+def LLVM_OpaquePointer : Type<
+  And<[LLVM_AnyPointer.predicate,
+       CPred<"::llvm::cast<::mlir::LLVM::LLVMPointerType>($_self).isOpaque()">]>,
+  "LLVM opaque pointer", "::mlir::LLVM::LLVMPointerType">;
+
 // Type constraint accepting LLVM pointer type with an additional constraint
 // on the element type.
 class LLVM_PointerTo<Type pointee> : Type<
   And<[LLVM_AnyPointer.predicate,
-       Or<[CPred<"::llvm::cast<::mlir::LLVM::LLVMPointerType>($_self).isOpaque()">,
+       Or<[LLVM_OpaquePointer.predicate,
            SubstLeaves<
              "$_self",
              "::llvm::cast<::mlir::LLVM::LLVMPointerType>($_self).getElementType()",
              pointee.predicate>]>]>,
   "LLVM pointer to " # pointee.summary, "::mlir::LLVM::LLVMPointerType">;
+
+// Opaque pointer in a given address space.
+class LLVM_OpaquePointerInAddressSpace<int addressSpace> : Type<
+  And<[LLVM_OpaquePointer.predicate,
+        CPred<
+          "::llvm::cast<::mlir::LLVM::LLVMPointerType>($_self).getAddressSpace() == "
+          # addressSpace>]>,
+  "Opaque LLVM pointer in address space " # addressSpace,
+  "::mlir::LLVM::LLVMPointerType"> {
+  let builderCall = "$_builder.getType<::mlir::LLVM::LLVMPointerType>("
+    # addressSpace # ")";
+}
 
 // Type constraints accepting LLVM pointer type to integer of a specific width.
 class LLVM_IntPtrBase<int width, int addressSpace = 0> : Type<
@@ -84,10 +101,23 @@ def LLVM_OpaqueStruct : Type<
   And<[LLVM_AnyStruct.predicate,
        CPred<"::llvm::cast<::mlir::LLVM::LLVMStructType>($_self).isOpaque()">]>>;
 
+// Type constraint accepting any LLVM target extension type.
+def LLVM_AnyTargetExt : Type<CPred<"::llvm::isa<::mlir::LLVM::LLVMTargetExtType>($_self)">,
+                            "LLVM target extension type">;
+
+// Type constraint accepting LLVM target extension types with no support for
+// memory operations such as alloca, load and store.
+def LLVM_NonLoadableTargetExtType : Type<
+  And<[LLVM_AnyTargetExt.predicate,
+        CPred<"!::llvm::cast<::mlir::LLVM::LLVMTargetExtType>($_self).supportsMemOps()">]
+        >>;
+
 // Type constraint accepting any LLVM type that can be loaded or stored, i.e. a
-// type that has size (not void, function or opaque struct type).
+// type that has size (not void, function, opaque struct type or target
+// extension type which does not support memory operations).
 def LLVM_LoadableType : Type<
-  Or<[And<[LLVM_PrimitiveType.predicate, Neg<LLVM_OpaqueStruct.predicate>]>,
+  Or<[And<[LLVM_PrimitiveType.predicate, Neg<LLVM_OpaqueStruct.predicate>,
+          Neg<LLVM_NonLoadableTargetExtType.predicate>]>,
       LLVM_PointerElementTypeInterface.predicate]>,
   "LLVM type with size">;
 
@@ -159,7 +189,9 @@ class LLVM_OpBase<Dialect dialect, string mnemonic, list<Trait> traits = []> :
   //   - $_op - substituted by a reference to store the newly created MLIR
   //            operation (only for MLIR operations that return no result);
   //   - $_int_attr - substituted by a call to an integer attribute matcher;
+  //   - $_float_attr - substituted by a call to a float attribute matcher;
   //   - $_var_attr - substituted by a call to a variable attribute matcher;
+  //   - $_label_attr - substituted by a call to a label attribute matcher;
   //   - $_resultType - substituted with the MLIR result type;
   //   - $_location - substituted with the MLIR location;
   //   - $_builder - substituted with the MLIR builder;
@@ -263,10 +295,10 @@ class LLVM_MemAccessOpBase<string mnemonic, list<Trait> traits = []> :
       DeclareOpInterfaceMethods<AccessGroupOpInterface>,
       DeclareOpInterfaceMethods<AliasAnalysisOpInterface>], traits)>,
     LLVM_MemOpPatterns {
-  dag aliasAttrs = (ins OptionalAttr<SymbolRefArrayAttr>:$access_groups,
-                    OptionalAttr<SymbolRefArrayAttr>:$alias_scopes,
-                    OptionalAttr<SymbolRefArrayAttr>:$noalias_scopes,
-                    OptionalAttr<SymbolRefArrayAttr>:$tbaa);
+  dag aliasAttrs = (ins OptionalAttr<LLVM_AccessGroupArrayAttr>:$access_groups,
+                    OptionalAttr<LLVM_AliasScopeArrayAttr>:$alias_scopes,
+                    OptionalAttr<LLVM_AliasScopeArrayAttr>:$noalias_scopes,
+                    OptionalAttr<LLVM_TBAATagArrayAttr>:$tbaa);
 }
 
 // Base class for LLVM intrinsics operation. It is similar to LLVM_Op, but
@@ -306,27 +338,27 @@ class LLVM_IntrOpBase<Dialect dialect, string opName, string enumName,
       Results<!if(!gt(numResults, 0), (outs LLVM_Type:$res), (outs))> {
   dag aliasAttrs = !con(
         !if(!gt(requiresAccessGroup, 0),
-            (ins OptionalAttr<SymbolRefArrayAttr>:$access_groups),
+            (ins OptionalAttr<LLVM_AccessGroupArrayAttr>:$access_groups),
             (ins )),
-        !if(!gt(requiresAccessGroup, 0),
-            (ins OptionalAttr<SymbolRefArrayAttr>:$alias_scopes,
-                 OptionalAttr<SymbolRefArrayAttr>:$noalias_scopes,
-                 OptionalAttr<SymbolRefArrayAttr>:$tbaa),
+        !if(!gt(requiresAliasAnalysis, 0),
+            (ins OptionalAttr<LLVM_AliasScopeArrayAttr>:$alias_scopes,
+                 OptionalAttr<LLVM_AliasScopeArrayAttr>:$noalias_scopes,
+                 OptionalAttr<LLVM_TBAATagArrayAttr>:$tbaa),
             (ins )));
   string resultPattern = !if(!gt(numResults, 1),
                              LLVM_IntrPatterns.structResult,
                              LLVM_IntrPatterns.result);
   string llvmEnumName = enumName;
+  list<string> declTypeList = !listconcat(
+            ListIntSubst<resultPattern, overloadedResults>.lst,
+            ListIntSubst<LLVM_IntrPatterns.operand,
+                         overloadedOperands>.lst);
+  string declTypes = [{ { }] # !interleave(declTypeList, ", ") # [{ } }];
   let llvmBuilder = [{
     llvm::Module *module = builder.GetInsertBlock()->getModule();
     llvm::Function *fn = llvm::Intrinsic::getDeclaration(
         module,
-        llvm::Intrinsic::}] # enumName # [{,
-        { }] # !interleave(!listconcat(
-            ListIntSubst<resultPattern, overloadedResults>.lst,
-            ListIntSubst<LLVM_IntrPatterns.operand,
-                         overloadedOperands>.lst), ", ") # [{
-        });
+        llvm::Intrinsic::}] # enumName # [{,}] # declTypes # [{);
     auto operands = moduleTranslation.lookupValues(opInst.getOperands());
     }] # [{
     auto *inst = builder.CreateCall(fn, operands);

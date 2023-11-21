@@ -413,7 +413,7 @@ const char *Breakpoint::GetConditionText() const {
 void Breakpoint::SetCallback(BreakpointHitCallback callback, void *baton,
                              bool is_synchronous) {
   // The default "Baton" class will keep a copy of "baton" and won't free or
-  // delete it when it goes goes out of scope.
+  // delete it when it goes out of scope.
   m_options.SetCallback(callback, std::make_shared<UntypedBaton>(baton),
                         is_synchronous);
 
@@ -842,7 +842,7 @@ bool Breakpoint::HasResolvedLocations() const {
 size_t Breakpoint::GetNumLocations() const { return m_locations.GetSize(); }
 
 bool Breakpoint::AddName(llvm::StringRef new_name) {
-  m_name_list.insert(new_name.str().c_str());
+  m_name_list.insert(new_name.str());
   return true;
 }
 

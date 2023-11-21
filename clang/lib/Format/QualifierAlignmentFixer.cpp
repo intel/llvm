@@ -1,4 +1,4 @@
-//===--- LeftRightQualifierAlignmentFixer.cpp -------------------*- C++--*-===//
+//===--- QualifierAlignmentFixer.cpp ----------------------------*- C++--*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// This file implements LeftRightQualifierAlignmentFixer, a TokenAnalyzer that
+/// This file implements QualifierAlignmentFixer, a TokenAnalyzer that
 /// enforces either left or right const depending on the style.
 ///
 //===----------------------------------------------------------------------===//
@@ -25,18 +25,13 @@
 namespace clang {
 namespace format {
 
-QualifierAlignmentFixer::QualifierAlignmentFixer(
-    const Environment &Env, const FormatStyle &Style, StringRef &Code,
-    ArrayRef<tooling::Range> Ranges, unsigned FirstStartColumn,
-    unsigned NextStartColumn, unsigned LastStartColumn, StringRef FileName)
-    : TokenAnalyzer(Env, Style), Code(Code), Ranges(Ranges),
-      FirstStartColumn(FirstStartColumn), NextStartColumn(NextStartColumn),
-      LastStartColumn(LastStartColumn), FileName(FileName) {
+void addQualifierAlignmentFixerPasses(const FormatStyle &Style,
+                                      SmallVectorImpl<AnalyzerPass> &Passes) {
   std::vector<std::string> LeftOrder;
   std::vector<std::string> RightOrder;
   std::vector<tok::TokenKind> ConfiguredQualifierTokens;
-  PrepareLeftRightOrdering(Style.QualifierOrder, LeftOrder, RightOrder,
-                           ConfiguredQualifierTokens);
+  prepareLeftRightOrderingForQualifierAlignmentFixer(
+      Style.QualifierOrder, LeftOrder, RightOrder, ConfiguredQualifierTokens);
 
   // Handle the left and right alignment separately.
   for (const auto &Qualifier : LeftOrder) {
@@ -57,51 +52,6 @@ QualifierAlignmentFixer::QualifierAlignmentFixer(
               .process();
         });
   }
-}
-
-std::pair<tooling::Replacements, unsigned> QualifierAlignmentFixer::analyze(
-    TokenAnnotator & /*Annotator*/,
-    SmallVectorImpl<AnnotatedLine *> & /*AnnotatedLines*/,
-    FormatTokenLexer & /*Tokens*/) {
-  auto Env = Environment::make(Code, FileName, Ranges, FirstStartColumn,
-                               NextStartColumn, LastStartColumn);
-  if (!Env)
-    return {};
-  std::optional<std::string> CurrentCode;
-  tooling::Replacements Fixes;
-  for (size_t I = 0, E = Passes.size(); I < E; ++I) {
-    std::pair<tooling::Replacements, unsigned> PassFixes = Passes[I](*Env);
-    auto NewCode = applyAllReplacements(
-        CurrentCode ? StringRef(*CurrentCode) : Code, PassFixes.first);
-    if (NewCode) {
-      Fixes = Fixes.merge(PassFixes.first);
-      if (I + 1 < E) {
-        CurrentCode = std::move(*NewCode);
-        Env = Environment::make(
-            *CurrentCode, FileName,
-            tooling::calculateRangesAfterReplacements(Fixes, Ranges),
-            FirstStartColumn, NextStartColumn, LastStartColumn);
-        if (!Env)
-          return {};
-      }
-    }
-  }
-
-  // Don't make replacements that replace nothing.
-  tooling::Replacements NonNoOpFixes;
-
-  for (const tooling::Replacement &Fix : Fixes) {
-    StringRef OriginalCode = Code.substr(Fix.getOffset(), Fix.getLength());
-
-    if (!OriginalCode.equals(Fix.getReplacementText())) {
-      auto Err = NonNoOpFixes.add(Fix);
-      if (Err) {
-        llvm::errs() << "Error adding replacements : "
-                     << llvm::toString(std::move(Err)) << "\n";
-      }
-    }
-  }
-  return {NonNoOpFixes, 0};
 }
 
 static void replaceToken(const SourceManager &SourceMgr,
@@ -231,7 +181,7 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
     tooling::Replacements &Fixes, const FormatToken *const Tok,
     const std::string &Qualifier, tok::TokenKind QualifierType) {
   // We only need to think about streams that begin with a qualifier.
-  if (!Tok->is(QualifierType))
+  if (Tok->isNot(QualifierType))
     return Tok;
   // Don't concern yourself if nothing follows the qualifier.
   if (!Tok->Next)
@@ -417,7 +367,7 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
     tooling::Replacements &Fixes, const FormatToken *const Tok,
     const std::string &Qualifier, tok::TokenKind QualifierType) {
   // We only need to think about streams that begin with a qualifier.
-  if (!Tok->is(QualifierType))
+  if (Tok->isNot(QualifierType))
     return Tok;
   // Don't concern yourself if nothing preceeds the qualifier.
   if (!Tok->getPreviousNonComment())
@@ -612,7 +562,7 @@ LeftRightQualifierAlignmentFixer::analyze(
   return {Fixes, 0};
 }
 
-void QualifierAlignmentFixer::PrepareLeftRightOrdering(
+void prepareLeftRightOrderingForQualifierAlignmentFixer(
     const std::vector<std::string> &Order, std::vector<std::string> &LeftOrder,
     std::vector<std::string> &RightOrder,
     std::vector<tok::TokenKind> &Qualifiers) {
@@ -664,11 +614,11 @@ bool LeftRightQualifierAlignmentFixer::isConfiguredQualifierOrType(
 bool LeftRightQualifierAlignmentFixer::isPossibleMacro(const FormatToken *Tok) {
   if (!Tok)
     return false;
-  if (!Tok->is(tok::identifier))
+  if (Tok->isNot(tok::identifier))
     return false;
   if (Tok->TokenText.upper() == Tok->TokenText.str()) {
     // T,K,U,V likely could be template arguments
-    return (Tok->TokenText.size() != 1);
+    return Tok->TokenText.size() != 1;
   }
   return false;
 }

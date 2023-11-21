@@ -36,9 +36,8 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
   SmallVector<Range> getIterationDomain(Operation *op, OpBuilder &b) const {
     ReifiedRankedShapedTypeDims reifiedShapes;
     (void)reifyResultShapes(b, op, reifiedShapes);
-    Location loc = op->getLoc();
-    Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
-    Value one = b.create<arith::ConstantIndexOp>(loc, 1);
+    OpFoldResult zero = b.getIndexAttr(0);
+    OpFoldResult one = b.getIndexAttr(1);
     // Initialize all the ranges to {zero, one, one}. All the `ub`s are
     // overwritten.
     SmallVector<Range> loopRanges(reifiedShapes[0].size(), {zero, one, one});
@@ -76,11 +75,10 @@ static SmallVector<Range> getPackUnPackIterationDomain(OpTy op,
   static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
                 "applies to only pack or unpack operations");
   OpBuilder::InsertionGuard g(builder);
-  Location loc = op.getLoc();
   int64_t rank = (std::is_same<OpTy, PackOp>::value) ? op.getSourceRank()
                                                      : op.getDestRank();
-  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  OpFoldResult zero = builder.getIndexAttr(0);
+  OpFoldResult one = builder.getIndexAttr(1);
   ReifiedRankedShapedTypeDims resultShape;
   (void)reifyResultShapes(builder, op, resultShape);
   SmallVector<Range> loopBounds(rank);
@@ -136,7 +134,7 @@ struct PackOpTiling
     DenseMap<int64_t, OpFoldResult> dimAndTileMapping =
         packOp.getDimAndTileMapping();
     SmallVector<OpFoldResult> srcDimValues =
-        tensor::createDimValues(b, loc, packOp.getSource());
+        tensor::getMixedSizes(b, loc, packOp.getSource());
     SmallVector<OpFoldResult> inputIndices, inputSizes;
     for (auto dim : llvm::seq<int64_t>(0, inputRank)) {
       using AV = affine::AffineValueExpr;
@@ -221,6 +219,32 @@ struct PackOpTiling
       resultSizes.push_back(outputShape[0][dataTileDim]);
 
     return success();
+  }
+
+  FailureOr<TilingResult>
+  generateResultTileValue(Operation *op, OpBuilder &b, unsigned resultNumber,
+                          ArrayRef<OpFoldResult> offsets,
+                          ArrayRef<OpFoldResult> sizes) const {
+    auto packOp = cast<PackOp>(op);
+    int64_t numTiles = packOp.getInnerDimsPos().size();
+
+    // tensor.pack op is fusible (as a producer) only if full inner tiles are
+    // iterated or inner dims are not tiled. Otherwise, it will generate a
+    // sequence of non-trivial ops (for partial tiles).
+    for (auto offset : offsets.take_back(numTiles))
+      if (!isConstantIntValue(offset, 0))
+        return failure();
+
+    for (auto iter :
+         llvm::zip_equal(packOp.getMixedTiles(), sizes.take_back(numTiles)))
+      if (!isEqualConstantIntOrValue(std::get<0>(iter), std::get<1>(iter)))
+        return failure();
+
+    FailureOr<TilingResult> tilingResult = getTiledImplementation(
+        op, b, offsets.drop_back(numTiles), sizes.drop_back(numTiles));
+    if (failed(tilingResult))
+      return failure();
+    return tilingResult.value();
   }
 };
 
@@ -504,8 +528,7 @@ FailureOr<TilingResult> tensor::bubbleUpPadSlice(OpBuilder &b,
     bool hasHighPad = !isConstantIntValue(high, 0);
     auto offset = offsets[dim];
     auto length = sizes[dim];
-    auto srcSize =
-        tensor::createDimValue(b, loc, padOp.getSource(), dim).value();
+    auto srcSize = tensor::getMixedSize(b, loc, padOp.getSource(), dim);
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of

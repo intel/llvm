@@ -44,6 +44,7 @@ def ConstStructDirentPtrPtr : ConstType<StructDirentPtrPtr>;
 
 def StructTimeSpec : NamedType<"struct timespec">;
 def StructTimeSpecPtr : PtrType<StructTimeSpec>;
+def ConstStructTimeSpecPtr : ConstType<StructTimeSpecPtr>;
 
 def StructSchedParam : NamedType<"struct sched_param">;
 def StructSchedParamPtr : PtrType<StructSchedParam>;
@@ -425,7 +426,7 @@ def POSIX : StandardSpec<"POSIX"> {
         FunctionSpec<
           "ftruncate",
           RetValSpec<IntType>,
-          [ArgSpec<ConstCharPtr>, ArgSpec<OffTType>]
+          [ArgSpec<IntType>, ArgSpec<OffTType>]
         >,
         FunctionSpec<
           "geteuid",
@@ -580,7 +581,7 @@ def POSIX : StandardSpec<"POSIX"> {
         FunctionSpec<
           "truncate",
           RetValSpec<IntType>,
-          [ArgSpec<IntType>, ArgSpec<OffTType>]
+          [ArgSpec<ConstCharPtr>, ArgSpec<OffTType>]
         >,
         FunctionSpec<
           "unlink",
@@ -984,7 +985,7 @@ def POSIX : StandardSpec<"POSIX"> {
       >,
       FunctionSpec<
           "pthread_exit",
-          RetValSpec<VoidType>,
+          RetValSpec<NoReturn>,
           [ArgSpec<VoidPtr>]
       >,
       FunctionSpec<
@@ -1192,7 +1193,7 @@ def POSIX : StandardSpec<"POSIX"> {
           FunctionSpec<
               "nanosleep",
               RetValSpec<IntType>,
-              [ArgSpec<StructTimeSpecPtr>, ArgSpec<StructTimeSpecPtr>]
+              [ArgSpec<ConstStructTimeSpecPtr>, ArgSpec<StructTimeSpecPtr>]
           >,
       ]
   >;
@@ -1200,7 +1201,7 @@ def POSIX : StandardSpec<"POSIX"> {
   HeaderSpec SysWait = HeaderSpec<
     "sys/wait.h",
     [], // Macros
-    [PidT, StructRUsage],
+    [PidT, StructRUsage, SigInfoType],
     [], // Enumerations
     [
       FunctionSpec<

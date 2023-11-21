@@ -19,6 +19,7 @@
 #include "llvm/ADT/Uniformity.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineCycleAnalysis.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -85,11 +86,21 @@ struct RegImmPair {
 
 /// Used to describe addressing mode similar to ExtAddrMode in CodeGenPrepare.
 /// It holds the register values, the scale value and the displacement.
+/// It also holds a descriptor for the expression used to calculate the address
+/// from the operands.
 struct ExtAddrMode {
+  enum class Formula {
+    Basic = 0,         // BaseReg + ScaledReg * Scale + Displacement
+    SExtScaledReg = 1, // BaseReg + sext(ScaledReg) * Scale + Displacement
+    ZExtScaledReg = 2  // BaseReg + zext(ScaledReg) * Scale + Displacement
+  };
+
   Register BaseReg;
   Register ScaledReg;
-  int64_t Scale;
-  int64_t Displacement;
+  int64_t Scale = 0;
+  int64_t Displacement = 0;
+  Formula Form = Formula::Basic;
+  ExtAddrMode() = default;
 };
 
 //---------------------------------------------------------------------------
@@ -131,14 +142,18 @@ public:
   bool isTriviallyReMaterializable(const MachineInstr &MI) const {
     return MI.getOpcode() == TargetOpcode::IMPLICIT_DEF ||
            (MI.getDesc().isRematerializable() &&
-            (isReallyTriviallyReMaterializable(MI) ||
-             isReallyTriviallyReMaterializableGeneric(MI)));
+            isReallyTriviallyReMaterializable(MI));
   }
 
   /// Given \p MO is a PhysReg use return if it can be ignored for the purpose
   /// of instruction rematerialization or sinking.
   virtual bool isIgnorableUse(const MachineOperand &MO) const {
     return false;
+  }
+
+  virtual bool isSafeToSink(MachineInstr &MI, MachineBasicBlock *SuccToSinkTo,
+                            MachineCycleInfo *CI) const {
+    return true;
   }
 
 protected:
@@ -148,10 +163,7 @@ protected:
   /// predicate must return false if the instruction has any side effects other
   /// than producing a value, or if it requres any address registers that are
   /// not always available.
-  /// Requirements must be check as stated in isTriviallyReMaterializable() .
-  virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const {
-    return false;
-  }
+  virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const;
 
   /// This method commutes the operands of the given machine instruction MI.
   /// The operands to be commuted are specified by their indices OpIdx1 and
@@ -185,13 +197,6 @@ protected:
   static bool fixCommutedOpIndices(unsigned &ResultIdx1, unsigned &ResultIdx2,
                                    unsigned CommutableOpIdx1,
                                    unsigned CommutableOpIdx2);
-
-private:
-  /// For instructions with opcodes for which the M_REMATERIALIZABLE flag is
-  /// set and the target hook isReallyTriviallyReMaterializable returns false,
-  /// this function does target-independent tests to determine if the
-  /// instruction is really trivially rematerializable.
-  bool isReallyTriviallyReMaterializableGeneric(const MachineInstr &MI) const;
 
 public:
   /// These methods return the opcode of the frame setup/destroy instructions
@@ -1044,6 +1049,16 @@ public:
     return isCopyInstrImpl(MI);
   }
 
+  bool isFullCopyInstr(const MachineInstr &MI) const {
+    auto DestSrc = isCopyInstr(MI);
+    if (!DestSrc)
+      return false;
+
+    const MachineOperand *DestRegOp = DestSrc->Destination;
+    const MachineOperand *SrcRegOp = DestSrc->Source;
+    return !DestRegOp->getSubReg() && !SrcRegOp->getSubReg();
+  }
+
   /// If the specific machine instruction is an instruction that adds an
   /// immediate value and a physical register, and stores the result in
   /// the given physical register \c Reg, return a pair of the source
@@ -1149,6 +1164,10 @@ public:
   MachineInstr *foldMemoryOperand(MachineInstr &MI, ArrayRef<unsigned> Ops,
                                   MachineInstr &LoadMI,
                                   LiveIntervals *LIS = nullptr) const;
+
+  /// This function defines the logic to lower COPY instruction to
+  /// target specific instruction(s).
+  void lowerCopy(MachineInstr *MI, const TargetRegisterInfo *TRI) const;
 
   /// Return true when there is potentially a faster code sequence
   /// for an instruction chain ending in \p Root. All potential patterns are
@@ -1431,6 +1450,26 @@ public:
   getAddrModeFromMemoryOp(const MachineInstr &MemI,
                           const TargetRegisterInfo *TRI) const {
     return std::nullopt;
+  }
+
+  /// Check if it's possible and beneficial to fold the addressing computation
+  /// `AddrI` into the addressing mode of the load/store instruction `MemI`. The
+  /// memory instruction is a user of the virtual register `Reg`, which in turn
+  /// is the ultimate destination of zero or more COPY instructions from the
+  /// output register of `AddrI`.
+  /// Return the adddressing mode after folding in `AM`.
+  virtual bool canFoldIntoAddrMode(const MachineInstr &MemI, Register Reg,
+                                   const MachineInstr &AddrI,
+                                   ExtAddrMode &AM) const {
+    return false;
+  }
+
+  /// Emit a load/store instruction with the same value register as `MemI`, but
+  /// using the address from `AM`. The addressing mode must have been obtained
+  /// from `canFoldIntoAddr` for the same memory instruction.
+  virtual MachineInstr *emitLdStWithAddr(MachineInstr &MemI,
+                                         const ExtAddrMode &AM) const {
+    llvm_unreachable("target did not implement emitLdStWithAddr()");
   }
 
   /// Returns true if MI's Def is NullValueReg, and the MI
@@ -1954,6 +1993,13 @@ public:
     return false;
   }
 
+  /// Allows targets to use appropriate copy instruction while spilitting live
+  /// range of a register in register allocation.
+  virtual unsigned getLiveRangeSplitOpcode(Register Reg,
+                                           const MachineFunction &MF) const {
+    return TargetOpcode::COPY;
+  }
+
   /// During PHI eleimination lets target to make necessary checks and
   /// insert the copy to the PHI destination register in a target specific
   /// manner.
@@ -2047,6 +2093,14 @@ public:
         "Target didn't implement TargetInstrInfo::insertOutlinedCall!");
   }
 
+  /// Insert an architecture-specific instruction to clear a register.
+  virtual void buildClearRegister(Register Reg, MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator Iter,
+                                  DebugLoc &DL) const {
+    llvm_unreachable(
+        "Target didn't implement TargetInstrInfo::buildClearRegister!");
+  }
+
   /// Return true if the function can safely be outlined from.
   /// A function \p MF is considered safe for outlining if an outlined function
   /// produced from instructions in F will produce a program which produces the
@@ -2060,6 +2114,17 @@ public:
   /// Return true if the function should be outlined from by default.
   virtual bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const {
     return false;
+  }
+
+  /// Return true if the function is a viable candidate for machine function
+  /// splitting. The criteria for if a function can be split may vary by target.
+  virtual bool isFunctionSafeToSplit(const MachineFunction &MF) const;
+
+  /// Return true if the MachineBasicBlock can safely be split to the cold
+  /// section. On AArch64, certain instructions may cause a block to be unsafe
+  /// to split to the cold section.
+  virtual bool isMBBSafeToSplitToCold(const MachineBasicBlock &MBB) const {
+    return true;
   }
 
   /// Produce the expression describing the \p MI loading a value into
@@ -2087,8 +2152,8 @@ public:
   /// Returns the target-specific default value for tail duplication.
   /// This value will be used if the tail-dup-placement-threshold argument is
   /// not provided.
-  virtual unsigned getTailDuplicateSize(CodeGenOpt::Level OptLevel) const {
-    return OptLevel >= CodeGenOpt::Aggressive ? 4 : 2;
+  virtual unsigned getTailDuplicateSize(CodeGenOptLevel OptLevel) const {
+    return OptLevel >= CodeGenOptLevel::Aggressive ? 4 : 2;
   }
 
   /// Returns the callee operand from the given \p MI.
@@ -2110,6 +2175,9 @@ public:
                                         int64_t &Offset) const {
     return false;
   }
+
+  // Get the call frame size just before MI.
+  unsigned getCallFrameSizeAt(MachineInstr &MI) const;
 
 private:
   mutable std::unique_ptr<MIRFormatter> Formatter;

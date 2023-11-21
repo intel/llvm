@@ -92,12 +92,13 @@ func.func @genbool_var_3d(%arg0: index, %arg1: index, %arg2: index) -> vector<2x
 }
 
 transform.sequence failures(propagate) {
-^bb1(%module_op: !pdl.operation):
+^bb1(%module_op: !transform.any_op):
   %f = transform.structured.match ops{["func.func"]} in %module_op 
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 
-  transform.vector.lower_masks %f
-      : (!pdl.operation) -> !pdl.operation
+  transform.apply_patterns to %f {
+    transform.apply_patterns.vector.lower_masks
+  } : !transform.any_op
 }
 
 // -----
@@ -122,10 +123,11 @@ func.func @transfer_read_3d(
 }
 
 transform.sequence failures(propagate) {
-^bb1(%module_op: !pdl.operation):
+^bb1(%module_op: !transform.any_op):
   %f = transform.structured.match ops{["func.func"]} in %module_op 
-    : (!pdl.operation) -> !pdl.operation
+    : (!transform.any_op) -> !transform.any_op
 
-  transform.vector.lower_masked_transfers %f
-      : (!pdl.operation) -> !pdl.operation
+  transform.apply_patterns to %f {
+    transform.apply_patterns.vector.lower_masked_transfers
+  } : !transform.any_op
 }

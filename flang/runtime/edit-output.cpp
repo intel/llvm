@@ -154,7 +154,8 @@ bool EditIntegerOutput(IoStatementState &io, const DataEdit &edit,
   int digits = end - p;
   int leadingZeroes{0};
   int editWidth{edit.width.value_or(0)};
-  if (edit.digits && digits <= *edit.digits) { // Iw.m
+  if (edit.descriptor == 'I' && edit.digits && digits <= *edit.digits) {
+    // Only Iw.m can produce leading zeroes, not Gw.d (F'202X 13.7.5.2.2)
     if (*edit.digits == 0 && n == 0) {
       // Iw.0 with zero value: output field must be blank.  For I0.0
       // and a zero value, emit one blank character.
@@ -320,8 +321,12 @@ bool RealOutputEditing<KIND>::EditEorDOutput(const DataEdit &edit) {
     decimal::ConversionToDecimalResult converted{
         Convert(significantDigits, edit.modes.round, flags)};
     if (IsInfOrNaN(converted)) {
-      return EmitPrefix(edit, converted.length, editWidth) &&
-          EmitAscii(io_, converted.str, converted.length) && EmitSuffix(edit);
+      return editWidth > 0 &&
+              converted.length > static_cast<std::size_t>(editWidth)
+          ? EmitRepeated(io_, '*', editWidth)
+          : EmitPrefix(edit, converted.length, editWidth) &&
+              EmitAscii(io_, converted.str, converted.length) &&
+              EmitSuffix(edit);
     }
     if (!IsZero()) {
       converted.decimalExponent -= scale;
@@ -415,8 +420,12 @@ bool RealOutputEditing<KIND>::EditFOutput(const DataEdit &edit) {
     decimal::ConversionToDecimalResult converted{
         Convert(extraDigits + fracDigits, rounding, flags)};
     if (IsInfOrNaN(converted)) {
-      return EmitPrefix(edit, converted.length, editWidth) &&
-          EmitAscii(io_, converted.str, converted.length) && EmitSuffix(edit);
+      return editWidth > 0 &&
+              converted.length > static_cast<std::size_t>(editWidth)
+          ? EmitRepeated(io_, '*', editWidth)
+          : EmitPrefix(edit, converted.length, editWidth) &&
+              EmitAscii(io_, converted.str, converted.length) &&
+              EmitSuffix(edit);
     }
     int expo{converted.decimalExponent + edit.modes.scale /*kP*/};
     int signLength{*converted.str == '-' || *converted.str == '+' ? 1 : 0};

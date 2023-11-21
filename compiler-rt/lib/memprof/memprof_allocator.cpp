@@ -23,6 +23,7 @@
 #include "sanitizer_common/sanitizer_allocator_checks.h"
 #include "sanitizer_common/sanitizer_allocator_interface.h"
 #include "sanitizer_common/sanitizer_allocator_report.h"
+#include "sanitizer_common/sanitizer_array_ref.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_errno.h"
 #include "sanitizer_common/sanitizer_file.h"
@@ -189,6 +190,7 @@ void MemprofMapUnmapCallback::OnMap(uptr p, uptr size) const {
   thread_stats.mmaps++;
   thread_stats.mmaped += size;
 }
+
 void MemprofMapUnmapCallback::OnUnmap(uptr p, uptr size) const {
   // We are about to unmap a chunk of user memory.
   // Mark the corresponding shadow memory as not needed.
@@ -555,6 +557,10 @@ struct Allocator {
     return user_requested_size;
   }
 
+  uptr AllocationSizeFast(uptr p) {
+    return reinterpret_cast<MemprofChunk *>(p - kChunkHeaderSize)->UsedSize();
+  }
+
   void Purge(BufferedStackTrace *stack) { allocator.ForceReleaseToOS(); }
 
   void PrintStats() { allocator.PrintStats(); }
@@ -717,6 +723,13 @@ const void *__sanitizer_get_allocated_begin(const void *p) {
 
 uptr __sanitizer_get_allocated_size(const void *p) {
   return memprof_malloc_usable_size(p, 0, 0);
+}
+
+uptr __sanitizer_get_allocated_size_fast(const void *p) {
+  DCHECK_EQ(p, __sanitizer_get_allocated_begin(p));
+  uptr ret = instance.AllocationSizeFast(reinterpret_cast<uptr>(p));
+  DCHECK_EQ(ret, __sanitizer_get_allocated_size(p));
+  return ret;
 }
 
 int __memprof_profile_dump() {

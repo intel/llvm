@@ -20,13 +20,13 @@ target triple = "aarch64-unknown-linux-gnu"
 ; CHECK-NEXT:     EMIT vp<[[CAN_IV:%.+]]> = CANONICAL-INDUCTION
 ; CHECK-NEXT:     EMIT ir<%ptr.iv.1> = WIDEN-POINTER-INDUCTION ir<%start.1>, 8
 ; CHECK-NEXT:     EMIT ir<%ptr.iv.2> = WIDEN-POINTER-INDUCTION ir<%start.2>, 1
-; CHECK-NEXT:     WIDEN-GEP Var[Inv] ir<%ptr.iv.2.next> = getelementptr ir<%ptr.iv.2>, ir<1>
+; CHECK-NEXT:     WIDEN-GEP Var[Inv] ir<%ptr.iv.2.next> = getelementptr inbounds ir<%ptr.iv.2>, ir<1>
 ; CHECK-NEXT:     WIDEN store ir<%ptr.iv.1>, ir<%ptr.iv.2.next>
 ; CHECK-NEXT:     WIDEN ir<%lv> = load ir<%ptr.iv.2>
 ; CHECK-NEXT:     WIDEN ir<%add> = add ir<%lv>, ir<1>
 ; CHECK-NEXT:     WIDEN store ir<%ptr.iv.2>, ir<%add>
-; CHECK-NEXT:     EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF +(nuw) vp<[[CAN_IV]]>
-; CHECK-NEXT:     EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
+; CHECK-NEXT:     EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + nuw vp<[[CAN_IV]]>
+; CHECK-NEXT:     EMIT branch-on-count vp<[[CAN_IV_NEXT]]>, vp<[[VEC_TC]]>
 ; CHECK-NEXT:   No successors
 ; CHECK-NEXT:   }
 

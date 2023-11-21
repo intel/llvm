@@ -1074,20 +1074,24 @@ bool LoopIdiomRecognize::processLoopStridedStore(
   Value *NumBytes =
       Expander.expandCodeFor(NumBytesS, IntIdxTy, Preheader->getTerminator());
 
+  if (!SplatValue && !isLibFuncEmittable(M, TLI, LibFunc_memset_pattern16))
+    return Changed;
+
+  AAMDNodes AATags = TheStore->getAAMetadata();
+  for (Instruction *Store : Stores)
+    AATags = AATags.merge(Store->getAAMetadata());
+  if (auto CI = dyn_cast<ConstantInt>(NumBytes))
+    AATags = AATags.extendTo(CI->getZExtValue());
+  else
+    AATags = AATags.extendTo(-1);
+
   CallInst *NewCall;
   if (SplatValue) {
-    AAMDNodes AATags = TheStore->getAAMetadata();
-    for (Instruction *Store : Stores)
-      AATags = AATags.merge(Store->getAAMetadata());
-    if (auto CI = dyn_cast<ConstantInt>(NumBytes))
-      AATags = AATags.extendTo(CI->getZExtValue());
-    else
-      AATags = AATags.extendTo(-1);
-
     NewCall = Builder.CreateMemSet(
         BasePtr, SplatValue, NumBytes, MaybeAlign(StoreAlignment),
         /*isVolatile=*/false, AATags.TBAA, AATags.Scope, AATags.NoAlias);
-  } else if (isLibFuncEmittable(M, TLI, LibFunc_memset_pattern16)) {
+  } else {
+    assert (isLibFuncEmittable(M, TLI, LibFunc_memset_pattern16));
     // Everything is emitted in default address space
     Type *Int8PtrTy = DestInt8PtrTy;
 
@@ -1105,8 +1109,17 @@ bool LoopIdiomRecognize::processLoopStridedStore(
     GV->setAlignment(Align(16));
     Value *PatternPtr = ConstantExpr::getBitCast(GV, Int8PtrTy);
     NewCall = Builder.CreateCall(MSP, {BasePtr, PatternPtr, NumBytes});
-  } else
-    return Changed;
+    
+    // Set the TBAA info if present.
+    if (AATags.TBAA)
+      NewCall->setMetadata(LLVMContext::MD_tbaa, AATags.TBAA);
+
+    if (AATags.Scope)
+      NewCall->setMetadata(LLVMContext::MD_alias_scope, AATags.Scope);
+
+    if (AATags.NoAlias)
+      NewCall->setMetadata(LLVMContext::MD_noalias, AATags.NoAlias);
+  } 
 
   NewCall->setDebugLoc(TheStore->getDebugLoc());
 
@@ -2013,7 +2026,8 @@ void LoopIdiomRecognize::transformLoopToCountable(
   auto *LbBr = cast<BranchInst>(Body->getTerminator());
   ICmpInst *LbCond = cast<ICmpInst>(LbBr->getCondition());
 
-  PHINode *TcPhi = PHINode::Create(CountTy, 2, "tcphi", &Body->front());
+  PHINode *TcPhi = PHINode::Create(CountTy, 2, "tcphi");
+  TcPhi->insertBefore(Body->begin());
 
   Builder.SetInsertPoint(LbCond);
   Instruction *TcDec = cast<Instruction>(Builder.CreateSub(
@@ -2119,7 +2133,8 @@ void LoopIdiomRecognize::transformLoopToPopcount(BasicBlock *PreCondBB,
     ICmpInst *LbCond = cast<ICmpInst>(LbBr->getCondition());
     Type *Ty = TripCnt->getType();
 
-    PHINode *TcPhi = PHINode::Create(Ty, 2, "tcphi", &Body->front());
+    PHINode *TcPhi = PHINode::Create(Ty, 2, "tcphi");
+    TcPhi->insertBefore(Body->begin());
 
     Builder.SetInsertPoint(LbCond);
     Instruction *TcDec = cast<Instruction>(
@@ -2377,7 +2392,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
   // intrinsic/shift we'll use are not cheap. Note that we are okay with *just*
   // making the loop countable, even if nothing else changes.
   IntrinsicCostAttributes Attrs(
-      IntrID, Ty, {UndefValue::get(Ty), /*is_zero_undef=*/Builder.getTrue()});
+      IntrID, Ty, {PoisonValue::get(Ty), /*is_zero_poison=*/Builder.getTrue()});
   InstructionCost Cost = TTI->getIntrinsicInstrCost(Attrs, CostKind);
   if (Cost > TargetTransformInfo::TCC_Basic) {
     LLVM_DEBUG(dbgs() << DEBUG_TYPE
@@ -2393,6 +2408,24 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
   // Ok, transform appears worthwhile.
   MadeChange = true;
 
+  if (!isGuaranteedNotToBeUndefOrPoison(BitPos)) {
+    // BitMask may be computed from BitPos, Freeze BitPos so we can increase
+    // it's use count.
+    Instruction *InsertPt = nullptr;
+    if (auto *BitPosI = dyn_cast<Instruction>(BitPos))
+      InsertPt = BitPosI->getInsertionPointAfterDef();
+    else
+      InsertPt = &*DT->getRoot()->getFirstNonPHIOrDbgOrAlloca();
+    if (!InsertPt)
+      return false;
+    FreezeInst *BitPosFrozen =
+        new FreezeInst(BitPos, BitPos->getName() + ".fr", InsertPt);
+    BitPos->replaceUsesWithIf(BitPosFrozen, [BitPosFrozen](Use &U) {
+      return U.getUser() != BitPosFrozen;
+    });
+    BitPos = BitPosFrozen;
+  }
+
   // Step 1: Compute the loop trip count.
 
   Value *LowBitMask = Builder.CreateAdd(BitMask, Constant::getAllOnesValue(Ty),
@@ -2401,7 +2434,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
       Builder.CreateOr(LowBitMask, BitMask, BitPos->getName() + ".mask");
   Value *XMasked = Builder.CreateAnd(X, Mask, X->getName() + ".masked");
   CallInst *XMaskedNumLeadingZeros = Builder.CreateIntrinsic(
-      IntrID, Ty, {XMasked, /*is_zero_undef=*/Builder.getTrue()},
+      IntrID, Ty, {XMasked, /*is_zero_poison=*/Builder.getTrue()},
       /*FMFSource=*/nullptr, XMasked->getName() + ".numleadingzeros");
   Value *XMaskedNumActiveBits = Builder.CreateSub(
       ConstantInt::get(Ty, Ty->getScalarSizeInBits()), XMaskedNumLeadingZeros,
@@ -2462,7 +2495,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilBitTest() {
   // Step 4: Rewrite the loop into a countable form, with canonical IV.
 
   // The new canonical induction variable.
-  Builder.SetInsertPoint(&LoopHeaderBB->front());
+  Builder.SetInsertPoint(LoopHeaderBB, LoopHeaderBB->begin());
   auto *IV = Builder.CreatePHI(Ty, 2, CurLoop->getName() + ".iv");
 
   // The induction itself.
@@ -2731,7 +2764,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilZero() {
   // intrinsic we'll use are not cheap. Note that we are okay with *just*
   // making the loop countable, even if nothing else changes.
   IntrinsicCostAttributes Attrs(
-      IntrID, Ty, {UndefValue::get(Ty), /*is_zero_undef=*/Builder.getFalse()});
+      IntrID, Ty, {PoisonValue::get(Ty), /*is_zero_poison=*/Builder.getFalse()});
   InstructionCost Cost = TTI->getIntrinsicInstrCost(Attrs, CostKind);
   if (Cost > TargetTransformInfo::TCC_Basic) {
     LLVM_DEBUG(dbgs() << DEBUG_TYPE
@@ -2749,7 +2782,7 @@ bool LoopIdiomRecognize::recognizeShiftUntilZero() {
   // Step 1: Compute the loop's final IV value / trip count.
 
   CallInst *ValNumLeadingZeros = Builder.CreateIntrinsic(
-      IntrID, Ty, {Val, /*is_zero_undef=*/Builder.getFalse()},
+      IntrID, Ty, {Val, /*is_zero_poison=*/Builder.getFalse()},
       /*FMFSource=*/nullptr, Val->getName() + ".numleadingzeros");
   Value *ValNumActiveBits = Builder.CreateSub(
       ConstantInt::get(Ty, Ty->getScalarSizeInBits()), ValNumLeadingZeros,
@@ -2786,11 +2819,11 @@ bool LoopIdiomRecognize::recognizeShiftUntilZero() {
   // Step 3: Rewrite the loop into a countable form, with canonical IV.
 
   // The new canonical induction variable.
-  Builder.SetInsertPoint(&LoopHeaderBB->front());
+  Builder.SetInsertPoint(LoopHeaderBB, LoopHeaderBB->begin());
   auto *CIV = Builder.CreatePHI(Ty, 2, CurLoop->getName() + ".iv");
 
   // The induction itself.
-  Builder.SetInsertPoint(LoopHeaderBB->getFirstNonPHI());
+  Builder.SetInsertPoint(LoopHeaderBB, LoopHeaderBB->getFirstNonPHIIt());
   auto *CIVNext =
       Builder.CreateAdd(CIV, ConstantInt::get(Ty, 1), CIV->getName() + ".next",
                         /*HasNUW=*/true, /*HasNSW=*/Bitwidth != 2);

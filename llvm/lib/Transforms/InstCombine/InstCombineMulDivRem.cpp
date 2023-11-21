@@ -258,9 +258,14 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   if (Op0->hasOneUse() && match(Op1, m_NegatedPower2())) {
     // Interpret  X * (-1<<C)  as  (-X) * (1<<C)  and try to sink the negation.
     // The "* (1<<C)" thus becomes a potential shifting opportunity.
-    if (Value *NegOp0 = Negator::Negate(/*IsNegation*/ true, Op0, *this))
-      return BinaryOperator::CreateMul(
-          NegOp0, ConstantExpr::getNeg(cast<Constant>(Op1)), I.getName());
+    if (Value *NegOp0 =
+            Negator::Negate(/*IsNegation*/ true, HasNSW, Op0, *this)) {
+      auto *Op1C = cast<Constant>(Op1);
+      return replaceInstUsesWith(
+          I, Builder.CreateMul(NegOp0, ConstantExpr::getNeg(Op1C), "",
+                               /* HasNUW */ false,
+                               HasNSW && Op1C->isNotMinSignedValue()));
+    }
 
     // Try to convert multiply of extended operand to narrow negate and shift
     // for better analysis.
@@ -297,7 +302,7 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
     Constant *C1;
     if ((match(Op0, m_OneUse(m_Add(m_Value(X), m_ImmConstant(C1))))) ||
         (match(Op0, m_OneUse(m_Or(m_Value(X), m_ImmConstant(C1)))) &&
-         haveNoCommonBitsSet(X, C1, DL, &AC, &I, &DT))) {
+         haveNoCommonBitsSet(X, C1, SQ.getWithInstruction(&I)))) {
       // C1*MulC simplifies to a tidier constant.
       Value *NewC = Builder.CreateMul(C1, MulC);
       auto *BOp0 = cast<BinaryOperator>(Op0);
@@ -473,6 +478,9 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
 
   if (Instruction *Ext = narrowMathIfNoOverflow(I))
     return Ext;
+
+  if (Instruction *Res = foldBinOpOfSelectAndCastOfSelectCondition(I))
+    return Res;
 
   // min(X, Y) * max(X, Y) => X * Y.
   if (match(&I, m_CombineOr(m_c_Mul(m_SMax(m_Value(X), m_Value(Y)),
@@ -799,7 +807,7 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       I.hasNoSignedZeros() && match(Start, m_Zero()))
     return replaceInstUsesWith(I, Start);
 
-  // minimun(X, Y) * maximum(X, Y) => X * Y.
+  // minimum(X, Y) * maximum(X, Y) => X * Y.
   if (match(&I,
             m_c_FMul(m_Intrinsic<Intrinsic::maximum>(m_Value(X), m_Value(Y)),
                      m_c_Intrinsic<Intrinsic::minimum>(m_Deferred(X),
@@ -1260,7 +1268,7 @@ static Value *takeLog2(IRBuilderBase &Builder, Value *Op, unsigned Depth,
 /// If we have zero-extended operands of an unsigned div or rem, we may be able
 /// to narrow the operation (sink the zext below the math).
 static Instruction *narrowUDivURem(BinaryOperator &I,
-                                   InstCombiner::BuilderTy &Builder) {
+                                   InstCombinerImpl &IC) {
   Instruction::BinaryOps Opcode = I.getOpcode();
   Value *N = I.getOperand(0);
   Value *D = I.getOperand(1);
@@ -1270,7 +1278,7 @@ static Instruction *narrowUDivURem(BinaryOperator &I,
       X->getType() == Y->getType() && (N->hasOneUse() || D->hasOneUse())) {
     // udiv (zext X), (zext Y) --> zext (udiv X, Y)
     // urem (zext X), (zext Y) --> zext (urem X, Y)
-    Value *NarrowOp = Builder.CreateBinOp(Opcode, X, Y);
+    Value *NarrowOp = IC.Builder.CreateBinOp(Opcode, X, Y);
     return new ZExtInst(NarrowOp, Ty);
   }
 
@@ -1278,24 +1286,24 @@ static Instruction *narrowUDivURem(BinaryOperator &I,
   if (isa<Instruction>(N) && match(N, m_OneUse(m_ZExt(m_Value(X)))) &&
       match(D, m_Constant(C))) {
     // If the constant is the same in the smaller type, use the narrow version.
-    Constant *TruncC = ConstantExpr::getTrunc(C, X->getType());
-    if (ConstantExpr::getZExt(TruncC, Ty) != C)
+    Constant *TruncC = IC.getLosslessUnsignedTrunc(C, X->getType());
+    if (!TruncC)
       return nullptr;
 
     // udiv (zext X), C --> zext (udiv X, C')
     // urem (zext X), C --> zext (urem X, C')
-    return new ZExtInst(Builder.CreateBinOp(Opcode, X, TruncC), Ty);
+    return new ZExtInst(IC.Builder.CreateBinOp(Opcode, X, TruncC), Ty);
   }
   if (isa<Instruction>(D) && match(D, m_OneUse(m_ZExt(m_Value(X)))) &&
       match(N, m_Constant(C))) {
     // If the constant is the same in the smaller type, use the narrow version.
-    Constant *TruncC = ConstantExpr::getTrunc(C, X->getType());
-    if (ConstantExpr::getZExt(TruncC, Ty) != C)
+    Constant *TruncC = IC.getLosslessUnsignedTrunc(C, X->getType());
+    if (!TruncC)
       return nullptr;
 
     // udiv C, (zext X) --> zext (udiv C', X)
     // urem C, (zext X) --> zext (urem C', X)
-    return new ZExtInst(Builder.CreateBinOp(Opcode, TruncC, X), Ty);
+    return new ZExtInst(IC.Builder.CreateBinOp(Opcode, TruncC, X), Ty);
   }
 
   return nullptr;
@@ -1343,7 +1351,7 @@ Instruction *InstCombinerImpl::visitUDiv(BinaryOperator &I) {
     return CastInst::CreateZExtOrBitCast(Cmp, Ty);
   }
 
-  if (Instruction *NarrowDiv = narrowUDivURem(I, Builder))
+  if (Instruction *NarrowDiv = narrowUDivURem(I, *this))
     return NarrowDiv;
 
   // If the udiv operands are non-overflowing multiplies with a common operand,
@@ -1759,16 +1767,55 @@ Instruction *InstCombinerImpl::visitFDiv(BinaryOperator &I) {
   return nullptr;
 }
 
-// Variety of transform for (urem/srem (mul/shl X, Y), (mul/shl X, Z))
+// Variety of transform for:
+//  (urem/srem (mul X, Y), (mul X, Z))
+//  (urem/srem (shl X, Y), (shl X, Z))
+//  (urem/srem (shl Y, X), (shl Z, X))
+// NB: The shift cases are really just extensions of the mul case. We treat
+// shift as Val * (1 << Amt).
 static Instruction *simplifyIRemMulShl(BinaryOperator &I,
                                        InstCombinerImpl &IC) {
-  Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1), *X;
-  const APInt *Y, *Z;
-  if (!(match(Op0, m_Mul(m_Value(X), m_APInt(Y))) &&
-        match(Op1, m_c_Mul(m_Specific(X), m_APInt(Z)))) &&
-      !(match(Op0, m_Mul(m_APInt(Y), m_Value(X))) &&
-        match(Op1, m_c_Mul(m_Specific(X), m_APInt(Z)))))
+  Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1), *X = nullptr;
+  APInt Y, Z;
+  bool ShiftByX = false;
+
+  // If V is not nullptr, it will be matched using m_Specific.
+  auto MatchShiftOrMulXC = [](Value *Op, Value *&V, APInt &C) -> bool {
+    const APInt *Tmp = nullptr;
+    if ((!V && match(Op, m_Mul(m_Value(V), m_APInt(Tmp)))) ||
+        (V && match(Op, m_Mul(m_Specific(V), m_APInt(Tmp)))))
+      C = *Tmp;
+    else if ((!V && match(Op, m_Shl(m_Value(V), m_APInt(Tmp)))) ||
+             (V && match(Op, m_Shl(m_Specific(V), m_APInt(Tmp)))))
+      C = APInt(Tmp->getBitWidth(), 1) << *Tmp;
+    if (Tmp != nullptr)
+      return true;
+
+    // Reset `V` so we don't start with specific value on next match attempt.
+    V = nullptr;
+    return false;
+  };
+
+  auto MatchShiftCX = [](Value *Op, APInt &C, Value *&V) -> bool {
+    const APInt *Tmp = nullptr;
+    if ((!V && match(Op, m_Shl(m_APInt(Tmp), m_Value(V)))) ||
+        (V && match(Op, m_Shl(m_APInt(Tmp), m_Specific(V))))) {
+      C = *Tmp;
+      return true;
+    }
+
+    // Reset `V` so we don't start with specific value on next match attempt.
+    V = nullptr;
+    return false;
+  };
+
+  if (MatchShiftOrMulXC(Op0, X, Y) && MatchShiftOrMulXC(Op1, X, Z)) {
+    // pass
+  } else if (MatchShiftCX(Op0, Y, X) && MatchShiftCX(Op1, Z, X)) {
+    ShiftByX = true;
+  } else {
     return nullptr;
+  }
 
   bool IsSRem = I.getOpcode() == Instruction::SRem;
 
@@ -1779,12 +1826,23 @@ static Instruction *simplifyIRemMulShl(BinaryOperator &I,
   bool BO0HasNUW = BO0->hasNoUnsignedWrap();
   bool BO0NoWrap = IsSRem ? BO0HasNSW : BO0HasNUW;
 
-  APInt RemYZ = IsSRem ? Y->srem(*Z) : Y->urem(*Z);
+  APInt RemYZ = IsSRem ? Y.srem(Z) : Y.urem(Z);
   // (rem (mul nuw/nsw X, Y), (mul X, Z))
   //      if (rem Y, Z) == 0
   //          -> 0
   if (RemYZ.isZero() && BO0NoWrap)
     return IC.replaceInstUsesWith(I, ConstantInt::getNullValue(I.getType()));
+
+  // Helper function to emit either (RemSimplificationC << X) or
+  // (RemSimplificationC * X) depending on whether we matched Op0/Op1 as
+  // (shl V, X) or (mul V, X) respectively.
+  auto CreateMulOrShift =
+      [&](const APInt &RemSimplificationC) -> BinaryOperator * {
+    Value *RemSimplification =
+        ConstantInt::get(I.getType(), RemSimplificationC);
+    return ShiftByX ? BinaryOperator::CreateShl(RemSimplification, X)
+                    : BinaryOperator::CreateMul(X, RemSimplification);
+  };
 
   OverflowingBinaryOperator *BO1 = cast<OverflowingBinaryOperator>(Op1);
   bool BO1HasNSW = BO1->hasNoSignedWrap();
@@ -1793,9 +1851,8 @@ static Instruction *simplifyIRemMulShl(BinaryOperator &I,
   // (rem (mul X, Y), (mul nuw/nsw X, Z))
   //      if (rem Y, Z) == Y
   //          -> (mul nuw/nsw X, Y)
-  if (RemYZ == *Y && BO1NoWrap) {
-    BinaryOperator *BO =
-        BinaryOperator::CreateMul(X, ConstantInt::get(I.getType(), *Y));
+  if (RemYZ == Y && BO1NoWrap) {
+    BinaryOperator *BO = CreateMulOrShift(Y);
     // Copy any overflow flags from Op0.
     BO->setHasNoSignedWrap(IsSRem || BO0HasNSW);
     BO->setHasNoUnsignedWrap(!IsSRem || BO0HasNUW);
@@ -1805,9 +1862,8 @@ static Instruction *simplifyIRemMulShl(BinaryOperator &I,
   // (rem (mul nuw/nsw X, Y), (mul {nsw} X, Z))
   //      if Y >= Z
   //          -> (mul {nuw} nsw X, (rem Y, Z))
-  if (Y->uge(*Z) && (IsSRem ? (BO0HasNSW && BO1HasNSW) : BO0HasNUW)) {
-    BinaryOperator *BO =
-        BinaryOperator::CreateMul(X, ConstantInt::get(I.getType(), RemYZ));
+  if (Y.uge(Z) && (IsSRem ? (BO0HasNSW && BO1HasNSW) : BO0HasNUW)) {
+    BinaryOperator *BO = CreateMulOrShift(RemYZ);
     BO->setHasNoSignedWrap();
     BO->setHasNoUnsignedWrap(BO0HasNUW);
     return BO;
@@ -1885,7 +1941,7 @@ Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
   if (Instruction *common = commonIRemTransforms(I))
     return common;
 
-  if (Instruction *NarrowRem = narrowUDivURem(I, Builder))
+  if (Instruction *NarrowRem = narrowUDivURem(I, *this))
     return NarrowRem;
 
   // X urem Y -> X and Y-1, where Y is a power of 2,

@@ -414,7 +414,7 @@ bool llvm::wouldInstructionBeTriviallyDeadOnUnusedPaths(
   return wouldInstructionBeTriviallyDead(I, TLI);
 }
 
-bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
+bool llvm::wouldInstructionBeTriviallyDead(const Instruction *I,
                                            const TargetLibraryInfo *TLI) {
   if (I->isTerminator())
     return false;
@@ -428,7 +428,7 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
   if (isa<DbgVariableIntrinsic>(I))
     return false;
 
-  if (DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(I)) {
+  if (const DbgLabelInst *DLI = dyn_cast<DbgLabelInst>(I)) {
     if (DLI->getLabel())
       return false;
     return true;
@@ -461,7 +461,7 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
 
   // Special case intrinsics that "may have side effects" but can be deleted
   // when dead.
-  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+  if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
     // Safe to delete llvm.stacksave and launder.invariant.group if dead.
     if (II->getIntrinsicID() == Intrinsic::stacksave ||
         II->getIntrinsicID() == Intrinsic::launder_invariant_group)
@@ -1247,7 +1247,9 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
   return true;
 }
 
-static bool EliminateDuplicatePHINodesNaiveImpl(BasicBlock *BB) {
+static bool
+EliminateDuplicatePHINodesNaiveImpl(BasicBlock *BB,
+                                    SmallPtrSetImpl<PHINode *> &ToRemove) {
   // This implementation doesn't currently consider undef operands
   // specially. Theoretically, two phis which are identical except for
   // one having an undef where the other doesn't could be collapsed.
@@ -1263,12 +1265,14 @@ static bool EliminateDuplicatePHINodesNaiveImpl(BasicBlock *BB) {
     // Note that we only look in the upper square's triangle,
     // we already checked that the lower triangle PHI's aren't identical.
     for (auto J = I; PHINode *DuplicatePN = dyn_cast<PHINode>(J); ++J) {
+      if (ToRemove.contains(DuplicatePN))
+        continue;
       if (!DuplicatePN->isIdenticalToWhenDefined(PN))
         continue;
       // A duplicate. Replace this PHI with the base PHI.
       ++NumPHICSEs;
       DuplicatePN->replaceAllUsesWith(PN);
-      DuplicatePN->eraseFromParent();
+      ToRemove.insert(DuplicatePN);
       Changed = true;
 
       // The RAUW can change PHIs that we already visited.
@@ -1279,7 +1283,9 @@ static bool EliminateDuplicatePHINodesNaiveImpl(BasicBlock *BB) {
   return Changed;
 }
 
-static bool EliminateDuplicatePHINodesSetBasedImpl(BasicBlock *BB) {
+static bool
+EliminateDuplicatePHINodesSetBasedImpl(BasicBlock *BB,
+                                       SmallPtrSetImpl<PHINode *> &ToRemove) {
   // This implementation doesn't currently consider undef operands
   // specially. Theoretically, two phis which are identical except for
   // one having an undef where the other doesn't could be collapsed.
@@ -1343,12 +1349,14 @@ static bool EliminateDuplicatePHINodesSetBasedImpl(BasicBlock *BB) {
   // Examine each PHI.
   bool Changed = false;
   for (auto I = BB->begin(); PHINode *PN = dyn_cast<PHINode>(I++);) {
+    if (ToRemove.contains(PN))
+      continue;
     auto Inserted = PHISet.insert(PN);
     if (!Inserted.second) {
       // A duplicate. Replace this PHI with its duplicate.
       ++NumPHICSEs;
       PN->replaceAllUsesWith(*Inserted.first);
-      PN->eraseFromParent();
+      ToRemove.insert(PN);
       Changed = true;
 
       // The RAUW can change PHIs that we already visited. Start over from the
@@ -1361,25 +1369,27 @@ static bool EliminateDuplicatePHINodesSetBasedImpl(BasicBlock *BB) {
   return Changed;
 }
 
-bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
+bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB,
+                                      SmallPtrSetImpl<PHINode *> &ToRemove) {
   if (
 #ifndef NDEBUG
       !PHICSEDebugHash &&
 #endif
       hasNItemsOrLess(BB->phis(), PHICSENumPHISmallSize))
-    return EliminateDuplicatePHINodesNaiveImpl(BB);
-  return EliminateDuplicatePHINodesSetBasedImpl(BB);
+    return EliminateDuplicatePHINodesNaiveImpl(BB, ToRemove);
+  return EliminateDuplicatePHINodesSetBasedImpl(BB, ToRemove);
 }
 
-/// If the specified pointer points to an object that we control, try to modify
-/// the object's alignment to PrefAlign. Returns a minimum known alignment of
-/// the value after the operation, which may be lower than PrefAlign.
-///
-/// Increating value alignment isn't often possible though. If alignment is
-/// important, a more reliable approach is to simply align all global variables
-/// and allocation instructions to their preferred alignment from the beginning.
-static Align tryEnforceAlignment(Value *V, Align PrefAlign,
-                                 const DataLayout &DL) {
+bool llvm::EliminateDuplicatePHINodes(BasicBlock *BB) {
+  SmallPtrSet<PHINode *, 8> ToRemove;
+  bool Changed = EliminateDuplicatePHINodes(BB, ToRemove);
+  for (PHINode *PN : ToRemove)
+    PN->eraseFromParent();
+  return Changed;
+}
+
+Align llvm::tryEnforceAlignment(Value *V, Align PrefAlign,
+                                const DataLayout &DL) {
   V = V->stripPointerCasts();
 
   if (AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
@@ -1980,6 +1990,18 @@ uint64_t getDwarfOpForBinOp(Instruction::BinaryOps Opcode) {
   }
 }
 
+static void handleSSAValueOperands(uint64_t CurrentLocOps,
+                                   SmallVectorImpl<uint64_t> &Opcodes,
+                                   SmallVectorImpl<Value *> &AdditionalValues,
+                                   Instruction *I) {
+  if (!CurrentLocOps) {
+    Opcodes.append({dwarf::DW_OP_LLVM_arg, 0});
+    CurrentLocOps = 1;
+  }
+  Opcodes.append({dwarf::DW_OP_LLVM_arg, CurrentLocOps});
+  AdditionalValues.push_back(I->getOperand(1));
+}
+
 Value *getSalvageOpsForBinOp(BinaryOperator *BI, uint64_t CurrentLocOps,
                              SmallVectorImpl<uint64_t> &Opcodes,
                              SmallVectorImpl<Value *> &AdditionalValues) {
@@ -2002,12 +2024,7 @@ Value *getSalvageOpsForBinOp(BinaryOperator *BI, uint64_t CurrentLocOps,
     }
     Opcodes.append({dwarf::DW_OP_constu, Val});
   } else {
-    if (!CurrentLocOps) {
-      Opcodes.append({dwarf::DW_OP_LLVM_arg, 0});
-      CurrentLocOps = 1;
-    }
-    Opcodes.append({dwarf::DW_OP_LLVM_arg, CurrentLocOps});
-    AdditionalValues.push_back(BI->getOperand(1));
+    handleSSAValueOperands(CurrentLocOps, Opcodes, AdditionalValues, BI);
   }
 
   // Add salvaged binary operator to expression stack, if it has a valid
@@ -2017,6 +2034,60 @@ Value *getSalvageOpsForBinOp(BinaryOperator *BI, uint64_t CurrentLocOps,
     return nullptr;
   Opcodes.push_back(DwarfBinOp);
   return BI->getOperand(0);
+}
+
+uint64_t getDwarfOpForIcmpPred(CmpInst::Predicate Pred) {
+  // The signedness of the operation is implicit in the typed stack, signed and
+  // unsigned instructions map to the same DWARF opcode.
+  switch (Pred) {
+  case CmpInst::ICMP_EQ:
+    return dwarf::DW_OP_eq;
+  case CmpInst::ICMP_NE:
+    return dwarf::DW_OP_ne;
+  case CmpInst::ICMP_UGT:
+  case CmpInst::ICMP_SGT:
+    return dwarf::DW_OP_gt;
+  case CmpInst::ICMP_UGE:
+  case CmpInst::ICMP_SGE:
+    return dwarf::DW_OP_ge;
+  case CmpInst::ICMP_ULT:
+  case CmpInst::ICMP_SLT:
+    return dwarf::DW_OP_lt;
+  case CmpInst::ICMP_ULE:
+  case CmpInst::ICMP_SLE:
+    return dwarf::DW_OP_le;
+  default:
+    return 0;
+  }
+}
+
+Value *getSalvageOpsForIcmpOp(ICmpInst *Icmp, uint64_t CurrentLocOps,
+                              SmallVectorImpl<uint64_t> &Opcodes,
+                              SmallVectorImpl<Value *> &AdditionalValues) {
+  // Handle icmp operations with constant integer operands as a special case.
+  auto *ConstInt = dyn_cast<ConstantInt>(Icmp->getOperand(1));
+  // Values wider than 64 bits cannot be represented within a DIExpression.
+  if (ConstInt && ConstInt->getBitWidth() > 64)
+    return nullptr;
+  // Push any Constant Int operand onto the expression stack.
+  if (ConstInt) {
+    if (Icmp->isSigned())
+      Opcodes.push_back(dwarf::DW_OP_consts);
+    else
+      Opcodes.push_back(dwarf::DW_OP_constu);
+    uint64_t Val = ConstInt->getSExtValue();
+    Opcodes.push_back(Val);
+  } else {
+    handleSSAValueOperands(CurrentLocOps, Opcodes, AdditionalValues, Icmp);
+  }
+
+  // Add salvaged binary operator to expression stack, if it has a valid
+  // representation in a DIExpression.
+  uint64_t DwarfIcmpOp = getDwarfOpForIcmpPred(Icmp->getPredicate());
+  if (!DwarfIcmpOp)
+    return nullptr;
+  Opcodes.push_back(DwarfIcmpOp);
+  return Icmp->getOperand(0);
 }
 
 Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
@@ -2058,6 +2129,8 @@ Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
     return getSalvageOpsForGEP(GEP, DL, CurrentLocOps, Ops, AdditionalValues);
   if (auto *BI = dyn_cast<BinaryOperator>(&I))
     return getSalvageOpsForBinOp(BI, CurrentLocOps, Ops, AdditionalValues);
+  if (auto *IC = dyn_cast<ICmpInst>(&I))
+    return getSalvageOpsForIcmpOp(IC, CurrentLocOps, Ops, AdditionalValues);
 
   // *Not* to do: we should not attempt to salvage load instructions,
   // because the validity and lifetime of a dbg.value containing
@@ -2833,9 +2906,10 @@ static unsigned replaceDominatedUsesWith(Value *From, Value *To,
   for (Use &U : llvm::make_early_inc_range(From->uses())) {
     if (!Dominates(Root, U))
       continue;
+    LLVM_DEBUG(dbgs() << "Replace dominated use of '";
+               From->printAsOperand(dbgs());
+               dbgs() << "' with " << *To << " in " << *U.getUser() << "\n");
     U.set(To);
-    LLVM_DEBUG(dbgs() << "Replace dominated use of '" << From->getName()
-                      << "' as " << *To << " in " << *U << "\n");
     ++Count;
   }
   return Count;

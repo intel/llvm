@@ -63,13 +63,10 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -96,8 +93,6 @@ class Lint : public InstVisitor<Lint> {
   void visitCallBase(CallBase &CB);
   void visitMemoryReference(Instruction &I, const MemoryLocation &Loc,
                             MaybeAlign Alignment, Type *Ty, unsigned Flags);
-  void visitEHBeginCatch(IntrinsicInst *II);
-  void visitEHEndCatch(IntrinsicInst *II);
 
   void visitReturnInst(ReturnInst &I);
   void visitLoadInst(LoadInst &I);
@@ -239,6 +234,10 @@ void Lint::visitCallBase(CallBase &I) {
               continue;
             // If both arguments are readonly, they have no dependence.
             if (Formal->onlyReadsMemory() && I.onlyReadsMemory(ArgNo))
+              continue;
+            // Skip readnone arguments since those are guaranteed not to be
+            // dereferenced anyway.
+            if (I.doesNotAccessMemory(ArgNo))
               continue;
             if (AI != BI && (*BI)->getType()->isPointerTy()) {
               AliasResult Result = AA->alias(*AI, *BI);

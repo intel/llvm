@@ -1770,7 +1770,7 @@ BlockAddress *BlockAddress::get(Function *F, BasicBlock *BB) {
 }
 
 BlockAddress::BlockAddress(Function *F, BasicBlock *BB)
-    : Constant(Type::getInt8PtrTy(F->getContext(), F->getAddressSpace()),
+    : Constant(PointerType::get(F->getContext(), F->getAddressSpace()),
                Value::BlockAddressVal, &Op<0>(), 2) {
   setOperand(0, F);
   setOperand(1, BB);
@@ -2226,21 +2226,6 @@ Constant *ConstantExpr::getAddrSpaceCast(Constant *C, Type *DstTy,
                                          bool OnlyIfReduced) {
   assert(CastInst::castIsValid(Instruction::AddrSpaceCast, C, DstTy) &&
          "Invalid constantexpr addrspacecast!");
-
-  // Canonicalize addrspacecasts between different pointer types by first
-  // bitcasting the pointer type and then converting the address space.
-  PointerType *SrcScalarTy = cast<PointerType>(C->getType()->getScalarType());
-  PointerType *DstScalarTy = cast<PointerType>(DstTy->getScalarType());
-  if (!SrcScalarTy->hasSameElementTypeAs(DstScalarTy)) {
-    Type *MidTy = PointerType::getWithSamePointeeType(
-        DstScalarTy, SrcScalarTy->getAddressSpace());
-    if (VectorType *VT = dyn_cast<VectorType>(DstTy)) {
-      // Handle vectors of pointers.
-      MidTy = FixedVectorType::get(MidTy,
-                                   cast<FixedVectorType>(VT)->getNumElements());
-    }
-    C = getBitCast(C, MidTy);
-  }
   return getFoldedCast(Instruction::AddrSpaceCast, C, DstTy, OnlyIfReduced);
 }
 
@@ -2303,6 +2288,8 @@ bool ConstantExpr::isDesirableBinOp(unsigned Opcode) {
   case Instruction::FMul:
   case Instruction::FDiv:
   case Instruction::FRem:
+  case Instruction::And:
+  case Instruction::Or:
     return false;
   case Instruction::Add:
   case Instruction::Sub:
@@ -2310,8 +2297,6 @@ bool ConstantExpr::isDesirableBinOp(unsigned Opcode) {
   case Instruction::Shl:
   case Instruction::LShr:
   case Instruction::AShr:
-  case Instruction::And:
-  case Instruction::Or:
   case Instruction::Xor:
     return true;
   default:
@@ -2330,6 +2315,8 @@ bool ConstantExpr::isSupportedBinOp(unsigned Opcode) {
   case Instruction::FMul:
   case Instruction::FDiv:
   case Instruction::FRem:
+  case Instruction::And:
+  case Instruction::Or:
     return false;
   case Instruction::Add:
   case Instruction::Sub:
@@ -2337,12 +2324,32 @@ bool ConstantExpr::isSupportedBinOp(unsigned Opcode) {
   case Instruction::Shl:
   case Instruction::LShr:
   case Instruction::AShr:
-  case Instruction::And:
-  case Instruction::Or:
   case Instruction::Xor:
     return true;
   default:
     llvm_unreachable("Argument must be binop opcode");
+  }
+}
+
+bool ConstantExpr::isDesirableCastOp(unsigned Opcode) {
+  switch (Opcode) {
+  case Instruction::ZExt:
+  case Instruction::SExt:
+    return false;
+  case Instruction::Trunc:
+  case Instruction::FPTrunc:
+  case Instruction::FPExt:
+  case Instruction::UIToFP:
+  case Instruction::SIToFP:
+  case Instruction::FPToUI:
+  case Instruction::FPToSI:
+  case Instruction::PtrToInt:
+  case Instruction::IntToPtr:
+  case Instruction::BitCast:
+  case Instruction::AddrSpaceCast:
+    return true;
+  default:
+    llvm_unreachable("Argument must be cast opcode");
   }
 }
 
@@ -2360,7 +2367,7 @@ Constant *ConstantExpr::getAlignOf(Type* Ty) {
   // alignof is implemented as: (i64) gep ({i1,Ty}*)null, 0, 1
   // Note that a non-inbounds gep is used, as null isn't within any object.
   Type *AligningTy = StructType::get(Type::getInt1Ty(Ty->getContext()), Ty);
-  Constant *NullPtr = Constant::getNullValue(AligningTy->getPointerTo(0));
+  Constant *NullPtr = Constant::getNullValue(PointerType::getUnqual(AligningTy->getContext()));
   Constant *Zero = ConstantInt::get(Type::getInt64Ty(Ty->getContext()), 0);
   Constant *One = ConstantInt::get(Type::getInt32Ty(Ty->getContext()), 1);
   Constant *Indices[2] = { Zero, One };
@@ -2395,36 +2402,24 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
                                          ArrayRef<Value *> Idxs, bool InBounds,
                                          std::optional<unsigned> InRangeIndex,
                                          Type *OnlyIfReducedTy) {
-  PointerType *OrigPtrTy = cast<PointerType>(C->getType()->getScalarType());
   assert(Ty && "Must specify element type");
   assert(isSupportedGetElementPtr(Ty) && "Element type is unsupported!");
-  assert(OrigPtrTy->isOpaqueOrPointeeTypeMatches(Ty));
 
   if (Constant *FC =
           ConstantFoldGetElementPtr(Ty, C, InBounds, InRangeIndex, Idxs))
     return FC;          // Fold a few common cases.
 
+  assert(GetElementPtrInst::getIndexedType(Ty, Idxs) &&
+         "GEP indices invalid!");;
+
   // Get the result type of the getelementptr!
-  Type *DestTy = GetElementPtrInst::getIndexedType(Ty, Idxs);
-  assert(DestTy && "GEP indices invalid!");
-  unsigned AS = OrigPtrTy->getAddressSpace();
-  Type *ReqTy = OrigPtrTy->isOpaque()
-      ? PointerType::get(OrigPtrTy->getContext(), AS)
-      : DestTy->getPointerTo(AS);
-
-  auto EltCount = ElementCount::getFixed(0);
-  if (VectorType *VecTy = dyn_cast<VectorType>(C->getType()))
-    EltCount = VecTy->getElementCount();
-  else
-    for (auto *Idx : Idxs)
-      if (VectorType *VecTy = dyn_cast<VectorType>(Idx->getType()))
-        EltCount = VecTy->getElementCount();
-
-  if (EltCount.isNonZero())
-    ReqTy = VectorType::get(ReqTy, EltCount);
-
+  Type *ReqTy = GetElementPtrInst::getGEPReturnType(C, Idxs);
   if (OnlyIfReducedTy == ReqTy)
     return nullptr;
+
+  auto EltCount = ElementCount::getFixed(0);
+  if (VectorType *VecTy = dyn_cast<VectorType>(ReqTy))
+    EltCount = VecTy->getElementCount();
 
   // Look up the constant in the table first to ensure uniqueness
   std::vector<Constant*> ArgVec;
@@ -2609,14 +2604,6 @@ Constant *ConstantExpr::getMul(Constant *C1, Constant *C2,
   unsigned Flags = (HasNUW ? OverflowingBinaryOperator::NoUnsignedWrap : 0) |
                    (HasNSW ? OverflowingBinaryOperator::NoSignedWrap   : 0);
   return get(Instruction::Mul, C1, C2, Flags);
-}
-
-Constant *ConstantExpr::getAnd(Constant *C1, Constant *C2) {
-  return get(Instruction::And, C1, C2);
-}
-
-Constant *ConstantExpr::getOr(Constant *C1, Constant *C2) {
-  return get(Instruction::Or, C1, C2);
 }
 
 Constant *ConstantExpr::getXor(Constant *C1, Constant *C2) {

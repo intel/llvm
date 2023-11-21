@@ -217,8 +217,8 @@ public:
   }
 
 private:
-  FormatToken *Current;
-  FormatToken *LineEnd;
+  FormatToken *Current = nullptr;
+  FormatToken *LineEnd = nullptr;
 
   FormatToken invalidToken;
 
@@ -517,7 +517,7 @@ private:
     }
 
     // eat a potential "import X, " prefix.
-    if (Current->is(tok::identifier)) {
+    if (!Reference.IsExport && Current->is(tok::identifier)) {
       Reference.DefaultImport = Current->TokenText;
       nextToken();
       if (Current->is(Keywords.kw_from))
@@ -530,7 +530,7 @@ private:
           nextToken();
           if (Current->is(tok::semi))
             return true;
-          if (!Current->is(tok::period))
+          if (Current->isNot(tok::period))
             return false;
           nextToken();
         }

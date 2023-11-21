@@ -3,6 +3,8 @@
 ; RUN:   -target-abi=ilp32d | FileCheck %s
 ; RUN: llc -mtriple=riscv64 -mattr=+d -verify-machineinstrs < %s \
 ; RUN:   -target-abi=lp64d | FileCheck %s
+; RUN: llc -mtriple=riscv32 -mattr=+zdinx -verify-machineinstrs < %s \
+; RUN:   -target-abi=ilp32 | FileCheck --check-prefix=CHECKRV32ZDINX %s
 ; RUN: llc -mtriple=riscv64 -mattr=+zdinx -verify-machineinstrs < %s \
 ; RUN:   -target-abi=lp64 | FileCheck --check-prefix=CHECKRV64ZDINX %s
 
@@ -12,6 +14,14 @@ define double @double_imm() nounwind {
 ; CHECK-NEXT:    lui a0, %hi(.LCPI0_0)
 ; CHECK-NEXT:    fld fa0, %lo(.LCPI0_0)(a0)
 ; CHECK-NEXT:    ret
+;
+; CHECKRV32ZDINX-LABEL: double_imm:
+; CHECKRV32ZDINX:       # %bb.0:
+; CHECKRV32ZDINX-NEXT:    lui a0, 345155
+; CHECKRV32ZDINX-NEXT:    addi a0, a0, -744
+; CHECKRV32ZDINX-NEXT:    lui a1, 262290
+; CHECKRV32ZDINX-NEXT:    addi a1, a1, 507
+; CHECKRV32ZDINX-NEXT:    ret
 ;
 ; CHECKRV64ZDINX-LABEL: double_imm:
 ; CHECKRV64ZDINX:       # %bb.0:
@@ -29,6 +39,24 @@ define double @double_imm_op(double %a) nounwind {
 ; CHECK-NEXT:    fadd.d fa0, fa0, fa5
 ; CHECK-NEXT:    ret
 ;
+; CHECKRV32ZDINX-LABEL: double_imm_op:
+; CHECKRV32ZDINX:       # %bb.0:
+; CHECKRV32ZDINX-NEXT:    addi sp, sp, -16
+; CHECKRV32ZDINX-NEXT:    sw a0, 8(sp)
+; CHECKRV32ZDINX-NEXT:    sw a1, 12(sp)
+; CHECKRV32ZDINX-NEXT:    lw a0, 8(sp)
+; CHECKRV32ZDINX-NEXT:    lw a1, 12(sp)
+; CHECKRV32ZDINX-NEXT:    lui a2, %hi(.LCPI1_0)
+; CHECKRV32ZDINX-NEXT:    lw a3, %lo(.LCPI1_0+4)(a2)
+; CHECKRV32ZDINX-NEXT:    lw a2, %lo(.LCPI1_0)(a2)
+; CHECKRV32ZDINX-NEXT:    fadd.d a0, a0, a2
+; CHECKRV32ZDINX-NEXT:    sw a0, 8(sp)
+; CHECKRV32ZDINX-NEXT:    sw a1, 12(sp)
+; CHECKRV32ZDINX-NEXT:    lw a0, 8(sp)
+; CHECKRV32ZDINX-NEXT:    lw a1, 12(sp)
+; CHECKRV32ZDINX-NEXT:    addi sp, sp, 16
+; CHECKRV32ZDINX-NEXT:    ret
+;
 ; CHECKRV64ZDINX-LABEL: double_imm_op:
 ; CHECKRV64ZDINX:       # %bb.0:
 ; CHECKRV64ZDINX-NEXT:    lui a1, %hi(.LCPI1_0)
@@ -37,4 +65,33 @@ define double @double_imm_op(double %a) nounwind {
 ; CHECKRV64ZDINX-NEXT:    ret
   %1 = fadd double %a, 1.0
   ret double %1
+}
+
+define double @double_positive_zero(ptr %pd) nounwind {
+; CHECKRV32ZDINX-LABEL: double_positive_zero:
+; CHECKRV32ZDINX:       # %bb.0:
+; CHECKRV32ZDINX-NEXT:    li a0, 0
+; CHECKRV32ZDINX-NEXT:    li a1, 0
+; CHECKRV32ZDINX-NEXT:    ret
+;
+; CHECKRV64ZDINX-LABEL: double_positive_zero:
+; CHECKRV64ZDINX:       # %bb.0:
+; CHECKRV64ZDINX-NEXT:    li a0, 0
+; CHECKRV64ZDINX-NEXT:    ret
+  ret double 0.0
+}
+
+define double @double_negative_zero(ptr %pd) nounwind {
+; CHECKRV32ZDINX-LABEL: double_negative_zero:
+; CHECKRV32ZDINX:       # %bb.0:
+; CHECKRV32ZDINX-NEXT:    lui a1, 524288
+; CHECKRV32ZDINX-NEXT:    li a0, 0
+; CHECKRV32ZDINX-NEXT:    ret
+;
+; CHECKRV64ZDINX-LABEL: double_negative_zero:
+; CHECKRV64ZDINX:       # %bb.0:
+; CHECKRV64ZDINX-NEXT:    li a0, -1
+; CHECKRV64ZDINX-NEXT:    slli a0, a0, 63
+; CHECKRV64ZDINX-NEXT:    ret
+  ret double -0.0
 }

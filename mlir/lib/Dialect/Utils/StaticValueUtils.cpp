@@ -18,7 +18,7 @@ namespace mlir {
 bool isZeroIndex(OpFoldResult v) {
   if (!v)
     return false;
-  if (auto attr = v.dyn_cast<Attribute>()) {
+  if (auto attr = llvm::dyn_cast_if_present<Attribute>(v)) {
     IntegerAttr intAttr = dyn_cast<IntegerAttr>(attr);
     return intAttr && intAttr.getValue().isZero();
   }
@@ -51,7 +51,7 @@ getOffsetsSizesAndStrides(ArrayRef<Range> ranges) {
 void dispatchIndexOpFoldResult(OpFoldResult ofr,
                                SmallVectorImpl<Value> &dynamicVec,
                                SmallVectorImpl<int64_t> &staticVec) {
-  auto v = ofr.dyn_cast<Value>();
+  auto v = llvm::dyn_cast_if_present<Value>(ofr);
   if (!v) {
     APInt apInt = cast<IntegerAttr>(ofr.get<Attribute>()).getValue();
     staticVec.push_back(apInt.getSExtValue());
@@ -66,14 +66,6 @@ void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
                                 SmallVectorImpl<int64_t> &staticVec) {
   for (OpFoldResult ofr : ofrs)
     dispatchIndexOpFoldResult(ofr, dynamicVec, staticVec);
-}
-
-/// Extract int64_t values from the assumed ArrayAttr of IntegerAttr.
-SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr) {
-  return llvm::to_vector<4>(
-      llvm::map_range(cast<ArrayAttr>(attr), [](Attribute a) -> int64_t {
-        return cast<IntegerAttr>(a).getInt();
-      }));
 }
 
 /// Given a value, try to extract a constant Attribute. If this fails, return
@@ -116,17 +108,31 @@ SmallVector<OpFoldResult> getAsIndexOpFoldResult(MLIRContext *ctx,
 /// If ofr is a constant integer or an IntegerAttr, return the integer.
 std::optional<int64_t> getConstantIntValue(OpFoldResult ofr) {
   // Case 1: Check for Constant integer.
-  if (auto val = ofr.dyn_cast<Value>()) {
+  if (auto val = llvm::dyn_cast_if_present<Value>(ofr)) {
     APSInt intVal;
     if (matchPattern(val, m_ConstantInt(&intVal)))
       return intVal.getSExtValue();
     return std::nullopt;
   }
   // Case 2: Check for IntegerAttr.
-  Attribute attr = ofr.dyn_cast<Attribute>();
+  Attribute attr = llvm::dyn_cast_if_present<Attribute>(ofr);
   if (auto intAttr = dyn_cast_or_null<IntegerAttr>(attr))
     return intAttr.getValue().getSExtValue();
   return std::nullopt;
+}
+
+std::optional<SmallVector<int64_t>>
+getConstantIntValues(ArrayRef<OpFoldResult> ofrs) {
+  bool failed = false;
+  SmallVector<int64_t> res = llvm::map_to_vector(ofrs, [&](OpFoldResult ofr) {
+    auto cv = getConstantIntValue(ofr);
+    if (!cv.has_value())
+      failed = true;
+    return cv.has_value() ? cv.value() : 0;
+  });
+  if (failed)
+    return std::nullopt;
+  return res;
 }
 
 /// Return true if `ofr` is constant integer equal to `value`.
@@ -143,7 +149,8 @@ bool isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2) {
   auto cst1 = getConstantIntValue(ofr1), cst2 = getConstantIntValue(ofr2);
   if (cst1 && cst2 && *cst1 == *cst2)
     return true;
-  auto v1 = ofr1.dyn_cast<Value>(), v2 = ofr2.dyn_cast<Value>();
+  auto v1 = llvm::dyn_cast_if_present<Value>(ofr1),
+       v2 = llvm::dyn_cast_if_present<Value>(ofr2);
   return v1 && v1 == v2;
 }
 
@@ -247,6 +254,20 @@ std::optional<int64_t> constantTripCount(OpFoldResult lb, OpFoldResult ub,
     return std::nullopt;
 
   return mlir::ceilDiv(*ubConstant - *lbConstant, *stepConstant);
+}
+
+LogicalResult foldDynamicIndexList(SmallVectorImpl<OpFoldResult> &ofrs) {
+  bool valuesChanged = false;
+  for (OpFoldResult &ofr : ofrs) {
+    if (ofr.is<Attribute>())
+      continue;
+    Attribute attr;
+    if (matchPattern(ofr.get<Value>(), m_Constant(&attr))) {
+      ofr = attr;
+      valuesChanged = true;
+    }
+  }
+  return success(valuesChanged);
 }
 
 } // namespace mlir

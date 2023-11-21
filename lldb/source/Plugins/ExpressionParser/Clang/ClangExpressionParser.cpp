@@ -71,7 +71,6 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Expression/IRExecutionUnit.h"
 #include "lldb/Expression/IRInterpreter.h"
 #include "lldb/Host/File.h"
@@ -511,14 +510,14 @@ ClangExpressionParser::ClangExpressionParser(
     break;
   case lldb::eLanguageTypeC_plus_plus_20:
     lang_opts.CPlusPlus20 = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case lldb::eLanguageTypeC_plus_plus_17:
     // FIXME: add a separate case for CPlusPlus14. Currently folded into C++17
     // because C++14 is the default standard for Clang but enabling CPlusPlus14
     // expression evaluatino doesn't pass the test-suite cleanly.
     lang_opts.CPlusPlus14 = true;
     lang_opts.CPlusPlus17 = true;
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case lldb::eLanguageTypeC_plus_plus:
   case lldb::eLanguageTypeC_plus_plus_11:
   case lldb::eLanguageTypeC_plus_plus_14:
@@ -575,8 +574,8 @@ ClangExpressionParser::ClangExpressionParser(
     // FIXME: We should ask the driver for the appropriate default flags.
     lang_opts.GNUMode = true;
     lang_opts.GNUKeywords = true;
-    lang_opts.DoubleSquareBracketAttributes = true;
     lang_opts.CPlusPlus11 = true;
+    lang_opts.BuiltinHeadersInSystemModules = true;
 
     // The Darwin libc expects this macro to be set.
     lang_opts.GNUCVersion = 40201;
@@ -587,12 +586,19 @@ ClangExpressionParser::ClangExpressionParser(
 
   if (process_sp && lang_opts.ObjC) {
     if (auto *runtime = ObjCLanguageRuntime::Get(*process_sp)) {
-      if (runtime->GetRuntimeVersion() ==
-          ObjCLanguageRuntime::ObjCRuntimeVersions::eAppleObjC_V2)
+      switch (runtime->GetRuntimeVersion()) {
+      case ObjCLanguageRuntime::ObjCRuntimeVersions::eAppleObjC_V2:
         lang_opts.ObjCRuntime.set(ObjCRuntime::MacOSX, VersionTuple(10, 7));
-      else
+        break;
+      case ObjCLanguageRuntime::ObjCRuntimeVersions::eObjC_VersionUnknown:
+      case ObjCLanguageRuntime::ObjCRuntimeVersions::eAppleObjC_V1:
         lang_opts.ObjCRuntime.set(ObjCRuntime::FragileMacOSX,
                                   VersionTuple(10, 7));
+        break;
+      case ObjCLanguageRuntime::ObjCRuntimeVersions::eGNUstep_libobjc2:
+        lang_opts.ObjCRuntime.set(ObjCRuntime::GNUstep, VersionTuple(2, 0));
+        break;
+      }
 
       if (runtime->HasNewLiteralsAndIndexing())
         lang_opts.DebuggerObjCLiteral = true;
@@ -1072,13 +1078,14 @@ ClangExpressionParser::ParseInternal(DiagnosticManager &diagnostic_manager,
   // While parsing the Sema will call this consumer with the provided
   // completion suggestions.
   if (completion_consumer) {
-    auto main_file = source_mgr.getFileEntryForID(source_mgr.getMainFileID());
+    auto main_file =
+        source_mgr.getFileEntryRefForID(source_mgr.getMainFileID());
     auto &PP = m_compiler->getPreprocessor();
     // Lines and columns start at 1 in Clang, but code completion positions are
     // indexed from 0, so we need to add 1 to the line and column here.
     ++completion_line;
     ++completion_column;
-    PP.SetCodeCompletionPoint(main_file, completion_line, completion_column);
+    PP.SetCodeCompletionPoint(*main_file, completion_line, completion_column);
   }
 
   ASTConsumer *ast_transformer =

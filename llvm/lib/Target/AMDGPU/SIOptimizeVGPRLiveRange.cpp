@@ -357,8 +357,8 @@ void SIOptimizeVGPRLiveRange::collectWaterfallCandidateRegisters(
   for (auto *I : Instructions) {
     auto &MI = *I;
 
-    for (auto &MO : MI.operands()) {
-      if (!MO.isReg() || !MO.getReg() || MO.isDef())
+    for (auto &MO : MI.all_uses()) {
+      if (!MO.getReg())
         continue;
 
       Register MOReg = MO.getReg();
@@ -522,9 +522,11 @@ void SIOptimizeVGPRLiveRange::optimizeLiveRange(
     auto *UseBlock = UseMI->getParent();
     // Replace uses in Endif block
     if (UseBlock == Endif) {
-      if (UseMI->isPHI()) {
+      if (UseMI->isPHI())
         O.setReg(NewReg);
-      } else {
+      else if (UseMI->isDebugInstr())
+        continue;
+      else {
         // DetectDeadLanes may mark register uses as undef without removing
         // them, in which case a non-phi instruction using the original register
         // may exist in the Endif block even though the register is not live

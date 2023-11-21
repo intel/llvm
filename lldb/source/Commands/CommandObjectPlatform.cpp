@@ -25,6 +25,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/ScriptedMetadata.h"
+#include "lldb/Utility/State.h"
 
 #include "llvm/ADT/SmallString.h"
 
@@ -161,8 +162,8 @@ public:
   ~CommandObjectPlatformSelect() override = default;
 
   void HandleCompletion(CompletionRequest &request) override {
-    CommandCompletions::PlatformPluginNames(GetCommandInterpreter(), request,
-                                            nullptr);
+    lldb_private::CommandCompletions::PlatformPluginNames(
+        GetCommandInterpreter(), request, nullptr);
   }
 
   Options *GetOptions() override { return &m_option_group; }
@@ -385,8 +386,7 @@ public:
                             "Set settings for the current target's platform.",
                             "platform settings", 0),
         m_option_working_dir(LLDB_OPT_SET_1, false, "working-dir", 'w',
-                             CommandCompletions::eRemoteDiskDirectoryCompletion,
-                             eArgTypePath,
+                             lldb::eRemoteDiskDirectoryCompletion, eArgTypePath,
                              "The working directory for the platform.") {
     m_options.Append(&m_option_working_dir, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
   }
@@ -484,9 +484,9 @@ public:
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex() == 0)
-      CommandCompletions::InvokeCommonCompletionCallbacks(
-          GetCommandInterpreter(),
-          CommandCompletions::eRemoteDiskFileCompletion, request, nullptr);
+      lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), lldb::eRemoteDiskFileCompletion, request,
+          nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -831,13 +831,12 @@ public:
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex() == 0)
-      CommandCompletions::InvokeCommonCompletionCallbacks(
-          GetCommandInterpreter(),
-          CommandCompletions::eRemoteDiskFileCompletion, request, nullptr);
+      lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), lldb::eRemoteDiskFileCompletion, request,
+          nullptr);
     else if (request.GetCursorIndex() == 1)
-      CommandCompletions::InvokeCommonCompletionCallbacks(
-          GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-          request, nullptr);
+      lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -907,9 +906,9 @@ public:
     if (request.GetCursorIndex() != 0)
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eRemoteDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eRemoteDiskFileCompletion, request,
+        nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -978,9 +977,9 @@ public:
     if (request.GetCursorIndex() != 0)
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eRemoteDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eRemoteDiskFileCompletion, request,
+        nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -1048,9 +1047,9 @@ public:
     if (request.GetCursorIndex() != 0)
       return;
 
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eRemoteDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eRemoteDiskFileCompletion, request,
+        nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -1107,13 +1106,12 @@ public:
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex() == 0)
-      CommandCompletions::InvokeCommonCompletionCallbacks(
-          GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-          request, nullptr);
+      lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
     else if (request.GetCursorIndex() == 1)
-      CommandCompletions::InvokeCommonCompletionCallbacks(
-          GetCommandInterpreter(),
-          CommandCompletions::eRemoteDiskFileCompletion, request, nullptr);
+      lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+          GetCommandInterpreter(), lldb::eRemoteDiskFileCompletion, request,
+          nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {
@@ -1210,20 +1208,72 @@ protected:
       if (m_options.launch_info.GetExecutableFile()) {
         Debugger &debugger = GetDebugger();
 
-        if (argc == 0)
-          target->GetRunArguments(m_options.launch_info.GetArguments());
+        if (argc == 0) {
+          // If no arguments were given to the command, use target.run-args.
+          Args target_run_args;
+          target->GetRunArguments(target_run_args);
+          m_options.launch_info.GetArguments().AppendArguments(target_run_args);
+        }
 
         ProcessSP process_sp(platform_sp->DebugProcess(
             m_options.launch_info, debugger, *target, error));
+
+        if (!process_sp && error.Success()) {
+          result.AppendError("failed to launch or debug process");
+          return false;
+        } else if (!error.Success()) {
+          result.AppendError(error.AsCString());
+          return false;
+        }
+
+        const bool synchronous_execution =
+            debugger.GetCommandInterpreter().GetSynchronous();
+        auto launch_info = m_options.launch_info;
+        bool rebroadcast_first_stop =
+            !synchronous_execution &&
+            launch_info.GetFlags().Test(eLaunchFlagStopAtEntry);
+
+        EventSP first_stop_event_sp;
+        StateType state = process_sp->WaitForProcessToStop(
+            std::nullopt, &first_stop_event_sp, rebroadcast_first_stop,
+            launch_info.GetHijackListener());
+        process_sp->RestoreProcessEvents();
+
+        if (rebroadcast_first_stop) {
+          assert(first_stop_event_sp);
+          process_sp->BroadcastEvent(first_stop_event_sp);
+          return true;
+        }
+
+        switch (state) {
+        case eStateStopped: {
+          if (launch_info.GetFlags().Test(eLaunchFlagStopAtEntry))
+            break;
+          if (synchronous_execution) {
+            // Now we have handled the stop-from-attach, and we are just
+            // switching to a synchronous resume.  So we should switch to the
+            // SyncResume hijacker.
+            process_sp->ResumeSynchronous(&result.GetOutputStream());
+          } else {
+            error = process_sp->Resume();
+            if (!error.Success()) {
+              result.AppendErrorWithFormat(
+                  "process resume at entry point failed: %s",
+                  error.AsCString());
+            }
+          }
+        } break;
+        default:
+          result.AppendErrorWithFormat(
+              "initial process state wasn't stopped: %s",
+              StateAsCString(state));
+          break;
+        }
+
         if (process_sp && process_sp->IsAlive()) {
           result.SetStatus(eReturnStatusSuccessFinishNoResult);
           return true;
         }
-
-        if (error.Success())
-          result.AppendError("process launch failed");
-        else
-          result.AppendError(error.AsCString());
       } else {
         result.AppendError("'platform process launch' uses the current target "
                            "file and arguments, or the executable and its "
@@ -1523,9 +1573,8 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eProcessIDCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eProcessIDCompletion, request, nullptr);
   }
 
 protected:
@@ -1834,9 +1883,8 @@ public:
                            OptionElementVector &opt_element_vector) override {
     if (request.GetCursorIndex())
       return;
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   bool DoExecute(Args &args, CommandReturnObject &result) override {

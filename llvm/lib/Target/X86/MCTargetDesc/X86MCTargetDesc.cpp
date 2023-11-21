@@ -397,6 +397,18 @@ MCSubtargetInfo *X86_MC::createX86MCSubtargetInfo(const Triple &TT,
   if (CPU.empty())
     CPU = "generic";
 
+  size_t posNoEVEX512 = FS.rfind("-evex512");
+  // Make sure we won't be cheated by "-avx512fp16".
+  size_t posNoAVX512F = FS.endswith("-avx512f") ? FS.size() - 8
+                                                : FS.rfind("-avx512f,");
+  size_t posEVEX512 = FS.rfind("+evex512");
+  size_t posAVX512F = FS.rfind("+avx512"); // Any AVX512XXX will enable AVX512F.
+
+  if (posAVX512F != StringRef::npos &&
+      (posNoAVX512F == StringRef::npos || posNoAVX512F < posAVX512F))
+    if (posEVEX512 == StringRef::npos && posNoEVEX512 == StringRef::npos)
+      ArchFS += ",+evex512";
+
   return createX86MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, ArchFS);
 }
 
@@ -440,6 +452,8 @@ static MCAsmInfo *createX86MCAsmInfo(const MCRegisterInfo &MRI,
       MAI = new X86MCAsmInfoMicrosoft(TheTriple);
   } else if (TheTriple.isOSCygMing() ||
              TheTriple.isWindowsItaniumEnvironment()) {
+    MAI = new X86MCAsmInfoGNUCOFF(TheTriple);
+  } else if (TheTriple.isUEFI()) {
     MAI = new X86MCAsmInfoGNUCOFF(TheTriple);
   } else {
     // The default is ELF.
@@ -577,8 +591,11 @@ findX86PltEntries(uint64_t PltSectionVA, ArrayRef<uint8_t> PltContents) {
     if (PltContents[Byte] == 0xff && PltContents[Byte + 1] == 0xa3) {
       // The jmp instruction at the beginning of each PLT entry jumps to the
       // address of the base of the .got.plt section plus the immediate.
+      // Set the 1 << 32 bit to let ELFObjectFileBase::getPltEntries convert the
+      // offset to an address. Imm may be a negative int32_t if the GOT entry is
+      // in .got.
       uint32_t Imm = support::endian::read32le(PltContents.data() + Byte + 2);
-      Result.emplace_back(PltSectionVA + Byte, ~static_cast<uint64_t>(Imm));
+      Result.emplace_back(PltSectionVA + Byte, Imm | (uint64_t(1) << 32));
       Byte += 6;
     } else if (PltContents[Byte] == 0xff && PltContents[Byte + 1] == 0x25) {
       // The jmp instruction at the beginning of each PLT entry jumps to the

@@ -19,6 +19,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include <optional>
 
 namespace llvm {
@@ -76,6 +77,20 @@ public:
   /// minor dimensions.
   static AffineMap getMinorIdentityMap(unsigned dims, unsigned results,
                                        MLIRContext *context);
+
+  /// Returns an identity affine map witn `numDims` input dimensions and
+  /// filtered results using `keepDimFilter`. If `keepDimFilter` returns true
+  /// for a dimension, the dimension is kept in the affine map results.
+  /// Otherwise, the dimension is dropped from the results.
+  ///
+  /// Examples:
+  ///   * getFilteredIdentityMap(4, [false, true, false, true])
+  ///       -> affine_map<(d0, d1, d2, d3) -> (d1, d3)>
+  ///   * getFilteredIdentityMap(3, [false, false, true])
+  ///       -> affine_map<(d0, d1, d2) -> (d2)>
+  static AffineMap
+  getFilteredIdentityMap(MLIRContext *ctx, unsigned numDims,
+                         llvm::function_ref<bool(AffineDimExpr)> keepDimFilter);
 
   /// Returns an AffineMap representing a permutation.
   /// The permutation is expressed as a non-empty vector of integers.
@@ -226,11 +241,11 @@ public:
   AffineMap shiftDims(unsigned shift, unsigned offset = 0) const {
     assert(offset <= getNumDims());
     return AffineMap::get(getNumDims() + shift, getNumSymbols(),
-                          llvm::to_vector<4>(llvm::map_range(
+                          llvm::map_to_vector<4>(
                               getResults(),
                               [&](AffineExpr e) {
                                 return e.shiftDims(getNumDims(), shift, offset);
-                              })),
+                              }),
                           getContext());
   }
 
@@ -238,12 +253,12 @@ public:
   /// by symbols[offset + shift ... shift + numSymbols).
   AffineMap shiftSymbols(unsigned shift, unsigned offset = 0) const {
     return AffineMap::get(getNumDims(), getNumSymbols() + shift,
-                          llvm::to_vector<4>(llvm::map_range(
-                              getResults(),
-                              [&](AffineExpr e) {
-                                return e.shiftSymbols(getNumSymbols(), shift,
-                                                      offset);
-                              })),
+                          llvm::map_to_vector<4>(getResults(),
+                                                 [&](AffineExpr e) {
+                                                   return e.shiftSymbols(
+                                                       getNumSymbols(), shift,
+                                                       offset);
+                                                 }),
                           getContext());
   }
 

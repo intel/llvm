@@ -5,9 +5,8 @@
 func.func @_QPsum1(%arg0: !fir.box<!fir.array<?xi32>> {fir.bindc_name = "a"}, %arg1: !fir.ref<i32> {fir.bindc_name = "s"}) {
   %0:2 = hlfir.declare %arg0 {uniq_name = "_QFsum1Ea"} : (!fir.box<!fir.array<?xi32>>) -> (!fir.box<!fir.array<?xi32>>, !fir.box<!fir.array<?xi32>>)
   %1:2 = hlfir.declare %arg1 {uniq_name = "_QFsum1Es"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
-  %2 = hlfir.sum %0#0 {fastmath = #arith.fastmath<contract>} : (!fir.box<!fir.array<?xi32>>) -> !hlfir.expr<i32>
-  hlfir.assign %2 to %1#0 : !hlfir.expr<i32>, !fir.ref<i32>
-  hlfir.destroy %2 : !hlfir.expr<i32>
+  %2 = hlfir.sum %0#0 {fastmath = #arith.fastmath<contract>} : (!fir.box<!fir.array<?xi32>>) -> i32
+  hlfir.assign %2 to %1#0 : i32, !fir.ref<i32>
   return
 }
 // CHECK-LABEL: func.func @_QPsum1(
@@ -18,7 +17,7 @@ func.func @_QPsum1(%arg0: !fir.box<!fir.array<?xi32>> {fir.bindc_name = "a"}, %a
 // CHECK-DAG:     %[[MASK:.*]] = fir.absent !fir.box<i1>
 // CHECK-DAG:     %[[ARRAY_ARG:.*]] = fir.convert %[[ARRAY]]#1 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
 // CHECK-DAG:     %[[MASK_ARG:.*]] = fir.convert %[[MASK]] : (!fir.box<i1>) -> !fir.box<none>
-// CHECK:         %[[RET:.*]] = fir.call @_FortranASumInteger4(%[[ARRAY_ARG]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[INT:.*]], %[[MASK_ARG]]) : (!fir.box<none>, !fir.ref<i8>, i32, i32, !fir.box<none>) -> i32
+// CHECK:         %[[RET:.*]] = fir.call @_FortranASumInteger4(%[[ARRAY_ARG]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[INT:.*]], %[[MASK_ARG]]) fastmath<contract> : (!fir.box<none>, !fir.ref<i8>, i32, i32, !fir.box<none>) -> i32
 // CHECK-NEXT:    hlfir.assign %[[RET]] to %[[RES]]#0 : i32, !fir.ref<i32>
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
@@ -56,7 +55,7 @@ func.func @_QPsum2(%arg0: !fir.box<!fir.array<?x?xi32>> {fir.bindc_name = "a"}, 
 // CHECK-DAG:     %[[RET_ARG:.*]] = fir.convert %[[RET_BOX]]
 // CHECK-DAG:     %[[ARRAY_ARG:.*]] = fir.convert %[[ARRAY]]#1 : (!fir.box<!fir.array<?x?xi32>>) -> !fir.box<none>
 // CHECK-DAG:     %[[MASK_ARG:.*]] = fir.convert %[[MASK]] : (!fir.box<i1>) -> !fir.box<none>
-// CHECK:         %[[NONE:.*]] = fir.call @_FortranASumDim(%[[RET_ARG]], %[[ARRAY_ARG]], %[[DIM]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[MASK_ARG]]) : (!fir.ref<!fir.box<none>>, !fir.box<none>, i32, !fir.ref<i8>, i32, !fir.box<none>) -> none
+// CHECK:         %[[NONE:.*]] = fir.call @_FortranASumDim(%[[RET_ARG]], %[[ARRAY_ARG]], %[[DIM]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[MASK_ARG]]) fastmath<contract> : (!fir.ref<!fir.box<none>>, !fir.box<none>, i32, !fir.ref<i8>, i32, !fir.box<none>) -> none
 
 // CHECK:         %[[RET:.*]] = fir.load %[[RET_BOX]]
 // CHECK:         %[[BOX_DIMS:.*]]:3 = fir.box_dims %[[RET]]
@@ -76,9 +75,8 @@ func.func @_QPsum3(%arg0: !fir.box<!fir.array<?xi32>> {fir.bindc_name = "a"}, %a
   %0:2 = hlfir.declare %arg0 {uniq_name = "_QFsum3Ea"} : (!fir.box<!fir.array<?xi32>>) -> (!fir.box<!fir.array<?xi32>>, !fir.box<!fir.array<?xi32>>)
   %1:2 = hlfir.declare %arg2 {uniq_name = "_QFsum3Em"} : (!fir.ref<!fir.logical<4>>) -> (!fir.ref<!fir.logical<4>>, !fir.ref<!fir.logical<4>>)
   %2:2 = hlfir.declare %arg1 {uniq_name = "_QFsum3Es"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
-  %3 = hlfir.sum %0#0 mask %1#0 {fastmath = #arith.fastmath<contract>} : (!fir.box<!fir.array<?xi32>>, !fir.ref<!fir.logical<4>>) -> !hlfir.expr<i32>
-  hlfir.assign %3 to %2#0 : !hlfir.expr<i32>, !fir.ref<i32>
-  hlfir.destroy %3 : !hlfir.expr<i32>
+  %3 = hlfir.sum %0#0 mask %1#0 {fastmath = #arith.fastmath<contract>} : (!fir.box<!fir.array<?xi32>>, !fir.ref<!fir.logical<4>>) -> i32
+  hlfir.assign %3 to %2#0 : i32, !fir.ref<i32>
   return
 }
 // CHECK-LABEL: func.func @_QPsum3(
@@ -91,7 +89,7 @@ func.func @_QPsum3(%arg0: !fir.box<!fir.array<?xi32>> {fir.bindc_name = "a"}, %a
 // CHECK-DAG:     %[[MASK_BOX:.*]] = fir.embox %[[MASK]]#1 : (!fir.ref<!fir.logical<4>>) -> !fir.box<!fir.logical<4>>
 // CHECK-DAG:     %[[ARRAY_ARG:.*]] = fir.convert %[[ARRAY]]#1 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
 // CHECK-DAG:     %[[MASK_ARG:.*]] = fir.convert %[[MASK_BOX]] : (!fir.box<!fir.logical<4>>) -> !fir.box<none>
-// CHECK:         %[[RET:.*]] = fir.call @_FortranASumInteger4(%[[ARRAY_ARG]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[INT:.*]], %[[MASK_ARG]]) : (!fir.box<none>, !fir.ref<i8>, i32, i32, !fir.box<none>) -> i32
+// CHECK:         %[[RET:.*]] = fir.call @_FortranASumInteger4(%[[ARRAY_ARG]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[INT:.*]], %[[MASK_ARG]]) fastmath<contract> : (!fir.box<none>, !fir.ref<i8>, i32, i32, !fir.box<none>) -> i32
 // CHECK-NEXT:    hlfir.assign %[[RET]] to %[[RES]]#0 : i32, !fir.ref<i32>
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
@@ -101,9 +99,8 @@ func.func @_QPsum4(%arg0: !fir.box<!fir.array<?xi32>> {fir.bindc_name = "a"}, %a
   %0:2 = hlfir.declare %arg0 {uniq_name = "_QFsum4Ea"} : (!fir.box<!fir.array<?xi32>>) -> (!fir.box<!fir.array<?xi32>>, !fir.box<!fir.array<?xi32>>)
   %1:2 = hlfir.declare %arg2 {uniq_name = "_QFsum4Em"} : (!fir.box<!fir.array<?x!fir.logical<4>>>) -> (!fir.box<!fir.array<?x!fir.logical<4>>>, !fir.box<!fir.array<?x!fir.logical<4>>>)
   %2:2 = hlfir.declare %arg1 {uniq_name = "_QFsum4Es"} : (!fir.ref<i32>) -> (!fir.ref<i32>, !fir.ref<i32>)
-  %3 = hlfir.sum %0#0 mask %1#0 {fastmath = #arith.fastmath<contract>} : (!fir.box<!fir.array<?xi32>>, !fir.box<!fir.array<?x!fir.logical<4>>>) -> !hlfir.expr<i32>
-  hlfir.assign %3 to %2#0 : !hlfir.expr<i32>, !fir.ref<i32>
-  hlfir.destroy %3 : !hlfir.expr<i32>
+  %3 = hlfir.sum %0#0 mask %1#0 {fastmath = #arith.fastmath<contract>} : (!fir.box<!fir.array<?xi32>>, !fir.box<!fir.array<?x!fir.logical<4>>>) -> i32
+  hlfir.assign %3 to %2#0 : i32, !fir.ref<i32>
   return
 }
 // CHECK-LABEL: func.func @_QPsum4(
@@ -115,7 +112,7 @@ func.func @_QPsum4(%arg0: !fir.box<!fir.array<?xi32>> {fir.bindc_name = "a"}, %a
 // CHECK-DAG:     %[[MASK:.*]]:2 = hlfir.declare %[[ARG2]]
 // CHECK-DAG:     %[[ARRAY_ARG:.*]] = fir.convert %[[ARRAY]]#1 : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
 // CHECK-DAG:     %[[MASK_ARG:.*]] = fir.convert %[[MASK]]#1 : (!fir.box<!fir.array<?x!fir.logical<4>>>) -> !fir.box<none>
-// CHECK:         %[[RET:.*]] = fir.call @_FortranASumInteger4(%[[ARRAY_ARG]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[INT:.*]], %[[MASK_ARG]]) : (!fir.box<none>, !fir.ref<i8>, i32, i32, !fir.box<none>) -> i32
+// CHECK:         %[[RET:.*]] = fir.call @_FortranASumInteger4(%[[ARRAY_ARG]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[INT:.*]], %[[MASK_ARG]]) fastmath<contract> : (!fir.box<none>, !fir.ref<i8>, i32, i32, !fir.box<none>) -> i32
 // CHECK-NEXT:    hlfir.assign %[[RET]] to %[[RES]]#0 : i32, !fir.ref<i32>
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
@@ -178,4 +175,4 @@ func.func @_QPsum5(%arg0: !fir.ref<!fir.array<2xi32>> {fir.bindc_name = "s"}) {
 // CHECK-DAG:     %[[RET_ARG:.*]] = fir.convert %[[RET_BOX]]
 // CHECK-DAG:     %[[ARRAY_ARG:.*]] = fir.convert %[[ARRAY_BOX]] : (!fir.box<!fir.array<2x2xi32>>) -> !fir.box<none>
 // CHECK-DAG:     %[[MASK_ARG:.*]] = fir.convert %[[MASK_BOX]] : (!fir.box<!fir.logical<4>>) -> !fir.box<none>
-// CHECK:         %[[NONE:.*]] = fir.call @_FortranASumDim(%[[RET_ARG]], %[[ARRAY_ARG]], %[[DIM]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[MASK_ARG]]) : (!fir.ref<!fir.box<none>>, !fir.box<none>, i32, !fir.ref<i8>, i32, !fir.box<none>) -> none
+// CHECK:         %[[NONE:.*]] = fir.call @_FortranASumDim(%[[RET_ARG]], %[[ARRAY_ARG]], %[[DIM]], %[[LOC_STR:.*]], %[[LOC_N:.*]], %[[MASK_ARG]]) fastmath<contract> : (!fir.ref<!fir.box<none>>, !fir.box<none>, i32, !fir.ref<i8>, i32, !fir.box<none>) -> none

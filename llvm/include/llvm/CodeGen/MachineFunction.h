@@ -266,7 +266,7 @@ class LLVM_EXTERNAL_VISIBILITY MachineFunction {
   // RegInfo - Information about each register in use in the function.
   MachineRegisterInfo *RegInfo;
 
-  // Used to keep track of target-specific per-machine function information for
+  // Used to keep track of target-specific per-machine-function information for
   // the target implementation.
   MachineFunctionInfo *MFInfo;
 
@@ -883,6 +883,12 @@ public:
   /// \returns true if no problems were found.
   bool verify(Pass *p = nullptr, const char *Banner = nullptr,
               bool AbortOnError = true) const;
+
+  /// Run the current MachineFunction through the machine code verifier, useful
+  /// for debugger use.
+  /// \returns true if no problems were found.
+  bool verify(LiveIntervals *LiveInts, SlotIndexes *Indexes,
+              const char *Banner = nullptr, bool AbortOnError = true) const;
 
   // Provide accessors for the MachineBasicBlock list...
   using iterator = BasicBlockListType::iterator;

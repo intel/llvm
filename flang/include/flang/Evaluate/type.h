@@ -22,6 +22,7 @@
 #include "integer.h"
 #include "logical.h"
 #include "real.h"
+#include "flang/Common/Fortran-features.h"
 #include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
 #include "flang/Common/real.h"
@@ -229,6 +230,12 @@ public:
       return std::nullopt;
     }
   }
+
+  // Get a copy of this dynamic type where charLengthParamValue_ is reset if it
+  // is not a constant expression. This avoids propagating symbol references in
+  // scopes where they do not belong. Returns the type unmodified if it is not
+  // a character or if the length is not explicit.
+  DynamicType DropNonConstantCharacterLength() const;
 
 private:
   // Special kind codes are used to distinguish the following Fortran types.
@@ -472,8 +479,10 @@ int SelectedCharKind(const std::string &, int defaultKind);
 std::optional<DynamicType> ComparisonType(
     const DynamicType &, const DynamicType &);
 
-bool IsInteroperableIntrinsicType(
-    const DynamicType &, bool checkCharLength = true);
+bool IsInteroperableIntrinsicType(const DynamicType &,
+    const common::LanguageFeatureControl * = nullptr,
+    bool checkCharLength = true);
+bool IsCUDAIntrinsicType(const DynamicType &);
 
 // Determine whether two derived type specs are sufficiently identical
 // to be considered the "same" type even if declared separately.

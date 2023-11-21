@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "BuiltinDialectBytecode.h"
+#include "AttributeDetail.h"
 #include "mlir/Bytecode/BytecodeImplementation.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinDialect.h"
@@ -43,8 +44,6 @@ static unsigned getIntegerBitWidth(DialectBytecodeReader &reader, Type type) {
 static LogicalResult readAPIntWithKnownWidth(DialectBytecodeReader &reader,
                                              Type type, FailureOr<APInt> &val) {
   unsigned bitWidth = getIntegerBitWidth(reader, type);
-  if (bitWidth == 0)
-    return failure();
   val = reader.readAPIntWithKnownWidth(bitWidth);
   return val;
 }

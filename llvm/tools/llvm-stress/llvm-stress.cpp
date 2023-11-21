@@ -132,9 +132,9 @@ Function *GenEmptyFunction(Module *M) {
   // Define a few arguments
   LLVMContext &Context = M->getContext();
   Type* ArgsTy[] = {
-    Type::getInt8PtrTy(Context),
-    Type::getInt32PtrTy(Context),
-    Type::getInt64PtrTy(Context),
+    PointerType::get(Context, 0),
+    PointerType::get(Context, 0),
+    PointerType::get(Context, 0),
     Type::getInt32Ty(Context),
     Type::getInt64Ty(Context),
     Type::getInt8Ty(Context)
@@ -341,9 +341,7 @@ struct LoadModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Type *Ty = Ptr->getType()->isOpaquePointerTy()
-                   ? pickType()
-                   : Ptr->getType()->getNonOpaquePointerElementType();
+    Type *Ty = pickType();
     Value *V = new LoadInst(Ty, Ptr, "L", BB->getTerminator());
     PT->push_back(V);
   }
@@ -356,9 +354,7 @@ struct StoreModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Type *ValTy = Ptr->getType()->isOpaquePointerTy()
-                      ? pickType()
-                      : Ptr->getType()->getNonOpaquePointerElementType();
+    Type *ValTy = pickType();
 
     // Do not store vectors of i1s because they are unsupported
     // by the codegen.

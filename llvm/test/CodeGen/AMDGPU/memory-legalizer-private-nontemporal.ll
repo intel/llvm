@@ -162,6 +162,7 @@ define amdgpu_kernel void @private_nontemporal_load_0(
 ; GFX11-WGP-NEXT:    scratch_load_b32 v0, off, s2 slc dlc
 ; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-WGP-NEXT:    global_store_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_nop 0
 ; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-WGP-NEXT:    s_endpgm
 ;
@@ -175,6 +176,7 @@ define amdgpu_kernel void @private_nontemporal_load_0(
 ; GFX11-CU-NEXT:    scratch_load_b32 v0, off, s2 slc dlc
 ; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-CU-NEXT:    global_store_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_nop 0
 ; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-CU-NEXT:    s_endpgm
     ptr addrspace(5) %in, ptr addrspace(1) %out) {
@@ -341,6 +343,7 @@ define amdgpu_kernel void @private_nontemporal_load_1(
 ; GFX11-WGP-NEXT:    scratch_load_b32 v0, v0, off slc dlc
 ; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-WGP-NEXT:    global_store_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_nop 0
 ; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-WGP-NEXT:    s_endpgm
 ;
@@ -355,6 +358,7 @@ define amdgpu_kernel void @private_nontemporal_load_1(
 ; GFX11-CU-NEXT:    scratch_load_b32 v0, v0, off slc dlc
 ; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
 ; GFX11-CU-NEXT:    global_store_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_nop 0
 ; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-CU-NEXT:    s_endpgm
     ptr addrspace(5) %in, ptr addrspace(1) %out) {
@@ -515,7 +519,6 @@ define amdgpu_kernel void @private_nontemporal_store_0(
 ; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, s1
 ; GFX11-WGP-NEXT:    scratch_store_b32 off, v0, s0 glc slc dlc
-; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-WGP-NEXT:    s_endpgm
 ;
 ; GFX11-CU-LABEL: private_nontemporal_store_0:
@@ -528,7 +531,6 @@ define amdgpu_kernel void @private_nontemporal_store_0(
 ; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX11-CU-NEXT:    v_mov_b32_e32 v0, s1
 ; GFX11-CU-NEXT:    scratch_store_b32 off, v0, s0 glc slc dlc
-; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-CU-NEXT:    s_endpgm
     ptr addrspace(1) %in, ptr addrspace(5) %out) {
 entry:
@@ -692,7 +694,6 @@ define amdgpu_kernel void @private_nontemporal_store_1(
 ; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX11-WGP-NEXT:    v_mov_b32_e32 v1, s1
 ; GFX11-WGP-NEXT:    scratch_store_b32 v0, v1, off glc slc dlc
-; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-WGP-NEXT:    s_endpgm
 ;
 ; GFX11-CU-LABEL: private_nontemporal_store_1:
@@ -706,7 +707,6 @@ define amdgpu_kernel void @private_nontemporal_store_1(
 ; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX11-CU-NEXT:    v_mov_b32_e32 v1, s1
 ; GFX11-CU-NEXT:    scratch_store_b32 v0, v1, off glc slc dlc
-; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
 ; GFX11-CU-NEXT:    s_endpgm
     ptr addrspace(1) %in, ptr addrspace(5) %out) {
 entry:

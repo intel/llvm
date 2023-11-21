@@ -148,7 +148,7 @@ private:
   std::string mangleName(const DICompileUnit *CU, GCovFileType FileType);
 
   GCOVOptions Options;
-  support::endianness Endian;
+  llvm::endianness Endian;
   raw_ostream *os;
 
   // Checksum, produced by hash of EdgeDestinations
@@ -788,8 +788,8 @@ bool GCOVProfiler::emitProfileNotes(
     std::vector<uint8_t> EdgeDestinations;
     SmallVector<std::pair<GlobalVariable *, MDNode *>, 8> CountersBySP;
 
-    Endian = M->getDataLayout().isLittleEndian() ? support::endianness::little
-                                                 : support::endianness::big;
+    Endian = M->getDataLayout().isLittleEndian() ? llvm::endianness::little
+                                                 : llvm::endianness::big;
     unsigned FunctionIdent = 0;
     for (auto &F : M->functions()) {
       DISubprogram *SP = F.getSubprogram();
@@ -898,7 +898,9 @@ bool GCOVProfiler::emitProfileNotes(
 
           if (Line == Loc.getLine()) continue;
           Line = Loc.getLine();
-          if (SP != getDISubprogram(Loc.getScope()))
+          MDNode *Scope = Loc.getScope();
+          // TODO: Handle blocks from another file due to #line, #include, etc.
+          if (isa<DILexicalBlockFile>(Scope) || SP != getDISubprogram(Scope))
             continue;
 
           GCOVLines &Lines = Block.getFile(Filename);
@@ -919,15 +921,21 @@ bool GCOVProfiler::emitProfileNotes(
           IRBuilder<> Builder(E.Place, E.Place->getFirstInsertionPt());
           Value *V = Builder.CreateConstInBoundsGEP2_64(
               Counters->getValueType(), Counters, 0, I);
+          // Disable sanitizers to decrease size bloat. We don't expect
+          // sanitizers to catch interesting issues.
+          Instruction *Inst;
           if (Options.Atomic) {
-            Builder.CreateAtomicRMW(AtomicRMWInst::Add, V, Builder.getInt64(1),
-                                    MaybeAlign(), AtomicOrdering::Monotonic);
+            Inst = Builder.CreateAtomicRMW(AtomicRMWInst::Add, V,
+                                           Builder.getInt64(1), MaybeAlign(),
+                                           AtomicOrdering::Monotonic);
           } else {
-            Value *Count =
+            LoadInst *OldCount =
                 Builder.CreateLoad(Builder.getInt64Ty(), V, "gcov_ctr");
-            Count = Builder.CreateAdd(Count, Builder.getInt64(1));
-            Builder.CreateStore(Count, V);
+            OldCount->setNoSanitizeMetadata();
+            Value *NewCount = Builder.CreateAdd(OldCount, Builder.getInt64(1));
+            Inst = Builder.CreateStore(NewCount, V);
           }
+          Inst->setNoSanitizeMetadata();
         }
       }
     }
@@ -949,7 +957,7 @@ bool GCOVProfiler::emitProfileNotes(
         continue;
       }
       os = &out;
-      if (Endian == support::endianness::big) {
+      if (Endian == llvm::endianness::big) {
         out.write("gcno", 4);
         out.write(Options.Version, 4);
       } else {
@@ -1045,8 +1053,8 @@ FunctionCallee GCOVProfiler::getEmitFunctionFunc(const TargetLibraryInfo *TLI) {
 
 FunctionCallee GCOVProfiler::getEmitArcsFunc(const TargetLibraryInfo *TLI) {
   Type *Args[] = {
-    Type::getInt32Ty(*Ctx),     // uint32_t num_counters
-    Type::getInt64PtrTy(*Ctx),  // uint64_t *counters
+      Type::getInt32Ty(*Ctx),       // uint32_t num_counters
+      PointerType::getUnqual(*Ctx), // uint64_t *counters
   };
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(*Ctx), Args, false);
   return M->getOrInsertFunction("llvm_gcda_emit_arcs", FTy,

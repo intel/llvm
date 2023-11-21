@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_TENSOR_IR_TENSOR_H_
 #define MLIR_DIALECT_TENSOR_IR_TENSOR_H_
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
@@ -111,6 +112,10 @@ bool canFoldIntoProducerOp(CastOp castOp);
 /// Performs folding of any operand of `op` if it comes from a tensor::CastOp
 /// that can be folded.
 LogicalResult foldTensorCast(Operation *op);
+
+/// Return the dimension of the given tensor value.
+OpFoldResult getMixedSize(OpBuilder &builder, Location loc, Value value,
+                          int64_t dim);
 
 /// Return the dimensions of the given tensor value.
 SmallVector<OpFoldResult> getMixedSizes(OpBuilder &builder, Location loc,

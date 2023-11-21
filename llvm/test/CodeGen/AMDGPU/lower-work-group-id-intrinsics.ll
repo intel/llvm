@@ -30,7 +30,7 @@ define amdgpu_cs void @_amdgpu_cs_main() {
   %ielemx = insertelement <3 x i32> undef, i32 %idx, i64 0
   %ielemy = insertelement <3 x i32> %ielemx, i32 %idy, i64 1
   %ielemz = insertelement <3 x i32> %ielemy, i32 %idz, i64 2
-  call void @llvm.amdgcn.raw.buffer.store.v3i32(<3 x i32> %ielemz, <4 x i32> undef, i32 0, i32 0, i32 0)
+  call void @llvm.amdgcn.raw.ptr.buffer.store.v3i32(<3 x i32> %ielemz, ptr addrspace(8) undef, i32 0, i32 0, i32 0)
   ret void
 }
 
@@ -40,18 +40,15 @@ define amdgpu_cs void @caller() {
 ; GFX9-SDAG-NEXT:    s_getpc_b64 s[8:9]
 ; GFX9-SDAG-NEXT:    s_mov_b32 s8, s0
 ; GFX9-SDAG-NEXT:    s_load_dwordx4 s[8:11], s[8:9], 0x10
+; GFX9-SDAG-NEXT:    s_mov_b32 s5, callee@abs32@hi
+; GFX9-SDAG-NEXT:    s_mov_b32 s4, callee@abs32@lo
 ; GFX9-SDAG-NEXT:    v_mov_b32_e32 v0, ttmp9
 ; GFX9-SDAG-NEXT:    s_mov_b32 s32, 0
 ; GFX9-SDAG-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-SDAG-NEXT:    s_add_u32 s8, s8, s0
 ; GFX9-SDAG-NEXT:    s_addc_u32 s9, s9, 0
-; GFX9-SDAG-NEXT:    s_getpc_b64 s[0:1]
-; GFX9-SDAG-NEXT:    s_add_u32 s0, s0, callee@gotpcrel32@lo+4
-; GFX9-SDAG-NEXT:    s_addc_u32 s1, s1, callee@gotpcrel32@hi+12
-; GFX9-SDAG-NEXT:    s_load_dwordx2 s[4:5], s[0:1], 0x0
 ; GFX9-SDAG-NEXT:    s_mov_b64 s[0:1], s[8:9]
 ; GFX9-SDAG-NEXT:    s_mov_b64 s[2:3], s[10:11]
-; GFX9-SDAG-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-SDAG-NEXT:    s_swappc_b64 s[30:31], s[4:5]
 ; GFX9-SDAG-NEXT:    s_endpgm
 ;
@@ -60,18 +57,15 @@ define amdgpu_cs void @caller() {
 ; GFX9-GISEL-NEXT:    s_getpc_b64 s[8:9]
 ; GFX9-GISEL-NEXT:    s_mov_b32 s8, s0
 ; GFX9-GISEL-NEXT:    s_load_dwordx4 s[8:11], s[8:9], 0x10
+; GFX9-GISEL-NEXT:    s_mov_b32 s4, callee@abs32@lo
+; GFX9-GISEL-NEXT:    s_mov_b32 s5, callee@abs32@hi
 ; GFX9-GISEL-NEXT:    v_mov_b32_e32 v0, ttmp9
 ; GFX9-GISEL-NEXT:    s_mov_b32 s32, 0
 ; GFX9-GISEL-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-GISEL-NEXT:    s_add_u32 s8, s8, s0
 ; GFX9-GISEL-NEXT:    s_addc_u32 s9, s9, 0
-; GFX9-GISEL-NEXT:    s_getpc_b64 s[0:1]
-; GFX9-GISEL-NEXT:    s_add_u32 s0, s0, callee@gotpcrel32@lo+4
-; GFX9-GISEL-NEXT:    s_addc_u32 s1, s1, callee@gotpcrel32@hi+12
-; GFX9-GISEL-NEXT:    s_load_dwordx2 s[4:5], s[0:1], 0x0
 ; GFX9-GISEL-NEXT:    s_mov_b64 s[0:1], s[8:9]
 ; GFX9-GISEL-NEXT:    s_mov_b64 s[2:3], s[10:11]
-; GFX9-GISEL-NEXT:    s_waitcnt lgkmcnt(0)
 ; GFX9-GISEL-NEXT:    s_swappc_b64 s[30:31], s[4:5]
 ; GFX9-GISEL-NEXT:    s_endpgm
   %idx = call i32 @llvm.amdgcn.workgroup.id.x()
@@ -84,4 +78,4 @@ declare amdgpu_gfx void @callee(i32)
 declare i32 @llvm.amdgcn.workgroup.id.x()
 declare i32 @llvm.amdgcn.workgroup.id.y()
 declare i32 @llvm.amdgcn.workgroup.id.z()
-declare void @llvm.amdgcn.raw.buffer.store.v3i32(<3 x i32>, <4 x i32>, i32, i32, i32 immarg)
+declare void @llvm.amdgcn.raw.ptr.buffer.store.v3i32(<3 x i32>, ptr addrspace(8), i32, i32, i32 immarg)

@@ -20,6 +20,11 @@
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "scf-loop-pipelining"
+#define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE "]: ")
+#define LDBG(X) LLVM_DEBUG(DBGS() << X << "\n")
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -72,7 +77,7 @@ public:
       llvm::DenseMap<std::pair<Value, unsigned>, unsigned> &loopArgMap);
   /// Emits the pipelined kernel. This clones loop operations following user
   /// order and remaps operands defined in a different stage as their use.
-  void createKernel(
+  LogicalResult createKernel(
       scf::ForOp newForOp,
       const llvm::MapVector<Value, LiverangeInfo> &crossStageValues,
       const llvm::DenseMap<std::pair<Value, unsigned>, unsigned> &loopArgMap,
@@ -84,26 +89,33 @@ public:
 
 bool LoopPipelinerInternal::initializeLoopInfo(
     ForOp op, const PipeliningOption &options) {
+  LDBG("Start initializeLoopInfo");
   forOp = op;
   auto upperBoundCst =
       forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>();
   auto lowerBoundCst =
       forOp.getLowerBound().getDefiningOp<arith::ConstantIndexOp>();
   auto stepCst = forOp.getStep().getDefiningOp<arith::ConstantIndexOp>();
-  if (!upperBoundCst || !lowerBoundCst || !stepCst)
+  if (!upperBoundCst || !lowerBoundCst || !stepCst) {
+    LDBG("--no constant bounds or step -> BAIL");
     return false;
+  }
   ub = upperBoundCst.value();
   lb = lowerBoundCst.value();
   step = stepCst.value();
   peelEpilogue = options.peelEpilogue;
   predicateFn = options.predicateFn;
-  if (!peelEpilogue && predicateFn == nullptr)
+  if (!peelEpilogue && predicateFn == nullptr) {
+    LDBG("--no epilogue or predicate set -> BAIL");
     return false;
+  }
   int64_t numIteration = ceilDiv(ub - lb, step);
   std::vector<std::pair<Operation *, unsigned>> schedule;
   options.getScheduleFn(forOp, schedule);
-  if (schedule.empty())
+  if (schedule.empty()) {
+    LDBG("--empty schedule -> BAIL");
     return false;
+  }
 
   opOrder.reserve(schedule.size());
   for (auto &opSchedule : schedule) {
@@ -111,13 +123,16 @@ bool LoopPipelinerInternal::initializeLoopInfo(
     stages[opSchedule.first] = opSchedule.second;
     opOrder.push_back(opSchedule.first);
   }
-  if (numIteration <= maxStage)
+  if (numIteration <= maxStage) {
+    LDBG("--fewer loop iterations than pipeline stages -> BAIL");
     return false;
+  }
 
   // All operations need to have a stage.
   for (Operation &op : forOp.getBody()->without_terminator()) {
     if (!stages.contains(&op)) {
       op.emitOpError("not assigned a pipeline stage");
+      LDBG("--op not assigned a pipeline stage: " << op << " -> BAIL");
       return false;
     }
   }
@@ -129,11 +144,15 @@ bool LoopPipelinerInternal::initializeLoopInfo(
     (void)stageNum;
     if (op == forOp.getBody()->getTerminator()) {
       op->emitError("terminator should not be assigned a stage");
+      LDBG("--terminator should not be assigned stage: " << *op << " -> BAIL");
       return false;
     }
     if (op->getBlock() != forOp.getBody()) {
       op->emitOpError("the owning Block of all operations assigned a stage "
                       "should be the loop body block");
+      LDBG("--the owning Block of all operations assigned a stage "
+           "should be the loop body block: "
+           << *op << " -> BAIL");
       return false;
     }
   }
@@ -145,8 +164,10 @@ bool LoopPipelinerInternal::initializeLoopInfo(
                    [this](Value operand) {
                      Operation *def = operand.getDefiningOp();
                      return !def || !stages.contains(def);
-                   }))
+                   })) {
+    LDBG("--only support loop carried dependency with a distance of 1 -> BAIL");
     return false;
+  }
   annotateFn = options.annotateFn;
   return true;
 }
@@ -293,7 +314,7 @@ scf::ForOp LoopPipelinerInternal::createKernelLoop(
   return newForOp;
 }
 
-void LoopPipelinerInternal::createKernel(
+LogicalResult LoopPipelinerInternal::createKernel(
     scf::ForOp newForOp,
     const llvm::MapVector<Value, LoopPipelinerInternal::LiverangeInfo>
         &crossStageValues,
@@ -380,6 +401,8 @@ void LoopPipelinerInternal::createKernel(
 
     if (predicates[useStage]) {
       newOp = predicateFn(rewriter, newOp, predicates[useStage]);
+      if (!newOp)
+        return failure();
       // Remap the results to the new predicated one.
       for (auto values : llvm::zip(op->getResults(), newOp->getResults()))
         mapping.map(std::get<0>(values), std::get<1>(values));
@@ -401,9 +424,9 @@ void LoopPipelinerInternal::createKernel(
   for (auto &it : crossStageValues) {
     int64_t version = maxStage - it.second.lastUseStage + 1;
     unsigned numVersionReturned = it.second.lastUseStage - it.second.defStage;
-    // add the original verstion to yield ops.
-    // If there is a liverange spanning across more than 2 stages we need to add
-    // extra arg.
+    // add the original version to yield ops.
+    // If there is a live range spanning across more than 2 stages we need to
+    // add extra arg.
     for (unsigned i = 1; i < numVersionReturned; i++) {
       setValueMapping(it.first, newForOp->getResult(yieldOperands.size()),
                       version++);
@@ -426,6 +449,7 @@ void LoopPipelinerInternal::createKernel(
                     maxStage - defStage + 1);
   }
   rewriter.create<scf::YieldOp>(forOp.getLoc(), yieldOperands);
+  return success();
 }
 
 llvm::SmallVector<Value>
@@ -495,10 +519,16 @@ void LoopPipelinerInternal::setValueMapping(Value key, Value el, int64_t idx) {
 } // namespace
 
 FailureOr<ForOp> mlir::scf::pipelineForLoop(RewriterBase &rewriter, ForOp forOp,
-                                            const PipeliningOption &options) {
+                                            const PipeliningOption &options,
+                                            bool *modifiedIR) {
+  if (modifiedIR)
+    *modifiedIR = false;
   LoopPipelinerInternal pipeliner;
   if (!pipeliner.initializeLoopInfo(forOp, options))
     return failure();
+
+  if (modifiedIR)
+    *modifiedIR = true;
 
   // 1. Emit prologue.
   pipeliner.emitPrologue(rewriter);
@@ -519,7 +549,9 @@ FailureOr<ForOp> mlir::scf::pipelineForLoop(RewriterBase &rewriter, ForOp forOp,
       pipeliner.createKernelLoop(crossStageValues, rewriter, loopArgMap);
   // Create the kernel block, order ops based on user choice and remap
   // operands.
-  pipeliner.createKernel(newForOp, crossStageValues, loopArgMap, rewriter);
+  if (failed(pipeliner.createKernel(newForOp, crossStageValues, loopArgMap,
+                                    rewriter)))
+    return failure();
 
   llvm::SmallVector<Value> returnValues =
       newForOp.getResults().take_front(forOp->getNumResults());

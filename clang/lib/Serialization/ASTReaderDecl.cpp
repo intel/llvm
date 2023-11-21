@@ -13,6 +13,7 @@
 
 #include "ASTCommon.h"
 #include "ASTReaderInternals.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/AST/Attr.h"
@@ -89,7 +90,7 @@ namespace clang {
     using RecordData = ASTReader::RecordData;
 
     TypeID DeferredTypeID = 0;
-    unsigned AnonymousDeclNumber;
+    unsigned AnonymousDeclNumber = 0;
     GlobalDeclID NamedDeclForTagDecl = 0;
     IdentifierInfo *TypedefNameForLinkage = nullptr;
 
@@ -180,6 +181,13 @@ namespace clang {
                                                  unsigned Index);
     static void setAnonymousDeclForMerging(ASTReader &Reader, DeclContext *DC,
                                            unsigned Index, NamedDecl *D);
+
+    /// Commit to a primary definition of the class RD, which is known to be
+    /// a definition of the class. We might not have read the definition data
+    /// for it yet. If we haven't then allocate placeholder definition data
+    /// now too.
+    static CXXRecordDecl *getOrFakePrimaryClassDefinition(ASTReader &Reader,
+                                                          CXXRecordDecl *RD);
 
     /// Results from loading a RedeclarableDecl.
     class RedeclarableResult {
@@ -350,9 +358,7 @@ namespace clang {
     }
 
     void VisitClassTemplatePartialSpecializationDecl(
-                                     ClassTemplatePartialSpecializationDecl *D);
-    void VisitClassScopeFunctionSpecializationDecl(
-                                       ClassScopeFunctionSpecializationDecl *D);
+        ClassTemplatePartialSpecializationDecl *D);
     RedeclarableResult
     VisitVarTemplateSpecializationDeclImpl(VarTemplateSpecializationDecl *D);
 
@@ -476,9 +482,8 @@ namespace {
 
 /// Iterator over the redeclarations of a declaration that have already
 /// been merged into the same redeclaration chain.
-template<typename DeclT>
-class MergedRedeclIterator {
-  DeclT *Start;
+template <typename DeclT> class MergedRedeclIterator {
+  DeclT *Start = nullptr;
   DeclT *Canonical = nullptr;
   DeclT *Current = nullptr;
 
@@ -599,7 +604,13 @@ void ASTDeclReader::VisitDecl(Decl *D) {
     auto *LexicalDC = readDeclAs<DeclContext>();
     if (!LexicalDC)
       LexicalDC = SemaDC;
-    DeclContext *MergedSemaDC = Reader.MergedDeclContexts.lookup(SemaDC);
+    // If the context is a class, we might not have actually merged it yet, in
+    // the case where the definition comes from an update record.
+    DeclContext *MergedSemaDC;
+    if (auto *RD = dyn_cast<CXXRecordDecl>(SemaDC))
+      MergedSemaDC = getOrFakePrimaryClassDefinition(Reader, RD);
+    else
+      MergedSemaDC = Reader.MergedDeclContexts.lookup(SemaDC);
     // Avoid calling setLexicalDeclContext() directly because it uses
     // Decl::getASTContext() internally which is unsafe during derialization.
     D->setDeclContextsImpl(MergedSemaDC ? MergedSemaDC : SemaDC, LexicalDC,
@@ -937,27 +948,16 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
     Record.readTemplateArgumentList(TemplArgs, /*Canonicalize*/ true);
 
     // Template args as written.
-    SmallVector<TemplateArgumentLoc, 8> TemplArgLocs;
-    SourceLocation LAngleLoc, RAngleLoc;
-    bool HasTemplateArgumentsAsWritten = Record.readInt();
-    if (HasTemplateArgumentsAsWritten) {
-      unsigned NumTemplateArgLocs = Record.readInt();
-      TemplArgLocs.reserve(NumTemplateArgLocs);
-      for (unsigned i = 0; i != NumTemplateArgLocs; ++i)
-        TemplArgLocs.push_back(Record.readTemplateArgumentLoc());
-
-      LAngleLoc = readSourceLocation();
-      RAngleLoc = readSourceLocation();
-    }
+    TemplateArgumentListInfo TemplArgsWritten;
+    bool HasTemplateArgumentsAsWritten = Record.readBool();
+    if (HasTemplateArgumentsAsWritten)
+      Record.readTemplateArgumentListInfo(TemplArgsWritten);
 
     SourceLocation POI = readSourceLocation();
 
     ASTContext &C = Reader.getContext();
-    TemplateArgumentList *TemplArgList
-      = TemplateArgumentList::CreateCopy(C, TemplArgs);
-    TemplateArgumentListInfo TemplArgsInfo(LAngleLoc, RAngleLoc);
-    for (unsigned i = 0, e = TemplArgLocs.size(); i != e; ++i)
-      TemplArgsInfo.addArgument(TemplArgLocs[i]);
+    TemplateArgumentList *TemplArgList =
+        TemplateArgumentList::CreateCopy(C, TemplArgs);
 
     MemberSpecializationInfo *MSInfo = nullptr;
     if (Record.readInt()) {
@@ -972,7 +972,7 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
     FunctionTemplateSpecializationInfo *FTInfo =
         FunctionTemplateSpecializationInfo::Create(
             C, FD, Template, TSK, TemplArgList,
-            HasTemplateArgumentsAsWritten ? &TemplArgsInfo : nullptr, POI,
+            HasTemplateArgumentsAsWritten ? &TemplArgsWritten : nullptr, POI,
             MSInfo);
     FD->TemplateOrSpecialization = FTInfo;
 
@@ -1003,21 +1003,20 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   }
   case FunctionDecl::TK_DependentFunctionTemplateSpecialization: {
     // Templates.
-    UnresolvedSet<8> TemplDecls;
-    unsigned NumTemplates = Record.readInt();
-    while (NumTemplates--)
-      TemplDecls.addDecl(readDeclAs<NamedDecl>());
+    UnresolvedSet<8> Candidates;
+    unsigned NumCandidates = Record.readInt();
+    while (NumCandidates--)
+      Candidates.addDecl(readDeclAs<NamedDecl>());
 
     // Templates args.
-    TemplateArgumentListInfo TemplArgs;
-    unsigned NumArgs = Record.readInt();
-    while (NumArgs--)
-      TemplArgs.addArgument(Record.readTemplateArgumentLoc());
-    TemplArgs.setLAngleLoc(readSourceLocation());
-    TemplArgs.setRAngleLoc(readSourceLocation());
+    TemplateArgumentListInfo TemplArgsWritten;
+    bool HasTemplateArgumentsAsWritten = Record.readBool();
+    if (HasTemplateArgumentsAsWritten)
+      Record.readTemplateArgumentListInfo(TemplArgsWritten);
 
-    FD->setDependentTemplateSpecialization(Reader.getContext(),
-                                           TemplDecls, TemplArgs);
+    FD->setDependentTemplateSpecialization(
+        Reader.getContext(), Candidates,
+        HasTemplateArgumentsAsWritten ? &TemplArgsWritten : nullptr);
     // These are not merged; we don't need to merge redeclarations of dependent
     // template friends.
     break;
@@ -1659,6 +1658,13 @@ void ASTDeclReader::ReadVarDeclInit(VarDecl *VD) {
     EvaluatedStmt *Eval = VD->ensureEvaluatedStmt();
     Eval->HasConstantInitialization = (Val & 2) != 0;
     Eval->HasConstantDestruction = (Val & 4) != 0;
+    Eval->WasEvaluated = (Val & 8) != 0;
+    if (Eval->WasEvaluated) {
+      Eval->Evaluated = Record.readAPValue();
+      if (Eval->Evaluated.needsCleanup())
+        Reader.getContext().addDestruction(&Eval->Evaluated);
+    }
+
     // Store the offset of the initializer. Don't deserialize it yet: it might
     // not be needed, and might refer back to the variable, for example if it
     // contains a lambda.
@@ -1687,6 +1693,7 @@ void ASTDeclReader::VisitParmVarDecl(ParmVarDecl *PD) {
   PD->ParmVarDeclBits.HasInheritedDefaultArg = Record.readInt();
   if (Record.readInt()) // hasUninstantiatedDefaultArg.
     PD->setUninstantiatedDefaultArg(Record.readExpr());
+  PD->ExplicitObjectParameterIntroducerLoc = Record.readSourceLocation();
 
   // FIXME: If this is a redeclaration of a function from another module, handle
   // inheritance of default arguments.
@@ -1981,13 +1988,16 @@ void ASTDeclReader::ReadCXXDefinitionData(
       case LCK_StarThis:
       case LCK_This:
       case LCK_VLAType:
-        *ToCapture++ = Capture(Loc, IsImplicit, Kind, nullptr,SourceLocation());
+        new (ToCapture)
+            Capture(Loc, IsImplicit, Kind, nullptr, SourceLocation());
+        ToCapture++;
         break;
       case LCK_ByCopy:
       case LCK_ByRef:
         auto *Var = readDeclAs<VarDecl>();
         SourceLocation EllipsisLoc = readSourceLocation();
-        *ToCapture++ = Capture(Loc, IsImplicit, Kind, Var, EllipsisLoc);
+        new (ToCapture) Capture(Loc, IsImplicit, Kind, Var, EllipsisLoc);
+        ToCapture++;
         break;
       }
     }
@@ -2212,7 +2222,8 @@ void ASTDeclReader::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   D->setExplicitSpecifier(Record.readExplicitSpec());
   D->Ctor = readDeclAs<CXXConstructorDecl>();
   VisitFunctionDecl(D);
-  D->setIsCopyDeductionCandidate(Record.readInt());
+  D->setDeductionCandidateKind(
+      static_cast<DeductionCandidate>(Record.readInt()));
 }
 
 void ASTDeclReader::VisitCXXMethodDecl(CXXMethodDecl *D) {
@@ -2500,14 +2511,6 @@ void ASTDeclReader::VisitClassTemplatePartialSpecializationDecl(
   }
 }
 
-void ASTDeclReader::VisitClassScopeFunctionSpecializationDecl(
-                                    ClassScopeFunctionSpecializationDecl *D) {
-  VisitDecl(D);
-  D->Specialization = readDeclAs<CXXMethodDecl>();
-  if (Record.readInt())
-    D->TemplateArgs = Record.readASTTemplateArgumentListInfo();
-}
-
 void ASTDeclReader::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   RedeclarableResult Redecl = VisitRedeclarableTemplateDecl(D);
 
@@ -2613,15 +2616,12 @@ void ASTDeclReader::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   D->setDeclaredWithTypename(Record.readInt());
 
   if (Record.readBool()) {
-    NestedNameSpecifierLoc NNS = Record.readNestedNameSpecifierLoc();
-    DeclarationNameInfo DN = Record.readDeclarationNameInfo();
-    ConceptDecl *NamedConcept = Record.readDeclAs<ConceptDecl>();
-    const ASTTemplateArgumentListInfo *ArgsAsWritten = nullptr;
+    ConceptReference *CR = nullptr;
     if (Record.readBool())
-        ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
+      CR = Record.readConceptReference();
     Expr *ImmediatelyDeclaredConstraint = Record.readExpr();
-    D->setTypeConstraint(NNS, DN, /*FoundDecl=*/nullptr, NamedConcept,
-                         ArgsAsWritten, ImmediatelyDeclaredConstraint);
+
+    D->setTypeConstraint(CR, ImmediatelyDeclaredConstraint);
     if ((D->ExpandedParameterPack = Record.readInt()))
       D->NumExpanded = Record.readInt();
   }
@@ -3094,11 +3094,12 @@ Attr *ASTRecordReader::readAttr() {
   bool IsAlignas = (ParsedKind == AttributeCommonInfo::AT_Aligned &&
                     Syntax == AttributeCommonInfo::AS_Keyword &&
                     SpellingIndex == AlignedAttr::Keyword_alignas);
+  bool IsRegularKeywordAttribute = Record.readBool();
 
-  AttributeCommonInfo Info(
-      AttrName, ScopeName, AttrRange, ScopeLoc,
-      AttributeCommonInfo::Kind(ParsedKind),
-      {AttributeCommonInfo::Syntax(Syntax), SpellingIndex, IsAlignas});
+  AttributeCommonInfo Info(AttrName, ScopeName, AttrRange, ScopeLoc,
+                           AttributeCommonInfo::Kind(ParsedKind),
+                           {AttributeCommonInfo::Syntax(Syntax), SpellingIndex,
+                            IsAlignas, IsRegularKeywordAttribute});
 
 #include "clang/Serialization/AttrPCHRead.inc"
 
@@ -3190,6 +3191,32 @@ uint64_t ASTReader::getGlobalBitOffset(ModuleFile &M, uint64_t LocalOffset) {
   return LocalOffset + M.GlobalBitOffset;
 }
 
+CXXRecordDecl *
+ASTDeclReader::getOrFakePrimaryClassDefinition(ASTReader &Reader,
+                                               CXXRecordDecl *RD) {
+  // Try to dig out the definition.
+  auto *DD = RD->DefinitionData;
+  if (!DD)
+    DD = RD->getCanonicalDecl()->DefinitionData;
+
+  // If there's no definition yet, then DC's definition is added by an update
+  // record, but we've not yet loaded that update record. In this case, we
+  // commit to DC being the canonical definition now, and will fix this when
+  // we load the update record.
+  if (!DD) {
+    DD = new (Reader.getContext()) struct CXXRecordDecl::DefinitionData(RD);
+    RD->setCompleteDefinition(true);
+    RD->DefinitionData = DD;
+    RD->getCanonicalDecl()->DefinitionData = DD;
+
+    // Track that we did this horrible thing so that we can fix it later.
+    Reader.PendingFakeDefinitionData.insert(
+        std::make_pair(DD, ASTReader::PendingFakeDefinitionKind::Fake));
+  }
+
+  return DD->Definition;
+}
+
 /// Find the context in which we should search for previous declarations when
 /// looking for declarations to merge.
 DeclContext *ASTDeclReader::getPrimaryContextForMerging(ASTReader &Reader,
@@ -3197,29 +3224,8 @@ DeclContext *ASTDeclReader::getPrimaryContextForMerging(ASTReader &Reader,
   if (auto *ND = dyn_cast<NamespaceDecl>(DC))
     return ND->getOriginalNamespace();
 
-  if (auto *RD = dyn_cast<CXXRecordDecl>(DC)) {
-    // Try to dig out the definition.
-    auto *DD = RD->DefinitionData;
-    if (!DD)
-      DD = RD->getCanonicalDecl()->DefinitionData;
-
-    // If there's no definition yet, then DC's definition is added by an update
-    // record, but we've not yet loaded that update record. In this case, we
-    // commit to DC being the canonical definition now, and will fix this when
-    // we load the update record.
-    if (!DD) {
-      DD = new (Reader.getContext()) struct CXXRecordDecl::DefinitionData(RD);
-      RD->setCompleteDefinition(true);
-      RD->DefinitionData = DD;
-      RD->getCanonicalDecl()->DefinitionData = DD;
-
-      // Track that we did this horrible thing so that we can fix it later.
-      Reader.PendingFakeDefinitionData.insert(
-          std::make_pair(DD, ASTReader::PendingFakeDefinitionKind::Fake));
-    }
-
-    return DD->Definition;
-  }
+  if (auto *RD = dyn_cast<CXXRecordDecl>(DC))
+    return getOrFakePrimaryClassDefinition(Reader, RD);
 
   if (auto *RD = dyn_cast<RecordDecl>(DC))
     return RD->getDefinition();
@@ -3853,9 +3859,6 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
   case DECL_VAR_TEMPLATE_PARTIAL_SPECIALIZATION:
     D = VarTemplatePartialSpecializationDecl::CreateDeserialized(Context, ID);
     break;
-  case DECL_CLASS_SCOPE_FUNCTION_SPECIALIZATION:
-    D = ClassScopeFunctionSpecializationDecl::CreateDeserialized(Context, ID);
-    break;
   case DECL_FUNCTION_TEMPLATE:
     D = FunctionTemplateDecl::CreateDeserialized(Context, ID);
     break;
@@ -4433,7 +4436,9 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       if (auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(D)) {
         VTSD->setPointOfInstantiation(POI);
       } else if (auto *VD = dyn_cast<VarDecl>(D)) {
-        VD->getMemberSpecializationInfo()->setPointOfInstantiation(POI);
+        MemberSpecializationInfo *MSInfo = VD->getMemberSpecializationInfo();
+        assert(MSInfo && "No member specialization information");
+        MSInfo->setPointOfInstantiation(POI);
       } else {
         auto *FD = cast<FunctionDecl>(D);
         if (auto *FTSInfo = FD->TemplateOrSpecialization

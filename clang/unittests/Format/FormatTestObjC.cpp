@@ -94,6 +94,26 @@ TEST(FormatTestObjCStyle, DetectsObjCInHeaders) {
   ASSERT_TRUE((bool)Style);
   EXPECT_EQ(FormatStyle::LK_ObjC, Style->Language);
 
+  Style = getStyle("{}", "a.h", "none", R"objc(
+NS_ASSUME_NONNULL_BEGIN
+extern int i;
+NS_ASSUME_NONNULL_END
+)objc");
+  ASSERT_TRUE((bool)Style);
+  EXPECT_EQ(FormatStyle::LK_ObjC, Style->Language);
+
+  Style = getStyle("{}", "a.h", "none", R"objc(
+FOUNDATION_EXTERN void DoStuff(void);
+)objc");
+  ASSERT_TRUE((bool)Style);
+  EXPECT_EQ(FormatStyle::LK_ObjC, Style->Language);
+
+  Style = getStyle("{}", "a.h", "none", R"objc(
+FOUNDATION_EXPORT void DoStuff(void);
+)objc");
+  ASSERT_TRUE((bool)Style);
+  EXPECT_EQ(FormatStyle::LK_ObjC, Style->Language);
+
   Style = getStyle("{}", "a.h", "none", "enum Foo {};");
   ASSERT_TRUE((bool)Style);
   EXPECT_EQ(FormatStyle::LK_Cpp, Style->Language);
@@ -999,6 +1019,20 @@ TEST_F(FormatTestObjC, ObjCBlockTypesAndVariables) {
   verifyFormat("int (^foo[kNumEntries])(char, float);");
   verifyFormat("int (^foo[kNumEntries + 10])(char, float);");
   verifyFormat("int (^foo[(kNumEntries + 10)])(char, float);");
+
+  verifyFormat("int *p = ^int *() { //\n"
+               "  return nullptr;\n"
+               "}();");
+
+  verifyFormat("int * (^p)(void) = ^int *(void) { //\n"
+               "  return nullptr;\n"
+               "};");
+
+  // WebKit forces function braces onto a newline, but blocks should not.
+  verifyFormat("int* p = ^int*() { //\n"
+               "    return nullptr;\n"
+               "}();",
+               getWebKitStyle());
 }
 
 TEST_F(FormatTestObjC, ObjCSnippets) {

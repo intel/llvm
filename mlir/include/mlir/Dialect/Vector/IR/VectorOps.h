@@ -13,6 +13,8 @@
 #ifndef MLIR_DIALECT_VECTOR_IR_VECTOROPS_H
 #define MLIR_DIALECT_VECTOR_IR_VECTOROPS_H
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.h"
 #include "mlir/Dialect/Vector/Interfaces/MaskingOpInterface.h"
 #include "mlir/IR/AffineMap.h"
@@ -30,10 +32,10 @@
 #include "llvm/ADT/StringExtras.h"
 
 // Pull in all enum type definitions and utility function declarations.
-#include "mlir/Dialect/Vector/IR/VectorOpsEnums.h.inc"
+#include "mlir/Dialect/Vector/IR/VectorEnums.h.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/Vector/IR/VectorOpsAttrDefs.h.inc"
+#include "mlir/Dialect/Vector/IR/VectorAttributes.h.inc"
 
 namespace mlir {
 class MLIRContext;
@@ -73,53 +75,9 @@ isBroadcastableTo(Type srcType, VectorType dstVectorType,
 void populateVectorToVectorCanonicalizationPatterns(RewritePatternSet &patterns,
                                                     PatternBenefit benefit = 1);
 
-/// Collect a set of vector.shape_cast folding patterns.
-void populateShapeCastFoldingPatterns(RewritePatternSet &patterns,
-                                      PatternBenefit benefit = 1);
-
-/// Cast away the leading unit dim, if exists, for the given contract op.
-/// Return success if the transformation applies; return failure otherwise.
-LogicalResult castAwayContractionLeadingOneDim(vector::ContractionOp contractOp,
-                                               RewriterBase &rewriter);
-
-/// Collect a set of leading one dimension removal patterns.
-///
-/// These patterns insert vector.shape_cast to remove leading one dimensions
-/// to expose more canonical forms of read/write/insert/extract operations.
-/// With them, there are more chances that we can cancel out extract-insert
-/// pairs or forward write-read pairs.
-void populateCastAwayVectorLeadingOneDimPatterns(RewritePatternSet &patterns,
-                                                 PatternBenefit benefit = 1);
-
-/// Collect a set of one dimension removal patterns.
-///
-/// These patterns insert rank-reducing memref.subview ops to remove one
-/// dimensions. With them, there are more chances that we can avoid
-/// potentially exensive vector.shape_cast operations.
-void populateVectorTransferDropUnitDimsPatterns(RewritePatternSet &patterns,
-                                                PatternBenefit benefit = 1);
-
-/// Collect a set of patterns to flatten n-D vector transfers on contiguous
-/// memref.
-///
-/// These patterns insert memref.collapse_shape + vector.shape_cast patterns
-/// to transform multiple small n-D transfers into a larger 1-D transfer where
-/// the memref contiguity properties allow it.
-void populateFlattenVectorTransferPatterns(RewritePatternSet &patterns,
-                                           PatternBenefit benefit = 1);
-
-/// Collect a set of patterns that bubble up/down bitcast ops.
-///
-/// These patterns move vector.bitcast ops to be before insert ops or after
-/// extract ops where suitable. With them, bitcast will happen on smaller
-/// vectors and there are more chances to share extract/insert ops.
-void populateBubbleVectorBitCastOpPatterns(RewritePatternSet &patterns,
-                                           PatternBenefit benefit = 1);
-
-/// These patterns materialize masks for various vector ops such as transfers.
-void populateVectorMaskMaterializationPatterns(RewritePatternSet &patterns,
-                                               bool force32BitVectorIndices,
-                                               PatternBenefit benefit = 1);
+/// Collect a set of patterns that fold arithmetic extension on floating point
+/// into vector contract for the backends with native support.
+void populateFoldArithExtensionPatterns(RewritePatternSet &patterns);
 
 /// Returns the integer type required for subscripts in the vector dialect.
 IntegerType getVectorSubscriptType(Builder &builder);
@@ -132,10 +90,6 @@ ArrayAttr getVectorSubscriptAttr(Builder &b, ArrayRef<int64_t> values);
 /// operation kind associated with a binary AtomicRMWKind op.
 Value getVectorReductionOp(arith::AtomicRMWKind op, OpBuilder &builder,
                            Location loc, Value vector);
-
-/// Return true if the last dimension of the MemRefType has unit stride. Also
-/// return true for memrefs with no strides.
-bool isLastMemrefDimUnitStride(MemRefType type);
 
 /// Build the default minor identity map suitable for a vector transfer. This
 /// also handles the case memref<... x vector<...>> -> vector<...> in which the
@@ -177,6 +131,24 @@ inline bool isReductionIterator(Attribute attr) {
   return cast<IteratorTypeAttr>(attr).getValue() == IteratorType::reduction;
 }
 
+/// Returns the integer numbers in `values`. `values` are expected to be
+/// constant operations.
+SmallVector<int64_t> getAsIntegers(ArrayRef<Value> values);
+
+/// Returns the integer numbers in `foldResults`. `foldResults` are expected to
+/// be constant operations.
+SmallVector<int64_t> getAsIntegers(ArrayRef<OpFoldResult> foldResults);
+
+/// Convert `foldResults` into Values. Integer attributes are converted to
+/// constant op.
+SmallVector<Value> getAsValues(OpBuilder &builder, Location loc,
+                               ArrayRef<OpFoldResult> foldResults);
+
+/// Returns the constant index ops in `values`. `values` are expected to be
+/// constant operations.
+SmallVector<arith::ConstantIndexOp>
+getAsConstantIndexOps(ArrayRef<Value> values);
+
 //===----------------------------------------------------------------------===//
 // Vector Masking Utilities
 //===----------------------------------------------------------------------===//
@@ -204,7 +176,7 @@ Value selectPassthru(OpBuilder &builder, Value mask, Value newValue,
 } // namespace mlir
 
 #define GET_OP_CLASSES
+#include "mlir/Dialect/Vector/IR/VectorDialect.h.inc"
 #include "mlir/Dialect/Vector/IR/VectorOps.h.inc"
-#include "mlir/Dialect/Vector/IR/VectorOpsDialect.h.inc"
 
 #endif // MLIR_DIALECT_VECTOR_IR_VECTOROPS_H

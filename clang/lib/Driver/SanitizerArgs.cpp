@@ -36,8 +36,9 @@ static const SanitizerMask NeedsUbsanRt =
 static const SanitizerMask NeedsUbsanCxxRt =
     SanitizerKind::Vptr | SanitizerKind::CFI;
 static const SanitizerMask NotAllowedWithTrap = SanitizerKind::Vptr;
-static const SanitizerMask NotAllowedWithMinimalRuntime =
-    SanitizerKind::Function | SanitizerKind::Vptr;
+static const SanitizerMask NotAllowedWithMinimalRuntime = SanitizerKind::Vptr;
+static const SanitizerMask NotAllowedWithExecuteOnly =
+    SanitizerKind::Function | SanitizerKind::KCFI;
 static const SanitizerMask RequiresPIE =
     SanitizerKind::DataFlow | SanitizerKind::Scudo;
 static const SanitizerMask NeedsUnwindTables =
@@ -78,7 +79,7 @@ static const SanitizerMask CFIClasses =
 static const SanitizerMask CompatibleWithMinimalRuntime =
     TrappingSupported | SanitizerKind::Scudo | SanitizerKind::ShadowCallStack |
     SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap |
-    SanitizerKind::MemtagGlobals;
+    SanitizerKind::MemtagGlobals | SanitizerKind::KCFI;
 
 enum CoverageFeature {
   CoverageFunc = 1 << 0,
@@ -141,6 +142,16 @@ static std::string describeSanitizeArg(const llvm::opt::Arg *A,
 /// Produce a string containing comma-separated names of sanitizers in \p
 /// Sanitizers set.
 static std::string toString(const clang::SanitizerSet &Sanitizers);
+
+/// Return true if an execute-only target disallows data access to code
+/// sections.
+static bool isExecuteOnlyTarget(const llvm::Triple &Triple,
+                                const llvm::opt::ArgList &Args) {
+  if (Triple.isPS5())
+    return true;
+  return Args.hasFlagNoClaim(options::OPT_mexecute_only,
+                             options::OPT_mno_execute_only, false);
+}
 
 static void validateSpecialCaseListFormat(const Driver &D,
                                           std::vector<std::string> &SCLFiles,
@@ -396,6 +407,22 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
           DiagnosedKinds |= SanitizerKind::Function;
         }
       }
+      // -fsanitize=function and -fsanitize=kcfi instrument indirect function
+      // calls to load a type hash before the function label. Therefore, an
+      // execute-only target doesn't support the function and kcfi sanitizers.
+      const llvm::Triple &Triple = TC.getTriple();
+      if (isExecuteOnlyTarget(Triple, Args)) {
+        if (SanitizerMask KindsToDiagnose =
+                Add & NotAllowedWithExecuteOnly & ~DiagnosedKinds) {
+          if (DiagnoseErrors) {
+            std::string Desc = describeSanitizeArg(Arg, KindsToDiagnose);
+            D.Diag(diag::err_drv_argument_not_allowed_with)
+                << Desc << Triple.str();
+          }
+          DiagnosedKinds |= KindsToDiagnose;
+        }
+        Add &= ~NotAllowedWithExecuteOnly;
+      }
 
       // FIXME: Make CFI on member function calls compatible with cross-DSO CFI.
       // There are currently two problems:
@@ -458,6 +485,10 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       if (MinimalRuntime) {
         Add &= ~NotAllowedWithMinimalRuntime;
       }
+      // NotAllowedWithExecuteOnly is silently discarded on an execute-only
+      // target if implicitly enabled through group expansion.
+      if (isExecuteOnlyTarget(Triple, Args))
+        Add &= ~NotAllowedWithExecuteOnly;
       if (CfiCrossDso)
         Add &= ~SanitizerKind::CFIMFCall;
       Add &= Supported;
@@ -912,6 +943,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       }
     }
 
+    StableABI = Args.hasFlag(options::OPT_fsanitize_stable_abi,
+                             options::OPT_fno_sanitize_stable_abi, false);
+
     AsanUseAfterScope = Args.hasFlag(
         options::OPT_fsanitize_address_use_after_scope,
         options::OPT_fno_sanitize_address_use_after_scope, AsanUseAfterScope);
@@ -926,14 +960,9 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
                      options::OPT_fno_sanitize_address_outline_instrumentation,
                      AsanOutlineInstrumentation);
 
-    // As a workaround for a bug in gold 2.26 and earlier, dead stripping of
-    // globals in ASan is disabled by default on most ELF targets.
-    // See https://sourceware.org/bugzilla/show_bug.cgi?id=19002
     AsanGlobalsDeadStripping = Args.hasFlag(
         options::OPT_fsanitize_address_globals_dead_stripping,
-        options::OPT_fno_sanitize_address_globals_dead_stripping,
-        !TC.getTriple().isOSBinFormatELF() || TC.getTriple().isOSFuchsia() ||
-            TC.getTriple().isPS());
+        options::OPT_fno_sanitize_address_globals_dead_stripping, true);
 
     // Enable ODR indicators which allow better handling of mixed instrumented
     // and uninstrumented globals. Disable them for Windows where weak odr
@@ -1280,6 +1309,18 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (AsanOutlineInstrumentation) {
     CmdArgs.push_back("-mllvm");
     CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
+  }
+
+  // When emitting Stable ABI instrumentation, force outlining calls and avoid
+  // inlining shadow memory poisoning. While this is a big performance burden
+  // for now it allows full abstraction from implementation details.
+  if (StableABI) {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-asan-max-inline-poisoning-size=0");
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-asan-guard-against-version-mismatch=0");
   }
 
   // Only pass the option to the frontend if the user requested,

@@ -42,6 +42,7 @@ void BuiltinDialect::registerAttributes() {
 #define GET_ATTRDEF_LIST
 #include "mlir/IR/BuiltinAttributes.cpp.inc"
       >();
+  addAttributes<DistinctAttr>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -234,7 +235,7 @@ AffineMap StridedLayoutAttr::getAffineMap() const {
 LogicalResult
 StridedLayoutAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                           int64_t offset, ArrayRef<int64_t> strides) {
-  if (llvm::any_of(strides, [&](int64_t stride) { return stride == 0; }))
+  if (llvm::is_contained(strides, 0))
     return emitError() << "strides must not be zero";
 
   return success();
@@ -437,6 +438,9 @@ LogicalResult OpaqueAttr::verify(function_ref<InFlightDiagnostic()> emitError,
 // DenseElementsAttr Utilities
 //===----------------------------------------------------------------------===//
 
+const char DenseIntOrFPElementsAttrStorage::kSplatTrue = ~0;
+const char DenseIntOrFPElementsAttrStorage::kSplatFalse = 0;
+
 /// Get the bitwidth of a dense element type within the buffer.
 /// DenseElementsAttr requires bitwidths greater than 1 to be aligned by 8.
 static size_t getDenseElementStorageWidth(size_t origWidth) {
@@ -463,8 +467,7 @@ static bool getBit(const char *rawData, size_t bitPos) {
 /// BE format.
 static void copyAPIntToArrayForBEmachine(APInt value, size_t numBytes,
                                          char *result) {
-  assert(llvm::support::endian::system_endianness() == // NOLINT
-         llvm::support::endianness::big);              // NOLINT
+  assert(llvm::endianness::native == llvm::endianness::big);
   assert(value.getNumWords() * APInt::APINT_WORD_SIZE >= numBytes);
 
   // Copy the words filled with data.
@@ -493,8 +496,7 @@ static void copyAPIntToArrayForBEmachine(APInt value, size_t numBytes,
 /// format.
 static void copyArrayToAPIntForBEmachine(const char *inArray, size_t numBytes,
                                          APInt &result) {
-  assert(llvm::support::endian::system_endianness() == // NOLINT
-         llvm::support::endianness::big);              // NOLINT
+  assert(llvm::endianness::native == llvm::endianness::big);
   assert(result.getNumWords() * APInt::APINT_WORD_SIZE >= numBytes);
 
   // Copy the data that fills the word of `result` from `inArray`.
@@ -535,8 +537,7 @@ static void writeBits(char *rawData, size_t bitPos, APInt value) {
 
   // Otherwise, the bit position is guaranteed to be byte aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
-  if (llvm::support::endian::system_endianness() ==
-      llvm::support::endianness::big) {
+  if (llvm::endianness::native == llvm::endianness::big) {
     // Copy from `value` to `rawData + (bitPos / CHAR_BIT)`.
     // Copying the first `llvm::divideCeil(bitWidth, CHAR_BIT)` bytes doesn't
     // work correctly in BE format.
@@ -561,8 +562,7 @@ static APInt readBits(const char *rawData, size_t bitPos, size_t bitWidth) {
   // Otherwise, the bit position must be 8-bit aligned.
   assert((bitPos % CHAR_BIT) == 0 && "expected bitPos to be 8-bit aligned");
   APInt result(bitWidth, 0);
-  if (llvm::support::endian::system_endianness() ==
-      llvm::support::endianness::big) {
+  if (llvm::endianness::native == llvm::endianness::big) {
     // Copy from `rawData + (bitPos / CHAR_BIT)` to `result`.
     // Copying the first `llvm::divideCeil(bitWidth, CHAR_BIT)` bytes doesn't
     // work correctly in BE format.
@@ -603,7 +603,7 @@ DenseElementsAttr::AttributeElementIterator::AttributeElementIterator(
 Attribute DenseElementsAttr::AttributeElementIterator::operator*() const {
   auto owner = llvm::cast<DenseElementsAttr>(getFromOpaquePointer(base));
   Type eltTy = owner.getElementType();
-  if (auto intEltTy = llvm::dyn_cast<IntegerType>(eltTy))
+  if (llvm::dyn_cast<IntegerType>(eltTy))
     return IntegerAttr::get(eltTy, *IntElementIterator(owner, index));
   if (llvm::isa<IndexType>(eltTy))
     return IntegerAttr::get(eltTy, *IntElementIterator(owner, index));
@@ -1247,12 +1247,12 @@ DenseElementsAttr DenseElementsAttr::bitcast(Type newElType) {
 DenseElementsAttr
 DenseElementsAttr::mapValues(Type newElementType,
                              function_ref<APInt(const APInt &)> mapping) const {
-  return cast<DenseIntElementsAttr>().mapValues(newElementType, mapping);
+  return llvm::cast<DenseIntElementsAttr>(*this).mapValues(newElementType, mapping);
 }
 
 DenseElementsAttr DenseElementsAttr::mapValues(
     Type newElementType, function_ref<APInt(const APFloat &)> mapping) const {
-  return cast<DenseFPElementsAttr>().mapValues(newElementType, mapping);
+  return llvm::cast<DenseFPElementsAttr>(*this).mapValues(newElementType, mapping);
 }
 
 ShapedType DenseElementsAttr::getType() const {
@@ -1363,8 +1363,7 @@ void DenseIntOrFPElementsAttr::convertEndianOfCharForBEmachine(
   using llvm::support::ulittle32_t;
   using llvm::support::ulittle64_t;
 
-  assert(llvm::support::endian::system_endianness() == // NOLINT
-         llvm::support::endianness::big);              // NOLINT
+  assert(llvm::endianness::native == llvm::endianness::big);
   // NOLINT to avoid warning message about replacing by static_assert()
 
   // Following std::copy_n always converts endianness on BE machine.
@@ -1743,6 +1742,18 @@ SparseElementsAttr::verify(function_ref<InFlightDiagnostic()> emitError,
   }
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// DistinctAttr
+//===----------------------------------------------------------------------===//
+
+DistinctAttr DistinctAttr::create(Attribute referencedAttr) {
+  return Base::get(referencedAttr.getContext(), referencedAttr);
+}
+
+Attribute DistinctAttr::getReferencedAttr() const {
+  return getImpl()->referencedAttr;
 }
 
 //===----------------------------------------------------------------------===//

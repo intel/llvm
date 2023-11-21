@@ -40,7 +40,6 @@
 #include "llvm/Analysis/ScalarEvolutionAliasAnalysis.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PredIteratorCache.h"
@@ -77,14 +76,13 @@ static bool isExitBlock(BasicBlock *BB,
 /// rewrite the uses.
 bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
                                     const DominatorTree &DT, const LoopInfo &LI,
-                                    IRBuilderBase &Builder,
-                                    SmallVectorImpl<PHINode *> *PHIsToRemove) {
+                                    ScalarEvolution *SE,
+                                    SmallVectorImpl<PHINode *> *PHIsToRemove,
+                                    SmallVectorImpl<PHINode *> *InsertedPHIs) {
   SmallVector<Use *, 16> UsesToRewrite;
   SmallSetVector<PHINode *, 16> LocalPHIsToRemove;
   PredIteratorCache PredCache;
   bool Changed = false;
-
-  IRBuilderBase::InsertPointGuard InsertPtGuard(Builder);
 
   // Cache the Loop ExitBlocks across this loop.  We expect to get a lot of
   // instructions within the same loops, computing the exit blocks is
@@ -146,12 +144,14 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
     SmallVector<PHINode *, 16> AddedPHIs;
     SmallVector<PHINode *, 8> PostProcessPHIs;
 
-    SmallVector<PHINode *, 4> InsertedPHIs;
-    SSAUpdater SSAUpdate(&InsertedPHIs);
+    SmallVector<PHINode *, 4> LocalInsertedPHIs;
+    SSAUpdater SSAUpdate(&LocalInsertedPHIs);
     SSAUpdate.Initialize(I->getType(), I->getName());
 
     // Insert the LCSSA phi's into all of the exit blocks dominated by the
     // value, and add them to the Phi's map.
+    bool HasSCEV = SE && SE->isSCEVable(I->getType()) &&
+                   SE->getExistingSCEV(I) != nullptr;
     for (BasicBlock *ExitBB : ExitBlocks) {
       if (!DT.dominates(DomNode, DT.getNode(ExitBB)))
         continue;
@@ -159,9 +159,10 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
       // If we already inserted something for this BB, don't reprocess it.
       if (SSAUpdate.HasValueForBlock(ExitBB))
         continue;
-      Builder.SetInsertPoint(&ExitBB->front());
-      PHINode *PN = Builder.CreatePHI(I->getType(), PredCache.size(ExitBB),
-                                      I->getName() + ".lcssa");
+      PHINode *PN = PHINode::Create(I->getType(), PredCache.size(ExitBB),
+                                    I->getName() + ".lcssa", &ExitBB->front());
+      if (InsertedPHIs)
+        InsertedPHIs->push_back(PN);
       // Get the debug location from the original instruction.
       PN->setDebugLoc(I->getDebugLoc());
 
@@ -198,6 +199,13 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
       if (auto *OtherLoop = LI.getLoopFor(ExitBB))
         if (!L->contains(OtherLoop))
           PostProcessPHIs.push_back(PN);
+
+      // If we have a cached SCEV for the original instruction, make sure the
+      // new LCSSA phi node is also cached. This makes sures that BECounts
+      // based on it will be invalidated when the LCSSA phi node is invalidated,
+      // which some passes rely on.
+      if (HasSCEV)
+        SE->getSCEV(PN);
     }
 
     // Rewrite all uses outside the loop in terms of the new PHIs we just
@@ -251,10 +259,12 @@ bool llvm::formLCSSAForInstructions(SmallVectorImpl<Instruction *> &Worklist,
 
     // SSAUpdater might have inserted phi-nodes inside other loops. We'll need
     // to post-process them to keep LCSSA form.
-    for (PHINode *InsertedPN : InsertedPHIs) {
+    for (PHINode *InsertedPN : LocalInsertedPHIs) {
       if (auto *OtherLoop = LI.getLoopFor(InsertedPN->getParent()))
         if (!L->contains(OtherLoop))
           PostProcessPHIs.push_back(InsertedPN);
+      if (InsertedPHIs)
+        InsertedPHIs->push_back(InsertedPN);
     }
 
     // Post process PHI instructions that were inserted into another disjoint
@@ -333,7 +343,8 @@ static void computeBlocksDominatingExits(
   }
 }
 
-bool llvm::formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI) {
+bool llvm::formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
+                     ScalarEvolution *SE) {
   bool Changed = false;
 
 #ifdef EXPENSIVE_CHECKS
@@ -386,8 +397,7 @@ bool llvm::formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI) {
     }
   }
 
-  IRBuilder<> Builder(L.getHeader()->getContext());
-  Changed = formLCSSAForInstructions(Worklist, DT, *LI, Builder);
+  Changed = formLCSSAForInstructions(Worklist, DT, *LI, SE);
 
   assert(L.isLCSSAForm(DT));
 
@@ -396,22 +406,23 @@ bool llvm::formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI) {
 
 /// Process a loop nest depth first.
 bool llvm::formLCSSARecursively(Loop &L, const DominatorTree &DT,
-                                const LoopInfo *LI) {
+                                const LoopInfo *LI, ScalarEvolution *SE) {
   bool Changed = false;
 
   // Recurse depth-first through inner loops.
   for (Loop *SubLoop : L.getSubLoops())
-    Changed |= formLCSSARecursively(*SubLoop, DT, LI);
+    Changed |= formLCSSARecursively(*SubLoop, DT, LI, SE);
 
-  Changed |= formLCSSA(L, DT, LI);
+  Changed |= formLCSSA(L, DT, LI, SE);
   return Changed;
 }
 
 /// Process all loops in the function, inner-most out.
-static bool formLCSSAOnAllLoops(const LoopInfo *LI, const DominatorTree &DT) {
+static bool formLCSSAOnAllLoops(const LoopInfo *LI, const DominatorTree &DT,
+                                ScalarEvolution *SE) {
   bool Changed = false;
   for (const auto &L : *LI)
-    Changed |= formLCSSARecursively(*L, DT, LI);
+    Changed |= formLCSSARecursively(*L, DT, LI, SE);
   return Changed;
 }
 
@@ -425,6 +436,7 @@ struct LCSSAWrapperPass : public FunctionPass {
   // Cached analysis information for the current function.
   DominatorTree *DT;
   LoopInfo *LI;
+  ScalarEvolution *SE;
 
   bool runOnFunction(Function &F) override;
   void verifyAnalysis() const override {
@@ -481,13 +493,17 @@ char &llvm::LCSSAID = LCSSAWrapperPass::ID;
 bool LCSSAWrapperPass::runOnFunction(Function &F) {
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
   DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  return formLCSSAOnAllLoops(LI, *DT);
+  auto *SEWP = getAnalysisIfAvailable<ScalarEvolutionWrapperPass>();
+  SE = SEWP ? &SEWP->getSE() : nullptr;
+
+  return formLCSSAOnAllLoops(LI, *DT, SE);
 }
 
 PreservedAnalyses LCSSAPass::run(Function &F, FunctionAnalysisManager &AM) {
   auto &LI = AM.getResult<LoopAnalysis>(F);
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
-  if (!formLCSSAOnAllLoops(&LI, DT))
+  auto *SE = AM.getCachedResult<ScalarEvolutionAnalysis>(F);
+  if (!formLCSSAOnAllLoops(&LI, DT, SE))
     return PreservedAnalyses::all();
 
   PreservedAnalyses PA;

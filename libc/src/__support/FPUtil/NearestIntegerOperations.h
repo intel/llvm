@@ -6,18 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_NEARESTINTEGEROPERATIONS_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_NEARESTINTEGEROPERATIONS_H
 
 #include "FEnvImpl.h"
 #include "FPBits.h"
+#include "rounding_mode.h"
 
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/common.h"
 
 #include <math.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 namespace fputil {
 
 template <typename T, cpp::enable_if_t<cpp::is_floating_point_v<T>, int> = 0>
@@ -162,7 +163,7 @@ LIBC_INLINE T round_using_current_rounding_mode(T x) {
 
   bool is_neg = bits.get_sign();
   int exponent = bits.get_exponent();
-  int rounding_mode = get_round();
+  int rounding_mode = quick_get_round();
 
   // If the exponent is greater than the most negative mantissa
   // exponent, then x is already an integer.
@@ -285,6 +286,6 @@ LIBC_INLINE I round_to_signed_integer_using_current_rounding_mode(F x) {
 }
 
 } // namespace fputil
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_NEAREST_INTEGER_OPERATIONS_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_NEARESTINTEGEROPERATIONS_H

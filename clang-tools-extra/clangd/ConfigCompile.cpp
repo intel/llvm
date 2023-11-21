@@ -35,6 +35,7 @@
 #include "support/Trace.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -196,6 +197,7 @@ struct FragmentCompiler {
     compile(std::move(F.Completion));
     compile(std::move(F.Hover));
     compile(std::move(F.InlayHints));
+    compile(std::move(F.SemanticTokens));
     compile(std::move(F.Style));
   }
 
@@ -449,13 +451,6 @@ struct FragmentCompiler {
       }
     }
 
-    if (F.AllowStalePreamble) {
-      if (auto Val = F.AllowStalePreamble)
-        Out.Apply.push_back([Val](const Params &, Config &C) {
-          C.Diagnostics.AllowStalePreamble = **Val;
-        });
-    }
-
     if (F.MissingIncludes)
       if (auto Val = compileEnum<Config::IncludesPolicy>("MissingIncludes",
                                                          **F.MissingIncludes)
@@ -611,11 +606,46 @@ struct FragmentCompiler {
       Out.Apply.push_back([Value(**F.Designators)](const Params &, Config &C) {
         C.InlayHints.Designators = Value;
       });
+    if (F.BlockEnd)
+      Out.Apply.push_back([Value(**F.BlockEnd)](const Params &, Config &C) {
+        C.InlayHints.BlockEnd = Value;
+      });
     if (F.TypeNameLimit)
       Out.Apply.push_back(
           [Value(**F.TypeNameLimit)](const Params &, Config &C) {
             C.InlayHints.TypeNameLimit = Value;
           });
+  }
+
+  void compile(Fragment::SemanticTokensBlock &&F) {
+    if (!F.DisabledKinds.empty()) {
+      std::vector<std::string> DisabledKinds;
+      for (auto &Kind : F.DisabledKinds)
+        DisabledKinds.push_back(std::move(*Kind));
+
+      Out.Apply.push_back(
+          [DisabledKinds(std::move(DisabledKinds))](const Params &, Config &C) {
+            for (auto &Kind : DisabledKinds) {
+              auto It = llvm::find(C.SemanticTokens.DisabledKinds, Kind);
+              if (It == C.SemanticTokens.DisabledKinds.end())
+                C.SemanticTokens.DisabledKinds.push_back(std::move(Kind));
+            }
+          });
+    }
+    if (!F.DisabledModifiers.empty()) {
+      std::vector<std::string> DisabledModifiers;
+      for (auto &Kind : F.DisabledModifiers)
+        DisabledModifiers.push_back(std::move(*Kind));
+
+      Out.Apply.push_back([DisabledModifiers(std::move(DisabledModifiers))](
+                              const Params &, Config &C) {
+        for (auto &Kind : DisabledModifiers) {
+          auto It = llvm::find(C.SemanticTokens.DisabledModifiers, Kind);
+          if (It == C.SemanticTokens.DisabledModifiers.end())
+            C.SemanticTokens.DisabledModifiers.push_back(std::move(Kind));
+        }
+      });
+    }
   }
 
   constexpr static llvm::SourceMgr::DiagKind Error = llvm::SourceMgr::DK_Error;

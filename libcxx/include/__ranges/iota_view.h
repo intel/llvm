@@ -27,8 +27,8 @@
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/unreachable_sentinel.h>
-#include <__ranges/copyable_box.h>
 #include <__ranges/enable_borrowed_range.h>
+#include <__ranges/movable_box.h>
 #include <__ranges/view_interface.h>
 #include <__type_traits/conditional.h>
 #include <__type_traits/is_nothrow_copy_constructible.h>
@@ -319,8 +319,8 @@ namespace ranges {
         : __value_(std::move(__value)), __bound_sentinel_(std::move(__bound_sentinel)) {
       // Validate the precondition if possible.
       if constexpr (totally_ordered_with<_Start, _BoundSentinel>) {
-        _LIBCPP_ASSERT(ranges::less_equal()(__value_, __bound_sentinel_),
-                       "Precondition violated: value is greater than bound.");
+        _LIBCPP_ASSERT_UNCATEGORIZED(ranges::less_equal()(__value_, __bound_sentinel_),
+                                     "Precondition violated: value is greater than bound.");
       }
     }
 
@@ -363,15 +363,14 @@ namespace ranges {
               (integral<_Start> && integral<_BoundSentinel>) || sized_sentinel_for<_BoundSentinel, _Start>
     {
       if constexpr (__integer_like<_Start> && __integer_like<_BoundSentinel>) {
-        if (__value_ < 0) {
-          if (__bound_sentinel_ < 0) {
-            return std::__to_unsigned_like(-__value_) - std::__to_unsigned_like(-__bound_sentinel_);
-          }
-          return std::__to_unsigned_like(__bound_sentinel_) + std::__to_unsigned_like(-__value_);
-        }
-        return std::__to_unsigned_like(__bound_sentinel_) - std::__to_unsigned_like(__value_);
+        return (__value_ < 0)
+                 ? ((__bound_sentinel_ < 0)
+                        ? std::__to_unsigned_like(-__value_) - std::__to_unsigned_like(-__bound_sentinel_)
+                        : std::__to_unsigned_like(__bound_sentinel_) + std::__to_unsigned_like(-__value_))
+                 : std::__to_unsigned_like(__bound_sentinel_) - std::__to_unsigned_like(__value_);
+      } else {
+        return std::__to_unsigned_like(__bound_sentinel_ - __value_);
       }
-      return std::__to_unsigned_like(__bound_sentinel_ - __value_);
     }
   };
 

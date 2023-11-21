@@ -9,9 +9,11 @@
 #include "mlir/Dialect/Linalg/TransformOps/LinalgMatchOps.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Linalg/IR/LinalgInterfaces.h"
+#include "mlir/Dialect/Linalg/TransformOps/Syntax.h"
 #include "mlir/Dialect/Transform/IR/MatchInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/FunctionImplementation.h"
+#include "mlir/Interfaces/FunctionImplementation.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -185,15 +187,123 @@ DiagnosedSilenceableFailure transform::MatchStructuredBodyOp::matchOperation(
     }
     return DiagnosedSilenceableFailure::success();
   }
+  if (std::optional<ArrayAttr> contractionOps = getContraction()) {
+    Block &body = linalgOp->getRegion(0).front();
+    std::string message;
+    llvm::raw_string_ostream os(message);
+    bool result = linalg::detail::isContractionBody(
+        body,
+        [&](Operation *elem, Operation *red) {
+          return elem->getName().getStringRef() ==
+                     (*contractionOps)[0].cast<StringAttr>().getValue() &&
+                 red->getName().getStringRef() ==
+                     (*contractionOps)[1].cast<StringAttr>().getValue();
+        },
+        os);
+    if (result)
+      return DiagnosedSilenceableFailure::success();
+    return emitSilenceableError() << "contraction: " << os.str();
+  }
   return emitDefiniteFailure() << "unknown body condition";
 }
 
 LogicalResult transform::MatchStructuredBodyOp::verify() {
-  if (getReductionPosition() && getPassthrough()) {
-    return emitOpError() << "reduction position and passthrough conditions are "
-                            "mutually exclusive";
+  int64_t numOptions = getReductionPosition().has_value() + getPassthrough() +
+                       getContraction().has_value();
+
+  if (numOptions > 1) {
+    std::string attributeNames;
+    llvm::raw_string_ostream os(attributeNames);
+    llvm::interleaveComma(ArrayRef<StringAttr>{getReductionPositionAttrName(),
+                                               getPassthroughAttrName(),
+                                               getContractionAttrName()},
+                          os);
+    return emitOpError() << "only one of {" << os.str() << "} is allowed";
+  }
+
+  if (std::optional<ArrayAttr> contractionAttr = getContraction()) {
+    if (contractionAttr->size() != 2) {
+      return emitOpError() << "expects " << getContractionAttrName()
+                           << " to contain two elements";
+    }
   }
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// MatchStructuredClassifyContractionDimsOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::MatchStructuredClassifyContractionDimsOp::matchOperation(
+    Operation *current, transform::TransformResults &results,
+    transform::TransformState &state) {
+  FailureOr<linalg::ContractionDimensions> contractionDims =
+      linalg::inferContractionDims(cast<linalg::LinalgOp>(current));
+  if (failed(contractionDims))
+    return emitSilenceableError() << "could not infer contraction dimensions";
+
+  MLIRContext *context = current->getContext();
+  Builder builder(context);
+  auto makeI64Attrs = [&](ArrayRef<unsigned> values) {
+    return llvm::to_vector(
+        llvm::map_range(values, [&](unsigned value) -> Attribute {
+          return builder.getI64IntegerAttr(value);
+        }));
+  };
+  results.setParams(getBatch().cast<OpResult>(),
+                    makeI64Attrs(contractionDims->batch));
+  results.setParams(getM().cast<OpResult>(), makeI64Attrs(contractionDims->m));
+  results.setParams(getN().cast<OpResult>(), makeI64Attrs(contractionDims->n));
+  results.setParams(getK().cast<OpResult>(), makeI64Attrs(contractionDims->k));
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// MatchStructuredClassifyConvolutionDimsOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::MatchStructuredClassifyConvolutionDimsOp::matchOperation(
+    Operation *current, transform::TransformResults &results,
+    transform::TransformState &state) {
+  FailureOr<linalg::ConvolutionDimensions> convolutionDims =
+      linalg::inferConvolutionDims(cast<linalg::LinalgOp>(current));
+  if (failed(convolutionDims))
+    return emitSilenceableError() << "could not infer convolution dimensions";
+
+  MLIRContext *context = current->getContext();
+  Builder builder(context);
+  auto makeI64Attrs = [&](ArrayRef<unsigned> values) {
+    return llvm::to_vector(
+        llvm::map_range(values, [&](unsigned value) -> Attribute {
+          return builder.getI64IntegerAttr(value);
+        }));
+  };
+  results.setParams(getBatch().cast<OpResult>(),
+                    makeI64Attrs(convolutionDims->batch));
+  results.setParams(getOutputImage().cast<OpResult>(),
+                    makeI64Attrs(convolutionDims->outputImage));
+  results.setParams(getOutputChannel().cast<OpResult>(),
+                    makeI64Attrs(convolutionDims->outputChannel));
+  results.setParams(getFilterLoop().cast<OpResult>(),
+                    makeI64Attrs(convolutionDims->filterLoop));
+  results.setParams(getInputChannel().cast<OpResult>(),
+                    makeI64Attrs(convolutionDims->inputChannel));
+  results.setParams(getDepth().cast<OpResult>(),
+                    makeI64Attrs(convolutionDims->depth));
+
+  auto makeI64AttrsFromI64 = [&](ArrayRef<int64_t> values) {
+    return llvm::to_vector(
+        llvm::map_range(values, [&](int64_t value) -> Attribute {
+          return builder.getI64IntegerAttr(value);
+        }));
+  };
+  results.setParams(getStrides().cast<OpResult>(),
+                    makeI64AttrsFromI64(convolutionDims->strides));
+  results.setParams(getDilations().cast<OpResult>(),
+                    makeI64AttrsFromI64(convolutionDims->dilations));
+  return DiagnosedSilenceableFailure::success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -427,6 +537,11 @@ DiagnosedSilenceableFailure transform::MatchStructuredInputOp::matchOperation(
     if (!getResult())
       continue;
 
+    if (isa<AffineMapParamType>(getResult().getType())) {
+      operandMapping.emplace_back(AffineMapAttr::get(indexingMap));
+      continue;
+    }
+
     Value operand = linalgOp.getDpsInputOperand(position)->get();
     if (isa<TransformValueHandleTypeInterface>(getResult().getType())) {
       operandMapping.emplace_back(operand);
@@ -511,6 +626,11 @@ DiagnosedSilenceableFailure transform::MatchStructuredInitOp::matchOperation(
     // If capture not requested, skip it.
     if (!getResult())
       continue;
+
+    if (isa<AffineMapParamType>(getResult().getType())) {
+      operandMapping.emplace_back(AffineMapAttr::get(indexingMap));
+      continue;
+    }
 
     Value operand = linalgOp.getDpsInitOperand(position)->get();
     if (isa<TransformValueHandleTypeInterface>(getResult().getType())) {
@@ -608,7 +728,7 @@ DiagnosedSilenceableFailure transform::MatchStructuredResultOp::matchOperation(
 
   Value result = linalgOp.getTiedOpResult(linalgOp.getDpsInitOperand(position));
   if (isa<TransformValueHandleTypeInterface>(getResult().getType())) {
-    results.setValues(cast<OpResult>(getResult()), result);
+    results.setValues(cast<OpResult>(getResult()), {result});
     return DiagnosedSilenceableFailure::success();
   }
 
@@ -618,7 +738,7 @@ DiagnosedSilenceableFailure transform::MatchStructuredResultOp::matchOperation(
   }
   Operation *firstUser = *result.getUsers().begin();
   if (getAny()) {
-    results.set(cast<OpResult>(getResult()), firstUser);
+    results.set(cast<OpResult>(getResult()), {firstUser});
     return DiagnosedSilenceableFailure::success();
   }
   if (getSingle()) {
@@ -626,7 +746,7 @@ DiagnosedSilenceableFailure transform::MatchStructuredResultOp::matchOperation(
       return emitSilenceableError()
              << "more than one result user with single user requested";
     }
-    results.set(cast<OpResult>(getResult()), firstUser);
+    results.set(cast<OpResult>(getResult()), {firstUser});
     return DiagnosedSilenceableFailure::success();
   }
 
@@ -744,82 +864,6 @@ static void printStructuredTransformDims(OpAsmPrinter &printer, Operation *op,
   if (isInverted) {
     printer << ")";
   }
-}
-/// Parses a single non-function type or a function type with at least one
-/// argument. This allows for the following syntax:
-///
-///   - type: just the argument type;
-///   - `(` type `)` `->` type: one argument and one result type;
-///   - `(` type `)` `->` `(` comma-separated-type-list `)`: one argument and
-///     multiple result types.
-///
-/// Unlike FunctionType, this allows and requires one to omit the parens around
-/// the argument type in absence of result types, and does not accept the
-/// trailing `-> ()` construct, which makes the syntax nicer for operations.
-static ParseResult parseSemiFunctionType(OpAsmParser &parser,
-                                         Type &argumentType, Type &resultType) {
-  argumentType = resultType = nullptr;
-  bool hasLParen = parser.parseOptionalLParen().succeeded();
-  if (parser.parseType(argumentType).failed())
-    return failure();
-  if (!hasLParen)
-    return success();
-
-  return failure(parser.parseRParen().failed() ||
-                 parser.parseArrow().failed() ||
-                 parser.parseType(resultType).failed());
-}
-static ParseResult parseSemiFunctionType(OpAsmParser &parser,
-                                         Type &argumentType,
-                                         SmallVectorImpl<Type> &resultTypes) {
-  argumentType = nullptr;
-  bool hasLParen = parser.parseOptionalLParen().succeeded();
-  if (parser.parseType(argumentType).failed())
-    return failure();
-  if (!hasLParen)
-    return success();
-
-  if (parser.parseRParen().failed() || parser.parseArrow().failed())
-    return failure();
-
-  if (parser.parseOptionalLParen().failed()) {
-    Type type;
-    if (parser.parseType(type).failed())
-      return failure();
-    resultTypes.push_back(type);
-    return success();
-  }
-  if (parser.parseTypeList(resultTypes).failed() ||
-      parser.parseRParen().failed()) {
-    resultTypes.clear();
-    return failure();
-  }
-  return success();
-}
-
-/// Prints argument and result types in a syntax similar to that of FunctionType
-/// but allowing and requiring one to omit the parens around the argument type
-/// in absence of result types, and without the trailing `-> ()`.
-static void printSemiFunctionType(OpAsmPrinter &printer, Operation *op,
-                                  Type argumentType, TypeRange resultType) {
-  if (!resultType.empty())
-    printer << "(";
-  printer << argumentType;
-  if (resultType.empty())
-    return;
-  printer << ") -> ";
-
-  if (resultType.size() > 1)
-    printer << "(";
-  llvm::interleaveComma(resultType, printer.getStream());
-  if (resultType.size() > 1)
-    printer << ")";
-}
-static void printSemiFunctionType(OpAsmPrinter &printer, Operation *op,
-                                  Type argumentType, Type resultType) {
-  return printSemiFunctionType(printer, op, argumentType,
-                               resultType ? TypeRange(resultType)
-                                          : TypeRange());
 }
 
 #define GET_OP_CLASSES

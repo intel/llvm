@@ -769,7 +769,7 @@ void M68kInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   M68k::addFrameReference(BuildMI(MBB, MI, DL, get(Opc), DstReg), FrameIndex);
 }
 
-/// Return a virtual register initialized with the the global base register
+/// Return a virtual register initialized with the global base register
 /// value. Output instructions required to initialize the register in the
 /// function entry block, if necessary.
 ///
@@ -809,7 +809,12 @@ M68kInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_GOT, "m68k-got"},
       {MO_GOTOFF, "m68k-gotoff"},
       {MO_GOTPCREL, "m68k-gotpcrel"},
-      {MO_PLT, "m68k-plt"}};
+      {MO_PLT, "m68k-plt"},
+      {MO_TLSGD, "m68k-tlsgd"},
+      {MO_TLSLD, "m68k-tlsld"},
+      {MO_TLSLDM, "m68k-tlsldm"},
+      {MO_TLSIE, "m68k-tlsie"},
+      {MO_TLSLE, "m68k-tlsle"}};
   return ArrayRef(TargetFlags);
 }
 

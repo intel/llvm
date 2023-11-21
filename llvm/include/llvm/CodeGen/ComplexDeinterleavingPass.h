@@ -15,7 +15,6 @@
 #define LLVM_CODEGEN_COMPLEXDEINTERLEAVING_H
 
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/PatternMatch.h"
 
 namespace llvm {
 
@@ -39,7 +38,11 @@ enum class ComplexDeinterleavingOperation {
   // The following 'operations' are used to represent internal states. Backends
   // are not expected to try and support these in any capacity.
   Deinterleave,
-  Symmetric
+  Splat,
+  Symmetric,
+  ReductionPHI,
+  ReductionOperation,
+  ReductionSelect,
 };
 
 enum class ComplexDeinterleavingRotation {

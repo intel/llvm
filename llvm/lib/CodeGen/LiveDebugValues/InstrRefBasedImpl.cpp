@@ -2513,8 +2513,8 @@ void InstrRefBasedLDV::placeMLocPHIs(
     Register R = MTracker->LocIdxToLocID[L];
     SmallSet<Register, 8> FoundRegUnits;
     bool AnyIllegal = false;
-    for (MCRegUnitIterator RUI(R.asMCReg(), TRI); RUI.isValid(); ++RUI) {
-      for (MCRegUnitRootIterator URoot(*RUI, TRI); URoot.isValid(); ++URoot){
+    for (MCRegUnit Unit : TRI->regunits(R.asMCReg())) {
+      for (MCRegUnitRootIterator URoot(Unit, TRI); URoot.isValid(); ++URoot) {
         if (!MTracker->isRegisterTracked(*URoot)) {
           // Not all roots were loaded into the tracking map: this register
           // isn't actually def'd anywhere, we only read from it. Generate PHIs
@@ -2543,7 +2543,7 @@ void InstrRefBasedLDV::placeMLocPHIs(
     for (unsigned int I = 0; I < OrderToBB.size(); ++I) {
       MachineBasicBlock *MBB = OrderToBB[I];
       const auto &TransferFunc = MLocTransfer[MBB->getNumber()];
-      if (TransferFunc.find(L) != TransferFunc.end())
+      if (TransferFunc.contains(L))
         DefBlocks.insert(MBB);
     }
 
@@ -3716,7 +3716,12 @@ bool InstrRefBasedLDV::ExtendRanges(MachineFunction &MF,
 
     unsigned BlockNo = Num.getBlock();
     LocIdx LocNo = Num.getLoc();
-    Num = MInLocs[BlockNo][LocNo.asU64()];
+    ValueIDNum ResolvedValue = MInLocs[BlockNo][LocNo.asU64()];
+    // If there is no resolved value for this live-in then it is not directly
+    // reachable from the entry block -- model it as a PHI on entry to this
+    // block, which means we leave the ValueIDNum unchanged.
+    if (ResolvedValue != ValueIDNum::EmptyValue)
+      Num = ResolvedValue;
   }
   // Later, we'll be looking up ranges of instruction numbers.
   llvm::sort(DebugPHINumToValue);
@@ -4050,10 +4055,7 @@ public:
   /// ValueIsPHI - Check if the instruction that defines the specified value
   /// is a PHI instruction.
   static LDVSSAPhi *ValueIsPHI(BlockValueNum Val, LDVSSAUpdater *Updater) {
-    auto PHIIt = Updater->PHIs.find(Val);
-    if (PHIIt == Updater->PHIs.end())
-      return nullptr;
-    return PHIIt->second;
+    return Updater->PHIs.lookup(Val);
   }
 
   /// ValueIsNewPHI - Like ValueIsPHI but also check if the PHI has no source

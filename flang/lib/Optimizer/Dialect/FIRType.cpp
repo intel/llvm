@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Optimizer/Dialect/FIRType.h"
-#include "flang/ISO_Fortran_binding.h"
+#include "flang/ISO_Fortran_binding_wrapper.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Tools/PointerModels.h"
@@ -311,6 +311,25 @@ bool isAssumedType(mlir::Type ty) {
   return false;
 }
 
+bool isAssumedShape(mlir::Type ty) {
+  if (auto boxTy = mlir::dyn_cast<fir::BoxType>(ty))
+    if (auto seqTy = mlir::dyn_cast<fir::SequenceType>(boxTy.getEleTy()))
+      return seqTy.hasDynamicExtents();
+  return false;
+}
+
+bool isAllocatableOrPointerArray(mlir::Type ty) {
+  if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
+    ty = refTy;
+  if (auto boxTy = mlir::dyn_cast<fir::BoxType>(ty)) {
+    if (auto heapTy = mlir::dyn_cast<fir::HeapType>(boxTy.getEleTy()))
+      return mlir::isa<fir::SequenceType>(heapTy.getEleTy());
+    if (auto ptrTy = mlir::dyn_cast<fir::PointerType>(boxTy.getEleTy()))
+      return mlir::isa<fir::SequenceType>(ptrTy.getEleTy());
+  }
+  return false;
+}
+
 bool isPolymorphicType(mlir::Type ty) {
   if (auto refTy = fir::dyn_cast_ptrEleTy(ty))
     ty = refTy;
@@ -360,6 +379,18 @@ bool isRecordWithAllocatableMember(mlir::Type ty) {
   return false;
 }
 
+bool isRecordWithDescriptorMember(mlir::Type ty) {
+  ty = unwrapSequenceType(ty);
+  if (auto recTy = ty.dyn_cast<fir::RecordType>())
+    for (auto [field, memTy] : recTy.getTypeList()) {
+      if (mlir::isa<fir::BaseBoxType>(memTy))
+        return true;
+      if (memTy.isa<fir::RecordType>() && isRecordWithDescriptorMember(memTy))
+        return true;
+    }
+  return false;
+}
+
 mlir::Type unwrapAllRefAndSeqType(mlir::Type ty) {
   while (true) {
     mlir::Type nt = unwrapSequenceType(unwrapRefType(ty));
@@ -382,8 +413,15 @@ mlir::Type unwrapSeqOrBoxedSeqType(mlir::Type ty) {
   return ty;
 }
 
+unsigned getBoxRank(mlir::Type boxTy) {
+  auto eleTy = fir::dyn_cast_ptrOrBoxEleTy(boxTy);
+  if (auto seqTy = eleTy.dyn_cast<fir::SequenceType>())
+    return seqTy.getDimension();
+  return 0;
+}
+
 /// Return the ISO_C_BINDING intrinsic module value of type \p ty.
-int getTypeCode(mlir::Type ty, fir::KindMapping &kindMap) {
+int getTypeCode(mlir::Type ty, const fir::KindMapping &kindMap) {
   unsigned width = 0;
   if (mlir::IntegerType intTy = ty.dyn_cast<mlir::IntegerType>()) {
     switch (intTy.getWidth()) {
@@ -471,6 +509,79 @@ int getTypeCode(mlir::Type ty, fir::KindMapping &kindMap) {
   if (ty.isa<fir::RecordType>())
     return CFI_type_struct;
   llvm_unreachable("unsupported type");
+}
+
+std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
+                            llvm::StringRef prefix) {
+  std::string buf;
+  llvm::raw_string_ostream name{buf};
+  name << prefix.str();
+  if (!prefix.empty())
+    name << "_";
+  while (ty) {
+    if (fir::isa_trivial(ty)) {
+      if (mlir::isa<mlir::IndexType>(ty)) {
+        name << "idx";
+      } else if (ty.isIntOrIndex()) {
+        name << 'i' << ty.getIntOrFloatBitWidth();
+      } else if (ty.isa<mlir::FloatType>()) {
+        name << 'f' << ty.getIntOrFloatBitWidth();
+      } else if (fir::isa_complex(ty)) {
+        name << 'z';
+        if (auto cplxTy = mlir::dyn_cast_or_null<mlir::ComplexType>(ty)) {
+          auto floatTy = cplxTy.getElementType().cast<mlir::FloatType>();
+          name << floatTy.getWidth();
+        } else if (auto cplxTy = mlir::dyn_cast_or_null<fir::ComplexType>(ty)) {
+          name << kindMap.getRealBitsize(cplxTy.getFKind());
+        }
+      } else if (auto logTy = mlir::dyn_cast_or_null<fir::LogicalType>(ty)) {
+        name << 'l' << kindMap.getLogicalBitsize(logTy.getFKind());
+      } else {
+        llvm::report_fatal_error("unsupported type");
+      }
+      break;
+    } else if (mlir::isa<mlir::NoneType>(ty)) {
+      name << "none";
+      break;
+    } else if (auto charTy = mlir::dyn_cast_or_null<fir::CharacterType>(ty)) {
+      name << 'c' << kindMap.getCharacterBitsize(charTy.getFKind());
+      if (charTy.getLen() != fir::CharacterType::singleton())
+        name << "x" << charTy.getLen();
+      break;
+    } else if (auto seqTy = mlir::dyn_cast_or_null<fir::SequenceType>(ty)) {
+      for (auto extent : seqTy.getShape()) {
+        if (extent == fir::SequenceType::getUnknownExtent())
+          name << "Ux";
+        else
+          name << extent << 'x';
+      }
+      ty = seqTy.getEleTy();
+    } else if (auto refTy = mlir::dyn_cast_or_null<fir::ReferenceType>(ty)) {
+      name << "ref_";
+      ty = refTy.getEleTy();
+    } else if (auto ptrTy = mlir::dyn_cast_or_null<fir::PointerType>(ty)) {
+      name << "ptr_";
+      ty = ptrTy.getEleTy();
+    } else if (auto ptrTy = mlir::dyn_cast_or_null<fir::LLVMPointerType>(ty)) {
+      name << "llvmptr_";
+      ty = ptrTy.getEleTy();
+    } else if (auto heapTy = mlir::dyn_cast_or_null<fir::HeapType>(ty)) {
+      name << "heap_";
+      ty = heapTy.getEleTy();
+    } else if (auto classTy = mlir::dyn_cast_or_null<fir::ClassType>(ty)) {
+      name << "class_";
+      ty = classTy.getEleTy();
+    } else if (auto boxTy = mlir::dyn_cast_or_null<fir::BoxType>(ty)) {
+      name << "box_";
+      ty = boxTy.getEleTy();
+    } else if (auto recTy = mlir::dyn_cast_or_null<fir::RecordType>(ty)) {
+      name << "rec_" << recTy.getName();
+      break;
+    } else {
+      llvm::report_fatal_error("unsupported type");
+    }
+  }
+  return name.str();
 }
 
 } // namespace fir
@@ -959,7 +1070,7 @@ mlir::LogicalResult fir::SequenceType::verify(
   // DIMENSION attribute can only be applied to an intrinsic or record type
   if (eleTy.isa<BoxType, BoxCharType, BoxProcType, ShapeType, ShapeShiftType,
                 ShiftType, SliceType, FieldType, LenType, HeapType, PointerType,
-                ReferenceType, TypeDescType, fir::VectorType, SequenceType>())
+                ReferenceType, TypeDescType, SequenceType>())
     return emitError() << "cannot build an array of this element type: "
                        << eleTy << '\n';
   return mlir::success();

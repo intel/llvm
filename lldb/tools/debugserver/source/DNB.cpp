@@ -382,11 +382,22 @@ nub_process_t DNBProcessLaunch(
         if (err_str && err_len > 0) {
           if (launch_err.AsString()) {
             ::snprintf(err_str, err_len,
-                       "failed to get the task for process %i (%s)", pid,
+                       "failed to get the task for process %i: %s", pid,
                        launch_err.AsString());
           } else {
+
+            const char *ent_name =
+#if TARGET_OS_OSX
+              "com.apple.security.get-task-allow";
+#else
+              "get-task-allow";
+#endif
             ::snprintf(err_str, err_len,
-                       "failed to get the task for process %i", pid);
+                       "failed to get the task for process %i: this likely "
+                       "means the process cannot be debugged, either because "
+                       "it's a system process or because the process is "
+                       "missing the %s entitlement.",
+                       pid, ent_name);
           }
         }
       } else {
@@ -521,7 +532,9 @@ nub_process_t DNBProcessAttach(nub_process_t attach_pid,
 
     if (set_events == 0) {
       if (err_str && err_len > 0)
-        snprintf(err_str, err_len, "operation timed out");
+        snprintf(err_str, err_len,
+                 "attached to process, but could not pause execution; attach "
+                 "failed");
       pid = INVALID_NUB_PROCESS;
     } else {
       if (set_events & (eEventProcessRunningStateChanged |
@@ -1456,9 +1469,13 @@ DNBGetDeploymentInfo(nub_process_t pid, bool is_executable,
     major_version = info.major_version;
     minor_version = info.minor_version;
     patch_version = info.patch_version;
+    // MachProcess::DeploymentInfo has a bool operator to tell whether we have
+    // set the platform.  If that's not true, don't report out the platform:
+    if (!info)
+      return {};
     return procSP->GetPlatformString(info.platform);
   }
-  return nullptr;
+  return {};
 }
 
 // Get the current shared library information for a process. Only return
@@ -1843,4 +1860,12 @@ bool DNBGetAddressingBits(uint32_t &addressing_bits) {
   addressing_bits = g_addressing_bits;
 
   return addressing_bits > 0;
+}
+
+nub_process_t DNBGetParentProcessID(nub_process_t child_pid) {
+  return MachProcess::GetParentProcessID(child_pid);
+}
+
+bool DNBProcessIsBeingDebugged(nub_process_t pid) {
+  return MachProcess::ProcessIsBeingDebugged(pid);
 }

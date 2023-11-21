@@ -87,12 +87,6 @@ template <> struct IRTraits<BasicBlock> {
 class PseudoProbeManager {
   DenseMap<uint64_t, PseudoProbeDescriptor> GUIDToProbeDescMap;
 
-  const PseudoProbeDescriptor *getDesc(const Function &F) const {
-    auto I = GUIDToProbeDescMap.find(
-        Function::getGUID(FunctionSamples::getCanonicalFnName(F)));
-    return I == GUIDToProbeDescMap.end() ? nullptr : &I->second;
-  }
-
 public:
   PseudoProbeManager(const Module &M) {
     if (NamedMDNode *FuncInfo =
@@ -106,6 +100,24 @@ public:
         GUIDToProbeDescMap.try_emplace(GUID, PseudoProbeDescriptor(GUID, Hash));
       }
     }
+  }
+
+  const PseudoProbeDescriptor *getDesc(uint64_t GUID) const {
+    auto I = GUIDToProbeDescMap.find(GUID);
+    return I == GUIDToProbeDescMap.end() ? nullptr : &I->second;
+  }
+
+  const PseudoProbeDescriptor *getDesc(StringRef FProfileName) const {
+    return getDesc(Function::getGUID(FProfileName));
+  }
+
+  const PseudoProbeDescriptor *getDesc(const Function &F) const {
+    return getDesc(Function::getGUID(FunctionSamples::getCanonicalFnName(F)));
+  }
+
+  bool profileIsHashMismatched(const PseudoProbeDescriptor &FuncDesc,
+                               const FunctionSamples &Samples) const {
+    return FuncDesc.getFunctionHash() != Samples.getFunctionHash();
   }
 
   bool moduleIsProbed(const Module &M) const {
@@ -132,13 +144,15 @@ public:
 
 extern cl::opt<bool> SampleProfileUseProfi;
 
-template <typename BT> class SampleProfileLoaderBaseImpl {
+template <typename FT> class SampleProfileLoaderBaseImpl {
 public:
   SampleProfileLoaderBaseImpl(std::string Name, std::string RemapName,
                               IntrusiveRefCntPtr<vfs::FileSystem> FS)
       : Filename(Name), RemappingFilename(RemapName), FS(std::move(FS)) {}
   void dump() { Reader->dump(); }
 
+  using NodeRef = typename GraphTraits<FT *>::NodeRef;
+  using BT = typename std::remove_pointer<NodeRef>::type;
   using InstructionT = typename afdo_detail::IRTraits<BT>::InstructionT;
   using BasicBlockT = typename afdo_detail::IRTraits<BT>::BasicBlockT;
   using BlockFrequencyInfoT =
@@ -262,6 +276,11 @@ protected:
 
   /// Profile reader object.
   std::unique_ptr<SampleProfileReader> Reader;
+
+  /// Synthetic samples created by duplicating the samples of inlined functions
+  /// from the original profile as if they were top level sample profiles.
+  /// Use std::map because insertion may happen while its content is referenced.
+  std::map<SampleContext, FunctionSamples> OutlineFunctionSamples;
 
   // A pseudo probe helper to correlate the imported sample counts.
   std::unique_ptr<PseudoProbeManager> ProbeManager;
@@ -929,11 +948,11 @@ void SampleProfileLoaderBaseImpl<BT>::propagateWeights(FunctionT &F) {
   }
 }
 
-template <typename BT>
-void SampleProfileLoaderBaseImpl<BT>::applyProfi(
+template <typename FT>
+void SampleProfileLoaderBaseImpl<FT>::applyProfi(
     FunctionT &F, BlockEdgeMap &Successors, BlockWeightMap &SampleBlockWeights,
     BlockWeightMap &BlockWeights, EdgeWeightMap &EdgeWeights) {
-  auto Infer = SampleProfileInference<BT>(F, Successors, SampleBlockWeights);
+  auto Infer = SampleProfileInference<FT>(F, Successors, SampleBlockWeights);
   Infer.apply(BlockWeights, EdgeWeights);
 }
 
@@ -1111,18 +1130,6 @@ unsigned SampleProfileLoaderBaseImpl<BT>::getFunctionLoc(FunctionT &F) {
           ": Function profile not used",
       DS_Warning));
   return 0;
-}
-
-template <typename BT>
-void SampleProfileLoaderBaseImpl<BT>::computeDominanceAndLoopInfo(
-    FunctionT &F) {
-  DT.reset(new DominatorTree);
-  DT->recalculate(F);
-
-  PDT.reset(new PostDominatorTree(F));
-
-  LI.reset(new LoopInfo);
-  LI->analyze(*DT);
 }
 
 #undef DEBUG_TYPE

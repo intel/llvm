@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 #include "Flang.h"
 #include "CommonArgs.h"
 
 #include "clang/Driver/Options.h"
 #include "llvm/Frontend/Debug/Options.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Path.h"
 
 #include <cassert>
 
@@ -30,24 +31,32 @@ static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
 
 void Flang::addFortranDialectOptions(const ArgList &Args,
                                      ArgStringList &CmdArgs) const {
-  Args.AddAllArgs(
-      CmdArgs, {options::OPT_ffixed_form, options::OPT_ffree_form,
-                options::OPT_ffixed_line_length_EQ, options::OPT_fopenmp,
-                options::OPT_fopenacc, options::OPT_finput_charset_EQ,
-                options::OPT_fimplicit_none, options::OPT_fno_implicit_none,
-                options::OPT_fbackslash, options::OPT_fno_backslash,
-                options::OPT_flogical_abbreviations,
-                options::OPT_fno_logical_abbreviations,
-                options::OPT_fxor_operator, options::OPT_fno_xor_operator,
-                options::OPT_falternative_parameter_statement,
-                options::OPT_fdefault_real_8, options::OPT_fdefault_integer_8,
-                options::OPT_fdefault_double_8, options::OPT_flarge_sizes,
-                options::OPT_fno_automatic});
+  Args.addAllArgs(CmdArgs, {options::OPT_ffixed_form,
+                            options::OPT_ffree_form,
+                            options::OPT_ffixed_line_length_EQ,
+                            options::OPT_fopenmp,
+                            options::OPT_fopenmp_version_EQ,
+                            options::OPT_fopenacc,
+                            options::OPT_finput_charset_EQ,
+                            options::OPT_fimplicit_none,
+                            options::OPT_fno_implicit_none,
+                            options::OPT_fbackslash,
+                            options::OPT_fno_backslash,
+                            options::OPT_flogical_abbreviations,
+                            options::OPT_fno_logical_abbreviations,
+                            options::OPT_fxor_operator,
+                            options::OPT_fno_xor_operator,
+                            options::OPT_falternative_parameter_statement,
+                            options::OPT_fdefault_real_8,
+                            options::OPT_fdefault_integer_8,
+                            options::OPT_fdefault_double_8,
+                            options::OPT_flarge_sizes,
+                            options::OPT_fno_automatic});
 }
 
 void Flang::addPreprocessingOptions(const ArgList &Args,
                                     ArgStringList &CmdArgs) const {
-  Args.AddAllArgs(CmdArgs,
+  Args.addAllArgs(CmdArgs,
                   {options::OPT_P, options::OPT_D, options::OPT_U,
                    options::OPT_I, options::OPT_cpp, options::OPT_nocpp});
 }
@@ -102,7 +111,7 @@ static bool shouldLoopVersion(const ArgList &Args) {
 }
 
 void Flang::addOtherOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
-  Args.AddAllArgs(CmdArgs,
+  Args.addAllArgs(CmdArgs,
                   {options::OPT_module_dir, options::OPT_fdebug_module_writer,
                    options::OPT_fintrinsic_modules_path, options::OPT_pedantic,
                    options::OPT_std_EQ, options::OPT_W_Joined,
@@ -130,10 +139,15 @@ void Flang::addCodegenOptions(const ArgList &Args,
       !stackArrays->getOption().matches(options::OPT_fno_stack_arrays))
     CmdArgs.push_back("-fstack-arrays");
 
-  if (Args.hasArg(options::OPT_flang_experimental_hlfir))
-    CmdArgs.push_back("-flang-experimental-hlfir");
   if (shouldLoopVersion(Args))
     CmdArgs.push_back("-fversion-loops-for-stride");
+
+  Args.addAllArgs(CmdArgs, {options::OPT_flang_experimental_hlfir,
+                            options::OPT_flang_experimental_polymorphism,
+                            options::OPT_fno_ppc_native_vec_elem_order,
+                            options::OPT_fppc_native_vec_elem_order,
+                            options::OPT_falias_analysis,
+                            options::OPT_fno_alias_analysis});
 }
 
 void Flang::addPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
@@ -157,6 +171,38 @@ void Flang::addPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
   }
 }
 
+void Flang::AddAArch64TargetArgs(const ArgList &Args,
+                                 ArgStringList &CmdArgs) const {
+  // Handle -msve_vector_bits=<bits>
+  if (Arg *A = Args.getLastArg(options::OPT_msve_vector_bits_EQ)) {
+    StringRef Val = A->getValue();
+    const Driver &D = getToolChain().getDriver();
+    if (Val.equals("128") || Val.equals("256") || Val.equals("512") ||
+        Val.equals("1024") || Val.equals("2048") || Val.equals("128+") ||
+        Val.equals("256+") || Val.equals("512+") || Val.equals("1024+") ||
+        Val.equals("2048+")) {
+      unsigned Bits = 0;
+      if (Val.endswith("+"))
+        Val = Val.substr(0, Val.size() - 1);
+      else {
+        [[maybe_unused]] bool Invalid = Val.getAsInteger(10, Bits);
+        assert(!Invalid && "Failed to parse value");
+        CmdArgs.push_back(
+            Args.MakeArgString("-mvscale-max=" + llvm::Twine(Bits / 128)));
+      }
+
+      [[maybe_unused]] bool Invalid = Val.getAsInteger(10, Bits);
+      assert(!Invalid && "Failed to parse value");
+      CmdArgs.push_back(
+          Args.MakeArgString("-mvscale-min=" + llvm::Twine(Bits / 128)));
+      // Silently drop requests for vector-length agnostic code as it's implied.
+    } else if (!Val.equals("scalable"))
+      // Handle the unsupported values passed to msve-vector-bits.
+      D.Diag(diag::err_drv_unsupported_option_argument)
+          << A->getSpelling() << Val;
+  }
+}
+
 void Flang::addTargetOptions(const ArgList &Args,
                              ArgStringList &CmdArgs) const {
   const ToolChain &TC = getToolChain();
@@ -173,9 +219,13 @@ void Flang::addTargetOptions(const ArgList &Args,
   switch (TC.getArch()) {
   default:
     break;
+  case llvm::Triple::aarch64:
+    getTargetFeatures(D, Triple, Args, CmdArgs, /*ForAs*/ false);
+    AddAArch64TargetArgs(Args, CmdArgs);
+    break;
+
   case llvm::Triple::r600:
   case llvm::Triple::amdgcn:
-  case llvm::Triple::aarch64:
   case llvm::Triple::riscv64:
   case llvm::Triple::x86_64:
     getTargetFeatures(D, Triple, Args, CmdArgs, /*ForAs*/ false);
@@ -221,10 +271,9 @@ void Flang::addOffloadOptions(Compilation &C, const InputInfoList &Inputs,
   }
 
   if (IsOpenMPDevice) {
-    // -fopenmp-is-device is passed along to tell the frontend that it is
-    // generating code for a device, so that only the relevant code is
-    // emitted.
-    CmdArgs.push_back("-fopenmp-is-device");
+    // -fopenmp-is-target-device is passed along to tell the frontend that it is
+    // generating code for a device, so that only the relevant code is emitted.
+    CmdArgs.push_back("-fopenmp-is-target-device");
 
     // When in OpenMP offloading mode, enable debugging on the device.
     Args.AddAllArgs(CmdArgs, options::OPT_fopenmp_target_debug_EQ);
@@ -378,6 +427,50 @@ static void addFloatingPointOptions(const Driver &D, const ArgList &Args,
     CmdArgs.push_back("-freciprocal-math");
 }
 
+static void renderRemarksOptions(const ArgList &Args, ArgStringList &CmdArgs,
+                                 const InputInfo &Input) {
+  StringRef Format = "yaml";
+  if (const Arg *A = Args.getLastArg(options::OPT_fsave_optimization_record_EQ))
+    Format = A->getValue();
+
+  CmdArgs.push_back("-opt-record-file");
+
+  const Arg *A = Args.getLastArg(options::OPT_foptimization_record_file_EQ);
+  if (A) {
+    CmdArgs.push_back(A->getValue());
+  } else {
+    SmallString<128> F;
+
+    if (Args.hasArg(options::OPT_c) || Args.hasArg(options::OPT_S)) {
+      if (Arg *FinalOutput = Args.getLastArg(options::OPT_o))
+        F = FinalOutput->getValue();
+    }
+
+    if (F.empty()) {
+      // Use the input filename.
+      F = llvm::sys::path::stem(Input.getBaseInput());
+    }
+
+    SmallString<32> Extension;
+    Extension += "opt.";
+    Extension += Format;
+
+    llvm::sys::path::replace_extension(F, Extension);
+    CmdArgs.push_back(Args.MakeArgString(F));
+  }
+
+  if (const Arg *A =
+          Args.getLastArg(options::OPT_foptimization_record_passes_EQ)) {
+    CmdArgs.push_back("-opt-record-passes");
+    CmdArgs.push_back(A->getValue());
+  }
+
+  if (!Format.empty()) {
+    CmdArgs.push_back("-opt-record-format");
+    CmdArgs.push_back(Format.data());
+  }
+}
+
 void Flang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
@@ -462,6 +555,13 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   // Add Codegen options
   addCodegenOptions(Args, CmdArgs);
 
+  // Add R Group options
+  Args.AddAllArgs(CmdArgs, options::OPT_R_Group);
+
+  // Remarks can be enabled with any of the `-f.*optimization-record.*` flags.
+  if (willEmitRemarks(Args))
+    renderRemarksOptions(Args, CmdArgs, Input);
+
   // Add other compile options
   addOtherOptions(Args, CmdArgs);
 
@@ -502,11 +602,10 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  assert((Output.isFilename() || Output.isNothing()) && "Invalid output.");
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
-  } else {
-    assert(Output.isNothing() && "Invalid output.");
   }
 
   assert(Input.isFilename() && "Invalid input.");

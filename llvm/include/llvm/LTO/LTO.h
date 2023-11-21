@@ -196,7 +196,7 @@ private:
 /// create a ThinBackend using one of the create*ThinBackend() functions below.
 using ThinBackend = std::function<std::unique_ptr<ThinBackendProc>(
     const Config &C, ModuleSummaryIndex &CombinedIndex,
-    StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
+    DenseMap<StringRef, GVSummaryMapTy> &ModuleToDefinedGVSummaries,
     AddStreamFn AddStream, FileCache Cache)>;
 
 /// This ThinBackend runs the individual backend jobs in-process.
@@ -255,13 +255,26 @@ class LTO {
   friend InputFile;
 
 public:
+  /// Unified LTO modes
+  enum LTOKind {
+    /// Any LTO mode without Unified LTO. The default mode.
+    LTOK_Default,
+
+    /// Regular LTO, with Unified LTO enabled.
+    LTOK_UnifiedRegular,
+
+    /// ThinLTO, with Unified LTO enabled.
+    LTOK_UnifiedThin,
+  };
+
   /// Create an LTO object. A default constructed LTO object has a reasonable
   /// production configuration, but you can customize it by passing arguments to
   /// this constructor.
   /// FIXME: We do currently require the DiagHandler field to be set in Conf.
   /// Until that is fixed, a Config argument is required.
   LTO(Config Conf, ThinBackend Backend = nullptr,
-      unsigned ParallelCodeGenParallelismLevel = 1);
+      unsigned ParallelCodeGenParallelismLevel = 1,
+      LTOKind LTOMode = LTOK_Default);
   ~LTO();
 
   /// Add an input file to the LTO link, using the provided symbol resolutions.
@@ -420,6 +433,9 @@ private:
   Error checkPartiallySplit();
 
   mutable bool CalledGetMaxTasks = false;
+
+  // LTO mode when using Unified LTO.
+  LTOKind LTOMode;
 
   // Use Optional to distinguish false from not yet initialized.
   std::optional<bool> EnableSplitLTOUnit;

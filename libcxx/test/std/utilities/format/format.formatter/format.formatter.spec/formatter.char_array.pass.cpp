@@ -6,9 +6,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 // TODO FMT __builtin_memcpy isn't constexpr in GCC
-// UNSUPPORTED: gcc-12
+// UNSUPPORTED: gcc-13
 
 // <format>
 

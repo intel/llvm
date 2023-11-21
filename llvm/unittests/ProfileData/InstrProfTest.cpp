@@ -17,11 +17,11 @@
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Testing/Support/Error.h"
-#include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
 #include <cstdarg>
 
 using namespace llvm;
+using ::testing::EndsWith;
 using ::testing::IsSubsetOf;
 using ::testing::SizeIs;
 using ::testing::UnorderedElementsAre;
@@ -520,6 +520,119 @@ TEST_F(InstrProfTest, test_memprof_merge) {
   EXPECT_THAT(WantRecord, EqualsRecord(Record));
 }
 
+TEST_F(InstrProfTest, test_irpgo_function_name) {
+  LLVMContext Ctx;
+  auto M = std::make_unique<Module>("MyModule.cpp", Ctx);
+  // Use Mach-O mangling so that non-private symbols get a `_` prefix.
+  M->setDataLayout(DataLayout("m:o"));
+  auto *FTy = FunctionType::get(Type::getVoidTy(Ctx), /*isVarArg=*/false);
+
+  std::vector<std::tuple<StringRef, Function::LinkageTypes, StringRef>> Data;
+  Data.emplace_back("ExternalFoo", Function::ExternalLinkage, "_ExternalFoo");
+  Data.emplace_back("InternalFoo", Function::InternalLinkage,
+                    "MyModule.cpp;_InternalFoo");
+  Data.emplace_back("PrivateFoo", Function::PrivateLinkage,
+                    "MyModule.cpp;l_PrivateFoo");
+  Data.emplace_back("WeakODRFoo", Function::WeakODRLinkage, "_WeakODRFoo");
+  // Test Objective-C symbols
+  Data.emplace_back("\01-[C dynamicFoo:]", Function::ExternalLinkage,
+                    "-[C dynamicFoo:]");
+  Data.emplace_back("-<C directFoo:>", Function::ExternalLinkage,
+                    "_-<C directFoo:>");
+  Data.emplace_back("\01-[C internalFoo:]", Function::InternalLinkage,
+                    "MyModule.cpp;-[C internalFoo:]");
+
+  for (auto &[Name, Linkage, ExpectedIRPGOFuncName] : Data)
+    Function::Create(FTy, Linkage, Name, M.get());
+
+  for (auto &[Name, Linkage, ExpectedIRPGOFuncName] : Data) {
+    auto *F = M->getFunction(Name);
+    auto IRPGOFuncName = getIRPGOFuncName(*F);
+    EXPECT_EQ(IRPGOFuncName, ExpectedIRPGOFuncName);
+
+    auto [Filename, ParsedIRPGOFuncName] =
+        getParsedIRPGOFuncName(IRPGOFuncName);
+    StringRef ExpectedParsedIRPGOFuncName = IRPGOFuncName;
+    if (ExpectedParsedIRPGOFuncName.consume_front("MyModule.cpp;")) {
+      EXPECT_EQ(Filename, "MyModule.cpp");
+    } else {
+      EXPECT_EQ(Filename, "");
+    }
+    EXPECT_EQ(ParsedIRPGOFuncName, ExpectedParsedIRPGOFuncName);
+  }
+}
+
+TEST_F(InstrProfTest, test_pgo_function_name) {
+  LLVMContext Ctx;
+  auto M = std::make_unique<Module>("MyModule.cpp", Ctx);
+  auto *FTy = FunctionType::get(Type::getVoidTy(Ctx), /*isVarArg=*/false);
+
+  std::vector<std::tuple<StringRef, Function::LinkageTypes, StringRef>> Data;
+  Data.emplace_back("ExternalFoo", Function::ExternalLinkage, "ExternalFoo");
+  Data.emplace_back("InternalFoo", Function::InternalLinkage,
+                    "MyModule.cpp:InternalFoo");
+  Data.emplace_back("PrivateFoo", Function::PrivateLinkage,
+                    "MyModule.cpp:PrivateFoo");
+  Data.emplace_back("WeakODRFoo", Function::WeakODRLinkage, "WeakODRFoo");
+  // Test Objective-C symbols
+  Data.emplace_back("\01-[C externalFoo:]", Function::ExternalLinkage,
+                    "-[C externalFoo:]");
+  Data.emplace_back("\01-[C internalFoo:]", Function::InternalLinkage,
+                    "MyModule.cpp:-[C internalFoo:]");
+
+  for (auto &[Name, Linkage, ExpectedPGOFuncName] : Data)
+    Function::Create(FTy, Linkage, Name, M.get());
+
+  for (auto &[Name, Linkage, ExpectedPGOFuncName] : Data) {
+    auto *F = M->getFunction(Name);
+    EXPECT_EQ(getPGOFuncName(*F), ExpectedPGOFuncName);
+  }
+}
+
+TEST_F(InstrProfTest, test_irpgo_read_deprecated_names) {
+  LLVMContext Ctx;
+  auto M = std::make_unique<Module>("MyModule.cpp", Ctx);
+  // Use Mach-O mangling so that non-private symbols get a `_` prefix.
+  M->setDataLayout(DataLayout("m:o"));
+  auto *FTy = FunctionType::get(Type::getVoidTy(Ctx), /*isVarArg=*/false);
+  auto *InternalFooF =
+      Function::Create(FTy, Function::InternalLinkage, "InternalFoo", M.get());
+  auto *ExternalFooF =
+      Function::Create(FTy, Function::ExternalLinkage, "ExternalFoo", M.get());
+
+  auto *InternalBarF =
+      Function::Create(FTy, Function::InternalLinkage, "InternalBar", M.get());
+  auto *ExternalBarF =
+      Function::Create(FTy, Function::ExternalLinkage, "ExternalBar", M.get());
+
+  Writer.addRecord({getIRPGOFuncName(*InternalFooF), 0x1234, {1}}, Err);
+  Writer.addRecord({getIRPGOFuncName(*ExternalFooF), 0x5678, {1}}, Err);
+  // Write a record with a deprecated name
+  Writer.addRecord({getPGOFuncName(*InternalBarF), 0x1111, {2}}, Err);
+  Writer.addRecord({getPGOFuncName(*ExternalBarF), 0x2222, {2}}, Err);
+
+  auto Profile = Writer.writeBuffer();
+  readProfile(std::move(Profile));
+
+  EXPECT_THAT_EXPECTED(
+      Reader->getInstrProfRecord(getIRPGOFuncName(*InternalFooF), 0x1234,
+                                 getPGOFuncName(*InternalFooF)),
+      Succeeded());
+  EXPECT_THAT_EXPECTED(
+      Reader->getInstrProfRecord(getIRPGOFuncName(*ExternalFooF), 0x5678,
+                                 getPGOFuncName(*ExternalFooF)),
+      Succeeded());
+  // Ensure we can still read this old record name
+  EXPECT_THAT_EXPECTED(
+      Reader->getInstrProfRecord(getIRPGOFuncName(*InternalBarF), 0x1111,
+                                 getPGOFuncName(*InternalBarF)),
+      Succeeded());
+  EXPECT_THAT_EXPECTED(
+      Reader->getInstrProfRecord(getIRPGOFuncName(*ExternalBarF), 0x2222,
+                                 getPGOFuncName(*ExternalBarF)),
+      Succeeded());
+}
+
 static const char callee1[] = "callee1";
 static const char callee2[] = "callee2";
 static const char callee3[] = "callee3";
@@ -731,13 +844,13 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_read_write_big_endian) {
   Writer.addRecord({"callee3", 0x1235, {3, 4}}, Err);
 
   // Set big endian output.
-  Writer.setValueProfDataEndianness(support::big);
+  Writer.setValueProfDataEndianness(llvm::endianness::big);
 
   auto Profile = Writer.writeBuffer();
   readProfile(std::move(Profile));
 
   // Set big endian input.
-  Reader->setValueProfDataEndianness(support::big);
+  Reader->setValueProfDataEndianness(llvm::endianness::big);
 
   Expected<InstrProfRecord> R = Reader->getInstrProfRecord("caller", 0x1234);
   EXPECT_THAT_ERROR(R.takeError(), Succeeded());
@@ -754,7 +867,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_read_write_big_endian) {
   ASSERT_EQ(StringRef((const char *)VD[2].Value, 7), StringRef("callee1"));
 
   // Restore little endian default:
-  Writer.setValueProfDataEndianness(support::little);
+  Writer.setValueProfDataEndianness(llvm::endianness::little);
 }
 
 TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1) {
@@ -1137,23 +1250,23 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_test) {
   FuncNames.push_back("bar3");
   InstrProfSymtab Symtab;
   EXPECT_THAT_ERROR(Symtab.create(FuncNames), Succeeded());
-  StringRef R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("func1"));
+  StringRef R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("func1"));
   ASSERT_EQ(StringRef("func1"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("func2"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("func2"));
   ASSERT_EQ(StringRef("func2"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("func3"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("func3"));
   ASSERT_EQ(StringRef("func3"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar1"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar1"));
   ASSERT_EQ(StringRef("bar1"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar2"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar2"));
   ASSERT_EQ(StringRef("bar2"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar3"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar3"));
   ASSERT_EQ(StringRef("bar3"), R);
 
   // negative tests
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar4"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar4"));
   ASSERT_EQ(StringRef(), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("foo4"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("foo4"));
   ASSERT_EQ(StringRef(), R);
 
   // Now incrementally update the symtab
@@ -1162,23 +1275,23 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_test) {
   EXPECT_THAT_ERROR(Symtab.addFuncName("blah_3"), Succeeded());
 
   // Check again
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("blah_1"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("blah_1"));
   ASSERT_EQ(StringRef("blah_1"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("blah_2"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("blah_2"));
   ASSERT_EQ(StringRef("blah_2"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("blah_3"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("blah_3"));
   ASSERT_EQ(StringRef("blah_3"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("func1"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("func1"));
   ASSERT_EQ(StringRef("func1"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("func2"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("func2"));
   ASSERT_EQ(StringRef("func2"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("func3"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("func3"));
   ASSERT_EQ(StringRef("func3"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar1"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar1"));
   ASSERT_EQ(StringRef("bar1"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar2"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar2"));
   ASSERT_EQ(StringRef("bar2"), R);
-  R = Symtab.getFuncName(IndexedInstrProf::ComputeHash("bar3"));
+  R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash("bar3"));
   ASSERT_EQ(StringRef("bar3"), R);
 }
 
@@ -1215,12 +1328,19 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_module_test) {
 
   for (unsigned I = 0; I < std::size(Funcs); I++) {
     Function *F = M->getFunction(Funcs[I]);
-    ASSERT_TRUE(F != nullptr);
+
+    std::string IRPGOName = getIRPGOFuncName(*F);
+    auto IRPGOFuncName =
+        ProfSymtab.getFuncOrVarName(IndexedInstrProf::ComputeHash(IRPGOName));
+    EXPECT_EQ(StringRef(IRPGOName), IRPGOFuncName);
+    EXPECT_EQ(StringRef(Funcs[I]),
+              getParsedIRPGOFuncName(IRPGOFuncName).second);
+    // Ensure we can still read this old record name.
     std::string PGOName = getPGOFuncName(*F);
-    uint64_t Key = IndexedInstrProf::ComputeHash(PGOName);
-    ASSERT_EQ(StringRef(PGOName),
-              ProfSymtab.getFuncName(Key));
-    ASSERT_EQ(StringRef(Funcs[I]), ProfSymtab.getOrigFuncName(Key));
+    auto PGOFuncName =
+        ProfSymtab.getFuncOrVarName(IndexedInstrProf::ComputeHash(PGOName));
+    EXPECT_EQ(StringRef(PGOName), PGOFuncName);
+    EXPECT_THAT(PGOFuncName.str(), EndsWith(Funcs[I].str()));
   }
 }
 
@@ -1276,9 +1396,10 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_compression_test) {
 
       // Now do the checks:
       // First sampling some data points:
-      StringRef R = Symtab.getFuncName(IndexedInstrProf::ComputeHash(FuncNames1[0]));
+      StringRef R =
+          Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash(FuncNames1[0]));
       ASSERT_EQ(StringRef("func_0"), R);
-      R = Symtab.getFuncName(IndexedInstrProf::ComputeHash(FuncNames1[1]));
+      R = Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash(FuncNames1[1]));
       ASSERT_EQ(StringRef("f oooooooooooooo_0"), R);
       for (int I = 0; I < 3; I++) {
         std::string N[4];
@@ -1287,7 +1408,8 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_compression_test) {
         N[2] = FuncNames2[2 * I];
         N[3] = FuncNames2[2 * I + 1];
         for (int J = 0; J < 4; J++) {
-          StringRef R = Symtab.getFuncName(IndexedInstrProf::ComputeHash(N[J]));
+          StringRef R =
+              Symtab.getFuncOrVarName(IndexedInstrProf::ComputeHash(N[J]));
           ASSERT_EQ(StringRef(N[J]), R);
         }
       }

@@ -33,7 +33,6 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Pass/Pass.h"
-#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include <optional>
@@ -141,84 +140,6 @@ static void unpackRanges(OpBuilder &builder, Location loc,
 }
 
 //===----------------------------------------------------------------------===//
-// Utilities for inferring various semantics properties of Linalg ops.
-//===----------------------------------------------------------------------===//
-
-DenseSet<int64_t> mlir::linalg::findPermutationsIndexingOperand(
-    LinalgOp linalgOp, OpOperand *opOperand, utils::IteratorType iter) {
-  DenseSet<int64_t> res;
-  assert(linalgOp == opOperand->getOwner() && "expected linalgOp owner");
-  AffineMap indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
-  for (AffineExpr e : indexingMap.getResults()) {
-    if (auto d = e.dyn_cast<AffineDimExpr>()) {
-      if (linalgOp.getIteratorTypesArray()[d.getPosition()] == iter &&
-          llvm::count_if(indexingMap.getResults(), [d](AffineExpr e) {
-            return e.isFunctionOfDim(d.getPosition());
-          }) == 1)
-        res.insert(d.getPosition());
-    }
-  }
-  return res;
-}
-
-namespace {
-auto par = utils::IteratorType::parallel;
-auto red = utils::IteratorType::reduction;
-} // namespace
-
-bool mlir::linalg::containsMostMinorMatmul(LinalgOp linalgOp) {
-  FailureOr<EmbeddedMatmulDimsCandidates> res = inferMatmulDims(linalgOp);
-  if (failed(res))
-    return false;
-  int64_t numLoops = linalgOp.getNumLoops();
-  for (const DenseSet<int64_t> &s : {res->mPos, res->nPos, res->kPos}) {
-    if (s.contains(numLoops - 3) || s.contains(numLoops - 2) ||
-        s.contains(numLoops - 1))
-      continue;
-    return false;
-  }
-  return true;
-}
-
-FailureOr<EmbeddedMatmulDimsCandidates>
-mlir::linalg::inferMatmulDims(LinalgOp linalgOp) {
-  if (linalgOp.getNumDpsInits() != 1 || linalgOp.getNumDpsInputs() != 2)
-    return failure();
-
-  DenseSet<int64_t> a = findPermutationsIndexingOperand(
-      linalgOp, linalgOp.getDpsInputOperand(0), par);
-  DenseSet<int64_t> b = findPermutationsIndexingOperand(
-      linalgOp, linalgOp.getDpsInputOperand(1), par);
-  DenseSet<int64_t> c = findPermutationsIndexingOperand(
-      linalgOp, linalgOp.getDpsInitOperand(0), par);
-
-  // A & C - B are the iterators involved in an outer-product along A (the LHS).
-  DenseSet<int64_t> ac = a;
-  llvm::set_intersect(ac, c);
-  llvm::set_subtract(ac, b);
-  // B & C - A are the iterators involved in an outer-product along B (the RHS).
-  DenseSet<int64_t> bc = b;
-  llvm::set_intersect(bc, c);
-  llvm::set_subtract(bc, a);
-
-  // Note: if we ever need them, A & B & C would be "batch" dimensions.
-
-  // A & B red are the reduction dimensions.
-  DenseSet<int64_t> ra = findPermutationsIndexingOperand(
-      linalgOp, linalgOp.getDpsInputOperand(0), red);
-  DenseSet<int64_t> rb = findPermutationsIndexingOperand(
-      linalgOp, linalgOp.getDpsInputOperand(1), red);
-  llvm::set_intersect(ra, rb);
-
-  if (ac.empty() || bc.empty() || ra.empty())
-    return failure();
-
-  // Pick the first one in each set.
-  // TODO: Better heuristic (e.g pick dims based on packing-based metric).
-  return EmbeddedMatmulDimsCandidates{ac, bc, ra};
-}
-
-//===----------------------------------------------------------------------===//
 // General utilities
 //===----------------------------------------------------------------------===//
 
@@ -253,8 +174,8 @@ bool isElementwise(LinalgOp op) {
     return false;
 
   // TODO: relax the restrictions on indexing map.
-  for (OpOperand *opOperand : op.getDpsInitOperands()) {
-    if (!op.getMatchingIndexingMap(opOperand).isPermutation())
+  for (OpOperand &opOperand : op.getDpsInitsMutable()) {
+    if (!op.getMatchingIndexingMap(&opOperand).isPermutation())
       return false;
   }
   return hasOnlyScalarElementwiseOp(op->getRegion(0));
@@ -400,10 +321,9 @@ void GenerateLoopNest<scf::ForOp>::doit(
   assert((procInfo.empty() || (procInfo.size() == loopRanges.size())) &&
          "expected as many entries for proc info as number of loops, even if "
          "they are null entries");
-  SmallVector<Value> iterArgInitValues = linalgOp.hasBufferSemantics()
-                                             ? SmallVector<Value>{}
-                                             : linalgOp.getDpsInitOperands();
-
+  SmallVector<Value> iterArgInitValues;
+  if (!linalgOp.hasBufferSemantics())
+    llvm::append_range(iterArgInitValues, linalgOp.getDpsInits());
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(b, loc, loopRanges, lbs, ubs, steps);
   LoopNest loopNest = mlir::scf::buildLoopNest(
@@ -413,7 +333,7 @@ void GenerateLoopNest<scf::ForOp>::doit(
                "expect the number of output tensors and iter args to match");
         SmallVector<Value> operandValuesToUse = linalgOp->getOperands();
         if (!iterArgs.empty()) {
-          operandValuesToUse = linalgOp.getDpsInputOperands();
+          operandValuesToUse = linalgOp.getDpsInputs();
           operandValuesToUse.append(iterArgs.begin(), iterArgs.end());
         }
         return bodyBuilderFn(b, loc, ivs, operandValuesToUse);
@@ -441,9 +361,9 @@ void GenerateLoopNest<AffineForOp>::doit(
                                   ValueRange)>
         bodyBuilderFn,
     ArrayRef<linalg::ProcInfo> /*procInfo*/) {
-  SmallVector<Value> iterArgInitValues = linalgOp.hasBufferSemantics()
-                                             ? SmallVector<Value>{}
-                                             : linalgOp.getDpsInitOperands();
+  SmallVector<Value> iterArgInitValues;
+  if (!linalgOp.hasBufferSemantics())
+    llvm::append_range(iterArgInitValues, linalgOp.getDpsInits());
   assert(iterArgInitValues.empty() && "unexpected AffineForOp init values");
   SmallVector<Value, 4> lbs, ubs, steps;
   unpackRanges(b, loc, loopRanges, lbs, ubs, steps);
@@ -452,9 +372,9 @@ void GenerateLoopNest<AffineForOp>::doit(
   SmallVector<int64_t, 4> constantSteps;
   constantSteps.reserve(steps.size());
   for (Value v : steps) {
-    auto op = v.getDefiningOp<arith::ConstantIndexOp>();
-    assert(op && "Affine loops require constant steps");
-    constantSteps.push_back(op.value());
+    auto constVal = getConstantIntValue(v);
+    assert(constVal.has_value() && "Affine loops require constant steps");
+    constantSteps.push_back(constVal.value());
   }
 
   affine::buildAffineLoopNest(b, loc, lbs, ubs, constantSteps,
@@ -608,9 +528,9 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
                                   ValueRange)>
         bodyBuilderFn,
     ArrayRef<linalg::ProcInfo> procInfo) {
-  SmallVector<Value> iterArgInitValues = linalgOp.hasBufferSemantics()
-                                             ? SmallVector<Value>{}
-                                             : linalgOp.getDpsInitOperands();
+  SmallVector<Value> iterArgInitValues;
+  if (!linalgOp.hasBufferSemantics())
+    llvm::append_range(iterArgInitValues, linalgOp.getDpsInits());
   assert(iterArgInitValues.empty() && "unexpected ParallelOp init values");
   // This function may be passed more iterator types than ranges.
   assert(iteratorTypes.size() >= loopRanges.size() &&
@@ -821,8 +741,8 @@ SmallVector<Type> getTensorOutputTypes(LinalgOp op, ValueRange operands) {
   if (op.hasBufferSemantics())
     return {};
   return llvm::to_vector(
-      llvm::map_range(op.getDpsInitOperands(), [&](OpOperand *opOperand) {
-        return operands[opOperand->getOperandNumber()].getType();
+      llvm::map_range(op.getDpsInitsMutable(), [&](OpOperand &opOperand) {
+        return operands[opOperand.getOperandNumber()].getType();
       }));
 }
 
@@ -835,10 +755,10 @@ SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
   tensorResults.reserve(results.size());
   // Insert a insert_slice for each output tensor.
   unsigned resultIdx = 0;
-  for (OpOperand *opOperand : op.getDpsInitOperands()) {
+  for (OpOperand &opOperand : op.getDpsInitsMutable()) {
     // TODO: use an interface/adaptor to avoid leaking position in
     // `tiledOperands`.
-    Value outputTensor = operands[opOperand->getOperandNumber()];
+    Value outputTensor = operands[opOperand.getOperandNumber()];
     if (auto sliceOp = outputTensor.getDefiningOp<tensor::ExtractSliceOp>()) {
       Value inserted = builder.create<tensor::InsertSliceOp>(
           loc, sliceOp.getSource().getType(), results[resultIdx],
@@ -970,7 +890,7 @@ getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes) {
     auto dim = it.index();
     auto size = it.value();
     curr.push_back(dim);
-    auto attr = size.dyn_cast<Attribute>();
+    auto attr = llvm::dyn_cast_if_present<Attribute>(size);
     if (attr && cast<IntegerAttr>(attr).getInt() == 1)
       continue;
     reassociation.emplace_back(ReassociationIndices{});
@@ -982,38 +902,6 @@ getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes) {
   if (!curr.empty() && !reassociation.empty())
     reassociation.back().append(curr.begin(), curr.end());
   return reassociation;
-}
-
-/// Return the identity numeric value associated to the give op.
-std::optional<TypedAttr> getNeutralElement(Operation *op) {
-  // Builder only used as helper for attribute creation.
-  OpBuilder b(op->getContext());
-  Type resultType = op->getResult(0).getType();
-  if (auto floatType = dyn_cast<FloatType>(resultType)) {
-    const llvm::fltSemantics &semantic = floatType.getFloatSemantics();
-    if (isa<arith::AddFOp>(op))
-      return b.getFloatAttr(resultType, llvm::APFloat::getZero(semantic));
-    if (isa<arith::MulFOp>(op))
-      return b.getFloatAttr(resultType, llvm::APFloat(semantic, 1));
-    if (isa<arith::MaxFOp>(op))
-      return b.getFloatAttr(resultType,
-                            llvm::APFloat::getInf(semantic, /*Negative=*/true));
-    if (isa<arith::MinFOp>(op))
-      return b.getFloatAttr(
-          resultType, llvm::APFloat::getInf(semantic, /*Negative=*/false));
-    return std::nullopt;
-  }
-  if (isa<arith::AddIOp, arith::OrIOp, arith::XOrIOp>(op))
-    return b.getIntegerAttr(resultType, 0);
-  if (isa<arith::AndIOp>(op))
-    return b.getIntegerAttr(resultType, -1);
-  if (isa<arith::MaxSIOp>(op))
-    return b.getIntegerAttr(resultType, std::numeric_limits<int64_t>::min());
-  if (isa<arith::MinSIOp>(op))
-    return b.getIntegerAttr(resultType, std::numeric_limits<int64_t>::max());
-  if (isa<arith::MulIOp>(op))
-    return b.getIntegerAttr(resultType, 1);
-  return std::nullopt;
 }
 
 } // namespace linalg

@@ -227,8 +227,10 @@ private:
 
 public:
   ELFLinkGraphBuilder_x86_64(StringRef FileName,
-                             const object::ELFFile<object::ELF64LE> &Obj)
-      : ELFLinkGraphBuilder(Obj, Triple("x86_64-unknown-linux"), FileName,
+                             const object::ELFFile<object::ELF64LE> &Obj,
+                             SubtargetFeatures Features)
+      : ELFLinkGraphBuilder(Obj, Triple("x86_64-unknown-linux"),
+                            std::move(Features), FileName,
                             x86_64::getEdgeKindName) {}
 };
 
@@ -240,8 +242,10 @@ public:
                       std::unique_ptr<LinkGraph> G,
                       PassConfiguration PassConfig)
       : JITLinker(std::move(Ctx), std::move(G), std::move(PassConfig)) {
-    getPassConfig().PostAllocationPasses.push_back(
-        [this](LinkGraph &G) { return getOrCreateGOTSymbol(G); });
+
+    if (shouldAddDefaultTargetPasses(getGraph().getTargetTriple()))
+      getPassConfig().PostAllocationPasses.push_back(
+          [this](LinkGraph &G) { return getOrCreateGOTSymbol(G); });
   }
 
 private:
@@ -329,9 +333,14 @@ createLinkGraphFromELFObject_x86_64(MemoryBufferRef ObjectBuffer) {
   if (!ELFObj)
     return ELFObj.takeError();
 
+  auto Features = (*ELFObj)->getFeatures();
+  if (!Features)
+    return Features.takeError();
+
   auto &ELFObjFile = cast<object::ELFObjectFile<object::ELF64LE>>(**ELFObj);
   return ELFLinkGraphBuilder_x86_64((*ELFObj)->getFileName(),
-                                    ELFObjFile.getELFFile())
+                                    ELFObjFile.getELFFile(),
+                                    std::move(*Features))
       .buildGraph();
 }
 

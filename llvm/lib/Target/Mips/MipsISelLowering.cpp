@@ -102,29 +102,37 @@ MVT MipsTargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
   if (!VT.isVector())
     return getRegisterType(Context, VT);
 
-  return Subtarget.isABI_O32() || VT.getSizeInBits() == 32 ? MVT::i32
-                                                           : MVT::i64;
+  if (VT.isPow2VectorType() && VT.getVectorElementType().isRound())
+    return Subtarget.isABI_O32() || VT.getSizeInBits() == 32 ? MVT::i32
+                                                             : MVT::i64;
+  return getRegisterType(Context, VT.getVectorElementType());
 }
 
 unsigned MipsTargetLowering::getNumRegistersForCallingConv(LLVMContext &Context,
                                                            CallingConv::ID CC,
                                                            EVT VT) const {
-  if (VT.isVector())
-    return divideCeil(VT.getSizeInBits(), Subtarget.isABI_O32() ? 32 : 64);
+  if (VT.isVector()) {
+    if (VT.isPow2VectorType() && VT.getVectorElementType().isRound())
+      return divideCeil(VT.getSizeInBits(), Subtarget.isABI_O32() ? 32 : 64);
+    return VT.getVectorNumElements() *
+           getNumRegisters(Context, VT.getVectorElementType());
+  }
   return MipsTargetLowering::getNumRegisters(Context, VT);
 }
 
 unsigned MipsTargetLowering::getVectorTypeBreakdownForCallingConv(
     LLVMContext &Context, CallingConv::ID CC, EVT VT, EVT &IntermediateVT,
     unsigned &NumIntermediates, MVT &RegisterVT) const {
-  // Break down vector types to either 2 i64s or 4 i32s.
-  RegisterVT = getRegisterTypeForCallingConv(Context, CC, VT);
-  IntermediateVT = RegisterVT;
-  NumIntermediates =
-      VT.getFixedSizeInBits() < RegisterVT.getFixedSizeInBits()
-          ? VT.getVectorNumElements()
-          : divideCeil(VT.getSizeInBits(), RegisterVT.getSizeInBits());
-  return NumIntermediates;
+  if (VT.isPow2VectorType()) {
+    IntermediateVT = getRegisterTypeForCallingConv(Context, CC, VT);
+    RegisterVT = IntermediateVT.getSimpleVT();
+    NumIntermediates = getNumRegistersForCallingConv(Context, CC, VT);
+    return NumIntermediates;
+  }
+  IntermediateVT = VT.getVectorElementType();
+  NumIntermediates = VT.getVectorNumElements();
+  RegisterVT = getRegisterType(Context, IntermediateVT);
+  return NumIntermediates * getNumRegisters(Context, IntermediateVT);
 }
 
 SDValue MipsTargetLowering::getGlobalReg(SelectionDAG &DAG, EVT Ty) const {
@@ -492,6 +500,11 @@ MipsTargetLowering::MipsTargetLowering(const MipsTargetMachine &TM,
     setLibcallName(RTLIB::MULO_I64, nullptr);
     setLibcallName(RTLIB::MULO_I128, nullptr);
   }
+
+  if (Subtarget.isGP64bit())
+    setMaxAtomicSizeInBitsSupported(64);
+  else
+    setMaxAtomicSizeInBitsSupported(32);
 
   setMinFunctionAlignment(Subtarget.isGP64bit() ? Align(8) : Align(4));
 
@@ -3214,7 +3227,7 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                              ES ? ES->getSymbol() : nullptr);
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NextStackOffset = CCInfo.getNextStackOffset();
+  unsigned StackSize = CCInfo.getStackSize();
 
   // Call site info for function parameters tracking.
   MachineFunction::CallSiteInfo CSInfo;
@@ -3224,8 +3237,8 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   bool InternalLinkage = false;
   if (IsTailCall) {
     IsTailCall = isEligibleForTailCallOptimization(
-        CCInfo, NextStackOffset, *MF.getInfo<MipsFunctionInfo>());
-     if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
+        CCInfo, StackSize, *MF.getInfo<MipsFunctionInfo>());
+    if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
       InternalLinkage = G->getGlobal()->hasInternalLinkage();
       IsTailCall &= (InternalLinkage || G->getGlobal()->hasLocalLinkage() ||
                      G->getGlobal()->hasPrivateLinkage() ||
@@ -3244,10 +3257,10 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // ByValChain is the output chain of the last Memcpy node created for copying
   // byval arguments to the stack.
   unsigned StackAlignment = TFL->getStackAlignment();
-  NextStackOffset = alignTo(NextStackOffset, StackAlignment);
+  StackSize = alignTo(StackSize, StackAlignment);
 
   if (!(IsTailCall || MemcpyInByVal))
-    Chain = DAG.getCALLSEQ_START(Chain, NextStackOffset, 0, DL);
+    Chain = DAG.getCALLSEQ_START(Chain, StackSize, 0, DL);
 
   SDValue StackPtr =
       DAG.getCopyFromReg(Chain, DL, ABI.IsN64() ? Mips::SP_64 : Mips::SP,
@@ -3475,7 +3488,7 @@ MipsTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // Create the CALLSEQ_END node in the case of where it is not a call to
   // memcpy.
   if (!(MemcpyInByVal)) {
-    Chain = DAG.getCALLSEQ_END(Chain, NextStackOffset, 0, InGlue, DL);
+    Chain = DAG.getCALLSEQ_END(Chain, StackSize, 0, InGlue, DL);
     InGlue = Chain.getValue(1);
   }
 
@@ -3640,7 +3653,7 @@ SDValue MipsTargetLowering::LowerFormalArguments(
         "Functions with the interrupt attribute cannot have arguments!");
 
   CCInfo.AnalyzeFormalArguments(Ins, CC_Mips_FixedArg);
-  MipsFI->setFormalArgInfo(CCInfo.getNextStackOffset(),
+  MipsFI->setFormalArgInfo(CCInfo.getStackSize(),
                            CCInfo.getInRegsParamsCount() > 0);
 
   unsigned CurArgIdx = 0;
@@ -4185,14 +4198,15 @@ MipsTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
 /// LowerAsmOperandForConstraint - Lower the specified operand into the Ops
 /// vector.  If it is invalid, don't add anything to Ops.
 void MipsTargetLowering::LowerAsmOperandForConstraint(SDValue Op,
-                                                     std::string &Constraint,
-                                                     std::vector<SDValue>&Ops,
-                                                     SelectionDAG &DAG) const {
+                                                      StringRef Constraint,
+                                                      std::vector<SDValue> &Ops,
+                                                      SelectionDAG &DAG) const {
   SDLoc DL(Op);
   SDValue Result;
 
   // Only support length 1 constraints for now.
-  if (Constraint.length() > 1) return;
+  if (Constraint.size() > 1)
+    return;
 
   char ConstraintLetter = Constraint[0];
   switch (ConstraintLetter) {
@@ -4502,7 +4516,7 @@ void MipsTargetLowering::writeVarArgRegs(std::vector<SDValue> &OutChains,
   int VaArgOffset;
 
   if (ArgRegs.size() == Idx)
-    VaArgOffset = alignTo(State.getNextStackOffset(), RegSizeInBytes);
+    VaArgOffset = alignTo(State.getStackSize(), RegSizeInBytes);
   else {
     VaArgOffset =
         (int)ABI.GetCalleeAllocdArgSizeInBytes(State.getCallingConv()) -

@@ -225,6 +225,8 @@ static std::unique_ptr<MachineFunction> cloneMF(MachineFunction *SrcMF,
         DstMF->CreateMachineBasicBlock(SrcMBB.getBasicBlock());
     Src2DstMBB[&SrcMBB] = DstMBB;
 
+    DstMBB->setCallFrameSize(SrcMBB.getCallFrameSize());
+
     if (SrcMBB.isIRBlockAddressTaken())
       DstMBB->setAddressTakenIRBlock(SrcMBB.getAddressTakenIRBlock());
     if (SrcMBB.isMachineBlockAddressTaken())
@@ -734,7 +736,8 @@ void ReducerWorkItem::writeBitcode(raw_ostream &OutStream) const {
       Index = std::make_unique<ModuleSummaryIndex>(
           buildModuleSummaryIndex(*M, nullptr, &PSI));
     }
-    WriteBitcodeToFile(getModule(), OutStream, Index.get());
+    WriteBitcodeToFile(getModule(), OutStream,
+                       /*ShouldPreserveUseListOrder=*/true, Index.get());
   }
 }
 
@@ -761,31 +764,17 @@ llvm::parseReducerWorkItem(StringRef ToolName, StringRef Filename,
 
     auto SetDataLayout = [&](StringRef DataLayoutTargetTriple,
                              StringRef OldDLStr) -> std::optional<std::string> {
-      // If we are supposed to override the target triple, do so now.
+      // NB: We always call createTargetMachineForTriple() even if an explicit
+      // DataLayout is already set in the module since we want to use this
+      // callback to setup the TargetMachine rather than doing it later.
       std::string IRTargetTriple = DataLayoutTargetTriple.str();
       if (!TargetTriple.empty())
         IRTargetTriple = Triple::normalize(TargetTriple);
       TheTriple = Triple(IRTargetTriple);
       if (TheTriple.getTriple().empty())
         TheTriple.setTriple(sys::getDefaultTargetTriple());
-
-      std::string Error;
-      const Target *TheTarget =
-          TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
-      if (!TheTarget) {
-        WithColor::error(errs(), ToolName) << Error;
-        exit(1);
-      }
-
-      // Hopefully the MIR parsing doesn't depend on any options.
-      TargetOptions Options;
-      std::optional<Reloc::Model> RM = codegen::getExplicitRelocModel();
-      std::string CPUStr = codegen::getCPUStr();
-      std::string FeaturesStr = codegen::getFeaturesStr();
-      TM = std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
-          TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
-          codegen::getExplicitCodeModel(), CodeGenOpt::Default));
-      assert(TM && "Could not allocate target machine!");
+      ExitOnError ExitOnErr(std::string(ToolName) + ": error: ");
+      TM = ExitOnErr(codegen::createTargetMachineForTriple(TheTriple.str()));
 
       return TM->createDataLayout().getStringRepresentation();
     };

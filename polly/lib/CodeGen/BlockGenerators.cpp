@@ -20,6 +20,7 @@
 #include "polly/Support/ISLTools.h"
 #include "polly/Support/ScopHelper.h"
 #include "polly/Support/VirtualInstruction.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -264,19 +265,7 @@ Value *BlockGenerator::generateLocationAccessed(
 
   if (AccessExpr) {
     AccessExpr = isl_ast_expr_address_of(AccessExpr);
-    auto Address = ExprBuilder->create(AccessExpr);
-
-    // Cast the address of this memory access to a pointer type that has the
-    // same element type as the original access, but uses the address space of
-    // the newly generated pointer.
-    auto OldPtrTy = ExpectedType->getPointerTo();
-    auto NewPtrTy = Address->getType();
-    OldPtrTy = PointerType::getWithSamePointeeType(
-        OldPtrTy, NewPtrTy->getPointerAddressSpace());
-
-    if (OldPtrTy != NewPtrTy)
-      Address = Builder.CreateBitOrPointerCast(Address, OldPtrTy);
-    return Address;
+    return ExprBuilder->create(AccessExpr);
   }
   assert(
       Pointer &&
@@ -626,8 +615,9 @@ void BlockGenerator::generateConditionalExecution(
   StringRef BlockName = HeadBlock->getName();
 
   // Generate the conditional block.
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
   SplitBlockAndInsertIfThen(Cond, &*Builder.GetInsertPoint(), false, nullptr,
-                            &DT, &LI);
+                            &DTU, &LI);
   BranchInst *Branch = cast<BranchInst>(HeadBlock->getTerminator());
   BasicBlock *ThenBlock = Branch->getSuccessor(0);
   BasicBlock *TailBlock = Branch->getSuccessor(1);

@@ -60,34 +60,6 @@ constexpr float ef          = 2.71828183F, // (0x1.5bf0a8P+1) https://oeis.org/A
                 phif        = 1.61803399F; // (0x1.9e377aP+0) https://oeis.org/A001622
 } // namespace numbers
 
-/// Count number of 0's from the least significant bit to the most
-///   stopping at the first 1.
-///
-/// Only unsigned integral types are allowed.
-///
-/// Returns std::numeric_limits<T>::digits on an input of 0.
-template <typename T>
-LLVM_DEPRECATED("Use llvm::countr_zero instead.", "llvm::countr_zero")
-unsigned countTrailingZeros(T Val) {
-  static_assert(std::is_unsigned_v<T>,
-                "Only unsigned integral types are allowed.");
-  return llvm::countr_zero(Val);
-}
-
-/// Count number of 0's from the most significant bit to the least
-///   stopping at the first 1.
-///
-/// Only unsigned integral types are allowed.
-///
-/// Returns std::numeric_limits<T>::digits on an input of 0.
-template <typename T>
-LLVM_DEPRECATED("Use llvm::countl_zero instead.", "llvm::countl_zero")
-unsigned countLeadingZeros(T Val) {
-  static_assert(std::is_unsigned_v<T>,
-                "Only unsigned integral types are allowed.");
-  return llvm::countl_zero(Val);
-}
-
 /// Create a bitmask with the N right-most bits set to 1, and all other
 /// bits set to 0.  Only unsigned types are allowed.
 template <typename T> T maskTrailingOnes(unsigned N) {
@@ -298,47 +270,6 @@ constexpr inline bool isPowerOf2_64(uint64_t Value) {
   return llvm::has_single_bit(Value);
 }
 
-/// Count the number of ones from the most significant bit to the first
-/// zero bit.
-///
-/// Ex. countLeadingOnes(0xFF0FFF00) == 8.
-/// Only unsigned integral types are allowed.
-///
-/// Returns std::numeric_limits<T>::digits on an input of all ones.
-template <typename T>
-LLVM_DEPRECATED("Use llvm::countl_one instead.", "llvm::countl_one")
-unsigned countLeadingOnes(T Value) {
-  static_assert(std::is_unsigned_v<T>,
-                "Only unsigned integral types are allowed.");
-  return llvm::countl_one<T>(Value);
-}
-
-/// Count the number of ones from the least significant bit to the first
-/// zero bit.
-///
-/// Ex. countTrailingOnes(0x00FF00FF) == 8.
-/// Only unsigned integral types are allowed.
-///
-/// Returns std::numeric_limits<T>::digits on an input of all ones.
-template <typename T>
-LLVM_DEPRECATED("Use llvm::countr_one instead.", "llvm::countr_one")
-unsigned countTrailingOnes(T Value) {
-  static_assert(std::is_unsigned_v<T>,
-                "Only unsigned integral types are allowed.");
-  return llvm::countr_one<T>(Value);
-}
-
-/// Count the number of set bits in a value.
-/// Ex. countPopulation(0xF000F000) = 8
-/// Returns 0 if the word is zero.
-template <typename T>
-LLVM_DEPRECATED("Use llvm::popcount instead.", "llvm::popcount")
-inline unsigned countPopulation(T Value) {
-  static_assert(std::is_unsigned_v<T>,
-                "Only unsigned integral types are allowed.");
-  return (unsigned)llvm::popcount(Value);
-}
-
 /// Return true if the argument contains a non-empty sequence of ones with the
 /// remainder zero (32 bit version.) Ex. isShiftedMask_32(0x0000FF00U) == true.
 /// If true, \p MaskIdx will specify the index of the lowest set bit and \p
@@ -402,38 +333,6 @@ inline unsigned Log2_64_Ceil(uint64_t Value) {
   return 64 - llvm::countl_zero(Value - 1);
 }
 
-/// This function takes a 64-bit integer and returns the bit equivalent double.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<double>")
-inline double BitsToDouble(uint64_t Bits) {
-  static_assert(sizeof(uint64_t) == sizeof(double), "Unexpected type sizes");
-  return llvm::bit_cast<double>(Bits);
-}
-
-/// This function takes a 32-bit integer and returns the bit equivalent float.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<float>")
-inline float BitsToFloat(uint32_t Bits) {
-  static_assert(sizeof(uint32_t) == sizeof(float), "Unexpected type sizes");
-  return llvm::bit_cast<float>(Bits);
-}
-
-/// This function takes a double and returns the bit equivalent 64-bit integer.
-/// Note that copying doubles around changes the bits of NaNs on some hosts,
-/// notably x86, so this routine cannot be used if these bits are needed.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<uint64_t>")
-inline uint64_t DoubleToBits(double Double) {
-  static_assert(sizeof(uint64_t) == sizeof(double), "Unexpected type sizes");
-  return llvm::bit_cast<uint64_t>(Double);
-}
-
-/// This function takes a float and returns the bit equivalent 32-bit integer.
-/// Note that copying floats around changes the bits of NaNs on some hosts,
-/// notably x86, so this routine cannot be used if these bits are needed.
-LLVM_DEPRECATED("use llvm::bit_cast instead", "llvm::bit_cast<uint32_t>")
-inline uint32_t FloatToBits(float Float) {
-  static_assert(sizeof(uint32_t) == sizeof(float), "Unexpected type sizes");
-  return llvm::bit_cast<uint32_t>(Float);
-}
-
 /// A and B are either alignments or offsets. Return the minimum alignment that
 /// may be assumed after adding the two together.
 constexpr inline uint64_t MinAlign(uint64_t A, uint64_t B) {
@@ -455,13 +354,6 @@ constexpr inline uint64_t NextPowerOf2(uint64_t A) {
   A |= (A >> 16);
   A |= (A >> 32);
   return A + 1;
-}
-
-/// Returns the power of two which is less than or equal to the given value.
-/// Essentially, it is a floor operation across the domain of powers of two.
-LLVM_DEPRECATED("use llvm::bit_floor instead", "llvm::bit_floor")
-inline uint64_t PowerOf2Floor(uint64_t A) {
-  return llvm::bit_floor(A);
 }
 
 /// Returns the power of two which is greater than or equal to the given value.

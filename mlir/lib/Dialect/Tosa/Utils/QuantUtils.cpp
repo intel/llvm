@@ -44,11 +44,13 @@ static void computeMultiplierAndShiftTosaScale16(double scale,
 
   multiplier = static_cast<int32_t>(shiftedM);
 
-  // Shifting tops out at 63 bits. Right shift to make 63 bits the max.
-  if (shift > 63) {
+  // Shifting tops out at 62 bits. Right shift to make 62 bits the max.
+  // The limit of 62 on shift allows the shift to be decomposed as
+  // two right shifts of 31.
+  if (shift > 62) {
     // Shifting the multiplier by more than 31-bits is unnecessary.
-    multiplier = multiplier >> std::min<int32_t>(31, shift - 63);
-    shift = 63;
+    multiplier = multiplier >> std::min<int32_t>(31, shift - 62);
+    shift = 62;
   }
 }
 
@@ -79,11 +81,13 @@ static void computeMultiplierAndShiftTosaScale32(double scale,
 
   multiplier = static_cast<int32_t>(shiftedM);
 
-  // Shifting tops out at 63 bits. Right shift to make 63 bits the max.
-  if (shift > 63) {
+  // Shifting tops out at 62 bits. Right shift to make 62 bits the max.
+  // The limit of 62 on shift allows the shift to be decomposed as
+  // two right shifts of 31.
+  if (shift > 62) {
     // Shifting the multiplier by more than 32-bits is unnecessary.
-    multiplier = multiplier >> std::min<int32_t>(31, shift - 63);
-    shift = 63;
+    multiplier = multiplier >> std::min<int32_t>(31, shift - 62);
+    shift = 62;
   }
 }
 
@@ -104,9 +108,9 @@ void mlir::tosa::computeMultiplierAndShift(double scale, int32_t &multiplier,
 }
 
 #define GET_UQTYPE(input_type)                                                 \
-  ((input_type).getElementType().dyn_cast<quant::UniformQuantizedType>())
+  (llvm::dyn_cast<quant::UniformQuantizedType>((input_type).getElementType()))
 #define GET_QTYPE(input_type)                                                  \
-  ((input_type).getElementType().dyn_cast<quant::QuantizedType>())
+  (llvm::dyn_cast<quant::QuantizedType>((input_type).getElementType()))
 
 /// Method to build ConvOpQuantizationAttr, called from
 /// ConvOpQuantInfoBuilder/TransConvOpQuantInfoBuilder:

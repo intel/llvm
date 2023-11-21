@@ -11,6 +11,7 @@
 
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
 
@@ -21,6 +22,13 @@ struct MemorySlot {
   Value ptr;
   /// Type of the value contained in the slot.
   Type elemType;
+};
+
+/// Memory slot attached with information about its destructuring procedure.
+struct DestructurableMemorySlot : public MemorySlot {
+  /// Maps an index within the memory slot to the type of the pointer that
+  /// will be generated to access the element directly.
+  DenseMap<Attribute, Type> elementPtrs;
 };
 
 /// Returned by operation promotion logic requesting the deletion of an
@@ -35,5 +43,6 @@ enum class DeletionKind {
 } // namespace mlir
 
 #include "mlir/Interfaces/MemorySlotOpInterfaces.h.inc"
+#include "mlir/Interfaces/MemorySlotTypeInterfaces.h.inc"
 
 #endif // MLIR_INTERFACES_MEMORYSLOTINTERFACES_H

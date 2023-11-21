@@ -119,42 +119,49 @@ func.func @extract_element(%arg0: vector<4x4xf32>) {
 
 func.func @extract_vector_type(%arg0: index) {
   // expected-error@+1 {{invalid kind of type specified}}
-  %1 = vector.extract %arg0[] : index
+  %1 = vector.extract %arg0[] : index from index
 }
 
 // -----
 
 func.func @extract_position_rank_overflow(%arg0: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected position attribute of rank smaller than vector}}
-  %1 = vector.extract %arg0[0, 0, 0, 0] : vector<4x8x16xf32>
+  // expected-error@+1 {{expected position attribute of rank no greater than vector rank}}
+  %1 = vector.extract %arg0[0, 0, 0, 0] : f32 from vector<4x8x16xf32>
 }
 
 // -----
 
 func.func @extract_position_rank_overflow_generic(%arg0: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected position attribute of rank smaller than vector}}
-  %1 = "vector.extract" (%arg0) { position = [0, 0, 0, 0] } : (vector<4x8x16xf32>) -> (vector<16xf32>)
+  // expected-error@+1 {{expected position attribute of rank no greater than vector rank}}
+  %1 = "vector.extract" (%arg0) <{static_position = array<i64: 0, 0, 0, 0>}> : (vector<4x8x16xf32>) -> (vector<16xf32>)
 }
 
 // -----
 
 func.func @extract_position_overflow(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected position attribute #2 to be a non-negative integer smaller than the corresponding vector dimension}}
-  %1 = vector.extract %arg0[0, 43, 0] : vector<4x8x16xf32>
+  %1 = vector.extract %arg0[0, 43, 0] : f32 from vector<4x8x16xf32>
 }
 
 // -----
 
 func.func @extract_precise_position_overflow(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected position attribute #3 to be a non-negative integer smaller than the corresponding vector dimension}}
-  %1 = vector.extract %arg0[3, 7, 16] : vector<4x8x16xf32>
+  %1 = vector.extract %arg0[3, 7, 16] : f32 from vector<4x8x16xf32>
+}
+
+// -----
+
+func.func @extract_0d(%arg0: vector<f32>) {
+  // expected-error@+1 {{expected position attribute of rank no greater than vector rank}}
+  %1 = vector.extract %arg0[0] : f32 from vector<f32>
 }
 
 // -----
 
 func.func @extract_position_overflow(%arg0: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected position attribute #3 to be a non-negative integer smaller than the corresponding vector dimension}}
-  %1 = vector.extract %arg0[0, 0, -1] : vector<4x8x16xf32>
+  %1 = vector.extract %arg0[0, 0, -1] : f32 from vector<4x8x16xf32>
 }
 
 // -----
@@ -192,7 +199,7 @@ func.func @insert_element_wrong_type(%arg0: i32, %arg1: vector<4xf32>) {
 // -----
 
 func.func @insert_vector_type(%a: f32, %b: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected position attribute of rank smaller than dest vector rank}}
+  // expected-error@+1 {{expected position attribute of rank no greater than dest vector rank}}
   %1 = vector.insert %a, %b[3, 3, 3, 3, 3, 3] : f32 into vector<4x8x16xf32>
 }
 
@@ -222,6 +229,20 @@ func.func @insert_position_overflow(%a: f32, %b: vector<4x8x16xf32>) {
 func.func @insert_precise_position_overflow(%a: f32, %b: vector<4x8x16xf32>) {
   // expected-error@+1 {{expected position attribute #1 to be a non-negative integer smaller than the corresponding dest vector dimension}}
   %1 = vector.insert %a, %b[4, 7, 15] : f32 into vector<4x8x16xf32>
+}
+
+// -----
+
+func.func @insert_0d(%a: vector<f32>, %b: vector<4x8x16xf32>) {
+  // expected-error@+1 {{expected position attribute rank + source rank to match dest vector rank}}
+  %1 = vector.insert %a, %b[2, 6] : vector<f32> into vector<4x8x16xf32>
+}
+
+// -----
+
+func.func @insert_0d(%a: f32, %b: vector<f32>) {
+  // expected-error@+1 {{expected position attribute of rank no greater than dest vector rank}}
+  %1 = vector.insert %a, %b[0] : f32 into vector<f32>
 }
 
 // -----
@@ -566,7 +587,7 @@ func.func @insert_strided_slice(%a: vector<4x4xf32>, %b: vector<4x8x16xf32>) {
 // -----
 
 func.func @insert_strided_slice(%a: vector<4x4xf32>, %b: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected source rank to be smaller than destination rank}}
+  // expected-error@+1 {{expected source rank to be no greater than destination rank}}
   %1 = vector.insert_strided_slice %b, %a {offsets = [2, 2], strides = [1, 1, 1]} : vector<4x8x16xf32> into vector<4x4xf32>
 }
 
@@ -601,14 +622,14 @@ func.func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
 // -----
 
 func.func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected offsets attribute of rank smaller than vector rank}}
+  // expected-error@+1 {{expected offsets attribute of rank no greater than vector rank}}
   %1 = vector.extract_strided_slice %arg0 {offsets = [2, 2, 2, 2], sizes = [2, 2, 2, 2], strides = [1, 1, 1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
 }
 
 // -----
 
 func.func @extract_strided_slice(%arg0: vector<4x8x16xf32>) {
-  // expected-error@+1 {{expected offsets attribute of rank smaller than vector rank}}
+  // expected-error@+1 {{expected offsets attribute of rank no greater than vector rank}}
   %1 = vector.extract_strided_slice %arg0 {offsets = [2, 2, 2, 2], sizes = [2, 2, 2, 2], strides = [1, 1, 1, 1]} : vector<4x8x16xf32> to vector<2x2x16xf32>
 }
 
@@ -974,7 +995,7 @@ func.func @constant_mask_with_zero_mask_dim_size() {
 // -----
 
 func.func @constant_mask_scalable_non_zero_dim_size() {
-  // expected-error@+1 {{expected mask dim sizes for scalable masks to be 0}}
+  // expected-error@+1 {{only supports 'none set' or 'all set' scalable dimensions}}
   %0 = vector.constant_mask [2] : vector<[8]xi1>
 }
 
@@ -1572,10 +1593,21 @@ func.func @warp_wrong_arg_distribution(%laneid: index, %v0 : vector<4xi32>) {
 // -----
 
 func.func @warp_2_distributed_dims(%laneid: index) {
-  // expected-error@+1 {{'vector.warp_execute_on_lane_0' op expected only one dimension to be distributed from 'vector<128x128xi32>' to 'vector<4x4xi32>'}}
+  // expected-error@+1 {{incompatible distribution dimensions from 'vector<128x128xi32>' to 'vector<4x4xi32>' with warp size = 32}}
   %2 = vector.warp_execute_on_lane_0(%laneid)[32] -> (vector<4x4xi32>) {
     %0 = arith.constant dense<2>: vector<128x128xi32>
     vector.yield %0 : vector<128x128xi32>
+  }
+  return
+}
+
+// -----
+
+func.func @warp_2_distributed_dims(%laneid: index) {
+  // expected-error@+1 {{expected expanded vector dimension #1 (8) to be a multipler of the distributed vector dimension (3)}}
+  %2 = vector.warp_execute_on_lane_0(%laneid)[32] -> (vector<1x3xi32>) {
+    %0 = arith.constant dense<2>: vector<4x8xi32>
+    vector.yield %0 : vector<4x8xi32>
   }
   return
 }

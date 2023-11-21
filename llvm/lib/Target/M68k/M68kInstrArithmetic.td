@@ -293,6 +293,8 @@ multiclass MxBiArOp_AF<string MN, SDNode NODE, bits<4> CMD> {
                                   CMD, MxEncAddrMode_p<"opd">>;
   def NAME#"32aj" : MxBiArOp_R_RM<MN, NODE, MxType32a, MxType32.JOp, MxType32.JPat,
                                   CMD, MxEncAddrMode_j<"opd">>;
+  def NAME#"32ab" : MxBiArOp_R_RM<MN, NODE, MxType32a, MxType32.BOp, MxType32.BPat,
+                                  CMD, MxEncAddrMode_abs<"opd", true>>;
   def NAME#"32ai" : MxBiArOp_R_RI_xEA<MN, NODE, MxType32a, CMD>;
 
   def NAME#"32ar" : MxBiArOp_R_RR_xEA<MN, NODE, MxType32a, MxType32r, CMD>;
@@ -310,6 +312,12 @@ defm ADD : MxBiArOp_AF<"adda", MxAdd, 0xD>;
 defm SUB : MxBiArOp_DF<"sub",  MxSub, 0, 0x9, 0x4>;
 defm SUB : MxBiArOp_AF<"suba", MxSub, 0x9>;
 
+// This pattern is used to enable the instruction selector to select ADD32ab
+// for global values that are allocated in thread-local storage, i.e.:
+//   t8: i32 = ISD::ADD GLOBAL_OFFSET_TABLE, TargetGlobalTLSAddress:i32<ptr @myvar>
+//     ====>
+//   t8: i32,i8 = ADD32ab GLOBAL_OFFSET_TABLE, TargetGlobalTLSAddress:i32<ptr @myvar>
+def : Pat<(add MxARD32:$src, tglobaltlsaddr:$opd), (ADD32ab MxARD32:$src, MxAL32:$opd)>;
 
 let Uses = [CCR], Defs = [CCR] in {
 let Constraints = "$src = $dst" in {
@@ -581,6 +589,22 @@ class MxDiMuOp_DD<string MN, bits<4> CMD, bit SIGNED = false,
   );
 }
 
+// $dreg <- $dreg op $dreg
+class MxDiMuOp_DD_Long<string MN, bits<10> CMD, bit SIGNED = false>
+    : MxInst<(outs MxDRD32:$dst), (ins MxDRD32:$src, MxDRD32:$opd), MN#"\t$opd, $dst", []> {
+  let Inst = (ascend
+    (descend CMD,
+      /*MODE*/0b000, /*REGISTER*/(operand "$opd", 3)),
+    (descend 0b0,
+      // REGISTER
+      (operand "$dst", 3),
+      !if(SIGNED, 0b1, 0b0),
+      /*SIZE*/0b0, 0b0000000,
+      // Dr REGISTER
+      0b000)
+  );
+}
+
 // $reg <- $reg op $imm
 class MxDiMuOp_DI<string MN, bits<4> CMD, bit SIGNED = false,
                   MxOperand DST, MxOperand OPD>
@@ -609,6 +633,9 @@ multiclass MxDiMuOp<string MN, bits<4> CMD, bit isComm = 0> {
 }
 
 defm DIV : MxDiMuOp<"div", 0x8>;
+
+def SDIVd32d32 : MxDiMuOp_DD_Long<"divs.l", 0x131, /*SIGNED*/true>;
+def UDIVd32d32 : MxDiMuOp_DD_Long<"divu.l", 0x131, /*SIGNED*/false>;
 
 // This is used to cast immediates to 16-bits for operations which don't
 // support smaller immediate sizes.
@@ -659,6 +686,12 @@ def : Pat<(urem i16:$dst, i16:$opd),
              MxSubRegIndex16Lo)>;
 
 
+// RR i32
+def : Pat<(sdiv i32:$dst, i32:$opd), (SDIVd32d32 $dst, $opd)>;
+
+def : Pat<(udiv i32:$dst, i32:$opd), (UDIVd32d32 $dst, $opd)>;
+
+
 // RI i8
 def : Pat<(sdiv i8:$dst, MximmSExt8:$opd),
           (EXTRACT_SUBREG
@@ -704,6 +737,9 @@ def : Pat<(urem i16:$dst, MximmSExt16:$opd),
 
 defm MUL : MxDiMuOp<"mul", 0xC, 1>;
 
+def SMULd32d32 : MxDiMuOp_DD_Long<"muls.l", 0x130, /*SIGNED*/true>;
+def UMULd32d32 : MxDiMuOp_DD_Long<"mulu.l", 0x130, /*SIGNED*/false>;
+
 // RR
 def : Pat<(mul i16:$dst, i16:$opd),
           (EXTRACT_SUBREG
@@ -719,6 +755,8 @@ def : Pat<(mulhu i16:$dst, i16:$opd),
           (EXTRACT_SUBREG
             (LSR32di (LSR32di (UMULd32d16 (MOVXd32d16 $dst), $opd), 8), 8),
              MxSubRegIndex16Lo)>;
+
+def : Pat<(mul i32:$dst, i32:$opd), (SMULd32d32 $dst, $opd)>;
 
 
 // RI

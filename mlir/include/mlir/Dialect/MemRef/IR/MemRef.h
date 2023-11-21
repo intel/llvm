@@ -9,6 +9,7 @@
 #ifndef MLIR_DIALECT_MEMREF_IR_MEMREF_H_
 #define MLIR_DIALECT_MEMREF_IR_MEMREF_H_
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/IR/Dialect.h"
@@ -21,6 +22,7 @@
 #include "mlir/Interfaces/ShapedOpInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+
 #include <optional>
 
 namespace mlir {
@@ -56,6 +58,10 @@ Type getTensorTypeFromMemRefType(Type type);
 /// are > 1 deallocates for `allocValue`, returns std::nullopt, else returns the
 /// single deallocate if it exists or nullptr.
 std::optional<Operation *> findDealloc(Value allocValue);
+
+/// Return the dimension of the given memref value.
+OpFoldResult getMixedSize(OpBuilder &builder, Location loc, Value value,
+                          int64_t dim);
 
 /// Return the dimensions of the given memref value.
 SmallVector<OpFoldResult> getMixedSizes(OpBuilder &builder, Location loc,

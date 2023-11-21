@@ -1,6 +1,7 @@
 add_library(gpu_loader OBJECT Main.cpp)
 target_include_directories(gpu_loader PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${LIBC_SOURCE_DIR}/include
   ${LIBC_SOURCE_DIR}
 )
 
@@ -14,14 +15,29 @@ endif()
 find_package(CUDAToolkit QUIET)
 # The CUDA loader requires LLVM to traverse the ELF image for symbols.
 find_package(LLVM QUIET)
-if(CUDAToolkit_FOUND AND LLVM_FOUND)
+if(CUDAToolkit_FOUND AND LLVM_FOUND AND
+   "${CUDAToolkit_VERSION}" VERSION_GREATER_EQUAL "11.2")
   add_subdirectory(nvptx)
 else()
-  message(STATUS "Skipping CUDA loader for gpu target, no CUDA was detected")
+  if("${CUDAToolkit_VERSION}" VERSION_LESS "11.2")
+    message(WARNING 
+      "Skipping CUDA loader for gpu target, CUDA must be version 11.2 or later.
+       Found CUDA Version ${CUDAToolkit_VERSION}")
+  else()
+    message(STATUS "Skipping CUDA loader for gpu target, no CUDA was detected")
+  endif()
 endif()
 
 # Add a custom target to be used for testing.
-if(TARGET amdhsa_loader AND LIBC_GPU_TARGET_ARCHITECTURE_IS_AMDGPU)
+set(LIBC_GPU_LOADER_EXECUTABLE "" CACHE STRING "Overriding binary for the GPU loader.")
+if(LIBC_GPU_LOADER_EXECUTABLE)
+  add_custom_target(libc.utils.gpu.loader)
+  set_target_properties(
+    libc.utils.gpu.loader
+    PROPERTIES
+      EXECUTABLE "${LIBC_GPU_LOADER_EXECUTABLE}"
+  )
+elseif(TARGET amdhsa_loader AND LIBC_GPU_TARGET_ARCHITECTURE_IS_AMDGPU)
   add_custom_target(libc.utils.gpu.loader)
   add_dependencies(libc.utils.gpu.loader amdhsa_loader)
   set_target_properties(

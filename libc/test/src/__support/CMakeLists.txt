@@ -1,14 +1,17 @@
 add_custom_target(libc-support-tests)
 
-add_libc_test(
-  blockstore_test
-  SUITE
-    libc-support-tests
-  SRCS
-    blockstore_test.cpp
-  DEPENDS
-    libc.src.__support.blockstore
-)
+# FIXME: These tests are currently broken on the GPU.
+if(NOT LIBC_TARGET_ARCHITECTURE_IS_GPU)
+  add_libc_test(
+    blockstore_test
+    SUITE
+      libc-support-tests
+    SRCS
+      blockstore_test.cpp
+    DEPENDS
+      libc.src.__support.blockstore
+  )
+endif()
 
 add_libc_test(
   endian_test
@@ -20,19 +23,16 @@ add_libc_test(
     libc.src.__support.common
 )
 
-# This test fails with a segmentation fault on NVPTX.
-if(NOT LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
-  add_libc_test(
-    high_precision_decimal_test
-    SUITE
-      libc-support-tests
-    SRCS
-    high_precision_decimal_test.cpp
-    DEPENDS
-      libc.src.__support.high_precision_decimal
-      libc.src.__support.uint128
-  )
-endif()
+add_libc_test(
+  high_precision_decimal_test
+  SUITE
+    libc-support-tests
+  SRCS
+  high_precision_decimal_test.cpp
+  DEPENDS
+    libc.src.__support.high_precision_decimal
+    libc.src.__support.uint128
+)
 
 add_libc_test(
   str_to_float_test
@@ -55,6 +55,8 @@ add_libc_test(
   DEPENDS
     libc.src.__support.integer_to_string
     libc.src.__support.CPP.string_view
+    libc.src.__support.uint
+    libc.src.__support.uint128
 )
 
 # The GPU does not support varargs currently.
@@ -93,8 +95,6 @@ add_libc_test(
 
 add_libc_test(
   char_vector_test
-  # This test relies on 'realloc' which is not implemented for hermetic tests.
-  UNIT_TEST_ONLY
   SUITE
     libc-support-tests
   SRCS
@@ -129,5 +129,6 @@ add_custom_command(TARGET libc_str_to_float_comparison_test
 
 add_subdirectory(CPP)
 add_subdirectory(File)
+add_subdirectory(RPC)
 add_subdirectory(OSUtil)
 add_subdirectory(FPUtil)

@@ -541,8 +541,8 @@ public:
   /// Note: This does not perform the implicit conversions required by C++11
   /// [expr.const]p5.
   std::optional<llvm::APSInt>
-  getIntegerConstantExpr(const ASTContext &Ctx, SourceLocation *Loc = nullptr,
-                         bool isEvaluated = true) const;
+  getIntegerConstantExpr(const ASTContext &Ctx,
+                         SourceLocation *Loc = nullptr) const;
   bool isIntegerConstantExpr(const ASTContext &Ctx,
                              SourceLocation *Loc = nullptr) const;
 
@@ -566,7 +566,7 @@ public:
                                       SmallVectorImpl<
                                         PartialDiagnosticAt> &Diags);
 
-  /// isPotentialConstantExprUnevaluted - Return true if this expression might
+  /// isPotentialConstantExprUnevaluated - Return true if this expression might
   /// be usable in a constant expression in C++11 in an unevaluated context, if
   /// it were in function FD marked constexpr. Return false if the function can
   /// never produce a constant expression, along with diagnostics describing
@@ -761,6 +761,11 @@ public:
   /// Returns true if all of the above holds and we were able to figure out the
   /// strlen, false otherwise.
   bool tryEvaluateStrLen(uint64_t &Result, ASTContext &Ctx) const;
+
+  bool EvaluateCharRangeAsString(std::string &Result,
+                                 const Expr *SizeExpression,
+                                 const Expr *PtrExpression, ASTContext &Ctx,
+                                 EvalResult &Status) const;
 
   /// Enumeration used to describe the kind of Null pointer constant
   /// returned from \c isNullPointerConstant().
@@ -1436,6 +1441,24 @@ public:
     return DeclRefExprBits.RefersToEnclosingVariableOrCapture;
   }
 
+  bool isImmediateEscalating() const {
+    return DeclRefExprBits.IsImmediateEscalating;
+  }
+
+  void setIsImmediateEscalating(bool Set) {
+    DeclRefExprBits.IsImmediateEscalating = Set;
+  }
+
+  bool isCapturedByCopyInLambdaWithExplicitObjectParameter() const {
+    return DeclRefExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter;
+  }
+
+  void setCapturedByCopyInLambdaWithExplicitObjectParameter(
+      bool Set, const ASTContext &Context) {
+    DeclRefExprBits.CapturedByCopyInLambdaWithExplicitObjectParameter = Set;
+    setDependence(computeDependence(this, Context));
+  }
+
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == DeclRefExprClass;
   }
@@ -1796,7 +1819,7 @@ class StringLiteral final
   /// * An array of getByteLength() char used to store the string data.
 
 public:
-  enum StringKind { Ordinary, Wide, UTF8, UTF16, UTF32 };
+  enum StringKind { Ordinary, Wide, UTF8, UTF16, UTF32, Unevaluated };
 
 private:
   unsigned numTrailingObjects(OverloadToken<unsigned>) const { return 1; }
@@ -1858,7 +1881,7 @@ public:
                                     unsigned CharByteWidth);
 
   StringRef getString() const {
-    assert(getCharByteWidth() == 1 &&
+    assert((isUnevaluated() || getCharByteWidth() == 1) &&
            "This function is used in places that assume strings use char");
     return StringRef(getStrDataAsChar(), getByteLength());
   }
@@ -1898,6 +1921,7 @@ public:
   bool isUTF8() const { return getKind() == UTF8; }
   bool isUTF16() const { return getKind() == UTF16; }
   bool isUTF32() const { return getKind() == UTF32; }
+  bool isUnevaluated() const { return getKind() == Unevaluated; }
   bool isPascal() const { return StringLiteralBits.IsPascal; }
 
   bool containsNonAscii() const {
@@ -2327,7 +2351,7 @@ public:
   }
 
 protected:
-  /// Set FPFeatures in trailing storage, used only by Serialization
+  /// Set FPFeatures in trailing storage, used by Serialization & ASTImporter.
   void setStoredFPFeatures(FPOptionsOverride F) { getTrailingFPFeatures() = F; }
 
 public:
@@ -2345,6 +2369,7 @@ public:
   }
 
   friend TrailingObjects;
+  friend class ASTNodeImporter;
   friend class ASTReader;
   friend class ASTStmtReader;
   friend class ASTStmtWriter;
@@ -3593,6 +3618,19 @@ public:
     return FPOptionsOverride();
   }
 
+  /// Return
+  //  True : if this conversion changes the volatile-ness of a gl-value.
+  //         Qualification conversions on gl-values currently use CK_NoOp, but
+  //         it's important to recognize volatile-changing conversions in
+  //         clients code generation that normally eagerly peephole loads. Note
+  //         that the query is answering for this specific node; Sema may
+  //         produce multiple cast nodes for any particular conversion sequence.
+  //  False : Otherwise.
+  bool changesVolatileQualification() const {
+    return (isGLValue() && (getType().isVolatileQualified() !=
+                            getSubExpr()->getType().isVolatileQualified()));
+  }
+
   static const FieldDecl *getTargetFieldForToUnionCast(QualType unionType,
                                                        QualType opType);
   static const FieldDecl *getTargetFieldForToUnionCast(const RecordDecl *RD,
@@ -4691,14 +4729,22 @@ public:
 };
 
 /// Represents a function call to one of __builtin_LINE(), __builtin_COLUMN(),
-/// __builtin_FUNCTION(), __builtin_FILE(), __builtin_FILE_NAME(),
-/// or __builtin_source_location().
+/// __builtin_FUNCTION(), __builtin_FUNCSIG(), __builtin_FILE(),
+/// __builtin_FILE_NAME() or __builtin_source_location().
 class SourceLocExpr final : public Expr {
   SourceLocation BuiltinLoc, RParenLoc;
   DeclContext *ParentContext;
 
 public:
-  enum IdentKind { Function, File, FileName, Line, Column, SourceLocStruct };
+  enum IdentKind {
+    Function,
+    FuncSig,
+    File,
+    FileName,
+    Line,
+    Column,
+    SourceLocStruct
+  };
 
   SourceLocExpr(const ASTContext &Ctx, IdentKind Type, QualType ResultTy,
                 SourceLocation BLoc, SourceLocation RParenLoc,
@@ -4724,6 +4770,7 @@ public:
     case File:
     case FileName:
     case Function:
+    case FuncSig:
     case SourceLocStruct:
       return false;
     case Line:
@@ -5671,6 +5718,12 @@ public:
 /// which names a dependent type in its association list is result-dependent,
 /// which means that the choice of result expression is dependent.
 /// Result-dependent generic associations are both type- and value-dependent.
+///
+/// We also allow an extended form in both C and C++ where the controlling
+/// predicate for the selection expression is a type rather than an expression.
+/// This type argument form does not perform any conversions for the
+/// controlling type, which makes it suitable for use with qualified type
+/// associations, which is not possible with the expression form.
 class GenericSelectionExpr final
     : public Expr,
       private llvm::TrailingObjects<GenericSelectionExpr, Stmt *,
@@ -5683,12 +5736,44 @@ class GenericSelectionExpr final
   /// expression in the case where the generic selection expression is not
   /// result-dependent. The result index is equal to ResultDependentIndex
   /// if and only if the generic selection expression is result-dependent.
-  unsigned NumAssocs, ResultIndex;
+  unsigned NumAssocs : 15;
+  unsigned ResultIndex : 15; // NB: ResultDependentIndex is tied to this width.
+  unsigned IsExprPredicate : 1;
   enum : unsigned {
-    ResultDependentIndex = std::numeric_limits<unsigned>::max(),
-    ControllingIndex = 0,
-    AssocExprStartIndex = 1
+    ResultDependentIndex = 0x7FFF
   };
+
+  unsigned getIndexOfControllingExpression() const {
+    // If controlled by an expression, the first offset into the Stmt *
+    // trailing array is the controlling expression, the associated expressions
+    // follow this.
+    assert(isExprPredicate() && "Asking for the controlling expression of a "
+                                "selection expr predicated by a type");
+    return 0;
+  }
+
+  unsigned getIndexOfControllingType() const {
+    // If controlled by a type, the first offset into the TypeSourceInfo *
+    // trailing array is the controlling type, the associated types follow this.
+    assert(isTypePredicate() && "Asking for the controlling type of a "
+                                 "selection expr predicated by an expression");
+    return 0;
+  }
+
+  unsigned getIndexOfStartOfAssociatedExprs() const {
+    // If the predicate is a type, then the associated expressions are the only
+    // Stmt * in the trailing array, otherwise we need to offset past the
+    // predicate expression.
+    return (int)isExprPredicate();
+  }
+
+  unsigned getIndexOfStartOfAssociatedTypes() const {
+    // If the predicate is a type, then the associated types follow it in the
+    // trailing array. Otherwise, the associated types are the only
+    // TypeSourceInfo * in the trailing array.
+    return (int)isTypePredicate();
+  }
+
 
   /// The location of the "default" and of the right parenthesis.
   SourceLocation DefaultLoc, RParenLoc;
@@ -5696,18 +5781,22 @@ class GenericSelectionExpr final
   // GenericSelectionExpr is followed by several trailing objects.
   // They are (in order):
   //
-  // * A single Stmt * for the controlling expression.
+  // * A single Stmt * for the controlling expression or a TypeSourceInfo * for
+  //   the controlling type, depending on the result of isTypePredicate() or
+  //   isExprPredicate().
   // * An array of getNumAssocs() Stmt * for the association expressions.
   // * An array of getNumAssocs() TypeSourceInfo *, one for each of the
   //   association expressions.
   unsigned numTrailingObjects(OverloadToken<Stmt *>) const {
     // Add one to account for the controlling expression; the remainder
     // are the associated expressions.
-    return 1 + getNumAssocs();
+    return getNumAssocs() + (int)isExprPredicate();
   }
 
   unsigned numTrailingObjects(OverloadToken<TypeSourceInfo *>) const {
-    return getNumAssocs();
+    // Add one to account for the controlling type predicate, the remainder
+    // are the associated types.
+    return getNumAssocs() + (int)isTypePredicate();
   }
 
   template <bool Const> class AssociationIteratorTy;
@@ -5788,7 +5877,8 @@ class GenericSelectionExpr final
     bool operator==(AssociationIteratorTy Other) const { return E == Other.E; }
   }; // class AssociationIterator
 
-  /// Build a non-result-dependent generic selection expression.
+  /// Build a non-result-dependent generic selection expression accepting an
+  /// expression predicate.
   GenericSelectionExpr(const ASTContext &Context, SourceLocation GenericLoc,
                        Expr *ControllingExpr,
                        ArrayRef<TypeSourceInfo *> AssocTypes,
@@ -5797,9 +5887,29 @@ class GenericSelectionExpr final
                        bool ContainsUnexpandedParameterPack,
                        unsigned ResultIndex);
 
-  /// Build a result-dependent generic selection expression.
+  /// Build a result-dependent generic selection expression accepting an
+  /// expression predicate.
   GenericSelectionExpr(const ASTContext &Context, SourceLocation GenericLoc,
                        Expr *ControllingExpr,
+                       ArrayRef<TypeSourceInfo *> AssocTypes,
+                       ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+                       SourceLocation RParenLoc,
+                       bool ContainsUnexpandedParameterPack);
+
+  /// Build a non-result-dependent generic selection expression accepting a
+  /// type predicate.
+  GenericSelectionExpr(const ASTContext &Context, SourceLocation GenericLoc,
+                       TypeSourceInfo *ControllingType,
+                       ArrayRef<TypeSourceInfo *> AssocTypes,
+                       ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+                       SourceLocation RParenLoc,
+                       bool ContainsUnexpandedParameterPack,
+                       unsigned ResultIndex);
+
+  /// Build a result-dependent generic selection expression accepting a type
+  /// predicate.
+  GenericSelectionExpr(const ASTContext &Context, SourceLocation GenericLoc,
+                       TypeSourceInfo *ControllingType,
                        ArrayRef<TypeSourceInfo *> AssocTypes,
                        ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
                        SourceLocation RParenLoc,
@@ -5809,7 +5919,8 @@ class GenericSelectionExpr final
   explicit GenericSelectionExpr(EmptyShell Empty, unsigned NumAssocs);
 
 public:
-  /// Create a non-result-dependent generic selection expression.
+  /// Create a non-result-dependent generic selection expression accepting an
+  /// expression predicate.
   static GenericSelectionExpr *
   Create(const ASTContext &Context, SourceLocation GenericLoc,
          Expr *ControllingExpr, ArrayRef<TypeSourceInfo *> AssocTypes,
@@ -5817,10 +5928,28 @@ public:
          SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack,
          unsigned ResultIndex);
 
-  /// Create a result-dependent generic selection expression.
+  /// Create a result-dependent generic selection expression accepting an
+  /// expression predicate.
   static GenericSelectionExpr *
   Create(const ASTContext &Context, SourceLocation GenericLoc,
          Expr *ControllingExpr, ArrayRef<TypeSourceInfo *> AssocTypes,
+         ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+         SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack);
+
+  /// Create a non-result-dependent generic selection expression accepting a
+  /// type predicate.
+  static GenericSelectionExpr *
+  Create(const ASTContext &Context, SourceLocation GenericLoc,
+         TypeSourceInfo *ControllingType, ArrayRef<TypeSourceInfo *> AssocTypes,
+         ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
+         SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack,
+         unsigned ResultIndex);
+
+  /// Create a result-dependent generic selection expression accepting a type
+  /// predicate
+  static GenericSelectionExpr *
+  Create(const ASTContext &Context, SourceLocation GenericLoc,
+         TypeSourceInfo *ControllingType, ArrayRef<TypeSourceInfo *> AssocTypes,
          ArrayRef<Expr *> AssocExprs, SourceLocation DefaultLoc,
          SourceLocation RParenLoc, bool ContainsUnexpandedParameterPack);
 
@@ -5851,32 +5980,56 @@ public:
   /// Whether this generic selection is result-dependent.
   bool isResultDependent() const { return ResultIndex == ResultDependentIndex; }
 
+  /// Whether this generic selection uses an expression as its controlling
+  /// argument.
+  bool isExprPredicate() const { return IsExprPredicate; }
+  /// Whether this generic selection uses a type as its controlling argument.
+  bool isTypePredicate() const { return !IsExprPredicate; }
+
   /// Return the controlling expression of this generic selection expression.
+  /// Only valid to call if the selection expression used an expression as its
+  /// controlling argument.
   Expr *getControllingExpr() {
-    return cast<Expr>(getTrailingObjects<Stmt *>()[ControllingIndex]);
+    return cast<Expr>(
+        getTrailingObjects<Stmt *>()[getIndexOfControllingExpression()]);
   }
   const Expr *getControllingExpr() const {
-    return cast<Expr>(getTrailingObjects<Stmt *>()[ControllingIndex]);
+    return cast<Expr>(
+        getTrailingObjects<Stmt *>()[getIndexOfControllingExpression()]);
+  }
+
+  /// Return the controlling type of this generic selection expression. Only
+  /// valid to call if the selection expression used a type as its controlling
+  /// argument.
+  TypeSourceInfo *getControllingType() {
+    return getTrailingObjects<TypeSourceInfo *>()[getIndexOfControllingType()];
+  }
+  const TypeSourceInfo* getControllingType() const {
+    return getTrailingObjects<TypeSourceInfo *>()[getIndexOfControllingType()];
   }
 
   /// Return the result expression of this controlling expression. Defined if
   /// and only if the generic selection expression is not result-dependent.
   Expr *getResultExpr() {
     return cast<Expr>(
-        getTrailingObjects<Stmt *>()[AssocExprStartIndex + getResultIndex()]);
+        getTrailingObjects<Stmt *>()[getIndexOfStartOfAssociatedExprs() +
+                                     getResultIndex()]);
   }
   const Expr *getResultExpr() const {
     return cast<Expr>(
-        getTrailingObjects<Stmt *>()[AssocExprStartIndex + getResultIndex()]);
+        getTrailingObjects<Stmt *>()[getIndexOfStartOfAssociatedExprs() +
+                                     getResultIndex()]);
   }
 
   ArrayRef<Expr *> getAssocExprs() const {
     return {reinterpret_cast<Expr *const *>(getTrailingObjects<Stmt *>() +
-                                            AssocExprStartIndex),
+                                            getIndexOfStartOfAssociatedExprs()),
             NumAssocs};
   }
   ArrayRef<TypeSourceInfo *> getAssocTypeSourceInfos() const {
-    return {getTrailingObjects<TypeSourceInfo *>(), NumAssocs};
+    return {getTrailingObjects<TypeSourceInfo *>() +
+                getIndexOfStartOfAssociatedTypes(),
+            NumAssocs};
   }
 
   /// Return the Ith association expression with its TypeSourceInfo,
@@ -5885,23 +6038,30 @@ public:
     assert(I < getNumAssocs() &&
            "Out-of-range index in GenericSelectionExpr::getAssociation!");
     return Association(
-        cast<Expr>(getTrailingObjects<Stmt *>()[AssocExprStartIndex + I]),
-        getTrailingObjects<TypeSourceInfo *>()[I],
+        cast<Expr>(
+            getTrailingObjects<Stmt *>()[getIndexOfStartOfAssociatedExprs() +
+                                         I]),
+        getTrailingObjects<
+            TypeSourceInfo *>()[getIndexOfStartOfAssociatedTypes() + I],
         !isResultDependent() && (getResultIndex() == I));
   }
   ConstAssociation getAssociation(unsigned I) const {
     assert(I < getNumAssocs() &&
            "Out-of-range index in GenericSelectionExpr::getAssociation!");
     return ConstAssociation(
-        cast<Expr>(getTrailingObjects<Stmt *>()[AssocExprStartIndex + I]),
-        getTrailingObjects<TypeSourceInfo *>()[I],
+        cast<Expr>(
+            getTrailingObjects<Stmt *>()[getIndexOfStartOfAssociatedExprs() +
+                                         I]),
+        getTrailingObjects<
+            TypeSourceInfo *>()[getIndexOfStartOfAssociatedTypes() + I],
         !isResultDependent() && (getResultIndex() == I));
   }
 
   association_range associations() {
     AssociationIterator Begin(getTrailingObjects<Stmt *>() +
-                                  AssocExprStartIndex,
-                              getTrailingObjects<TypeSourceInfo *>(),
+                                  getIndexOfStartOfAssociatedExprs(),
+                              getTrailingObjects<TypeSourceInfo *>() +
+                                  getIndexOfStartOfAssociatedTypes(),
                               /*Offset=*/0, ResultIndex);
     AssociationIterator End(Begin.E + NumAssocs, Begin.TSI + NumAssocs,
                             /*Offset=*/NumAssocs, ResultIndex);
@@ -5910,8 +6070,9 @@ public:
 
   const_association_range associations() const {
     ConstAssociationIterator Begin(getTrailingObjects<Stmt *>() +
-                                       AssocExprStartIndex,
-                                   getTrailingObjects<TypeSourceInfo *>(),
+                                       getIndexOfStartOfAssociatedExprs(),
+                                   getTrailingObjects<TypeSourceInfo *>() +
+                                       getIndexOfStartOfAssociatedTypes(),
                                    /*Offset=*/0, ResultIndex);
     ConstAssociationIterator End(Begin.E + NumAssocs, Begin.TSI + NumAssocs,
                                  /*Offset=*/NumAssocs, ResultIndex);
@@ -6224,11 +6385,11 @@ public:
     return getSubExprsBuffer() + getNumSubExprs();
   }
 
-  llvm::iterator_range<semantics_iterator> semantics() {
-    return llvm::make_range(semantics_begin(), semantics_end());
+  ArrayRef<Expr*> semantics() {
+    return ArrayRef(semantics_begin(), semantics_end());
   }
-  llvm::iterator_range<const_semantics_iterator> semantics() const {
-    return llvm::make_range(semantics_begin(), semantics_end());
+  ArrayRef<const Expr*> semantics() const {
+    return ArrayRef(semantics_begin(), semantics_end());
   }
 
   Expr *getSemanticExpr(unsigned index) {
@@ -6342,6 +6503,16 @@ public:
   QualType getValueType() const;
 
   AtomicOp getOp() const { return Op; }
+  StringRef getOpAsString() const {
+    switch (Op) {
+#define BUILTIN(ID, TYPE, ATTRS)
+#define ATOMIC_BUILTIN(ID, TYPE, ATTRS)                                        \
+  case AO##ID:                                                                 \
+    return #ID;
+#include "clang/Basic/Builtins.def"
+    }
+    llvm_unreachable("not an atomic operator?");
+  }
   unsigned getNumSubExprs() const { return NumSubExprs; }
 
   Expr **getSubExprs() { return reinterpret_cast<Expr **>(SubExprs); }

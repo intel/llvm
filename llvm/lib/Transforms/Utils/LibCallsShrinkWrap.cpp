@@ -28,6 +28,7 @@
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Constants.h"
@@ -51,8 +52,8 @@ STATISTIC(NumWrappedTwoCond, "Number of Two-Condition Wrappers Inserted");
 namespace {
 class LibCallsShrinkWrap : public InstVisitor<LibCallsShrinkWrap> {
 public:
-  LibCallsShrinkWrap(const TargetLibraryInfo &TLI, DominatorTree *DT)
-      : TLI(TLI), DT(DT){};
+  LibCallsShrinkWrap(const TargetLibraryInfo &TLI, DomTreeUpdater &DTU)
+      : TLI(TLI), DTU(DTU){};
   void visitCallInst(CallInst &CI) { checkCandidate(CI); }
   bool perform() {
     bool Changed = false;
@@ -78,14 +79,21 @@ private:
   Value *generateTwoRangeCond(CallInst *CI, const LibFunc &Func);
   Value *generateCondForPow(CallInst *CI, const LibFunc &Func);
 
+  // Create an OR of two conditions with given Arg and Arg2.
+  Value *createOrCond(CallInst *CI, Value *Arg, CmpInst::Predicate Cmp,
+                      float Val, Value *Arg2, CmpInst::Predicate Cmp2,
+                      float Val2) {
+    IRBuilder<> BBBuilder(CI);
+    auto Cond2 = createCond(BBBuilder, Arg2, Cmp2, Val2);
+    auto Cond1 = createCond(BBBuilder, Arg, Cmp, Val);
+    return BBBuilder.CreateOr(Cond1, Cond2);
+  }
+
   // Create an OR of two conditions.
   Value *createOrCond(CallInst *CI, CmpInst::Predicate Cmp, float Val,
                       CmpInst::Predicate Cmp2, float Val2) {
-    IRBuilder<> BBBuilder(CI);
     Value *Arg = CI->getArgOperand(0);
-    auto Cond2 = createCond(BBBuilder, Arg, Cmp2, Val2);
-    auto Cond1 = createCond(BBBuilder, Arg, Cmp, Val);
-    return BBBuilder.CreateOr(Cond1, Cond2);
+    return createOrCond(CI, Arg, Cmp, Val, Arg, Cmp2, Val2);
   }
 
   // Create a single condition using IRBuilder.
@@ -94,18 +102,26 @@ private:
     Constant *V = ConstantFP::get(BBBuilder.getContext(), APFloat(Val));
     if (!Arg->getType()->isFloatTy())
       V = ConstantExpr::getFPExtend(V, Arg->getType());
+    if (BBBuilder.GetInsertBlock()->getParent()->hasFnAttribute(Attribute::StrictFP))
+      BBBuilder.setIsFPConstrained(true);
     return BBBuilder.CreateFCmp(Cmp, Arg, V);
+  }
+
+  // Create a single condition with given Arg.
+  Value *createCond(CallInst *CI, Value *Arg, CmpInst::Predicate Cmp,
+                    float Val) {
+    IRBuilder<> BBBuilder(CI);
+    return createCond(BBBuilder, Arg, Cmp, Val);
   }
 
   // Create a single condition.
   Value *createCond(CallInst *CI, CmpInst::Predicate Cmp, float Val) {
-    IRBuilder<> BBBuilder(CI);
     Value *Arg = CI->getArgOperand(0);
-    return createCond(BBBuilder, Arg, Cmp, Val);
+    return createCond(CI, Arg, Cmp, Val);
   }
 
   const TargetLibraryInfo &TLI;
-  DominatorTree *DT;
+  DomTreeUpdater &DTU;
   SmallVector<CallInst *, 16> WorkList;
 };
 } // end anonymous namespace
@@ -405,7 +421,6 @@ Value *LibCallsShrinkWrap::generateCondForPow(CallInst *CI,
 
   Value *Base = CI->getArgOperand(0);
   Value *Exp = CI->getArgOperand(1);
-  IRBuilder<> BBBuilder(CI);
 
   // Constant Base case.
   if (ConstantFP *CF = dyn_cast<ConstantFP>(Base)) {
@@ -416,10 +431,7 @@ Value *LibCallsShrinkWrap::generateCondForPow(CallInst *CI,
     }
 
     ++NumWrappedOneCond;
-    Constant *V = ConstantFP::get(CI->getContext(), APFloat(127.0f));
-    if (!Exp->getType()->isFloatTy())
-      V = ConstantExpr::getFPExtend(V, Exp->getType());
-    return BBBuilder.CreateFCmp(CmpInst::FCMP_OGT, Exp, V);
+    return createCond(CI, Exp, CmpInst::FCMP_OGT, 127.0f);
   }
 
   // If the Base value coming from an integer type.
@@ -444,16 +456,8 @@ Value *LibCallsShrinkWrap::generateCondForPow(CallInst *CI,
     }
 
     ++NumWrappedTwoCond;
-    Constant *V = ConstantFP::get(CI->getContext(), APFloat(UpperV));
-    Constant *V0 = ConstantFP::get(CI->getContext(), APFloat(0.0f));
-    if (!Exp->getType()->isFloatTy())
-      V = ConstantExpr::getFPExtend(V, Exp->getType());
-    if (!Base->getType()->isFloatTy())
-      V0 = ConstantExpr::getFPExtend(V0, Exp->getType());
-
-    Value *Cond = BBBuilder.CreateFCmp(CmpInst::FCMP_OGT, Exp, V);
-    Value *Cond0 = BBBuilder.CreateFCmp(CmpInst::FCMP_OLE, Base, V0);
-    return BBBuilder.CreateOr(Cond0, Cond);
+    return createOrCond(CI, Base, CmpInst::FCMP_OLE, 0.0f, Exp,
+                        CmpInst::FCMP_OGT, UpperV);
   }
   LLVM_DEBUG(dbgs() << "Not handled pow(): base not from integer convert\n");
   return nullptr;
@@ -466,7 +470,7 @@ void LibCallsShrinkWrap::shrinkWrapCI(CallInst *CI, Value *Cond) {
       MDBuilder(CI->getContext()).createBranchWeights(1, 2000);
 
   Instruction *NewInst =
-      SplitBlockAndInsertIfThen(Cond, CI, false, BranchWeights, DT);
+      SplitBlockAndInsertIfThen(Cond, CI, false, BranchWeights, &DTU);
   BasicBlock *CallBB = NewInst->getParent();
   CallBB->setName("cdce.call");
   BasicBlock *SuccBB = CallBB->getSingleSuccessor();
@@ -496,12 +500,14 @@ static bool runImpl(Function &F, const TargetLibraryInfo &TLI,
                     DominatorTree *DT) {
   if (F.hasFnAttribute(Attribute::OptimizeForSize))
     return false;
-  LibCallsShrinkWrap CCDCE(TLI, DT);
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+  LibCallsShrinkWrap CCDCE(TLI, DTU);
   CCDCE.visit(F);
   bool Changed = CCDCE.perform();
 
-// Verify the dominator after we've updated it locally.
-  assert(!DT || DT->verify(DominatorTree::VerificationLevel::Fast));
+  // Verify the dominator after we've updated it locally.
+  assert(!DT ||
+         DTU.getDomTree().verify(DominatorTree::VerificationLevel::Fast));
   return Changed;
 }
 

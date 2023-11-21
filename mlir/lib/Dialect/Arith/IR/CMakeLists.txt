@@ -22,11 +22,13 @@ add_mlir_dialect_library(MLIRArithDialect
   MLIRArithOpsInterfacesIncGen
 
   LINK_LIBS PUBLIC
+  MLIRCastInterfaces
   MLIRDialect
   MLIRInferIntRangeCommon
   MLIRInferIntRangeInterface
   MLIRInferTypeOpInterface
   MLIRIR
+  MLIRUBDialect
   )
 
 add_mlir_dialect_library(MLIRArithValueBoundsOpInterfaceImpl

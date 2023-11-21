@@ -106,7 +106,7 @@ public:
     /// Value means passed by value at the mlir level, it is not necessarily
     /// implied by Fortran Value attribute.
     Value,
-    /// ValueAttribute means dummy has the the Fortran VALUE attribute.
+    /// ValueAttribute means dummy has the Fortran VALUE attribute.
     BaseAddressValueAttribute,
     CharBoxValueAttribute, // BoxChar with VALUE
     // Passing a character procedure as a <procedure address, result length>
@@ -159,12 +159,19 @@ public:
     bool mayBeModifiedByCall() const;
     /// Can the argument be read by the callee?
     bool mayBeReadByCall() const;
+    /// Does the argument have the specified IgnoreTKR flag?
+    bool testTKR(Fortran::common::IgnoreTKR flag) const;
     /// Is the argument INTENT(OUT)
     bool isIntentOut() const;
     /// Does the argument have the CONTIGUOUS attribute or have explicit shape?
     bool mustBeMadeContiguous() const;
     /// Does the dummy argument have the VALUE attribute?
     bool hasValueAttribute() const;
+    /// Does the dummy argument have the ALLOCATABLE attribute?
+    bool hasAllocatableAttribute() const;
+    /// May the dummy argument require INTENT(OUT) finalization
+    /// on entry to the invoked procedure? Provides conservative answer.
+    bool mayRequireIntentoutFinalization() const;
     /// How entity is passed by.
     PassEntityBy passBy;
     /// What is the entity (SymbolRef for callee/ActualArgument* for caller)
@@ -411,15 +418,14 @@ mlir::FunctionType
 translateSignature(const Fortran::evaluate::ProcedureDesignator &,
                    Fortran::lower::AbstractConverter &);
 
-/// Declare or find the mlir::func::FuncOp named \p name. If the
-/// mlir::func::FuncOp does not exist yet, declare it with the signature
-/// translated from the ProcedureDesignator argument.
+/// Declare or find the mlir::func::FuncOp for the procedure designator
+/// \p proc. If the mlir::func::FuncOp does not exist yet, declare it with
+/// the signature translated from the ProcedureDesignator argument.
 /// Due to Fortran implicit function typing rules, the returned FuncOp is not
 /// guaranteed to have the signature from ProcedureDesignator if the FuncOp was
 /// already declared.
 mlir::func::FuncOp
-getOrDeclareFunction(llvm::StringRef name,
-                     const Fortran::evaluate::ProcedureDesignator &,
+getOrDeclareFunction(const Fortran::evaluate::ProcedureDesignator &,
                      Fortran::lower::AbstractConverter &);
 
 /// Return the type of an argument that is a dummy procedure. This may be an

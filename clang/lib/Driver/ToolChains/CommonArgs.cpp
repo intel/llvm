@@ -22,6 +22,7 @@
 #include "HIPAMD.h"
 #include "Hexagon.h"
 #include "MSP430.h"
+#include "Solaris.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/ObjCRuntime.h"
@@ -262,11 +263,9 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
   Args.AddAllArgValues(CmdArgs, options::OPT_Zlinker_input);
 
   // LIBRARY_PATH are included before user inputs and only supported on native
-  // toolchains. Otherwise only add the '-L' arguments requested by the user.
+  // toolchains.
   if (!TC.isCrossCompiling())
     addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
-  else
-    Args.AddAllArgs(CmdArgs, options::OPT_L);
 
   for (const auto &II : Inputs) {
     // If the current tool chain refers to an OpenMP offloading host, we
@@ -299,22 +298,8 @@ void tools::AddLinkerInputs(const ToolChain &TC, const InputInfoList &Inputs,
       TC.AddCXXStdlibLibArgs(Args, CmdArgs);
     else if (A.getOption().matches(options::OPT_Z_reserved_lib_cckext))
       TC.AddCCKextLibArgs(Args, CmdArgs);
-    else if (A.getOption().matches(options::OPT_z)) {
-      // Pass -z prefix for gcc linker compatibility.
-      A.claim();
-      A.render(Args, CmdArgs);
-    } else if (A.getOption().matches(options::OPT_b)) {
-      const llvm::Triple &T = TC.getTriple();
-      if (!T.isOSAIX()) {
-        TC.getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
-            << A.getSpelling() << T.str();
-      }
-      // Pass -b prefix for AIX linker.
-      A.claim();
-      A.render(Args, CmdArgs);
-    } else {
+    else
       A.renderAsInput(Args, CmdArgs);
-    }
   }
 }
 
@@ -351,6 +336,7 @@ void tools::AddTargetFeature(const ArgList &Args,
 /// Get the (LLVM) name of the AMDGPU gpu we are targeting.
 static std::string getAMDGPUTargetGPU(const llvm::Triple &T,
                                       const ArgList &Args) {
+  Arg *MArch = Args.getLastArg(options::OPT_march_EQ);
   if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
     auto GPUName = getProcessorFromTargetID(T, A->getValue());
     return llvm::StringSwitch<std::string>(GPUName)
@@ -363,9 +349,8 @@ static std::string getAMDGPUTargetGPU(const llvm::Triple &T,
         .Case("aruba", "cayman")
         .Default(GPUName.str());
   }
-  if (Arg *A = Args.getLastArg(options::OPT_march_EQ)) {
-    return getProcessorFromTargetID(T, A->getValue()).str();
-  }
+  if (MArch)
+    return getProcessorFromTargetID(T, MArch->getValue()).str();
   return "";
 }
 
@@ -490,6 +475,10 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     return std::string(getWebAssemblyTargetCPU(Args));
+
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64:
+    return loongarch::getLoongArchTargetCPU(Args, T);
   }
 }
 
@@ -596,9 +585,9 @@ llvm::StringRef tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
   return LtoJobsArg->getValue();
 }
 
-// CloudABI and PS4/PS5 use -ffunction-sections and -fdata-sections by default.
+// PS4/PS5 uses -ffunction-sections and -fdata-sections by default.
 bool tools::isUseSeparateSections(const llvm::Triple &Triple) {
-  return Triple.getOS() == llvm::Triple::CloudABI || Triple.isPS();
+  return Triple.isPS();
 }
 
 void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
@@ -633,10 +622,16 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                                 PluginName + Suffix,
                             Plugin);
     CmdArgs.push_back(Args.MakeArgString(Twine(PluginPrefix) + Plugin));
+  } else {
+    // Tell LLD to find and use .llvm.lto section in regular relocatable object
+    // files
+    if (Args.hasArg(options::OPT_ffat_lto_objects))
+      CmdArgs.push_back("--fat-lto-objects");
   }
 
   const char *PluginOptPrefix = IsOSAIX ? "-bplugin_opt:" : "-plugin-opt=";
   const char *ExtraDash = IsOSAIX ? "-" : "";
+  const char *ParallelismOpt = IsOSAIX ? "-threads=" : "jobs=";
 
   // Note, this solution is far from perfect, better to encode it into IR
   // metadata, but this may not be worth it, since it looks like aranges is on
@@ -682,13 +677,22 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString(
         Twine(PluginOptPrefix) + "dwo_dir=" + Output.getFilename() + "_dwo"));
 
-  if (IsThinLTO)
+  if (IsThinLTO && !IsOSAIX)
     CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) + "thinlto"));
+  else if (IsThinLTO && IsOSAIX)
+    CmdArgs.push_back(Args.MakeArgString(Twine("-bdbg:thinlto")));
+
+  // Matrix intrinsic lowering happens at link time with ThinLTO. Enable
+  // LowerMatrixIntrinsicsPass, which is transitively called by
+  // buildThinLTODefaultPipeline under EnableMatrix.
+  if (IsThinLTO && Args.hasArg(options::OPT_fenable_matrix))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine(PluginOptPrefix) + "-enable-matrix"));
 
   StringRef Parallelism = getLTOParallelism(Args, D);
   if (!Parallelism.empty())
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine(PluginOptPrefix) + "jobs=" + Parallelism));
+    CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) +
+                                         ParallelismOpt + Parallelism));
 
   // If an explicit debugger tuning argument appeared, pass it along.
   if (Arg *A =
@@ -708,6 +712,10 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
   }
 
   if (IsOSAIX) {
+    if (!ToolChain.useIntegratedAs())
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine(PluginOptPrefix) + "-no-integrated-as=1"));
+
     // On AIX, clang assumes strict-dwarf is true if any debug option is
     // specified, unless it is told explicitly not to assume so.
     Arg *A = Args.getLastArg(options::OPT_g_Group);
@@ -741,13 +749,38 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     CmdArgs.push_back(
         Args.MakeArgString(Twine(PluginOptPrefix) + "-function-sections=0"));
 
+  bool DataSectionsTurnedOff = false;
   if (Args.hasFlag(options::OPT_fdata_sections, options::OPT_fno_data_sections,
-                   UseSeparateSections))
+                   UseSeparateSections)) {
     CmdArgs.push_back(
         Args.MakeArgString(Twine(PluginOptPrefix) + "-data-sections=1"));
-  else if (Args.hasArg(options::OPT_fno_data_sections))
+  } else if (Args.hasArg(options::OPT_fno_data_sections)) {
+    DataSectionsTurnedOff = true;
     CmdArgs.push_back(
         Args.MakeArgString(Twine(PluginOptPrefix) + "-data-sections=0"));
+  }
+
+  if (Args.hasArg(options::OPT_mxcoff_roptr) ||
+      Args.hasArg(options::OPT_mno_xcoff_roptr)) {
+    bool HasRoptr = Args.hasFlag(options::OPT_mxcoff_roptr,
+                                 options::OPT_mno_xcoff_roptr, false);
+    StringRef OptStr = HasRoptr ? "-mxcoff-roptr" : "-mno-xcoff-roptr";
+
+    if (!IsOSAIX)
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << OptStr << ToolChain.getTriple().str();
+
+    if (HasRoptr) {
+      // The data sections option is on by default on AIX. We only need to error
+      // out when -fno-data-sections is specified explicitly to turn off data
+      // sections.
+      if (DataSectionsTurnedOff)
+        D.Diag(diag::err_roptr_requires_data_sections);
+
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine(PluginOptPrefix) + "-mxcoff-roptr"));
+    }
+  }
 
   // Pass an option to enable split machine functions.
   if (auto *A = Args.getLastArg(options::OPT_fsplit_machine_functions,
@@ -766,16 +799,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                                            "sample-profile=" + FName));
   }
 
-  auto *CSPGOGenerateArg = Args.getLastArg(options::OPT_fcs_profile_generate,
-                                           options::OPT_fcs_profile_generate_EQ,
-                                           options::OPT_fno_profile_generate);
-  if (CSPGOGenerateArg &&
-      CSPGOGenerateArg->getOption().matches(options::OPT_fno_profile_generate))
-    CSPGOGenerateArg = nullptr;
-
-  auto *ProfileUseArg = getLastProfileUseArg(Args);
-
-  if (CSPGOGenerateArg) {
+  if (auto *CSPGOGenerateArg = getLastCSProfileGenerateArg(Args)) {
     CmdArgs.push_back(Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash +
                                          "cs-profile-generate"));
     if (CSPGOGenerateArg->getOption().matches(
@@ -788,7 +812,7 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
       CmdArgs.push_back(
           Args.MakeArgString(Twine(PluginOptPrefix) + ExtraDash +
                              "cs-profile-path=default_%m.profraw"));
-  } else if (ProfileUseArg) {
+  } else if (auto *ProfileUseArg = getLastProfileUseArg(Args)) {
     SmallString<128> Path(
         ProfileUseArg->getNumValues() == 0 ? "" : ProfileUseArg->getValue());
     if (Path.empty() || llvm::sys::fs::is_directory(Path))
@@ -846,6 +870,26 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                          /*IsLTO=*/true, PluginOptPrefix);
 }
 
+/// Adds the '-lcgpu' and '-lmgpu' libraries to the compilation to include the
+/// LLVM C library for GPUs.
+static void addOpenMPDeviceLibC(const ToolChain &TC, const ArgList &Args,
+                                ArgStringList &CmdArgs) {
+  if (Args.hasArg(options::OPT_nogpulib) || Args.hasArg(options::OPT_nolibc))
+    return;
+
+  // Check the resource directory for the LLVM libc GPU declarations. If it's
+  // found we can assume that LLVM was built with support for the GPU libc.
+  SmallString<256> LibCDecls(TC.getDriver().ResourceDir);
+  llvm::sys::path::append(LibCDecls, "include", "llvm_libc_wrappers",
+                          "llvm-libc-decls");
+  bool HasLibC = llvm::sys::fs::exists(LibCDecls) &&
+                 llvm::sys::fs::is_directory(LibCDecls);
+  if (Args.hasFlag(options::OPT_gpulibc, options::OPT_nogpulibc, HasLibC)) {
+    CmdArgs.push_back("-lcgpu");
+    CmdArgs.push_back("-lmgpu");
+  }
+}
+
 void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
                                         const ArgList &Args,
                                         ArgStringList &CmdArgs) {
@@ -859,11 +903,8 @@ void tools::addOpenMPRuntimeLibraryPath(const ToolChain &TC,
 
 void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
                                  ArgStringList &CmdArgs) {
-  // Enable -frtlib-add-rpath by default for the case of VE.
-  const bool IsVE = TC.getTriple().isVE();
-  bool DefaultValue = IsVE;
   if (!Args.hasFlag(options::OPT_frtlib_add_rpath,
-                    options::OPT_fno_rtlib_add_rpath, DefaultValue))
+                    options::OPT_fno_rtlib_add_rpath, false))
     return;
 
   for (const auto &CandidateRPath : TC.getArchSpecificLibPaths()) {
@@ -916,6 +957,9 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   if (IsOffloadingHost && !Args.hasArg(options::OPT_nogpulib))
     CmdArgs.push_back("-lomptarget.devicertl");
 
+  if (IsOffloadingHost)
+    addOpenMPDeviceLibC(TC, Args, CmdArgs);
+
   addArchSpecificRPath(TC, Args, CmdArgs);
   addOpenMPRuntimeLibraryPath(TC, Args, CmdArgs);
 
@@ -938,12 +982,6 @@ void tools::addFortranRuntimeLibs(const ToolChain &TC,
 void tools::addFortranRuntimeLibraryPath(const ToolChain &TC,
                                          const llvm::opt::ArgList &Args,
                                          ArgStringList &CmdArgs) {
-  // NOTE: Generating executables by Flang is considered an "experimental"
-  // feature and hence this is guarded with a command line option.
-  // TODO: Make this work unconditionally once Flang is mature enough.
-  if (!Args.hasArg(options::OPT_flang_experimental_exec))
-    return;
-
   // Default to the <driver-path>/../lib directory. This works fine on the
   // platforms that we have tested so far. We will probably have to re-fine
   // this in the future. In particular, on some platforms, we may need to use
@@ -977,9 +1015,11 @@ static void addSanitizerRuntime(const ToolChain &TC, const ArgList &Args,
 static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
                                     ArgStringList &CmdArgs,
                                     StringRef Sanitizer) {
+  bool LinkerIsGnuLd = solaris::isLinkerGnuLd(TC, Args);
+
   // Solaris ld defaults to --export-dynamic behaviour but doesn't support
   // the option, so don't try to pass it.
-  if (TC.getTriple().getOS() == llvm::Triple::Solaris)
+  if (TC.getTriple().isOSSolaris() && !LinkerIsGnuLd)
     return true;
   SmallString<128> SanRT(TC.getCompilerRT(Args, Sanitizer));
   if (llvm::sys::fs::exists(SanRT + ".syms")) {
@@ -989,24 +1029,33 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
   return false;
 }
 
-const char *tools::getAsNeededOption(const ToolChain &TC, bool as_needed) {
+void tools::addAsNeededOption(const ToolChain &TC,
+                              const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs,
+                              bool as_needed) {
   assert(!TC.getTriple().isOSAIX() &&
          "AIX linker does not support any form of --as-needed option yet.");
+  bool LinkerIsGnuLd = solaris::isLinkerGnuLd(TC, Args);
 
   // While the Solaris 11.2 ld added --as-needed/--no-as-needed as aliases
   // for the native forms -z ignore/-z record, they are missing in Illumos,
   // so always use the native form.
-  if (TC.getTriple().isOSSolaris())
-    return as_needed ? "-zignore" : "-zrecord";
-  else
-    return as_needed ? "--as-needed" : "--no-as-needed";
+  // GNU ld doesn't support -z ignore/-z record, so don't use them even on
+  // Solaris.
+  if (TC.getTriple().isOSSolaris() && !LinkerIsGnuLd) {
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back(as_needed ? "ignore" : "record");
+  } else {
+    CmdArgs.push_back(as_needed ? "--as-needed" : "--no-as-needed");
+  }
 }
 
 void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
+                                     const llvm::opt::ArgList &Args,
                                      ArgStringList &CmdArgs) {
   // Force linking against the system libraries sanitizers depends on
   // (see PR15823 why this is necessary).
-  CmdArgs.push_back(getAsNeededOption(TC, false));
+  addAsNeededOption(TC, Args, CmdArgs, false);
   // There's no libpthread or librt on RTEMS & Android.
   if (TC.getTriple().getOS() != llvm::Triple::RTEMS &&
       !TC.getTriple().isAndroid() && !TC.getTriple().isOHOSFamily()) {
@@ -1239,19 +1288,21 @@ bool tools::addXRayRuntime(const ToolChain&TC, const ArgList &Args, ArgStringLis
     return false;
 
   if (TC.getXRayArgs().needsXRayRt()) {
-    CmdArgs.push_back("-whole-archive");
+    CmdArgs.push_back("--whole-archive");
     CmdArgs.push_back(TC.getCompilerRTArgString(Args, "xray"));
     for (const auto &Mode : TC.getXRayArgs().modeList())
       CmdArgs.push_back(TC.getCompilerRTArgString(Args, Mode));
-    CmdArgs.push_back("-no-whole-archive");
+    CmdArgs.push_back("--no-whole-archive");
     return true;
   }
 
   return false;
 }
 
-void tools::linkXRayRuntimeDeps(const ToolChain &TC, ArgStringList &CmdArgs) {
-  CmdArgs.push_back(getAsNeededOption(TC, false));
+void tools::linkXRayRuntimeDeps(const ToolChain &TC,
+                                const llvm::opt::ArgList &Args,
+                                ArgStringList &CmdArgs) {
+  addAsNeededOption(TC, Args, CmdArgs, false);
   CmdArgs.push_back("-lpthread");
   if (!TC.getTriple().isOSOpenBSD())
     CmdArgs.push_back("-lrt");
@@ -1280,14 +1331,14 @@ const char *tools::SplitDebugName(const JobAction &JA, const ArgList &Args,
     F += ".dwo";
   };
   if (Arg *A = Args.getLastArg(options::OPT_gsplit_dwarf_EQ))
-    if (StringRef(A->getValue()) == "single")
+    if (StringRef(A->getValue()) == "single" && Output.isFilename())
       return Args.MakeArgString(Output.getFilename());
 
   SmallString<128> T;
   if (const Arg *A = Args.getLastArg(options::OPT_dumpdir)) {
     T = A->getValue();
   } else {
-    Arg *FinalOutput = Args.getLastArg(options::OPT_o);
+    Arg *FinalOutput = Args.getLastArg(options::OPT_o, options::OPT__SLASH_o);
     if (FinalOutput && Args.hasArg(options::OPT_c)) {
       T = FinalOutput->getValue();
       llvm::sys::path::remove_filename(T);
@@ -1340,6 +1391,17 @@ void tools::claimNoWarnArgs(const ArgList &Args) {
   Args.ClaimAllArgs(options::OPT_flto_EQ);
   Args.ClaimAllArgs(options::OPT_flto);
   Args.ClaimAllArgs(options::OPT_fno_lto);
+}
+
+Arg *tools::getLastCSProfileGenerateArg(const ArgList &Args) {
+  auto *CSPGOGenerateArg = Args.getLastArg(options::OPT_fcs_profile_generate,
+                                           options::OPT_fcs_profile_generate_EQ,
+                                           options::OPT_fno_profile_generate);
+  if (CSPGOGenerateArg &&
+      CSPGOGenerateArg->getOption().matches(options::OPT_fno_profile_generate))
+    CSPGOGenerateArg = nullptr;
+
+  return CSPGOGenerateArg;
 }
 
 Arg *tools::getLastProfileUseArg(const ArgList &Args) {
@@ -1784,7 +1846,7 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
                   !TC.getTriple().isAndroid() &&
                   !TC.getTriple().isOSCygMing() && !TC.getTriple().isOSAIX();
   if (AsNeeded)
-    CmdArgs.push_back(getAsNeededOption(TC, true));
+    addAsNeededOption(TC, Args, CmdArgs, true);
 
   switch (UNW) {
   case ToolChain::UNW_None:
@@ -1818,7 +1880,7 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
   }
 
   if (AsNeeded)
-    CmdArgs.push_back(getAsNeededOption(TC, false));
+    addAsNeededOption(TC, Args, CmdArgs, false);
 }
 
 static void AddLibgcc(const ToolChain &TC, const Driver &D,
@@ -1897,9 +1959,14 @@ SmallString<128> tools::getStatsFileName(const llvm::opt::ArgList &Args,
   return StatsFile;
 }
 
-void tools::addMultilibFlag(bool Enabled, const char *const Flag,
+void tools::addMultilibFlag(bool Enabled, const StringRef Flag,
                             Multilib::flags_list &Flags) {
-  Flags.push_back(std::string(Enabled ? "+" : "-") + Flag);
+  assert(Flag.front() == '-');
+  if (Enabled) {
+    Flags.push_back(Flag.str());
+  } else {
+    Flags.push_back(("!" + Flag.substr(1)).str());
+  }
 }
 
 void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
@@ -1977,8 +2044,7 @@ void tools::addX86AlignBranchArgs(const Driver &D, const ArgList &Args,
 bool tools::SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
                       llvm::opt::ArgStringList &CC1Args,
                       SmallVector<std::string, 8> LibraryPaths, std::string Lib,
-                      StringRef Arch, StringRef Target, bool isBitCodeSDL,
-                      bool postClangLink) {
+                      StringRef Arch, StringRef Target, bool isBitCodeSDL) {
   SmallVector<std::string, 12> SDLs;
 
   std::string LibDeviceLoc = "/libdevice";
@@ -2037,8 +2103,6 @@ bool tools::SDLSearch(const Driver &D, const llvm::opt::ArgList &DriverArgs,
     for (auto SDL : SDLs) {
       auto FullName = Twine(LPath + SDL).str();
       if (llvm::sys::fs::exists(FullName)) {
-        if (postClangLink)
-          CC1Args.push_back("-mlink-builtin-bitcode");
         CC1Args.push_back(DriverArgs.MakeArgString(FullName));
         FoundSDL = true;
         break;
@@ -2058,8 +2122,7 @@ bool tools::GetSDLFromOffloadArchive(
     Compilation &C, const Driver &D, const Tool &T, const JobAction &JA,
     const InputInfoList &Inputs, const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args, SmallVector<std::string, 8> LibraryPaths,
-    StringRef Lib, StringRef Arch, StringRef Target, bool isBitCodeSDL,
-    bool postClangLink) {
+    StringRef Lib, StringRef Arch, StringRef Target, bool isBitCodeSDL) {
 
   // We don't support bitcode archive bundles for nvptx
   if (isBitCodeSDL && Arch.contains("nvptx"))
@@ -2157,8 +2220,6 @@ bool tools::GetSDLFromOffloadArchive(
   C.addCommand(std::make_unique<Command>(
       JA, T, ResponseFileSupport::AtFileCurCP(), UBProgram, UBArgs, Inputs,
       InputInfo(&JA, C.getArgs().MakeArgString(OutputLib))));
-  if (postClangLink)
-    CC1Args.push_back("-mlink-builtin-bitcode");
 
   CC1Args.push_back(DriverArgs.MakeArgString(OutputLib));
 
@@ -2167,14 +2228,14 @@ bool tools::GetSDLFromOffloadArchive(
 
 // Wrapper function used by driver for adding SDLs during link phase.
 void tools::AddStaticDeviceLibsLinking(Compilation &C, const Tool &T,
-                                const JobAction &JA,
-                                const InputInfoList &Inputs,
-                                const llvm::opt::ArgList &DriverArgs,
-                                llvm::opt::ArgStringList &CC1Args,
-                                StringRef Arch, StringRef Target,
-                                bool isBitCodeSDL, bool postClangLink) {
+                                       const JobAction &JA,
+                                       const InputInfoList &Inputs,
+                                       const llvm::opt::ArgList &DriverArgs,
+                                       llvm::opt::ArgStringList &CC1Args,
+                                       StringRef Arch, StringRef Target,
+                                       bool isBitCodeSDL) {
   AddStaticDeviceLibs(&C, &T, &JA, &Inputs, C.getDriver(), DriverArgs, CC1Args,
-                      Arch, Target, isBitCodeSDL, postClangLink);
+                      Arch, Target, isBitCodeSDL);
 }
 
 // User defined Static Device Libraries(SDLs) can be passed to clang for
@@ -2206,7 +2267,7 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
                                 const llvm::opt::ArgList &DriverArgs,
                                 llvm::opt::ArgStringList &CC1Args,
                                 StringRef Arch, StringRef Target,
-                                bool isBitCodeSDL, bool postClangLink) {
+                                bool isBitCodeSDL) {
 
   SmallVector<std::string, 8> LibraryPaths;
   // Add search directories from LIBRARY_PATH env variable
@@ -2262,10 +2323,10 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
   for (auto SDLName : SDLNames) {
     // This is the only call to SDLSearch
     if (!SDLSearch(D, DriverArgs, CC1Args, LibraryPaths, SDLName, Arch, Target,
-                   isBitCodeSDL, postClangLink)) {
+                   isBitCodeSDL)) {
       GetSDLFromOffloadArchive(*C, D, *T, *JA, *Inputs, DriverArgs, CC1Args,
                                LibraryPaths, SDLName, Arch, Target,
-                               isBitCodeSDL, postClangLink);
+                               isBitCodeSDL);
     }
   }
 }
@@ -2277,7 +2338,7 @@ getAMDGPUCodeObjectArgument(const Driver &D, const llvm::opt::ArgList &Args) {
 
 void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
                                          const llvm::opt::ArgList &Args) {
-  const unsigned MinCodeObjVer = 2;
+  const unsigned MinCodeObjVer = 3;
   const unsigned MaxCodeObjVer = 5;
 
   if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args)) {
@@ -2406,10 +2467,10 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
           << LibOmpTargetName << ArchPrefix;
   }
 }
-void tools::addHIPRuntimeLibArgs(const ToolChain &TC,
+void tools::addHIPRuntimeLibArgs(const ToolChain &TC, Compilation &C,
                                  const llvm::opt::ArgList &Args,
                                  llvm::opt::ArgStringList &CmdArgs) {
-  if (Args.hasArg(options::OPT_hip_link) &&
+  if ((C.getActiveOffloadKinds() & Action::OFK_HIP) &&
       !Args.hasArg(options::OPT_nostdlib) &&
       !Args.hasArg(options::OPT_no_hip_rt)) {
     TC.AddHIPRuntimeLibArgs(Args, CmdArgs);

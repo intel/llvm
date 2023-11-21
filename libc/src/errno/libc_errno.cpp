@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/__support/macros/attributes.h"
 #include "src/__support/macros/properties/architectures.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 #ifdef LIBC_TARGET_ARCH_IS_GPU
 struct ErrnoConsumer {
@@ -29,15 +30,11 @@ extern "C" {
 #ifdef LIBC_TARGET_ARCH_IS_GPU
 ErrnoConsumer __llvmlibc_errno;
 #else
-thread_local int __llvmlibc_errno;
+LIBC_THREAD_LOCAL int __llvmlibc_errno;
 #endif // LIBC_TARGET_ARCH_IS_GPU
 #else
-#ifdef LIBC_TARGET_ARCH_IS_GPU
-ErrnoConsumer __llvmlibc_internal_errno;
-#else
-thread_local int __llvmlibc_internal_errno;
-#endif // LIBC_TARGET_ARCH_IS_GPU
+LIBC_THREAD_LOCAL int __llvmlibc_internal_errno;
 #endif
 } // extern "C"
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

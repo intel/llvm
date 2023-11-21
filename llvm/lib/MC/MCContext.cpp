@@ -85,7 +85,7 @@ MCContext::MCContext(const Triple &TheTriple, const MCAsmInfo *mai,
     Env = IsMachO;
     break;
   case Triple::COFF:
-    if (!TheTriple.isOSWindows())
+    if (!TheTriple.isOSWindows() && !TheTriple.isUEFI())
       report_fatal_error(
           "Cannot initialize MC for non-Windows COFF object files.");
 
@@ -310,8 +310,12 @@ MCSymbol *MCContext::createNamedTempSymbol(const Twine &Name) {
 }
 
 MCSymbol *MCContext::createLinkerPrivateTempSymbol() {
+  return createLinkerPrivateSymbol("tmp");
+}
+
+MCSymbol *MCContext::createLinkerPrivateSymbol(const Twine &Name) {
   SmallString<128> NameSV;
-  raw_svector_ostream(NameSV) << MAI->getLinkerPrivateGlobalPrefix() << "tmp";
+  raw_svector_ostream(NameSV) << MAI->getLinkerPrivateGlobalPrefix() << Name;
   return createSymbol(NameSV, true, false);
 }
 
@@ -588,7 +592,7 @@ MCSectionELF *MCContext::getELFSection(const Twine &Section, unsigned Type,
                .StartsWith(".gnu.linkonce.td.", SectionKind::getThreadData())
                .StartsWith(".llvm.linkonce.td.", SectionKind::getThreadData())
                .StartsWith(".debug_", SectionKind::getMetadata())
-               .Default(SectionKind::getText());
+               .Default(SectionKind::getReadOnly());
 
   MCSectionELF *Result =
       createELFSectionImpl(CachedName, Type, Flags, Kind, EntrySize, GroupSym,
@@ -846,9 +850,6 @@ MCSectionSPIRV *MCContext::getSPIRVSection() {
   Result->getFragmentList().insert(Result->begin(), F);
   F->setParent(Result);
 
-  if (Begin)
-    Begin->setFragment(F);
-
   return Result;
 }
 
@@ -923,6 +924,12 @@ EmitDwarfUnwindType MCContext::emitDwarfUnwindInfo() const {
   if (!TargetOptions)
     return EmitDwarfUnwindType::Default;
   return TargetOptions->EmitDwarfUnwind;
+}
+
+bool MCContext::emitCompactUnwindNonCanonical() const {
+  if (TargetOptions)
+    return TargetOptions->EmitCompactUnwindNonCanonical;
+  return false;
 }
 
 void MCContext::setGenDwarfRootFile(StringRef InputFileName, StringRef Buffer) {

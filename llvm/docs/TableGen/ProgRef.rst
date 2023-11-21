@@ -221,11 +221,12 @@ TableGen provides "bang operators" that have a wide variety of uses:
    BangOperator: one of
                : !add         !and         !cast        !con         !dag
                : !div         !empty       !eq          !exists      !filter
-               : !find        !foldl       !foreach     !ge          !getdagop
-               : !gt          !head        !if          !interleave  !isa
-               : !le          !listconcat  !listremove  !listsplat   !logtwo
-               : !lt          !mul         !ne          !not         !or
-               : !range       !setdagop    !shl         !size        !sra
+               : !find        !foldl       !foreach     !ge          !getdagarg
+               : !getdagname  !getdagop    !gt          !head        !if
+               : !interleave  !isa         !le          !listconcat  !listremove
+               : !listsplat   !logtwo      !lt          !mul         !ne
+               : !not         !or          !range       !repr        !setdagarg
+               : !setdagname  !setdagop    !shl         !size        !sra
                : !srl         !strconcat   !sub         !subst       !substr
                : !tail        !tolower     !toupper     !xor
 
@@ -474,7 +475,7 @@ sense after reading the remainder of this guide.
        def Foo#i;
 
 .. productionlist::
-   SimpleValue8: `ClassID` "<" `ValueListNE` ">"
+   SimpleValue8: `ClassID` "<" `ArgValueList` ">"
 
 This form creates a new anonymous record definition (as would be created by an
 unnamed ``def`` inheriting from the given class with the given template
@@ -641,11 +642,30 @@ of the fields of the class or record.
    RecordBody: `ParentClassList` `Body`
    ParentClassList: [":" `ParentClassListNE`]
    ParentClassListNE: `ClassRef` ("," `ClassRef`)*
-   ClassRef: (`ClassID` | `MultiClassID`) ["<" [`ValueList`] ">"]
+   ClassRef: (`ClassID` | `MultiClassID`) ["<" [`ArgValueList`] ">"]
+   ArgValueList: `PostionalArgValueList` [","] `NamedArgValueList`
+   PostionalArgValueList: [`Value` {"," `Value`}*]
+   NamedArgValueList: [`NameValue` "=" `Value` {"," `NameValue` "=" `Value`}*]
 
 A :token:`ParentClassList` containing a :token:`MultiClassID` is valid only
 in the class list of a ``defm`` statement. In that case, the ID must be the
 name of a multiclass.
+
+The argument values can be specified in two forms:
+
+* Positional argument (``value``). The value is assigned to the argument in the
+  corresponding position. For ``Foo<a0, a1>``, ``a0`` will be assigned to first
+  argument and ``a1`` will be assigned to second argument.
+* Named argument (``name=value``). The value is assigned to the argument with
+  the specified name. For ``Foo<a=a0, b=a1>``, ``a0`` will be assigned to the
+  argument with name ``a`` and ``a1`` will be assigned to the argument with
+  name ``b``.
+
+Required arguments can alse be specified as named argument.
+
+Note that the argument can only be specified once regardless of the way (named
+or positional) to specify and positional arguments should be put before named
+arguments.
 
 .. productionlist::
    Body: ";" | "{" `BodyItem`* "}"
@@ -1368,22 +1388,31 @@ or to associate an argument in one DAG with a like-named argument in another
 DAG.
 
 The following bang operators are useful for working with DAGs:
-``!con``, ``!dag``, ``!empty``, ``!foreach``, ``!getdagop``, ``!setdagop``, ``!size``.
+``!con``, ``!dag``, ``!empty``, ``!foreach``, ``!getdagarg``, ``!getdagname``,
+``!getdagop``, ``!setdagarg``, ``!setdagname``, ``!setdagop``, ``!size``.
 
 Defvar in a record body
 -----------------------
 
 In addition to defining global variables, the ``defvar`` statement can
 be used inside the :token:`Body` of a class or record definition to define
-local variables. The scope of the variable extends from the ``defvar``
-statement to the end of the body. It cannot be set to a different value
-within its scope. The ``defvar`` statement can also be used in the statement
+local variables. Template arguments of ``class`` or ``multiclass`` can be
+used in the value expression. The scope of the variable extends from the
+``defvar`` statement to the end of the body. It cannot be set to a different
+value within its scope. The ``defvar`` statement can also be used in the statement
 list of a ``foreach``, which establishes a scope.
 
 A variable named ``V`` in an inner scope shadows (hides) any variables ``V``
-in outer scopes. In particular, ``V`` in a record body shadows a global
-``V``, and ``V`` in a ``foreach`` statement list shadows any ``V`` in
-surrounding record or global scopes.
+in outer scopes. In particular, there are several cases:
+
+* ``V`` in a record body shadows a global ``V``.
+
+* ``V`` in a record body shadows template argument ``V``.
+
+* ``V`` in template arguments shadows a global ``V``.
+
+* ``V`` in a ``foreach`` statement list shadows any ``V`` in surrounding record or
+  global scopes.
 
 Variables defined in a ``foreach`` go out of scope at the end of
 each loop iteration, so their value in one iteration is not available in
@@ -1703,6 +1732,16 @@ and non-0 as true.
     This operator produces 1 if *a* is greater than or equal to *b*; 0 otherwise.
     The arguments must be ``bit``, ``bits``, ``int``, or ``string`` values.
 
+``!getdagarg<``\ *type*\ ``>(``\ *dag*\ ``,``\ *key*\ ``)``
+    This operator retrieves the argument from the given *dag* node by the
+    specified *key*, which is either an integer index or a string name. If that
+    argument is not convertible to the specified *type*, ``?`` is returned.
+
+``!getdagname(``\ *dag*\ ``,``\ *index*\ ``)``
+    This operator retrieves the argument name from the given *dag* node by the
+    specified *index*. If that argument has no name associated, ``?`` is
+    returned.
+
 ``!getdagop(``\ *dag*\ ``)`` --or-- ``!getdagop<``\ *type*\ ``>(``\ *dag*\ ``)``
     This operator produces the operator of the given *dag* node.
     Example: ``!getdagop((foo 1, 2))`` results in ``foo``. Recall that
@@ -1792,14 +1831,38 @@ and non-0 as true.
     result. A logical OR can be performed if all the arguments are either
     0 or 1.
 
-``!range([``\ *a*\ ``,``] *b*\ ``)``
-    This operator produces half-open range sequence ``[a : b)`` as ``list<int>``.
-    *a* is ``0`` by default. ``!range(4)`` is equivalent to ``!range(0, 4)``.
-    The result is `[0, 1, 2, 3]`.
-    If *a* ``>=`` *b*, then the result is `[]<list<int>>`.
+``!range([``\ *start*\ ``,]`` *end*\ ``[, ``\ *step*\ ``])``
+    This operator produces half-open range sequence ``[start : end : step)`` as
+    ``list<int>``. *start* is ``0`` and *step* is ``1`` by default. *step* can
+    be negative and cannot be 0. If *start* ``<`` *end* and *step* is negative,
+    or *start* ``>`` *end* and *step* is positive, the result is an empty list
+    ``[]<list<int>>``.
+
+    For example:
+
+    * ``!range(4)`` is equivalent to ``!range(0, 4, 1)`` and the result is
+      `[0, 1, 2, 3]`.
+    * ``!range(1, 4)`` is equivalent to ``!range(1, 4, 1)`` and the result is
+      `[1, 2, 3]`.
+    * The result of ``!range(0, 4, 2)`` is `[0, 2]`.
+    * The results of ``!range(0, 4, -1)`` and ``!range(4, 0, 1)`` are empty.
 
 ``!range(``\ *list*\ ``)``
     Equivalent to ``!range(0, !size(list))``.
+
+``!repr(``\ *value*\ ``)``
+    Represents *value* as a string. String format for the value is not
+    guaranteed to be stable. Intended for debugging purposes only.
+
+``!setdagarg(``\ *dag*\ ``,``\ *key*\ ``,``\ *arg*\ ``)``
+    This operator produces a DAG node with the same operator and arguments as
+    *dag*, but replacing the value of the argument specified by the *key* with
+    *arg*. That *key* could be either an integer index or a string name.
+
+``!setdagname(``\ *dag*\ ``,``\ *key*\ ``,``\ *name*\ ``)``
+    This operator produces a DAG node with the same operator and arguments as
+    *dag*, but replacing the name of the argument specified by the *key* with
+    *name*. That *key* could be either an integer index or a string name.
 
 ``!setdagop(``\ *dag*\ ``,`` *op*\ ``)``
     This operator produces a DAG node with the same arguments as *dag*, but with its

@@ -14,12 +14,13 @@
 #include "src/__support/FPUtil/PolyEval.h"
 #include "src/__support/FPUtil/multiply_add.h"
 #include "src/__support/FPUtil/nearest_integer.h"
+#include "src/__support/FPUtil/rounding_mode.h"
 #include "src/__support/common.h"
 #include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
 
 #include <errno.h>
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 LLVM_LIBC_FUNCTION(float, expf, (float x)) {
   using FPBits = typename fputil::FPBits<float>;
@@ -48,7 +49,7 @@ LLVM_LIBC_FUNCTION(float, expf, (float x)) {
       // exp(nan) = nan
       if (xbits.is_nan())
         return x;
-      if (fputil::get_round() == FE_UPWARD)
+      if (fputil::fenv_is_round_up())
         return static_cast<float>(FPBits(FPBits::MIN_SUBNORMAL));
       fputil::set_errno_if_required(ERANGE);
       fputil::raise_except_if_required(FE_UNDERFLOW);
@@ -58,7 +59,7 @@ LLVM_LIBC_FUNCTION(float, expf, (float x)) {
     if (!xbits.get_sign() && (xbits.uintval() >= 0x42b2'0000)) {
       // x is finite
       if (xbits.uintval() < 0x7f80'0000U) {
-        int rounding = fputil::get_round();
+        int rounding = fputil::quick_get_round();
         if (rounding == FE_DOWNWARD || rounding == FE_TOWARDZERO)
           return static_cast<float>(FPBits(FPBits::MAX_NORMAL));
 
@@ -104,4 +105,4 @@ LLVM_LIBC_FUNCTION(float, expf, (float x)) {
   return static_cast<float>(exp_hi * exp_mid * exp_lo);
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

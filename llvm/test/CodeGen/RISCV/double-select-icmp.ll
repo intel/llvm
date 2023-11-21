@@ -4,6 +4,8 @@
 ; RUN:   -target-abi=ilp32d | FileCheck %s
 ; RUN: llc -mtriple=riscv64 -mattr=+d -verify-machineinstrs < %s \
 ; RUN:   -target-abi=lp64d | FileCheck %s
+; RUN: llc -mtriple=riscv32 -mattr=+zdinx -verify-machineinstrs < %s \
+; RUN:   -target-abi=ilp32 | FileCheck -check-prefixes=RV32ZDINX %s
 ; RUN: llc -mtriple=riscv64 -mattr=+zdinx -verify-machineinstrs < %s \
 ; RUN:   -target-abi=lp64 | FileCheck -check-prefixes=RV64ZDINX %s
 
@@ -15,6 +17,28 @@ define double @select_icmp_eq(i32 signext %a, i32 signext %b, double %c, double 
 ; CHECK-NEXT:    fmv.d fa0, fa1
 ; CHECK-NEXT:  .LBB0_2:
 ; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_eq:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bne a0, a1, .LBB0_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB0_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
 ;
 ; RV64ZDINX-LABEL: select_icmp_eq:
 ; RV64ZDINX:       # %bb.0:
@@ -38,6 +62,28 @@ define double @select_icmp_ne(i32 signext %a, i32 signext %b, double %c, double 
 ; CHECK-NEXT:  .LBB1_2:
 ; CHECK-NEXT:    ret
 ;
+; RV32ZDINX-LABEL: select_icmp_ne:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    beq a0, a1, .LBB1_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB1_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
 ; RV64ZDINX-LABEL: select_icmp_ne:
 ; RV64ZDINX:       # %bb.0:
 ; RV64ZDINX-NEXT:    bne a0, a1, .LBB1_2
@@ -59,6 +105,28 @@ define double @select_icmp_ugt(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:    fmv.d fa0, fa1
 ; CHECK-NEXT:  .LBB2_2:
 ; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_ugt:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bgeu a1, a0, .LBB2_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB2_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
 ;
 ; RV64ZDINX-LABEL: select_icmp_ugt:
 ; RV64ZDINX:       # %bb.0:
@@ -82,6 +150,28 @@ define double @select_icmp_uge(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:  .LBB3_2:
 ; CHECK-NEXT:    ret
 ;
+; RV32ZDINX-LABEL: select_icmp_uge:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bltu a0, a1, .LBB3_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB3_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
 ; RV64ZDINX-LABEL: select_icmp_uge:
 ; RV64ZDINX:       # %bb.0:
 ; RV64ZDINX-NEXT:    bgeu a0, a1, .LBB3_2
@@ -103,6 +193,28 @@ define double @select_icmp_ult(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:    fmv.d fa0, fa1
 ; CHECK-NEXT:  .LBB4_2:
 ; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_ult:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bgeu a0, a1, .LBB4_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB4_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
 ;
 ; RV64ZDINX-LABEL: select_icmp_ult:
 ; RV64ZDINX:       # %bb.0:
@@ -126,6 +238,28 @@ define double @select_icmp_ule(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:  .LBB5_2:
 ; CHECK-NEXT:    ret
 ;
+; RV32ZDINX-LABEL: select_icmp_ule:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bltu a1, a0, .LBB5_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB5_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
 ; RV64ZDINX-LABEL: select_icmp_ule:
 ; RV64ZDINX:       # %bb.0:
 ; RV64ZDINX-NEXT:    bgeu a1, a0, .LBB5_2
@@ -147,6 +281,28 @@ define double @select_icmp_sgt(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:    fmv.d fa0, fa1
 ; CHECK-NEXT:  .LBB6_2:
 ; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_sgt:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bge a1, a0, .LBB6_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB6_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
 ;
 ; RV64ZDINX-LABEL: select_icmp_sgt:
 ; RV64ZDINX:       # %bb.0:
@@ -170,6 +326,28 @@ define double @select_icmp_sge(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:  .LBB7_2:
 ; CHECK-NEXT:    ret
 ;
+; RV32ZDINX-LABEL: select_icmp_sge:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    blt a0, a1, .LBB7_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB7_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
 ; RV64ZDINX-LABEL: select_icmp_sge:
 ; RV64ZDINX:       # %bb.0:
 ; RV64ZDINX-NEXT:    bge a0, a1, .LBB7_2
@@ -191,6 +369,28 @@ define double @select_icmp_slt(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:    fmv.d fa0, fa1
 ; CHECK-NEXT:  .LBB8_2:
 ; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_slt:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    bge a0, a1, .LBB8_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB8_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
 ;
 ; RV64ZDINX-LABEL: select_icmp_slt:
 ; RV64ZDINX:       # %bb.0:
@@ -214,6 +414,28 @@ define double @select_icmp_sle(i32 signext %a, i32 signext %b, double %c, double
 ; CHECK-NEXT:  .LBB9_2:
 ; CHECK-NEXT:    ret
 ;
+; RV32ZDINX-LABEL: select_icmp_sle:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:    sw a2, 8(sp)
+; RV32ZDINX-NEXT:    sw a3, 12(sp)
+; RV32ZDINX-NEXT:    blt a1, a0, .LBB9_2
+; RV32ZDINX-NEXT:  # %bb.1:
+; RV32ZDINX-NEXT:    lw a4, 8(sp)
+; RV32ZDINX-NEXT:    lw a5, 12(sp)
+; RV32ZDINX-NEXT:  .LBB9_2:
+; RV32ZDINX-NEXT:    sw a4, 8(sp)
+; RV32ZDINX-NEXT:    sw a5, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
 ; RV64ZDINX-LABEL: select_icmp_sle:
 ; RV64ZDINX:       # %bb.0:
 ; RV64ZDINX-NEXT:    bge a1, a0, .LBB9_2
@@ -226,3 +448,64 @@ define double @select_icmp_sle(i32 signext %a, i32 signext %b, double %c, double
   %2 = select i1 %1, double %c, double %d
   ret double %2
 }
+
+define double @select_icmp_slt_one(i32 signext %a) {
+; CHECK-LABEL: select_icmp_slt_one:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    slti a0, a0, 1
+; CHECK-NEXT:    fcvt.d.w fa0, a0
+; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_slt_one:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    slti a0, a0, 1
+; RV32ZDINX-NEXT:    fcvt.d.w a0, a0
+; RV32ZDINX-NEXT:    sw a0, 8(sp)
+; RV32ZDINX-NEXT:    sw a1, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
+; RV64ZDINX-LABEL: select_icmp_slt_one:
+; RV64ZDINX:       # %bb.0:
+; RV64ZDINX-NEXT:    slti a0, a0, 1
+; RV64ZDINX-NEXT:    fcvt.d.w a0, a0
+; RV64ZDINX-NEXT:    ret
+  %1 = icmp slt i32 %a, 1
+  %2 = select i1 %1, double 1.000000e+00, double 0.000000e+00
+  ret double %2
+}
+
+define double @select_icmp_sgt_zero(i32 signext %a) {
+; CHECK-LABEL: select_icmp_sgt_zero:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    slti a0, a0, 1
+; CHECK-NEXT:    fcvt.d.w fa0, a0
+; CHECK-NEXT:    ret
+;
+; RV32ZDINX-LABEL: select_icmp_sgt_zero:
+; RV32ZDINX:       # %bb.0:
+; RV32ZDINX-NEXT:    addi sp, sp, -16
+; RV32ZDINX-NEXT:    .cfi_def_cfa_offset 16
+; RV32ZDINX-NEXT:    slti a0, a0, 1
+; RV32ZDINX-NEXT:    fcvt.d.w a0, a0
+; RV32ZDINX-NEXT:    sw a0, 8(sp)
+; RV32ZDINX-NEXT:    sw a1, 12(sp)
+; RV32ZDINX-NEXT:    lw a0, 8(sp)
+; RV32ZDINX-NEXT:    lw a1, 12(sp)
+; RV32ZDINX-NEXT:    addi sp, sp, 16
+; RV32ZDINX-NEXT:    ret
+;
+; RV64ZDINX-LABEL: select_icmp_sgt_zero:
+; RV64ZDINX:       # %bb.0:
+; RV64ZDINX-NEXT:    slti a0, a0, 1
+; RV64ZDINX-NEXT:    fcvt.d.w a0, a0
+; RV64ZDINX-NEXT:    ret
+  %1 = icmp sgt i32 %a, 0
+  %2 = select i1 %1, double 0.000000e+00, double 1.000000e+00
+  ret double %2
+}
+

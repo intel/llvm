@@ -85,6 +85,163 @@ def CSE : Pass<"cse"> {
   ];
 }
 
+def RemoveDeadValues : Pass<"remove-dead-values"> {
+  let summary = "Remove dead values";
+  let description = [{
+    The goal of this pass is optimization (reducing runtime) by removing
+    unnecessary instructions. Unlike other passes that rely on local information
+    gathered from patterns to accomplish optimization, this pass uses a full
+    analysis of the IR, specifically, liveness analysis, and is thus more
+    powerful.
+
+    Currently, this pass performs the following optimizations:
+    (A) Removes function arguments that are not live,
+    (B) Removes function return values that are not live across all callers of
+    the function,
+    (C) Removes unneccesary operands, results, region arguments, and region
+    terminator operands of region branch ops, and,
+    (D) Removes simple and region branch ops that have all non-live results and
+    don't affect memory in any way,
+
+    iff
+
+    the IR doesn't have any non-function symbol ops, non-call symbol user ops
+    and branch ops.
+
+    Here, a "simple op" refers to an op that isn't a symbol op, symbol-user op,
+    region branch op, branch op, region branch terminator op, or return-like.
+
+    It is noteworthy that we do not refer to non-live values as "dead" in this
+    file to avoid confusing it with dead code analysis's "dead", which refers to
+    unreachable code (code that never executes on hardware) while "non-live"
+    refers to code that executes on hardware but is unnecessary. Thus, while the
+    removal of dead code helps little in reducing runtime, removing non-live
+    values should theoretically have significant impact (depending on the amount
+    removed).
+
+    It is also important to note that unlike other passes (like `canonicalize`)
+    that apply op-specific optimizations through patterns, this pass uses
+    different interfaces to handle various types of ops and tries to cover all
+    existing ops through these interfaces.
+
+    It is because of its reliance on (a) liveness analysis and (b) interfaces
+    that makes it so powerful that it can optimize ops that don't have a
+    canonicalizer and even when an op does have a canonicalizer, it can perform
+    more aggressive optimizations, as observed in the test files associated with
+    this pass.
+
+    Example of optimization (A):-
+
+    ```
+    int add_2_to_y(int x, int y) {
+      return 2 + y
+    }
+
+    print(add_2_to_y(3, 4))
+    print(add_2_to_y(5, 6))
+    ```
+
+    becomes
+
+    ```
+    int add_2_to_y(int y) {
+      return 2 + y
+    }
+
+    print(add_2_to_y(4))
+    print(add_2_to_y(6))
+    ```
+
+    Example of optimization (B):-
+
+    ```
+    int, int get_incremented_values(int y) {
+      store y somewhere in memory
+      return y + 1, y + 2
+    }
+
+    y1, y2 = get_incremented_values(4)
+    y3, y4 = get_incremented_values(6)
+    print(y2)
+    ```
+
+    becomes
+
+    ```
+    int get_incremented_values(int y) {
+      store y somewhere in memory
+      return y + 2
+    }
+
+    y2 = get_incremented_values(4)
+    y4 = get_incremented_values(6)
+    print(y2)
+    ```
+
+    Example of optimization (C):-
+
+    Assume only `%result1` is live here. Then,
+
+    ```
+    %result1, %result2, %result3 = scf.while (%arg1 = %operand1, %arg2 = %operand2) {
+      %terminator_operand2 = add %arg2, %arg2
+      %terminator_operand3 = mul %arg2, %arg2
+      %terminator_operand4 = add %arg1, %arg1
+      scf.condition(%terminator_operand1) %terminator_operand2, %terminator_operand3, %terminator_operand4
+    } do {
+    ^bb0(%arg3, %arg4, %arg5):
+      %terminator_operand6 = add %arg4, %arg4
+      %terminator_operand5 = add %arg5, %arg5
+      scf.yield %terminator_operand5, %terminator_operand6
+    }
+    ```
+
+    becomes
+
+    ```
+    %result1, %result2 = scf.while (%arg2 = %operand2) {
+      %terminator_operand2 = add %arg2, %arg2
+      %terminator_operand3 = mul %arg2, %arg2
+      scf.condition(%terminator_operand1) %terminator_operand2, %terminator_operand3
+    } do {
+    ^bb0(%arg3, %arg4):
+      %terminator_operand6 = add %arg4, %arg4
+      scf.yield %terminator_operand6
+    }
+    ```
+
+    It is interesting to see that `%result2` won't be removed even though it is
+    not live because `%terminator_operand3` forwards to it and cannot be
+    removed. And, that is because it also forwards to `%arg4`, which is live.
+
+    Example of optimization (D):-
+
+    ```
+    int square_and_double_of_y(int y) {
+      square = y ^ 2
+      double = y * 2
+      return square, double
+    }
+
+    sq, do = square_and_double_of_y(5)
+    print(do)
+    ```
+
+    becomes
+
+    ```
+    int square_and_double_of_y(int y) {
+      double = y * 2
+      return double
+    }
+
+    do = square_and_double_of_y(5)
+    print(do)
+    ```
+  }];
+  let constructor = "mlir::createRemoveDeadValuesPass()";
+}
+
 def PrintIRPass : Pass<"print-ir"> {
   let summary = "Print IR on the debug stream";
   let description = [{
@@ -189,6 +346,21 @@ def Mem2Reg : Pass<"mem2reg"> {
     This pass only supports unstructured control-flow. Promotion of operations
     within subregions will not happen.
   }];
+
+  let options = [
+    Option<"enableRegionSimplification", "region-simplify", "bool",
+       /*default=*/"true",
+       "Perform control flow optimizations to the region tree">,
+  ];
+
+  let statistics = [
+    Statistic<"promotedAmount",
+              "promoted slots",
+              "Total amount of memory slot promoted">,
+    Statistic<"newBlockArgumentAmount",
+              "new block args",
+              "Total amount of new block argument inserted in blocks">,
+  ];
 }
 
 def PrintOpStats : Pass<"print-op-stats"> {
@@ -212,6 +384,42 @@ def SCCP : Pass<"sccp"> {
     in [“Constant Propagation with Conditional Branches”](https://dl.acm.org/doi/10.1145/103135.103136) (1991).
   }];
   let constructor = "mlir::createSCCPPass()";
+}
+
+def SROA : Pass<"sroa"> {
+  let summary = "Scalar Replacement of Aggregates";
+  let description = [{
+    Scalar Replacement of Aggregates. Replaces allocations of aggregates into
+    independant allocations of its elements.
+
+    Allocators must implement `DestructurableAllocationOpInterface` to provide
+    the list of memory slots for which destructuring should be attempted.
+
+    This pass will only be applied if all accessors of the aggregate implement
+    the `DestructurableAccessorOpInterface`. If the accessors provide a view
+    into the struct, users of the view must ensure it is used in a type-safe
+    manner and within bounds by implementing `TypeSafeOpInterface`.
+  }];
+
+  let statistics = [
+    Statistic<
+      "destructuredAmount",
+      "destructured slots",
+      "Total amount of memory slots destructured"
+    >,
+    Statistic<
+      "slotsWithMemoryBenefit",
+      "slots with memory benefit",
+      "Total amount of memory slots in which the destructured size was smaller "
+      "than the total size after eliminating unused fields"
+    >,
+    Statistic<
+      "maxSubelementAmount",
+      "max subelement number",
+      "Maximal number of sub-elements a successfully destructured slot "
+      "initially had"
+    >,
+  ];
 }
 
 def StripDebugInfo : Pass<"strip-debuginfo"> {

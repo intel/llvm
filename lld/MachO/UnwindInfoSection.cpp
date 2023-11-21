@@ -146,7 +146,7 @@ private:
   Symbol *canonicalizePersonality(Symbol *);
 
   uint64_t unwindInfoSize = 0;
-  std::vector<decltype(symbols)::value_type> symbolsVec;
+  SmallVector<decltype(symbols)::value_type, 0> symbolsVec;
   CompactUnwindLayout cuLayout;
   std::vector<std::pair<compact_unwind_encoding_t, size_t>> commonEncodings;
   EncodingMap commonEncodingIndexes;
@@ -307,7 +307,7 @@ void UnwindInfoSectionImpl::prepareRelocations(ConcatInputSection *isec) {
                           r.addend, /*size=*/0, /*isWeakDef=*/false,
                           /*isExternal=*/false, /*isPrivateExtern=*/false,
                           /*includeInSymtab=*/true,
-                          /*isThumb=*/false, /*isReferencedDynamically=*/false,
+                          /*isReferencedDynamically=*/false,
                           /*noDeadStrip=*/false);
         s->used = true;
         in.got->addEntry(s);
@@ -343,7 +343,8 @@ void UnwindInfoSectionImpl::relocateCompactUnwind(
     if (!d->unwindEntry)
       return;
 
-    // If we have DWARF unwind info, create a CU entry that points to it.
+    // If we have DWARF unwind info, create a slimmed-down CU entry that points
+    // to it.
     if (d->unwindEntry->getName() == section_names::ehFrame) {
       // The unwinder will look for the DWARF entry starting at the hint,
       // assuming the hint points to a valid CFI record start. If it
@@ -360,7 +361,9 @@ void UnwindInfoSectionImpl::relocateCompactUnwind(
       cu.encoding = target->modeDwarfEncoding | dwarfOffsetHint;
       const FDE &fde = cast<ObjFile>(d->getFile())->fdes[d->unwindEntry];
       cu.functionLength = fde.funcLength;
-      cu.personality = fde.personality;
+      // Omit the DWARF personality from compact-unwind entry so that we
+      // don't need to encode it.
+      cu.personality = nullptr;
       cu.lsda = fde.lsda;
       return;
     }

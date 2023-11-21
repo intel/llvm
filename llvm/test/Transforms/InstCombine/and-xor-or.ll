@@ -356,10 +356,9 @@ define i64 @and_xor_or_negative(i64 %x, i64 %y, i64 %z, i64 %w) {
 define i8 @and_shl(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 ; CHECK-LABEL: define {{[^@]+}}@and_shl
 ; CHECK-SAME: (i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[Z:%.*]], i8 [[SHAMT:%.*]]) {
-; CHECK-NEXT:    [[SX:%.*]] = shl i8 [[X]], [[SHAMT]]
-; CHECK-NEXT:    [[SY:%.*]] = shl i8 [[Y]], [[SHAMT]]
-; CHECK-NEXT:    [[A:%.*]] = and i8 [[SX]], [[Z]]
-; CHECK-NEXT:    [[R:%.*]] = and i8 [[SY]], [[A]]
+; CHECK-NEXT:    [[TMP1:%.*]] = and i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP2:%.*]] = shl i8 [[TMP1]], [[SHAMT]]
+; CHECK-NEXT:    [[R:%.*]] = and i8 [[TMP2]], [[Z]]
 ; CHECK-NEXT:    ret i8 [[R]]
 ;
   %sx = shl i8 %x, %shamt
@@ -372,10 +371,9 @@ define i8 @and_shl(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 define i8 @or_shl(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 ; CHECK-LABEL: define {{[^@]+}}@or_shl
 ; CHECK-SAME: (i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[Z:%.*]], i8 [[SHAMT:%.*]]) {
-; CHECK-NEXT:    [[SX:%.*]] = shl i8 [[X]], [[SHAMT]]
-; CHECK-NEXT:    [[SY:%.*]] = shl i8 [[Y]], [[SHAMT]]
-; CHECK-NEXT:    [[A:%.*]] = or i8 [[SX]], [[Z]]
-; CHECK-NEXT:    [[R:%.*]] = or i8 [[A]], [[SY]]
+; CHECK-NEXT:    [[TMP1:%.*]] = or i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP2:%.*]] = shl i8 [[TMP1]], [[SHAMT]]
+; CHECK-NEXT:    [[R:%.*]] = or i8 [[TMP2]], [[Z]]
 ; CHECK-NEXT:    ret i8 [[R]]
 ;
   %sx = shl i8 %x, %shamt
@@ -424,10 +422,9 @@ define i8 @and_lshr(i8 %x, i8 %y, i8 %zarg, i8 %shamt) {
 define i8 @or_lshr(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 ; CHECK-LABEL: define {{[^@]+}}@or_lshr
 ; CHECK-SAME: (i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[Z:%.*]], i8 [[SHAMT:%.*]]) {
-; CHECK-NEXT:    [[SX:%.*]] = lshr i8 [[X]], [[SHAMT]]
-; CHECK-NEXT:    [[SY:%.*]] = lshr i8 [[Y]], [[SHAMT]]
-; CHECK-NEXT:    [[A:%.*]] = or i8 [[SX]], [[Z]]
-; CHECK-NEXT:    [[R:%.*]] = or i8 [[SY]], [[A]]
+; CHECK-NEXT:    [[TMP1:%.*]] = or i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i8 [[TMP1]], [[SHAMT]]
+; CHECK-NEXT:    [[R:%.*]] = or i8 [[TMP2]], [[Z]]
 ; CHECK-NEXT:    ret i8 [[R]]
 ;
   %sx = lshr i8 %x, %shamt
@@ -440,10 +437,9 @@ define i8 @or_lshr(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 define i8 @xor_lshr(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 ; CHECK-LABEL: define {{[^@]+}}@xor_lshr
 ; CHECK-SAME: (i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[Z:%.*]], i8 [[SHAMT:%.*]]) {
-; CHECK-NEXT:    [[SX:%.*]] = lshr i8 [[X]], [[SHAMT]]
-; CHECK-NEXT:    [[SY:%.*]] = lshr i8 [[Y]], [[SHAMT]]
-; CHECK-NEXT:    [[A:%.*]] = xor i8 [[SX]], [[Z]]
-; CHECK-NEXT:    [[R:%.*]] = xor i8 [[A]], [[SY]]
+; CHECK-NEXT:    [[TMP1:%.*]] = xor i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i8 [[TMP1]], [[SHAMT]]
+; CHECK-NEXT:    [[R:%.*]] = xor i8 [[TMP2]], [[Z]]
 ; CHECK-NEXT:    ret i8 [[R]]
 ;
   %sx = lshr i8 %x, %shamt
@@ -565,9 +561,10 @@ define i8 @xor_lshr_multiuse(i8 %x, i8 %y, i8 %z, i8 %shamt) {
 ; CHECK-LABEL: define {{[^@]+}}@xor_lshr_multiuse
 ; CHECK-SAME: (i8 [[X:%.*]], i8 [[Y:%.*]], i8 [[Z:%.*]], i8 [[SHAMT:%.*]]) {
 ; CHECK-NEXT:    [[SX:%.*]] = lshr i8 [[X]], [[SHAMT]]
-; CHECK-NEXT:    [[SY:%.*]] = lshr i8 [[Y]], [[SHAMT]]
 ; CHECK-NEXT:    [[A:%.*]] = xor i8 [[SX]], [[Z]]
-; CHECK-NEXT:    [[R:%.*]] = xor i8 [[A]], [[SY]]
+; CHECK-NEXT:    [[TMP1:%.*]] = xor i8 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP2:%.*]] = lshr i8 [[TMP1]], [[SHAMT]]
+; CHECK-NEXT:    [[R:%.*]] = xor i8 [[TMP2]], [[Z]]
 ; CHECK-NEXT:    [[R2:%.*]] = sdiv i8 [[A]], [[R]]
 ; CHECK-NEXT:    ret i8 [[R2]]
 ;
@@ -4758,4 +4755,28 @@ define i8 @canonicalize_logic_first_xor_bad_constants2(i8 %x) {
   %a = add i8 %x, 96  ; 01100000
   %r = xor i8 %a, 32  ; 00100000
   ret i8 %r
+}
+
+@g = external global i8
+
+define i32 @canonicalize_logic_first_constexpr(i32 %x) {
+; CHECK-LABEL: define {{[^@]+}}@canonicalize_logic_first_constexpr
+; CHECK-SAME: (i32 [[X:%.*]]) {
+; CHECK-NEXT:    [[R:%.*]] = and i32 add (i32 ptrtoint (ptr @g to i32), i32 48), -10
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %a = add i32 ptrtoint (ptr @g to i32), 48
+  %r = and i32 %a, -10
+  ret i32 %r
+}
+
+define i32 @canonicalize_logic_first_constexpr_nuw(i32 %x) {
+; CHECK-LABEL: define {{[^@]+}}@canonicalize_logic_first_constexpr_nuw
+; CHECK-SAME: (i32 [[X:%.*]]) {
+; CHECK-NEXT:    [[R:%.*]] = and i32 add (i32 ptrtoint (ptr @g to i32), i32 48), -10
+; CHECK-NEXT:    ret i32 [[R]]
+;
+  %a = add nuw i32 ptrtoint (ptr @g to i32), 48
+  %r = and i32 %a, -10
+  ret i32 %r
 }

@@ -152,9 +152,9 @@ public:
       SourceLocation IncludeLoc = SM.getIncludeLoc(SM.getFileID(Loc));
       if (IncludeLoc.isValid()) {
         if (llvm::timeTraceProfilerEnabled()) {
-          const FileEntry *FE = SM.getFileEntryForID(SM.getFileID(Loc));
-          llvm::timeTraceProfilerBegin(
-              "Source", FE != nullptr ? FE->getName() : StringRef("<unknown>"));
+          OptionalFileEntryRef FE = SM.getFileEntryRefForID(SM.getFileID(Loc));
+          llvm::timeTraceProfilerBegin("Source", FE ? FE->getName()
+                                                    : StringRef("<unknown>"));
         }
 
         IncludeStack.push_back(IncludeLoc);
@@ -203,9 +203,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       VisContext(nullptr), PragmaAttributeCurrentTargetDecl(nullptr),
       IsBuildingRecoveryCallExpr(false), LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
-      StdInitializerList(nullptr),
-      StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
-      MSVCGuidDecl(nullptr), StdSourceLocationImplDecl(nullptr),
+      StdInitializerList(nullptr), StdCoroutineTraitsCache(nullptr),
+      CXXTypeInfoDecl(nullptr), StdSourceLocationImplDecl(nullptr),
       NSNumberDecl(nullptr), NSValueDecl(nullptr), NSStringDecl(nullptr),
       StringWithUTF8StringMethod(nullptr),
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
@@ -219,10 +218,9 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ArgumentPackSubstitutionIndex(-1), CurrentInstantiationScope(nullptr),
       DisableTypoCorrection(false), TyposCorrected(0), AnalysisWarnings(*this),
       ThreadSafetyDeclCache(nullptr), VarDataSharingAttributesStack(nullptr),
-      CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr) {
+      CurScope(nullptr), Ident_super(nullptr) {
   assert(pp.TUKind == TUKind);
   TUScope = nullptr;
-  isConstantEvaluatedOverride = false;
 
   LoadedExternalKnownNamespaces = false;
   for (unsigned I = 0; I != NSAPI::NumNSNumberLiteralMethods; ++I)
@@ -484,7 +482,7 @@ Sema::~Sema() {
 
   // Delete cached satisfactions.
   std::vector<ConstraintSatisfaction *> Satisfactions;
-  Satisfactions.reserve(Satisfactions.size());
+  Satisfactions.reserve(SatisfactionCache.size());
   for (auto &Node : SatisfactionCache)
     Satisfactions.push_back(&Node);
   for (auto *Node : Satisfactions)
@@ -826,7 +824,7 @@ void Sema::getUndefinedButUsed(
       continue;
     }
 
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(ND)) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(ND)) {
       if (FD->isDefined())
         continue;
       if (FD->isExternallyVisible() &&
@@ -837,7 +835,7 @@ void Sema::getUndefinedButUsed(
       if (FD->getBuiltinID())
         continue;
     } else {
-      auto *VD = cast<VarDecl>(ND);
+      const auto *VD = cast<VarDecl>(ND);
       if (VD->hasDefinition() != VarDecl::DeclarationOnly)
         continue;
       if (VD->isExternallyVisible() &&
@@ -1184,7 +1182,7 @@ void Sema::ActOnEndOfTranslationUnit() {
         !(isa<FunctionDecl>(PrevDecl) || isa<VarDecl>(PrevDecl)))
       for (const auto &WI : WeakIDs.second)
         Diag(WI.getLocation(), diag::warn_attribute_wrong_decl_type)
-            << "'weak'" << ExpectedVariableOrFunction;
+            << "'weak'" << /*isRegularKeyword=*/0 << ExpectedVariableOrFunction;
     else
       for (const auto &WI : WeakIDs.second)
         Diag(WI.getLocation(), diag::warn_weak_identifier_undeclared)
@@ -1244,6 +1242,28 @@ void Sema::ActOnEndOfTranslationUnit() {
         auto SubmodulesRange = Mod->submodules();
         Stack.append(SubmodulesRange.begin(), SubmodulesRange.end());
       }
+    }
+
+    // Now we can decide whether the modules we're building need an initializer.
+    if (Module *CurrentModule = getCurrentModule();
+        CurrentModule && CurrentModule->isInterfaceOrPartition()) {
+      auto DoesModNeedInit = [this](Module *M) {
+        if (!getASTContext().getModuleInitializers(M).empty())
+          return true;
+        for (auto [Exported, _] : M->Exports)
+          if (Exported->isNamedModuleInterfaceHasInit())
+            return true;
+        for (Module *I : M->Imports)
+          if (I->isNamedModuleInterfaceHasInit())
+            return true;
+
+        return false;
+      };
+
+      CurrentModule->NamedModuleHasInit =
+          DoesModNeedInit(CurrentModule) ||
+          llvm::any_of(CurrentModule->submodules(),
+                       [&](auto *SubM) { return DoesModNeedInit(SubM); });
     }
 
     // Warnings emitted in ActOnEndOfTranslationUnit() should be emitted for
@@ -1348,10 +1368,14 @@ void Sema::ActOnEndOfTranslationUnit() {
           DiagD = FD;
         if (DiagD->isDeleted())
           continue; // Deleted functions are supposed to be unused.
+        SourceRange DiagRange = DiagD->getLocation();
+        if (const ASTTemplateArgumentListInfo *ASTTAL =
+                DiagD->getTemplateSpecializationArgsAsWritten())
+          DiagRange.setEnd(ASTTAL->RAngleLoc);
         if (DiagD->isReferenced()) {
           if (isa<CXXMethodDecl>(DiagD))
             Diag(DiagD->getLocation(), diag::warn_unneeded_member_function)
-                << DiagD;
+                << DiagD << DiagRange;
           else {
             if (FD->getStorageClass() == SC_Static &&
                 !FD->isInlineSpecified() &&
@@ -1359,40 +1383,46 @@ void Sema::ActOnEndOfTranslationUnit() {
                    SourceMgr.getExpansionLoc(FD->getLocation())))
               Diag(DiagD->getLocation(),
                    diag::warn_unneeded_static_internal_decl)
-                  << DiagD;
+                  << DiagD << DiagRange;
             else
               Diag(DiagD->getLocation(), diag::warn_unneeded_internal_decl)
-                  << /*function*/ 0 << DiagD;
+                  << /*function=*/0 << DiagD << DiagRange;
           }
         } else {
           if (FD->getDescribedFunctionTemplate())
             Diag(DiagD->getLocation(), diag::warn_unused_template)
-                << /*function*/ 0 << DiagD;
+                << /*function=*/0 << DiagD << DiagRange;
           else
             Diag(DiagD->getLocation(), isa<CXXMethodDecl>(DiagD)
                                            ? diag::warn_unused_member_function
                                            : diag::warn_unused_function)
-                << DiagD;
+                << DiagD << DiagRange;
         }
       } else {
         const VarDecl *DiagD = cast<VarDecl>(*I)->getDefinition();
         if (!DiagD)
           DiagD = cast<VarDecl>(*I);
+        SourceRange DiagRange = DiagD->getLocation();
+        if (const auto *VTSD = dyn_cast<VarTemplateSpecializationDecl>(DiagD)) {
+          if (const ASTTemplateArgumentListInfo *ASTTAL =
+                  VTSD->getTemplateArgsInfo())
+            DiagRange.setEnd(ASTTAL->RAngleLoc);
+        }
         if (DiagD->isReferenced()) {
           Diag(DiagD->getLocation(), diag::warn_unneeded_internal_decl)
-              << /*variable*/ 1 << DiagD;
+              << /*variable=*/1 << DiagD << DiagRange;
+        } else if (DiagD->getDescribedVarTemplate()) {
+          Diag(DiagD->getLocation(), diag::warn_unused_template)
+              << /*variable=*/1 << DiagD << DiagRange;
         } else if (DiagD->getType().isConstQualified()) {
           const SourceManager &SM = SourceMgr;
           if (SM.getMainFileID() != SM.getFileID(DiagD->getLocation()) ||
               !PP.getLangOpts().IsHeaderFile)
             Diag(DiagD->getLocation(), diag::warn_unused_const_variable)
-                << DiagD;
+                << DiagD << DiagRange;
         } else {
-          if (DiagD->getDescribedVarTemplate())
-            Diag(DiagD->getLocation(), diag::warn_unused_template)
-                << /*variable*/ 1 << DiagD;
-          else
-            Diag(DiagD->getLocation(), diag::warn_unused_variable) << DiagD;
+          Diag(DiagD->getLocation(), diag::warn_unused_variable)
+              << DiagD << DiagRange;
         }
       }
     }
@@ -1871,8 +1901,9 @@ Sema::SemaDiagnosticBuilder
 Sema::targetDiag(SourceLocation Loc, unsigned DiagID, const FunctionDecl *FD) {
   FD = FD ? FD : getCurFunctionDecl();
   if (LangOpts.OpenMP)
-    return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID, FD)
-                                   : diagIfOpenMPHostCode(Loc, DiagID, FD);
+    return LangOpts.OpenMPIsTargetDevice
+               ? diagIfOpenMPDeviceCode(Loc, DiagID, FD)
+               : diagIfOpenMPHostCode(Loc, DiagID, FD);
   if (getLangOpts().CUDA)
     return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
                                       : CUDADiagIfHostCode(Loc, DiagID);
@@ -1997,7 +2028,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   auto CheckType = [&](QualType Ty, bool IsRetTy = false) {
-    if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice) ||
+    if (LangOpts.SYCLIsDevice ||
+        (LangOpts.OpenMP && LangOpts.OpenMPIsTargetDevice) ||
         LangOpts.CUDAIsDevice)
       CheckDeviceType(Ty);
 
@@ -2039,20 +2071,8 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
         targetDiag(D->getLocation(), diag::note_defined_here, FD) << D;
     }
 
-    // RISC-V vector builtin types (RISCVVTypes.def)
-    if (Ty->isRVVType(/* Bitwidth */ 64, /* IsFloat */ false) &&
-        !TI.hasFeature("zve64x"))
-      Diag(Loc, diag::err_riscv_type_requires_extension, FD) << Ty << "zve64x";
-    if (Ty->isRVVType(/* Bitwidth */ 16, /* IsFloat */ true) &&
-        !TI.hasFeature("experimental-zvfh"))
-      Diag(Loc, diag::err_riscv_type_requires_extension, FD)
-          << Ty << "zvfh";
-    if (Ty->isRVVType(/* Bitwidth */ 32, /* IsFloat */ true) &&
-        !TI.hasFeature("zve32f"))
-      Diag(Loc, diag::err_riscv_type_requires_extension, FD) << Ty << "zve32f";
-    if (Ty->isRVVType(/* Bitwidth */ 64, /* IsFloat */ true) &&
-        !TI.hasFeature("zve64d"))
-      Diag(Loc, diag::err_riscv_type_requires_extension, FD) << Ty << "zve64d";
+    if (TI.hasRISCVVTypes() && Ty->isRVVType())
+      checkRVVTypeSupport(Ty, Loc, D);
 
     // Don't allow SVE types in functions without a SVE target.
     if (Ty->isSVESizelessBuiltinType() && FD && FD->hasBody()) {
@@ -2683,12 +2703,6 @@ IdentifierInfo *Sema::getSuperIdentifier() const {
   if (!Ident_super)
     Ident_super = &Context.Idents.get("super");
   return Ident_super;
-}
-
-IdentifierInfo *Sema::getFloat128Identifier() const {
-  if (!Ident___float128)
-    Ident___float128 = &Context.Idents.get("__float128");
-  return Ident___float128;
 }
 
 void Sema::PushCapturedRegionScope(Scope *S, CapturedDecl *CD, RecordDecl *RD,

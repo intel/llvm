@@ -143,6 +143,7 @@ inline bool IsPointer(const Symbol &symbol) {
 inline bool IsAllocatable(const Symbol &symbol) {
   return symbol.attrs().test(Attr::ALLOCATABLE);
 }
+// IsAllocatableOrObjectPointer() may be the better choice
 inline bool IsAllocatableOrPointer(const Symbol &symbol) {
   return IsPointer(symbol) || IsAllocatable(symbol);
 }
@@ -176,10 +177,21 @@ const Symbol *IsFinalizable(const DerivedTypeSpec &,
     std::set<const DerivedTypeSpec *> * = nullptr,
     bool withImpureFinalizer = false, std::optional<int> rank = std::nullopt);
 const Symbol *HasImpureFinal(const Symbol &);
+// Is this type finalizable or does it contain any polymorphic allocatable
+// ultimate components?
+bool MayRequireFinalization(const DerivedTypeSpec &derived);
+// Does this type have an allocatable direct component?
+bool HasAllocatableDirectComponent(const DerivedTypeSpec &derived);
+
 bool IsInBlankCommon(const Symbol &);
 inline bool IsAssumedSizeArray(const Symbol &symbol) {
-  const auto *details{symbol.detailsIf<ObjectEntityDetails>()};
-  return details && details->IsAssumedSize();
+  if (const auto *object{symbol.detailsIf<ObjectEntityDetails>()}) {
+    return object->IsAssumedSize();
+  } else if (const auto *assoc{symbol.detailsIf<AssocEntityDetails>()}) {
+    return assoc->IsAssumedSize();
+  } else {
+    return false;
+  }
 }
 bool IsAssumedLengthCharacter(const Symbol &);
 bool IsExternal(const Symbol &);
@@ -189,6 +201,22 @@ bool IsAssumedType(const Symbol &);
 bool IsPolymorphic(const Symbol &);
 bool IsUnlimitedPolymorphic(const Symbol &);
 bool IsPolymorphicAllocatable(const Symbol &);
+
+inline bool IsCUDADeviceContext(const Scope *scope) {
+  if (scope) {
+    if (const Symbol * symbol{scope->symbol()}) {
+      if (const auto *subp{symbol->detailsIf<SubprogramDetails>()}) {
+        if (auto attrs{subp->cudaSubprogramAttrs()}) {
+          return *attrs != common::CUDASubprogramAttrs::Host;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+const Scope *FindCUDADeviceContext(const Scope *);
+std::optional<common::CUDADataAttr> GetCUDADataAttr(const Symbol *);
 
 // Return an error if a symbol is not accessible from a scope
 std::optional<parser::MessageFormattedText> CheckAccessibleSymbol(
@@ -386,9 +414,9 @@ std::list<std::list<SymbolRef>> GetStorageAssociations(const Scope &);
 //     its non-POINTER derived type components.  (The lifetime of each
 //     potential subobject component is that of the entire instance.)
 //   - PotentialAndPointer subobject components of a derived type are the
-//   closure of
-//     its components (including POINTERs) and the PotentialAndPointer subobject
-//     components of its non-POINTER derived type components.
+//     closure of its components (including POINTERs) and the
+//     PotentialAndPointer subobject components of its non-POINTER derived type
+//     components.
 // Parent and procedure components are considered against these definitions.
 // For this kind of iterator, the component tree is recursively visited in the
 // following order:
@@ -633,6 +661,41 @@ std::forward_list<std::string> GetAllNames(
 // assuming that the procedure is a specific procedure of a defined I/O
 // generic interface,
 const DerivedTypeSpec *GetDtvArgDerivedType(const Symbol &);
+
+// If "expr" exists and is a designator for a deferred length
+// character allocatable whose semantics might change under Fortran 202X,
+// emit a portability warning.
+void WarnOnDeferredLengthCharacterScalar(SemanticsContext &, const SomeExpr *,
+    parser::CharBlock at, const char *what);
+
+inline const parser::Name *getDesignatorNameIfDataRef(
+    const parser::Designator &designator) {
+  const auto *dataRef{std::get_if<parser::DataRef>(&designator.u)};
+  return dataRef ? std::get_if<parser::Name>(&dataRef->u) : nullptr;
+}
+
+bool CouldBeDataPointerValuedFunction(const Symbol *);
+
+template <typename R, typename T>
+std::optional<R> GetConstExpr(
+    Fortran::semantics::SemanticsContext &semanticsContext, const T &x) {
+  using DefaultCharConstantType = Fortran::evaluate::Ascii;
+  if (const auto *expr{Fortran::semantics::GetExpr(semanticsContext, x)}) {
+    const auto foldExpr{Fortran::evaluate::Fold(
+        semanticsContext.foldingContext(), Fortran::common::Clone(*expr))};
+    if constexpr (std::is_same_v<R, std::string>) {
+      return Fortran::evaluate::GetScalarConstantValue<DefaultCharConstantType>(
+          foldExpr);
+    }
+  }
+  return std::nullopt;
+}
+
+// Returns "m" for a module, "m:sm" for a submodule.
+std::string GetModuleOrSubmoduleName(const Symbol &);
+
+// Return the assembly name emitted for a common block.
+std::string GetCommonBlockObjectName(const Symbol &, bool underscoring);
 
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_TOOLS_H_

@@ -166,7 +166,6 @@ void ScriptedProcess::DidLaunch() { m_pid = GetInterface().GetProcessID(); }
 void ScriptedProcess::DidResume() {
   // Update the PID again, in case the user provided a placeholder pid at launch
   m_pid = GetInterface().GetProcessID();
-  GetLoadedDynamicLibrariesInfos();
 }
 
 Status ScriptedProcess::DoResume() {
@@ -457,7 +456,7 @@ ScriptedProcess::GetLoadedDynamicLibrariesInfos() {
       return error_with_message("Couldn't create or get module.");
 
     lldb::addr_t load_addr = LLDB_INVALID_ADDRESS;
-    lldb::addr_t slide = LLDB_INVALID_OFFSET;
+    lldb::offset_t slide = LLDB_INVALID_OFFSET;
     dict->GetValueForKeyAsInteger("load_addr", load_addr);
     dict->GetValueForKeyAsInteger("slide", slide);
     if (load_addr == LLDB_INVALID_ADDRESS)

@@ -24,14 +24,46 @@ class Function;
 class Module;
 class Triple;
 
-/// Describes a possible vectorization of a function.
-/// Function 'VectorFnName' is equivalent to 'ScalarFnName' vectorized
-/// by a factor 'VectorizationFactor'.
-struct VecDesc {
+/// Provides info so a possible vectorization of a function can be
+/// computed. Function 'VectorFnName' is equivalent to 'ScalarFnName'
+/// vectorized by a factor 'VectorizationFactor'.
+/// The VABIPrefix string holds information about isa, mask, vlen,
+/// and vparams so a scalar-to-vector mapping of the form:
+///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
+/// can be constructed where:
+///
+/// <isa> = "_LLVM_"
+/// <mask> = "M" if masked, "N" if no mask.
+/// <vlen> = Number of concurrent lanes, stored in the `VectorizationFactor`
+///          field of the `VecDesc` struct. If the number of lanes is scalable
+///          then 'x' is printed instead.
+/// <vparams> = "v", as many as are the numArgs.
+/// <scalarname> = the name of the scalar function.
+/// <vectorname> = the name of the vector function.
+class VecDesc {
   StringRef ScalarFnName;
   StringRef VectorFnName;
   ElementCount VectorizationFactor;
   bool Masked;
+  StringRef VABIPrefix;
+
+public:
+  VecDesc() = delete;
+  VecDesc(StringRef ScalarFnName, StringRef VectorFnName,
+          ElementCount VectorizationFactor, bool Masked, StringRef VABIPrefix)
+      : ScalarFnName(ScalarFnName), VectorFnName(VectorFnName),
+        VectorizationFactor(VectorizationFactor), Masked(Masked),
+        VABIPrefix(VABIPrefix) {}
+
+  StringRef getScalarFnName() const { return ScalarFnName; }
+  StringRef getVectorFnName() const { return VectorFnName; }
+  ElementCount getVectorizationFactor() const { return VectorizationFactor; }
+  bool isMasked() const { return Masked; }
+  StringRef getVABIPrefix() const { return VABIPrefix; }
+
+  /// Returns a vector function ABI variant string on the form:
+  ///    _ZGV<isa><mask><vlen><vparams>_<scalarname>(<vectorname>)
+  std::string getVectorFunctionABIVariantString() const;
 };
 
   enum LibFunc : unsigned {
@@ -96,7 +128,8 @@ public:
     LIBMVEC_X86,      // GLIBC Vector Math library.
     MASSV,            // IBM MASS vector library.
     SVML,             // Intel short vector math library.
-    SLEEFGNUABI       // SLEEF - SIMD Library for Evaluating Elementary Functions.
+    SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
+    ArmPL        // Arm Performance Libraries.
   };
 
   TargetLibraryInfoImpl();
@@ -174,6 +207,12 @@ public:
   /// such mapping exists, return the empty string.
   StringRef getVectorizedFunction(StringRef F, const ElementCount &VF,
                                   bool Masked) const;
+
+  /// Return a pointer to a VecDesc object holding all info for scalar to vector
+  /// mappings in TLI for the equivalent of F, vectorized with factor VF.
+  /// If no such mapping exists, return nullpointer.
+  const VecDesc *getVectorMappingInfo(StringRef F, const ElementCount &VF,
+                                      bool Masked) const;
 
   /// Set to true iff i32 parameters to library functions should have signext
   /// or zeroext attributes if they correspond to C-level int or unsigned int,
@@ -353,6 +392,10 @@ public:
                                   bool Masked = false) const {
     return Impl->getVectorizedFunction(F, VF, Masked);
   }
+  const VecDesc *getVectorMappingInfo(StringRef F, const ElementCount &VF,
+                                      bool Masked) const {
+    return Impl->getVectorMappingInfo(F, VF, Masked);
+  }
 
   /// Tests if the function is both available and a candidate for optimized code
   /// generation.
@@ -378,6 +421,7 @@ public:
     case LibFunc_trunc:        case LibFunc_truncf:     case LibFunc_truncl:
     case LibFunc_log2:         case LibFunc_log2f:      case LibFunc_log2l:
     case LibFunc_exp2:         case LibFunc_exp2f:      case LibFunc_exp2l:
+    case LibFunc_ldexp:        case LibFunc_ldexpf:     case LibFunc_ldexpl:
     case LibFunc_memcpy:       case LibFunc_memset:     case LibFunc_memmove:
     case LibFunc_memcmp:       case LibFunc_bcmp:       case LibFunc_strcmp:
     case LibFunc_strcpy:       case LibFunc_stpcpy:     case LibFunc_strlen:
@@ -412,14 +456,14 @@ public:
       ShouldExtI32Param = true;
       ShouldExtI32Return = true;
     }
-    // Mips and riscv64, on the other hand, needs signext on i32 parameters
-    // corresponding to both signed and unsigned ints.
-    if (T.isMIPS() || T.isRISCV64()) {
+    // LoongArch, Mips, and riscv64, on the other hand, need signext on i32
+    // parameters corresponding to both signed and unsigned ints.
+    if (T.isLoongArch() || T.isMIPS() || T.isRISCV64()) {
       ShouldSignExtI32Param = true;
     }
-    // riscv64 needs signext on i32 returns corresponding to both signed and
-    // unsigned ints.
-    if (T.isRISCV64()) {
+    // LoongArch and riscv64 need signext on i32 returns corresponding to both
+    // signed and unsigned ints.
+    if (T.isLoongArch() || T.isRISCV64()) {
       ShouldSignExtI32Return = true;
     }
   }

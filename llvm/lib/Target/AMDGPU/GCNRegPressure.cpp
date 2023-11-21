@@ -78,7 +78,9 @@ void GCNRegPressure::inc(unsigned Reg,
 
     if (PrevMask.none()) {
       assert(NewMask.any());
-      Value[Kind] += Sign * MRI.getPressureSets(Reg).getWeight();
+      const TargetRegisterInfo *TRI = MRI.getTargetRegisterInfo();
+      Value[Kind] +=
+          Sign * TRI->getRegClassWeight(MRI.getRegClass(Reg)).RegWeight;
     }
     break;
 
@@ -286,8 +288,8 @@ void GCNUpwardRPTracker::recede(const MachineInstr &MI) {
   // update max pressure
   MaxPressure = max(AtMIPressure, MaxPressure);
 
-  for (const auto &MO : MI.operands()) {
-    if (!MO.isReg() || !MO.isDef() || !MO.getReg().isVirtual() || MO.isDead())
+  for (const auto &MO : MI.all_defs()) {
+    if (!MO.getReg().isVirtual() || MO.isDead())
       continue;
 
     auto Reg = MO.getReg();
@@ -382,9 +384,7 @@ void GCNDownwardRPTracker::advanceToNext() {
   NextMI = skipDebugInstructionsForward(NextMI, MBBEnd);
 
   // Add new registers or mask bits.
-  for (const auto &MO : LastTrackedMI->operands()) {
-    if (!MO.isReg() || !MO.isDef())
-      continue;
+  for (const auto &MO : LastTrackedMI->all_defs()) {
     Register Reg = MO.getReg();
     if (!Reg.isVirtual())
       continue;

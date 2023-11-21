@@ -42,6 +42,7 @@ class Constant;
 class ConstrainedFPIntrinsic;
 class DataLayout;
 class DbgDeclareInst;
+class DbgValueInst;
 class Instruction;
 class MachineBasicBlock;
 class MachineFunction;
@@ -253,6 +254,12 @@ private:
   /// lower it as an entry in the MF debug table.
   bool translateIfEntryValueArgument(const DbgDeclareInst &DebugInst);
 
+  /// If DebugInst targets an Argument and its expression is an EntryValue,
+  /// lower as a DBG_VALUE targeting the corresponding livein register for that
+  /// Argument.
+  bool translateIfEntryValueArgument(const DbgValueInst &DebugInst,
+                                     MachineIRBuilder &MIRBuilder);
+
   bool translateInlineAsm(const CallBase &CB, MachineIRBuilder &MIRBuilder);
 
   /// Common code for translating normal calls or invokes.
@@ -350,7 +357,7 @@ private:
   void emitSwitchCase(SwitchCG::CaseBlock &CB, MachineBasicBlock *SwitchBB,
                       MachineIRBuilder &MIB);
 
-  /// Generate for for the BitTest header block, which precedes each sequence of
+  /// Generate for the BitTest header block, which precedes each sequence of
   /// BitTestCases.
   void emitBitTestHeader(SwitchCG::BitTestBlock &BTB,
                          MachineBasicBlock *SwitchMBB);
@@ -572,7 +579,7 @@ private:
   /// Current target configuration. Controls how the pass handles errors.
   const TargetPassConfig *TPC = nullptr;
 
-  CodeGenOpt::Level OptLevel;
+  CodeGenOptLevel OptLevel;
 
   /// Current optimization remark emitter. Used to report failures.
   std::unique_ptr<OptimizationRemarkEmitter> ORE;
@@ -709,7 +716,7 @@ private:
       BranchProbability Prob = BranchProbability::getUnknown());
 
 public:
-  IRTranslator(CodeGenOpt::Level OptLevel = CodeGenOpt::None);
+  IRTranslator(CodeGenOptLevel OptLevel = CodeGenOptLevel::None);
 
   StringRef getPassName() const override { return "IRTranslator"; }
 

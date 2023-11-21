@@ -743,6 +743,13 @@ bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   return true;
 }
 
+bool X86RegisterInfo::shouldRealignStack(const MachineFunction &MF) const {
+  if (TargetRegisterInfo::shouldRealignStack(MF))
+    return true;
+
+  return !Is64Bit && MF.getFunction().getCallingConv() == CallingConv::X86_INTR;
+}
+
 // tryOptimizeLEAtoMOV - helper function that tries to replace a LEA instruction
 // of the form 'lea (%esp), %ebx' --> 'mov %esp, %ebx'.
 // TODO: In this case we should be really trying first to entirely eliminate
@@ -1023,7 +1030,14 @@ bool X86RegisterInfo::getRegAllocationHints(Register VirtReg,
   bool BaseImplRetVal = TargetRegisterInfo::getRegAllocationHints(
       VirtReg, Order, Hints, MF, VRM, Matrix);
 
-  if (RC.getID() != X86::TILERegClassID)
+  unsigned ID = RC.getID();
+  const X86Subtarget &Subtarget = MF.getSubtarget<X86Subtarget>();
+  if ((ID == X86::VK64RegClassID || ID == X86::VK64WMRegClassID) &&
+      Subtarget.hasAVX512() && !Subtarget.hasEVEX512())
+    report_fatal_error(
+        "64-bit mask registers are not supported without EVEX512");
+
+  if (ID != X86::TILERegClassID)
     return BaseImplRetVal;
 
   ShapeT VirtShape = getTileShape(VirtReg, const_cast<VirtRegMap *>(VRM), MRI);

@@ -83,7 +83,7 @@ static void normalizeDivisionByGCD(MutableArrayRef<MPInt> dividend,
 ///     4q - i - j + 2 >= 0                       <-- Lower bound for 'q'
 ///    -4q + i + j     >= 0                       <-- Tight upper bound for 'q'
 ///
-/// To extract floor divisions with tighter bounds, we assume that that the
+/// To extract floor divisions with tighter bounds, we assume that the
 /// constraints are of the form:
 ///     c <= expr - divisior * var <= divisor - 1, where 0 <= c <= divisor - 1
 /// Rearranging, we have:
@@ -502,8 +502,8 @@ void DivisionRepr::print(raw_ostream &os) const {
   os << "Dividends:\n";
   dividends.print(os);
   os << "Denominators\n";
-  for (unsigned i = 0, e = denoms.size(); i < e; ++i)
-    os << denoms[i] << " ";
+  for (const MPInt &denom : denoms)
+    os << denom << " ";
   os << "\n";
 }
 

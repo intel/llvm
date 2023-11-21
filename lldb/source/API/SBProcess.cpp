@@ -17,8 +17,8 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
@@ -38,6 +38,7 @@
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBMemoryRegionInfo.h"
 #include "lldb/API/SBMemoryRegionInfoList.h"
+#include "lldb/API/SBScriptObject.h"
 #include "lldb/API/SBStream.h"
 #include "lldb/API/SBStringList.h"
 #include "lldb/API/SBStructuredData.h"
@@ -507,14 +508,13 @@ int SBProcess::GetExitStatus() {
 const char *SBProcess::GetExitDescription() {
   LLDB_INSTRUMENT_VA(this);
 
-  const char *exit_desc = nullptr;
   ProcessSP process_sp(GetSP());
-  if (process_sp) {
-    std::lock_guard<std::recursive_mutex> guard(
-        process_sp->GetTarget().GetAPIMutex());
-    exit_desc = process_sp->GetExitDescription();
-  }
-  return exit_desc;
+  if (!process_sp)
+    return nullptr;
+
+  std::lock_guard<std::recursive_mutex> guard(
+      process_sp->GetTarget().GetAPIMutex());
+  return ConstString(process_sp->GetExitDescription()).GetCString();
 }
 
 lldb::pid_t SBProcess::GetProcessID() {
@@ -747,7 +747,9 @@ SBProcess::GetRestartedReasonAtIndexFromEvent(const lldb::SBEvent &event,
                                               size_t idx) {
   LLDB_INSTRUMENT_VA(event, idx);
 
-  return Process::ProcessEventData::GetRestartedReasonAtIndex(event.get(), idx);
+  return ConstString(Process::ProcessEventData::GetRestartedReasonAtIndex(
+                         event.get(), idx))
+      .GetCString();
 }
 
 SBProcess SBProcess::GetProcessFromEvent(const SBEvent &event) {
@@ -1182,6 +1184,7 @@ lldb::SBError SBProcess::SaveCore(const char *file_name,
   }
 
   FileSpec core_file(file_name);
+  FileSystem::Instance().Resolve(core_file);
   error.ref() = PluginManager::SaveCore(process_sp, core_file, core_style,
                                         flavor);
 
@@ -1283,8 +1286,10 @@ lldb::SBError SBProcess::DeallocateMemory(lldb::addr_t ptr) {
   return sb_error;
 }
 
-ScriptedObject SBProcess::GetScriptedImplementation() {
+lldb::SBScriptObject SBProcess::GetScriptedImplementation() {
   LLDB_INSTRUMENT_VA(this);
   ProcessSP process_sp(GetSP());
-  return (process_sp) ? process_sp->GetImplementation() : nullptr;
+  return lldb::SBScriptObject((process_sp) ? process_sp->GetImplementation()
+                                           : nullptr,
+                              eScriptLanguageDefault);
 }

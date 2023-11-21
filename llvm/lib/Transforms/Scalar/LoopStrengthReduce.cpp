@@ -896,9 +896,14 @@ static bool isAddressUse(const TargetTransformInfo &TTI,
 /// Return the type of the memory being accessed.
 static MemAccessTy getAccessType(const TargetTransformInfo &TTI,
                                  Instruction *Inst, Value *OperandVal) {
-  MemAccessTy AccessTy(Inst->getType(), MemAccessTy::UnknownAddressSpace);
+  MemAccessTy AccessTy = MemAccessTy::getUnknown(Inst->getContext());
+
+  // First get the type of memory being accessed.
+  if (Type *Ty = Inst->getAccessType())
+    AccessTy.MemTy = Ty;
+
+  // Then get the pointer address space.
   if (const StoreInst *SI = dyn_cast<StoreInst>(Inst)) {
-    AccessTy.MemTy = SI->getOperand(0)->getType();
     AccessTy.AddrSpace = SI->getPointerAddressSpace();
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(Inst)) {
     AccessTy.AddrSpace = LI->getPointerAddressSpace();
@@ -923,7 +928,6 @@ static MemAccessTy getAccessType(const TargetTransformInfo &TTI,
           II->getArgOperand(0)->getType()->getPointerAddressSpace();
       break;
     case Intrinsic::masked_store:
-      AccessTy.MemTy = II->getOperand(0)->getType();
       AccessTy.AddrSpace =
           II->getArgOperand(1)->getType()->getPointerAddressSpace();
       break;
@@ -938,12 +942,6 @@ static MemAccessTy getAccessType(const TargetTransformInfo &TTI,
     }
     }
   }
-
-  // All pointers have the same requirements, so canonicalize them to an
-  // arbitrary pointer type to minimize variation.
-  if (PointerType *PTy = dyn_cast<PointerType>(AccessTy.MemTy))
-    AccessTy.MemTy = PointerType::get(IntegerType::get(PTy->getContext(), 1),
-                                      PTy->getAddressSpace());
 
   return AccessTy;
 }
@@ -2703,6 +2701,8 @@ void LSRInstance::CollectInterestingTypesAndFactors() {
   SmallVector<const SCEV *, 4> Worklist;
   for (const IVStrideUse &U : IU) {
     const SCEV *Expr = IU.getExpr(U);
+    if (!Expr)
+      continue;
 
     // Collect interesting types.
     Types.insert(SE.getEffectiveSCEVType(Expr->getType()));
@@ -2786,18 +2786,6 @@ static Value *getWideOperand(Value *Oper) {
   if (TruncInst *Trunc = dyn_cast<TruncInst>(Oper))
     return Trunc->getOperand(0);
   return Oper;
-}
-
-/// Return true if we allow an IV chain to include both types.
-static bool isCompatibleIVType(Value *LVal, Value *RVal) {
-  Type *LType = LVal->getType();
-  Type *RType = RVal->getType();
-  return (LType == RType) || (LType->isPointerTy() && RType->isPointerTy() &&
-                              // Different address spaces means (possibly)
-                              // different types of the pointer implementation,
-                              // e.g. i16 vs i32 so disallow that.
-                              (LType->getPointerAddressSpace() ==
-                               RType->getPointerAddressSpace()));
 }
 
 /// Return an approximation of this SCEV expression's "base", or NULL for any
@@ -2979,7 +2967,7 @@ void LSRInstance::ChainInstruction(Instruction *UserInst, Instruction *IVOper,
       continue;
 
     Value *PrevIV = getWideOperand(Chain.Incs.back().IVOperand);
-    if (!isCompatibleIVType(PrevIV, NextIV))
+    if (PrevIV->getType() != NextIV->getType())
       continue;
 
     // A phi node terminates a chain.
@@ -3273,7 +3261,7 @@ void LSRInstance::GenerateIVChain(const IVChain &Chain,
   // do this if we also found a wide value for the head of the chain.
   if (isa<PHINode>(Chain.tailUserInst())) {
     for (PHINode &Phi : L->getHeader()->phis()) {
-      if (!isCompatibleIVType(&Phi, IVSrc))
+      if (Phi.getType() != IVSrc->getType())
         continue;
       Instruction *PostIncV = dyn_cast<Instruction>(
           Phi.getIncomingValueForBlock(L->getLoopLatch()));
@@ -3321,6 +3309,8 @@ void LSRInstance::CollectFixupsAndInitialFormulae() {
     }
 
     const SCEV *S = IU.getExpr(U);
+    if (!S)
+      continue;
     PostIncLoopSet TmpPostIncLoops = U.getPostIncLoops();
 
     // Equality (== and !=) ICmps are special. We can rewrite (i == N) as
@@ -3353,6 +3343,8 @@ void LSRInstance::CollectFixupsAndInitialFormulae() {
           // S is normalized, so normalize N before folding it into S
           // to keep the result normalized.
           N = normalizeForPostIncUse(N, TmpPostIncLoops, SE);
+          if (!N)
+            continue;
           Kind = LSRUse::ICmpZero;
           S = SE.getMinusSCEV(N, S);
         } else if (L->isLoopInvariant(NV) &&
@@ -3367,6 +3359,8 @@ void LSRInstance::CollectFixupsAndInitialFormulae() {
           // SCEV can't compute the difference of two unknown pointers.
           N = SE.getUnknown(NV);
           N = normalizeForPostIncUse(N, TmpPostIncLoops, SE);
+          if (!N)
+            continue;
           Kind = LSRUse::ICmpZero;
           S = SE.getMinusSCEV(N, S);
           assert(!isa<SCEVCouldNotCompute>(S));
@@ -3476,6 +3470,11 @@ LSRInstance::CollectLoopInvariantFixupsAndFormulae() {
   SmallVector<const SCEV *, 8> Worklist(RegUses.begin(), RegUses.end());
   SmallPtrSet<const SCEV *, 32> Visited;
 
+  // Don't collect outside uses if we are favoring postinc - the instructions in
+  // the loop are more important than the ones outside of it.
+  if (AMK == TTI::AMK_PostIndexed)
+    return;
+
   while (!Worklist.empty()) {
     const SCEV *S = Worklist.pop_back_val();
 
@@ -3495,8 +3494,8 @@ LSRInstance::CollectLoopInvariantFixupsAndFormulae() {
       if (const Instruction *Inst = dyn_cast<Instruction>(V)) {
         // Look for instructions defined outside the loop.
         if (L->contains(Inst)) continue;
-      } else if (isa<UndefValue>(V))
-        // Undef doesn't have a live range, so it doesn't matter.
+      } else if (isa<Constant>(V))
+        // Constants can be re-materialized.
         continue;
       for (const Use &U : V->uses()) {
         const Instruction *UserInst = dyn_cast<Instruction>(U.getUser());
@@ -4138,6 +4137,29 @@ void LSRInstance::GenerateScales(LSRUse &LU, unsigned LUIdx, Formula Base) {
   }
 }
 
+/// Extend/Truncate \p Expr to \p ToTy considering post-inc uses in \p Loops.
+/// For all PostIncLoopSets in \p Loops, first de-normalize \p Expr, then
+/// perform the extension/truncate and normalize again, as the normalized form
+/// can result in folds that are not valid in the post-inc use contexts. The
+/// expressions for all PostIncLoopSets must match, otherwise return nullptr.
+static const SCEV *
+getAnyExtendConsideringPostIncUses(ArrayRef<PostIncLoopSet> Loops,
+                                   const SCEV *Expr, Type *ToTy,
+                                   ScalarEvolution &SE) {
+  const SCEV *Result = nullptr;
+  for (auto &L : Loops) {
+    auto *DenormExpr = denormalizeForPostIncUse(Expr, L, SE);
+    const SCEV *NewDenormExpr = SE.getAnyExtendExpr(DenormExpr, ToTy);
+    const SCEV *New = normalizeForPostIncUse(NewDenormExpr, L, SE);
+    if (!New || (Result && New != Result))
+      return nullptr;
+    Result = New;
+  }
+
+  assert(Result && "failed to create expression");
+  return Result;
+}
+
 /// Generate reuse formulae from different IV types.
 void LSRInstance::GenerateTruncates(LSRUse &LU, unsigned LUIdx, Formula Base) {
   // Don't bother truncating symbolic values.
@@ -4157,6 +4179,10 @@ void LSRInstance::GenerateTruncates(LSRUse &LU, unsigned LUIdx, Formula Base) {
              [](const SCEV *S) { return S->getType()->isPointerTy(); }))
     return;
 
+  SmallVector<PostIncLoopSet> Loops;
+  for (auto &LF : LU.Fixups)
+    Loops.push_back(LF.PostIncLoops);
+
   for (Type *SrcTy : Types) {
     if (SrcTy != DstTy && TTI.isTruncateFree(SrcTy, DstTy)) {
       Formula F = Base;
@@ -4166,15 +4192,17 @@ void LSRInstance::GenerateTruncates(LSRUse &LU, unsigned LUIdx, Formula Base) {
       // initial node (maybe due to depth limitations), but it can do them while
       // taking ext.
       if (F.ScaledReg) {
-        const SCEV *NewScaledReg = SE.getAnyExtendExpr(F.ScaledReg, SrcTy);
-        if (NewScaledReg->isZero())
-         continue;
+        const SCEV *NewScaledReg =
+            getAnyExtendConsideringPostIncUses(Loops, F.ScaledReg, SrcTy, SE);
+        if (!NewScaledReg || NewScaledReg->isZero())
+          continue;
         F.ScaledReg = NewScaledReg;
       }
       bool HasZeroBaseReg = false;
       for (const SCEV *&BaseReg : F.BaseRegs) {
-        const SCEV *NewBaseReg = SE.getAnyExtendExpr(BaseReg, SrcTy);
-        if (NewBaseReg->isZero()) {
+        const SCEV *NewBaseReg =
+            getAnyExtendConsideringPostIncUses(Loops, BaseReg, SrcTy, SE);
+        if (!NewBaseReg || NewBaseReg->isZero()) {
           HasZeroBaseReg = true;
           break;
         }
@@ -5659,8 +5687,7 @@ void LSRInstance::RewriteForPHI(
       }
     }
 
-  IRBuilder<> Builder(L->getHeader()->getContext());
-  formLCSSAForInstructions(InsertedNonLCSSAInsts, DT, LI, Builder);
+  formLCSSAForInstructions(InsertedNonLCSSAInsts, DT, LI, &SE);
 }
 
 /// Emit instructions for the leading candidate expression for this LSRUse (this
@@ -6428,13 +6455,13 @@ static void UpdateDbgValueInst(DVIRecoveryRec &DVIRec,
   }
 }
 
-/// Cached location ops may be erased during LSR, in which case an undef is
+/// Cached location ops may be erased during LSR, in which case a poison is
 /// required when restoring from the cache. The type of that location is no
-/// longer available, so just use int8. The undef will be replaced by one or
+/// longer available, so just use int8. The poison will be replaced by one or
 /// more locations later when a SCEVDbgValueBuilder selects alternative
 /// locations to use for the salvage.
-static Value *getValueOrUndef(WeakVH &VH, LLVMContext &C) {
-  return (VH) ? VH : UndefValue::get(llvm::Type::getInt8Ty(C));
+static Value *getValueOrPoison(WeakVH &VH, LLVMContext &C) {
+  return (VH) ? VH : PoisonValue::get(llvm::Type::getInt8Ty(C));
 }
 
 /// Restore the DVI's pre-LSR arguments. Substitute undef for any erased values.
@@ -6453,12 +6480,12 @@ static void restorePreTransformState(DVIRecoveryRec &DVIRec) {
     // this case was not present before, so force the location back to a single
     // uncontained Value.
     Value *CachedValue =
-        getValueOrUndef(DVIRec.LocationOps[0], DVIRec.DVI->getContext());
+        getValueOrPoison(DVIRec.LocationOps[0], DVIRec.DVI->getContext());
     DVIRec.DVI->setRawLocation(ValueAsMetadata::get(CachedValue));
   } else {
     SmallVector<ValueAsMetadata *, 3> MetadataLocs;
     for (WeakVH VH : DVIRec.LocationOps) {
-      Value *CachedValue = getValueOrUndef(VH, DVIRec.DVI->getContext());
+      Value *CachedValue = getValueOrPoison(VH, DVIRec.DVI->getContext());
       MetadataLocs.push_back(ValueAsMetadata::get(CachedValue));
     }
     auto ValArrayRef = llvm::ArrayRef<llvm::ValueAsMetadata *>(MetadataLocs);

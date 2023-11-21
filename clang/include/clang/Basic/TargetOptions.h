@@ -82,7 +82,7 @@ public:
   /// code object version times 100.
   enum CodeObjectVersionKind {
     COV_None,
-    COV_2 = 200,
+    COV_2 = 200, // Unsupported.
     COV_3 = 300,
     COV_4 = 400,
     COV_5 = 500,
@@ -90,11 +90,28 @@ public:
   /// \brief Code object version for AMDGPU.
   CodeObjectVersionKind CodeObjectVersion = CodeObjectVersionKind::COV_None;
 
+  /// \brief Enumeration values for AMDGPU printf lowering scheme
+  enum class AMDGPUPrintfKind {
+    /// printf lowering scheme involving hostcalls, currently used by HIP
+    /// programs by default
+    Hostcall = 0,
+
+    /// printf lowering scheme involving implicit printf buffers,
+    Buffered = 1,
+  };
+
+  /// \brief AMDGPU Printf lowering scheme
+  AMDGPUPrintfKind AMDGPUPrintfKindVal = AMDGPUPrintfKind::Hostcall;
+
   // The code model to be used as specified by the user. Corresponds to
   // CodeModel::Model enum defined in include/llvm/Support/CodeGen.h, plus
   // "default" for the case when the user has not explicitly specified a
   // code model.
   std::string CodeModel;
+
+  // The large data threshold used for certain code models on certain
+  // architectures.
+  uint64_t LargeDataThreshold;
 
   /// The version of the SDK which was used during the compilation.
   /// The option is used for two different purposes:
