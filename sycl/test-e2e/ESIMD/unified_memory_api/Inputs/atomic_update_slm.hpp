@@ -8,13 +8,12 @@
 
 #include "../../esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-using namespace sycl::ext::intel::experimental::esimd;
 
 constexpr int Signed = 1;
 constexpr int Unsigned = 2;
@@ -27,8 +26,6 @@ constexpr int64_t repeat = 1;
 constexpr int64_t stride = 4;
 
 // Helper functions
-
-template <class, int, template <class, int> class> class TestID;
 
 const char *to_string(atomic_op op) {
   switch (op) {
@@ -116,14 +113,14 @@ bool test_slm(queue q) {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for(rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
         int i = ii;
-        slm_init<32768>();
+        constexpr uint32_t SLMSize = N * (stride + 1) * sizeof(T);
+        slm_init<SLMSize>();
+
         simd<uint32_t, N> offsets(start_ind * sizeof(T), stride * sizeof(T));
         simd<T, size> data;
         data.copy_from(arr);
 
-        simd<uint32_t, size> slm_offsets(0, sizeof(T));
-        // TODO: replace this API with unified version.
-        lsc_slm_scatter(slm_offsets, data);
+        slm_block_store(0, data);
 
         simd_mask<N> m = 1;
         if constexpr (UseMask) {
@@ -171,8 +168,8 @@ bool test_slm(queue q) {
             }
           }
         }
-        // TODO: replace this API with unified version.
-        auto data0 = lsc_slm_gather<T>(slm_offsets);
+        barrier();
+        auto data0 = slm_block_load<T, size>(0);
         data0.copy_to(arr);
       });
     });
@@ -235,7 +232,7 @@ bool test_slm_acc(queue q) {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      local_accessor<T, 1> LocalAcc(threads_per_group * N, cgh);
+      local_accessor<T, 1> LocalAcc(threads_per_group * N * (stride + 1), cgh);
       cgh.parallel_for(rng, [=](sycl::nd_item<1> NDI) SYCL_ESIMD_KERNEL {
         int i = NDI.get_global_id(0);
         uint16_t LocalID = NDI.get_local_id(0);
@@ -541,10 +538,11 @@ struct ImplLSCFcmpwr : ImplCmpxchgBase<T, N, atomic_op, atomic_op::fcmpxchg> {};
 template <bool UseAcc, class T, int N, template <class, int> class ImplF,
           bool UseMask>
 auto run_test(queue q) {
-  if constexpr (UseAcc)
+  if constexpr (UseAcc) {
     return test_slm_acc<T, N, ImplF, UseMask>(q);
-  else
+  } else {
     return test_slm<T, N, ImplF, UseMask>(q);
+  }
 }
 
 template <int N, template <class, int> class Op, bool UseMask,
@@ -552,22 +550,28 @@ template <int N, template <class, int> class Op, bool UseMask,
 bool test_int_types(queue q) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
-    if constexpr (UsePVCFeatures)
+    if constexpr (UsePVCFeatures) {
       passed &= run_test<UseAcc, int16_t, N, Op, UseMask>(q);
+    }
 
     passed &= run_test<UseAcc, int32_t, N, Op, UseMask>(q);
-    if constexpr (std::is_same_v<Op<int64_t, N>, ImplCmpxchg<int64_t, N>>) {
-      passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
+    if constexpr (UsePVCFeatures) {
+      if constexpr (std::is_same_v<Op<int64_t, N>, ImplCmpxchg<int64_t, N>>) {
+        passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
+      }
     }
   }
 
   if constexpr (SignMask & Unsigned) {
-    if constexpr (UsePVCFeatures)
+    if constexpr (UsePVCFeatures) {
       passed &= run_test<UseAcc, uint16_t, N, Op, UseMask>(q);
+    }
 
     passed &= run_test<UseAcc, uint32_t, N, Op, UseMask>(q);
-    if constexpr (std::is_same_v<Op<uint64_t, N>, ImplCmpxchg<uint64_t, N>>) {
-      passed &= run_test<UseAcc, uint64_t, N, Op, UseMask>(q);
+    if constexpr (UsePVCFeatures) {
+      if constexpr (std::is_same_v<Op<uint64_t, N>, ImplCmpxchg<uint64_t, N>>) {
+        passed &= run_test<UseAcc, uint64_t, N, Op, UseMask>(q);
+      }
     }
   }
   return passed;
@@ -591,6 +595,12 @@ bool test_fp_types(queue q) {
     }
   }
   passed &= run_test<UseAcc, float, N, Op, UseMask>(q);
+  if (q.get_device().has(sycl::aspect::atomic64) &&
+      q.get_device().has(sycl::aspect::fp64)) {
+    // Disable double data type for fcmpxchg operation as D64 data is not
+    // supported for that operation.
+    passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
+  }
   return passed;
 }
 
@@ -602,8 +612,7 @@ bool test_int_types_and_sizes(queue q) {
   passed &= test_int_types<2, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
   passed &= test_int_types<4, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
   passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-  passed &=
-      test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+  passed &= test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
 
   // Supported by LSC atomic:
   if constexpr (UsePVCFeatures) {
