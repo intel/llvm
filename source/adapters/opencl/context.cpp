@@ -10,6 +10,10 @@
 
 #include "context.hpp"
 
+#include <mutex>
+#include <set>
+#include <unordered_map>
+
 ur_result_t cl_adapter::getDevicesFromContext(
     ur_context_handle_t hContext,
     std::unique_ptr<std::vector<cl_device_id>> &DevicesInCtx) {
@@ -89,10 +93,17 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_NUM_DEVICES:
   case UR_CONTEXT_INFO_DEVICES:
   case UR_CONTEXT_INFO_REFERENCE_COUNT: {
-
-    CL_RETURN_ON_FAILURE(
+    size_t CheckPropSize = 0;
+    auto ClResult =
         clGetContextInfo(cl_adapter::cast<cl_context>(hContext), CLPropName,
-                         propSize, pPropValue, pPropSizeRet));
+                         propSize, pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
     return UR_RESULT_SUCCESS;
   }
   default:
@@ -130,8 +141,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_context_extended_deleter_t pfnDeleter,
-    [[maybe_unused]] void *pUserData) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
+    void *pUserData) {
+  static std::unordered_map<ur_context_handle_t,
+                            std::set<ur_context_extended_deleter_t>>
+      ContextCallbackMap;
+  static std::mutex ContextCallbackMutex;
+
+  {
+    std::lock_guard<std::mutex> Lock(ContextCallbackMutex);
+    // Callbacks can only be registered once and we need to avoid double
+    // allocating.
+    if (ContextCallbackMap.count(hContext) &&
+        ContextCallbackMap[hContext].count(pfnDeleter)) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    ContextCallbackMap[hContext].insert(pfnDeleter);
+  }
+
+  struct ContextCallback {
+    void execute() {
+      pfnDeleter(pUserData);
+      {
+        std::lock_guard<std::mutex> Lock(*CallbackMutex);
+        (*CallbackMap)[hContext].erase(pfnDeleter);
+        if ((*CallbackMap)[hContext].empty()) {
+          CallbackMap->erase(hContext);
+        }
+      }
+      delete this;
+    }
+    ur_context_handle_t hContext;
+    ur_context_extended_deleter_t pfnDeleter;
+    void *pUserData;
+    std::unordered_map<ur_context_handle_t,
+                       std::set<ur_context_extended_deleter_t>> *CallbackMap;
+    std::mutex *CallbackMutex;
+  };
+  auto Callback =
+      new ContextCallback({hContext, pfnDeleter, pUserData, &ContextCallbackMap,
+                           &ContextCallbackMutex});
+  auto ClCallback = [](cl_context, void *pUserData) {
+    auto *C = static_cast<ContextCallback *>(pUserData);
+    C->execute();
+  };
+  CL_RETURN_ON_FAILURE(clSetContextDestructorCallback(
+      cl_adapter::cast<cl_context>(hContext), ClCallback, Callback));
+
+  return UR_RESULT_SUCCESS;
 }

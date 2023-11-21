@@ -6981,6 +6981,119 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
+    ur_program_handle_t hProgram, ///< [in] Handle of the program to build.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnBuildExp = context.urDdiTable.ProgramExp.pfnBuildExp;
+
+    if (nullptr == pfnBuildExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCompileExp
+__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
+    ur_program_handle_t
+        hProgram,        ///< [in][out] handle of the program to compile.
+    uint32_t numDevices, ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    const char *
+        pOptions ///< [in][optional] pointer to build options null-terminated string.
+) {
+    auto pfnCompileExp = context.urDdiTable.ProgramExp.pfnCompileExp;
+
+    if (nullptr == pfnCompileExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] pointer to array of device handles
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+) {
+    auto pfnLinkExp = context.urDdiTable.ProgramExp.pfnLinkExp;
+
+    if (nullptr == pfnLinkExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phPrograms) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (count == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
+                                    phPrograms, pOptions, phProgram);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -7935,6 +8048,46 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_program_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_validation_layer::context.urDdiTable.ProgramExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_validation_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_validation_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnBuildExp = pDdiTable->pfnBuildExp;
+    pDdiTable->pfnBuildExp = ur_validation_layer::urProgramBuildExp;
+
+    dditable.pfnCompileExp = pDdiTable->pfnCompileExp;
+    pDdiTable->pfnCompileExp = ur_validation_layer::urProgramCompileExp;
+
+    dditable.pfnLinkExp = pDdiTable->pfnLinkExp;
+    pDdiTable->pfnLinkExp = ur_validation_layer::urProgramLinkExp;
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Queue table
 ///        with current process' addresses
 ///
@@ -8369,6 +8522,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetProgramProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Program);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_validation_layer::urGetProgramExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->ProgramExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {

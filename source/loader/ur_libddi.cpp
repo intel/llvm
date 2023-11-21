@@ -75,6 +75,11 @@ __urdlllocal ur_result_t context_t::urInit() {
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
+                                              &urDdiTable.ProgramExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result =
             urGetQueueProcAddrTable(UR_API_VERSION_CURRENT, &urDdiTable.Queue);
     }

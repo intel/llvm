@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "context.hpp"
 
 hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
 
@@ -89,6 +90,16 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
                   new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
+            }
+
+            // Setup EvBase
+            {
+              ScopedContext Active(PlatformIds.front().Devices.front().get());
+              hipEvent_t EvBase;
+              UR_CHECK_ERROR(hipEventCreate(&EvBase));
+              UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
+
+              ur_platform_handle_t_::EvBase = EvBase;
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
