@@ -32,8 +32,7 @@ template <typename Group>
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        tangle_group<Group>>
-get_tangle_group(Group group);
+                        tangle_group<Group>> get_tangle_group(Group group);
 
 template <typename ParentGroup> class tangle_group {
 public:

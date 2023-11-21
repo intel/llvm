@@ -31,8 +31,7 @@ namespace this_kernel {
 [[__sycl_detail__::__uses_aspects__(
     sycl::aspect::ext_oneapi_opportunistic_group)]]
 #endif
-inline opportunistic_group
-get_opportunistic_group();
+inline opportunistic_group get_opportunistic_group();
 } // namespace this_kernel
 
 class opportunistic_group {
