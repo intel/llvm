@@ -854,3 +854,27 @@ int main() {
   }).wait();
 }
 ```
+
+
+== Issues
+
+* Do we want to add an API similar to `nvrtcGetTypeName`?
+  This does seem useful in some advanced cases, and it is not specific to CUDA.
+  The implementation is fairly straightforward.
+  You use `typeid` to get an `std::type_info`.
+  You can then call `type_info::name` to get an implementation-defined name for
+  the type.
+  For clang on Linux, this returns the type's mangled name.
+  You can then call `+abi::__cxa_demangle+` to get an unmangled name for the
+  type.
+  I'm not sure about the details on Windows hosts, though.
+  If `type_info::name` returns a mangled name on Windows too, then maybe we can
+  still use `+abi::__cxa_demangle+` to get an unmangled name, but this needs to
+  be checked.
++
+Another option might be to provide this functionality as a utility library.
+There is no inherent reason why this functionality needs to be built into
+{dpcpp}.
+However, we don't yet have a utility library where this would go, and it may be
+hard for customers to discover this functionality if it is defined outside of
+this extension.
