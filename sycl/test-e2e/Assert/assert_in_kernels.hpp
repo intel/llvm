@@ -59,7 +59,7 @@ int main(int Argc, const char *Argv[]) {
   Q.wait();
 
   assertTest2(Q, Buf);
-  Q.wait();
+  //Q.wait();
 
   assertTest3(Q, Buf);
   Q.wait();
