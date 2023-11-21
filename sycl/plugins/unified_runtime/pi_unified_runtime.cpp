@@ -1212,7 +1212,6 @@ __SYCL_EXPORT pi_result piextPeerAccessGetInfo(
 
 __SYCL_EXPORT pi_result piTearDown(void *) {
   releaseAdapters(Adapters.Vec);
-  urTearDown(nullptr);
   return PI_SUCCESS;
 }
 

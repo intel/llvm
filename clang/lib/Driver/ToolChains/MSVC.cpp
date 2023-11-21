@@ -137,8 +137,12 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                          TC.getDriver().Dir + "/../lib"));
     // When msvcrtd is added via --dependent-lib, we add the sycld
     // equivalent.  Do not add the -defaultlib as it conflicts.
-    if (!isDependentLibAdded(Args, "msvcrtd"))
-      CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
+    if (!isDependentLibAdded(Args, "msvcrtd")) {
+      if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "-preview.lib");
+      else
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
+    }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 

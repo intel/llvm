@@ -7,13 +7,14 @@ compiler and runtime.
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi-device-selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi-device-selector) for a full description.   |
-| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl-device-filter) below for `SYCL_DEVICE_FILTER` description. |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl-device-allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
+| `SYCL_DEVICE_FILTER` (deprecated) | `backend:device_type:device_num` | Please use `ONEAPI_DEVICE_SELECTOR` environment variable instead. See section [`SYCL_DEVICE_FILTER`](#sycl_device_filter) below for `SYCL_DEVICE_FILTER` description. |
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
 | `SYCL_CACHE_PERSISTENT` | Integer | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
+| `SYCL_CACHE_IN_MEM` | '1' or '0' | Enable ('1') or disable ('0') in-memory caching of device compiled code. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is '1'. |
 | `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches cache eviction off when the variable is set. |
 | `SYCL_CACHE_MAX_SIZE` | Positive integer | Cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
 | `SYCL_CACHE_THRESHOLD` | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
@@ -23,7 +24,7 @@ compiler and runtime.
 | `SYCL_RT_WARNING_LEVEL` | Positive integer | The higher warning level is used the more warnings and performance hints the runtime library may print. Default value is '0', which means no warning/hint messages from the runtime library are allowed. The value '1' enables performance warnings from device runtime/codegen. The values greater than 1 are reserved for future use. |
 | `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 | `SYCL_EAGER_INIT` | Integer | Enable by specifying non-zero value. Tells the SYCL runtime to do as much as possible initialization at objects construction as opposed to doing lazy initialization on the fly. This may mean doing some redundant work at warmup but ensures fastest possible execution on the following hot and reportable paths. It also instructs PI plugins to do the same. Default is "0".  |
-| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl-reduction-preferred-workgroup-size) | Controls the preferred work-group size of reductions. |
+| `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
 | `SYCL_ENABLE_FUSION_CACHING` | '1' or '0' | Enable ('1') or disable ('0') caching of JIT compilations for kernel fusion. Caching avoids repeatedly running the JIT compilation pipeline if the same sequence of kernels is fused multiple times. Default value is '1'. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
@@ -41,7 +42,7 @@ ONEAPI_DEVICE_SELECTOR = <selector-string>
 <accept-filter> ::= <term>
 <discard-filter> ::= !<term>
 <term> ::= <backend>:<devices>
-<backend> ::= { * | level_zero | opencl | cuda | hip | esimd_emulator }  // case insensitive
+<backend> ::= { * | level_zero | opencl | cuda | hip }  // case insensitive
 <devices> ::= <device>[,<device>...]
 <device> ::= { * | cpu | gpu | fpga | <num> | <num>.<num> | <num>.* | *.* | <num>.<num>.<num> | <num>.<num>.* | <num>.*.* | *.*.*  }  // case insensitive
 ```
@@ -84,9 +85,22 @@ The following examples further illustrate the usage of this environment variable
 Notes:
 - The backend argument is always required. An error will be thrown if it is absent.
 - Additionally, the backend MUST be followed by colon ( `:` ) and at least one device specifier of some sort, else an error is thrown.
-- For sub-devices and sub-sub-devices, the parent device must support partitioning (`info::partition_property::partition_by_affinity_domain` and `info::partition_affinity_domain::next_partitionable`. See the SYCL 2020 specification for a precise definition.) For Intel GPUs, the sub-device and sub-sub-device syntax can be used to expose tiles or CCSs to the SYCL application as root devices.  The exact mapping between sub-device, sub-sub-device, tiles, and CCSs is specific to the hardware.
+- The sub-device and sub-sub-device syntax attempt to partition the root device
+  according to the rules defined by
+  `info::partition_property::partition_by_affinity_domain` and
+  `info::partition_affinity_domain::next_partitionable`.
+  (See the SYCL 2020 specification for a precise definition.)
+  The root device is determined by the underlying backend.
+- When using the Level Zero backend, see also the documentation of the
+  [`ZE_FLAT_DEVICE_HIERARCHY`][ze-env] environment variable because it affects
+  how this backend exposes root devices to SYCL.
+  For Intel GPUs, the sub-device and sub-sub-device syntax can be used to
+  expose tiles or CCSs to the SYCL application as SYCL root devices, however
+  the exact mapping is determined by the `ZE_FLAT_DEVICE_HIERARCHY` environment
+  variable.
 - The semi-colon character ( `;` ) and the exclamation mark character ( `!`  ) are treated specially by many shells, so you may need to enclose the string in quotes if the selection string contains these characters.
 
+[ze-env]: https://spec.oneapi.io/level-zero/latest/core/PROG.html#environment-variables
 
 
 ### `SYCL_DEVICE_ALLOWLIST`
@@ -148,6 +162,20 @@ If this environment variable is not set, the preferred work-group size for reduc
 
 Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions to 32 on CPUs and to 16 on all other devices.
 
+## Range Rounding Environment Variables
+
+For a description of parallel for range rounding in DPC++ see
+[Parallel For Range Rounding][range-rounding].
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE`   | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS`  | `MinFactorX:GoodFactor:MinRangeX` | `MinFactorX`: The minimum range that the rounded range should be a multiple of (Default 16)  |
+|  |  | `GoodFactor`: The preferred range that the rounded range be a multiple of (Default 32)  |
+|  |  | `MinRangeX`: The minimum X dimension of the range such that range rounding is activated (Default 1024) |
+
+
 ## Controlling DPC++ Level Zero Plugin
 
 | Environment variable | Values | Description |
@@ -192,10 +220,10 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_PI_TRACE` | Described [below](#sycl-pi-trace-options)  | Enable specified level of tracing for PI. |
+| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
-| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl-print-execution-graph-options) | Print execution graph to DOT text file. |
+| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable regular cleanup of enqueued (or finished, in case of host tasks) non-leaf command nodes. If disabled, command nodes will be cleaned up only during the destruction of the last remaining memory object used by them. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` (deprecated) | Any(\*) | Use `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` instead. |
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
@@ -277,3 +305,4 @@ variables in production code.</span>
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 [xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md
+[range-rounding]: https://github.com/intel/llvm/blob/sycl/doc/design/ParallelForRangeRounding.md

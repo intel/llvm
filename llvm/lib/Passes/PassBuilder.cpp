@@ -72,6 +72,8 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Analysis/UniformityAnalysis.h"
+#include "llvm/CodeGen/ExpandLargeDivRem.h"
+#include "llvm/CodeGen/ExpandLargeFpConvert.h"
 #include "llvm/CodeGen/HardwareLoops.h"
 #include "llvm/CodeGen/TypePromotion.h"
 #include "llvm/IR/DebugInfo.h"
@@ -92,6 +94,7 @@
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
+#include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -104,6 +107,7 @@
 #include "llvm/Transforms/Coroutines/CoroEarly.h"
 #include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "llvm/Transforms/Coroutines/CoroSplit.h"
+#include "llvm/Transforms/HipStdPar/HipStdPar.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/Annotation2Metadata.h"
 #include "llvm/Transforms/IPO/ArgumentPromotion.h"
@@ -244,8 +248,8 @@
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/CanonicalizeFreezeInLoops.h"
 #include "llvm/Transforms/Utils/CountVisits.h"
-#include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/DXILUpgrade.h"
+#include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/FixIrreducible.h"
 #include "llvm/Transforms/Utils/HelloWorld.h"
@@ -1088,6 +1092,11 @@ parseFunctionSimplificationPipelineOptions(StringRef Params) {
 Expected<bool> parseMemorySSAPrinterPassOptions(StringRef Params) {
   return parseSinglePassOption(Params, "no-ensure-optimized-uses",
                                "MemorySSAPrinterPass");
+}
+
+Expected<bool> parseSpeculativeExecutionPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "only-if-divergent-target",
+                               "SpeculativeExecutionPass");
 }
 
 Expected<std::string> parseMemProfUsePassOptions(StringRef Params) {

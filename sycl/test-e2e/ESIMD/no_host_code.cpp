@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -fno-sycl-esimd-build-host-code -o %t.out
 // RUN: %{run} %t.out
 

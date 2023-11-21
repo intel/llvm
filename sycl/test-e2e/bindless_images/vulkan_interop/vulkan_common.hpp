@@ -461,7 +461,22 @@ struct vulkan_image_test_resources_t {
 
 VkFormat to_vulkan_format(sycl::image_channel_order order,
                           sycl::image_channel_type channel_type) {
-  if (channel_type == sycl::image_channel_type::unsigned_int32) {
+  if (channel_type == sycl::image_channel_type::signed_int8) {
+
+    switch (order) {
+    case sycl::image_channel_order::r:
+      return VK_FORMAT_R8_SINT;
+    case sycl::image_channel_order::rg:
+      return VK_FORMAT_R8G8_SINT;
+    case sycl::image_channel_order::rgba:
+      return VK_FORMAT_R8G8B8A8_SINT;
+    default: {
+      std::cerr << "error in converting to vulkan format\n";
+      exit(-1);
+    }
+    }
+  } else if (channel_type == sycl::image_channel_type::unsigned_int32) {
+
     switch (order) {
     case sycl::image_channel_order::r:
       return VK_FORMAT_R32_UINT;
@@ -482,6 +497,19 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
       return VK_FORMAT_R32G32_SINT;
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R32G32B32A32_SINT;
+    default: {
+      std::cerr << "error in converting to vulkan format\n";
+      exit(-1);
+    }
+    }
+  } else if (channel_type == sycl::image_channel_type::signed_int16) {
+    switch (order) {
+    case sycl::image_channel_order::r:
+      return VK_FORMAT_R16_SINT;
+    case sycl::image_channel_order::rg:
+      return VK_FORMAT_R16G16_SINT;
+    case sycl::image_channel_order::rgba:
+      return VK_FORMAT_R16G16B16A16_SINT;
     default: {
       std::cerr << "error in converting to vulkan format\n";
       exit(-1);

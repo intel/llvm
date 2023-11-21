@@ -29,23 +29,35 @@
 namespace llvm {
 
 class BasicBlock;
+class DPMarker;
 class FastMathFlags;
 class MDNode;
 class Module;
 struct AAMDNodes;
+class DPMarker;
 
 template <> struct ilist_alloc_traits<Instruction> {
   static inline void deleteNode(Instruction *V);
 };
 
 class Instruction : public User,
-                    public ilist_node_with_parent<Instruction, BasicBlock> {
+                    public ilist_node_with_parent<Instruction, BasicBlock,
+                                                  ilist_iterator_bits<true>> {
+public:
+  using InstListType = SymbolTableList<Instruction, ilist_iterator_bits<true>>;
+private:
   BasicBlock *Parent;
   DebugLoc DbgLoc;                         // 'dbg' Metadata cache.
 
   /// Relative order of this instruction in its parent basic block. Used for
   /// O(1) local dominance checks between instructions.
   mutable unsigned Order = 0;
+
+public:
+  /// Optional marker recording the position for debugging information that
+  /// takes effect immediately before this instruction. Null unless there is
+  /// debugging information present.
+  DPMarker *DbgMarker = nullptr;
 
 protected:
   // The 15 first bits of `Value::SubclassData` are available for subclasses of
@@ -118,12 +130,12 @@ public:
   /// This method unlinks 'this' from the containing basic block and deletes it.
   ///
   /// \returns an iterator pointing to the element after the erased one
-  SymbolTableList<Instruction>::iterator eraseFromParent();
+  InstListType::iterator eraseFromParent();
 
   /// Insert an unlinked instruction into a basic block immediately before
   /// the specified instruction.
   void insertBefore(Instruction *InsertPos);
-  void insertBefore(SymbolTableList<Instruction>::iterator InsertPos) {
+  void insertBefore(InstListType::iterator InsertPos) {
     insertBefore(&*InsertPos);
   }
 
@@ -133,11 +145,10 @@ public:
 
   /// Inserts an unlinked instruction into \p ParentBB at position \p It and
   /// returns the iterator of the inserted instruction.
-  SymbolTableList<Instruction>::iterator
-  insertInto(BasicBlock *ParentBB, SymbolTableList<Instruction>::iterator It);
+  InstListType::iterator insertInto(BasicBlock *ParentBB,
+                                    InstListType::iterator It);
 
-  void insertBefore(BasicBlock &BB,
-                    SymbolTableList<Instruction>::iterator InsertPos) {
+  void insertBefore(BasicBlock &BB, InstListType::iterator InsertPos) {
     insertInto(&BB, InsertPos);
   }
 
@@ -157,10 +168,10 @@ public:
   /// Unlink this instruction and insert into BB before I.
   ///
   /// \pre I is a valid iterator into BB.
-  void moveBefore(BasicBlock &BB, SymbolTableList<Instruction>::iterator I);
+  void moveBefore(BasicBlock &BB, InstListType::iterator I);
 
   /// (See other overload for moveBeforePreserving).
-  void moveBeforePreserving(BasicBlock &BB, SymbolTableList<Instruction>::iterator I) {
+  void moveBeforePreserving(BasicBlock &BB, InstListType::iterator I) {
     moveBefore(BB, I);
   }
 
@@ -300,8 +311,10 @@ public:
   /// Get the metadata of given kind attached to this Instruction.
   /// If the metadata is not found then return null.
   MDNode *getMetadata(unsigned KindID) const {
-    if (!hasMetadata()) return nullptr;
-    return getMetadataImpl(KindID);
+    // Handle 'dbg' as a special case since it is not stored in the hash table.
+    if (KindID == LLVMContext::MD_dbg)
+      return DbgLoc.getAsMDNode();
+    return Value::getMetadata(KindID);
   }
 
   /// Get the metadata of given kind attached to this Instruction.
@@ -407,11 +420,18 @@ public:
   /// which supports this flag. See LangRef.html for the meaning of this flag.
   void setIsExact(bool b = true);
 
+  /// Set or clear the nneg flag on this instruction, which must be a zext
+  /// instruction.
+  void setNonNeg(bool b = true);
+
   /// Determine whether the no unsigned wrap flag is set.
   bool hasNoUnsignedWrap() const LLVM_READONLY;
 
   /// Determine whether the no signed wrap flag is set.
   bool hasNoSignedWrap() const LLVM_READONLY;
+
+  /// Determine whether the the nneg flag is set.
+  bool hasNonNeg() const LLVM_READONLY;
 
   /// Return true if this operator has flags which may cause this instruction
   /// to evaluate to poison despite having non-poison inputs.
@@ -584,7 +604,6 @@ public:
 
 private:
   // These are all implemented in Metadata.cpp.
-  MDNode *getMetadataImpl(unsigned KindID) const;
   MDNode *getMetadataImpl(StringRef Kind) const;
   void
   getAllMetadataImpl(SmallVectorImpl<std::pair<unsigned, MDNode *>> &) const;
@@ -902,7 +921,7 @@ public:
   };
 
 private:
-  friend class SymbolTableListTraits<Instruction>;
+  friend class SymbolTableListTraits<Instruction, ilist_iterator_bits<true>>;
   friend class BasicBlock; // For renumbering.
 
   // Shadow Value::setValueSubclassData with a private forwarding method so that

@@ -14,6 +14,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
     * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
     * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
+    * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
   * [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -44,7 +45,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
-  * See LLVM's [host compiler toolchain requirements](../../llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
 Alternatively, you can use a Docker image that has everything you need for
 building pre-installed:
@@ -124,8 +125,6 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see
-  [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -302,7 +301,7 @@ package will be generated from source codes downloaded from its open source
 project and installed in your deploy directory during toolchain build.
 
 To enable support for ESIMD CPU emulation, follow the instructions for the Linux
-DPC++ toolchain, but add the `--enable-esimd-emulator'.
+DPC++ toolchain, but add the `--enable-esimd-emulator`.
 
 Enabling this flag requires following packages installed.
 
@@ -310,7 +309,7 @@ Enabling this flag requires following packages installed.
   * libva-dev / 2.7.0-2
   * libffi-dev / 3.3-4
   * libtool
-* RHEL 8.*
+* RHEL 8.\*
   * libffi
   * libffi-devel
   * libva
@@ -347,6 +346,36 @@ command:
 After CMake cache is generated, build the documentation with `doxygen-sycl`
 target. It will be put to `$DPCPP_HOME/llvm/build/tools/sycl/doc/html`
 directory.
+
+### Build DPC++ toolchain with a custom Unified Runtime
+
+DPC++ uses the [Unified Runtime](https://github.com/oneapi-src/unified-runtime)
+under the hood to provide implementations of various SYCL backends. By default
+the source code for the Unified Runtime will be acquired using CMake's
+[FetchCotent](https://cmake.org/cmake/help/latest/module/FetchContent.html). The
+specific repository URL and revision tag used can be found in the file
+`sycl/plugins/unified_runtime/CMakeLists.txt` searching for the variables
+`UNIFIED_RUNTIME_REPO` and `UNIFIED_RUNTIME_TAG`.
+
+In order to enable developers, a number of CMake variables are available to
+control which revision of Unified Runtime should be used when building DPC++:
+
+* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
+  override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
+  the Unified Runtime source code.
+* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
+  override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
+  the Unified Runtime source code.
+* `SYCL_PI_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
+  `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
+  When set to `OFF`, `FetchContent` will not be used, instead:
+  * The path specified by variable `SYCL_PI_UR_SOURCE_DIR` will be used with
+    `add_directory()`. This can be used to point at an adjacent directory
+    containing a clone of the Unified Runtime repository.
+  * The path `sycl/plugins/unified_runtime/unified-runtime` will be used, if it
+    exists. This can be used as-if an in-tree build.
+* `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
+  Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Deployment
 
@@ -512,7 +541,7 @@ AOT compiler for each device type:
 #### CPU
 
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
-[opencl-aot documentation](../../opencl/opencl-aot/README.md).
+[opencl-aot documentation](https://github.com/intel/llvm/blob/sycl/opencl/opencl-aot/README.md).
 
 #### Accelerator
 
@@ -678,7 +707,7 @@ ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
 using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md))
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
 as explained in following section
 [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
 

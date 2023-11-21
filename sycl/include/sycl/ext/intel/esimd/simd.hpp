@@ -21,10 +21,6 @@
 
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/detail/iostream_proxy.hpp>
-#endif // __SYCL_DEVICE_ONLY__
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::esimd {
@@ -217,13 +213,6 @@ std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
     {}
 #else
 {
-  OS << "{";
-  for (int I = 0; I < N; I++) {
-    OS << V[I];
-    if (I < N - 1)
-      OS << ",";
-  }
-  OS << "}";
-  return OS;
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__

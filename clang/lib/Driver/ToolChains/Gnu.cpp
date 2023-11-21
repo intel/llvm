@@ -412,8 +412,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Generic_ELF, so the static_cast might return a reference to a invalid
   // instance (see PR45061). Ideally, the Linker constructor needs to take a
   // Generic_ELF instead.
-  const toolchains::Generic_ELF &ToolChain =
-      static_cast<const toolchains::Generic_ELF &>(getToolChain());
+  const auto &ToolChain = static_cast<const Generic_ELF &>(getToolChain());
   const Driver &D = ToolChain.getDriver();
 
   const llvm::Triple &Triple = getToolChain().getEffectiveTriple();
@@ -583,7 +582,15 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (D.isUsingLTO()) {
     assert(!Inputs.empty() && "Must have at least one input.");
-    addLTOOptions(ToolChain, Args, CmdArgs, Output, Inputs[0],
+    // Find the first filename InputInfo object.
+    auto Input = llvm::find_if(
+        Inputs, [](const InputInfo &II) -> bool { return II.isFilename(); });
+    if (Input == Inputs.end())
+      // For a very rare case, all of the inputs to the linker are
+      // InputArg. If that happens, just use the first InputInfo.
+      Input = Inputs.begin();
+
+    addLTOOptions(ToolChain, Args, CmdArgs, Output, *Input,
                   D.getLTOMode() == LTOK_Thin);
   }
 
@@ -597,15 +604,24 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // linked archives.  The unbundled information is a list of files and not
   // an actual object/archive.  Take that list and pass those to the linker
   // instead of the original object.
-  if (JA.isDeviceOffloading(Action::OFK_OpenMP)) {
+  if (JA.isDeviceOffloading(Action::OFK_OpenMP) ||
+      JA.isOffloading(Action::OFK_SYCL)) {
     InputInfoList UpdatedInputs;
     // Go through the Inputs to the link.  When a listfile is encountered, we
     // know it is an unbundled generated list.
     for (const auto &II : Inputs) {
-      if (II.getType() == types::TY_Tempfilelist) {
+      // TODO: Incoming file from the unbundling of the AOCX archive is
+      // represented as an object. The file should be considered as a filelist
+      // file to correspond with the '@' addition.
+      bool IsAOCXFile = false;
+      if (II.isFilename())
+        IsAOCXFile = llvm::sys::path::extension(II.getFilename()) == ".aocx";
+
+      if (II.getType() == types::TY_Tempfilelist ||
+          (IsAOCXFile && II.getType() == types::TY_Object)) {
         // Take the unbundled list file and pass it in with '@'.
-        std::string FileName(II.getFilename());
-        const char * ArgFile = C.getArgs().MakeArgString("@" + FileName);
+        const char *ArgFile =
+            C.getArgs().MakeArgString("@" + StringRef(II.getFilename()));
         auto CurInput = InputInfo(types::TY_Object, ArgFile, ArgFile);
         UpdatedInputs.push_back(CurInput);
       } else
@@ -641,7 +657,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Additional linker set-up and flags for Fortran. This is required in order
   // to generate executables. As Fortran runtime depends on the C runtime,
   // these dependencies need to be listed before the C runtime below (i.e.
-  // AddRuntTimeLibs).
+  // AddRunTimeLibs).
   if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
     addFortranRuntimeLibs(ToolChain, CmdArgs);
@@ -729,7 +745,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
       if (Args.hasArg(options::OPT_fsycl) &&
           !Args.hasArg(options::OPT_nolibsycl)) {
-        CmdArgs.push_back("-lsycl");
+        if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+          CmdArgs.push_back("-lsycl-preview");
+        else
+          CmdArgs.push_back("-lsycl");
         CmdArgs.push_back("-lsycl-devicelib-host");
         // Use of -fintelfpga implies -lOpenCL.
         // FIXME: Adjust to use plugin interface when available.
@@ -2134,45 +2153,72 @@ Generic_GCC::GCCVersion Generic_GCC::GCCVersion::Parse(StringRef VersionText) {
   std::pair<StringRef, StringRef> First = VersionText.split('.');
   std::pair<StringRef, StringRef> Second = First.second.split('.');
 
-  GCCVersion GoodVersion = {VersionText.str(), -1, -1, -1, "", "", ""};
-  if (First.first.getAsInteger(10, GoodVersion.Major) || GoodVersion.Major < 0)
-    return BadVersion;
-  GoodVersion.MajorStr = First.first.str();
-  if (First.second.empty())
-    return GoodVersion;
+  StringRef MajorStr = First.first;
   StringRef MinorStr = Second.first;
-  if (Second.second.empty()) {
-    if (size_t EndNumber = MinorStr.find_first_not_of("0123456789")) {
-      GoodVersion.PatchSuffix = std::string(MinorStr.substr(EndNumber));
-      MinorStr = MinorStr.slice(0, EndNumber);
-    }
-  }
-  if (MinorStr.getAsInteger(10, GoodVersion.Minor) || GoodVersion.Minor < 0)
-    return BadVersion;
-  GoodVersion.MinorStr = MinorStr.str();
+  StringRef PatchStr = Second.second;
 
-  // First look for a number prefix and parse that if present. Otherwise just
-  // stash the entire patch string in the suffix, and leave the number
-  // unspecified. This covers versions strings such as:
-  //   5        (handled above)
+  GCCVersion GoodVersion = {VersionText.str(), -1, -1, -1, "", "", ""};
+
+  // Parse version number strings such as:
+  //   5
   //   4.4
   //   4.4-patched
   //   4.4.0
   //   4.4.x
   //   4.4.2-rc4
   //   4.4.x-patched
-  // And retains any patch number it finds.
-  StringRef PatchText = Second.second;
-  if (!PatchText.empty()) {
-    if (size_t EndNumber = PatchText.find_first_not_of("0123456789")) {
-      // Try to parse the number and any suffix.
-      if (PatchText.slice(0, EndNumber).getAsInteger(10, GoodVersion.Patch) ||
-          GoodVersion.Patch < 0)
-        return BadVersion;
-      GoodVersion.PatchSuffix = std::string(PatchText.substr(EndNumber));
+  //   10-win32
+  // Split on '.', handle 1, 2 or 3 such segments. Each segment must contain
+  // purely a number, except for the last one, where a non-number suffix
+  // is stored in PatchSuffix. The third segment is allowed to not contain
+  // a number at all.
+
+  auto TryParseLastNumber = [&](StringRef Segment, int &Number,
+                                std::string &OutStr) -> bool {
+    // Look for a number prefix and parse that, and split out any trailing
+    // string into GoodVersion.PatchSuffix.
+
+    if (size_t EndNumber = Segment.find_first_not_of("0123456789")) {
+      StringRef NumberStr = Segment.slice(0, EndNumber);
+      if (NumberStr.getAsInteger(10, Number) || Number < 0)
+        return false;
+      OutStr = NumberStr;
+      GoodVersion.PatchSuffix = Segment.substr(EndNumber);
+      return true;
     }
+    return false;
+  };
+  auto TryParseNumber = [](StringRef Segment, int &Number) -> bool {
+    if (Segment.getAsInteger(10, Number) || Number < 0)
+      return false;
+    return true;
+  };
+
+  if (MinorStr.empty()) {
+    // If no minor string, major is the last segment
+    if (!TryParseLastNumber(MajorStr, GoodVersion.Major, GoodVersion.MajorStr))
+      return BadVersion;
+    return GoodVersion;
   }
 
+  if (!TryParseNumber(MajorStr, GoodVersion.Major))
+    return BadVersion;
+  GoodVersion.MajorStr = MajorStr;
+
+  if (PatchStr.empty()) {
+    // If no patch string, minor is the last segment
+    if (!TryParseLastNumber(MinorStr, GoodVersion.Minor, GoodVersion.MinorStr))
+      return BadVersion;
+    return GoodVersion;
+  }
+
+  if (!TryParseNumber(MinorStr, GoodVersion.Minor))
+    return BadVersion;
+  GoodVersion.MinorStr = MinorStr;
+
+  // For the last segment, tolerate a missing number.
+  std::string DummyStr;
+  TryParseLastNumber(PatchStr, GoodVersion.Patch, DummyStr);
   return GoodVersion;
 }
 
