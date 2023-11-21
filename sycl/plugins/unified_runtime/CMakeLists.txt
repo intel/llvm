@@ -56,13 +56,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ce152a64deae5fd69b5a7cebb0a8ec119b59a19a
-  # Merge: 04799e73 0790bf8f
+  # commit 71957e849435169b43e51a42025afeeb63d7508b
+  # Merge: ce152a64 e001b98d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 21 11:34:26 2023 +0000
-  #     Merge pull request #934 from nrspruit/fixprogrambuild_updated
-  #     [UR][L0] Add support for passing device list to urProgramBuild/Link/Compile
-  set(UNIFIED_RUNTIME_TAG ce152a64deae5fd69b5a7cebb0a8ec119b59a19a)
+  # Date:   Tue Nov 21 16:41:08 2023 +0000
+  #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
+  #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
+  set(UNIFIED_RUNTIME_TAG 71957e849435169b43e51a42025afeeb63d7508b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
