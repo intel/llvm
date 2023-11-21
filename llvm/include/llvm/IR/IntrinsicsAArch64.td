@@ -1458,6 +1458,15 @@ class AdvSIMD_GatherLoad_VS_Intrinsic
                 ],
                 [IntrReadMem]>;
 
+class AdvSIMD_GatherLoadQ_VS_Intrinsic
+    : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                [
+                  llvm_nxv1i1_ty,
+                  llvm_anyvector_ty,
+                  llvm_i64_ty
+                ],
+                [IntrReadMem]>;
+
 class AdvSIMD_GatherLoad_VS_WriteFFR_Intrinsic
     : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
                 [
@@ -1496,6 +1505,15 @@ class AdvSIMD_ScatterStore_VS_Intrinsic
                ],
                [IntrWriteMem]>;
 
+class AdvSIMD_ScatterStoreQ_VS_Intrinsic
+    : DefaultAttrsIntrinsic<[],
+               [
+                 llvm_anyvector_ty,
+                 llvm_nxv1i1_ty,
+                 llvm_anyvector_ty,
+                 llvm_i64_ty
+               ],
+               [IntrWriteMem]>;
 
 class SVE_gather_prf_SV
     : DefaultAttrsIntrinsic<[],
@@ -2133,6 +2151,8 @@ def int_aarch64_sve_ld1_gather_uxtw_index : AdvSIMD_GatherLoad_SV_32b_Offsets_In
 
 def int_aarch64_sve_ld1_gather_scalar_offset : AdvSIMD_GatherLoad_VS_Intrinsic;
 
+// 128-bit loads, unscaled offsets
+def int_aarch64_sve_ld1q_gather_scalar_offset : AdvSIMD_GatherLoadQ_VS_Intrinsic;
 
 //
 // First-faulting gather loads: scalar base + vector offsets
@@ -2208,6 +2228,9 @@ def int_aarch64_sve_st1_scatter_uxtw_index
 //
 
 def int_aarch64_sve_st1_scatter_scalar_offset : AdvSIMD_ScatterStore_VS_Intrinsic;
+
+// 128-bit stores, unscaled offsets
+def int_aarch64_sve_st1q_scatter_scalar_offset : AdvSIMD_ScatterStoreQ_VS_Intrinsic;
 
 //
 // Non-temporal scatter stores: scalar base + vector offsets
@@ -2614,6 +2637,37 @@ def int_aarch64_sve_ld1_pn_x2 : SVE2p1_Load_PN_X2_Intrinsic;
 def int_aarch64_sve_ld1_pn_x4 : SVE2p1_Load_PN_X4_Intrinsic;
 def int_aarch64_sve_ldnt1_pn_x2 : SVE2p1_Load_PN_X2_Intrinsic;
 def int_aarch64_sve_ldnt1_pn_x4 : SVE2p1_Load_PN_X4_Intrinsic;
+
+//
+// SVE2.1 - Contiguous loads to quadword (single vector)
+//
+
+class SVE2p1_Single_Load_Quadword
+    : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                            [llvm_nxv1i1_ty, llvm_ptr_ty],
+                            [IntrReadMem, IntrArgMemOnly]>;
+def int_aarch64_sve_ld1uwq : SVE2p1_Single_Load_Quadword;
+def int_aarch64_sve_ld1udq : SVE2p1_Single_Load_Quadword;
+
+//
+// SVE2.1 - Contiguous store from quadword (single vector)
+//
+
+class SVE2p1_Single_Store_Quadword
+    : DefaultAttrsIntrinsic<[],
+                            [llvm_anyvector_ty, llvm_nxv1i1_ty, llvm_ptr_ty],
+                            [IntrWriteMem, IntrArgMemOnly]>;
+def int_aarch64_sve_st1uwq : SVE2p1_Single_Store_Quadword;
+def int_aarch64_sve_st1udq : SVE2p1_Single_Store_Quadword;
+
+
+def int_aarch64_sve_ld2q_sret : AdvSIMD_2Vec_PredLoad_Intrinsic;
+def int_aarch64_sve_ld3q_sret : AdvSIMD_3Vec_PredLoad_Intrinsic;
+def int_aarch64_sve_ld4q_sret : AdvSIMD_4Vec_PredLoad_Intrinsic;
+
+def int_aarch64_sve_st2q : AdvSIMD_2Vec_PredStore_Intrinsic;
+def int_aarch64_sve_st3q : AdvSIMD_3Vec_PredStore_Intrinsic;
+def int_aarch64_sve_st4q : AdvSIMD_4Vec_PredStore_Intrinsic;
 
 //
 // SVE2.1 - Contiguous stores to multiple consecutive vectors
@@ -3461,3 +3515,44 @@ let TargetPrefix = "aarch64" in {
   def int_aarch64_sme_str_zt : SME_LDR_STR_ZT_Intrinsic;
 
 }
+
+// SVE2.1 - ZIPQ1, ZIPQ2, UZPQ1, UZPQ2
+//
+def int_aarch64_sve_zipq1     : AdvSIMD_2VectorArg_Intrinsic;
+def int_aarch64_sve_zipq2     : AdvSIMD_2VectorArg_Intrinsic;
+def int_aarch64_sve_uzpq1     : AdvSIMD_2VectorArg_Intrinsic;
+def int_aarch64_sve_uzpq2     : AdvSIMD_2VectorArg_Intrinsic;
+
+// SVE2.1 - Programmable table lookup within each quadword vector segment
+// (zeroing)/(merging)
+//
+def int_aarch64_sve_tblq : AdvSIMD_SVE_TBL_Intrinsic;
+def int_aarch64_sve_tbxq : AdvSIMD_SVE2_TBX_Intrinsic;
+
+// SVE2.1 - Extract vector segment from each pair of quadword segments.
+//
+def int_aarch64_sve_extq_lane : AdvSIMD_2VectorArgIndexed_Intrinsic;
+
+//
+// SVE2.1 - Move predicate to/from vector
+//
+def int_aarch64_sve_pmov_to_pred_lane :
+    DefaultAttrsIntrinsic<[LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>],
+                          [llvm_anyvector_ty, llvm_i32_ty],
+                          [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+
+def int_aarch64_sve_pmov_to_pred_lane_zero :
+    DefaultAttrsIntrinsic<[LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>],
+                          [llvm_anyvector_ty],
+                          [IntrNoMem]>;
+
+def int_aarch64_sve_pmov_to_vector_lane_merging :
+    DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                          [LLVMMatchType<0>,
+                          LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>, llvm_i32_ty],
+                          [IntrNoMem, ImmArg<ArgIndex<2>>]>;
+
+def int_aarch64_sve_pmov_to_vector_lane_zeroing :
+    DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                          [LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>],
+                          [IntrNoMem]>;

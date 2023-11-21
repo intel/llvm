@@ -72,7 +72,6 @@ namespace {
       (void) llvm::createCallGraphViewerPass();
       (void) llvm::createCFGSimplificationPass();
       (void) llvm::createStructurizeCFGPass();
-      (void) llvm::createCostModelAnalysisPass();
       (void) llvm::createDeadArgEliminationPass();
       (void) llvm::createDeadArgEliminationSYCLPass();
       (void) llvm::createDeadCodeEliminationPass();
@@ -83,7 +82,6 @@ namespace {
       (void) llvm::createDomViewerWrapperPassPass();
       (void) llvm::createAlwaysInlinerLegacyPass();
       (void) llvm::createGlobalsAAWrapperPass();
-      (void) llvm::createLoopGuardWideningPass();
       (void) llvm::createInstSimplifyLegacyPass();
       (void) llvm::createInstructionCombiningPass();
       (void) llvm::createJMCInstrumenterPass();
@@ -92,9 +90,7 @@ namespace {
       (void) llvm::createLICMPass();
       (void) llvm::createLazyValueInfoPass();
       (void) llvm::createLoopExtractorPass();
-      (void) llvm::createLoopPredicationPass();
       (void) llvm::createLoopSimplifyPass();
-      (void) llvm::createLoopSimplifyCFGPass();
       (void) llvm::createLoopStrengthReducePass();
       (void) llvm::createLoopUnrollPass();
       (void) llvm::createLoopRotatePass();
@@ -122,7 +118,6 @@ namespace {
       (void) llvm::createSingleLoopExtractorPass();
       (void) llvm::createTailCallEliminationPass();
       (void)llvm::createTLSVariableHoistPass();
-      (void) llvm::createInstCountPass();
       (void) llvm::createConstantHoistingPass();
       (void) llvm::createCodeGenPreparePass();
       (void) llvm::createEarlyCSEPass();
