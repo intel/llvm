@@ -74,10 +74,6 @@ class annotated_ref {
   static_assert(is_valid_property_list, "Property list is invalid.");
 };
 
-[[deprecated("T is a non-trivially-copyable type, some operators"
-             "might invoke the copy constructor!")]] void
-T_is_non_trivially_copyable(){};
-
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
@@ -242,13 +238,13 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(const annotated_ptr &) = default;
 
+  static_assert(std::is_trivially_copyable_v<T>,
+                "encapsulating annotated_ptr with non-trivially-copyable is "
+                "not supported!");
+
   explicit annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
-      : m_Ptr(Ptr) {
-
-    if (!std::is_trivially_copyable_v<T>)
-      T_is_non_trivially_copyable();
-  }
+      : m_Ptr(Ptr) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -257,9 +253,6 @@ public:
   template <typename... PropertyValueTs>
   explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(Ptr) {
-
-    if (!std::is_trivially_copyable_v<T>)
-      T_is_non_trivially_copyable();
 
     static constexpr bool has_same_properties = std::is_same<
         property_list_t,

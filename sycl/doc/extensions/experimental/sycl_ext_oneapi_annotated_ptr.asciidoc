@@ -182,7 +182,7 @@ properties. The implementation of the class defined here should preserve the
 information provided as compile-time constant properties through all uses of the
 pointer unless noted otherwise.
 
-.Not recommended Usage Example
+.Unsupported Usage Example
 [source,c++]
 ----
 using sycl::ext::oneapi::experimental;
@@ -200,11 +200,9 @@ struct MyKernel {
   }
 };
 ----
-It is not recommended to apply `annotated_ptr` to a non-trivially-copyable type `T`. After
-dereferencing an `annotated_ptr` to an `annotated_ref`, many operators in `annotated_ref` are
-return-by-value and pass-by-value, and thus might result in inefficient memory copies.
+It is illegal to apply `annotated_ptr` to a non-trivially-copyable type `T`. In the
+above example, encapsulating `annotated_ptr` within `MyType` is illegal.
 
-.Unsupported Usage Example
 [source,c++]
 ----
 using sycl::ext::oneapi::experimental;
