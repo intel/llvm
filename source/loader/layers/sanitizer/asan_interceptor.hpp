@@ -41,7 +41,7 @@ struct DeviceInfo {
 
     // Lock InitPool & AllocInfos
     ur_shared_mutex Mutex;
-    std::vector<USMAllocInfo> AllocInfos;
+    std::vector<std::shared_ptr<USMAllocInfo>> AllocInfos;
 };
 
 struct QueueInfo {
@@ -51,19 +51,19 @@ struct QueueInfo {
 
 struct ContextInfo {
 
-    DeviceInfo &getDeviceInfo(ur_device_handle_t Device) {
+    std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
         std::shared_lock<ur_shared_mutex> Guard(Mutex);
         assert(DeviceMap.find(Device) != DeviceMap.end());
-        return *DeviceMap[Device].get();
+        return DeviceMap[Device];
     }
 
-    QueueInfo &getQueueInfo(ur_queue_handle_t Queue) {
+    std::shared_ptr<QueueInfo> getQueueInfo(ur_queue_handle_t Queue) {
         std::shared_lock<ur_shared_mutex> Guard(Mutex);
         assert(QueueMap.find(Queue) != QueueMap.end());
-        return *QueueMap[Queue].get();
+        return QueueMap[Queue];
     }
 
-    USMAllocInfo &getUSMAllocInfo(uptr Address) {
+    std::shared_ptr<USMAllocInfo> getUSMAllocInfo(uptr Address) {
         std::shared_lock<ur_shared_mutex> Guard(Mutex);
         assert(AllocatedUSMMap.find(Address) != AllocatedUSMMap.end());
         return AllocatedUSMMap[Address];
@@ -71,14 +71,14 @@ struct ContextInfo {
 
     ur_shared_mutex Mutex;
     // Note: nullptr is host device
-    std::unordered_map<ur_device_handle_t, std::unique_ptr<DeviceInfo>>
+    std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
         DeviceMap;
-    std::unordered_map<ur_queue_handle_t, std::unique_ptr<QueueInfo>> QueueMap;
+    std::unordered_map<ur_queue_handle_t, std::shared_ptr<QueueInfo>> QueueMap;
 
     /// key: USMAllocInfo.AllocBegin
     /// value: USMAllocInfo
     /// Use AllocBegin as key can help to detect underflow pointer
-    std::map<uptr, USMAllocInfo> AllocatedUSMMap;
+    std::map<uptr, std::shared_ptr<USMAllocInfo>> AllocatedUSMMap;
 };
 
 class SanitizerInterceptor {
@@ -98,16 +98,21 @@ class SanitizerInterceptor {
                           ur_event_handle_t *Event, bool SetCallback = true);
 
     ur_result_t addContext(ur_context_handle_t Context);
+    ur_result_t removeContext(ur_context_handle_t Context);
+
     ur_result_t addDevice(ur_context_handle_t Context,
                           ur_device_handle_t Device);
+
     ur_result_t addQueue(ur_context_handle_t Context, ur_queue_handle_t Queue);
+    ur_result_t removeQueue(ur_context_handle_t Context,
+                            ur_queue_handle_t Queue);
 
   private:
     ur_result_t updateShadowMemory(ur_queue_handle_t Queue);
     ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
                                  ur_device_handle_t Device,
                                  ur_queue_handle_t Queue,
-                                 USMAllocInfo &AlloccInfo,
+                                 std::shared_ptr<USMAllocInfo> &AlloccInfo,
                                  ur_event_handle_t &LastEvent);
 
     /// Initialize Global Variables & Kernel Name at first Launch
@@ -115,7 +120,7 @@ class SanitizerInterceptor {
 
     std::string getKernelName(ur_kernel_handle_t Kernel);
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
-                                  DeviceInfo &DeviceInfo);
+                                  std::shared_ptr<DeviceInfo> &DeviceInfo);
     ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                                     ur_device_handle_t Device,
                                     ur_queue_handle_t Queue, uptr Addr,
@@ -123,14 +128,14 @@ class SanitizerInterceptor {
                                     ur_event_handle_t DepEvent,
                                     ur_event_handle_t *OutEvent);
 
-    ContextInfo &getContextInfo(ur_context_handle_t Context) {
+    std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
         std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
         assert(m_ContextMap.find(Context) != m_ContextMap.end());
-        return *m_ContextMap[Context].get();
+        return m_ContextMap[Context];
     }
 
   private:
-    std::unordered_map<ur_context_handle_t, std::unique_ptr<ContextInfo>>
+    std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
 };
