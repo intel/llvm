@@ -1,4 +1,3 @@
-// REQUIRES: opencl || cuda || level_zero
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

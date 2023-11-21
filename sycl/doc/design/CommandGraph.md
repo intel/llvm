@@ -265,9 +265,9 @@ support.
 
 Due to the API mapping gaps documented in the following section, OpenCL as a
 SYCL backend cannot fully support the graphs API. Instead there are
-limitations in the types on nodes which a user can add to a graph, using
-an unsupported node type will cause a sycl exception to be throw in graph
-finalization with error code `sycl::errc::feature_not_support` and a message
+limitations in the types of nodes which a user can add to a graph, using
+an unsupported node type will cause a sycl exception to be thrown in graph
+finalization with error code `sycl::errc::feature_not_supported` and a message
 mentioning the unsupported command. For example,
 
 ```
@@ -343,7 +343,7 @@ custom defined symbols with the ones from OpenCL-Headers.
 Publicly available implementations of `cl_khr_command_buffer` that can be used
 to enable the graphs extension in OpenCL:
 
-- [OneAPI-Construction-Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
+- [OneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
 - [PoCL](http://portablecl.org/)
 - [Command-Buffer Emulation Layer](https://github.com/bashbaug/SimpleOpenCLSamples/tree/main/layers/10_cmdbufemu)
 
