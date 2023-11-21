@@ -3186,8 +3186,6 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
               static_cast<Decoration>(DecorationKind), std::move(DecValues));
         } else {
           for (auto f: DecValues)
-            SPIRVDBG(spvdbgs() << "Artem [tryParseAnnotationString]: DecorationsVec: "
-                       << f << "\n");
           DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
                                       std::move(DecValues));
         }
@@ -3264,9 +3262,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
         }
       }
       for (auto f: DecValues)
-        SPIRVDBG(spvdbgs() << "Artem [tryParseAnnotationString]: DecValues: "
-                       << f << "\n");
-      DecorationsVec.emplace_back(Dec, std::move(DecValues));
+        DecorationsVec.emplace_back(Dec, std::move(DecValues));
     }
   }
 
@@ -3295,9 +3291,12 @@ getLiteralsFromStrings(const std::vector<std::string> &Strings) {
 
 void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
   SPIRVModule *M = E->getModule();
-  SPIRVDBG(spvdbgs() << "Artem: [addAnnotationDecorations]: Decorations.size(): " << Decorations.size()
-                       << '\n');
   for (const auto &I : Decorations) {
+    // Such decoration already exists on a type, try to skip it
+    if (E->hasDecorate(I.first, /*Index=*/0, /*Result=*/nullptr))
+      // Allow multiple UserSemantic and MemoryINTEL Decorations
+      if (I.first != DecorationUserSemantic && I.first != DecorationMemoryINTEL)
+        continue;
     SPIRVDBG(spvdbgs() << "[addAnnotationDecorations]: Decoration: " << I.first
                        << '\n');
     switch (static_cast<size_t>(I.first)) {
@@ -3313,11 +3312,6 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
         M->getErrorLog().checkError(I.second.size() == 1,
                                     SPIRVEC_InvalidLlvmModule,
                                     "MemoryINTEL requires a single argument.");
-        // for (auto f: I.second)
-        //   SPIRVDBG(spvdbgs() << "Artem: [addAnnotationDecorations]: Values: " << f
-        //                << '\n');
-        SPIRVDBG(spvdbgs() << "Artem: [addAnnotationDecorations]: Value: " << I.second[0]
-                       << '\n');
         E->addDecorate(new SPIRVDecorateMemoryINTELAttr(E, I.second[0]));
       }
     } break;
@@ -3377,8 +3371,6 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
                                     "Decoration requires a single argument.");
         SPIRVWord Result = 0;
         StringRef(I.second[0]).getAsInteger(10, Result);
-        SPIRVDBG(spvdbgs() << "Artem: [addAnnotationDecorations]: Value: " << Result
-                       << '\n');
         E->addDecorate(I.first, Result);
       }
     } break;
