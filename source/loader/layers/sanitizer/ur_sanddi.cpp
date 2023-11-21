@@ -123,6 +123,28 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueRelease
+__urdlllocal ur_result_t UR_APICALL urQueueRelease(
+    ur_queue_handle_t hQueue ///< [in] handle of the queue object to release
+) {
+    auto pfnRelease = context.urDdiTable.Queue.pfnRelease;
+
+    if (nullptr == pfnRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_context_handle_t hContext;
+    UR_CALL(context.urDdiTable.Queue.pfnGetInfo(hQueue, UR_QUEUE_INFO_CONTEXT,
+                                                sizeof(ur_context_handle_t),
+                                                &hContext, nullptr));
+    UR_CALL(context.interceptor->removeQueue(hContext, hQueue));
+
+    ur_result_t result = pfnRelease(hQueue);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueKernelLaunch
 __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
@@ -260,6 +282,23 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urContextRelease
+__urdlllocal ur_result_t UR_APICALL urContextRelease(
+    ur_context_handle_t hContext ///< [in] handle of the context to release.
+) {
+    auto pfnRelease = context.urDdiTable.Context.pfnRelease;
+
+    if (nullptr == pfnRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    UR_CALL(context.interceptor->removeContext(hContext));
+    ur_result_t result = pfnRelease(hContext);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
 ///        with current process' addresses
 ///
@@ -286,6 +325,7 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnCreate = ur_sanitizer_layer::urContextCreate;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::urContextRelease;
 
     pDdiTable->pfnCreateWithNativeHandle =
         ur_sanitizer_layer::urContextCreateWithNativeHandle;
@@ -349,6 +389,7 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnCreate = ur_sanitizer_layer::urQueueCreate;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::urQueueRelease;
 
     return result;
 }

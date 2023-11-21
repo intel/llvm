@@ -91,11 +91,11 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     auto Alignment = Properties->align;
     assert(Alignment == 0 || IsPowerOfTwo(Alignment));
 
-    auto &ContextInfo = getContextInfo(Context);
-    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    auto ContextInfo = getContextInfo(Context);
+    auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
 
     if (Alignment == 0) {
-        Alignment = DeviceInfo.Alignment;
+        Alignment = DeviceInfo->Alignment;
     }
 
     // Copy from LLVM compiler-rt/lib/asan
@@ -131,19 +131,19 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     *ResultPtr = reinterpret_cast<void *>(UserBegin);
 
-    auto MemoryInfo =
-        USMAllocInfo{AllocBegin, UserBegin, UserEnd, NeededSize, Type};
+    auto AllocInfo = std::make_shared<USMAllocInfo>(
+        USMAllocInfo{AllocBegin, UserBegin, UserEnd, NeededSize, Type});
 
     // For updating shadow memory
     {
-        std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo.Mutex);
-        DeviceInfo.AllocInfos.emplace_back(MemoryInfo);
+        std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
+        DeviceInfo->AllocInfos.emplace_back(AllocInfo);
     }
 
     // For memory release
     {
-        std::scoped_lock<ur_shared_mutex> Guard(ContextInfo.Mutex);
-        ContextInfo.AllocatedUSMMap[AllocBegin] = MemoryInfo;
+        std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
+        ContextInfo->AllocatedUSMMap[AllocBegin] = AllocInfo;
     }
 
     context.logger.info(
@@ -155,14 +155,14 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
 ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
                                                 void *Ptr) {
-    auto &ContextInfo = getContextInfo(Context);
+    auto ContextInfo = getContextInfo(Context);
 
-    std::shared_lock<ur_shared_mutex> Guard(ContextInfo.Mutex);
+    std::shared_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
 
     auto Addr = (uptr)Ptr;
     // Find the last element is not greater than key
-    auto AllocInfoIt = ContextInfo.AllocatedUSMMap.upper_bound((uptr)Addr);
-    if (AllocInfoIt == ContextInfo.AllocatedUSMMap.begin()) {
+    auto AllocInfoIt = ContextInfo->AllocatedUSMMap.upper_bound((uptr)Addr);
+    if (AllocInfoIt == ContextInfo->AllocatedUSMMap.begin()) {
         context.logger.error(
             "Can't find release pointer({}) in AllocatedAddressesMap", Ptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -171,17 +171,17 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     auto &AllocInfo = AllocInfoIt->second;
 
     context.logger.debug("USMAllocInfo(AllocBegin={}, UserBegin={})",
-                         AllocInfo.AllocBegin, AllocInfo.UserBegin);
+                         AllocInfo->AllocBegin, AllocInfo->UserBegin);
 
-    if (Addr != AllocInfo.UserBegin) {
+    if (Addr != AllocInfo->UserBegin) {
         context.logger.error("Releasing pointer({}) is not match to {}", Ptr,
-                             AllocInfo.UserBegin);
+                             AllocInfo->UserBegin);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
     // TODO: Update shadow memory
     return context.urDdiTable.USM.pfnFree(Context,
-                                          (void *)AllocInfo.AllocBegin);
+                                          (void *)AllocInfo->AllocBegin);
 }
 
 bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
@@ -193,12 +193,12 @@ bool SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
     // Return LastEvent in QueueInfo
     auto Context = getContext(Queue);
-    auto &ContextInfo = getContextInfo(Context);
-    auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
+    auto ContextInfo = getContextInfo(Context);
+    auto QueueInfo = ContextInfo->getQueueInfo(Queue);
 
-    std::scoped_lock<ur_mutex> Guard(QueueInfo.Mutex);
-    Event = QueueInfo.LastEvent;
-    QueueInfo.LastEvent = nullptr;
+    std::scoped_lock<ur_mutex> Guard(QueueInfo->Mutex);
+    Event = QueueInfo->LastEvent;
+    QueueInfo->LastEvent = nullptr;
 
     return true;
 }
@@ -260,12 +260,12 @@ std::string SanitizerInterceptor::getKernelName(ur_kernel_handle_t Kernel) {
     return std::string(KernelNameBuf.data(), KernelNameSize);
 }
 
-ur_result_t SanitizerInterceptor::allocShadowMemory(ur_context_handle_t Context,
-                                                    DeviceInfo &DeviceInfo) {
-    if (DeviceInfo.Type == DeviceType::CPU) {
-        DeviceInfo.ShadowOffset = 0x00007fff7fffULL;
-        DeviceInfo.ShadowOffsetEnd = 0x10007fff7fffULL;
-    } else if (DeviceInfo.Type == DeviceType::GPU_PVC) {
+ur_result_t SanitizerInterceptor::allocShadowMemory(
+    ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo) {
+    if (DeviceInfo->Type == DeviceType::CPU) {
+        DeviceInfo->ShadowOffset = 0x00007fff7fffULL;
+        DeviceInfo->ShadowOffsetEnd = 0x10007fff7fffULL;
+    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         /// SHADOW MEMORY MAPPING (PVC, with CPU 47bit)
         ///   Host/Shared USM : 0x0              ~ 0x0fff_ffff_ffff
         ///   ?               : 0x1000_0000_0000 ~ 0x1fff_ffff_ffff
@@ -274,15 +274,15 @@ ur_result_t SanitizerInterceptor::allocShadowMemory(ur_context_handle_t Context,
 
         // TODO: Protect Bad Zone
         UR_CALL(context.urDdiTable.VirtualMem.pfnReserve(
-            Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo.ShadowOffset));
+            Context, nullptr, SHADOW_SIZE, (void **)&DeviceInfo->ShadowOffset));
 
-        DeviceInfo.ShadowOffsetEnd = DeviceInfo.ShadowOffset + SHADOW_SIZE;
+        DeviceInfo->ShadowOffsetEnd = DeviceInfo->ShadowOffset + SHADOW_SIZE;
     } else {
         die("Unsupport device type");
     }
     context.logger.info("Device ShadowOffset: {} - {}",
-                        (void *)DeviceInfo.ShadowOffset,
-                        (void *)DeviceInfo.ShadowOffsetEnd);
+                        (void *)DeviceInfo->ShadowOffset,
+                        (void *)DeviceInfo->ShadowOffsetEnd);
     return UR_RESULT_SUCCESS;
 }
 
@@ -294,18 +294,18 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
     uint32_t NumEventsInWaitList = DepEvent ? 1 : 0;
     const ur_event_handle_t *EventsWaitList = DepEvent ? &DepEvent : nullptr;
 
-    auto &ContextInfo = getContextInfo(Context);
-    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
+    auto ContextInfo = getContextInfo(Context);
+    auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
 
-    if (DeviceInfo.Type == DeviceType::CPU) {
+    if (DeviceInfo->Type == DeviceType::CPU) {
         die("Unsupport device type");
-    } else if (DeviceInfo.Type == DeviceType::GPU_PVC) {
+    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
         ur_event_handle_t InternalEvent{};
         ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
-        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo.ShadowOffset, Ptr);
+        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
         uptr ShadowEnd =
-            MemToShadow_PVC(DeviceInfo.ShadowOffset, Ptr + Size - 1);
+            MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
 
         // Maybe in future, we needn't to map physical memory manually
         const bool IsNeedMapPhysicalMem = true;
@@ -380,25 +380,26 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
 
 ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     ur_context_handle_t Context, ur_device_handle_t Device,
-    ur_queue_handle_t Queue, USMAllocInfo &AllocInfo,
+    ur_queue_handle_t Queue, std::shared_ptr<USMAllocInfo> &AllocInfo,
     ur_event_handle_t &LastEvent) {
     // Init zero
-    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo.AllocBegin,
-                                AllocInfo.AllocSize, 0, LastEvent, &LastEvent));
+    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo->AllocBegin,
+                                AllocInfo->AllocSize, 0, LastEvent,
+                                &LastEvent));
 
-    uptr TailBegin = RoundUpTo(AllocInfo.UserEnd, ASAN_SHADOW_GRANULARITY);
-    uptr TailEnd = AllocInfo.AllocBegin + AllocInfo.AllocSize;
+    uptr TailBegin = RoundUpTo(AllocInfo->UserEnd, ASAN_SHADOW_GRANULARITY);
+    uptr TailEnd = AllocInfo->AllocBegin + AllocInfo->AllocSize;
 
     // User tail
-    if (TailBegin != AllocInfo.UserEnd) {
-        auto Value = AllocInfo.UserEnd -
-                     RoundDownTo(AllocInfo.UserEnd, ASAN_SHADOW_GRANULARITY);
-        UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo.UserEnd,
+    if (TailBegin != AllocInfo->UserEnd) {
+        auto Value = AllocInfo->UserEnd -
+                     RoundDownTo(AllocInfo->UserEnd, ASAN_SHADOW_GRANULARITY);
+        UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo->UserEnd,
                                     1, Value, LastEvent, &LastEvent));
     }
 
     int ShadowByte;
-    switch (AllocInfo.Type) {
+    switch (AllocInfo->Type) {
     case USMMemoryType::HOST:
         ShadowByte = kUsmHostRedzoneMagic;
         break;
@@ -413,12 +414,12 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
         break;
     default:
         ShadowByte = 0xff;
-        assert(false && "Unknow AllocInfo.Type");
+        assert(false && "Unknow AllocInfo Type");
     }
 
     // Left red zone
-    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo.AllocBegin,
-                                AllocInfo.UserBegin - AllocInfo.AllocBegin,
+    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo->AllocBegin,
+                                AllocInfo->UserBegin - AllocInfo->AllocBegin,
                                 ShadowByte, LastEvent, &LastEvent));
 
     // Right red zone
@@ -434,61 +435,68 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
     auto Device = getDevice(Queue);
     assert(Device != nullptr);
 
-    auto &ContextInfo = getContextInfo(Context);
+    auto ContextInfo = getContextInfo(Context);
 
-    auto &HostInfo = ContextInfo.getDeviceInfo(nullptr);
-    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
-    auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
+    auto HostInfo = ContextInfo->getDeviceInfo(nullptr);
+    auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
+    auto QueueInfo = ContextInfo->getQueueInfo(Queue);
 
-    std::shared_lock<ur_shared_mutex> HostGuard(HostInfo.Mutex,
+    std::shared_lock<ur_shared_mutex> HostGuard(HostInfo->Mutex,
                                                 std::defer_lock);
-    std::unique_lock<ur_shared_mutex> DeviceGuard(DeviceInfo.Mutex,
+    std::unique_lock<ur_shared_mutex> DeviceGuard(DeviceInfo->Mutex,
                                                   std::defer_lock);
     std::scoped_lock<std::shared_lock<ur_shared_mutex>,
                      std::unique_lock<ur_shared_mutex>, ur_mutex>
-        Guard(HostGuard, DeviceGuard, QueueInfo.Mutex);
+        Guard(HostGuard, DeviceGuard, QueueInfo->Mutex);
 
-    ur_event_handle_t LastEvent = QueueInfo.LastEvent;
+    ur_event_handle_t LastEvent = QueueInfo->LastEvent;
 
     // FIXME: Always update host USM, but it'd be better to update host USM
     // selectively, or each devices once
-    for (auto &AllocInfo : HostInfo.AllocInfos) {
+    for (auto &AllocInfo : HostInfo->AllocInfos) {
         UR_CALL(enqueueAllocInfo(Context, Device, Queue, AllocInfo, LastEvent));
     }
 
-    for (auto &AllocInfo : DeviceInfo.AllocInfos) {
+    for (auto &AllocInfo : DeviceInfo->AllocInfos) {
         UR_CALL(enqueueAllocInfo(Context, Device, Queue, AllocInfo, LastEvent));
     }
-    DeviceInfo.AllocInfos.clear();
+    DeviceInfo->AllocInfos.clear();
 
-    QueueInfo.LastEvent = LastEvent;
+    QueueInfo->LastEvent = LastEvent;
 
     return UR_RESULT_SUCCESS;
 }
 
 ur_result_t SanitizerInterceptor::addContext(ur_context_handle_t Context) {
-    auto ContextInfoPtr = std::make_unique<ContextInfo>();
+    auto ContextInfo = std::make_shared<ur_sanitizer_layer::ContextInfo>();
 
     // Host Device
-    auto DeviceInfoPtr = std::make_unique<DeviceInfo>();
-    DeviceInfoPtr->Type = DeviceType::CPU;
-    DeviceInfoPtr->Alignment = ASAN_SHADOW_GRANULARITY;
+    auto DeviceInfo = std::make_shared<ur_sanitizer_layer::DeviceInfo>();
+    DeviceInfo->Type = DeviceType::CPU;
+    DeviceInfo->Alignment = ASAN_SHADOW_GRANULARITY;
 
     // TODO: Check if host asan is enabled
-    DeviceInfoPtr->ShadowOffset = 0;
-    DeviceInfoPtr->ShadowOffsetEnd = 0;
+    DeviceInfo->ShadowOffset = 0;
+    DeviceInfo->ShadowOffsetEnd = 0;
 
-    ContextInfoPtr->DeviceMap.emplace(nullptr, std::move(DeviceInfoPtr));
+    ContextInfo->DeviceMap.emplace(nullptr, std::move(DeviceInfo));
 
     std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
-    m_ContextMap.emplace(Context, std::move(ContextInfoPtr));
+    m_ContextMap.emplace(Context, std::move(ContextInfo));
 
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t SanitizerInterceptor::removeContext(ur_context_handle_t Context) {
+    std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
+    assert(m_ContextMap.find(Context) != m_ContextMap.end());
+    m_ContextMap.erase(Context);
     return UR_RESULT_SUCCESS;
 }
 
 ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
                                             ur_device_handle_t Device) {
-    auto DeviceInfoPtr = std::make_unique<DeviceInfo>();
+    auto DeviceInfo = std::make_shared<ur_sanitizer_layer::DeviceInfo>();
 
     // Query device type
     ur_device_type_t DeviceType;
@@ -496,39 +504,48 @@ ur_result_t SanitizerInterceptor::addDevice(ur_context_handle_t Context,
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr));
     switch (DeviceType) {
     case UR_DEVICE_TYPE_CPU:
-        DeviceInfoPtr->Type = DeviceType::CPU;
+        DeviceInfo->Type = DeviceType::CPU;
         break;
     case UR_DEVICE_TYPE_GPU:
-        DeviceInfoPtr->Type = DeviceType::GPU_PVC;
+        DeviceInfo->Type = DeviceType::GPU_PVC;
         break;
     default:
-        DeviceInfoPtr->Type = DeviceType::UNKNOWN;
+        DeviceInfo->Type = DeviceType::UNKNOWN;
     }
 
     // Query alignment
     UR_CALL(context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN,
-        sizeof(DeviceInfoPtr->Alignment), &DeviceInfoPtr->Alignment, nullptr));
+        sizeof(DeviceInfo->Alignment), &DeviceInfo->Alignment, nullptr));
 
     // Allocate shadow memory
-    UR_CALL(allocShadowMemory(Context, *DeviceInfoPtr.get()));
+    UR_CALL(allocShadowMemory(Context, DeviceInfo));
 
-    auto &ContextInfo = getContextInfo(Context);
-    std::scoped_lock<ur_shared_mutex> Guard(ContextInfo.Mutex);
-    ContextInfo.DeviceMap.emplace(Device, std::move(DeviceInfoPtr));
+    auto ContextInfo = getContextInfo(Context);
+    std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
+    ContextInfo->DeviceMap.emplace(Device, std::move(DeviceInfo));
 
     return UR_RESULT_SUCCESS;
 }
 
 ur_result_t SanitizerInterceptor::addQueue(ur_context_handle_t Context,
                                            ur_queue_handle_t Queue) {
-    auto QueueInfoPtr = std::make_unique<QueueInfo>();
-    QueueInfoPtr->LastEvent = nullptr;
+    auto QueueInfo = std::make_shared<ur_sanitizer_layer::QueueInfo>();
+    QueueInfo->LastEvent = nullptr;
 
-    auto &ContextInfo = getContextInfo(Context);
-    std::scoped_lock<ur_shared_mutex> Guard(ContextInfo.Mutex);
-    ContextInfo.QueueMap.emplace(Queue, std::move(QueueInfoPtr));
+    auto ContextInfo = getContextInfo(Context);
+    std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
+    ContextInfo->QueueMap.emplace(Queue, std::move(QueueInfo));
 
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t SanitizerInterceptor::removeQueue(ur_context_handle_t Context,
+                                              ur_queue_handle_t Queue) {
+    auto ContextInfo = getContextInfo(Context);
+    std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
+    assert(ContextInfo->QueueMap.find(Queue) != ContextInfo->QueueMap.end());
+    ContextInfo->QueueMap.erase(Queue);
     return UR_RESULT_SUCCESS;
 }
 
@@ -538,12 +555,12 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
     auto Device = getDevice(Queue);
     auto Program = getProgram(Kernel);
 
-    auto &ContextInfo = getContextInfo(Context);
-    auto &DeviceInfo = ContextInfo.getDeviceInfo(Device);
-    auto &QueueInfo = ContextInfo.getQueueInfo(Queue);
+    auto ContextInfo = getContextInfo(Context);
+    auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
+    auto QueueInfo = ContextInfo->getQueueInfo(Queue);
 
-    std::scoped_lock<ur_mutex> Guard(QueueInfo.Mutex);
-    ur_event_handle_t LastEvent = QueueInfo.LastEvent;
+    std::scoped_lock<ur_mutex> Guard(QueueInfo->Mutex);
+    ur_event_handle_t LastEvent = QueueInfo->LastEvent;
 
     do {
         // Set global variable to program
@@ -567,12 +584,12 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
 
         // Device shadow memory offset
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
-                           &DeviceInfo.ShadowOffset);
+                           &DeviceInfo->ShadowOffset);
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalEnd,
-                           &DeviceInfo.ShadowOffsetEnd);
+                           &DeviceInfo->ShadowOffsetEnd);
     } while (false);
 
-    QueueInfo.LastEvent = LastEvent;
+    QueueInfo->LastEvent = LastEvent;
 }
 
 } // namespace ur_sanitizer_layer
