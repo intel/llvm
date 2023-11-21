@@ -221,11 +221,8 @@ enum PropKind : uint32_t {
   BuildOptions = 51,
   BuildLog = 52,
   FloatingPointControls = 53,
-  // Reserved for internal use to avoid merge conflicts. Update when possible.
-  InternalProperty1 = 54,
-  InternalProperty2 = 55,
   // PropKindSize must always be the last value.
-  PropKindSize = 56,
+  PropKindSize = 54,
 };
 
 // This trait must be specialized for all properties and must have a unique
