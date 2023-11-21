@@ -390,9 +390,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-  pDdiTable->pfnBuildExp = nullptr;
-  pDdiTable->pfnCompileExp = nullptr;
-  pDdiTable->pfnLinkExp = nullptr;
+  pDdiTable->pfnBuildExp = urProgramBuildExp;
+  pDdiTable->pfnCompileExp = urProgramCompileExp;
+  pDdiTable->pfnLinkExp = urProgramLinkExp;
   return retVal;
 }
 

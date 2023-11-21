@@ -220,6 +220,26 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
+                                                        uint32_t,
+                                                        ur_device_handle_t *,
+                                                        const char *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
+                                                      uint32_t,
+                                                      ur_device_handle_t *,
+                                                      const char *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
+    const ur_program_handle_t *, const char *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 static cl_int mapURProgramBuildInfoToCL(ur_program_build_info_t URPropName) {
 
   switch (static_cast<uint32_t>(URPropName)) {
