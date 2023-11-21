@@ -501,12 +501,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       return ReturnValue(
           static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
     } else {
-      int LocalMemSize = 0;
-      UR_CHECK_ERROR(cuDeviceGetAttribute(
-          &LocalMemSize, CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
-          hDevice->get()));
-      detail::ur::assertion(LocalMemSize >= 0);
-      return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxCapacityLocalMem()));
     }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {

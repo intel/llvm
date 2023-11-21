@@ -39,28 +39,26 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::common
         GTest::gtest_main)
 
-    if(USE_LOCAL_TEST_CONFIGURATION)
-	    add_test(NAME ${name}
-            COMMAND ${TEST_TARGET_NAME}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    else()
-        if(UR_BUILD_ADAPTER_CUDA)
-            add_test_adapter(${name} adapter_cuda)
-        endif()
-        if(UR_BUILD_ADAPTER_HIP)
-            add_test_adapter(${name} adapter_hip)
-        endif()
-        if(UR_BUILD_ADAPTER_L0)
-            add_test_adapter(${name} adapter_level_zero)
-        endif()
-        if(UR_BUILD_ADAPTER_OPENCL)
-            add_test_adapter(${name} adapter_opencl)
-        endif()
+    if(UR_BUILD_ADAPTER_CUDA)
+        add_test_adapter(${name} adapter_cuda)
+    endif()
+    if(UR_BUILD_ADAPTER_HIP)
+        add_test_adapter(${name} adapter_hip)
+    endif()
+    if(UR_BUILD_ADAPTER_L0)
+        add_test_adapter(${name} adapter_level_zero)
+    endif()
+    if(UR_BUILD_ADAPTER_OPENCL)
+        add_test_adapter(${name} adapter_opencl)
+    endif()
+    if(UR_BUILD_ADAPTER_NATIVE_CPU)
+        add_test_adapter(${name} adapter_native_cpu)
+    endif()
 
-        if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
-                OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL))
-            add_test_adapter(${name} adapter_null)
-        endif()
+    if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
+            OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
+            OR UR_BUILD_ADAPTER_NATIVE_CPU))
+        add_test_adapter(${name} adapter_null)
     endif()
 endfunction()
 
@@ -83,7 +81,6 @@ function(add_conformance_test_with_platform_environment name)
 endfunction()
 
 add_subdirectory(testing)
-add_subdirectory(adapters)
 
 add_subdirectory(runtime)
 add_subdirectory(platform)
@@ -96,7 +93,7 @@ add_subdirectory(queue)
 add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
 
-if(DEFINED UR_DPCXX)
+if(UR_DPCXX)
     add_custom_target(generate_device_binaries)
 
     set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
@@ -106,7 +103,9 @@ if(DEFINED UR_DPCXX)
     if(NOT "${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
         string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
     else()
-        message(WARNING "UR_CONFORMANCE_TARGET_TRIPLES wasn't set, defaulting to only generate spir64 device binaries")
+        message(WARNING
+            "UR_CONFORMANCE_TARGET_TRIPLES wasn't set, defaulting to only \
+            generate spir64 device binaries")
         list(APPEND TARGET_TRIPLES "spir64")
     endif()
 
@@ -114,4 +113,8 @@ if(DEFINED UR_DPCXX)
     add_subdirectory(kernel)
     add_subdirectory(program)
     add_subdirectory(enqueue)
+else()
+    message(WARNING
+        "UR_DPCXX is not defined, the following conformance test executables \
+        are disabled: test-program, test-kernel, test-enqueue")
 endif()

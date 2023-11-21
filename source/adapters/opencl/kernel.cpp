@@ -69,10 +69,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     size_t propSize,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
-
-  CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                       mapURKernelInfoToCL(propName), propSize,
-                                       pPropValue, pPropSizeRet));
+  // We need this little bit of ugliness because the UR NUM_ARGS property is
+  // size_t whereas the CL one is cl_uint. We should consider changing that see
+  // #1038
+  if (propName == UR_KERNEL_INFO_NUM_ARGS) {
+    if (pPropSizeRet)
+      *pPropSizeRet = sizeof(size_t);
+    cl_uint NumArgs = 0;
+    CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
+                                         mapURKernelInfoToCL(propName),
+                                         sizeof(NumArgs), &NumArgs, nullptr));
+    if (pPropValue) {
+      if (propSize != sizeof(size_t))
+        return UR_RESULT_ERROR_INVALID_SIZE;
+      *static_cast<size_t *>(pPropValue) = static_cast<size_t>(NumArgs);
+    }
+  } else {
+    size_t CheckPropSize = 0;
+    cl_int ClResult = clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
+                                      mapURKernelInfoToCL(propName), propSize,
+                                      pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -101,7 +125,20 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                      ur_kernel_group_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
-
+  // From the CL spec for GROUP_INFO_GLOBAL: "If device is not a custom device
+  // and kernel is not a built-in kernel, clGetKernelWorkGroupInfo returns the
+  // error CL_INVALID_VALUE.". Unfortunately there doesn't seem to be a nice
+  // way to query whether a kernel is a builtin kernel but this should suffice
+  // to deter naive use of the query.
+  if (propName == UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE) {
+    cl_device_type ClDeviceType;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_TYPE,
+                        sizeof(ClDeviceType), &ClDeviceType, nullptr));
+    if (ClDeviceType != CL_DEVICE_TYPE_CUSTOM) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+  }
   CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
       cl_adapter::cast<cl_kernel>(hKernel),
       cl_adapter::cast<cl_device_id>(hDevice),
@@ -199,7 +236,8 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     }
   }
 
-  *(static_cast<uint32_t *>(pPropValue)) = static_cast<uint32_t>(RetVal);
+  if (pPropValue)
+    *(static_cast<uint32_t *>(pPropValue)) = static_cast<uint32_t>(RetVal);
   if (pPropSizeRet)
     *pPropSizeRet = sizeof(uint32_t);
 
@@ -284,12 +322,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     return UR_RESULT_SUCCESS;
   }
   case UR_KERNEL_EXEC_INFO_CACHE_CONFIG: {
-    /* Setting the cache config is unsupported in OpenCL */
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    // Setting the cache config is unsupported in OpenCL, but this is just a
+    // hint.
+    return UR_RESULT_SUCCESS;
   }
   case UR_KERNEL_EXEC_INFO_USM_PTRS: {
     CL_RETURN_ON_FAILURE(clSetKernelExecInfo(
-        cl_adapter::cast<cl_kernel>(hKernel), propName, propSize, pPropValue));
+        cl_adapter::cast<cl_kernel>(hKernel),
+        CL_KERNEL_EXEC_INFO_USM_PTRS_INTEL, propSize, pPropValue));
     return UR_RESULT_SUCCESS;
   }
   default: {
@@ -335,9 +375,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ur_context_handle_t, ur_program_handle_t,
-    const ur_kernel_native_properties_t *, ur_kernel_handle_t *phKernel) {
-
+    const ur_kernel_native_properties_t *pProperties,
+    ur_kernel_handle_t *phKernel) {
   *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
+  if (!pProperties || !pProperties->isNativeHandleOwned) {
+    return urKernelRetain(*phKernel);
+  }
   return UR_RESULT_SUCCESS;
 }
 

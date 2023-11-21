@@ -245,6 +245,20 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
   return urProgramBuild(hContext, hProgram, pOptions);
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
+                                                        uint32_t,
+                                                        ur_device_handle_t *,
+                                                        const char *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
+                                                      uint32_t,
+                                                      ur_device_handle_t *,
+                                                      const char *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 /// Loads the images from a UR program into a hipModule_t that can be
 /// used later on to extract functions (kernels).
 /// See \ref ur_program_handle_t for implementation details.
@@ -262,6 +276,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
     Result = Err;
   }
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t, uint32_t, const ur_program_handle_t *, uint32_t,
+    ur_device_handle_t *, const char *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(ur_context_handle_t, uint32_t,

@@ -192,8 +192,14 @@ static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  USMAllocationMakeResident(USMDeviceAllocationForceResidency, Context, Device,
-                            *ResultPtr, Size);
+  // TODO: Return any non-success result from USMAllocationMakeResident once
+  // oneapi-src/level-zero-spec#240 is resolved.
+  auto Result = USMAllocationMakeResident(USMDeviceAllocationForceResidency,
+                                          Context, Device, *ResultPtr, Size);
+  if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
+      Result == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+    return Result;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -225,8 +231,14 @@ static ur_result_t USMSharedAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  USMAllocationMakeResident(USMSharedAllocationForceResidency, Context, Device,
-                            *ResultPtr, Size);
+  // TODO: Return any non-success result from USMAllocationMakeResident once
+  // oneapi-src/level-zero-spec#240 is resolved.
+  auto Result = USMAllocationMakeResident(USMSharedAllocationForceResidency,
+                                          Context, Device, *ResultPtr, Size);
+  if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
+      Result == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+    return Result;
+  }
 
   // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return UR_RESULT_SUCCESS;
@@ -247,8 +259,14 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  USMAllocationMakeResident(USMHostAllocationForceResidency, Context, nullptr,
-                            *ResultPtr, Size);
+  // TODO: Return any non-success result from USMAllocationMakeResident once
+  // oneapi-src/level-zero-spec#240 is resolved.
+  auto Result = USMAllocationMakeResident(USMHostAllocationForceResidency,
+                                          Context, nullptr, *ResultPtr, Size);
+  if (Result == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY ||
+      Result == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+    return Result;
+  }
   return UR_RESULT_SUCCESS;
 }
 

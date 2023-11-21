@@ -3,6 +3,8 @@ urMemGetInfoTest.InvalidNullPointerParamValue/NVIDIA_CUDA_BACKEND___{{.*}}___UR_
 urMemGetInfoTest.InvalidNullPointerParamValue/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_CONTEXT
 urMemGetInfoTest.InvalidNullPointerPropSizeRet/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_SIZE
 urMemGetInfoTest.InvalidNullPointerPropSizeRet/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_CONTEXT
+urMemGetInfoImageTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_SIZE
+urMemGetInfoImageTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_MEM_INFO_CONTEXT
 {{OPT}}urMemImageGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_FORMAT
 {{OPT}}urMemImageGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_ELEMENT_SIZE
 {{OPT}}urMemImageGetInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_IMAGE_INFO_ROW_PITCH

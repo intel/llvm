@@ -930,8 +930,8 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     // Set-up to round-robin across allowed range of engines.
     uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
     uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines().second;
-    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
-                                FilterLowerIndex + ComputeQueues.size() - 1);
+    FilterUpperIndex = (std::min)((size_t)FilterUpperIndex,
+                                  FilterLowerIndex + ComputeQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       ComputeQueueGroup.LowerIndex = FilterLowerIndex;
       ComputeQueueGroup.UpperIndex = FilterUpperIndex;
@@ -959,8 +959,8 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   } else {
     uint32_t FilterLowerIndex = Range.first;
     uint32_t FilterUpperIndex = Range.second;
-    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
-                                FilterLowerIndex + CopyQueues.size() - 1);
+    FilterUpperIndex = (std::min)((size_t)FilterUpperIndex,
+                                  FilterLowerIndex + CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
@@ -1406,18 +1406,8 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     if (ImmCmdList == Queue->CommandListMap.end())
       return UR_RESULT_SUCCESS;
 
-    ur_event_handle_t Event{};
-    ur_result_t Res = createEventAndAssociateQueue(
-        reinterpret_cast<ur_queue_handle_t>(Queue), &Event,
-        UR_EXT_COMMAND_TYPE_USER, ImmCmdList, /* IsInternal */ false);
-    if (Res != UR_RESULT_SUCCESS)
-      return Res;
-    auto zeEvent = Event->ZeEvent;
-    ZE2UR_CALL(zeCommandListAppendBarrier,
-               (ImmCmdList->first, zeEvent, 0, nullptr));
-    ZE2UR_CALL(zeHostSynchronize, (zeEvent));
-    Event->Completed = true;
-    UR_CALL(urEventRelease(Event));
+    // wait for all commands previously submitted to this immediate command list
+    ZE2UR_CALL(zeCommandListHostSynchronize, (ImmCmdList->first, UINT64_MAX));
 
     // Cleanup all events from the synced command list.
     CleanupEventListFromResetCmdList(ImmCmdList->second.EventList, true);

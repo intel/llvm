@@ -165,6 +165,42 @@ ur_result_t getKernelNames(ur_program_handle_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+/// Loads images from a list of PTX or CUBIN binaries.
+/// Note: No calls to CUDA driver API in this function, only store binaries
+/// for later.
+///
+/// Note: Only supports one device
+///
+ur_result_t createProgram(ur_context_handle_t hContext,
+                          ur_device_handle_t hDevice, size_t size,
+                          const uint8_t *pBinary,
+                          const ur_program_properties_t *pProperties,
+                          ur_program_handle_t *phProgram) {
+  UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
+
+  std::unique_ptr<ur_program_handle_t_> RetProgram{
+      new ur_program_handle_t_{hContext}};
+
+  if (pProperties) {
+    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    UR_CHECK_ERROR(
+        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count));
+  }
+
+  auto pBinary_string = reinterpret_cast<const char *>(pBinary);
+
+  UR_CHECK_ERROR(RetProgram->setBinary(pBinary_string, size));
+  *phProgram = RetProgram.release();
+
+  return UR_RESULT_SUCCESS;
+}
+
 /// CUDA will handle the PTX/CUBIN binaries internally through CUmodule object.
 /// So, urProgramCreateWithIL and urProgramCreateWithBinary are equivalent in
 /// terms of CUDA adapter. See \ref urProgramCreateWithBinary.
@@ -175,8 +211,8 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   ur_device_handle_t hDevice = hContext->getDevice();
   auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
 
-  return urProgramCreateWithBinary(hContext, hDevice, length, pBinary,
-                                   pProperties, phProgram);
+  return createProgram(hContext, hDevice, length, pBinary, pProperties,
+                       phProgram);
 }
 
 /// CUDA will handle the PTX/CUBIN binaries internally through a call to
@@ -185,7 +221,23 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
                  const char *pOptions) {
-  return urProgramBuild(hContext, hProgram, pOptions);
+  UR_CHECK_ERROR(urProgramBuild(hContext, hProgram, pOptions));
+  hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
+                                                        uint32_t,
+                                                        ur_device_handle_t *,
+                                                        const char *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
+                                                      uint32_t,
+                                                      ur_device_handle_t *,
+                                                      const char *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 /// Loads the images from a UR program into a CUmodule that can be
@@ -202,11 +254,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
     ScopedContext Active(hProgram->getContext());
 
     hProgram->buildProgram(pOptions);
+    hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
 
   } catch (ur_result_t Err) {
     Result = Err;
   }
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
+    ur_context_handle_t, uint32_t, const ur_program_handle_t *, uint32_t,
+    ur_device_handle_t *, const char *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 /// Creates a new UR program object that is the outcome of linking all input
@@ -241,6 +300,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
           RetProgram->setBinary(static_cast<const char *>(CuBin), CuBinSize);
 
       Result = RetProgram->buildProgram(pOptions);
+      RetProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
     } catch (...) {
       // Upon error attempt cleanup
       UR_CHECK_ERROR(cuLinkDestroy(State));
@@ -287,6 +347,9 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
     return ReturnValue(hProgram->BuildOptions.c_str());
   case UR_PROGRAM_BUILD_INFO_LOG:
     return ReturnValue(hProgram->InfoLog, hProgram->MaxLogSize);
+  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE: {
+    return ReturnValue(hProgram->BinaryType);
+  }
   default:
     break;
   }
@@ -384,44 +447,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-/// Loads images from a list of PTX or CUBIN binaries.
-/// Note: No calls to CUDA driver API in this function, only store binaries
-/// for later.
-///
-/// Note: Only supports one device
-///
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
-            UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
+  UR_CHECK_ERROR(
+      createProgram(hContext, hDevice, size, pBinary, pProperties, phProgram));
+  (*phProgram)->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
 
-  std::unique_ptr<ur_program_handle_t_> RetProgram{
-      new ur_program_handle_t_{hContext}};
-
-  if (pProperties) {
-    if (pProperties->count > 0 && pProperties->pMetadatas == nullptr) {
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-    } else if (pProperties->count == 0 && pProperties->pMetadatas != nullptr) {
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    Result =
-        RetProgram->setMetadata(pProperties->pMetadatas, pProperties->count);
-  }
-  UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
-
-  auto pBinary_string = reinterpret_cast<const char *>(pBinary);
-
-  Result = RetProgram->setBinary(pBinary_string, size);
-  UR_ASSERT(Result == UR_RESULT_SUCCESS, Result);
-
-  *phProgram = RetProgram.release();
-
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 // This entry point is only used for native specialization constants (SPIR-V),

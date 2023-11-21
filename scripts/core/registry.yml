@@ -529,6 +529,15 @@ etors:
 - name: ADAPTER_GET_INFO
   desc: Enumerator for $xAdapterGetInfo
   value: '181'
+- name: PROGRAM_BUILD_EXP
+  desc: Enumerator for $xProgramBuildExp
+  value: '197'
+- name: PROGRAM_COMPILE_EXP
+  desc: Enumerator for $xProgramCompileExp
+  value: '198'
+- name: PROGRAM_LINK_EXP
+  desc: Enumerator for $xProgramLinkExp
+  value: '199'
 ---
 type: enum
 desc: Defines structure types
