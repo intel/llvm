@@ -3955,7 +3955,8 @@ atomic_update(T *p, Toffset byte_offset, simd_mask<N> mask = 1) {
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4035,7 +4036,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4072,7 +4074,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4111,7 +4114,8 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4150,7 +4154,7 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_view<T, RegionTy> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4190,7 +4194,7 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4229,7 +4233,7 @@ atomic_update(T *p, simd_view<Toffset, RegionTy> offsets, simd<T, N> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -4271,7 +4275,7 @@ atomic_update(T *p, simd_view<Toffset, OffsetRegionTy> offsets,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -5370,7 +5374,8 @@ atomic_update(AccessorTy acc, Toffset byte_offset, simd_mask<N> mask) {
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5461,7 +5466,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5509,7 +5515,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5559,7 +5566,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5600,7 +5608,8 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset,
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::fadd, \c
+/// atomic_op::fsub, \c atomic_op::store.
 /// @tparam Tx The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5652,7 +5661,7 @@ atomic_update(AccessorTy acc, simd<uint32_t, N> offset, simd<Tx, N> src0,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5696,7 +5705,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5739,7 +5748,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, RegionTy> byte_offset,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
@@ -5787,7 +5796,7 @@ atomic_update(AccessorTy acc, simd_view<Toffset, OffsetRegionTy> byte_offset,
 /// atomic_op::max, \c atomic_op::xchg, \c atomic_op::bit_and, \c
 /// atomic_op::bit_or, \c atomic_op::bit_xor, \c atomic_op::minsint, \c
 /// atomic_op::maxsint, \c atomic_op::fmax, \c atomic_op::fmin, \c
-/// atomic_op::store.
+/// atomic_op::fadd, \c atomic_op::fsub, \c atomic_op::store.
 /// @tparam T The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @tparam AccessorTy type of the SYCL accessor.
