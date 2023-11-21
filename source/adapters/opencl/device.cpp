@@ -787,6 +787,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         {"cl_intel_program_scope_host_pipe"}, Supported));
     return ReturnValue(Supported);
   }
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES:
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES:
