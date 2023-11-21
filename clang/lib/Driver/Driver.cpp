@@ -5940,8 +5940,6 @@ class OffloadingActionBuilder final {
       return NumOfDeviceLibLinked != 0;
     }
 
-    Action *appendLinkHostActions(ActionList &AL) override { return AL.back(); }
-
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
       // DeviceLinkerInputs holds binaries per ToolChain (TC) / bound-arch pair
       // The following will loop link and post process for each TC / bound-arch
