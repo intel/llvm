@@ -178,14 +178,21 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
+template<typename PropertyListT = empty_properties_t>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const context& ctxt,
   source_language lang,
-  const std::string& source)
+  const std::string& source,
+  PropertyListT props = {})
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
+
+_Constraints:_ Available only when `PropertyListT` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "New properties for the
+`create_kernel_bundle_from_source` function".
 
 _Effects:_ Creates a new kernel bundle that represents a kernel that is defined
 by the source code string `source` using the language `lang`.
@@ -193,6 +200,11 @@ The bundle is associated with the context `ctxt`, and kernels from this bundle
 may only be submitted to a queue that shares the same context.
 The bundle's set of associated devices is the set of devices contained in
 `ctxt`.
+
+When the source language is `source_language::sycl`, the `source` string must
+not `#include <sycl/sycl.hpp>`.
+Instead, the device-side SYCL APIs are implicitly declared, and the source code
+may use these APIs without including this header.
 
 _Returns:_ The newly created kernel bundle, which has `ext_oneapi_source`
 state.
@@ -240,7 +252,8 @@ Overload (1):
 
 _Constraints:_ Available only when `PropertyListT` is an instance of
 `sycl::ext::oneapi::experimental::properties` which contains no properties
-other than those listed below in the section "New properties".
+other than those listed below in the section "New properties for the `build`
+function".
 
 _Effects:_ The source code from `sourceBundle` is translated into one or more
 device images of state `bundle_state::executable`, and a new kernel bundle is
@@ -288,7 +301,63 @@ _Constraints:_ Same as overload (1).
 _Effects:_ Equivalent to `build(sourceBundle, ctxt.get_devices(), props)`.
 |====
 
-=== New properties
+=== New properties for the `create_kernel_bundle_from_source` function
+
+This extension adds the following properties, which can be used in conjunction
+with the `create_kernel_bundle_from_source` function that is defined above:
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct include_files {
+  std::vector<std::string> names;
+  std::vector<std::string> contents;
+  include_files(const std::string &name, const std::string &content);  (1)
+  include_files(const std::vector<std::string> &names,                 (2)
+                const std::vector<std::string> &contents);
+};
+using include_files_key = include_files;
+
+template<>
+struct is_property_key<include_files_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+This property provides the name and content of include files that can be
+referenced from the source code in the `source` parameter to
+`create_kernel_bundle_from_source`.
+The property conceptually contains a collection of (_Name_, _Content_) pairs,
+where both _Name_ and _Content_ are strings.
+The _Name_ is the name of an include file and the _Content_ is the content of
+that include file.
+
+When the source language is `source_language::sycl`, the source code can have
+`#include` statements where the name and content of the include file is
+defined by this property.
+For example, if the source code has `#include "foo.h"`, the compilation process
+will look at the `include_files` property to see if there is an entry whose
+_Name_ is `foo.h`.
+If such an entry is found, the compiler uses the associated _Content_ as the
+content of the include file.
+
+_Effects (1):_ Constructs an `include_files` property with a single (_Name_,
+_Content_) pair.
+
+_Effects (2):_ Constructs an `include_files` property with a collection of
+(_Name_, _Content_) pairs.
+The `names` vector provides the _Name_ strings, and the `contents` vector
+provides the _Content_ strings.
+|====
+
+=== New properties for the `build` function
 
 This extension adds the following properties, which can be used in conjunction
 with the `build` function that is defined above:
@@ -408,7 +477,6 @@ kernel name.
 
 _Effects (2):_ Constructs a `registered_kernel_names` property from a vector of
 kernel names.
-
 |====
 
 === New constraint for kernel bundle member functions
