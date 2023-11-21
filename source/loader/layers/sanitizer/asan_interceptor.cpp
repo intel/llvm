@@ -146,9 +146,9 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         ContextInfo.AllocatedUSMMap[AllocBegin] = MemoryInfo;
     }
 
-    context.logger.info("AllocInfos:\n  AllocBegin: {}\n  User: {}-{}\n  "
-                        "NeededSize: {}\nType: {}",
-                        AllocBegin, UserBegin, UserEnd, NeededSize, Type);
+    context.logger.info(
+        "AllocInfos(AllocBegin={},  User={}-{}, NeededSize={}, Type={})",
+        AllocBegin, UserBegin, UserEnd, NeededSize, Type);
 
     return UR_RESULT_SUCCESS;
 }
@@ -325,8 +325,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     auto URes = context.urDdiTable.PhysicalMem.pfnCreate(
                         Context, Device, PageSize, &Desc, &PhysicalMem);
                     if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("zePhysicalMemCreate(): {}",
-                                             getUrResultString(URes));
+                        context.logger.error("zePhysicalMemCreate(): {}", URes);
                         return URes;
                     }
                 }
@@ -340,8 +339,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    context.logger.debug("zeVirtualMemMap(): %s",
-                                         getUrResultString(URes));
+                    context.logger.debug("zeVirtualMemMap(): {}", URes);
                 }
 
                 // Initialize to zero
@@ -355,8 +353,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
                         Queue, (void *)MappedPtr, 1, Pattern, PageSize,
                         NumEventsInWaitList, EventsWaitList, Event);
                     if (URes != UR_RESULT_SUCCESS) {
-                        context.logger.error("urEnqueueUSMFill(): {}",
-                                             getUrResultString(URes));
+                        context.logger.error("urEnqueueUSMFill(): {}", URes);
                         return URes;
                     }
 
@@ -372,8 +369,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             (ShadowEnd - ShadowBegin + 1), NumEventsInWaitList, EventsWaitList,
             Event);
         if (URes != UR_RESULT_SUCCESS) {
-            context.logger.error("urEnqueueUSMFill(): {}",
-                                 getUrResultString(URes));
+            context.logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
         }
     } else {
@@ -561,8 +557,8 @@ void SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
                     Queue, Program, Name, false, sizeof(uptr), 0, Value,
                     NumEvents, EventsList, &NewEvent);
             if (Result != UR_RESULT_SUCCESS) {
-                context.logger.warning("Device Global Write Failed[{}]: {}",
-                                       Name, getUrResultString(Result));
+                context.logger.warning("Device Global[{}] Write Failed: {}",
+                                       Name, Result);
                 return false;
             }
             LastEvent = NewEvent;
