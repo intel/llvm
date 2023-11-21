@@ -145,63 +145,72 @@ static std::optional<int> getConstantInt(Value v) {
   return cast<IntegerAttr>(folded.front().get<Attribute>()).getInt();
 }
 
-LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
-  if (getElemSizeInBits() != 8 && getElemSizeInBits() != 16 &&
-      getElemSizeInBits() != 32)
-    return this->emitOpError(
+template <typename Op>
+static LogicalResult verifyInput(Op op) {
+  if (op.getElemSizeInBits() != 8 && op.getElemSizeInBits() != 16 &&
+      op.getElemSizeInBits() != 32)
+    return op->emitOpError(
         "expecting 'elem_size_in_bits' to be 8, 16, or 32");
 
-  if (getTranspose() && getVnniTransform())
-    return this->emitOpError(
+  if (op.getTranspose() && op.getVnniTransform())
+    return op->emitOpError(
         "transpose and vnni transform are mutually exclusive");
 
-  std::optional<int> width = getConstantInt(getBaseWidth());
-  std::optional<int> pitch = getConstantInt(getBasePitch());
+  std::optional<int> width = getConstantInt(op.getBaseWidth());
+  std::optional<int> pitch = getConstantInt(op.getBasePitch());
   if (pitch && width && *pitch < *width)
-    return this->emitOpError(
+    return op->emitOpError(
         "4th operand (base pitch) should be >= 2nd operand (base width)");
 
-  uint32_t TileWidth = getTileWidth();
-  uint32_t TileHeight = getTileHeight();
-  Type InputElemType = getPtr().getType().getElementType();
-  switch (getElemSizeInBits()) {
+  uint32_t TileWidth = op.getTileWidth();
+  uint32_t TileHeight = op.getTileHeight();
+  Type InputElemType = op.getPtr().getType().getElementType();
+  switch (op.getElemSizeInBits()) {
     case 32:
     if (!InputElemType.isF32())
-      return this->emitOpError(
+      return op->emitOpError(
          "element of size 32 should be of type bf32 or f32");
     if (TileWidth != 8)
-      return this->emitOpError("tile_width for 32 bit elements should be equal "
+      return op->emitOpError("tile_width for 32 bit elements should be equal "
                                "to systolic depth, i.e., 8 elements");
     if (TileHeight != 8)
-      return this->emitOpError("tile_height for 32 bit elements should be 8");
+      return op->emitOpError("tile_height for 32 bit elements should be 8");
       break;
 
     case 16:
     if (!InputElemType.isF16() && !InputElemType.isBF16())
-      return this->emitOpError(
+      return op->emitOpError(
           "element of size 16 should be of type bf16 or f16");
     if (TileWidth != 16)
-      return this->emitOpError("tile_width for 16 bit elements should be equal "
+      return op->emitOpError("tile_width for 16 bit elements should be equal "
                                "to systolic depth times 2, i.e., 16 elements");
     if (TileHeight != 16)
-      return this->emitOpError("tile_height for 16 bit elements should be 16");
+      return op->emitOpError("tile_height for 16 bit elements should be 16");
       break;
 
     case 8:
     if (!InputElemType.isInteger(8))
-      return this->emitOpError(
+      return op->emitOpError(
           "element of size 8 should be of type int8 or uint8");
     if (TileWidth != 32)
-      return this->emitOpError("tile_width for 8 bit elements should be equal "
+      return op->emitOpError("tile_width for 8 bit elements should be equal "
                                "to systolic depth times 4, i.e., 32 elements");
     if (TileHeight != 32)
-      return this->emitOpError("tile_height for 8 bit elements should be 32");
+      return op->emitOpError("tile_height for 8 bit elements should be 32");
       break;
 
     default:
-    return this->emitOpError("element size should be 8, 16 or 32 bits");
+    return op->emitOpError("element size should be 8, 16 or 32 bits");
   }
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// genx.matrix.2Dblockload
+//===----------------------------------------------------------------------===//
+
+LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
+  return verifyInput(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -209,60 +218,5 @@ LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult GENX::Matrix2DBlockStoreOp::verify() {
-  if (getElemSizeInBits() != 8 && getElemSizeInBits() != 16 &&
-      getElemSizeInBits() != 32)
-    return this->emitOpError(
-        "expecting 'elem_size_in_bits' to be 8, 16, or 32");
-
-  if (getTranspose() && getVnniTransform())
-    return this->emitOpError(
-        "transpose and vnni transform are mutually exclusive");
-
-  std::optional<int> width = getConstantInt(getBaseWidth());
-  std::optional<int> pitch = getConstantInt(getBasePitch());
-  if (pitch && width && *pitch < *width)
-    return this->emitOpError(
-        "4th operand (base pitch) should be >= 2nd operand (base width)");
-
-  uint32_t TileWidth = getTileWidth();
-  uint32_t TileHeight = getTileHeight();
-  Type InputElemType = getPtr().getType().getElementType();
-  switch (getElemSizeInBits()) {
-    case 32:
-    if (!InputElemType.isF32())
-      return this->emitOpError(
-         "element of size 32 should be of type bf32 or f32");
-    if (TileWidth != 8)
-      return this->emitOpError("tile_width for 32 bit elements should be equal "
-                               "to systolic depth, i.e., 8 elements");
-    if (TileHeight != 8)
-      return this->emitOpError("tile_height for 32 bit elements should be 8");
-      break;
-
-    case 16:
-    if (!InputElemType.isF16() && !InputElemType.isBF16())
-      return this->emitOpError(
-          "element of size 16 should be of type bf16 or f16");
-    if (TileWidth != 16)
-      return this->emitOpError("tile_width for 16 bit elements should be equal "
-                               "to systolic depth times 2, i.e., 16 elements");
-    if (TileHeight != 16)
-      return this->emitOpError("tile_height for 16 bit elements should be 16");
-      break;
-
-    case 8:
-    if (!InputElemType.isInteger(8))
-      return this->emitOpError(
-          "element of size 8 should be of type int8 or uint8");
-    if (TileWidth != 32)
-      return this->emitOpError("tile_width for 8 bit elements should be equal "
-                               "to systolic depth times 4, i.e., 32 elements");
-    if (TileHeight != 32)
-      return this->emitOpError("tile_height for 8 bit elements should be 32");
-      break;
-
-    default:
-    return this->emitOpError("element size should be 8, 16 or 32 bits");
-  }
-  return success();
+  return verifyInput(*this);
 }
