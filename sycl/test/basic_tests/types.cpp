@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%sycl_triple %s -fsyntax-only %}
 
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
@@ -21,6 +22,7 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
   static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   // SYCL 2020 spec says that alignment is supposed to be same as size,
   // but MSVC won't allow an alignment of anything larger than 64 for
@@ -32,6 +34,19 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   else
     static_assert(alignof(VectorT) == 64,
                   "huge vectors should have a maximum alignment of 64");
+
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#if defined(_WIN32) && (_MSC_VER) &&                                           \
+    defined(__NO_EXT_VECTOR_TYPE_ON_HOST__) && !defined(__SYCL_DEVICE_ONLY__)
+  // See comments around __SYCL_ALIGNED_VAR macro definition in types.hpp
+  // We can't enforce proper alignment of "huge" vectors (>64 bytes) on Windows
+  // and the test exposes this limitation.
+  if constexpr (alignof(T) * RealLength < 64)
+#endif
+    static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
 
 template <typename T> inline void checkVectorsWithN() {

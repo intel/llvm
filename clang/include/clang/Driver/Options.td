@@ -1804,6 +1804,10 @@ def fswift_async_fp_EQ : Joined<["-"], "fswift-async-fp=">,
     NormalizedValuesScope<"CodeGenOptions::SwiftAsyncFramePointerKind">,
     NormalizedValues<["Auto", "Always", "Never"]>,
     MarshallingInfoEnum<CodeGenOpts<"SwiftAsyncFramePointer">, "Always">;
+def fapinotes_swift_version : Joined<["-"], "fapinotes-swift-version=">,
+  Group<f_clang_Group>, Visibility<[ClangOption, CC1Option]>,
+  MetaVarName<"<version>">,
+  HelpText<"Specify the Swift version to use when filtering API notes">;
 
 defm addrsig : BoolFOption<"addrsig",
   CodeGenOpts<"Addrsig">, DefaultFalse,
@@ -2064,6 +2068,10 @@ def fignore_exceptions : Flag<["-"], "fignore-exceptions">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Enable support for ignoring exception handling constructs">,
   MarshallingInfoFlag<LangOpts<"IgnoreExceptions">>;
+defm assume_nothrow_exception_dtor: BoolFOption<"assume-nothrow-exception-dtor",
+  LangOpts<"AssumeNothrowExceptionDtor">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option], "Assume that exception objects' destructors are non-throwing">,
+  NegFlag<SetFalse>>;
 def fexcess_precision_EQ : Joined<["-"], "fexcess-precision=">, Group<f_Group>,
   Visibility<[ClangOption, CLOption]>,
   HelpText<"Allows control over excess precision on targets where native "
@@ -3022,6 +3030,14 @@ def fno_modules_validate_textual_header_includes :
   MarshallingInfoNegativeFlag<LangOpts<"ModulesValidateTextualHeaderIncludes">>,
   HelpText<"Do not enforce -fmodules-decluse and private header restrictions for textual headers. "
            "This flag will be removed in a future Clang release.">;
+defm modules_skip_diagnostic_options : BoolFOption<"modules-skip-diagnostic-options",
+    HeaderSearchOpts<"ModulesSkipDiagnosticOptions">, DefaultFalse,
+    PosFlag<SetTrue, [], [], "Disable writing diagnostic options">,
+    NegFlag<SetFalse>, BothFlags<[], [CC1Option]>>;
+defm modules_skip_header_search_paths : BoolFOption<"modules-skip-header-search-paths",
+    HeaderSearchOpts<"ModulesSkipHeaderSearchPaths">, DefaultFalse,
+    PosFlag<SetTrue, [], [], "Disable writing header search paths">,
+    NegFlag<SetFalse>, BothFlags<[], [CC1Option]>>;
 
 def fincremental_extensions :
   Flag<["-"], "fincremental-extensions">,
@@ -4392,6 +4408,9 @@ def ibuiltininc : Flag<["-"], "ibuiltininc">, Group<clang_i_Group>,
 def index_header_map : Flag<["-"], "index-header-map">,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Make the next included directory (-I or -F) an indexer header map">;
+def iapinotes_modules : JoinedOrSeparate<["-"], "iapinotes-modules">, Group<clang_i_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Add directory to the API notes search path referenced by module name">, MetaVarName<"<directory>">;
 def idirafter : JoinedOrSeparate<["-"], "idirafter">, Group<clang_i_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Add directory to AFTER include search path">;
@@ -4925,9 +4944,9 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
   HelpText<"Specify code object ABI version. Defaults to 4. (AMDGPU only)">,
   Visibility<[ClangOption, CC1Option]>,
-  Values<"none,3,4,5">,
+  Values<"none,4,5">,
   NormalizedValuesScope<"TargetOptions">,
-  NormalizedValues<["COV_None", "COV_3", "COV_4", "COV_5"]>,
+  NormalizedValues<["COV_None", "COV_4", "COV_5"]>,
   MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_4">;
 
 defm cumode : SimpleMFlag<"cumode",
@@ -5033,6 +5052,12 @@ def mrop_protect : Flag<["-"], "mrop-protect">,
     Group<m_ppc_Features_Group>;
 def mprivileged : Flag<["-"], "mprivileged">,
     Group<m_ppc_Features_Group>;
+
+defm regnames : BoolOption<"m", "regnames",
+  CodeGenOpts<"PPCUseFullRegisterNames">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option], "Use full register names when writing assembly output">,
+  NegFlag<SetFalse, [], [ClangOption], "Use only register numbers when writing assembly output">>,
+  Group<m_Group>;
 } // let Flags = [TargetSpecific]
 def maix_small_local_exec_tls : Flag<["-"], "maix-small-local-exec-tls">,
   Group<m_ppc_Features_Group>,
@@ -7233,9 +7258,6 @@ let Visibility = [CC1Option] in {
 def sys_header_deps : Flag<["-"], "sys-header-deps">,
   HelpText<"Include system headers in dependency output">,
   MarshallingInfoFlag<DependencyOutputOpts<"IncludeSystemHeaders">>;
-def canonical_system_headers : Flag<["-"], "canonical-system-headers">,
-  HelpText<"Canonicalize system headers in dependency output">,
-  MarshallingInfoFlag<DependencyOutputOpts<"CanonicalSystemHeaders">>;
 def module_file_deps : Flag<["-"], "module-file-deps">,
   HelpText<"Include module files in dependency output">,
   MarshallingInfoFlag<DependencyOutputOpts<"IncludeModuleFiles">>;

@@ -699,11 +699,21 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     return Cache.getOrInsertProgram(CacheKey);
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
+    return BuildF();
+
   auto BuildResult =
       getOrBuild<sycl::detail::pi::PiProgram, compile_program_error>(
           Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
+
+  // If caching is enabled, one copy of the program handle will be
+  // stored in the cache, and one handle is returned to the
+  // caller. In that case, we need to increase the ref count of the
+  // program.
+  ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
+      *BuildResult->Ptr.load());
   return *BuildResult->Ptr.load();
 }
 
@@ -728,9 +738,20 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
                              CompileOpts + LinkOpts, KernelName);
-  auto ret_tuple = Cache.tryToGetKernelFast(key);
-  if (std::get<0>(ret_tuple))
-    return ret_tuple;
+  if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    auto ret_tuple = Cache.tryToGetKernelFast(key);
+    constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
+    constexpr size_t Program = 3; // see KernelFastCacheValT tuple
+    if (std::get<Kernel>(ret_tuple)) {
+      // Pulling a copy of a kernel and program from the cache,
+      // so we need to retain those resources.
+      ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
+          std::get<Kernel>(ret_tuple));
+      ContextImpl->getPlugin()->call<PiApiKind::piProgramRetain>(
+          std::get<Program>(ret_tuple));
+      return ret_tuple;
+    }
+  }
 
   sycl::detail::pi::PiProgram Program =
       getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName);
@@ -757,6 +778,14 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    // The built kernel cannot be shared between multiple
+    // threads when caching is disabled, so we can return
+    // nullptr for the mutex.
+    auto [Kernel, ArgMask] = BuildF();
+    return make_tuple(Kernel, nullptr, ArgMask, Program);
+  }
+
   auto BuildResult = getOrBuild<KernelArgMaskPairT, invalid_object_error>(
       Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
@@ -765,6 +794,12 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   auto ret_val = std::make_tuple(KernelArgMaskPair.first,
                                  &(BuildResult->MBuildResultMutex),
                                  KernelArgMaskPair.second, Program);
+  // If caching is enabled, one copy of the kernel handle will be
+  // stored in the cache, and one handle is returned to the
+  // caller. In that case, we need to increase the ref count of the
+  // kernel.
+  ContextImpl->getPlugin()->call<PiApiKind::piKernelRetain>(
+      KernelArgMaskPair.first);
   Cache.saveKernel(key, ret_val);
   return ret_val;
 }
@@ -1910,7 +1945,15 @@ void ProgramManager::bringSYCLDeviceImagesToState(
   for (device_image_plain &DevImage : DeviceImages) {
     const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
 
+    // At this time, there is no circumstance where a device image should ever
+    // be in the source state. That not good.
+    assert(DevImageState != bundle_state::ext_oneapi_source);
+
     switch (TargetState) {
+    case bundle_state::ext_oneapi_source:
+      // This case added for switch statement completion. We should not be here.
+      assert(DevImageState == bundle_state::ext_oneapi_source);
+      break;
     case bundle_state::input:
       // Do nothing since there is no state which can be upgraded to the input.
       assert(DevImageState == bundle_state::input);
@@ -1926,6 +1969,11 @@ void ProgramManager::bringSYCLDeviceImagesToState(
       break;
     case bundle_state::executable: {
       switch (DevImageState) {
+      case bundle_state::ext_oneapi_source:
+        // This case added for switch statement completion.
+        // We should not be here.
+        assert(DevImageState != bundle_state::ext_oneapi_source);
+        break;
       case bundle_state::input:
         DevImage = build(DevImage, getSyclObjImpl(DevImage)->get_devices(),
                          /*PropList=*/{});
@@ -2284,6 +2332,17 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    auto ResProgram = BuildF();
+    DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
+        InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
+        InputImpl->get_kernel_ids_ptr(), ResProgram,
+        InputImpl->get_spec_const_data_ref(),
+        InputImpl->get_spec_const_blob_ref());
+
+    return createSyclObjFromImpl<device_image_plain>(ExecImpl);
+  }
+
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
@@ -2376,11 +2435,25 @@ ProgramManager::getOrCreateKernel(const context &Context,
     return Cache.getOrInsertKernel(Program, KernelName);
   };
 
+  if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
+    // The built kernel cannot be shared between multiple
+    // threads when caching is disabled, so we can return
+    // nullptr for the mutex.
+    auto [Kernel, ArgMask] = BuildF();
+    return make_tuple(Kernel, nullptr, ArgMask);
+  }
+
   auto BuildResult =
       getOrBuild<KernelProgramCache::KernelArgMaskPairT, invalid_object_error>(
           Cache, GetCachedBuildF, BuildF);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
+  // If caching is enabled, one copy of the kernel handle will be
+  // stored in the cache, and one handle is returned to the
+  // caller. In that case, we need to increase the ref count of the
+  // kernel.
+  Ctx->getPlugin()->call<PiApiKind::piKernelRetain>(
+      BuildResult->Ptr.load()->first);
   return std::make_tuple(BuildResult->Ptr.load()->first,
                          &(BuildResult->MBuildResultMutex),
                          BuildResult->Ptr.load()->second);

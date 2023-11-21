@@ -161,6 +161,9 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMergeINTEL, "MergeINTEL");
   add(DecorationBankBitsINTEL, "BankBitsINTEL");
   add(DecorationForcePow2DepthINTEL, "ForcePow2DepthINTEL");
+  add(DecorationStridesizeINTEL, "StridesizeINTEL");
+  add(DecorationWordsizeINTEL, "WordsizeINTEL");
+  add(DecorationTrueDualPortINTEL, "TrueDualPortINTEL");
   add(DecorationBurstCoalesceINTEL, "BurstCoalesceINTEL");
   add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");

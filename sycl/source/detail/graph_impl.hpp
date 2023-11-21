@@ -19,6 +19,7 @@
 
 #include <cstring>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <list>
 #include <set>
@@ -228,7 +229,229 @@ public:
     }
   }
 
+  /// Recursive Depth first traversal of linked nodes.
+  /// to print node information and connection to Stream.
+  /// @param Stream Where to print node information.
+  /// @param Visited Vector of the already visited nodes.
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printDotRecursive(std::fstream &Stream,
+                         std::vector<node_impl *> &Visited, bool Verbose) {
+    // if Node has been already visited, we skip it
+    if (std::find(Visited.begin(), Visited.end(), this) != Visited.end())
+      return;
+
+    Visited.push_back(this);
+
+    printDotCG(Stream, Verbose);
+    for (const auto &Dep : MPredecessors) {
+      auto NodeDep = Dep.lock();
+      Stream << "  \"" << NodeDep->MCommandGroup.get() << "\" -> \""
+             << MCommandGroup.get() << "\"" << std::endl;
+    }
+
+    for (std::weak_ptr<node_impl> Succ : MSuccessors) {
+      Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
+    }
+  }
+
 private:
+  /// Prints Node information to Stream.
+  /// @param Stream Where to print the Node information
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printDotCG(std::ostream &Stream, bool Verbose) {
+    sycl::detail::CG::CGTYPE CGType = MCommandGroup->getType();
+
+    Stream << "\"" << MCommandGroup.get() << "\" [style=bold, label=\"";
+
+    Stream << "ID = " << MCommandGroup.get() << "\\n";
+    Stream << "TYPE = ";
+
+    switch (CGType) {
+    case sycl::detail::CG::CGTYPE::None:
+      Stream << "None \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Kernel: {
+      Stream << "CGExecKernel \\n";
+      sycl::detail::CGExecKernel *Kernel =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      if (Verbose) {
+        Stream << "ARGS = \\n";
+        for (size_t i = 0; i < Kernel->MArgs.size(); i++) {
+          auto Arg = Kernel->MArgs[i];
+          std::string Type = "Undefined";
+          if (Arg.MType == sycl::detail::kernel_param_kind_t::kind_accessor) {
+            Type = "Accessor";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_std_layout) {
+            Type = "STD_Layout";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_sampler) {
+            Type = "Sampler";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_pointer) {
+            Type = "Pointer";
+          } else if (Arg.MType == sycl::detail::kernel_param_kind_t::
+                                      kind_specialization_constants_buffer) {
+            Type = "Specialization Constants Buffer";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_stream) {
+            Type = "Stream";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_invalid) {
+            Type = "Invalid";
+          }
+          Stream << i << ") Type: " << Type << " Ptr: " << Arg.MPtr << "\\n";
+        }
+      }
+      break;
+    }
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+      Stream << "CGCopy Device-to-Host \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy *Copy =
+            static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+        Stream << "Src: " << Copy->getSrc() << " Dst: " << Copy->getDst()
+               << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc:
+      Stream << "CGCopy Host-to-Device \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy *Copy =
+            static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+        Stream << "Src: " << Copy->getSrc() << " Dst: " << Copy->getDst()
+               << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+      Stream << "CGCopy Device-to-Device \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy *Copy =
+            static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+        Stream << "Src: " << Copy->getSrc() << " Dst: " << Copy->getDst()
+               << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::Fill:
+      Stream << "CGFill \\n";
+      if (Verbose) {
+        sycl::detail::CGFill *Fill =
+            static_cast<sycl::detail::CGFill *>(MCommandGroup.get());
+        Stream << "Ptr: " << Fill->MPtr << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::UpdateHost:
+      Stream << "CGCUpdateHost \\n";
+      if (Verbose) {
+        sycl::detail::CGUpdateHost *Host =
+            static_cast<sycl::detail::CGUpdateHost *>(MCommandGroup.get());
+        Stream << "Ptr: " << Host->getReqToUpdate() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyUSM:
+      Stream << "CGCopyUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGCopyUSM *CopyUSM =
+            static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+        Stream << "Src: " << CopyUSM->getSrc() << " Dst: " << CopyUSM->getDst()
+               << " Length: " << CopyUSM->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::FillUSM:
+      Stream << "CGFillUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGFillUSM *FillUSM =
+            static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << FillUSM->getDst()
+               << " Length: " << FillUSM->getLength()
+               << " Pattern: " << FillUSM->getFill() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::PrefetchUSM:
+      Stream << "CGPrefetchUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGPrefetchUSM *Prefetch =
+            static_cast<sycl::detail::CGPrefetchUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Prefetch->getDst()
+               << " Length: " << Prefetch->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::AdviseUSM:
+      Stream << "CGAdviseUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGAdviseUSM *AdviseUSM =
+            static_cast<sycl::detail::CGAdviseUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << AdviseUSM->getDst()
+               << " Length: " << AdviseUSM->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CodeplayHostTask:
+      Stream << "CGHostTask \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Barrier:
+      Stream << "CGBarrier \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Copy2DUSM:
+      Stream << "CGCopy2DUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy2DUSM *Copy2DUSM =
+            static_cast<sycl::detail::CGCopy2DUSM *>(MCommandGroup.get());
+        Stream << "Src:" << Copy2DUSM->getSrc()
+               << " Dst: " << Copy2DUSM->getDst() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::Fill2DUSM:
+      Stream << "CGFill2DUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGFill2DUSM *Fill2DUSM =
+            static_cast<sycl::detail::CGFill2DUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Fill2DUSM->getDst() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::Memset2DUSM:
+      Stream << "CGMemset2DUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGMemset2DUSM *Memset2DUSM =
+            static_cast<sycl::detail::CGMemset2DUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Memset2DUSM->getDst() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::ReadWriteHostPipe:
+      Stream << "CGReadWriteHostPipe \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CopyToDeviceGlobal:
+      Stream << "CGCopyToDeviceGlobal \\n";
+      if (Verbose) {
+        sycl::detail::CGCopyToDeviceGlobal *CopyToDeviceGlobal =
+            static_cast<sycl::detail::CGCopyToDeviceGlobal *>(
+                MCommandGroup.get());
+        Stream << "Src: " << CopyToDeviceGlobal->getSrc()
+               << " Dst: " << CopyToDeviceGlobal->getDeviceGlobalPtr() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyFromDeviceGlobal:
+      Stream << "CGCopyFromDeviceGlobal \\n";
+      if (Verbose) {
+        sycl::detail::CGCopyFromDeviceGlobal *CopyFromDeviceGlobal =
+            static_cast<sycl::detail::CGCopyFromDeviceGlobal *>(
+                MCommandGroup.get());
+        Stream << "Src: " << CopyFromDeviceGlobal->getDeviceGlobalPtr()
+               << " Dst: " << CopyFromDeviceGlobal->getDest() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::ExecCommandBuffer:
+      Stream << "CGExecCommandBuffer \\n";
+      break;
+    default:
+      Stream << "Other \\n";
+      break;
+    }
+    Stream << "\"];" << std::endl;
+  }
+
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
   /// @tparam CGT The derived type of the CG.
@@ -408,6 +631,25 @@ public:
                           std::shared_ptr<node_impl> Node) {
     std::weak_ptr<sycl::detail::queue_impl> QueueWeakPtr(Queue);
     MInorderQueueMap[QueueWeakPtr] = Node;
+  }
+
+  /// Prints the contents of the graph to a text file in DOT format.
+  /// @param FilePath Path to the output file.
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printGraphAsDot(const std::string FilePath, bool Verbose) const {
+    /// Vector of nodes visited during the graph printing
+    std::vector<node_impl *> VisitedNodes;
+
+    std::fstream Stream(FilePath, std::ios::out);
+    Stream << "digraph dot {" << std::endl;
+
+    for (std::weak_ptr<node_impl> Node : MRoots)
+      Node.lock()->printDotRecursive(Stream, VisitedNodes, Verbose);
+
+    Stream << "}" << std::endl;
+
+    Stream.close();
   }
 
   /// Make an edge between two nodes in the graph. Performs some mandatory
