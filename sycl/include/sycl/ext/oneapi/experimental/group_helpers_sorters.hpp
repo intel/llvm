@@ -35,6 +35,14 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+namespace detail {
+
+// TODO: Convert to SYCL properties
+struct is_blocked {};
+struct is_striped {};
+
+} // namespace detail
+
 // ---- group helpers
 template <typename Group, size_t Extent> class group_with_scratchpad {
   Group g;
