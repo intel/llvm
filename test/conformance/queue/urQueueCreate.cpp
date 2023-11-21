@@ -65,26 +65,23 @@ TEST_P(urQueueCreateTest, InvalidNullPointerQueue) {
                      urQueueCreate(context, device, 0, nullptr));
 }
 
-TEST_P(urQueueCreateTest, InvalidValueProperties) {
-    ur_queue_handle_t queue = nullptr;
+TEST_P(urQueueCreateTest, InvalidQueueProperties) {
     ur_queue_properties_t props = {
         /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.pNext =*/nullptr,
         /*.flags =*/UR_QUEUE_FLAG_FORCE_UINT32,
     };
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                     urQueueCreate(context, device, &props, &queue));
-}
 
-TEST_P(urQueueCreateTest, InvalidQueueProperties) {
-    ur_queue_properties_t props = {
-        /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
-        /*.pNext =*/nullptr,
-        /*.flags =*/UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW,
-    };
+    // Initial value is just not a valid enum
+    {
+        ur_queue_handle_t queue = nullptr;
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
+                         urQueueCreate(context, device, &props, &queue));
+    }
     // It should be an error to specify both low/high priorities
     {
         ur_queue_handle_t queue = nullptr;
+        props.flags = UR_QUEUE_FLAG_PRIORITY_HIGH | UR_QUEUE_FLAG_PRIORITY_LOW;
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES,
                          urQueueCreate(context, device, &props, &queue));
     }

@@ -6,4 +6,5 @@ urMemGetInfoTest.InvalidNullPointerParamValue/Intel_R__oneAPI_Unified_Runtime_ov
 urMemGetInfoTest.InvalidNullPointerParamValue/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_CONTEXT
 urMemGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_SIZE
 urMemGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_CONTEXT
+urMemGetInfoImageTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_SIZE
 {{Segmentation fault|Aborted}}

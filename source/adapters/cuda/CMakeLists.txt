@@ -3,8 +3,6 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(CUDA_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE PATH "CUDA adapter directory")
-
 set(TARGET_NAME ur_adapter_cuda)
 
 add_ur_adapter(${TARGET_NAME}

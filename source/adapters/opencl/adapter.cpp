@@ -12,21 +12,17 @@
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
+  std::mutex Mutex;
 };
 
 ur_adapter_handle_t_ adapter{};
 
 UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t,
                                            ur_loader_config_handle_t) {
-  cl_ext::ExtFuncPtrCache = new cl_ext::ExtFuncPtrCacheT();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
-  if (cl_ext::ExtFuncPtrCache) {
-    delete cl_ext::ExtFuncPtrCache;
-    cl_ext::ExtFuncPtrCache = nullptr;
-  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -34,6 +30,11 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
   if (NumEntries > 0 && phAdapters) {
+    std::lock_guard<std::mutex> Lock{adapter.Mutex};
+    if (adapter.RefCount++ == 0) {
+      cl_ext::ExtFuncPtrCache = std::make_unique<cl_ext::ExtFuncPtrCacheT>();
+    }
+
     *phAdapters = &adapter;
   }
 
@@ -50,7 +51,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  --adapter.RefCount;
+  std::lock_guard<std::mutex> Lock{adapter.Mutex};
+  if (--adapter.RefCount == 0) {
+    cl_ext::ExtFuncPtrCache.reset();
+  }
   return UR_RESULT_SUCCESS;
 }
 
