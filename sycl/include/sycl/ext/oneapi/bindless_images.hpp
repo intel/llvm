@@ -90,7 +90,7 @@ void free_image_mem(image_mem_handle handle, const sycl::device &syclDevice,
  */
 __SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
                          "Instead use overload that accepts image_type.")
-void free_image_mem(image_mem_handle handle, const sycl::device &syclQueue);
+void free_image_mem(image_mem_handle handle, const sycl::queue &syclQueue);
 
 /**
  *  @brief   Free image memory
