@@ -118,6 +118,7 @@ public:
   PROPAGATE_OP(|)
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
+#undef PROPAGATE_OP
 
   T operator++() const {
     T t = *this;
@@ -149,10 +150,218 @@ public:
     return t1;
   }
 
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() + std::declval<T2>())>
+  R operator+(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() + t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() - std::declval<T2>())>
+  R operator-(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() - t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() * std::declval<T2>())>
+  R operator*(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() * t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() / std::declval<T2>())>
+  R operator/(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() / t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() % std::declval<T2>())>
+  R operator%(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() % t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() & std::declval<T2>())>
+  R operator&(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() & t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() | std::declval<T2>())>
+  R operator|(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() | t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+  R operator^(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() ^ t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+  R operator>>(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() >> t;
+  }
+
+  template <typename T2, typename PropertyList2,
+            typename R = decltype(std::declval<T>() << std::declval<T2>())>
+  R operator<<(const annotated_ref<T2, PropertyList2> &other) const {
+	const T2& t = other;
+    return T() << t;
+  }
+
   template <class T2, class P2> friend class annotated_ptr;
 };
 
-#undef PROPAGATE_OP
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() + std::declval<T2>())>
+R operator+(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 + b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() - std::declval<T2>())>
+R operator-(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 - b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() * std::declval<T2>())>
+R operator*(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 * b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() / std::declval<T2>())>
+R operator/(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 / b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 % b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 & b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() | std::declval<T2>())>
+R operator|(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 | b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 ^ b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 >> b;
+}
+
+template <typename T, typename PropertyList, typename T2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const annotated_ref<T, PropertyList> &a, const T2 &b) {
+  const T& a1 = a;
+  return a1 << b;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() + std::declval<T2>())>
+R operator+(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a + b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() - std::declval<T2>())>
+R operator-(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a - b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() * std::declval<T2>())>
+R operator*(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a * b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() / std::declval<T2>())>
+R operator/(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a / b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() % std::declval<T2>())>
+R operator%(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a % b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() & std::declval<T2>())>
+R operator&(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a & b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() | std::declval<T2>())>
+R operator|(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a | b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
+R operator^(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a ^ b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
+R operator>>(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a >> b1;
+}
+
+template <typename T, typename T2, typename PropertyList2,
+          typename R = decltype(std::declval<T>() << std::declval<T2>())>
+R operator<<(const T &a, const annotated_ref<T2, PropertyList2> &b) {
+  const T2& b1 = b;
+  return a << b1;
+}
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
