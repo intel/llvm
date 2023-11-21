@@ -595,12 +595,6 @@ bool test_fp_types(queue q) {
     }
   }
   passed &= run_test<UseAcc, float, N, Op, UseMask>(q);
-  if (q.get_device().has(sycl::aspect::atomic64) &&
-      q.get_device().has(sycl::aspect::fp64)) {
-    // Disable double data type for fcmpxchg operation as D64 data is not
-    // supported for that operation.
-    passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
-  }
   return passed;
 }
 

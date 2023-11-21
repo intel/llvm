@@ -463,23 +463,17 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
 
   // Test slm_atomic_update without operands.
   {
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.dec.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    // CHECK-COUNT-4: call <4 x i32> @llvm.genx.dword.atomic.dec.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_0 =
         slm_atomic_update<atomic_op::dec, int>(offsets, pred);
-
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.dec.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_1 = slm_atomic_update<atomic_op::dec, int>(offsets);
-
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.dec.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_2 =
         slm_atomic_update<atomic_op::dec, int>(offsets_view, pred);
-
-    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.dec.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_3 =
         slm_atomic_update<atomic_op::dec, int>(offsets_view);
 
-    // Expect LSC for load.
-    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.slm.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 10, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
+    // Expect DWORD for load.
+    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.or.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
     auto res_slm_atomic_4 =
         slm_atomic_update<atomic_op::load, int>(offsets, pred);
 
@@ -489,7 +483,7 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int16_t);
       auto pred = simd_mask<VL>(1);
 
-      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.slm.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 10, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> undef, <8 x i32> undef, i32 0, <8 x i32> undef)
+      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.slm.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 25, i8 0, i8 0, i16 1, i32 0, i8 6, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> undef, i32 0, <8 x i32> undef)
       auto res_slm_atomic_0 =
           slm_atomic_update<atomic_op::load, int16_t>(offsets, pred);
     }
