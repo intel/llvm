@@ -69,8 +69,7 @@ struct RefCounted {
   uint32_t getReferenceCount() const { return _refCount; }
 };
 
-template <typename T>
-inline void decrementOrDelete(T* refC) {
+template <typename T> inline void decrementOrDelete(T *refC) {
   refC->decrementReferenceCount();
   if (refC->getReferenceCount() == 0)
     delete refC;
