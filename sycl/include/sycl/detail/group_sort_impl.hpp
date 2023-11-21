@@ -777,7 +777,7 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     keys_temp.get<KeysT>(ranks[i]) = keys[i];
     if constexpr (is_key_value_sort)
-      vals_temp.get<ValsT>(ranks[i]) = vals[i]; //<-- check, steffen
+      vals_temp.get<ValsT>(ranks[i]) = vals[i];
   }
 
   sycl::group_barrier(group);
@@ -791,7 +791,7 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
     }
     keys[i] = keys_temp.get<KeysT>(shift);
     if constexpr (is_key_value_sort)
-      vals[i] = vals_temp.get<ValsT>(shift); //<-- check
+      vals[i] = vals_temp.get<ValsT>(shift);
   }
 }
 

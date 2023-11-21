@@ -502,7 +502,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
-        T, 1, Compare>::memory_required(sycl::memory_scope::sub_group,
+        T, Compare, 1>::memory_required(sycl::memory_scope::sub_group,
                                         ReqSubGroupSize);
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
@@ -510,7 +510,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
   } else {
     // A single chunk of memory for each work-group
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
-        T, 1, Compare>::memory_required(sycl::memory_scope::work_group,
+        T, Compare, 1>::memory_required(sycl::memory_scope::work_group,
                                         NumOfElements);
 
     LocalMemorySizeRadix = RadixSorterT::memory_required(
@@ -587,7 +587,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
              AccToSort2[GlobalLinearID] = oneapi_exp::sort_over_group(
                  Group, AccToSort2[GlobalLinearID],
-                 oneapi_exp::default_sorters::group_sorter<T, 1, Compare>(
+                 oneapi_exp::default_sorters::group_sorter<T, Compare, 1>(
                      sycl::span{ScratchPtrDefault,
                                 LocalMemorySizeDefault})); // (6) default
 
@@ -703,7 +703,9 @@ int main() {
         RunOverType<sycl::half>(Q, Size);
       if (Q.get_device().has(sycl::aspect::fp64))
         RunOverType<double>(Q, Size);
-      RunOverType<CustomType>(Q, Size);
+      // Radix sort does not work with CustomType. Radix sort only works
+      // with arithmetic types; e.g., int.
+      // RunOverType<CustomType>(Q, Size);
     }
 
     std::cout << "Test passed." << std::endl;
