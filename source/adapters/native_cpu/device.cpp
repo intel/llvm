@@ -302,7 +302,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
     CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
-
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
+    return ReturnValue(false);
   default:
     DIE_NO_IMPLEMENTATION;
   }
