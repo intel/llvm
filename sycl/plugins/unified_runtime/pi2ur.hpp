@@ -1992,8 +1992,8 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
       urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
                        UrInputPrograms, Options, UrProgram);
   if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    HANDLE_ERRORS(urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
-                                Options, UrProgram));
+    urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
+                             Options, UrProgram);
   }
   return ur2piResult(urResult);
 }
@@ -2030,7 +2030,7 @@ inline pi_result piProgramCompile(
   auto urResult =
       urProgramCompileExp(UrProgram, NumDevices, UrDevices, Options);
   if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    HANDLE_ERRORS(urProgramCompile(UrContext, UrProgram, Options));
+    urResult = urProgramCompile(UrContext, UrProgram, Options);
   }
   return ur2piResult(urResult);
 }
@@ -2068,7 +2068,7 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
 
   auto urResult = urProgramBuildExp(UrProgram, NumDevices, UrDevices, Options);
   if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    HANDLE_ERRORS(urProgramBuild(UrContext, UrProgram, Options));
+    urResult = urProgramBuild(UrContext, UrProgram, Options);
   }
   return ur2piResult(urResult);
 }
