@@ -465,9 +465,15 @@ struct is_property_key<registered_kernel_names_key> : std::true_type {};
 ----
 !====
 
-The precise meaning of this property is defined by each source language.
-In general, this property allows the application to supply a list of kernel
-names along with the source code that defines the kernels.
+This property is useful when the source language represents kernel names
+differently in the source code and the generated code.
+For example, {cpp} function names in the generated code are "mangled" in an
+implementation-defined way.
+The precise meaning of this property is defined by each source language, but in
+general it allows the application to supply a list of kernel names as they
+appear in the source code.
+The application can then get the corresponding raw (i.e. mangled) names after
+the code is compiled.
 See the section below "Obtaining a kernel when the language is ``sycl``" for a
 description of how this property is used with the `source_language::sycl`
 language.
@@ -545,6 +551,7 @@ class kernel_bundle {
 
   // Available only if bundle_state is bundle_state::executable
   kernel ext_oneapi_get_kernel(const std::string &name);
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &name);
 };
 
 } // namespace sycl
@@ -585,6 +592,33 @@ _Constraints:_ This function is available only when `State` is
 
 _Returns:_ A `kernel` object representing the kernel in this bundle whose name
 is `name`.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if
+  `ext_oneapi_has_kernel(name)` returns `false`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+std::string ext_oneapi_get_raw_kernel_name(const std::string &name)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ If the kernel bundle was created from a bundle of state
+`bundle_state::ext_oneapi_source` and `name` was registered via
+`registered_kernel_names`, returns the compiler-generated (e.g. mangled) name
+for this kernel function.
+If the kernel bundle was created from a bundle of state
+`bundle_state::ext_oneapi_source` and `name` is the same as a
+compiler-generated name for a kernel defined in that bundle, that same
+`name` is returned.
 
 _Throws:_
 
@@ -661,6 +695,24 @@ The host code then passes the same string (`"mykernels::bar"`) to
 `ext_oneapi_get_kernel` in order to get the `kernel` object.
 The string must have exactly the same content as the string that was used to
 construct the property, without even any whitespace differences.
+
+The application can also obtain the compiler-generated (i.e. mangled) name for
+the kernel by calling `ext_oneapi_get_raw_kernel_name` like this:
+
+```
+sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
+
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
+  syclex::properties{syclex::registered_kernel_names{"mykernels::bar"}});
+
+std::string mangled_name = kb.ext_oneapi_get_raw_kernel_name("mykernels::bar");
+```
+
+Again, the string passed to `ext_oneapi_get_raw_kernel_name` must have exactly
+the same content as the string that was used to construct the
+`registered_kernel_names` property.
+The application may also pass this compiler-generated (i.e. mangled) name to
+`ext_oneapi_get_kernel` in order to get the `kernel` object.
 
 ==== Instantiating templated kernel functions
 
