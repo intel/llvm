@@ -708,7 +708,8 @@ SPIRVToLLVMDbgTran::transTypeMemberOpenCL(const SPIRVExtInst *DebugInst) {
            "Static member must be a constant");
     llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val),
+        llvm::dwarf::DW_TAG_member);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
@@ -758,7 +759,8 @@ SPIRVToLLVMDbgTran::transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
            "Static member must be a constant");
     llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val),
+        llvm::dwarf::DW_TAG_member);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
@@ -800,7 +802,7 @@ DINode *SPIRVToLLVMDbgTran::transTypeEnum(const SPIRVExtInst *DebugInst) {
       UnderlyingType = transDebugInst<DIType>(static_cast<SPIRVExtInst *>(E));
     return getDIBuilder(DebugInst).createEnumerationType(
         Scope, Name, File, LineNo, SizeInBits, AlignInBits, Enumerators,
-        UnderlyingType, "", UnderlyingType);
+        UnderlyingType, 0, "", UnderlyingType);
   }
 }
 
