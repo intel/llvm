@@ -48,7 +48,7 @@ entry:
 
 ; Note that since we just did a lshr 1 on the input of the extend, it doesn't
 ; make any difference whether it's a zext or sext, but LLVM 16 prefers zext.
-; CHECK: [[sext2:%.*]] = {{s|z}}ext <vscale x 8 x i32> [[idx1]] to <vscale x 8 x i64>
+; CHECK: [[sext2:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 8 x i32> [[idx1]] to <vscale x 8 x i64>
 
 ; CHECK: [[addrs:%.*]] = getelementptr inbounds i8, ptr [[alloc]], <vscale x 8 x i64> [[sext2]]
 ; CHECK: [[gather:%.*]] = call <vscale x 8 x i8> @llvm.masked.gather.nxv8i8.nxv8p0(<vscale x 8 x ptr> [[addrs]],
