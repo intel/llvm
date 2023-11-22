@@ -61,16 +61,16 @@ struct _ur_object {
   ur_shared_mutex Mutex;
 };
 
+// Todo: replace this with a common helper once it is available
 struct RefCounted {
   std::atomic_uint32_t _refCount;
-  void incrementReferenceCount() { _refCount++; }
-  void decrementReferenceCount() { _refCount--; }
+  uint32_t incrementReferenceCount() { return ++_refCount; }
+  uint32_t decrementReferenceCount() { return --_refCount; }
   RefCounted() : _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
 };
 
 template <typename T> inline void decrementOrDelete(T *refC) {
-  refC->decrementReferenceCount();
-  if (refC->getReferenceCount() == 0)
+  if (refC->decrementReferenceCount() == 0)
     delete refC;
 }
