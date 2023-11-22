@@ -10,8 +10,8 @@
 // RUN: %{build} -o %t.out -DSYCL2020_DISABLE_DEPRECATION_WARNINGS
 // RUN: %{run} %t.out
 //
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -DSYCL2020_DISABLE_DEPRECATION_WARNINGS %s -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/sycl.hpp>
 
