@@ -265,22 +265,6 @@ class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
 
-// Helper type for getting the return type of vec::operator! based on Table 143
-// of the SYCL 2020 specification.
-template <size_t N> struct OperatorNotReturnType {};
-template <> struct OperatorNotReturnType<1> {
-  using type = int8_t;
-};
-template <> struct OperatorNotReturnType<2> {
-  using type = int16_t;
-};
-template <> struct OperatorNotReturnType<4> {
-  using type = int32_t;
-};
-template <> struct OperatorNotReturnType<8> {
-  using type = int64_t;
-};
-
 } // namespace detail
 
 template <typename T> using vec_data = detail::vec_helper<T>;
@@ -1197,7 +1181,7 @@ public:
 
   template <typename T>
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  using OpNotRet = typename detail::OperatorNotReturnType<sizeof(T)>::type;
+  using OpNotRet = detail::rel_t<T>;
 #else
   using OpNotRet = T;
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
