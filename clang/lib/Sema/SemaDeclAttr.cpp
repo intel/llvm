@@ -189,7 +189,7 @@ static inline bool isCFStringType(QualType T, ASTContext &Ctx) {
     return false;
 
   const RecordDecl *RD = RT->getDecl();
-  if (RD->getTagKind() != TTK_Struct)
+  if (RD->getTagKind() != TagTypeKind::Struct)
     return false;
 
   return RD->getIdentifier() == &Ctx.Idents.get("__CFString");
@@ -4020,9 +4020,25 @@ void Sema::AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*positive*/ 0;
       return;
     }
-    if (Context.getTargetInfo().getTriple().isNVPTX() && ArgVal != 32) {
-      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_cuda_n_32)
-          << ArgVal.getSExtValue();
+    auto &TI = Context.getTargetInfo();
+    if (TI.getTriple().isNVPTX() && ArgVal != 32)
+      Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+          << ArgVal.getSExtValue() << TI.getTriple().getArchName() << 32;
+    if (TI.getTriple().isAMDGPU()) {
+      const auto HasWaveFrontSize64 =
+          TI.getTargetOpts().FeatureMap["wavefrontsize64"];
+      const auto HasWaveFrontSize32 =
+          TI.getTargetOpts().FeatureMap["wavefrontsize32"];
+
+      // CDNA supports only 64 wave front size, for those GPUs allow subgroup
+      // size of 64. Some GPUs support both 32 and 64, for those (and the rest)
+      // only allow 32. Warn on incompatible sizes.
+      const auto SupportedWaveFrontSize =
+          HasWaveFrontSize64 && !HasWaveFrontSize32 ? 64 : 32;
+      if (ArgVal != SupportedWaveFrontSize)
+        Diag(E->getExprLoc(), diag::warn_reqd_sub_group_attribute_n)
+            << ArgVal.getSExtValue() << TI.getTriple().getArchName()
+            << SupportedWaveFrontSize;
     }
 
     // Check to see if there's a duplicate attribute with different values

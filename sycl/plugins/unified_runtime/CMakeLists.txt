@@ -32,7 +32,9 @@ if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
   set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
 endif()
-# TODO: Set UR_BUILD_ADAPTER_NATIVE_CPU once adapter moved
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
 
 # Disable errors from warnings while building the UR.
 # And remember origin flags before doing that.
@@ -159,49 +161,6 @@ endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library("ur_adapter_native_cpu" SHARED
-    SOURCES
-      "ur/ur.cpp"
-      "ur/ur.hpp"
-      "ur/adapters/native_cpu/adapter.cpp"
-      "ur/adapters/native_cpu/command_buffer.cpp"
-      "ur/adapters/native_cpu/common.cpp"
-      "ur/adapters/native_cpu/common.hpp"
-      "ur/adapters/native_cpu/context.cpp"
-      "ur/adapters/native_cpu/context.hpp"
-      "ur/adapters/native_cpu/device.cpp"
-      "ur/adapters/native_cpu/device.hpp"
-      "ur/adapters/native_cpu/enqueue.cpp"
-      "ur/adapters/native_cpu/event.cpp"
-      "ur/adapters/native_cpu/image.cpp"
-      "ur/adapters/native_cpu/kernel.cpp"
-      "ur/adapters/native_cpu/kernel.hpp"
-      "ur/adapters/native_cpu/memory.cpp"
-      "ur/adapters/native_cpu/memory.hpp"
-      "ur/adapters/native_cpu/platform.cpp"
-      "ur/adapters/native_cpu/platform.hpp"
-      "ur/adapters/native_cpu/program.cpp"
-      "ur/adapters/native_cpu/program.hpp"
-      "ur/adapters/native_cpu/queue.cpp"
-      "ur/adapters/native_cpu/queue.hpp"
-      "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/ur_interface_loader.cpp"
-      "ur/adapters/native_cpu/usm.cpp"
-      "ur/adapters/native_cpu/usm_p2p.cpp"
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      OpenCL-Headers
-  )
-
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
-
 if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
   # Install the UR loader.
@@ -237,4 +196,8 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
 endif()

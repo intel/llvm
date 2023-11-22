@@ -187,6 +187,14 @@ def HasSSVE_FP8DOT4  : Predicate<"Subtarget->hasSSVE_FP8DOT4() || "
                                  AssemblerPredicateWithAll<(any_of FeatureSSVE_FP8DOT4,
                                                            (all_of FeatureSVE2, FeatureFP8DOT4)),
                                  "ssve-fp8dot4 or (sve2 and fp8dot4)">;
+def HasLUT          : Predicate<"Subtarget->hasLUT()">,
+                                 AssemblerPredicateWithAll<(all_of FeatureLUT), "lut">;
+def HasSME_LUTv2     : Predicate<"Subtarget->hasSME_LUTv2()">,
+                                 AssemblerPredicateWithAll<(all_of FeatureSME_LUTv2), "sme-lutv2">;
+def HasSMEF8F16     : Predicate<"Subtarget->hasSMEF8F16()">,
+                                 AssemblerPredicateWithAll<(all_of FeatureSMEF8F16), "sme-f8f16">;
+def HasSMEF8F32     : Predicate<"Subtarget->hasSMEF8F32()">,
+                                 AssemblerPredicateWithAll<(all_of FeatureSMEF8F32), "sme-f8f32">;
 
 // A subset of SVE(2) instructions are legal in Streaming SVE execution mode,
 // they should be enabled if either has been specified.
@@ -5964,6 +5972,13 @@ def : Pat<(v16i8 (int_aarch64_neon_tbx1 (v16i8 V128:$Rd),
                    (v16i8 V128:$Ri), (v16i8 V128:$Rn))),
           (TBXv16i8One V128:$Rd, V128:$Ri, V128:$Rn)>;
 
+//----------------------------------------------------------------------------
+// AdvSIMD LUT instructions
+//----------------------------------------------------------------------------
+let Predicates = [HasLUT] in {
+  defm LUT2 : BaseSIMDTableLookupIndexed2<"luti2">;
+  defm LUT4 : BaseSIMDTableLookupIndexed4<"luti4">;
+}
 
 //----------------------------------------------------------------------------
 // AdvSIMD scalar DUP instruction

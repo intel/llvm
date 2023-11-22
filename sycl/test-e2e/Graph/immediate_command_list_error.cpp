@@ -18,6 +18,10 @@ int main() {
       QueueImmediate.get_device(),
       {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
+  if (!are_graphs_supported(QueueNoImmediate)) {
+    return 0;
+  }
+
   exp_ext::command_graph Graph{QueueNoImmediate.get_context(),
                                QueueNoImmediate.get_device()};
 

@@ -1,4 +1,3 @@
-// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -63,6 +62,10 @@ event run_kernels_usm_with_barrier(queue Q, const size_t Size, T *DataA,
 
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 

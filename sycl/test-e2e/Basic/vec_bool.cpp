@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{  %{run} %t2.out %}
+
 //==-------------- vec_bool.cpp - SYCL vec<> for bool test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -489,4 +492,31 @@ int main() {
      }).wait_and_throw();
   }
   check_result(resVec, expected);
+
+  // Test convert()
+  bool resConv = true;
+  {
+    sycl::buffer<bool, 1> bufResVec(&resConv, 1);
+
+    q.submit([&](sycl::handler &cgh) {
+       sycl::accessor accRes(bufResVec, cgh, sycl::write_only);
+       cgh.single_task([=]() {
+         // Check that converting a value not representable by a bool (2) is
+         // correctly converted to bool.
+         auto inputVec = sycl::vec<int, size>(2);
+         sycl::vec<bool, size> expectedVec;
+         for (size_t i = 0; i < size; ++i) {
+           expectedVec[i] = (bool)inputVec[i];
+         }
+         auto convertVec = inputVec.convert<bool>();
+         // Check that the two vectors are equal.
+         for (int i = 0; i < size; ++i) {
+           if (expectedVec[i] != convertVec[i]) {
+             accRes[0] = false;
+           }
+         }
+       });
+     }).wait_and_throw();
+  }
+  assert(resConv && "Incorrect result");
 }
