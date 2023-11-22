@@ -183,8 +183,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
 
         # Temporary fix due to failures in CUDA and HIP behind preview flag.
-        if (('ext_oneapi_cuda:gpu' not in devices_for_test) and
-            ('ext_oneapi_hip:gpu' not in devices_for_test) and
+        if ((('ext_oneapi_cuda:gpu' in devices_for_test) or
+            ('ext_oneapi_hip:gpu' in devices_for_test)) and
             ('preview-breaking-changes-supported' in test.config.available_features)):
             test.config.available_features.remove('preview-breaking-changes-supported')
 
