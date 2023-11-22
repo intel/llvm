@@ -62,7 +62,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Nov 21 16:41:08 2023 +0000
   #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
   #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
-  set(UNIFIED_RUNTIME_TAG 87f560e4edbfe557cd85e34cc41008749466d916)
+  set(UNIFIED_RUNTIME_TAG 41bd7eeaf1526b9fa8b3ea8d8fb025fb37ba7f27)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
