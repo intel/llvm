@@ -207,6 +207,12 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     if op_sys in test.config.available_features:
                         conditions[op_sys] = True
 
+                # Temporary fix due to failures in CUDA and HIP behind preview flag.
+                if (('ext_oneapi_cuda:gpu' not in devices_for_test) and
+                    ('ext_oneapi_hip:gpu' not in devices_for_test) and
+                    ('preview-breaking-changes-supported' in test.config.available_features)):
+                    conditions['preview-breaking-changes-supported'] = True
+
                 tmp_script = lit.TestRunner.applySubstitutions(
                     tmp_script, [], conditions, recursion_limit=test.config.recursiveExpansionLimit)
 
