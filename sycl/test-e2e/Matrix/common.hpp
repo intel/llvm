@@ -154,7 +154,9 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
         }
       } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cout << "Incorrect result in matrix. Ref: " << ref[i * cols + j]
+          std::cout << "Incorrect result in matrix."
+                    << "i: " << i << ", j: " << j
+                    << ", Ref: " << ref[i * cols + j]
                     << ", Val: " << src[i * cols + j] << "\n";
           return false;
         }

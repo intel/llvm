@@ -40,7 +40,7 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
            auto col_major_offset =
                (sg_startx * TM) + (sg_starty / SG_SZ * TN) * M;
 
-           joint_matrix_load(sg, sub_matrix, p_input + col_major_offset, N,
+           joint_matrix_load(sg, sub_matrix, p_input + col_major_offset, M,
                              layout::col_major);
 
            joint_matrix_store(sg, sub_matrix,
@@ -48,15 +48,15 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
                               layout::row_major);
 
            joint_matrix_store(sg, sub_matrix,
-                              p_out_row_major + col_major_offset, N,
+                              p_out_row_major + col_major_offset, M,
                               layout::col_major);
          }); // parallel for
    }).wait();
 }
 
 template <size_t TM> void run_matrix_test() {
-  static constexpr size_t MATRIX_M = TM * 128;
-  static constexpr size_t MATRIX_N = TN * 128;
+  static constexpr size_t MATRIX_M = TM * 16;
+  static constexpr size_t MATRIX_N = TN * 16;
 
   queue q;
   float *input = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
@@ -64,19 +64,21 @@ template <size_t TM> void run_matrix_test() {
   float *out_row_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
   float *ref_col_major = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
 
-  matrix_rand(MATRIX_M, MATRIX_N, input, (float)5.0);
+  //input is column majot matrix so it is of NxM shape
+  matrix_rand(MATRIX_N, MATRIX_M, input, (float)5.0);
   matrix_fill(MATRIX_M, MATRIX_N, out_col_major, (float)0);
-  matrix_fill(MATRIX_M, MATRIX_N, out_row_major, (float)0);
-  matrix_transpose(MATRIX_M, MATRIX_N, ref_col_major, input);
+  matrix_fill(MATRIX_N, MATRIX_M, out_row_major, (float)0);
+  matrix_transpose(MATRIX_N, MATRIX_M, ref_col_major, input);
 
   matrix_load_and_store<TM, TN, float, MATRIX_M, MATRIX_N>(input, out_col_major,
                                                            out_row_major, q);
 
   // we use exact comparison as no low precision calculation is used in this
   // test
+  std::cout << "compare results for TM " << TM << "\n";
   bool res = matrix_compare<float, float, true>(MATRIX_M, MATRIX_N,
                                                 out_col_major, ref_col_major) &&
-             matrix_compare<float, float, true>(MATRIX_M, MATRIX_N,
+             matrix_compare<float, float, true>(MATRIX_N, MATRIX_M,
                                                 out_row_major, input);
   free(input, q);
   free(out_col_major, q);
