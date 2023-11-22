@@ -144,7 +144,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
   {
-    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
@@ -241,7 +241,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   }
 
   {
-    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
@@ -287,7 +287,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
@@ -335,7 +335,7 @@ event queue_impl::memcpyToDeviceGlobal(
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
@@ -383,7 +383,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MMutex, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
       guard.lock();
@@ -649,7 +649,7 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
-    std::lock_guard<std::mutex> Lock(MLastEventMtx);
+    std::lock_guard<std::mutex> Lock(MMutex);
     return !MLastEventPtr ||
            MLastEventPtr->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;

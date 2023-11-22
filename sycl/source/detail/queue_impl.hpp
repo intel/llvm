@@ -721,7 +721,7 @@ protected:
     if (MIsInorder) {
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
-      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+      std::lock_guard<std::mutex> Lock{MMutex};
       // This dependency is needed for the following purposes:
       //    - host tasks is handled by runtime and could not be implicitly
       //    synchronized by backend.
@@ -857,9 +857,8 @@ protected:
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
   // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MLastEventMtx
+  // Access to the event should be guarded with MMutex
   EventImplPtr MLastEventPtr;
-  mutable std::mutex MLastEventMtx;
   // Same as above but for graph begin-end recording cycle.
   // Track deps within graph commands separately.
   // Protected by common queue object mutex MMutex.
