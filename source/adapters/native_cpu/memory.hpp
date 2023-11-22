@@ -61,6 +61,7 @@ struct _ur_buffer final : ur_mem_handle_t_ {
       : ur_mem_handle_t_(Size, false) {}
   _ur_buffer(_ur_buffer *b, size_t Offset, size_t Size)
       : ur_mem_handle_t_(b->_mem + Offset, false), SubBuffer(b) {
+    std::ignore = Size;
     SubBuffer.Origin = Offset;
   }
 
