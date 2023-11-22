@@ -1985,10 +1985,17 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   ur_program_handle_t *UrProgram =
       reinterpret_cast<ur_program_handle_t *>(RetProgram);
 
-  HANDLE_ERRORS(urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
-                              Options, UrProgram));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult =
+      urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
+                       UrInputPrograms, Options, UrProgram);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
+                             Options, UrProgram);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result piProgramCompile(
@@ -2017,9 +2024,15 @@ inline pi_result piProgramCompile(
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
-  HANDLE_ERRORS(urProgramCompile(UrContext, UrProgram, Options));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult =
+      urProgramCompileExp(UrProgram, NumDevices, UrDevices, Options);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramCompile(UrContext, UrProgram, Options);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result
@@ -2050,9 +2063,14 @@ piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   HANDLE_ERRORS(urProgramGetInfo(UrProgram, PropName, sizeof(&UrContext),
                                  &UrContext, nullptr));
 
-  HANDLE_ERRORS(urProgramBuild(UrContext, UrProgram, Options));
+  auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
+      const_cast<pi_device *>(DeviceList));
 
-  return PI_SUCCESS;
+  auto urResult = urProgramBuildExp(UrProgram, NumDevices, UrDevices, Options);
+  if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    urResult = urProgramBuild(UrContext, UrProgram, Options);
+  }
+  return ur2piResult(urResult);
 }
 
 inline pi_result piextProgramSetSpecializationConstant(pi_program Program,

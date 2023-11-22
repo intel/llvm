@@ -56,13 +56,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 04799e735a7ddd0839568b25bf03fa8f77160b7d
-  # Merge: 534071e5 4cf02cb9
+  # commit 71957e849435169b43e51a42025afeeb63d7508b
+  # Merge: ce152a64 e001b98d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Nov 20 10:24:50 2023 +0000
-  #     Merge pull request #1048 from callumfare/opencl_fix_urMemBufferCreate_leak
-  #     [OpenCL] Fix memory leak and coverity issue with struct-to-array casts
-  set(UNIFIED_RUNTIME_TAG 04799e735a7ddd0839568b25bf03fa8f77160b7d)
+  # Date:   Tue Nov 21 16:41:08 2023 +0000
+  #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
+  #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
+  set(UNIFIED_RUNTIME_TAG 71957e849435169b43e51a42025afeeb63d7508b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
