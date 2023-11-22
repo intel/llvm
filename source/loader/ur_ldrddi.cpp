@@ -100,6 +100,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
                 break;
             }
             adapterIndex++;
+            if (adapterIndex == NumEntries) {
+                break;
+            }
         }
     }
 
