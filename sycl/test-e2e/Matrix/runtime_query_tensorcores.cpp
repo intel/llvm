@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 //
 // This tests the joint matrix runtime query for the cuda backend.
-// This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_x,
+// This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,
 // where sm_xx >= sm_70
 
 #include <sycl/sycl.hpp>
