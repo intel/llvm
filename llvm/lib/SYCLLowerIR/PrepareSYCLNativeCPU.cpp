@@ -390,27 +390,48 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 
   SmallVector<Function *> NewKernels;
-  for (auto &OldF : OldKernels) {
-#ifdef NATIVECPU_USE_OCK
-    auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-    if(Name != OldF->getName()) {
-      auto RealKernel = M.getFunction(Name);
-      if(RealKernel) {
-        // the real kernel was not inlined in the wrapper, steal its name
-        OldF->takeName(RealKernel);
-      } else {
-        // the real kernel has been inlined, just use the name
-        OldF->setName(Name);
-      }
-    }
-#endif
+  auto cloneAndAddKernel = [&](Function *OldF, bool TakeName) {
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
-    NewF->takeName(OldF);
+    if (TakeName)
+      NewF->takeName(OldF);
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
     ModuleChanged = true;
+  };
+
+#ifdef NATIVECPU_USE_OCK
+  {
+    // First we find the original kernels that have the same names
+    // as the work item loop kernels. If the original kernel is called
+    // by the workitem loop kernel, clone it and change its name so
+    // it can't clash with the workitem loop kernel.
+    SmallVector<Function *> ProcessedKernels;
+    for (auto &OldF : OldKernels) {
+      auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
+      if (Name != OldF->getName()) {
+        auto RealKernel = M.getFunction(Name);
+        if (RealKernel) {
+          ProcessedKernels.push_back(RealKernel);
+          if (RealKernel->getNumUses() == 0) {
+            // todo: check if this kernel can be safely removed
+          }
+          cloneAndAddKernel(RealKernel, false);
+        }
+        OldF->setName(Name);
+        assert(OldF->getName() == Name);
+      }
+    }
+
+    for (Function *f : ProcessedKernels)
+      OldKernels.erase(std::remove(OldKernels.begin(), OldKernels.end(), f),
+                       OldKernels.end());
+  }
+#endif
+
+  for (auto &OldF : OldKernels) {
+    cloneAndAddKernel(OldF, true);
   }
 
   StructType *NativeCPUArgDescType =
