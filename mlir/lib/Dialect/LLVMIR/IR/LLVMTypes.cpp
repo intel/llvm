@@ -264,8 +264,9 @@ LLVMFunctionType::getChecked(function_ref<InFlightDiagnostic()> emitError,
 
 LLVMFunctionType LLVMFunctionType::clone(TypeRange inputs,
                                          TypeRange results) const {
-  assert(results.size() == 1 && "expected a single result type");
-  return get(results[0], llvm::to_vector(inputs), isVarArg());
+  assert(results.size() <= 1 && "expected no or a single result type");
+  Type resultTy = results.size() == 1 ? results[0] : LLVMVoidType::get(getContext());
+  return get(resultTy, llvm::to_vector(inputs), isVarArg());
 }
 
 ArrayRef<Type> LLVMFunctionType::getReturnTypes() const {
