@@ -15,45 +15,33 @@
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t,
     size_t, void *, size_t *) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemReserve(ur_context_handle_t,
                                                         const void *, size_t,
                                                         void **) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(ur_context_handle_t,
                                                      const void *, size_t) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_context_handle_t, const void *, size_t, ur_virtual_mem_access_flags_t) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemMap(
     ur_context_handle_t, const void *, size_t, ur_physical_mem_handle_t, size_t,
     ur_virtual_mem_access_flags_t) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemUnmap(ur_context_handle_t,
                                                       const void *, size_t) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -62,7 +50,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(ur_context_handle_t,
                                                         ur_virtual_mem_info_t,
                                                         size_t, void *,
                                                         size_t *) {
-  cl_adapter::die("Virtual memory extension is not currently implemented for "
-                  "OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
