@@ -181,6 +181,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(('%{run-unfiltered-devices}', run_unfiltered_substitution))
 
+
+        # Temporary fix due to failures in CUDA and HIP behind preview flag.
+        if (('ext_oneapi_cuda:gpu' not in devices_for_test) and
+            ('ext_oneapi_hip:gpu' not in devices_for_test) and
+            ('preview-breaking-changes-supported' in test.config.available_features)):
+            test.config.available_features.remove('preview-breaking-changes-supported')
+
         new_script = []
         for directive in script:
             if not isinstance(directive, lit.TestRunner.CommandDirective):
@@ -203,15 +210,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 # Expand device-specific condtions (%if ... %{ ... %}).
                 tmp_script = [ cmd ]
                 conditions = {x: True for x in sycl_device.split(':')}
-                for op_sys in ['linux', 'windows']:
-                    if op_sys in test.config.available_features:
-                        conditions[op_sys] = True
-
-                # Temporary fix due to failures in CUDA and HIP behind preview flag.
-                if (('ext_oneapi_cuda:gpu' not in devices_for_test) and
-                    ('ext_oneapi_hip:gpu' not in devices_for_test) and
-                    ('preview-breaking-changes-supported' in test.config.available_features)):
-                    conditions['preview-breaking-changes-supported'] = True
+                for cond_features in ['linux', 'windows', 'preview-breaking-changes-supported']:
+                    if cond_features in test.config.available_features:
+                        conditions[cond_features] = True
 
                 tmp_script = lit.TestRunner.applySubstitutions(
                     tmp_script, [], conditions, recursion_limit=test.config.recursiveExpansionLimit)
