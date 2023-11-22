@@ -229,6 +229,8 @@ variables in production code.</span>
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
 | `SYCL_PROGRAM_LINK_OPTIONS` | String of valid OpenCL link options | Override link options for all programs. |
+| `SYCL_PROGRAM_APPEND_COMPILE_OPTIONS` | String of valid OpenCL compile options | Append to the end of compile options for all programs. |
+| `SYCL_PROGRAM_APPEND_LINK_OPTIONS` | String of valid OpenCL link options | Append to the end of link options for all programs. |
 | `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `sycl::runtime_error` exception is thrown. The image is assumed to have been created using the `-fno-sycl-dead-args-optimization` option. |
 | `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
 | `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
