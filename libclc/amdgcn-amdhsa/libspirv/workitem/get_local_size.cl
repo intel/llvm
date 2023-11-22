@@ -23,6 +23,8 @@
 CONST_AS char * __clc_amdgcn_dispatch_ptr(void) __asm("llvm.amdgcn.dispatch.ptr");
 #endif
 
+// Mimic `EmitAMDGPUWorkGroupSize` in `clang/lib/CodeGen/CGBuiltin.cpp`.
+
 _CLC_DEF _CLC_OVERLOAD size_t __spirv_WorkgroupSize_x() {
     CONST_AS ushort * ptr = (CONST_AS ushort *) __dispatch_ptr();
     return ptr[2];
