@@ -238,9 +238,10 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(const annotated_ptr &) = default;
 
-  static_assert(std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
-                "encapsulating annotated_ptr with non-trivially-copyable is "
-                "not supported!");
+  static_assert(
+      std::is_same_v<T, void> || std::is_trivially_copyable_v<T>,
+      "encapsulating annotated_ptr with non-trivially-copyable type is "
+      "not supported!");
 
   explicit annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
