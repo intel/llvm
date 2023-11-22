@@ -244,6 +244,8 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
 
   // Test atomic update with no operands.
   {
+    // USM
+
     // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.stateless.v4i32.v4i1.v4i64(<4 x i1> {{[^)]+}} i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i64> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 0, <4 x i32> undef)
     auto res_atomic_0 =
         atomic_update<atomic_op::inc, int>(ptr, offsets, pred, props_a);
@@ -282,6 +284,49 @@ test_atomic_update(AccType &acc, float *ptrf, int byte_offset32,
       auto pred = simd_mask<VL>(1);
       auto atomic_res =
           atomic_update<atomic_op::inc, int, VL>(ptr, offsets, pred);
+    }
+
+    // Accessor
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_0 =
+        atomic_update<atomic_op::inc, int>(acc, offsets, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_1 =
+        atomic_update<atomic_op::inc, int>(acc, offsets, pred, props_b);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_2 =
+        atomic_update<atomic_op::inc, int>(acc, offsets, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_3 =
+        atomic_update<atomic_op::inc, int>(acc, offsets_view, pred, props_a);
+
+    // CHECK: call <4 x i32> @llvm.genx.lsc.xatomic.bti.v4i32.v4i1.v4i32(<4 x i1> {{[^)]+}}, i8 8, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <4 x i32> {{[^)]+}}, <4 x i32> undef, <4 x i32> undef, i32 {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_4 =
+        atomic_update<atomic_op::inc, int, VL>(acc, offsets_view, props_a);
+
+    // atomic_upate without cache hints:
+    // CHECK:  call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_5 =
+        atomic_update<atomic_op::inc, int, VL>(acc, offsets, pred);
+
+    // atomic_upate without cache hints and mask:
+    // CHECK: call <4 x i32> @llvm.genx.dword.atomic.inc.v4i32.v4i1(<4 x i1> {{[^)]+}}, i32 {{[^)]+}}, <4 x i32> {{[^)]+}}, <4 x i32> undef)
+    auto res_atomic_acc_6 =
+        atomic_update<atomic_op::inc, int, VL>(acc, offsets);
+
+    // Try the atomic_update without cache hints, but with non-standard
+    // vector length to check that LSC atomic is generated.
+    // CHECK: call <5 x i32> @llvm.genx.lsc.xatomic.bti.v5i32.v5i1.v5i32(<5 x i1> {{[^)]+}}, i8 8, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <5 x i32> {{[^)]+}}, <5 x i32> undef, <5 x i32> undef, i32 {{[^)]+}}, <5 x i32> undef)
+    {
+      constexpr int VL = 5;
+      simd<uint32_t, VL> offsets = simd<uint32_t, VL>(1) * sizeof(int);
+      auto pred = simd_mask<VL>(1);
+      auto atomic_res_acc =
+          atomic_update<atomic_op::inc, int, VL>(acc, offsets, pred);
     }
   }
 

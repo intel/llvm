@@ -42,7 +42,7 @@ SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplayso
 
 ```
 python3 buildbot/configure.py \
-  --enable-plugin native_cpu \
+  --native_cpu \
   --cmake-opt=-DNATIVE_CPU_USE_OCK=Off
 ```
 
@@ -193,5 +193,5 @@ Each entry in the array contains the kernel name as a string, and a pointer to t
 
 ## Kernel lowering and execution
 
-The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is ran using the SYCL Native CPU PI Plug-in, defined in [pi_native_cpu.cpp](https://github.com/intel/llvm/blob/sycl/sycl/plugins/native_cpu/pi_native_cpu.cpp).
+The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is run using the SYCL Native CPU UR Adapter, defined in [the Unified Runtime repo](https://github.com/oneapi-src/unified-runtime/tree/adapters/source/adapters/native_cpu).
 
