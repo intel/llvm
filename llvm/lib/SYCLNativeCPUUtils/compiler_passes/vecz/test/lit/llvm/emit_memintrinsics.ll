@@ -65,6 +65,11 @@ declare void @llvm.memcpy.p0i8.p1i8.i64(i8* nocapture, i8 addrspace(1)* nocaptur
 
 declare i64 @__mux_get_local_id(i32)
 
+; Note: Between LLVM 17 and LLVM 18, optimizations to alignments were moved to
+; their own pass. We don't run that pass here, resulting in a difference in
+; alignment values between LLVM versions. Because of that, we don't check
+; alignment of any loads or stores
+
 ; Sanity checks: Make sure the non-vecz entry function is still in place and
 ; contains memset and memcpy. This is done in order to prevent future bafflement
 ; in case some pass optimizes them out.
@@ -92,104 +97,104 @@ declare i64 @__mux_get_local_id(i32)
 
 ; Check if the generated loads and stores are in place
 ; Check the stores for the first memset
-; CHECK: store i64 %ms64val, ptr %sa, align 16
+; CHECK: store i64 %ms64val, ptr %sa
 ; CHECK: %[[V14:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 8
-; CHECK: store i64 %ms64val, ptr %[[V14]], align 8
+; CHECK: store i64 %ms64val, ptr %[[V14]]
 ; CHECK: %[[V15:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 16
-; CHECK: store i64 %ms64val, ptr %[[V15]], align {{(8|16)}}
+; CHECK: store i64 %ms64val, ptr %[[V15]]
 ; CHECK: %[[V16:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 24
-; CHECK: store i64 %ms64val, ptr %[[V16]], align 8
+; CHECK: store i64 %ms64val, ptr %[[V16]]
 ; CHECK: %[[V17:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 32
-; CHECK: store i64 %ms64val, ptr %[[V17]], align 16
+; CHECK: store i64 %ms64val, ptr %[[V17]]
 ; CHECK: %[[V18:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 40
-; CHECK: store i64 %ms64val, ptr %[[V18]], align 8
+; CHECK: store i64 %ms64val, ptr %[[V18]]
 ; CHECK: %[[V19:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 48
-; CHECK: store i64 %ms64val, ptr %[[V19]], align 16
+; CHECK: store i64 %ms64val, ptr %[[V19]]
 ; CHECK: %[[V20:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 56
 ; CHECK-EQ14: %[[V20:[0-9]+]] = getelementptr inbounds %struct.S2, %struct.S2* %sa, i64 0, i32 3, i64 8
 ; CHECK: %[[V21:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 64
 ; CHECK: %[[V22:[0-9]+]] = getelementptr inbounds i8, ptr %sa, i64 72
 
 ; Check the stores for the second memset
-; CHECK: store i64 0, ptr addrspace(1) %[[SB_I8AS]], align 16
+; CHECK: store i64 0, ptr addrspace(1) %[[SB_I8AS]]
 ; CHECK: %[[V24:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 8
-; CHECK: store i64 0, ptr addrspace(1) %[[V24]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V24]]
 ; CHECK: %[[V26:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 16
-; CHECK: store i64 0, ptr addrspace(1) %[[V26]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V26]]
 ; CHECK: %[[V28:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 24
-; CHECK: store i64 0, ptr addrspace(1) %[[V28]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V28]]
 ; CHECK: %[[V30:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 32
-; CHECK: store i64 0, ptr addrspace(1) %[[V30]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V30]]
 ; CHECK: %[[V32:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 40
-; CHECK: store i64 0, ptr addrspace(1) %[[V32]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V32]]
 ; CHECK: %[[V33:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 48
-; CHECK: store i64 0, ptr addrspace(1) %[[V33]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V33]]
 ; CHECK: %[[V35T:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 56
 ; CHECK-EQ14: %[[V35T:[0-9]+]] = getelementptr inbounds %struct.S2, %struct.S2* %sb, i64 0, i32 3, i64 8
 ; CHECK-EQ14: %[[V35:[0-9]+]] = bitcast i8* %[[V35T]] to i64*
 ; CHECK-EQ14: %[[SB_I8AS18:.+]] = addrspacecast i64* %[[V35]] to i64 addrspace(1)*
-; CHECK: store i64 0, ptr addrspace(1) %[[V35T]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V35T]]
 ; CHECK: %[[V36:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 64
-; CHECK: store i64 0, ptr addrspace(1) %[[V36]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V36]]
 ; CHECK: %[[V38:[0-9]+]] = getelementptr inbounds i8, ptr addrspace(1) %[[SB_I8AS]], i64 72
-; CHECK: store i64 0, ptr addrspace(1) %[[V38]], align 8
+; CHECK: store i64 0, ptr addrspace(1) %[[V38]]
 
 
 ; Check the loads and stores for the first memcpy
 ; CHECK:middle:                                           ; preds = %entry
-; CHECK: %[[SA_I822:.+]] = load i64, ptr %sa, align 16
-; CHECK: store i64 %[[SA_I822]], ptr addrspace(1) %[[SB_I8AS]], align 16
-; CHECK: %[[SA_I824:.+]] = load i64, ptr %[[V14]], align 8
-; CHECK: store i64 %[[SA_I824]], ptr addrspace(1) %[[V24]], align 8
-; CHECK: %[[SA_I826:.+]] = load i64, ptr %[[V15]], align {{(8|16)}}
-; CHECK: store i64 %[[SA_I826]], ptr addrspace(1) %[[V26]], align 8
-; CHECK: %[[SA_I828:.+]] = load i64, ptr %[[V16]], align 8
-; CHECK: store i64 %[[SA_I828]], ptr addrspace(1) %[[V28]], align 8
-; CHECK: %[[SA_I830:.+]] = load i64, ptr %[[V17]], align 16
-; CHECK: store i64 %[[SA_I830]], ptr addrspace(1) %[[V30]], align 8
-; CHECK: %[[SA_I832:.+]] = load i64, ptr %[[V18]], align 8
-; CHECK: store i64 %[[SA_I832]], ptr addrspace(1) %[[V32]], align 8
-; CHECK: %[[SA_I834:.+]] = load i64, ptr %[[V19]], align 16
-; CHECK: store i64 %[[SA_I834]], ptr addrspace(1) %[[V33]], align 8
-; CHECK: %[[SA_I836:.+]] = load i64, ptr %[[V20]], align 8
-; CHECK: store i64 %[[SA_I836]], ptr addrspace(1) %[[V35T]], align 8
-; CHECK: %[[SA_I838:.+]] = load i64, ptr %[[V21]], align 16
-; CHECK: store i64 %[[SA_I838]], ptr addrspace(1) %[[V36]], align 8
-; CHECK: %[[SA_I840:.+]] = load i64, ptr %[[V22]], align 8
-; CHECK: store i64 %[[SA_I840]], ptr addrspace(1) %[[V38]], align 8
+; CHECK: %[[SA_I822:.+]] = load i64, ptr %sa
+; CHECK: store i64 %[[SA_I822]], ptr addrspace(1) %[[SB_I8AS]]
+; CHECK: %[[SA_I824:.+]] = load i64, ptr %[[V14]]
+; CHECK: store i64 %[[SA_I824]], ptr addrspace(1) %[[V24]]
+; CHECK: %[[SA_I826:.+]] = load i64, ptr %[[V15]]
+; CHECK: store i64 %[[SA_I826]], ptr addrspace(1) %[[V26]]
+; CHECK: %[[SA_I828:.+]] = load i64, ptr %[[V16]]
+; CHECK: store i64 %[[SA_I828]], ptr addrspace(1) %[[V28]]
+; CHECK: %[[SA_I830:.+]] = load i64, ptr %[[V17]]
+; CHECK: store i64 %[[SA_I830]], ptr addrspace(1) %[[V30]]
+; CHECK: %[[SA_I832:.+]] = load i64, ptr %[[V18]]
+; CHECK: store i64 %[[SA_I832]], ptr addrspace(1) %[[V32]]
+; CHECK: %[[SA_I834:.+]] = load i64, ptr %[[V19]]
+; CHECK: store i64 %[[SA_I834]], ptr addrspace(1) %[[V33]]
+; CHECK: %[[SA_I836:.+]] = load i64, ptr %[[V20]]
+; CHECK: store i64 %[[SA_I836]], ptr addrspace(1) %[[V35T]]
+; CHECK: %[[SA_I838:.+]] = load i64, ptr %[[V21]]
+; CHECK: store i64 %[[SA_I838]], ptr addrspace(1) %[[V36]]
+; CHECK: %[[SA_I840:.+]] = load i64, ptr %[[V22]]
+; CHECK: store i64 %[[SA_I840]], ptr addrspace(1) %[[V38]]
 
 ; Check the loads and stores for the second memcpy
 ; CHECK:end:                                              ; preds = %middle, %entry
-; CHECK: %[[SB_I8AS42:.+]] = load i64, ptr addrspace(1) %[[SB_I8AS]], align 16
-; CHECK: store i64 %[[SB_I8AS42]], ptr %result2, align 16
+; CHECK: %[[SB_I8AS42:.+]] = load i64, ptr addrspace(1) %[[SB_I8AS]]
+; CHECK: store i64 %[[SB_I8AS42]], ptr %result2
 ; CHECK: %[[V42:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 8
-; CHECK: %[[SB_I8AS44:.+]] = load i64, ptr addrspace(1) %[[V24]], align 8
-; CHECK: store i64 %[[SB_I8AS44]], ptr %[[V42]], align 8
+; CHECK: %[[SB_I8AS44:.+]] = load i64, ptr addrspace(1) %[[V24]]
+; CHECK: store i64 %[[SB_I8AS44]], ptr %[[V42]]
 ; CHECK: %[[V43:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 16
-; CHECK: %[[SB_I8AS46:.+]] = load i64, ptr addrspace(1) %[[V26]], align 8
-; CHECK: store i64 %[[SB_I8AS46]], ptr %[[V43]], align 8
+; CHECK: %[[SB_I8AS46:.+]] = load i64, ptr addrspace(1) %[[V26]]
+; CHECK: store i64 %[[SB_I8AS46]], ptr %[[V43]]
 ; CHECK: %[[V44:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 24
-; CHECK: %[[SB_I8AS48:.+]] = load i64, ptr addrspace(1) %[[V28]], align 8
-; CHECK: store i64 %[[SB_I8AS48]], ptr %[[V44]], align 8
+; CHECK: %[[SB_I8AS48:.+]] = load i64, ptr addrspace(1) %[[V28]]
+; CHECK: store i64 %[[SB_I8AS48]], ptr %[[V44]]
 ; CHECK: %[[V45:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 32
-; CHECK: %[[SB_I8AS50:.+]] = load i64, ptr addrspace(1) %[[V30]], align 8
-; CHECK: store i64 %[[SB_I8AS50]], ptr %[[V45]], align 8
+; CHECK: %[[SB_I8AS50:.+]] = load i64, ptr addrspace(1) %[[V30]]
+; CHECK: store i64 %[[SB_I8AS50]], ptr %[[V45]]
 ; CHECK: %[[V46:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 40
-; CHECK: %[[SB_I8AS52:.+]] = load i64, ptr addrspace(1) %[[V32]], align 8
-; CHECK: store i64 %[[SB_I8AS52]], ptr %[[V46]], align 8
+; CHECK: %[[SB_I8AS52:.+]] = load i64, ptr addrspace(1) %[[V32]]
+; CHECK: store i64 %[[SB_I8AS52]], ptr %[[V46]]
 ; CHECK: %[[V47:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 48
-; CHECK: %[[SB_I8AS54:.+]] = load i64, ptr addrspace(1) %[[V33]], align 8
-; CHECK: store i64 %[[SB_I8AS54]], ptr %[[V47]], align 8
+; CHECK: %[[SB_I8AS54:.+]] = load i64, ptr addrspace(1) %[[V33]]
+; CHECK: store i64 %[[SB_I8AS54]], ptr %[[V47]]
 ; CHECK: %[[V48:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 56
 ; CHECK-EQ14: %[[V48:[0-9]+]] = getelementptr inbounds %struct.S2, %struct.S2* %result2, i64 0, i32 3, i64 8
-; CHECK: %[[SB_I8AS56:.+]] = load i64, ptr addrspace(1) %[[V35T]], align 8
-; CHECK: store i64 %[[SB_I8AS56]], ptr %[[V48]], align 8
+; CHECK: %[[SB_I8AS56:.+]] = load i64, ptr addrspace(1) %[[V35T]]
+; CHECK: store i64 %[[SB_I8AS56]], ptr %[[V48]]
 ; CHECK: %[[V49:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 64
-; CHECK: %[[SB_I8AS58:.+]] = load i64, ptr addrspace(1) %[[V36]], align 8
-; CHECK: store i64 %[[SB_I8AS58]], ptr %[[V49]], align 8
+; CHECK: %[[SB_I8AS58:.+]] = load i64, ptr addrspace(1) %[[V36]]
+; CHECK: store i64 %[[SB_I8AS58]], ptr %[[V49]]
 ; CHECK: %[[V50:[0-9]+]] = getelementptr inbounds i8, ptr %result2, i64 72
-; CHECK: %[[SB_I8AS60:.+]] = load i64, ptr addrspace(1) %[[V38]], align 8
-; CHECK: store i64 %[[SB_I8AS60]], ptr %[[V50]], align 8
+; CHECK: %[[SB_I8AS60:.+]] = load i64, ptr addrspace(1) %[[V38]]
+; CHECK: store i64 %[[SB_I8AS60]], ptr %[[V50]]
 
 ; End of function
 ; CHECK: ret void

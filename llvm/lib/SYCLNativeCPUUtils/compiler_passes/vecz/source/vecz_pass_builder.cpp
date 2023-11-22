@@ -61,6 +61,7 @@
 #include "analysis/vectorizable_function_analysis.h"
 #include "analysis/vectorization_unit_analysis.h"
 #include "debugging.h"
+#include "multi_llvm/llvm_version.h"
 #include "transform/common_gep_elimination_pass.h"
 #include "transform/control_flow_conversion_pass.h"
 #include "transform/inline_post_vectorization_pass.h"
@@ -70,6 +71,10 @@
 #include "transform/passes.h"
 #include "transform/scalarization_pass.h"
 #include "transform/ternary_transform_pass.h"
+
+#if LLVM_VERSION_GREATER_EQUAL(18, 0)
+#include <llvm/Transforms/Scalar/InferAlignment.h>
+#endif
 
 #define DEBUG_TYPE "vecz"
 using namespace llvm;
@@ -252,6 +257,10 @@ bool vecz::buildPassPipeline(ModulePassManager &PM) {
   PM.addPass(createModuleToFunctionPassAdaptor(
       InterleavedGroupCombinePass(eInterleavedLoad)));
   PM.addPass(createModuleToFunctionPassAdaptor(InstCombinePass()));
+#if LLVM_VERSION_GREATER_EQUAL(18, 0)
+  // LLVM 18 split this pass out of InstCombine
+  PM.addPass(createModuleToFunctionPassAdaptor(InferAlignmentPass()));
+#endif
   PM.addPass(createModuleToFunctionPassAdaptor(DCEPass()));
   PM.addPass(createModuleToFunctionPassAdaptor(SimplifyMaskedMemOpsPass()));
   PM.addPass(DefineInternalBuiltinsPass());

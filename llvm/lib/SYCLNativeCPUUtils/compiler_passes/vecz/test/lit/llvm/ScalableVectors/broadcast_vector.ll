@@ -110,7 +110,7 @@ entry:
 ; CHECK-NEXT:    store <4 x float> [[ADDEND:%.*]], ptr [[FIXLEN_ALLOC]], align 16
 ; CHECK-NEXT:    [[IDX0:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
 ; CHECK-NEXT:    [[IDX1:%.*]] = and <vscale x 16 x i32> [[IDX0]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{(i32|i64)}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
-; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
+; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP0]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{(i32|i64)}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x float> undef)
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
@@ -146,7 +146,7 @@ entry:
 ; CHECK-NEXT:    store <4 x float> [[ADDEND:%.*]], ptr [[FIXLEN_ALLOC1]], align 16
 ; CHECK-NEXT:    [[IDX03:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
 ; CHECK-NEXT:    [[IDX14:%.*]] = and <vscale x 16 x i32> [[IDX03]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
-; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
+; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC5:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC1]], <vscale x 16 x i64> [[TMP0]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC5]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x float> {{(undef|poison)}})
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
@@ -154,7 +154,7 @@ entry:
 ; CHECK-NEXT:    store i32 1, ptr [[EXISTING_ALLOC]], align 16
 ; CHECK-NEXT:    [[V:%.*]] = load <4 x i32>, ptr [[EXISTING_ALLOC]], align 16
 ; CHECK-NEXT:    store <4 x i32> [[V]], ptr [[FIXLEN_ALLOC]], align 16
-; CHECK-NEXT:    [[TMP2:%.*]] = {{s|z}}ext <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
+; CHECK-NEXT:    [[TMP2:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds i32, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP2]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = call <vscale x 16 x i32> @llvm.masked.gather.nxv16i32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x i32> {{(undef|poison)}})
 ; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds <4 x i32>, ptr addrspace(1) [[OUT2:%.*]], i64 [[CALL]]
@@ -173,7 +173,7 @@ entry:
 ; CHECK:    [[IDX1:%.*]] = and <vscale x 16 x i32> [[IDX0]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK:    [[SEXT:%.*]] = sext <4 x i1> [[INPUT:%.*]] to <4 x i8>
 ; CHECK:    store <4 x i8> [[SEXT]], ptr [[FIXLEN_MASK_ALLOC]], align 4
-; CHECK:    [[TMP0:%.*]] = {{s|z}}ext <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
+; CHECK:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
 ; CHECK:    [[VEC_ALLOC:%.*]] = getelementptr inbounds i8, ptr [[FIXLEN_MASK_ALLOC]], <vscale x 16 x i64> [[TMP0]]
 ; CHECK:    [[TMP1:%.*]] = call <vscale x 16 x i8> @llvm.masked.gather.nxv16i8.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 1, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x i8> {{(undef|poison)}})
 ; CHECK:    [[BMASK:%.*]] = trunc <vscale x 16 x i8> [[TMP1]] to <vscale x 16 x i1>

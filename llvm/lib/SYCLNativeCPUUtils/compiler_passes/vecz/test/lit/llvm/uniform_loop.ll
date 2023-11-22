@@ -40,6 +40,6 @@ merge:
 }
 
 ; CHECK: define spir_kernel void @__vecz_v4_test
-; CHECK: loop:
-; CHECK: %load = load i32, ptr addrspace(1) %in
-; CHECK: store i32 %load, ptr addrspace(1) %slot
+; CHECK-NOT: define spir_kernel void @test
+; CHECK: %[[LOAD:load.*]] = load i32, ptr addrspace(1) %in
+; CHECK: store i32 %[[LOAD]], ptr addrspace(1) %slot
