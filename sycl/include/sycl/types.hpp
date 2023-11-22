@@ -1075,11 +1075,24 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec & Rhs) const {           \
-    auto Ret =                                                                 \
-        vec<rel_t, NumElements>((typename vec<rel_t, NumElements>::vector_t)(  \
-            m_Data RELLOGOP Rhs.m_Data));                                      \
-    if (NumElements == 1) /*Scalar 0/1 logic was applied, invert*/             \
-      Ret *= -1;                                                               \
+    vec<rel_t, NumElements> Ret{};                                             \
+    /* This special case is needed since there are no standard operator||   */ \
+    /* or operator&& functions for std::array.                              */ \
+    if constexpr (IsUsingArrayOnDevice &&                                      \
+                  (std::string_view(#RELLOGOP) == "||" ||                      \
+                   std::string_view(#RELLOGOP) == "&&")) {                     \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        Ret.setValue(I,                                                        \
+                     -(vec_data<DataT>::get(getValue(I))                       \
+                           RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+      }                                                                        \
+    } else {                                                                   \
+      Ret = vec<rel_t, NumElements>(                                           \
+          (typename vec<rel_t, NumElements>::vector_t)(                        \
+              m_Data RELLOGOP Rhs.m_Data));                                    \
+      if (NumElements == 1) /*Scalar 0/1 logic was applied, invert*/           \
+        Ret *= -1;                                                             \
+    }                                                                          \
     return Ret;                                                                \
   }                                                                            \
   template <typename T>                                                        \
