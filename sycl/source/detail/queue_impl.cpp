@@ -144,11 +144,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // We need to submit command and update the last event under same lock if we
   // have in-order queue.
   {
-    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      quard.lock();
-      ExtraEventToWait = MLastEventPtr;
+      guard.lock();
+      ExtraEventToWait = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -166,7 +166,9 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEventPtr = EventImpl;
+        auto &EventToStoreIn =
+            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -239,11 +241,11 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   }
 
   {
-    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      quard.lock();
-      ExtraEventToWait = MLastEventPtr;
+      guard.lock();
+      ExtraEventToWait = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -261,7 +263,9 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEventPtr = EventImpl;
+        auto &EventToStoreIn =
+            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -283,11 +287,11 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      quard.lock();
-      ExtraEventToWait = MLastEventPtr;
+      guard.lock();
+      ExtraEventToWait = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -306,7 +310,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
       }
       if (isInOrder()) {
-        MLastEventPtr = EventImpl;
+        auto &EventToStoreIn =
+            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -329,11 +335,11 @@ event queue_impl::memcpyToDeviceGlobal(
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      quard.lock();
-      ExtraEventToWait = MLastEventPtr;
+      guard.lock();
+      ExtraEventToWait = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -352,7 +358,9 @@ event queue_impl::memcpyToDeviceGlobal(
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEventPtr = EventImpl;
+        auto &EventToStoreIn =
+            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)
@@ -375,11 +383,11 @@ event queue_impl::memcpyFromDeviceGlobal(
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
   {
-    std::unique_lock<std::mutex> quard(MLastEventMtx, std::defer_lock);
+    std::unique_lock<std::mutex> guard(MLastEventMtx, std::defer_lock);
     EventImplPtr ExtraEventToWait = nullptr;
     if (isInOrder()) {
-      quard.lock();
-      ExtraEventToWait = MLastEventPtr;
+      guard.lock();
+      ExtraEventToWait = MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
     }
     if (isEventsReady(DepEvents, ExtraEventToWait, MContext)) {
       if (MHasDiscardEventsSupport) {
@@ -398,7 +406,9 @@ event queue_impl::memcpyFromDeviceGlobal(
       if (MContext->is_host())
         return MDiscardEvents ? createDiscardedEvent() : event();
       if (isInOrder()) {
-        MLastEventPtr = EventImpl;
+        auto &EventToStoreIn =
+            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+        EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
       if (MEmulateOOO)

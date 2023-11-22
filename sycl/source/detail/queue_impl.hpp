@@ -699,6 +699,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
+    MGraphLastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -727,11 +728,14 @@ protected:
       //    - to prevent 2nd kernel enqueue when 1st kernel is blocked by host
       //    task. This dependency allows to build enqueue order in RT but will
       //    be not passed to backend. Look at getPIEvents in Command.
-      if (MLastEventPtr)
-        Handler.depends_on(createSyclObjFromImpl<sycl::event>(MLastEventPtr));
+      auto &EventToBuildDeps =
+          MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+      if (EventToBuildDeps)
+        Handler.depends_on(
+            createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
 
       EventRet = Handler.finalize();
-      MLastEventPtr = getSyclObjImpl(EventRet);
+      EventToBuildDeps = getSyclObjImpl(EventRet);
     } else
       EventRet = Handler.finalize();
   }
@@ -856,6 +860,10 @@ protected:
   // Access to the event should be guarded with MLastEventMtx
   EventImplPtr MLastEventPtr;
   mutable std::mutex MLastEventMtx;
+  // Same as above but for graph begin-end recording cycle.
+  // Track deps within graph commands separately.
+  // Protected by common queue object mutex MMutex.
+  EventImplPtr MGraphLastEventPtr;
 
   const bool MIsInorder;
 
