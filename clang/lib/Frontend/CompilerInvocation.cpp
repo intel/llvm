@@ -3745,14 +3745,14 @@ void CompilerInvocation::ParseFpAccuracyArgs(LangOptions &Opts, ArgList &Args,
               FuncName = FuncName.drop_front(1);
             if (FuncName.back() == ']')
               FuncName = FuncName.drop_back(1);
-            auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
             checkFPAccuracyIsValid(ValElement[0], Diags);
             // No need to fill the map if the FPaccuracy is 'default'.
             // The default builtin will be generated.
             if (!ValElement[0].equals("default")) {
-              // if FPAccuracyFuncMap of this function has been prviously set
+              // if FPAccuracyFuncMap of this function has been previously set
               // update its value; the last fp-accuracy option in the command
               // line wins.
+              auto FuncMap = Opts.FPAccuracyFuncMap.find(FuncName.str());
               if (FuncMap != Opts.FPAccuracyFuncMap.end()) {
                 diagnoseFPAccuracyHasVal(Diags, ValElement[0], ValuesArr[1],
                                          ValuesArr[0], FuncMap->first.c_str());
