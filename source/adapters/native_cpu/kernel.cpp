@@ -25,7 +25,8 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   if (kernelEntry == hProgram->_kernels.end())
     return UR_RESULT_ERROR_INVALID_KERNEL;
 
-  auto f = reinterpret_cast<nativecpu_ptr_t>(kernelEntry->second);
+  auto f = reinterpret_cast<nativecpu_ptr_t>(
+      const_cast<unsigned char *>(kernelEntry->second));
   auto kernel = new ur_kernel_handle_t_(pKernelName, *f);
 
   *phKernel = kernel;
@@ -168,6 +169,10 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
+    // todo: set proper values
+    return ReturnValue(0);
+  }
+  case UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32: {
     // todo: set proper values
     return ReturnValue(0);
   }
