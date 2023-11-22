@@ -1771,8 +1771,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
@@ -3087,7 +3086,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
         getPiEventsBlocking(Events);
-    if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
+    if (MQueue->getDeviceImplPtr()->is_host()) {
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
@@ -3095,8 +3094,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
+    // This should not be skipped in case of in order queue. So do call even if
+    // PiEvents are empty.
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+        MQueue->getHandleRef(), PiEvents.size(),
+        PiEvents.empty() ? nullptr : &PiEvents[0], Event);
 
     return PI_SUCCESS;
   }
