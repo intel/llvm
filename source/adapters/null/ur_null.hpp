@@ -9,6 +9,7 @@
  * @file ur_null.hpp
  *
  */
+#include "ur_api.h"
 #ifndef UR_ADAPTER_NULL_H
 #define UR_ADAPTER_NULL_H 1
 
@@ -26,6 +27,8 @@ class __urdlllocal context_t {
     ur_dditable_t urDdiTable = {};
     context_t();
     ~context_t() = default;
+
+    void *platform;
 
     void *get() {
         static uint64_t count = 0x80800000;

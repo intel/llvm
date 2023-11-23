@@ -19,7 +19,7 @@ name: $x_queue_info_t
 typed_etors: True
 etors:
     - name: CONTEXT
-      desc: "[$x_queue_handle_t] context associated with this queue."
+      desc: "[$x_context_handle_t] context associated with this queue."
     - name: DEVICE
       desc: "[$x_device_handle_t] device associated with this queue."
     - name: DEVICE_DEFAULT
