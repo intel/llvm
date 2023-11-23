@@ -210,6 +210,7 @@ public:
     return KernelParamOptInfo;
   }
   const PropertyRange &getAssertUsed() const { return AssertUsed; }
+  const PropertyRange &getAsanUsed() const { return AsanUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
@@ -235,6 +236,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
+  RTDeviceBinaryImage::PropertyRange AsanUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
   RTDeviceBinaryImage::PropertyRange ExportedSymbols;
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;

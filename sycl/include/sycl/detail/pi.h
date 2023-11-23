@@ -935,6 +935,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
 /// PropertySetRegistry::SYCL_ASSERT_USED defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
+/// PropertySetRegistry::SYCL_ASAN_USED defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_ASAN_USED "SYCL/asan used"
 /// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
@@ -2709,6 +2711,7 @@ struct _pi_plugin {
 #define _PI_API(api) decltype(::api) *api;
 #include <sycl/detail/pi.def>
   } PiFunctionTable;
+  bool IsAsanUsed;
 };
 
 #ifdef __cplusplus

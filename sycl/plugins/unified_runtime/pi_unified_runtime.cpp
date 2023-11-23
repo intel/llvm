@@ -1302,7 +1302,15 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   // Initialize UR and discover adapters
-  HANDLE_ERRORS(urInit(0, nullptr));
+  ur_loader_config_handle_t LoaderConfig{};
+  HANDLE_ERRORS(urLoaderConfigCreate(&LoaderConfig));
+
+  if (PluginInit->IsAsanUsed) {
+    HANDLE_ERRORS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
+  }
+
+  HANDLE_ERRORS(urInit(0, LoaderConfig));
+
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
   if (NumAdapters > 0) {

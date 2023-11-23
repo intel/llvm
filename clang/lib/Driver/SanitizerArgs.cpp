@@ -1137,6 +1137,23 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       return;
     GPUSanitize = true;
   }
+  // SPIR sanitizer support is experimental and will pass a fixed set of flags
+  if (TC.getTriple().isSPIR()) {
+    if (Sanitizers.has(SanitizerKind::Address)) {
+      CmdArgs.push_back(Args.MakeArgString("-fsanitize=address"));
+      CmdArgs.push_back(
+          Args.MakeArgString("-fsanitize-address-use-after-return=never"));
+      CmdArgs.push_back(
+          Args.MakeArgString("-fsanitize-address-outline-instrumentation"));
+      CmdArgs.push_back(
+          Args.MakeArgString("-fno-sanitize-address-use-after-scope"));
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-stack=0");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-globals=1");
+    }
+    return;
+  }
 
   // Translate available CoverageFeatures to corresponding clang-cc1 flags.
   // Do it even if Sanitizers.empty() since some forms of coverage don't require

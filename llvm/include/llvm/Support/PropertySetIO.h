@@ -194,6 +194,7 @@ public:
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
   static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
+  static constexpr char SYCL_ASAN_USED[] = "SYCL/asan used";
   static constexpr char SYCL_EXPORTED_SYMBOLS[] = "SYCL/exported symbols";
   static constexpr char SYCL_DEVICE_GLOBALS[] = "SYCL/device globals";
   static constexpr char SYCL_DEVICE_REQUIREMENTS[] = "SYCL/device requirements";

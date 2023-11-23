@@ -291,6 +291,8 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
+  bool kernelUsesAsan() const { return m_KernelUsesAsan; }
+
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
@@ -398,6 +400,8 @@ private:
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
   std::set<std::string> m_KernelUsesAssert;
+
+  bool m_KernelUsesAsan;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>

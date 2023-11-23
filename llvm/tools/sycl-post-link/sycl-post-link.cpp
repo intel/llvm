@@ -312,6 +312,20 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
+std::vector<StringRef> getKernelNamesUsingAsan(const Module &M) {
+  auto *AsanInitFunction = M.getFunction("__asan_init");
+  if (!AsanInitFunction)
+    return {};
+
+  std::vector<StringRef> SPIRKernelNames;
+  for (const Function &F : M) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      SPIRKernelNames.push_back(F.getName());
+  }
+
+  return SPIRKernelNames;
+}
+
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
@@ -535,6 +549,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
+  }
+
+  {
+    std::vector<StringRef> FuncNames = getKernelNamesUsingAsan(M);
+    for (const StringRef &FName : FuncNames)
+      PropSet[PropSetRegTy::SYCL_ASAN_USED].insert({FName, true});
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
