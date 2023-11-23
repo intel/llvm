@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// #include <detail/common_info.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
@@ -234,4 +235,22 @@ TEST_F(DeviceInfoNegativeTest, TestAspectNotSupported) {
   EXPECT_EQ(Dev.has(aspect::ext_intel_free_memory), false);
   EXPECT_EQ(Dev.has(aspect::ext_intel_memory_clock_rate), false);
   EXPECT_EQ(Dev.has(aspect::ext_intel_memory_bus_width), false);
+}
+
+TEST_F(DeviceInfoTest, SplitStringDelimeterSpace) {
+  std::string InputString("V1 V2 V3");
+  std::vector<std::string> Expected{"V1", "V2", "V3"};
+  EXPECT_EQ(detail::split_string(InputString, ' '), Expected);
+}
+
+TEST_F(DeviceInfoTest, SplitStringDelimeterSpaceAtTheEnd) {
+  std::string InputString("V1 V2 V3 ");
+  std::vector<std::string> Expected{"V1", "V2", "V3"};
+  EXPECT_EQ(detail::split_string(InputString, ' '), Expected);
+}
+
+TEST_F(DeviceInfoTest, SplitStringDelimeterSemicolon) {
+  std::string InputString("V1;V2;V3");
+  std::vector<std::string> Expected{"V1", "V2", "V3"};
+  EXPECT_EQ(detail::split_string(InputString, ';'), Expected);
 }
