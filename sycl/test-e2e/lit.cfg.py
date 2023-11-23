@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import tempfile
+import textwrap
 from distutils.spawn import find_executable
 
 import lit.formats
@@ -155,8 +156,12 @@ if sp[0] == 0:
 # Check for Level Zero SDK
 check_l0_file='l0_include.cpp'
 with open(check_l0_file, 'w') as fp:
-    fp.write('#include<level_zero/ze_api.h>\n')
-    fp.write('int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }')
+    print(textwrap.dedent(
+        '''
+        #include<level_zero/ze_api.h>
+        int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }
+        '''
+    ), file=fp)
 
 config.level_zero_libs_dir=lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 config.level_zero_include=lit_config.params.get("level_zero_include", (config.level_zero_include if config.level_zero_include else config.sycl_include))
@@ -177,11 +182,15 @@ else:
 # Check for sycl-preview library
 check_preview_breaking_changes_file='preview_breaking_changes_link.cpp'
 with open(check_preview_breaking_changes_file, 'w') as fp:
-    fp.write('#include <sycl/sycl.hpp>\n')
-    fp.write('namespace sycl { inline namespace _V1 { namespace detail {\n')
-    fp.write('extern void PreviewMajorReleaseMarker();\n')
-    fp.write('}}}\n')
-    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }\n')
+    print(textwrap.dedent(
+        '''
+        #include <sycl/sycl.hpp>
+        namespace sycl { inline namespace _V1 { namespace detail {
+        extern void PreviewMajorReleaseMarker();
+        }}}
+        int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }
+        '''
+    ), file=fp)
 
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -fpreview-breaking-changes ' + check_preview_breaking_changes_file)
 if sp[0] == 0:
@@ -190,8 +199,12 @@ if sp[0] == 0:
 # Check for CUDA SDK
 check_cuda_file='cuda_include.cpp'
 with open(check_cuda_file, 'w') as fp:
-    fp.write('#include <cuda.h>\n')
-    fp.write('int main() { CUresult r = cuInit(0); return r; }')
+    print(textwrap.dedent(
+        '''
+        #include <cuda.h>
+        int main() { CUresult r = cuInit(0); return r; }
+        '''
+    ), file=fp)
 
 config.cuda_libs_dir=lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 config.cuda_include=lit_config.params.get("cuda_include", (config.cuda_include if config.cuda_include else config.sycl_include))
