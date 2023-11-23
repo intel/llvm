@@ -42,6 +42,10 @@ static llvm::CallInst *createDeviceFunctionCall(llvm::IRBuilderBase &builder,
   return builder.CreateCall(fn, args);
 }
 
+//===----------------------------------------------------------------------===//
+// Synchronization
+//===----------------------------------------------------------------------===//
+
 // Create a call to SPIR a "sub_group_shuffle" function.
 static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
                                              llvm::Value *value,
@@ -89,6 +93,51 @@ static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
                                   {value->getType(), mask->getType()},
                                   {value, mask});
 }
+
+//===----------------------------------------------------------------------===//
+// Type Conversions
+//===----------------------------------------------------------------------===//
+
+// Create a call to GenISA_dpas for matrix multiply-add.
+static llvm::CallInst *
+createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
+                   LLVM::ModuleTranslation &moduleTranslation) {
+  llvm::Module *module = builder.GetInsertBlock()->getModule();
+  TypeRange opTypes = op->getOperandTypes();
+
+  auto intrinsic = llvm::GenISAIntrinsic::ID::no_intrinsic;
+  switch (op.getRoundingMode()) {
+  case GENX::RoundingMode::RTE:
+    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rte;
+    break;
+  case GENX::RoundingMode::RTN:
+    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rtn;
+    break;
+  case GENX::RoundingMode::RTP:
+    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rtp;
+    break;
+  case GENX::RoundingMode::RTZ:
+    intrinsic = llvm::GenISAIntrinsic::GenISA_ftof_rtz;
+    break;
+  default:
+    llvm_unreachable("Unhandled rounding mode");
+  }
+
+  llvm::Function *fn = llvm::GenISAIntrinsic::getDeclaration(
+      module, intrinsic,
+      {moduleTranslation.convertType(op->getResultTypes()[0]),
+       moduleTranslation.convertType(opTypes[0])});
+  assert(fn && "GenISAIntrinsic::getDeclaration() returns NULL");
+
+  SmallVector<llvm::Value *> args = {
+      moduleTranslation.lookupValue(op.getArg())};
+
+  return builder.CreateCall(fn, args);
+}
+
+//===----------------------------------------------------------------------===//
+// Matrix operations
+//===----------------------------------------------------------------------===//
 
 // Create a call to GenISA_dpas for matrix multiply-add.
 static llvm::CallInst *

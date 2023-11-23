@@ -191,6 +191,49 @@ def GENX_SubGroupShuffleOp : GENX_Op<"sub_group_shuffle", [
 }
 
 //===----------------------------------------------------------------------===//
+// Type Conversions
+//===----------------------------------------------------------------------===//
+
+/// Enum attribute of the different floating-point rounding modes.
+def RoundingMode : I32EnumAttr<"RoundingMode", "GENX floating-point rounding mode",
+  [
+    I32EnumAttrCase<"UNUSED", 0>,
+    I32EnumAttrCase<"RTE",    1>, ///< Round to nearest, ties to even
+    I32EnumAttrCase<"RTN",    2>, ///< Round toward negative
+    I32EnumAttrCase<"RTP",    3>, ///< Round toward positive
+    I32EnumAttrCase<"RTZ",    4>, ///< Round toward zero
+  ]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::GENX";
+}
+def RoundingModeAttr : EnumAttr<GENX_Dialect, RoundingMode, "rounding_mode"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+def GENX_FpToFpOp : GENX_Op<"conv.fptofp">,
+  Results<(outs AnyFloat:$res)>,
+  Arguments<(ins
+    AnyFloat:$arg,
+    RoundingModeAttr:$roundingMode
+  )> {
+
+  let summary = "Convert between floating point types";
+
+  string baseDescription = [{
+    Convert `$arg` to the type of the result `$res`. If necessary, round the 
+    result according to `$roundingMode`.
+  }];
+
+  string llvmBuilder = [{
+    $res = createGenISAFpToFp(op, builder, moduleTranslation);
+  }];
+
+  let assemblyFormat = [{
+    $arg attr-dict `:` type($arg) `to` type($res)
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // Matrix operations
 //===----------------------------------------------------------------------===//
 

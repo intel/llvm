@@ -42,7 +42,6 @@ llvm.func @genx.barrier() {
 
 // -----
 
-
 llvm.func @genx.sub_group_shuffle() {
   // CHECK-LABEL: genx.sub_group_shuffle
   %0 = llvm.mlir.constant(0 : i32) : i32
@@ -72,6 +71,29 @@ llvm.func @genx.sub_group_shuffle() {
   %15 = llvm.mlir.constant(0.0 : f64) : f64
   // CHECK: %10 = call double @_Z21sub_group_shuffle_xordj(double 0.000000e+00, i32 0)
   %16 = genx.sub_group_shuffle XOR %15, %0 : f64 -> f64
+  llvm.return
+}
+
+// -----
+
+llvm.func @genx.fptofp(%a: f32, %b: f16) {
+  // CHECK-LABEL: genx.fptofp
+  // CHECK: call half @llvm.genx.GenISA.ftof.rte.f16.f32(float %0)
+  // CHECK-NEXT: call half @llvm.genx.GenISA.ftof.rtn.f16.f32(float %0)
+  // CHECK-NEXT: call half @llvm.genx.GenISA.ftof.rtp.f16.f32(float %0)
+  // CHECK-NEXT: call half @llvm.genx.GenISA.ftof.rtz.f16.f32(float %0)
+  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rte.f32.f16(half %1)
+  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rtn.f32.f16(half %1)
+  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rtp.f32.f16(half %1)
+  // CHECK-NEXT: call float @llvm.genx.GenISA.ftof.rtz.f32.f16(half %1)
+  %0 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTE>} : f32 to f16
+  %1 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTN>} : f32 to f16
+  %2 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTP>} : f32 to f16
+  %3 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTZ>} : f32 to f16
+  %4 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTE>} : f16 to f32
+  %5 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTN>} : f16 to f32
+  %6 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTP>} : f16 to f32
+  %7 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTZ>} : f16 to f32
   llvm.return
 }
 
