@@ -133,8 +133,8 @@ static llvm::TargetMachine *initLLVMTarget(llvm::StringRef triple_string,
   const llvm::Target *target =
       llvm::TargetRegistry::lookupTarget(triple.getTriple(), e);
   if (!target) {
-    ::fprintf(stderr, "can't get target %s:%s\n", triple.getTriple().c_str(),
-              e.c_str());
+    (void)::fprintf(stderr, "can't get target %s:%s\n",
+                    triple.getTriple().c_str(), e.c_str());
     ::exit(1);
   }
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
@@ -331,9 +331,9 @@ int main(const int argc, const char *const argv[]) {
       llvm::StringRef name;
       llvm::SmallVector<vecz::VeczPassOptions, 1> opts;
       if (!parsePassOptionsSwitch(S, name, opts)) {
-        fprintf(stderr,
-                "failed to parse kernel vectorization specification%s\n",
-                name.str().c_str());
+        (void)::fprintf(
+            stderr, "failed to parse kernel vectorization specification%s\n",
+            name.str().c_str());
         return 1;
       }
       if (!module->getFunction(name)) {
