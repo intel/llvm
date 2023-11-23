@@ -197,10 +197,10 @@ members:
       desc: "[in] image slice pitch"
     - type: uint32_t
       name: numMipLevel
-      desc: "[in] number of MIP levels"
+      desc: "[in] number of MIP levels, must be `0`"
     - type: uint32_t
       name: numSamples
-      desc: "[in] number of samples"
+      desc: "[in] number of samples, must be `0`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create an image object"
@@ -242,6 +242,10 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
       - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
+      - "`pImageDesc && pImageDesc->numMipLevel != 0`"
+      - "`pImageDesc && pImageDesc->numSamples != 0`"
+      - "`pImageDesc && pImageDesc->rowPitch != 0 && pHost == nullptr`"
+      - "`pImageDesc && pImageDesc->slicePitch != 0 && pHost == nullptr`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
