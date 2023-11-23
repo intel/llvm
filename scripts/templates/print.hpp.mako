@@ -156,9 +156,9 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 %for spec in specs:
 %for obj in spec['objects']:
 %if re.match(r"enum", obj['type']):
-    ${X}_APIEXPORT inline std::ostream &operator<<(std::ostream &os, ${th.make_enum_name(n, tags, obj)} value);
+    inline std::ostream &operator<<(std::ostream &os, ${th.make_enum_name(n, tags, obj)} value);
 %elif re.match(r"struct", obj['type']):
-    ${X}_APIEXPORT inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
+    inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
 %endif
 %endfor # obj in spec['objects']
 %endfor
@@ -443,7 +443,7 @@ namespace ${x}::extras {
 ///     - ::${X}_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
 ///         - `NULL == params`
-${X}_APIEXPORT inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostream &os, ur_function_t function, const void *params) {
+inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostream &os, ur_function_t function, const void *params) {
     if (!params) {
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
     }
