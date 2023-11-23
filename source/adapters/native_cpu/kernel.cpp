@@ -173,8 +173,11 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_FORCE_UINT32: {
-    // todo: set proper values
-    return ReturnValue(0);
+#ifdef _MSC_VER
+    __assume(0);
+#else
+    __builtin_unreachable();
+#endif
   }
   }
   DIE_NO_IMPLEMENTATION;
