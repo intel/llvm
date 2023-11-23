@@ -79,6 +79,7 @@ static inline bool isForVisualStudio(StringRef TripleStr) {
 }
 
 static constexpr char SPIRVBarrier[] = "_Z22__spirv_ControlBarrierjjj";
+static constexpr char SPIRVBarrierWin[] = "?__spirv_ControlBarrier@@YAXIII@Z";
 static constexpr char MuxBarrier[] = "__mux_work_group_barrier";
 
 Function *getReplaceFunc(Module &M, StringRef Name) {
@@ -97,7 +98,7 @@ Function *getMuxBarrierFunc(Module &M) {
                                           {Int32Ty, Int32Ty, Int32Ty}, false);
   auto FCallee = M.getOrInsertFunction(MuxBarrier, MuxFTy);
   auto *F = dyn_cast<Function>(FCallee.getCallee());
-  if(!F) {
+  if (!F) {
     report_fatal_error("Error while inserting mux builtins");
   }
   return F;
@@ -109,7 +110,7 @@ void setIsKernelEntryPt(Function &F) {
   F.addFnAttr(MuxKernelAttrName, "entry-point");
 }
 
-bool replaceBarriers(Module &M) {
+static bool replaceBarriers(Module &M, bool VSMangling) {
   // DPC++ emits
   //__spirv_ControlBarrier(__spv::Scope Execution, __spv::Scope Memory,
   //                       uint32_t Semantics) noexcept;
@@ -123,7 +124,8 @@ bool replaceBarriers(Module &M) {
   //   Subgroup = 3,
   //   Invocation = 4,
   // };
-  auto *SPIRVBarrierFunc = M.getFunction(SPIRVBarrier);
+  auto *SPIRVBarrierFunc =
+      M.getFunction(VSMangling ? SPIRVBarrierWin : SPIRVBarrier);
   if (!SPIRVBarrierFunc) {
     // No barriers are found, just return
     return false;
@@ -201,6 +203,6 @@ ConvertToMuxBuiltinsSYCLNativeCPUPass::run(Module &M,
     Glob->eraseFromParent();
   }
 
-  ModuleChanged |= replaceBarriers(M);
+  ModuleChanged |= replaceBarriers(M, VisualStudioMangling);
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
