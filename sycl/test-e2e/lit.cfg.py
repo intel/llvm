@@ -177,11 +177,11 @@ else:
 # Check for sycl-preview library
 check_preview_breaking_changes_file='preview_breaking_changes_link.cpp'
 with open(check_preview_breaking_changes_file, 'w') as fp:
-    fp.write('#include <sycl/sycl.hpp>')
-    fp.write('namespace sycl { inline namespace _V1 { namespace detail {')
-    fp.write('extern void PreviewMajorReleaseMarker();')
-    fp.write('}}}')
-    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }')
+    fp.write('#include <sycl/sycl.hpp>\n')
+    fp.write('namespace sycl { inline namespace _V1 { namespace detail {\n')
+    fp.write('extern void PreviewMajorReleaseMarker();\n')
+    fp.write('}}}\n')
+    fp.write('int main() { sycl::detail::PreviewMajorReleaseMarker(); return 0; }\n')
 
 sp = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl -fpreview-breaking-changes ' + check_preview_breaking_changes_file)
 if sp[0] == 0:
