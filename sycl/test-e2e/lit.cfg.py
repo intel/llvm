@@ -158,8 +158,8 @@ check_l0_file='l0_include.cpp'
 with open(check_l0_file, 'w') as fp:
     print(textwrap.dedent(
         '''
-        #include<level_zero/ze_api.h>
-        int main() { uint32_t t; zeDriverGet(&t,nullptr); return t; }
+        #include <level_zero/ze_api.h>
+        int main() { uint32_t t; zeDriverGet(&t, nullptr); return t; }
         '''
     ), file=fp)
 
