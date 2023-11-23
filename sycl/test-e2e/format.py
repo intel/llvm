@@ -181,13 +181,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         substitutions.append(('%{run-unfiltered-devices}', run_unfiltered_substitution))
 
-
-        # Temporary fix due to failures in CUDA and HIP behind preview flag.
-        if ((('ext_oneapi_cuda:gpu' in devices_for_test) or
-            ('ext_oneapi_hip:gpu' in devices_for_test)) and
-            ('preview-breaking-changes-supported' in test.config.available_features)):
-            test.config.available_features.remove('preview-breaking-changes-supported')
-
         new_script = []
         for directive in script:
             if not isinstance(directive, lit.TestRunner.CommandDirective):
