@@ -62,7 +62,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Nov 14 16:45:24 2023 +0000
   #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
   #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG 7288621bd87ea89202295941bb6b78702ba1de4d)
+  set(UNIFIED_RUNTIME_TAG b13d940a5ffc230a4b21ba3ae329ffcd53bc2021)
 
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
