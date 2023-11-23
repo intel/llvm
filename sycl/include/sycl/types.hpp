@@ -1209,7 +1209,6 @@ public:
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
     }
-    return Ret.template as<vec<OpNotRet<T>, N>>();
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     return Ret.template as<vec<OpNotRet<T>, N>>();
 #else
