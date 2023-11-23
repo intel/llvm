@@ -28,7 +28,7 @@ FARPROC WINAPI delayHook(unsigned dliNotify, PDelayLoadInfo pdli) {
     break;
   case dliNotePreLoadLibrary: {
     std::string delayLib = "ze_loader.dll";
-        if (strncmp(pdli->szDll, delayLib.c_str(), delayLib.length()) == 0) {
+    if (strncmp(pdli->szDll, delayLib.c_str(), delayLib.length()) == 0) {
       return (FARPROC)LoadLibraryExA(delayLib.c_str(), nullptr,
                                      LOAD_LIBRARY_SEARCH_SYSTEM32);
     }
