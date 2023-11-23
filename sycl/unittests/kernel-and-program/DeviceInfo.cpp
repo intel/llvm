@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// #include <detail/common_info.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
