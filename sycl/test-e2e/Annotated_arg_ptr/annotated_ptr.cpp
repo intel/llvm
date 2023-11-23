@@ -85,6 +85,21 @@ int main() {
     return MyStruct<T>(lhs.data << rhs.data);
   }
 
+  template <typename T>
+  MyStruct<T> operator+(const MyStruct<T> &lhs) {
+    return MyStruct<T>(lhs.data);
+  }
+
+  template <typename T>
+  MyStruct<T> operator-(const MyStruct<T> &lhs) {
+    return MyStruct<T>(lhs.data);
+  }
+
+  template <typename T>
+  MyStruct<T> operator!(const MyStruct<T> &lhs) {
+    return MyStruct<T>(!lhs.data);
+  }
+
   // testing arithmetic overloaded operators
   auto *e = malloc_shared<MyStruct<int>>(1, Q);
   *e = MyStruct(5);
@@ -95,7 +110,7 @@ int main() {
   auto *h = malloc_shared<MyStruct<int>>(1, Q);
   *h = MyStruct(2);
 
-  auto *r1 = malloc_shared<MyStruct<int>>(5, Q);
+  auto *r1 = malloc_shared<MyStruct<int>>(8, Q);
   auto *r2 = malloc_shared<MyStruct<int>>(5, Q);
   auto *r3 = malloc_shared<MyStruct<int>>(5, Q);
 
@@ -159,6 +174,9 @@ int main() {
      r1[2] = g * h;
      r1[3] = f / h;
      r1[4] = e % g;
+     r1[5] = +e;
+     r1[6] = -e;
+     r1[7] = !e;
 
      r2[0] = e + MyStruct(3);
      r2[1] = f - MyStruct(5);
@@ -215,6 +233,9 @@ int main() {
   assert(r1[2].data == 6 && "r1[2] value does not match.");
   assert(r1[3].data == 3 && "r1[3] value does not match.");
   assert(r1[4].data == 2 && "r1[4] value does not match.");
+  assert(r1[5].data == 5 && "r1[5] value does not match.");
+  assert(r1[6].data == -5 && "r1[6] value does not match.");
+  assert(r1[7].data == 0 && "r1[7] value does not match.");
 
   assert(r2[0].data == 8 && "r2[0] value does not match.");
   assert(r2[1].data == 1 && "r2[1] value does not match.");

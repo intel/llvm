@@ -533,99 +533,18 @@ class annotated_ref {
     T operator--() const;
     T operator--(int) const;
 
-    // Overloaded arithmetic operators
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() + std::declval<T2>())>
-    R operator+(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() - std::declval<T2>())>
-    R operator-(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() * std::declval<T2>())>
-    R operator*(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() / std::declval<T2>())>
-    R operator/(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() % std::declval<T2>())>
-    R operator%(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() & std::declval<T2>())>
-    R operator&(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() | std::declval<T2>())>
-    R operator|(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
-    R operator^(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() >> std::declval<T2>())>
-    R operator>>(const annotated_ref<T2, PropertyList2> &other) const;
-    template <typename T2, typename PropertyList2,
-              typename R = decltype(std::declval<T>() << std::declval<T2>())>
-    R operator<<(const annotated_ref<T2, PropertyList2> &other) const;
+    // OP is: +, -, *, /, %, <<, >>, &, |, ^
+    // remove_ann_ref<T> is an exposition only type alias which 
+    // for annotated_ref<T, ...> is T and for any other type is that type.
+    template <class A, class B>
+    auto friend operatorOP(const A& a, const B& b) ->
+               decltype(remove_ann_ref<A> OP remove_ann_ref<B>);
+
+    // OP is: +, -, !
+    template <class A> auto friend operatorOP(const A& a) ->
+               decltype(OP remove_ann_ref<A>);
   };
 // Overloaded operators for raw type
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() + std::declval<T2>())>
-R operator+(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() - std::declval<T2>())>
-R operator-(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() * std::declval<T2>())>
-R operator*(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() / std::declval<T2>())>
-R operator/(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() % std::declval<T2>())>
-R operator%(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() & std::declval<T2>())>
-R operator&(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() | std::declval<T2>())>
-R operator|(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
-R operator^(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
-R operator>>(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() << std::declval<T2>())>
-R operator<<(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() + std::declval<T2>())>
-R operator+(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() - std::declval<T2>())>
-R operator-(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() * std::declval<T2>())>
-R operator*(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() / std::declval<T2>())>
-R operator/(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() % std::declval<T2>())>
-R operator%(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() & std::declval<T2>())>
-R operator&(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() | std::declval<T2>())>
-R operator|(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() ^ std::declval<T2>())>
-R operator^(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() >> std::declval<T2>())>
-R operator>>(const T &a, const annotated_ref<T2, PropertyList2> &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() << std::declval<T2>())>
-R operator<<(const T &a, const annotated_ref<T2, PropertyList2> &b);
 } // namespace sycl::ext::oneapi::experimental
 ```
 
@@ -710,41 +629,52 @@ The annotations are applied when the object `T` is loaded and stored to the memo
 a|
 [source,c++]
 ----
-template <typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() OP std::declval<T2>())>
-R operatorOP(const annotated_ref<T2, PropertyList2> &other) const;
+template <class A, class B>
+auto friend operatorOP(const A& a, const B& b) ->
+		   decltype(remove_ann_ref<A> OP remove_ann_ref<B>);
 ----
-|
-Defines the overloaded operators for types `annotated_ref<T, ...>` and
-`annotated_ref<T2, ...>`. Let `operatorOP` denote the operator used.
-The overloaded operator `operatorOP` utilizes `operatorOP(T, T2)` and
-is available only if `operatorOP(T, T2)` is well formed. The value and result
-is the same as the result of `operatorOP(T, T2)` applied to the objects of
-type `T` and `T2`.
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#^#.
 
-`operatorOP` is any of the following: `operator+`, `operator-`, `operator*`, `operator/`,
-`operator%`, `operator&`, `operator\|`, `operator^`, `operator>>`, and `operator<<`.
+Defines a hidden friend operator `OP` overload for types `A` and `B`.
 
-|===
+When `A` is an `annotated_ref<T, PropertyListT>`, `remove_ann_ref<A>` returns `T`, otherwise
+returns `A`. Same applied to `B`. This operator is invoked only when at least one of the `A`
+and `B` is an `annotated_ref<T, PropertyListT>`.
 
-Free functions of the following form are defined for the overloaded operators for types
-`annotated_ref<T, ...>` and raw type `T2`. Let `operatorOP` denote the operator used.
-The overloaded operator `operatorOP` utilizes `operatorOP(T, T2)` and is available only
-if `operatorOP(T, T2)` is well formed. The value and result is the same as the result of
-`operatorOP(T, T2)` applied to the underlying objects of type `T` and `T2`.
+Let `operatorOP` denotes the operator used and `X`, `Y` denote the type returned by `remove_ann_ref<A>`
+and `remove_ann_ref<B>`.
 
+The overloaded operator `operatorOP` utilizes `operatorOP(X, Y)` and
+is available only if `operatorOP(X, Y)` is well formed. The value and result
+is the same as the result of `operatorOP(X, Y)` applied to the objects of
+type `X` and `Y`.
+
+If type `A` or `B` is an `annotated_ref<T, PropertyListT>`, the annotations from `PropertyListT`
+are applied when the object `a` or `b` is loaded from memory. 
+
+a|
 [source,c++]
 ----
-template <typename T, typename PropertyList, typename T2,
-          typename R = decltype(std::declval<T>() OP std::declval<T2>())>
-R operatorOP(const annotated_ref<T, PropertyList> &a, const T2 &b);
-template <typename T, typename T2, typename PropertyList2,
-          typename R = decltype(std::declval<T>() OP std::declval<T2>())>
-R operatorOP(const T &a, const annotated_ref<T2, PropertyList2> &b);
+template <class A> auto friend operatorOP(const A& a) ->
+		   decltype(OP remove_ann_ref<A>);
 ----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#!#.
 
-`operatorOP` is any of the following: `operator+`, `operator-`, `operator*`, `operator/`,
-`operator%`, `operator&`, `operator\|`, `operator^`, `operator>>`, and `operator<<`.
+Defines a hidden friend operator `OP` overload for types `A`.
+
+When `A` is an `annotated_ref<T, PropertyListT>`, `remove_ann_ref<A>` returns `T`, otherwise
+returns `A`. This operator is invoked only when `A` is an `annotated_ref<T, PropertyListT>`.
+
+Let `operatorOP` denotes the operator used and `T` denote the type returned by `remove_ann_ref<A>`.
+
+The overloaded operator `operatorOP` utilizes `operatorOP(T)` and
+is available only if `operatorOP(T)` is well formed. The value and result
+is the same as the result of `operatorOP(T)` applied to the objects of
+type `T`.
+
+The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
 
 |===
 
