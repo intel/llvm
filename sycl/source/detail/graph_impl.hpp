@@ -246,8 +246,8 @@ public:
     printDotCG(Stream, Verbose);
     for (const auto &Dep : MPredecessors) {
       auto NodeDep = Dep.lock();
-      Stream << "  \"" << NodeDep->MCommandGroup.get() << "\" -> \""
-             << MCommandGroup.get() << "\"" << std::endl;
+      Stream << "  \"" << NodeDep.get() << "\" -> \"" << this << "\""
+             << std::endl;
     }
 
     for (std::weak_ptr<node_impl> Succ : MSuccessors) {
@@ -261,14 +261,12 @@ private:
   /// @param Verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void printDotCG(std::ostream &Stream, bool Verbose) {
-    sycl::detail::CG::CGTYPE CGType = MCommandGroup->getType();
+    Stream << "\"" << this << "\" [style=bold, label=\"";
 
-    Stream << "\"" << MCommandGroup.get() << "\" [style=bold, label=\"";
-
-    Stream << "ID = " << MCommandGroup.get() << "\\n";
+    Stream << "ID = " << this << "\\n";
     Stream << "TYPE = ";
 
-    switch (CGType) {
+    switch (MCGType) {
     case sycl::detail::CG::CGTYPE::None:
       Stream << "None \\n";
       break;
