@@ -306,6 +306,7 @@ if config.hip_platform not in supported_hip_platforms:
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     arch_flag = '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=' + config.amd_arch
 elif "ext_oneapi_hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":

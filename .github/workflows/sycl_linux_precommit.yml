@@ -27,6 +27,7 @@ jobs:
 
   lint:
     runs-on: [Linux, build]
+    if: ${{ always() && !contains(github.event.pull_request.labels.*.name, 'disable-lint') }}
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
       options: -u 1001:1001
@@ -57,7 +58,7 @@ jobs:
     needs: [lint, detect_changes]
     if: |
       always()
-      && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+      && (success() || needs.lint.result == 'skipped')
     uses: ./.github/workflows/sycl_linux_build.yml
     with:
       build_ref: ${{ github.sha }}

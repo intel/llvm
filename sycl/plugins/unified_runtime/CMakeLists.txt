@@ -56,13 +56,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 659d3f469faa99a886fa680a3d6d20449b109578
-  # Merge: 192e9404 f94550b4
+  # commit 71957e849435169b43e51a42025afeeb63d7508b
+  # Merge: ce152a64 e001b98d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Nov 14 16:45:24 2023 +0000
-  #     Merge pull request #1059 from martygrant/martin/moveNativeCPUAdapterToUR
-  #     [NATIVECPU] Move Native CPU adapter to UR.
-  set(UNIFIED_RUNTIME_TAG 659d3f469faa99a886fa680a3d6d20449b109578)
+  # Date:   Tue Nov 21 16:41:08 2023 +0000
+  #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
+  #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
+  set(UNIFIED_RUNTIME_TAG 71957e849435169b43e51a42025afeeb63d7508b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
