@@ -85,18 +85,15 @@ int main() {
     return MyStruct<T>(lhs.data << rhs.data);
   }
 
-  template <typename T>
-  MyStruct<T> operator+(const MyStruct<T> &lhs) {
+  template <typename T> MyStruct<T> operator+(const MyStruct<T> &lhs) {
     return MyStruct<T>(lhs.data);
   }
 
-  template <typename T>
-  MyStruct<T> operator-(const MyStruct<T> &lhs) {
+  template <typename T> MyStruct<T> operator-(const MyStruct<T> &lhs) {
     return MyStruct<T>(lhs.data);
   }
 
-  template <typename T>
-  MyStruct<T> operator!(const MyStruct<T> &lhs) {
+  template <typename T> MyStruct<T> operator!(const MyStruct<T> &lhs) {
     return MyStruct<T>(!lhs.data);
   }
 

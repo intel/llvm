@@ -100,7 +100,7 @@ public:
 
   T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
 
-  //propagate compound operators
+  // propagate compound operators
 #define PROPAGATE_OP(op)                                                       \
   T operator op##=(const T &rhs) const {                                       \
     T t = *this;                                                               \
@@ -120,16 +120,20 @@ public:
   PROPAGATE_OP(>>)
 #undef PROPAGATE_OP
 
-  template <class O> struct get_T { using type = O; };
-  template <class O, class PL> struct get_T<annotated_ref<O,PL>> { using type = O; };
+  template <class O> struct get_T {
+    using type = O;
+  };
+  template <class O, class PL> struct get_T<annotated_ref<O, PL>> {
+    using type = O;
+  };
   template <class O> using remove_ann_ref = typename get_T<O>::type;
 
   // Propgate binary operators
 #define PROPAGATE_OP(op)                                                       \
   template <class T1, class T2>                                                \
-  friend auto operator op(const T1& a, const T2& b) ->                         \
-                 decltype(remove_ann_ref<T1>(a) op remove_ann_ref<T2>(b)) {    \
-     return remove_ann_ref<T1>(a) op remove_ann_ref<T2>(b);                    \
+  friend auto operator op(const T1 &a, const T2 &b)                            \
+      ->decltype(remove_ann_ref<T1>(a) op remove_ann_ref<T2>(b)) {             \
+    return remove_ann_ref<T1>(a) op remove_ann_ref<T2>(b);                     \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -146,9 +150,8 @@ public:
   // Propgate unary operators
 #define PROPAGATE_OP(op)                                                       \
   template <class T1>                                                          \
-  friend auto operator op(const T1& a) ->                                      \
-                 decltype(op remove_ann_ref<T1>(a)) {                          \
-     return op remove_ann_ref<T1>(a);                                          \
+  friend auto operator op(const T1 &a)->decltype(op remove_ann_ref<T1>(a)) {   \
+    return op remove_ann_ref<T1>(a);                                           \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
