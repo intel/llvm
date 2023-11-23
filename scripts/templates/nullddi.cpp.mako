@@ -48,8 +48,23 @@ namespace driver
         else
         {
             // generic implementation
-            %for item in th.get_loader_epilogue(n, tags, obj, meta):
-            %if 'range' in item:
+            %for item in th.get_loader_epilogue(specs, n, tags, obj, meta):
+            %if 'typename' in item:
+            if (${item['name']} != nullptr) {
+                switch (${item['typename']}) {
+                    %for etor in item['etors']:
+                        case ${etor['name']}: {
+                            ${etor['type']} *handles = reinterpret_cast<${etor['type']} *>(${item['name']});
+                            size_t nelements = ${item['size']} / sizeof(${etor['type']});
+                            for (size_t i = 0; i < nelements; ++i) {
+                                handles[i] = reinterpret_cast<${etor['type']}>( d_context.get() );
+                            }
+                        } break;
+                    %endfor
+                    default: {} break;
+                }
+            }
+            %elif 'range' in item:
             for( size_t i = ${item['range'][0]}; ( nullptr != ${item['name']} ) && ( i < ${item['range'][1]} ); ++i )
                 ${item['name']}[ i ] = reinterpret_cast<${item['type']}>( d_context.get() );
             %elif not item['release']:

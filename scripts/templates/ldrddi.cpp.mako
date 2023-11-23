@@ -160,6 +160,23 @@ namespace ur_loader
         %endif
 
         %endfor
+
+        <%
+        epilogue = th.get_loader_epilogue(specs, n, tags, obj, meta)
+        has_typename = False
+        for item in epilogue:
+            if 'typename' in item:
+                has_typename = True
+                break
+        %>
+
+        %if has_typename:
+            // this value is needed for converting adapter handles to loader handles
+            size_t sizeret = 0;
+            if (pPropSizeRet == NULL)
+                pPropSizeRet = &sizeret;
+        %endif
+
         // forward to device-platform
         %if add_local:
         result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name", "local"], replacements=param_replacements))} );
@@ -168,8 +185,9 @@ namespace ur_loader
         %endif
 <% 
         del param_replacements
-        del add_local%>
-        %for i, item in enumerate(th.get_loader_epilogue(n, tags, obj, meta)):
+        del add_local
+        %>
+        %for i, item in enumerate(epilogue):
         %if 0 == i:
         if( ${X}_RESULT_SUCCESS != result )
             return result;
@@ -181,7 +199,25 @@ namespace ur_loader
         %elif not '_native_object_' in item['obj'] or th.make_func_name(n, tags, obj) == 'urPlatformCreateWithNativeHandle':
         try
         {
-            %if 'range' in item:
+            %if 'typename' in item:
+            if (${item['name']} != nullptr) {
+                switch (${item['typename']}) {
+                    %for etor in item['etors']:
+                        case ${etor['name']}: {
+                            ${etor['type']} *handles = reinterpret_cast<${etor['type']} *>(${item['name']});
+                            size_t nelements = *pPropSizeRet / sizeof(${etor['type']});
+                            for (size_t i = 0; i < nelements; ++i) {
+                                if (handles[i] != nullptr) {
+                                    handles[i] = reinterpret_cast<${etor['type']}>(
+                                        ${etor['factory']}.getInstance( handles[i], dditable ) );
+                                }
+                            }
+                        } break;
+                    %endfor
+                    default: {} break;
+                }
+            }
+            %elif 'range' in item:
             // convert platform handles to loader handles
             for( size_t i = ${item['range'][0]}; ( nullptr != ${item['name']} ) && ( i < ${item['range'][1]} ); ++i )
                 ${item['name']}[ i ] = reinterpret_cast<${item['type']}>(
