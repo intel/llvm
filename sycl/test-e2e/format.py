@@ -164,8 +164,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             # so that device might still be accessible to some of the tests yet
             # we won't set the environment variable below for such scenario.
             extra_env = []
-            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ze_debug'):
-                extra_env.append('ZE_DEBUG={}'.format(test.config.ze_debug))
+            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ur_l0_debug'):
+                extra_env.append('UR_L0_DEBUG={}'.format(test.config.ur_l0_debug))
+
+            if 'ext_oneapi_level_zero:gpu' in sycl_devices and litConfig.params.get('ur_l0_leaks_debug'):
+                extra_env.append('UR_L0_LEAKS_DEBUG={}'.format(test.config.ur_l0_leaks_debug))
 
             if 'ext_oneapi_cuda:gpu' in sycl_devices:
                 extra_env.append('SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1')

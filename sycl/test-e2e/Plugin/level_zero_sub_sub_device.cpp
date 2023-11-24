@@ -1,7 +1,7 @@
 // REQUIRES:  gpu-intel-pvc, level_zero
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 env ZEX_NUMBER_OF_CCS=0:4  %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env UR_L0_DEBUG=1 env ZEX_NUMBER_OF_CCS=0:4  %{run} %t.out 2>&1 | FileCheck %s
 // RUN: env ZEX_NUMBER_OF_CCS=0:4 %{run} %t.out
 
 // Check that queues created on sub-sub-devices are going to specific compute
