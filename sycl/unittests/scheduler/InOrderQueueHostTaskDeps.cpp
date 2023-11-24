@@ -81,9 +81,6 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     std::cout << "Not run due to host-only environment\n";
     GTEST_SKIP();
   }
-  MockScheduler *MockSchedulerPtr = new MockScheduler();
-  sycl::detail::GlobalHandler::instance().attachScheduler(
-      dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -118,8 +115,6 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
   InOrderQueue.wait();
 
-  sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
-
   ASSERT_EQ(ExecutedCommands.size(), 2u);
   EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, MEMSET);
   EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
@@ -140,9 +135,6 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
     std::cout << "Not run due to host-only environment\n";
     GTEST_SKIP();
   }
-  MockScheduler *MockSchedulerPtr = new MockScheduler();
-  sycl::detail::GlobalHandler::instance().attachScheduler(
-      dynamic_cast<sycl::detail::Scheduler *>(MockSchedulerPtr));
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -168,8 +160,6 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   Cv.notify_one();
 
   InOrderQueue.wait();
-
-  sycl::detail::GlobalHandler::instance().attachScheduler(NULL);
 
   ASSERT_EQ(ExecutedCommands.size(), 2u);
   EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, MEMSET);
