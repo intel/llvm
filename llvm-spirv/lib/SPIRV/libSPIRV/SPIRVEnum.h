@@ -476,6 +476,12 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFPGAInvocationPipeliningAttributesINTEL});
   ADD_VEC_INIT(internal::DecorationRuntimeAlignedINTEL,
                {CapabilityRuntimeAlignedAttributeINTEL});
+  ADD_VEC_INIT(internal::DecorationHostAccessINTEL,
+               {internal::CapabilityGlobalVariableDecorationsINTEL});
+  ADD_VEC_INIT(internal::DecorationInitModeINTEL,
+               {internal::CapabilityGlobalVariableDecorationsINTEL});
+  ADD_VEC_INIT(internal::DecorationImplementInCSRINTEL,
+               {internal::CapabilityGlobalVariableDecorationsINTEL});
   ADD_VEC_INIT(DecorationHostAccessINTEL,
                {CapabilityGlobalVariableHostAccessINTEL});
   ADD_VEC_INIT(DecorationInitModeINTEL,

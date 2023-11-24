@@ -30,17 +30,17 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: Variable [[#]] [[#BOOL_VAR_ID]] 5
 
 !1 = !{!2}
-!2 = !{i32 6168, i32 1, !"IntVarName"} ; HostAccessINTEL 1 "IntVarName"
-!3 = !{i32 6168, i32 3, !"BoolVarName"} ; HostAccessINTEL 3 "BoolVarName"
+!2 = !{i32 6188, i32 1, !"IntVarName"} ; HostAccessINTEL 1 "IntVarName"
+!3 = !{i32 6188, i32 3, !"BoolVarName"} ; HostAccessINTEL 3 "BoolVarName"
 !4 = !{!3}
 
 ; CHECK-SPV-IR: @int_var = addrspace(1) global i32 42, !spirv.Decorations ![[#INT_VAR_DEC:]]
 ; CHECK-SPV-IR: @bool_var = addrspace(1) global i1 false, !spirv.Decorations ![[#BOOL_VAR_DEC:]]
 
 ; CHECK-SPV-IR: ![[#INT_VAR_DEC]] = !{![[#]], ![[#MD_HOST_ACCESS_INTVAR:]]}
-; CHECK-SPV-IR: ![[#MD_HOST_ACCESS_INTVAR]] = !{i32 6168, i32 1, !"IntVarName"}
+; CHECK-SPV-IR: ![[#MD_HOST_ACCESS_INTVAR]] = !{i32 6188, i32 1, !"IntVarName"}
 ; CHECK-SPV-IR: ![[#BOOL_VAR_DEC]] = !{![[#]], ![[#MD_HOST_ACCESS_BOOLVAR:]]}
-; CHECK-SPV-IR: ![[#MD_HOST_ACCESS_BOOLVAR]] = !{i32 6168, i32 3, !"BoolVarName"}
+; CHECK-SPV-IR: ![[#MD_HOST_ACCESS_BOOLVAR]] = !{i32 6188, i32 3, !"BoolVarName"}
 
 ; CHECK-LLVM-NOT: @int_var = {{.*}}, !spirv.Decorations ![[#]]
 ; CHECK-LLVM-NOT: @bool_var = {{.*}}, !spirv.Decorations ![[#]]

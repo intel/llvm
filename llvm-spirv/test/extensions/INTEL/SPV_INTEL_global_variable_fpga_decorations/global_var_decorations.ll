@@ -38,11 +38,11 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: Variable [[#]] [[#BOOL_VAR_ID]] 5
 
 !1 = !{!2, !3}
-!2 = !{i32 6148, i1 true} ; ImplementInRegisterMapINTEL = true
-!3 = !{i32 6147, i32 0} ; InitModeINTEL = 0
-!4 = !{i32 6147, i32 1} ; InitModeINTEL = 1
+!2 = !{i32 6191, i1 true} ; ImplementInRegisterMapINTEL = true
+!3 = !{i32 6190, i32 0} ; InitModeINTEL = 0
+!4 = !{i32 6190, i32 1} ; InitModeINTEL = 1
 !5 = !{!2, !4}
-!6 = !{i32 6148, i1 false} ; ImplementInRegisterMapINTEL = false
+!6 = !{i32 6191, i1 false} ; ImplementInRegisterMapINTEL = false
 !7 = !{!6, !3}
 
 ; CHECK-SPV-IR: @int_var = addrspace(1) global i32 42, !spirv.Decorations ![[#INT_VAR_DEC:]]
@@ -50,12 +50,12 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPV-IR: @bool_var = addrspace(1) global i1 false, !spirv.Decorations ![[#BOOL_VAR_DEC:]]
 
 ; CHECK-SPV-IR: ![[#INT_VAR_DEC]] = !{![[#]], ![[#MD_INIT_0:]], ![[#MD_CSR_1:]]}
-; CHECK-SPV-IR: ![[#MD_INIT_0]] = !{i32 6147, i32 0}
-; CHECK-SPV-IR: ![[#MD_CSR_1]] = !{i32 6148, i32 1}
+; CHECK-SPV-IR: ![[#MD_INIT_0]] = !{i32 6190, i32 0}
+; CHECK-SPV-IR: ![[#MD_CSR_1]] = !{i32 6191, i32 1}
 ; CHECK-SPV-IR: ![[#FLOAT_VAR_DEC]] = !{![[#]], ![[#MD_INIT_1:]], ![[#MD_CSR_1]]}
-; CHECK-SPV-IR: ![[#MD_INIT_1]] = !{i32 6147, i32 1}
+; CHECK-SPV-IR: ![[#MD_INIT_1]] = !{i32 6190, i32 1}
 ; CHECK-SPV-IR: ![[#BOOL_VAR_DEC]] = !{![[#]], ![[#MD_INIT_0]], ![[#MD_CSR_0:]]}
-; CHECK-SPV-IR: ![[#MD_CSR_0]] = !{i32 6148, i32 0}
+; CHECK-SPV-IR: ![[#MD_CSR_0]] = !{i32 6191, i32 0}
 
 
 ; CHECK-LLVM-NOT: @int_var = {{.*}}, !spirv.Decorations ![[#]]
