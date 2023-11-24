@@ -159,6 +159,8 @@ public:
           shift = local_id * ElementsPerWorkItem + i;
         } else if constexpr (std::is_same_v<Properties, detail::is_striped>) {
           shift = i * range_size + local_id;
+        } else {
+          shift = local_id * ElementsPerWorkItem + i;
         }
         values[i] = temp[shift];
       }
@@ -247,6 +249,8 @@ public:
           shift = local_id * ElementsPerWorkItem + i;
         } else if constexpr (std::is_same_v<Properties, detail::is_striped>) {
           shift = i * g.get_local_linear_range() + local_id;
+        } else {
+          shift = local_id * ElementsPerWorkItem + i;
         }
 
         keys[i] = std::get<0>(temp)[shift];

@@ -703,9 +703,9 @@ int main() {
         RunOverType<sycl::half>(Q, Size);
       if (Q.get_device().has(sycl::aspect::fp64))
         RunOverType<double>(Q, Size);
-      // Radix sort does not work with CustomType. Radix sort only works
-      // with arithmetic types; e.g., int.
-      // RunOverType<CustomType>(Q, Size);
+      Radix sort does not work with CustomType.Radix sort only works with
+          arithmetic types;
+      e.g., int.RunOverType<CustomType>(Q, Size);
     }
 
     std::cout << "Test passed." << std::endl;
