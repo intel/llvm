@@ -57,11 +57,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 712d79120e0a9293daf5741f9c0b5269ddd862ce
+  # commit b3de31844ca45d1815c54d85f248f13ad81b6755
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Nov 24 12:34:51 2023 +0000
-  #     Set version to v0.8.0
-  set(UNIFIED_RUNTIME_TAG v0.8.0)
+  # Date:   Tue Nov 28 16:21:43 2023 +0000
+  #     Set version to v0.8.1
+  set(UNIFIED_RUNTIME_TAG v0.8.1)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
