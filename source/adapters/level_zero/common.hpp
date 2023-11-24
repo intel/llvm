@@ -187,7 +187,6 @@ enum UrDebugLevel {
   UR_L0_DEBUG_NONE = 0x0,
   UR_L0_DEBUG_BASIC = 0x1,
   UR_L0_DEBUG_VALIDATION = 0x2,
-  UR_L0_DEBUG_CALL_COUNT = 0x4,
   UR_L0_DEBUG_ALL = -1
 };
 
@@ -201,6 +200,13 @@ const int UrL0Debug = [] {
     DebugMode = std::atoi(ZeDebugMode);
   }
   return DebugMode;
+}();
+
+const int UrL0LeaksDebug = [] {
+  const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
 }();
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT

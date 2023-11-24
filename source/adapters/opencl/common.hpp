@@ -192,6 +192,16 @@ CONSTFIX char EnqueueReadGlobalVariableName[] =
 // Names of host pipe functions queried from OpenCL
 CONSTFIX char EnqueueReadHostPipeName[] = "clEnqueueReadHostPipeINTEL";
 CONSTFIX char EnqueueWriteHostPipeName[] = "clEnqueueWriteHostPipeINTEL";
+// Names of command buffer functions queried from OpenCL
+CONSTFIX char CreateCommandBufferName[] = "clCreateCommandBufferKHR";
+CONSTFIX char RetainCommandBufferName[] = "clRetainCommandBufferKHR";
+CONSTFIX char ReleaseCommandBufferName[] = "clReleaseCommandBufferKHR";
+CONSTFIX char FinalizeCommandBufferName[] = "clFinalizeCommandBufferKHR";
+CONSTFIX char CommandNRRangeKernelName[] = "clCommandNDRangeKernelKHR";
+CONSTFIX char CommandCopyBufferName[] = "clCommandCopyBufferKHR";
+CONSTFIX char CommandCopyBufferRectName[] = "clCommandCopyBufferRectKHR";
+CONSTFIX char CommandFillBufferName[] = "clCommandFillBufferKHR";
+CONSTFIX char EnqueueCommandBufferName[] = "clEnqueueCommandBufferKHR";
 
 #undef CONSTFIX
 
@@ -226,6 +236,58 @@ cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
                       cl_uint num_events_in_waitlist,
                       const cl_event *events_waitlist, cl_event *event);
 
+using clCreateCommandBufferKHR_fn = CL_API_ENTRY cl_command_buffer_khr(
+    CL_API_CALL *)(cl_uint num_queues, const cl_command_queue *queues,
+                   const cl_command_buffer_properties_khr *properties,
+                   cl_int *errcode_ret);
+
+using clRetainCommandBufferKHR_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+
+using clReleaseCommandBufferKHR_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+
+using clFinalizeCommandBufferKHR_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
+
+using clCommandNDRangeKernelKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    const cl_ndrange_kernel_command_properties_khr *properties,
+    cl_kernel kernel, cl_uint work_dim, const size_t *global_work_offset,
+    const size_t *global_work_size, const size_t *local_work_size,
+    cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clCommandCopyBufferKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    cl_mem src_buffer, cl_mem dst_buffer, size_t src_offset, size_t dst_offset,
+    size_t size, cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clCommandCopyBufferRectKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    cl_mem src_buffer, cl_mem dst_buffer, const size_t *src_origin,
+    const size_t *dst_origin, const size_t *region, size_t src_row_pitch,
+    size_t src_slice_pitch, size_t dst_row_pitch, size_t dst_slice_pitch,
+    cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clCommandFillBufferKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
+    cl_mem buffer, const void *pattern, size_t pattern_size, size_t offset,
+    size_t size, cl_uint num_sync_points_in_wait_list,
+    const cl_sync_point_khr *sync_point_wait_list,
+    cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
+
+using clEnqueueCommandBufferKHR_fn = CL_API_ENTRY
+cl_int(CL_API_CALL *)(cl_uint num_queues, cl_command_queue *queues,
+                      cl_command_buffer_khr command_buffer,
+                      cl_uint num_events_in_wait_list,
+                      const cl_event *event_wait_list, cl_event *event);
+
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;
   std::mutex Mutex;
@@ -255,6 +317,15 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clEnqueueWriteHostPipeINTEL_fn> clEnqueueWriteHostPipeINTELCache;
   FuncPtrCache<clSetProgramSpecializationConstant_fn>
       clSetProgramSpecializationConstantCache;
+  FuncPtrCache<clCreateCommandBufferKHR_fn> clCreateCommandBufferKHRCache;
+  FuncPtrCache<clRetainCommandBufferKHR_fn> clRetainCommandBufferKHRCache;
+  FuncPtrCache<clReleaseCommandBufferKHR_fn> clReleaseCommandBufferKHRCache;
+  FuncPtrCache<clFinalizeCommandBufferKHR_fn> clFinalizeCommandBufferKHRCache;
+  FuncPtrCache<clCommandNDRangeKernelKHR_fn> clCommandNDRangeKernelKHRCache;
+  FuncPtrCache<clCommandCopyBufferKHR_fn> clCommandCopyBufferKHRCache;
+  FuncPtrCache<clCommandCopyBufferRectKHR_fn> clCommandCopyBufferRectKHRCache;
+  FuncPtrCache<clCommandFillBufferKHR_fn> clCommandFillBufferKHRCache;
+  FuncPtrCache<clEnqueueCommandBufferKHR_fn> clEnqueueCommandBufferKHRCache;
 };
 // A raw pointer is used here since the lifetime of this map has to be tied to
 // piTeardown to avoid issues with static destruction order (a user application
