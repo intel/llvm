@@ -253,3 +253,10 @@ TEST_F(DeviceInfoTest, SplitStringDelimeterSemicolon) {
   std::vector<std::string> Expected{"V1", "V2", "V3"};
   EXPECT_EQ(detail::split_string(InputString, ';'), Expected);
 }
+
+TEST_F(DeviceInfoTest, SplitStringCheckNoDoubleNullCharacters) {
+  std::string InputString("V1;V23");
+  std::vector<std::string> Result = detail::split_string(InputString, ';');
+  EXPECT_EQ(Result[0].length(), 2);
+  EXPECT_EQ(Result[1].length(), 3);
+}

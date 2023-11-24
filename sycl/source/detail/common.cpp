@@ -75,10 +75,22 @@ const char *stringifyErrorCode(pi_int32 error) {
 
 std::vector<std::string> split_string(const std::string &str, char delimeter) {
   std::vector<std::string> Result;
-  std::istringstream IStrStream(str);
-  std::string TmpSubStr;
-  while (std::getline(IStrStream, TmpSubStr, delimeter))
-    Result.push_back(TmpSubStr);
+  size_t Start = 0;
+  size_t End = 0;
+  while ((End = str.find(delimeter, Start)) != std::string::npos) {
+    Result.push_back(str.substr(Start, End - Start));
+    Start = End + 1;
+  }
+  // Get the last substring and ignore the null character so we wouldn't get
+  // double null characters \0\0 at the end of the substring
+  End = str.find('\0');
+  if (Start < End) {
+    std::string LastSubStr(str.substr(Start, End - Start));
+    // In case str has a delimeter at the end, the substring will be empty, so
+    // we shouldn't add it to the final vector
+    if (!LastSubStr.empty())
+      Result.push_back(LastSubStr);
+  }
   return Result;
 }
 
