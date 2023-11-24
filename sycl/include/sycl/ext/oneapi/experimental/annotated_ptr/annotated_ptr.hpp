@@ -58,6 +58,17 @@ struct PropertiesFilter {
       std::tuple<>>::type...>;
 };
 } // namespace
+
+namespace detail {
+template <class O> struct get_T {
+  using type = O;
+};
+template <class O, class PL> struct get_T<annotated_ref<O, PL>> {
+  using type = O;
+};
+template <class O> using remove_ann_ref_impl = typename get_T<O>::type;
+} // namespace detail
+
 template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -120,20 +131,14 @@ public:
   PROPAGATE_OP(>>)
 #undef PROPAGATE_OP
 
-  template <class O> struct get_T {
-    using type = O;
-  };
-  template <class O, class PL> struct get_T<annotated_ref<O, PL>> {
-    using type = O;
-  };
-  template <class O> using remove_ann_ref = typename get_T<O>::type;
-
   // Propgate binary operators
 #define PROPAGATE_OP(op)                                                       \
   template <class T1, class T2>                                                \
   friend auto operator op(const T1 &a, const T2 &b)                            \
-      ->decltype(remove_ann_ref<T1>(a) op remove_ann_ref<T2>(b)) {             \
-    return remove_ann_ref<T1>(a) op remove_ann_ref<T2>(b);                     \
+      ->decltype(detail::remove_ann_ref<T1> _impl(a)                           \
+                     op detail::remove_ann_ref_impl<T2>(b)) {                  \
+    return detail::remove_ann_ref_impl<T1>(a)                                  \
+        op detail::remove_ann_ref_impl<T2>(b);                                 \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
@@ -145,17 +150,26 @@ public:
   PROPAGATE_OP(^)
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
+  PROPAGATE_OP(<)
+  PROPAGATE_OP(<=)
+  PROPAGATE_OP(>)
+  PROPAGATE_OP(>=)
+  PROPAGATE_OP(==)
+  PROPAGATE_OP(!=)
+  PROPAGATE_OP(&&)
+  PROPAGATE_OP(||)
 #undef PROPAGATE_OP
 
   // Propgate unary operators
 #define PROPAGATE_OP(op)                                                       \
-  template <class T1>                                                          \
-  friend auto operator op(const T1 &a)->decltype(op remove_ann_ref<T1>(a)) {   \
-    return op remove_ann_ref<T1>(a);                                           \
+  friend auto operator op(const annotated_ref &a)                              \
+      ->decltype(op detail::declval<T>()) {                                    \
+    return op T(a);                                                            \
   }
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
   PROPAGATE_OP(!)
+  PROPAGATE_OP(~)
 #undef PROPAGATE_OP
 
   T operator++() const {
