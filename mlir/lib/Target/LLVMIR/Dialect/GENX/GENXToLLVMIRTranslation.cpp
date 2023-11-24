@@ -46,7 +46,6 @@ static llvm::CallInst *createDeviceFunctionCall(llvm::IRBuilderBase &builder,
 // Synchronization
 //===----------------------------------------------------------------------===//
 
-// Create a call to SPIR a "sub_group_shuffle" function.
 static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
                                              llvm::Value *value,
                                              llvm::Value *mask,
@@ -98,7 +97,6 @@ static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
 // Type Conversions
 //===----------------------------------------------------------------------===//
 
-// Create a call to GenISA_dpas for matrix multiply-add.
 static llvm::CallInst *
 createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
                    LLVM::ModuleTranslation &moduleTranslation) {
@@ -139,7 +137,6 @@ createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
 // Matrix operations
 //===----------------------------------------------------------------------===//
 
-// Create a call to GenISA_dpas for matrix multiply-add.
 static llvm::CallInst *
 createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
                  LLVM::ModuleTranslation &moduleTranslation) {
@@ -178,7 +175,6 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
   return builder.CreateCall(fn, args);
 }
 
-// Create a call to GenISA_LSC2DBlockRead for loading a 2D submatrix.
 static llvm::CallInst *
 createGenISA2DBlockRead(GENX::Matrix2DBlockLoadOp op,
                         llvm::IRBuilderBase &builder,
@@ -209,7 +205,6 @@ createGenISA2DBlockRead(GENX::Matrix2DBlockLoadOp op,
   return builder.CreateCall(fn, args);
 }
 
-// Create a call to GenISA_LSC2DBlockWrite for storing to a 2D submatrix.
 static llvm::CallInst *
 createGenISA2DBlockWrite(GENX::Matrix2DBlockStoreOp op,
                          llvm::IRBuilderBase &builder,
