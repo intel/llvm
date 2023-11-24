@@ -1011,13 +1011,11 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   // All sanitizer options are not currently supported, except AddressSanitizer
   for (auto *A : Args.filtered(options::OPT_fsanitize_EQ,
                                options::OPT_fcf_protection_EQ)) {
-    if (A->getOption().getID() == options::OPT_fsanitize_EQ) {
-      if (A->getValues().size() == 1) {
-        std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address") {
-          continue;
-        }
-      }
+    if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address")
+        continue;
     }
     D.getDiags().Report(clang::diag::warn_drv_unsupported_option_for_target)
         << A->getAsString(Args) << getTriple().str();
