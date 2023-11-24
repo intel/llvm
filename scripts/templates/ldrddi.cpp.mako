@@ -86,6 +86,9 @@ namespace ur_loader
                     break;
                 }
                 adapterIndex++;
+                if (adapterIndex == NumEntries) {
+                    break;
+                }
             }
         }
 
