@@ -9,8 +9,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/common_info.hpp>
 
-#include <sstream>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
