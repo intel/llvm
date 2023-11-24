@@ -458,10 +458,12 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   bool IsAsanUsed = ProgramManager::getInstance().kernelUsesAsan();
 
   for (auto &[Name, Backend, Library] : LoadedPlugins) {
-    std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
-        PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
-                 /*Targets=*/nullptr, /*FunctionPointers=*/{},
-                 /*IsAsanUsed*/ IsAsanUsed});
+    std::shared_ptr<PiPlugin> PluginInformation =
+        std::make_shared<PiPlugin>(PiPlugin{
+            _PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
+            /*Targets=*/nullptr, /*FunctionPointers=*/{},
+            /*IsAsanUsed*/
+            IsAsanUsed ? _PI_SANITIZE_TYPE_ADDRESS : _PI_SANITIZE_TYPE_NONE});
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {

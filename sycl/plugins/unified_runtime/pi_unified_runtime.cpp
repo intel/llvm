@@ -1305,8 +1305,10 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   ur_loader_config_handle_t LoaderConfig{};
   HANDLE_ERRORS(urLoaderConfigCreate(&LoaderConfig));
 
-  if (PluginInit->IsAsanUsed) {
+  if (PluginInit->SanitizeType == _PI_SANITIZE_TYPE_ADDRESS) {
     HANDLE_ERRORS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
+  } else {
+    return PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
   }
 
   HANDLE_ERRORS(urInit(0, LoaderConfig));
