@@ -459,9 +459,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("text");
   }
 
-  if (Args.hasArg(options::OPT_rdynamic))
-    CmdArgs.push_back("-export-dynamic");
-
   if (Args.hasArg(options::OPT_s))
     CmdArgs.push_back("-s");
 
@@ -501,16 +498,14 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (IsStatic) {
     CmdArgs.push_back("-static");
-  } else {
+  } else if (!Args.hasArg(options::OPT_r) &&
+             !Args.hasArg(options::OPT_shared) && !IsStaticPIE) {
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
 
-    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE &&
-        !Args.hasArg(options::OPT_r)) {
-      CmdArgs.push_back("-dynamic-linker");
-      CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
-                                           ToolChain.getDynamicLinker(Args)));
-    }
+    CmdArgs.push_back("-dynamic-linker");
+    CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
+                                         ToolChain.getDynamicLinker(Args)));
   }
 
   CmdArgs.push_back("-o");
@@ -660,7 +655,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // AddRunTimeLibs).
   if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
-    addFortranRuntimeLibs(ToolChain, CmdArgs);
+    addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
     CmdArgs.push_back("-lm");
   }
 

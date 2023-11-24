@@ -1179,10 +1179,22 @@ public:
     return Ret;
   }
 
+  template <typename T>
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  using OpNotRet = detail::rel_t<T>;
+#else
+  using OpNotRet = T;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   // operator!
   template <typename T = DataT, int N = NumElements>
-  EnableIfNotUsingArray<vec<T, N>> operator!() const {
-    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data};
+  EnableIfNotUsingArray<vec<OpNotRet<T>, N>> operator!() const {
+    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data}
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+        .template as<vec<OpNotRet<T>, N>>();
+#else
+    ;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   // std::byte neither supports ! unary op or casting, so special handling is
@@ -1191,32 +1203,44 @@ public:
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<T, N>>
+                            vec<OpNotRet<T>, N>>
   operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
     }
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
     return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<!std::is_same_v<std::byte, T> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<T, N>>
+                            vec<OpNotRet<T>, N>>
   operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
     return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 #else
   template <typename T = DataT, int N = NumElements>
-  EnableIfUsingArray<vec<T, N>> operator!() const {
+  EnableIfUsingArray<vec<OpNotRet<T>, N>> operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    return Ret.template as<vec<OpNotRet<T>, N>>();
+#else
     return Ret;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
   }
 #endif
 
