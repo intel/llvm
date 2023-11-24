@@ -8,5 +8,6 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
+#include "common.hpp"
 
-struct ur_queue_handle_t_ {};
+struct ur_queue_handle_t_ : RefCounted {};
