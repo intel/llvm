@@ -32,13 +32,13 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  std::ignore = hContext;
-  DIE_NO_IMPLEMENTATION
+  hContext->incrementReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  delete hContext;
+  decrementOrDelete(hContext);
   return UR_RESULT_SUCCESS;
 }
 

@@ -115,8 +115,7 @@ urProgramRetain(ur_program_handle_t hProgram) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  delete hProgram;
-
+  decrementOrDelete(hProgram);
   return UR_RESULT_SUCCESS;
 }
 
