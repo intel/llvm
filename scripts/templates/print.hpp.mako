@@ -29,15 +29,15 @@ from templates import helper as th
 ## Mako helper functions ######################################################
 <%def name="member(iname, itype, loop)">
     %if iname == "pNext":
-        details::printStruct(os, ${caller.body()});
+        ${x}::details::printStruct(os, ${caller.body()});
     %elif th.type_traits.is_flags(itype):
-        details::printFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
+        ${x}::details::printFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
     %elif not loop and th.type_traits.is_pointer(itype):
-        details::printPtr(os, ${caller.body()});
+        ${x}::details::printPtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
-        details::printPtr(os, ${caller.body()});
+        ${x}::details::printPtr(os, ${caller.body()});
     %elif th.type_traits.is_handle(itype):
-        details::printPtr(os, ${caller.body()});
+        ${x}::details::printPtr(os, ${caller.body()});
     %elif iname and iname.startswith("pfn"):
         os << reinterpret_cast<void*>(${caller.body()});
     %else:
@@ -85,7 +85,7 @@ def findMemberType(_item):
         os << "}";
     %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
         os << ".${iname} = ";
-        details::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
+        ${x}::details::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif th.type_traits.is_array(item['type']):
         os << ".${iname} = {";
         for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
@@ -99,7 +99,7 @@ def findMemberType(_item):
         os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
-        details::printTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
+        ${x}::details::printTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
     %else:
         os << ".${iname} = ";
         <%call expr="member(iname, itype, False)">
@@ -108,10 +108,8 @@ def findMemberType(_item):
     %endif
 </%def>
 
-namespace ${x} {
-namespace print {
 ## API functions declarations #################################################
-namespace details {
+namespace ${x}::details {
 template <typename T> struct is_handle : std::false_type {};
 %for spec in specs:
 %for obj in spec['objects']:
@@ -153,7 +151,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 %endif
 %endfor # obj in spec['objects']
 %endfor
-} // namespace details
+} // namespace ${x}::details
 
 %for spec in specs:
 %for obj in spec['objects']:
@@ -197,7 +195,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     }
     %endif
     %if obj.get('typed_etors', False) is True:
-    namespace details {
+    namespace ${x}::details {
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print ${th.make_enum_name(n, tags, obj)} enum value
     template <>
@@ -258,10 +256,10 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         }
         return ${X}_RESULT_SUCCESS;
     }
-    } // namespace details
+    } // namespace ${x}::details
 
     %elif "structure_type" in obj['name']:
-    namespace details {
+    namespace ${x}::details {
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print ${th.make_enum_name(n, tags, obj)} struct
     inline ${x}_result_t printStruct(std::ostream &os, const void *ptr) {
@@ -287,11 +285,11 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         }
         return ${X}_RESULT_SUCCESS;
     }
-    } // namespace details
+    } // namespace ${x}::details
     %endif
     %if th.type_traits.is_flags(obj['name']):
 
-    namespace details {
+    namespace ${x}::details {
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Print ${th.make_enum_name(n, tags, obj)} flag
     template<>
@@ -326,7 +324,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
         }
         return ${X}_RESULT_SUCCESS;
     }
-    } // namespace details
+    } // namespace ${x}::details
     %endif
 ## STRUCT #####################################################################
 %elif re.match(r"struct", obj['type']):
@@ -352,7 +350,7 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
 }
 ## UNION ######################################################################
 %elif re.match(r"union", obj['type']) and obj['name']:
-namespace details {
+namespace ${x}::details {
 <% tag = findUnionTag(obj) %>
     ///////////////////////////////////////////////////////////////////////////////
     // @brief Print ${th.make_type_name(n, tags, obj)} union
@@ -382,7 +380,7 @@ for item in obj['members']:
     os << "}";
     return ${X}_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ${x}::details
 %endif
 %endfor # obj in spec['objects']
 %endfor
@@ -411,7 +409,7 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 %endfor
 %endfor
 
-namespace details {
+namespace ${x}::details {
 ///////////////////////////////////////////////////////////////////////////////
 // @brief Print pointer value
 template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *ptr) {
@@ -435,10 +433,9 @@ template <typename T> inline ${x}_result_t printPtr(std::ostream &os, const T *p
 
     return ${X}_RESULT_SUCCESS;
 }
-} // namespace details
-} // namespace print
+} // namespace ${x}::details
 
-namespace extras {
+namespace ${x}::extras {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print function parameters
 /// @returns
@@ -447,8 +444,6 @@ namespace extras {
 ///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
 ///         - `NULL == params`
 ${X}_APIEXPORT inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostream &os, ur_function_t function, const void *params) {
-    using namespace print;
-
     if (!params) {
         return ${X}_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -465,7 +460,6 @@ ${X}_APIEXPORT inline ${x}_result_t ${X}_APICALL printFunctionParams(std::ostrea
     }
     return ${X}_RESULT_SUCCESS;
 }
-} // namespace extras
-} // namespace ${x}
+} // namespace ${x}::extras
 
 #endif /* ${X}_PRINT_HPP */
