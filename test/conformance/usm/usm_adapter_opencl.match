@@ -1,6 +1,5 @@
 urUSMDeviceAllocTest.Success/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.SuccessWithDescriptors/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
-urUSMDeviceAllocTest.SuccessWithDescriptors/Intel_R__OpenCL___{{.*}}___UsePoolDisabled
 urUSMDeviceAllocTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.InvalidNullHandleDevice/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.InvalidNullPtrResult/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
@@ -9,7 +8,6 @@ urUSMDeviceAllocTest.InvalidValueAlignPowerOfTwo/Intel_R__OpenCL___{{.*}}___UseP
 urUSMAllocInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_USM_ALLOC_INFO_POOL
 urUSMHostAllocTest.Success/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMHostAllocTest.SuccessWithDescriptors/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
-urUSMHostAllocTest.SuccessWithDescriptors/Intel_R__OpenCL___{{.*}}___UsePoolDisabled
 urUSMHostAllocTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMHostAllocTest.InvalidNullPtrMem/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMHostAllocTest.InvalidUSMSize/Intel_R__OpenCL___{{.*}}___UsePoolEnabled

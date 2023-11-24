@@ -175,6 +175,23 @@ members:
       desc: "[in] device memory allocation flags."
 --- #--------------------------------------------------------------------------
 type: struct
+desc: "USM allocation location desc"
+details:
+    - Specify these properties in $xUSMHostAlloc, $xUSMDeviceAlloc and
+      $xUSMSharedAlloc via $x_usm_desc_t as part of a `pNext` chain.
+analogue:
+    - "cl_intel_mem_alloc_buffer_location"
+class: $xUSM
+name: $x_usm_alloc_location_desc_t
+base: $x_base_desc_t
+members:
+    - type: uint32_t
+      name: location
+      desc: >
+          [in] Identifies the ID of global memory partition to which the memory
+          should be allocated.
+--- #--------------------------------------------------------------------------
+type: struct
 desc: "USM pool descriptor type"
 class: $xUSM
 name: $x_usm_pool_desc_t
@@ -212,6 +229,7 @@ details:
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
   - "Any flags/hints passed through pUSMDesc only affect the single allocation."
   - "See also $x_usm_host_desc_t."
+  - "See also $x_usm_alloc_location_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -253,6 +271,7 @@ details:
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
   - "Any flags/hints passed through pUSMDesc only affect the single allocation."
   - "See also $x_usm_device_desc_t."
+  - "See also $x_usm_alloc_location_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -298,6 +317,7 @@ details:
   - "Any flags/hints passed through pUSMDesc only affect the single allocation."
   - "See also $x_usm_host_desc_t."
   - "See also $x_usm_device_desc_t."
+  - "See also $x_usm_alloc_location_desc_t."
 params:
     - type: $x_context_handle_t
       name: hContext

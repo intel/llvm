@@ -666,3 +666,6 @@ etors:
 - name: KERNEL_ARG_LOCAL_PROPERTIES
   desc: $x_kernel_arg_local_properties_t
   value: '33'
+- name: USM_ALLOC_LOCATION_DESC
+  desc: $x_usm_alloc_location_desc_t
+  value: '35'
