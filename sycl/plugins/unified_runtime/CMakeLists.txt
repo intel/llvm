@@ -56,13 +56,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 534071e52f84bad1dd7fb210a360414507f3b3ae
-  # Merge: 9fc82304 d164792b
+  # commit 71957e849435169b43e51a42025afeeb63d7508b
+  # Merge: ce152a64 e001b98d
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Nov 15 10:51:54 2023 +0000
-  #     Merge pull request #1077 from fabiomestre/fabio/combines_fixes_cuda_hip
-  #     [CUDA][HIP] Combined CTS Fixes
-  set(UNIFIED_RUNTIME_TAG 534071e52f84bad1dd7fb210a360414507f3b3ae)
+  # Date:   Tue Nov 21 16:41:08 2023 +0000
+  #     Merge pull request #1100 from kbenzie/benie/fixup-multi-device-compile
+  #     [CUDA][HIP][OpenCL][NATIVECPU] Fix multi-device compile
+  set(UNIFIED_RUNTIME_TAG 71957e849435169b43e51a42025afeeb63d7508b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

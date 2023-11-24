@@ -3438,10 +3438,6 @@ def err_attribute_argument_is_zero : Error<
 def warn_attribute_argument_n_negative : Warning<
   "%0 attribute parameter %1 is negative and will be ignored">,
   InGroup<CudaCompat>;
-def warn_reqd_sub_group_attribute_cuda_n_32
-    : Warning<"attribute argument %0 is invalid and will be ignored; CUDA "
-              "requires sub_group size 32">,
-      InGroup<CudaCompat>;
 def err_property_function_in_objc_container : Error<
   "use of Objective-C property in function nested in Objective-C "
   "container not supported, move function outside its container">;
@@ -3539,6 +3535,10 @@ def warn_dllimport_dropped_from_inline_function : Warning<
   InGroup<IgnoredAttributes>;
 def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
   " only on a function directly called from a SYCL kernel function; attribute ignored">,
+  InGroup<IgnoredAttributes>;
+def warn_reqd_sub_group_attribute_n
+    : Warning<"attribute argument %0 is invalid and will be ignored; %1 "
+              "requires sub_group size %2">,
   InGroup<IgnoredAttributes>;
 def warn_nothrow_attribute_ignored : Warning<"'nothrow' attribute conflicts with"
   " exception specification; attribute ignored">,
@@ -5715,9 +5715,9 @@ def err_unexpanded_parameter_pack : Error<
   "%select{expression|base type|declaration type|data member type|bit-field "
   "size|static assertion|fixed underlying type|enumerator value|"
   "using declaration|friend declaration|qualifier|initializer|default argument|"
-  "non-type template parameter type|exception type|partial specialization|"
-  "__if_exists name|__if_not_exists name|lambda|block|type constraint|"
-  "requirement|requires clause}0 "
+  "non-type template parameter type|exception type|explicit specialization|"
+  "partial specialization|__if_exists name|__if_not_exists name|lambda|block|"
+  "type constraint|requirement|requires clause}0 "
   "contains%plural{0: an|:}1 unexpanded parameter pack"
   "%plural{0:|1: %2|2:s %2 and %3|:s %2, %3, ...}1">;
 
@@ -10100,6 +10100,11 @@ def err_duplicate_case_differing_expr : Error<
 def warn_case_empty_range : Warning<"empty case range specified">;
 def warn_missing_case_for_condition :
   Warning<"no case matching constant switch condition '%0'">;
+def err_loop_attr_conflict : Error<
+  "conflicting loop attribute %0">;
+def err_attribute_power_of_two_in_range : Error<
+  "%0 attribute requires an integer argument which is a constant power of two "
+  "between %1 and %2 inclusive; provided argument was %3">;
 
 def warn_def_missing_case : Warning<"%plural{"
   "1:enumeration value %1 not explicitly handled in switch|"
@@ -11672,6 +11677,10 @@ def err_conflicting_aligned_options : Error <
 >;
 def err_coro_invalid_addr_of_label : Error<
   "the GNU address of label extension is not allowed in coroutines."
+>;
+def err_coroutine_return_type : Error<
+  "function returns a type %0 marked with [[clang::coro_return_type]] but is neither a coroutine nor a coroutine wrapper; "
+  "non-coroutines should be marked with [[clang::coro_wrapper]] to allow returning coroutine return type"
 >;
 } // end of coroutines issue category
 

@@ -50,7 +50,7 @@ int main() {
       CGH.copy(AccA, DataB2D.data());
     });
 
-    add_node(Graph, Queue, [&](handler &CGH) { /* empty node */ });
+    add_empty_node(Graph, Queue);
 
     Graph.print_graph("graph.dot");
 
