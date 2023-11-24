@@ -12,6 +12,7 @@
 #include "kernel_entry_points.h"
 #endif
 
+#include <ur_util.hpp>
 #include <uur/environment.h>
 #include <uur/utils.h>
 
@@ -179,6 +180,16 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
                 std::string(&arg[std::strlen("--platform=")]);
         }
     }
+
+    /* If a platform was not provided using the --platform command line option,
+     * check if environment variable is set to use as a fallback. */
+    if (options.platform_name.empty()) {
+        auto env_platform = ur_getenv("UR_CTS_ADAPTER_PLATFORM");
+        if (env_platform.has_value()) {
+            options.platform_name = env_platform.value();
+        }
+    }
+
     return options;
 }
 

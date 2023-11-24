@@ -1,0 +1,15 @@
+urVirtualMemGetInfoTestWithParam.Success/Intel_R__OpenCL___{{.*}}___UR_VIRTUAL_MEM_INFO_ACCESS_MODE
+urVirtualMemGetInfoTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGetInfoTest.InvalidNullPointerStart/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGetInfoTest.InvalidEnumerationInfo/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGranularityGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM
+urVirtualMemGranularityGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED
+urVirtualMemGranularityGetInfoNegativeTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGranularityGetInfoNegativeTest.InvalidEnumeration/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGranularityGetInfoNegativeTest.InvalidNullPointerPropSizeRet/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGranularityGetInfoNegativeTest.InvalidNullPointerPropValue/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGranularityGetInfoNegativeTest.InvalidPropSizeZero/Intel_R__OpenCL___{{.*}}_
+urVirtualMemGranularityGetInfoNegativeTest.InvalidSizePropSizeSmall/Intel_R__OpenCL___{{.*}}_
+urVirtualMemSetAccessTest.Success/Intel_R__OpenCL___{{.*}}_
+urVirtualMemSetAccessTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}_
+urVirtualMemSetAccessTest.InvalidNullPointerStart/Intel_R__OpenCL___{{.*}}_
