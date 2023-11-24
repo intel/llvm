@@ -3159,6 +3159,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
 
     std::pair<StringRef, StringRef> Split = AnnotatedDecoration.split(':');
     StringRef Name = Split.first, ValueStr = Split.second;
+    SPIRVDBG(spvdbgs() << "[tryParseAnnotationString]: AnnotationString: "
+                       << Name.str() << "\n");
 
     unsigned DecorationKind = 0;
     if (!Name.getAsInteger(10, DecorationKind)) {
@@ -3183,6 +3185,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
           Decorates.CacheControlVec.emplace_back(
               static_cast<Decoration>(DecorationKind), std::move(DecValues));
         } else {
+          for (auto f: DecValues)
           DecorationsVec.emplace_back(static_cast<Decoration>(DecorationKind),
                                       std::move(DecValues));
         }
@@ -3258,7 +3261,8 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
           DecValues = std::vector<std::string>({ValueStr.str()});
         }
       }
-      DecorationsVec.emplace_back(Dec, std::move(DecValues));
+      for (auto f: DecValues)
+        DecorationsVec.emplace_back(Dec, std::move(DecValues));
     }
   }
 
@@ -3290,10 +3294,11 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
   for (const auto &I : Decorations) {
     // Such decoration already exists on a type, try to skip it
     if (E->hasDecorate(I.first, /*Index=*/0, /*Result=*/nullptr))
-      // Allow multiple UserSemantic Decorations
-      if (I.first != DecorationUserSemantic)
+      // Allow multiple UserSemantic and MemoryINTEL Decorations
+      if (I.first != DecorationUserSemantic && I.first != DecorationMemoryINTEL)
         continue;
-
+    SPIRVDBG(spvdbgs() << "[addAnnotationDecorations]: Decoration: " << I.first
+                       << '\n');
     switch (static_cast<size_t>(I.first)) {
     case DecorationUserSemantic:
       M->getErrorLog().checkError(I.second.size() == 1,
@@ -3453,6 +3458,10 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
       if (I.first != DecorationUserSemantic)
         continue;
 
+    SPIRVDBG(
+        spvdbgs() << "[addAnnotationDecorationsForStructMember]: MemberNumber: "
+                  << MemberNumber << " Decoration: " << I.first << '\n');
+
     switch (I.first) {
     case DecorationUserSemantic:
       M->getErrorLog().checkError(I.second.size() == 1,
@@ -3503,7 +3512,7 @@ void addAnnotationDecorationsForStructMember(SPIRVEntry *E,
     default:
       M->getErrorLog().checkError(
           I.second.size() == 1, SPIRVEC_InvalidLlvmModule,
-          "Member decoration requires a single argument.");
+          std::string("Member decoration requires a single argument. \n"));
       SPIRVWord Result = 0;
       StringRef(I.second[0]).getAsInteger(10, Result);
       E->addMemberDecorate(MemberNumber, I.first, Result);
@@ -4300,6 +4309,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     }
     return SV;
   }
+
   // The layout of llvm.ptr.annotation is:
   // declare iN*   @llvm.ptr.annotation.p<address space>iN(
   // iN* <val>, i8* <str>, i8* <str>, i32  <int>, i8* <ptr>)
@@ -4309,13 +4319,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   // i8* <ptr> is a pointer on a GV, which can carry optinal variadic
   // clang::annotation attribute expression arguments.
   case Intrinsic::ptr_annotation: {
-    // Strip all bitcast and addrspace casts from the pointer argument:
-    //   llvm annotation intrinsic only takes i8*, so the original pointer
-    //   probably had to loose its addrspace and its original type.
+
     Value *AnnotSubj = II->getArgOperand(0);
-    while (isa<BitCastInst>(AnnotSubj) || isa<AddrSpaceCastInst>(AnnotSubj)) {
-      AnnotSubj = cast<CastInst>(AnnotSubj)->getOperand(0);
-    }
 
     std::string AnnotationString;
     processAnnotationString(II, AnnotationString);
@@ -4331,76 +4336,24 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return transValue(BI, BB);
     }
 
-    // If the pointer is a GEP on a struct, then we have to emit a member
-    // decoration for the GEP-accessed struct, or a memory access decoration
-    // for the GEP itself. There may not be a GEP in this case if the access is
-    // to the first member of the struct; if so, attempt to get a struct type
-    // from an alloca instead.
-    SPIRVType *StructTy = nullptr;
-    [[maybe_unused]] SPIRVValue *ResPtr = nullptr;
-    [[maybe_unused]] SPIRVWord MemberNumber = 0;
-    if (auto *const GI = dyn_cast<GetElementPtrInst>(AnnotSubj)) {
-      if (auto *const STy = dyn_cast<StructType>(GI->getSourceElementType())) {
-        StructTy = transType(STy);
-        ResPtr = transValue(GI, BB);
-        MemberNumber = dyn_cast<ConstantInt>(GI->getOperand(2))->getZExtValue();
-      }
-    } else if (auto *const AI = dyn_cast<AllocaInst>(AnnotSubj)) {
-      if (auto *const STy = dyn_cast<StructType>(AI->getAllocatedType())) {
-        StructTy = transType(STy);
-        ResPtr = transValue(AI, BB);
-        MemberNumber = 0;
-      }
-    }
-    if (StructTy) {
-
-      // If we didn't find any IntelFPGA-specific decorations, let's add the
-      // whole annotation string as UserSemantic Decoration
-      if (Decorations.empty()) {
-        // TODO: Is there a way to detect that the annotation belongs solely
-        // to struct member memory atributes or struct member memory access
-        // controls? This would allow emitting just the necessary decoration.
-        StructTy->addMemberDecorate(new SPIRVMemberDecorateUserSemanticAttr(
-            StructTy, MemberNumber, AnnotationString.c_str()));
-        ResPtr->addDecorate(new SPIRVDecorateUserSemanticAttr(
-            ResPtr, AnnotationString.c_str()));
-      } else {
-        addAnnotationDecorationsForStructMember(
-            StructTy, MemberNumber, Decorations.MemoryAttributesVec);
-        // Apply the LSU parameter decoration to the pointer result of a GEP
-        // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
-        // Decorating the member itself with a MemberDecoration is not feasible,
-        // because multiple accesses to the struct-held memory can require
-        // different LSU parameters.
-        addAnnotationDecorations(ResPtr, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(ResPtr, Decorations.BufferLocationVec);
-          addAnnotationDecorations(ResPtr, Decorations.LatencyControlVec);
-        }
-      }
-      II->replaceAllUsesWith(II->getOperand(0));
+    SPIRVValue *DecSubj = transValue(AnnotSubj, BB);
+    if (Decorations.empty()) {
+      DecSubj->addDecorate(
+          new SPIRVDecorateUserSemanticAttr(DecSubj, AnnotationString.c_str()));
     } else {
-      // Memory accesses to a standalone pointer variable
-      auto *DecSubj = transValue(II->getArgOperand(0), BB);
-      if (Decorations.empty())
-        DecSubj->addDecorate(new SPIRVDecorateUserSemanticAttr(
-            DecSubj, AnnotationString.c_str()));
-      else {
-        // Apply the LSU parameter decoration to the pointer result of an
-        // instruction. Note it's the address to the accessed memory that's
-        // loaded from the original pointer variable, and not the value
-        // accessed by the latter.
-        addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
-        if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
-          addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
-          addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
-        }
-
-        addAnnotationDecorations(DecSubj, Decorations.CacheControlVec);
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAttributesVec);
+      // Apply the LSU parameter decoration to the pointer result of a GEP
+      // to the given struct member (InBoundsPtrAccessChain in SPIR-V).
+      // Decorating the member itself with a MemberDecoration is not feasible,
+      // because multiple accesses to the struct-held memory can require
+      // different LSU parameters.
+      addAnnotationDecorations(DecSubj, Decorations.MemoryAccessesVec);
+      if (allowDecorateWithBufferLocationOrLatencyControlINTEL(II)) {
+        addAnnotationDecorations(DecSubj, Decorations.BufferLocationVec);
+        addAnnotationDecorations(DecSubj, Decorations.LatencyControlVec);
       }
-      II->replaceAllUsesWith(II->getOperand(0));
     }
-    return nullptr;
+    return DecSubj;
   }
   case Intrinsic::stacksave: {
     if (BM->isAllowedToUseExtension(
