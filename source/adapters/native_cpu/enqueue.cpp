@@ -144,12 +144,11 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
         size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
                              (h + HostOffset.y) * HostRowPitch + w +
                              HostOffset.x;
-        int8_t &host_mem = ur_cast<int8_t *>(DstMem)[host_origin];
         int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
-        if (IsRead)
-          host_mem = buff_mem;
+        if constexpr (IsRead)
+          ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
         else
-          buff_mem = host_mem;
+          buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
       }
   return UR_RESULT_SUCCESS;
 }
@@ -160,6 +159,8 @@ static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
                                       const ur_event_handle_t *EventWaitList,
                                       ur_event_handle_t *Event) {
   // todo: non-blocking, events, UR integration
+  std::ignore = EventWaitList;
+  std::ignore = Event;
   std::ignore = hQueue;
   std::ignore = numEventsInWaitList;
   if (SrcPtr != DstPtr && Size)
