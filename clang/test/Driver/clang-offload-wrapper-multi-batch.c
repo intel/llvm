@@ -133,11 +133,6 @@
 // RUN: diff %t.extracted.7 %t.2B.bin
 // RUN: diff %t.extracted.8 %t.2C.bin
 
-// Check that the number of sycl_offload_entry_name* labels is correct
-//
-// RUN: llvm-nm %t.fat.bin  | grep __sycl_offload_entry_name | wc -l | FileCheck %s --check-prefix CHECK-ENTRY-NUM
-// CHECK-ENTRY-NUM: 9
-
 // Check that entry points as strings exist and are in expected order
 //
 // RUN: llvm-strings %t.fat.bin | grep _entry_targ_ | FileCheck %s --check-prefix CHECK-ENTRY
@@ -176,6 +171,110 @@
 // CHECK-PROP-NAME-NEXT: testProp-name17
 // CHECK-PROP-NAME-NEXT: testProp-name19
 // CHECK-PROP-NAME-NEXT: testProp-name23
+
+// Check disassembly
+//
+// RUN: llvm-dis %t.wrapped.bc
+// RUN: FileCheck %s --check-prefix CHECK-DISASM < %t.wrapped.ll
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-zero
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name2
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupA
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-zero
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_0_A
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-zero
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name3
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupB
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-zero
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_0_B
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-zero
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name5
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupC
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-zero
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_0_C
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-one
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name7
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupD
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-one
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_1_AA
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-one
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name11
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupE
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-one
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_1_BB
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-one
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name13
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupF
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-one
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_1_CC
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-two
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name17
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupG
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-two
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_2_AAA
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-two
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name19
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupH
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-two
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_2_BBB
+
+// CHECK-DISASM:      @.sycl_offloading.target.{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: target-two
+// CHECK-DISASM:      @prop{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-name23
+// CHECK-DISASM:      @SYCL_PropSetName{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: testProp-GroupI
+// CHECK-DISASM:      @.sycl_offloading.{{.*}}.data = internal unnamed_addr constant
+// CHECK-DISASM-SAME: __CLANG_OFFLOAD_BUNDLE__sycl-target-two
+// CHECK-DISASM:      __sycl_offload_entry_name{{.*}} = internal unnamed_addr constant
+// CHECK-DISASM-SAME: _entry_targ_2_CCC
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Generate the same wrapped BC file with a single "-batch" option.  This shows that
