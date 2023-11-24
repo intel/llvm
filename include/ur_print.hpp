@@ -17,9 +17,7 @@
 #include <bitset>
 #include <ostream>
 
-namespace ur {
-namespace print {
-namespace details {
+namespace ur::details {
 template <typename T>
 struct is_handle : std::false_type {};
 template <>
@@ -204,7 +202,7 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_
 template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_info_t value, size_t size);
 
-} // namespace details
+} // namespace ur::details
 
 UR_APIEXPORT inline std::ostream &operator<<(std::ostream &os, ur_function_t value);
 UR_APIEXPORT inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value);
@@ -1025,7 +1023,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_structure_type_t struct
 inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
@@ -1251,7 +1249,7 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_result_t type
 /// @returns
@@ -1497,8 +1495,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_base_propertie
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -1517,8 +1515,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_base_desc_t pa
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -1599,7 +1597,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_init_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_init_flag_t flag
 template <>
@@ -1667,7 +1665,7 @@ inline ur_result_t printFlag<ur_device_init_flag_t>(std::ostream &os, uint32_t f
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_loader_config_info_t type
 /// @returns
@@ -1686,7 +1684,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_loader_config_info_t value)
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_loader_config_info_t enum value
 template <>
@@ -1719,7 +1717,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_loader_conf
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_code_location_t type
@@ -1730,14 +1728,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_code_location_
 
     os << ".functionName = ";
 
-    details::printPtr(os,
-                      (params.functionName));
+    ur::details::printPtr(os,
+                          (params.functionName));
 
     os << ", ";
     os << ".sourceFile = ";
 
-    details::printPtr(os,
-                      (params.sourceFile));
+    ur::details::printPtr(os,
+                          (params.sourceFile));
 
     os << ", ";
     os << ".lineNumber = ";
@@ -1770,7 +1768,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_adapter_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_adapter_info_t enum value
 template <>
@@ -1810,7 +1808,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_adapter_inf
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_adapter_backend_t type
@@ -1872,7 +1870,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_platform_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_platform_info_t enum value
 template <>
@@ -1925,7 +1923,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_platform_in
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_api_version_t type
@@ -1949,8 +1947,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_platform_nativ
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -2004,14 +2002,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_binary_
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".pDeviceTargetSpec = ";
 
-    details::printPtr(os,
-                      (params.pDeviceTargetSpec));
+    ur::details::printPtr(os,
+                          (params.pDeviceTargetSpec));
 
     os << "}";
     return os;
@@ -2457,7 +2455,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_info_t enum value
 template <>
@@ -2561,8 +2559,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_fp_capability_flag_t>(os,
-                                                           *tptr);
+        ur::details::printFlag<ur_device_fp_capability_flag_t>(os,
+                                                               *tptr);
 
         os << ")";
     } break;
@@ -2574,8 +2572,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_fp_capability_flag_t>(os,
-                                                           *tptr);
+        ur::details::printFlag<ur_device_fp_capability_flag_t>(os,
+                                                               *tptr);
 
         os << ")";
     } break;
@@ -2587,8 +2585,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_fp_capability_flag_t>(os,
-                                                           *tptr);
+        ur::details::printFlag<ur_device_fp_capability_flag_t>(os,
+                                                               *tptr);
 
         os << ")";
     } break;
@@ -2600,8 +2598,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_queue_flag_t>(os,
-                                            *tptr);
+        ur::details::printFlag<ur_queue_flag_t>(os,
+                                                *tptr);
 
         os << ")";
     } break;
@@ -3189,8 +3187,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_exec_capability_flag_t>(os,
-                                                             *tptr);
+        ur::details::printFlag<ur_device_exec_capability_flag_t>(os,
+                                                                 *tptr);
 
         os << ")";
     } break;
@@ -3202,8 +3200,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_queue_flag_t>(os,
-                                            *tptr);
+        ur::details::printFlag<ur_queue_flag_t>(os,
+                                                *tptr);
 
         os << ")";
     } break;
@@ -3215,8 +3213,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_queue_flag_t>(os,
-                                            *tptr);
+        ur::details::printFlag<ur_queue_flag_t>(os,
+                                                *tptr);
 
         os << ")";
     } break;
@@ -3233,8 +3231,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -3322,8 +3320,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -3361,8 +3359,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_affinity_domain_flag_t>(os,
-                                                             *tptr);
+        ur::details::printFlag<ur_device_affinity_domain_flag_t>(os,
+                                                                 *tptr);
 
         os << ")";
     } break;
@@ -3426,8 +3424,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_usm_access_capability_flag_t>(os,
-                                                                   *tptr);
+        ur::details::printFlag<ur_device_usm_access_capability_flag_t>(os,
+                                                                       *tptr);
 
         os << ")";
     } break;
@@ -3439,8 +3437,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_usm_access_capability_flag_t>(os,
-                                                                   *tptr);
+        ur::details::printFlag<ur_device_usm_access_capability_flag_t>(os,
+                                                                       *tptr);
 
         os << ")";
     } break;
@@ -3452,8 +3450,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_usm_access_capability_flag_t>(os,
-                                                                   *tptr);
+        ur::details::printFlag<ur_device_usm_access_capability_flag_t>(os,
+                                                                       *tptr);
 
         os << ")";
     } break;
@@ -3465,8 +3463,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_usm_access_capability_flag_t>(os,
-                                                                   *tptr);
+        ur::details::printFlag<ur_device_usm_access_capability_flag_t>(os,
+                                                                       *tptr);
 
         os << ")";
     } break;
@@ -3478,8 +3476,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_device_usm_access_capability_flag_t>(os,
-                                                                   *tptr);
+        ur::details::printFlag<ur_device_usm_access_capability_flag_t>(os,
+                                                                       *tptr);
 
         os << ")";
     } break;
@@ -3621,8 +3619,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_order_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_order_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -3634,8 +3632,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_scope_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_scope_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -3647,8 +3645,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_order_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_order_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -3660,8 +3658,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_scope_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_scope_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -4009,7 +4007,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_affinity_domain_flag_t type
@@ -4042,7 +4040,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_affinity_domain_flag
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_affinity_domain_flag_t flag
 template <>
@@ -4120,7 +4118,7 @@ inline ur_result_t printFlag<ur_device_affinity_domain_flag_t>(std::ostream &os,
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_partition_t type
 /// @returns
@@ -4145,7 +4143,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_partition_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 
 ///////////////////////////////////////////////////////////////////////////////
 // @brief Print ur_device_partition_value_t union
@@ -4174,8 +4172,8 @@ inline ur_result_t printUnion(
 
         os << ".affinity_domain = ";
 
-        details::printFlag<ur_device_affinity_domain_flag_t>(os,
-                                                             (params.affinity_domain));
+        ur::details::printFlag<ur_device_affinity_domain_flag_t>(os,
+                                                                 (params.affinity_domain));
 
         break;
     default:
@@ -4185,7 +4183,7 @@ inline ur_result_t printUnion(
     os << "}";
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_partition_property_t type
 /// @returns
@@ -4199,7 +4197,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_partiti
 
     os << ", ";
     os << ".value = ";
-    details::printUnion(os, (params.value), params.type);
+    ur::details::printUnion(os, (params.value), params.type);
 
     os << "}";
     return os;
@@ -4218,14 +4216,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_partiti
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      (params.pProperties));
+    ur::details::printPtr(os,
+                          (params.pProperties));
 
     os << ", ";
     os << ".PropCount = ";
@@ -4272,7 +4270,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_fp_capability_flag_t
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_fp_capability_flag_t flag
 template <>
@@ -4370,7 +4368,7 @@ inline ur_result_t printFlag<ur_device_fp_capability_flag_t>(std::ostream &os, u
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_mem_cache_type_t type
 /// @returns
@@ -4432,7 +4430,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_exec_capability_flag
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_exec_capability_flag_t flag
 template <>
@@ -4470,7 +4468,7 @@ inline ur_result_t printFlag<ur_device_exec_capability_flag_t>(std::ostream &os,
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_native_properties_t type
 /// @returns
@@ -4485,8 +4483,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_native_
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -4524,7 +4522,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_memory_order_capability_fla
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_memory_order_capability_flag_t flag
 template <>
@@ -4592,7 +4590,7 @@ inline ur_result_t printFlag<ur_memory_order_capability_flag_t>(std::ostream &os
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_memory_scope_capability_flag_t type
 /// @returns
@@ -4621,7 +4619,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_memory_scope_capability_fla
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_memory_scope_capability_flag_t flag
 template <>
@@ -4689,7 +4687,7 @@ inline ur_result_t printFlag<ur_memory_scope_capability_flag_t>(std::ostream &os
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_device_usm_access_capability_flag_t type
 /// @returns
@@ -4715,7 +4713,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_usm_access_capabilit
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_usm_access_capability_flag_t flag
 template <>
@@ -4773,7 +4771,7 @@ inline ur_result_t printFlag<ur_device_usm_access_capability_flag_t>(std::ostrea
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_context_flag_t type
 /// @returns
@@ -4790,7 +4788,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_context_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_context_flag_t flag
 template <>
@@ -4818,7 +4816,7 @@ inline ur_result_t printFlag<ur_context_flag_t>(std::ostream &os, uint32_t flag)
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_context_properties_t type
 /// @returns
@@ -4833,14 +4831,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_context_proper
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_context_flag_t>(os,
-                                          (params.flags));
+    ur::details::printFlag<ur_context_flag_t>(os,
+                                              (params.flags));
 
     os << "}";
     return os;
@@ -4884,7 +4882,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_context_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_context_info_t enum value
 template <>
@@ -4916,8 +4914,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_context_inf
                 os << ", ";
             }
 
-            details::printPtr(os,
-                              tptr[i]);
+            ur::details::printPtr(os,
+                                  tptr[i]);
         }
         os << "}";
     } break;
@@ -4965,8 +4963,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_context_inf
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_order_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_order_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -4978,8 +4976,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_context_inf
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_scope_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_scope_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -4991,8 +4989,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_context_inf
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_order_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_order_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -5004,8 +5002,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_context_inf
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_memory_scope_capability_flag_t>(os,
-                                                              *tptr);
+        ur::details::printFlag<ur_memory_scope_capability_flag_t>(os,
+                                                                  *tptr);
 
         os << ")";
     } break;
@@ -5015,7 +5013,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_context_inf
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_context_native_properties_t type
@@ -5031,8 +5029,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_context_native
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -5073,7 +5071,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_mem_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_mem_flag_t flag
 template <>
@@ -5151,7 +5149,7 @@ inline ur_result_t printFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag) {
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_mem_type_t type
 /// @returns
@@ -5203,7 +5201,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_mem_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_mem_info_t enum value
 template <>
@@ -5233,8 +5231,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_mem_info_t 
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -5244,7 +5242,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_mem_info_t 
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_image_channel_order_t type
@@ -5393,7 +5391,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_image_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_image_info_t enum value
 template <>
@@ -5493,7 +5491,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_image_info_
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_image_format_t type
@@ -5528,8 +5526,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_image_desc_t p
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".type = ";
@@ -5593,14 +5591,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_buffer_propert
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".pHost = ";
 
-    details::printPtr(os,
-                      (params.pHost));
+    ur::details::printPtr(os,
+                          (params.pHost));
 
     os << "}";
     return os;
@@ -5619,8 +5617,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_buffer_channel
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".channel = ";
@@ -5644,8 +5642,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_buffer_alloc_l
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".location = ";
@@ -5669,8 +5667,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_buffer_region_
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".origin = ";
@@ -5714,8 +5712,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_mem_native_pro
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -5797,7 +5795,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_sampler_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_sampler_info_t enum value
 template <>
@@ -5827,8 +5825,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_sampler_inf
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -5874,7 +5872,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_sampler_inf
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_desc_t type
@@ -5890,8 +5888,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_sampler_desc_t
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".normalizedCoords = ";
@@ -5925,8 +5923,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_sampler_native
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -5952,7 +5950,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_host_mem_flag_t value) 
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_host_mem_flag_t flag
 template <>
@@ -5980,7 +5978,7 @@ inline ur_result_t printFlag<ur_usm_host_mem_flag_t>(std::ostream &os, uint32_t 
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_device_mem_flag_t type
 /// @returns
@@ -6003,7 +6001,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_device_mem_flag_t value
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_device_mem_flag_t flag
 template <>
@@ -6051,7 +6049,7 @@ inline ur_result_t printFlag<ur_usm_device_mem_flag_t>(std::ostream &os, uint32_
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_pool_flag_t type
 /// @returns
@@ -6068,7 +6066,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_pool_flag_t flag
 template <>
@@ -6096,7 +6094,7 @@ inline ur_result_t printFlag<ur_usm_pool_flag_t>(std::ostream &os, uint32_t flag
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_type_t type
 /// @returns
@@ -6148,7 +6146,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_alloc_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_alloc_info_t enum value
 template <>
@@ -6202,8 +6200,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_alloc_i
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -6215,8 +6213,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_alloc_i
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -6226,7 +6224,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_alloc_i
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_advice_flag_t type
@@ -6286,7 +6284,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_advice_flag_t flag
 template <>
@@ -6454,7 +6452,7 @@ inline ur_result_t printFlag<ur_usm_advice_flag_t>(std::ostream &os, uint32_t fl
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_desc_t type
 /// @returns
@@ -6469,14 +6467,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_desc_t par
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".hints = ";
 
-    details::printFlag<ur_usm_advice_flag_t>(os,
-                                             (params.hints));
+    ur::details::printFlag<ur_usm_advice_flag_t>(os,
+                                                 (params.hints));
 
     os << ", ";
     os << ".align = ";
@@ -6500,14 +6498,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_host_desc_
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_usm_host_mem_flag_t>(os,
-                                               (params.flags));
+    ur::details::printFlag<ur_usm_host_mem_flag_t>(os,
+                                                   (params.flags));
 
     os << "}";
     return os;
@@ -6526,14 +6524,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_device_des
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_usm_device_mem_flag_t>(os,
-                                                 (params.flags));
+    ur::details::printFlag<ur_usm_device_mem_flag_t>(os,
+                                                     (params.flags));
 
     os << "}";
     return os;
@@ -6552,14 +6550,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_pool_desc_
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_usm_pool_flag_t>(os,
-                                           (params.flags));
+    ur::details::printFlag<ur_usm_pool_flag_t>(os,
+                                               (params.flags));
 
     os << "}";
     return os;
@@ -6578,8 +6576,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_pool_limit
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".maxPoolableSize = ";
@@ -6612,7 +6610,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_pool_info_t enum value
 template <>
@@ -6642,8 +6640,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_pool_in
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -6653,7 +6651,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_pool_in
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_virtual_mem_granularity_info_t type
@@ -6673,7 +6671,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_granularity_inf
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_virtual_mem_granularity_info_t enum value
 template <>
@@ -6713,7 +6711,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_virtual_mem
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_virtual_mem_access_flag_t type
@@ -6737,7 +6735,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_access_flag_t v
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_virtual_mem_access_flag_t flag
 template <>
@@ -6785,7 +6783,7 @@ inline ur_result_t printFlag<ur_virtual_mem_access_flag_t>(std::ostream &os, uin
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_virtual_mem_info_t type
 /// @returns
@@ -6801,7 +6799,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_virtual_mem_info_t enum value
 template <>
@@ -6819,8 +6817,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_virtual_mem
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_virtual_mem_access_flag_t>(os,
-                                                         *tptr);
+        ur::details::printFlag<ur_virtual_mem_access_flag_t>(os,
+                                                             *tptr);
 
         os << ")";
     } break;
@@ -6830,7 +6828,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_virtual_mem
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_physical_mem_flag_t type
@@ -6848,7 +6846,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_physical_mem_flag_t value) 
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_physical_mem_flag_t flag
 template <>
@@ -6876,7 +6874,7 @@ inline ur_result_t printFlag<ur_physical_mem_flag_t>(std::ostream &os, uint32_t 
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_physical_mem_properties_t type
 /// @returns
@@ -6891,14 +6889,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_physical_mem_p
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_physical_mem_flag_t>(os,
-                                               (params.flags));
+    ur::details::printFlag<ur_physical_mem_flag_t>(os,
+                                                   (params.flags));
 
     os << "}";
     return os;
@@ -6927,7 +6925,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_program_metadata_type_t val
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 
 ///////////////////////////////////////////////////////////////////////////////
 // @brief Print ur_program_metadata_value_t union
@@ -6956,16 +6954,16 @@ inline ur_result_t printUnion(
 
         os << ".pString = ";
 
-        details::printPtr(os,
-                          (params.pString));
+        ur::details::printPtr(os,
+                              (params.pString));
 
         break;
     case UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY:
 
         os << ".pData = ";
 
-        details::printPtr(os,
-                          (params.pData));
+        ur::details::printPtr(os,
+                              (params.pData));
 
         break;
     default:
@@ -6975,7 +6973,7 @@ inline ur_result_t printUnion(
     os << "}";
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_metadata_t type
 /// @returns
@@ -6985,8 +6983,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_program_metada
 
     os << ".pName = ";
 
-    details::printPtr(os,
-                      (params.pName));
+    ur::details::printPtr(os,
+                          (params.pName));
 
     os << ", ";
     os << ".type = ";
@@ -7000,7 +6998,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_program_metada
 
     os << ", ";
     os << ".value = ";
-    details::printUnion(os, (params.value), params.type);
+    ur::details::printUnion(os, (params.value), params.type);
 
     os << "}";
     return os;
@@ -7019,8 +7017,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_program_proper
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".count = ";
@@ -7080,7 +7078,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_program_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_program_info_t enum value
 template <>
@@ -7110,8 +7108,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_program_inf
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -7137,8 +7135,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_program_inf
                 os << ", ";
             }
 
-            details::printPtr(os,
-                              tptr[i]);
+            ur::details::printPtr(os,
+                                  tptr[i]);
         }
         os << "}";
     } break;
@@ -7189,7 +7187,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_program_inf
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_program_build_status_t type
@@ -7263,7 +7261,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_program_build_info_t value)
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_program_build_info_t enum value
 template <>
@@ -7313,7 +7311,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_program_bui
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_specialization_constant_info_t type
@@ -7334,8 +7332,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_specialization
     os << ", ";
     os << ".pValue = ";
 
-    details::printPtr(os,
-                      (params.pValue));
+    ur::details::printPtr(os,
+                          (params.pValue));
 
     os << "}";
     return os;
@@ -7354,8 +7352,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_program_native
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -7379,8 +7377,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_arg_val
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -7399,8 +7397,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_arg_loc
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -7438,7 +7436,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_kernel_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_info_t enum value
 template <>
@@ -7485,8 +7483,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -7498,8 +7496,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -7526,7 +7524,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_group_info_t type
@@ -7558,7 +7556,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_kernel_group_info_t value) 
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_group_info_t enum value
 template <>
@@ -7650,7 +7648,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_grou
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_sub_group_info_t type
@@ -7676,7 +7674,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_kernel_sub_group_info_t val
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_sub_group_info_t enum value
 template <>
@@ -7740,7 +7738,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_sub_
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_cache_config_t type
@@ -7784,7 +7782,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_kernel_exec_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_kernel_exec_info_t enum value
 template <>
@@ -7838,7 +7836,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_exec
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_arg_pointer_properties_t type
@@ -7854,8 +7852,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_arg_poi
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -7874,8 +7872,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_exec_in
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -7894,8 +7892,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_arg_sam
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -7914,14 +7912,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_arg_mem
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".memoryAccess = ";
 
-    details::printFlag<ur_mem_flag_t>(os,
-                                      (params.memoryAccess));
+    ur::details::printFlag<ur_mem_flag_t>(os,
+                                          (params.memoryAccess));
 
     os << "}";
     return os;
@@ -7940,8 +7938,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_native_
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -7984,7 +7982,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_queue_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_queue_info_t enum value
 template <>
@@ -8002,8 +8000,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -8015,8 +8013,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -8028,8 +8026,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -8041,8 +8039,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
         }
         os << (const void *)(tptr) << " (";
 
-        details::printFlag<ur_queue_flag_t>(os,
-                                            *tptr);
+        ur::details::printFlag<ur_queue_flag_t>(os,
+                                                *tptr);
 
         os << ")";
     } break;
@@ -8088,7 +8086,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_queue_flag_t type
@@ -8136,7 +8134,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_queue_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_queue_flag_t flag
 template <>
@@ -8264,7 +8262,7 @@ inline ur_result_t printFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_queue_properties_t type
 /// @returns
@@ -8279,14 +8277,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_queue_properti
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_queue_flag_t>(os,
-                                        (params.flags));
+    ur::details::printFlag<ur_queue_flag_t>(os,
+                                            (params.flags));
 
     os << "}";
     return os;
@@ -8305,8 +8303,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_queue_index_pr
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".computeIndex = ";
@@ -8330,14 +8328,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_queue_native_d
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".pNativeData = ";
 
-    details::printPtr(os,
-                      (params.pNativeData));
+    ur::details::printPtr(os,
+                          (params.pNativeData));
 
     os << "}";
     return os;
@@ -8356,8 +8354,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_queue_native_p
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -8514,7 +8512,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_event_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_event_info_t enum value
 template <>
@@ -8532,8 +8530,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_event_info_
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -8545,8 +8543,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_event_info_
         }
         os << (const void *)(tptr) << " (";
 
-        details::printPtr(os,
-                          *tptr);
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
@@ -8592,7 +8590,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_event_info_
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_profiling_info_t type
@@ -8621,7 +8619,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_profiling_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_profiling_info_t enum value
 template <>
@@ -8697,7 +8695,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_profiling_i
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_event_native_properties_t type
@@ -8713,8 +8711,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_event_native_p
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".isNativeHandleOwned = ";
@@ -8770,7 +8768,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_map_flag_t value) {
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_map_flag_t flag
 template <>
@@ -8818,7 +8816,7 @@ inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag) {
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_usm_migration_flag_t type
 /// @returns
@@ -8835,7 +8833,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_migration_flag_t value)
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_migration_flag_t flag
 template <>
@@ -8863,7 +8861,7 @@ inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os, uint32_t
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_image_copy_flag_t type
 /// @returns
@@ -8886,7 +8884,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_exp_image_copy_flag_t value
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_image_copy_flag_t flag
 template <>
@@ -8934,7 +8932,7 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_file_descriptor_t type
 /// @returns
@@ -8949,8 +8947,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_file_descr
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".fd = ";
@@ -8974,14 +8972,14 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_win32_hand
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".handle = ";
 
-    details::printPtr(os,
-                      (params.handle));
+    ur::details::printPtr(os,
+                          (params.handle));
 
     os << "}";
     return os;
@@ -9000,8 +8998,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_mi
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".minMipmapLevelClamp = ";
@@ -9040,8 +9038,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_ad
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".addrModes = {";
@@ -9071,8 +9069,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_me
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -9091,8 +9089,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_se
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -9111,8 +9109,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_layered_im
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << ", ";
     os << ".numLayers = ";
@@ -9136,8 +9134,8 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     os << ", ";
     os << ".pNext = ";
 
-    details::printStruct(os,
-                         (params.pNext));
+    ur::details::printStruct(os,
+                             (params.pNext));
 
     os << "}";
     return os;
@@ -9160,7 +9158,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_exp_peer_info_t value) {
     }
     return os;
 }
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_peer_info_t enum value
 template <>
@@ -9200,7 +9198,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_in
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
+} // namespace ur::details
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_loader_config_create_params_t type
@@ -9210,8 +9208,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".phLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->pphLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->pphLoaderConfig));
 
     return os;
 }
@@ -9224,8 +9222,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->phLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
 
     return os;
 }
@@ -9238,8 +9236,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->phLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
 
     return os;
 }
@@ -9252,8 +9250,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->phLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
 
     os << ", ";
     os << ".propName = ";
@@ -9267,13 +9265,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -9286,14 +9284,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->phLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
 
     os << ", ";
     os << ".pLayerName = ";
 
-    details::printPtr(os,
-                      *(params->ppLayerName));
+    ur::details::printPtr(os,
+                          *(params->ppLayerName));
 
     return os;
 }
@@ -9306,8 +9304,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->phLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
 
     os << ", ";
     os << ".pfnCodeloc = ";
@@ -9318,8 +9316,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pUserData = ";
 
-    details::printPtr(os,
-                      *(params->ppUserData));
+    ur::details::printPtr(os,
+                          *(params->ppUserData));
 
     return os;
 }
@@ -9336,8 +9334,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphAdapters))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphAdapters))[i]);
     }
     os << "}";
 
@@ -9358,16 +9356,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphPlatforms))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphPlatforms))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pNumPlatforms = ";
 
-    details::printPtr(os,
-                      *(params->ppNumPlatforms));
+    ur::details::printPtr(os,
+                          *(params->ppNumPlatforms));
 
     return os;
 }
@@ -9380,8 +9378,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPlatform = ";
 
-    details::printPtr(os,
-                      *(params->phPlatform));
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
 
     os << ", ";
     os << ".propName = ";
@@ -9395,13 +9393,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -9414,14 +9412,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPlatform = ";
 
-    details::printPtr(os,
-                      *(params->phPlatform));
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
 
     os << ", ";
     os << ".phNativePlatform = ";
 
-    details::printPtr(os,
-                      *(params->pphNativePlatform));
+    ur::details::printPtr(os,
+                          *(params->pphNativePlatform));
 
     return os;
 }
@@ -9434,20 +9432,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativePlatform = ";
 
-    details::printPtr(os,
-                      *(params->phNativePlatform));
+    ur::details::printPtr(os,
+                          *(params->phNativePlatform));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phPlatform = ";
 
-    details::printPtr(os,
-                      *(params->pphPlatform));
+    ur::details::printPtr(os,
+                          *(params->pphPlatform));
 
     return os;
 }
@@ -9460,14 +9458,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPlatform = ";
 
-    details::printPtr(os,
-                      *(params->phPlatform));
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
 
     os << ", ";
     os << ".pVersion = ";
 
-    details::printPtr(os,
-                      *(params->ppVersion));
+    ur::details::printPtr(os,
+                          *(params->ppVersion));
 
     return os;
 }
@@ -9480,20 +9478,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPlatform = ";
 
-    details::printPtr(os,
-                      *(params->phPlatform));
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
 
     os << ", ";
     os << ".pFrontendOption = ";
 
-    details::printPtr(os,
-                      *(params->ppFrontendOption));
+    ur::details::printPtr(os,
+                          *(params->ppFrontendOption));
 
     os << ", ";
     os << ".ppPlatformOption = ";
 
-    details::printPtr(os,
-                      *(params->pppPlatformOption));
+    ur::details::printPtr(os,
+                          *(params->pppPlatformOption));
 
     return os;
 }
@@ -9515,22 +9513,22 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phContext = ";
 
-    details::printPtr(os,
-                      *(params->pphContext));
+    ur::details::printPtr(os,
+                          *(params->pphContext));
 
     return os;
 }
@@ -9543,8 +9541,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     return os;
 }
@@ -9557,8 +9555,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     return os;
 }
@@ -9571,8 +9569,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".propName = ";
@@ -9586,13 +9584,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -9605,14 +9603,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".phNativeContext = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeContext));
+    ur::details::printPtr(os,
+                          *(params->pphNativeContext));
 
     return os;
 }
@@ -9625,8 +9623,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeContext = ";
 
-    details::printPtr(os,
-                      *(params->phNativeContext));
+    ur::details::printPtr(os,
+                          *(params->phNativeContext));
 
     os << ", ";
     os << ".numDevices = ";
@@ -9640,22 +9638,22 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phContext = ";
 
-    details::printPtr(os,
-                      *(params->pphContext));
+    ur::details::printPtr(os,
+                          *(params->pphContext));
 
     return os;
 }
@@ -9668,8 +9666,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pfnDeleter = ";
@@ -9680,8 +9678,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pUserData = ";
 
-    details::printPtr(os,
-                      *(params->ppUserData));
+    ur::details::printPtr(os,
+                          *(params->ppUserData));
 
     return os;
 }
@@ -9694,8 +9692,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hEvent = ";
 
-    details::printPtr(os,
-                      *(params->phEvent));
+    ur::details::printPtr(os,
+                          *(params->phEvent));
 
     os << ", ";
     os << ".propName = ";
@@ -9709,13 +9707,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -9728,8 +9726,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hEvent = ";
 
-    details::printPtr(os,
-                      *(params->phEvent));
+    ur::details::printPtr(os,
+                          *(params->phEvent));
 
     os << ", ";
     os << ".propName = ";
@@ -9743,13 +9741,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -9771,8 +9769,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
@@ -9787,8 +9785,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hEvent = ";
 
-    details::printPtr(os,
-                      *(params->phEvent));
+    ur::details::printPtr(os,
+                          *(params->phEvent));
 
     return os;
 }
@@ -9801,8 +9799,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hEvent = ";
 
-    details::printPtr(os,
-                      *(params->phEvent));
+    ur::details::printPtr(os,
+                          *(params->phEvent));
 
     return os;
 }
@@ -9815,14 +9813,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hEvent = ";
 
-    details::printPtr(os,
-                      *(params->phEvent));
+    ur::details::printPtr(os,
+                          *(params->phEvent));
 
     os << ", ";
     os << ".phNativeEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeEvent));
+    ur::details::printPtr(os,
+                          *(params->pphNativeEvent));
 
     return os;
 }
@@ -9835,26 +9833,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeEvent = ";
 
-    details::printPtr(os,
-                      *(params->phNativeEvent));
+    ur::details::printPtr(os,
+                          *(params->phNativeEvent));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -9867,8 +9865,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hEvent = ";
 
-    details::printPtr(os,
-                      *(params->phEvent));
+    ur::details::printPtr(os,
+                          *(params->phEvent));
 
     os << ", ";
     os << ".execStatus = ";
@@ -9884,8 +9882,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pUserData = ";
 
-    details::printPtr(os,
-                      *(params->ppUserData));
+    ur::details::printPtr(os,
+                          *(params->ppUserData));
 
     return os;
 }
@@ -9898,14 +9896,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pIL = ";
 
-    details::printPtr(os,
-                      *(params->ppIL));
+    ur::details::printPtr(os,
+                          *(params->ppIL));
 
     os << ", ";
     os << ".length = ";
@@ -9915,14 +9913,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phProgram = ";
 
-    details::printPtr(os,
-                      *(params->pphProgram));
+    ur::details::printPtr(os,
+                          *(params->pphProgram));
 
     return os;
 }
@@ -9935,14 +9933,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".size = ";
@@ -9952,20 +9950,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pBinary = ";
 
-    details::printPtr(os,
-                      *(params->ppBinary));
+    ur::details::printPtr(os,
+                          *(params->ppBinary));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phProgram = ";
 
-    details::printPtr(os,
-                      *(params->pphProgram));
+    ur::details::printPtr(os,
+                          *(params->pphProgram));
 
     return os;
 }
@@ -9978,20 +9976,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pOptions = ";
 
-    details::printPtr(os,
-                      *(params->ppOptions));
+    ur::details::printPtr(os,
+                          *(params->ppOptions));
 
     return os;
 }
@@ -10004,8 +10002,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".numDevices = ";
@@ -10019,16 +10017,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pOptions = ";
 
-    details::printPtr(os,
-                      *(params->ppOptions));
+    ur::details::printPtr(os,
+                          *(params->ppOptions));
 
     return os;
 }
@@ -10041,20 +10039,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pOptions = ";
 
-    details::printPtr(os,
-                      *(params->ppOptions));
+    ur::details::printPtr(os,
+                          *(params->ppOptions));
 
     return os;
 }
@@ -10067,8 +10065,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".numDevices = ";
@@ -10082,16 +10080,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pOptions = ";
 
-    details::printPtr(os,
-                      *(params->ppOptions));
+    ur::details::printPtr(os,
+                          *(params->ppOptions));
 
     return os;
 }
@@ -10104,8 +10102,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".count = ";
@@ -10119,22 +10117,22 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphPrograms))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphPrograms))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pOptions = ";
 
-    details::printPtr(os,
-                      *(params->ppOptions));
+    ur::details::printPtr(os,
+                          *(params->ppOptions));
 
     os << ", ";
     os << ".phProgram = ";
 
-    details::printPtr(os,
-                      *(params->pphProgram));
+    ur::details::printPtr(os,
+                          *(params->pphProgram));
 
     return os;
 }
@@ -10147,8 +10145,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".numDevices = ";
@@ -10162,8 +10160,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
     }
     os << "}";
 
@@ -10179,22 +10177,22 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphPrograms))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphPrograms))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pOptions = ";
 
-    details::printPtr(os,
-                      *(params->ppOptions));
+    ur::details::printPtr(os,
+                          *(params->ppOptions));
 
     os << ", ";
     os << ".phProgram = ";
 
-    details::printPtr(os,
-                      *(params->pphProgram));
+    ur::details::printPtr(os,
+                          *(params->pphProgram));
 
     return os;
 }
@@ -10207,8 +10205,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     return os;
 }
@@ -10221,8 +10219,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     return os;
 }
@@ -10235,26 +10233,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pFunctionName = ";
 
-    details::printPtr(os,
-                      *(params->ppFunctionName));
+    ur::details::printPtr(os,
+                          *(params->ppFunctionName));
 
     os << ", ";
     os << ".ppFunctionPointer = ";
 
-    details::printPtr(os,
-                      *(params->pppFunctionPointer));
+    ur::details::printPtr(os,
+                          *(params->pppFunctionPointer));
 
     return os;
 }
@@ -10267,8 +10265,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".propName = ";
@@ -10282,13 +10280,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -10301,14 +10299,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -10322,13 +10320,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -10341,8 +10339,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".count = ";
@@ -10371,14 +10369,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".phNativeProgram = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeProgram));
+    ur::details::printPtr(os,
+                          *(params->pphNativeProgram));
 
     return os;
 }
@@ -10391,26 +10389,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeProgram = ";
 
-    details::printPtr(os,
-                      *(params->phNativeProgram));
+    ur::details::printPtr(os,
+                          *(params->phNativeProgram));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phProgram = ";
 
-    details::printPtr(os,
-                      *(params->pphProgram));
+    ur::details::printPtr(os,
+                          *(params->pphProgram));
 
     return os;
 }
@@ -10423,20 +10421,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pKernelName = ";
 
-    details::printPtr(os,
-                      *(params->ppKernelName));
+    ur::details::printPtr(os,
+                          *(params->ppKernelName));
 
     os << ", ";
     os << ".phKernel = ";
 
-    details::printPtr(os,
-                      *(params->pphKernel));
+    ur::details::printPtr(os,
+                          *(params->pphKernel));
 
     return os;
 }
@@ -10449,8 +10447,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".propName = ";
@@ -10464,13 +10462,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -10483,14 +10481,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -10504,13 +10502,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -10523,14 +10521,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -10544,13 +10542,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -10563,8 +10561,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     return os;
 }
@@ -10577,8 +10575,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     return os;
 }
@@ -10591,14 +10589,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".phNativeKernel = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeKernel));
+    ur::details::printPtr(os,
+                          *(params->pphNativeKernel));
 
     return os;
 }
@@ -10611,32 +10609,32 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeKernel = ";
 
-    details::printPtr(os,
-                      *(params->phNativeKernel));
+    ur::details::printPtr(os,
+                          *(params->phNativeKernel));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phKernel = ";
 
-    details::printPtr(os,
-                      *(params->pphKernel));
+    ur::details::printPtr(os,
+                          *(params->pphKernel));
 
     return os;
 }
@@ -10649,8 +10647,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".argIndex = ";
@@ -10665,14 +10663,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".pArgValue = ";
 
-    details::printPtr(os,
-                      *(params->ppArgValue));
+    ur::details::printPtr(os,
+                          *(params->ppArgValue));
 
     return os;
 }
@@ -10685,8 +10683,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".argIndex = ";
@@ -10701,8 +10699,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     return os;
 }
@@ -10715,8 +10713,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".argIndex = ";
@@ -10726,14 +10724,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".pArgValue = ";
 
-    details::printPtr(os,
-                      *(params->ppArgValue));
+    ur::details::printPtr(os,
+                          *(params->ppArgValue));
 
     return os;
 }
@@ -10746,8 +10744,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".propName = ";
@@ -10762,12 +10760,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     return os;
 }
@@ -10780,8 +10778,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".argIndex = ";
@@ -10791,14 +10789,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".hArgValue = ";
 
-    details::printPtr(os,
-                      *(params->phArgValue));
+    ur::details::printPtr(os,
+                          *(params->phArgValue));
 
     return os;
 }
@@ -10811,8 +10809,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".argIndex = ";
@@ -10822,14 +10820,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".hArgValue = ";
 
-    details::printPtr(os,
-                      *(params->phArgValue));
+    ur::details::printPtr(os,
+                          *(params->phArgValue));
 
     return os;
 }
@@ -10842,8 +10840,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".count = ";
@@ -10853,8 +10851,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSpecConstants = ";
 
-    details::printPtr(os,
-                      *(params->ppSpecConstants));
+    ur::details::printPtr(os,
+                          *(params->ppSpecConstants));
 
     return os;
 }
@@ -10867,14 +10865,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".pGroupCountRet = ";
 
-    details::printPtr(os,
-                      *(params->ppGroupCountRet));
+    ur::details::printPtr(os,
+                          *(params->ppGroupCountRet));
 
     return os;
 }
@@ -10887,20 +10885,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppDesc));
+    ur::details::printPtr(os,
+                          *(params->ppDesc));
 
     os << ", ";
     os << ".phSampler = ";
 
-    details::printPtr(os,
-                      *(params->pphSampler));
+    ur::details::printPtr(os,
+                          *(params->pphSampler));
 
     return os;
 }
@@ -10913,8 +10911,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hSampler = ";
 
-    details::printPtr(os,
-                      *(params->phSampler));
+    ur::details::printPtr(os,
+                          *(params->phSampler));
 
     return os;
 }
@@ -10927,8 +10925,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hSampler = ";
 
-    details::printPtr(os,
-                      *(params->phSampler));
+    ur::details::printPtr(os,
+                          *(params->phSampler));
 
     return os;
 }
@@ -10941,8 +10939,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hSampler = ";
 
-    details::printPtr(os,
-                      *(params->phSampler));
+    ur::details::printPtr(os,
+                          *(params->phSampler));
 
     os << ", ";
     os << ".propName = ";
@@ -10956,13 +10954,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -10975,14 +10973,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hSampler = ";
 
-    details::printPtr(os,
-                      *(params->phSampler));
+    ur::details::printPtr(os,
+                          *(params->phSampler));
 
     os << ", ";
     os << ".phNativeSampler = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeSampler));
+    ur::details::printPtr(os,
+                          *(params->pphNativeSampler));
 
     return os;
 }
@@ -10995,26 +10993,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeSampler = ";
 
-    details::printPtr(os,
-                      *(params->phNativeSampler));
+    ur::details::printPtr(os,
+                          *(params->phNativeSampler));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phSampler = ";
 
-    details::printPtr(os,
-                      *(params->pphSampler));
+    ur::details::printPtr(os,
+                          *(params->pphSampler));
 
     return os;
 }
@@ -11027,38 +11025,38 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_mem_flag_t>(os,
-                                      *(params->pflags));
+    ur::details::printFlag<ur_mem_flag_t>(os,
+                                          *(params->pflags));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".pHost = ";
 
-    details::printPtr(os,
-                      *(params->ppHost));
+    ur::details::printPtr(os,
+                          *(params->ppHost));
 
     os << ", ";
     os << ".phMem = ";
 
-    details::printPtr(os,
-                      *(params->pphMem));
+    ur::details::printPtr(os,
+                          *(params->pphMem));
 
     return os;
 }
@@ -11071,14 +11069,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_mem_flag_t>(os,
-                                      *(params->pflags));
+    ur::details::printFlag<ur_mem_flag_t>(os,
+                                          *(params->pflags));
 
     os << ", ";
     os << ".size = ";
@@ -11088,14 +11086,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phBuffer = ";
 
-    details::printPtr(os,
-                      *(params->pphBuffer));
+    ur::details::printPtr(os,
+                          *(params->pphBuffer));
 
     return os;
 }
@@ -11108,8 +11106,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hMem = ";
 
-    details::printPtr(os,
-                      *(params->phMem));
+    ur::details::printPtr(os,
+                          *(params->phMem));
 
     return os;
 }
@@ -11122,8 +11120,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hMem = ";
 
-    details::printPtr(os,
-                      *(params->phMem));
+    ur::details::printPtr(os,
+                          *(params->phMem));
 
     return os;
 }
@@ -11136,14 +11134,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_mem_flag_t>(os,
-                                      *(params->pflags));
+    ur::details::printFlag<ur_mem_flag_t>(os,
+                                          *(params->pflags));
 
     os << ", ";
     os << ".bufferCreateType = ";
@@ -11153,14 +11151,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pRegion = ";
 
-    details::printPtr(os,
-                      *(params->ppRegion));
+    ur::details::printPtr(os,
+                          *(params->ppRegion));
 
     os << ", ";
     os << ".phMem = ";
 
-    details::printPtr(os,
-                      *(params->pphMem));
+    ur::details::printPtr(os,
+                          *(params->pphMem));
 
     return os;
 }
@@ -11173,14 +11171,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hMem = ";
 
-    details::printPtr(os,
-                      *(params->phMem));
+    ur::details::printPtr(os,
+                          *(params->phMem));
 
     os << ", ";
     os << ".phNativeMem = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeMem));
+    ur::details::printPtr(os,
+                          *(params->pphNativeMem));
 
     return os;
 }
@@ -11193,26 +11191,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    details::printPtr(os,
-                      *(params->phNativeMem));
+    ur::details::printPtr(os,
+                          *(params->phNativeMem));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phMem = ";
 
-    details::printPtr(os,
-                      *(params->pphMem));
+    ur::details::printPtr(os,
+                          *(params->pphMem));
 
     return os;
 }
@@ -11225,38 +11223,38 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeMem = ";
 
-    details::printPtr(os,
-                      *(params->phNativeMem));
+    ur::details::printPtr(os,
+                          *(params->phNativeMem));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phMem = ";
 
-    details::printPtr(os,
-                      *(params->pphMem));
+    ur::details::printPtr(os,
+                          *(params->pphMem));
 
     return os;
 }
@@ -11269,8 +11267,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hMemory = ";
 
-    details::printPtr(os,
-                      *(params->phMemory));
+    ur::details::printPtr(os,
+                          *(params->phMemory));
 
     os << ", ";
     os << ".propName = ";
@@ -11284,13 +11282,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -11303,8 +11301,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hMemory = ";
 
-    details::printPtr(os,
-                      *(params->phMemory));
+    ur::details::printPtr(os,
+                          *(params->phMemory));
 
     os << ", ";
     os << ".propName = ";
@@ -11318,13 +11316,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -11337,14 +11335,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".size = ";
@@ -11354,14 +11352,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phPhysicalMem = ";
 
-    details::printPtr(os,
-                      *(params->pphPhysicalMem));
+    ur::details::printPtr(os,
+                          *(params->pphPhysicalMem));
 
     return os;
 }
@@ -11374,8 +11372,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPhysicalMem = ";
 
-    details::printPtr(os,
-                      *(params->phPhysicalMem));
+    ur::details::printPtr(os,
+                          *(params->phPhysicalMem));
 
     return os;
 }
@@ -11388,8 +11386,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPhysicalMem = ";
 
-    details::printPtr(os,
-                      *(params->phPhysicalMem));
+    ur::details::printPtr(os,
+                          *(params->phPhysicalMem));
 
     return os;
 }
@@ -11411,16 +11409,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphAdapters))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphAdapters))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pNumAdapters = ";
 
-    details::printPtr(os,
-                      *(params->ppNumAdapters));
+    ur::details::printPtr(os,
+                          *(params->ppNumAdapters));
 
     return os;
 }
@@ -11433,8 +11431,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hAdapter = ";
 
-    details::printPtr(os,
-                      *(params->phAdapter));
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     return os;
 }
@@ -11447,8 +11445,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hAdapter = ";
 
-    details::printPtr(os,
-                      *(params->phAdapter));
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     return os;
 }
@@ -11461,20 +11459,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hAdapter = ";
 
-    details::printPtr(os,
-                      *(params->phAdapter));
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     os << ", ";
     os << ".ppMessage = ";
 
-    details::printPtr(os,
-                      *(params->pppMessage));
+    ur::details::printPtr(os,
+                          *(params->pppMessage));
 
     os << ", ";
     os << ".pError = ";
 
-    details::printPtr(os,
-                      *(params->ppError));
+    ur::details::printPtr(os,
+                          *(params->ppError));
 
     return os;
 }
@@ -11487,8 +11485,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hAdapter = ";
 
-    details::printPtr(os,
-                      *(params->phAdapter));
+    ur::details::printPtr(os,
+                          *(params->phAdapter));
 
     os << ", ";
     os << ".propName = ";
@@ -11502,13 +11500,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -11521,14 +11519,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".workDim = ";
@@ -11538,20 +11536,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pGlobalWorkOffset = ";
 
-    details::printPtr(os,
-                      *(params->ppGlobalWorkOffset));
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
 
     os << ", ";
     os << ".pGlobalWorkSize = ";
 
-    details::printPtr(os,
-                      *(params->ppGlobalWorkSize));
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
 
     os << ", ";
     os << ".pLocalWorkSize = ";
 
-    details::printPtr(os,
-                      *(params->ppLocalWorkSize));
+    ur::details::printPtr(os,
+                          *(params->ppLocalWorkSize));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11565,16 +11563,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11587,8 +11585,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11602,16 +11600,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11624,8 +11622,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11639,16 +11637,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11661,14 +11659,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".blockingRead = ";
@@ -11688,8 +11686,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11703,16 +11701,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11725,14 +11723,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".blockingWrite = ";
@@ -11752,8 +11750,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11767,16 +11765,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11789,14 +11787,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".blockingRead = ";
@@ -11841,8 +11839,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11856,16 +11854,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11878,14 +11876,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".blockingWrite = ";
@@ -11930,8 +11928,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -11945,16 +11943,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -11967,20 +11965,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBufferSrc = ";
 
-    details::printPtr(os,
-                      *(params->phBufferSrc));
+    ur::details::printPtr(os,
+                          *(params->phBufferSrc));
 
     os << ", ";
     os << ".hBufferDst = ";
 
-    details::printPtr(os,
-                      *(params->phBufferDst));
+    ur::details::printPtr(os,
+                          *(params->phBufferDst));
 
     os << ", ";
     os << ".srcOffset = ";
@@ -12009,16 +12007,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12031,20 +12029,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBufferSrc = ";
 
-    details::printPtr(os,
-                      *(params->phBufferSrc));
+    ur::details::printPtr(os,
+                          *(params->phBufferSrc));
 
     os << ", ";
     os << ".hBufferDst = ";
 
-    details::printPtr(os,
-                      *(params->phBufferDst));
+    ur::details::printPtr(os,
+                          *(params->phBufferDst));
 
     os << ", ";
     os << ".srcOrigin = ";
@@ -12093,16 +12091,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12115,20 +12113,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".pPattern = ";
 
-    details::printPtr(os,
-                      *(params->ppPattern));
+    ur::details::printPtr(os,
+                          *(params->ppPattern));
 
     os << ", ";
     os << ".patternSize = ";
@@ -12157,16 +12155,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12179,14 +12177,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hImage = ";
 
-    details::printPtr(os,
-                      *(params->phImage));
+    ur::details::printPtr(os,
+                          *(params->phImage));
 
     os << ", ";
     os << ".blockingRead = ";
@@ -12216,8 +12214,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -12231,16 +12229,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12253,14 +12251,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hImage = ";
 
-    details::printPtr(os,
-                      *(params->phImage));
+    ur::details::printPtr(os,
+                          *(params->phImage));
 
     os << ", ";
     os << ".blockingWrite = ";
@@ -12290,8 +12288,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -12305,16 +12303,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12327,20 +12325,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hImageSrc = ";
 
-    details::printPtr(os,
-                      *(params->phImageSrc));
+    ur::details::printPtr(os,
+                          *(params->phImageSrc));
 
     os << ", ";
     os << ".hImageDst = ";
 
-    details::printPtr(os,
-                      *(params->phImageDst));
+    ur::details::printPtr(os,
+                          *(params->phImageDst));
 
     os << ", ";
     os << ".srcOrigin = ";
@@ -12369,16 +12367,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12391,14 +12389,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".blockingMap = ";
@@ -12408,8 +12406,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".mapFlags = ";
 
-    details::printFlag<ur_map_flag_t>(os,
-                                      *(params->pmapFlags));
+    ur::details::printFlag<ur_map_flag_t>(os,
+                                          *(params->pmapFlags));
 
     os << ", ";
     os << ".offset = ";
@@ -12433,22 +12431,22 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     os << ", ";
     os << ".ppRetMap = ";
 
-    details::printPtr(os,
-                      *(params->pppRetMap));
+    ur::details::printPtr(os,
+                          *(params->pppRetMap));
 
     return os;
 }
@@ -12461,20 +12459,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hMem = ";
 
-    details::printPtr(os,
-                      *(params->phMem));
+    ur::details::printPtr(os,
+                          *(params->phMem));
 
     os << ", ";
     os << ".pMappedPtr = ";
 
-    details::printPtr(os,
-                      *(params->ppMappedPtr));
+    ur::details::printPtr(os,
+                          *(params->ppMappedPtr));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -12488,16 +12486,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12510,14 +12508,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".ptr = ";
 
-    details::printPtr(os,
-                      *(params->pptr));
+    ur::details::printPtr(os,
+                          *(params->pptr));
 
     os << ", ";
     os << ".patternSize = ";
@@ -12527,8 +12525,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pPattern = ";
 
-    details::printPtr(os,
-                      *(params->ppPattern));
+    ur::details::printPtr(os,
+                          *(params->ppPattern));
 
     os << ", ";
     os << ".size = ";
@@ -12547,16 +12545,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12569,8 +12567,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".blocking = ";
@@ -12580,14 +12578,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".size = ";
@@ -12606,16 +12604,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12628,14 +12626,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     os << ", ";
     os << ".size = ";
@@ -12645,8 +12643,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_usm_migration_flag_t>(os,
-                                                *(params->pflags));
+    ur::details::printFlag<ur_usm_migration_flag_t>(os,
+                                                    *(params->pflags));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -12660,16 +12658,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12682,14 +12680,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     os << ", ";
     os << ".size = ";
@@ -12699,14 +12697,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".advice = ";
 
-    details::printFlag<ur_usm_advice_flag_t>(os,
-                                             *(params->padvice));
+    ur::details::printFlag<ur_usm_advice_flag_t>(os,
+                                                 *(params->padvice));
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12719,14 +12717,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     os << ", ";
     os << ".pitch = ";
@@ -12741,8 +12739,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pPattern = ";
 
-    details::printPtr(os,
-                      *(params->ppPattern));
+    ur::details::printPtr(os,
+                          *(params->ppPattern));
 
     os << ", ";
     os << ".width = ";
@@ -12766,16 +12764,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12788,8 +12786,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".blocking = ";
@@ -12799,8 +12797,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".dstPitch = ";
@@ -12810,8 +12808,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".srcPitch = ";
@@ -12840,16 +12838,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12862,20 +12860,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".name = ";
 
-    details::printPtr(os,
-                      *(params->pname));
+    ur::details::printPtr(os,
+                          *(params->pname));
 
     os << ", ";
     os << ".blockingWrite = ";
@@ -12895,8 +12893,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -12910,16 +12908,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -12932,20 +12930,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".name = ";
 
-    details::printPtr(os,
-                      *(params->pname));
+    ur::details::printPtr(os,
+                          *(params->pname));
 
     os << ", ";
     os << ".blockingRead = ";
@@ -12965,8 +12963,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -12980,16 +12978,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -13002,20 +13000,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pipe_symbol = ";
 
-    details::printPtr(os,
-                      *(params->ppipe_symbol));
+    ur::details::printPtr(os,
+                          *(params->ppipe_symbol));
 
     os << ", ";
     os << ".blocking = ";
@@ -13025,8 +13023,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".size = ";
@@ -13045,16 +13043,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -13067,20 +13065,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hProgram = ";
 
-    details::printPtr(os,
-                      *(params->phProgram));
+    ur::details::printPtr(os,
+                          *(params->phProgram));
 
     os << ", ";
     os << ".pipe_symbol = ";
 
-    details::printPtr(os,
-                      *(params->ppipe_symbol));
+    ur::details::printPtr(os,
+                          *(params->ppipe_symbol));
 
     os << ", ";
     os << ".blocking = ";
@@ -13090,8 +13088,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".size = ";
@@ -13110,16 +13108,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -13132,14 +13130,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".workDim = ";
@@ -13149,20 +13147,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pGlobalWorkOffset = ";
 
-    details::printPtr(os,
-                      *(params->ppGlobalWorkOffset));
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
 
     os << ", ";
     os << ".pGlobalWorkSize = ";
 
-    details::printPtr(os,
-                      *(params->ppGlobalWorkSize));
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
 
     os << ", ";
     os << ".pLocalWorkSize = ";
 
-    details::printPtr(os,
-                      *(params->ppLocalWorkSize));
+    ur::details::printPtr(os,
+                          *(params->ppLocalWorkSize));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -13176,16 +13174,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -13198,8 +13196,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".propName = ";
@@ -13213,13 +13211,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -13232,26 +13230,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phQueue = ";
 
-    details::printPtr(os,
-                      *(params->pphQueue));
+    ur::details::printPtr(os,
+                          *(params->pphQueue));
 
     return os;
 }
@@ -13264,8 +13262,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     return os;
 }
@@ -13278,8 +13276,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     return os;
 }
@@ -13292,20 +13290,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".pDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppDesc));
+    ur::details::printPtr(os,
+                          *(params->ppDesc));
 
     os << ", ";
     os << ".phNativeQueue = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeQueue));
+    ur::details::printPtr(os,
+                          *(params->pphNativeQueue));
 
     return os;
 }
@@ -13318,32 +13316,32 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeQueue = ";
 
-    details::printPtr(os,
-                      *(params->phNativeQueue));
+    ur::details::printPtr(os,
+                          *(params->phNativeQueue));
 
     os << ", ";
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phQueue = ";
 
-    details::printPtr(os,
-                      *(params->pphQueue));
+    ur::details::printPtr(os,
+                          *(params->pphQueue));
 
     return os;
 }
@@ -13356,8 +13354,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     return os;
 }
@@ -13370,8 +13368,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     return os;
 }
@@ -13384,20 +13382,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hImage = ";
 
-    details::printPtr(os,
-                      *(params->phImage));
+    ur::details::printPtr(os,
+                          *(params->phImage));
 
     return os;
 }
@@ -13410,20 +13408,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hImage = ";
 
-    details::printPtr(os,
-                      *(params->phImage));
+    ur::details::printPtr(os,
+                          *(params->phImage));
 
     return os;
 }
@@ -13436,32 +13434,32 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".phImageMem = ";
 
-    details::printPtr(os,
-                      *(params->pphImageMem));
+    ur::details::printPtr(os,
+                          *(params->pphImageMem));
 
     return os;
 }
@@ -13474,20 +13472,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hImageMem = ";
 
-    details::printPtr(os,
-                      *(params->phImageMem));
+    ur::details::printPtr(os,
+                          *(params->phImageMem));
 
     return os;
 }
@@ -13500,44 +13498,44 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hImageMem = ";
 
-    details::printPtr(os,
-                      *(params->phImageMem));
+    ur::details::printPtr(os,
+                          *(params->phImageMem));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".phMem = ";
 
-    details::printPtr(os,
-                      *(params->pphMem));
+    ur::details::printPtr(os,
+                          *(params->pphMem));
 
     os << ", ";
     os << ".phImage = ";
 
-    details::printPtr(os,
-                      *(params->pphImage));
+    ur::details::printPtr(os,
+                          *(params->pphImage));
 
     return os;
 }
@@ -13550,50 +13548,50 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hImageMem = ";
 
-    details::printPtr(os,
-                      *(params->phImageMem));
+    ur::details::printPtr(os,
+                          *(params->phImageMem));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".hSampler = ";
 
-    details::printPtr(os,
-                      *(params->phSampler));
+    ur::details::printPtr(os,
+                          *(params->phSampler));
 
     os << ", ";
     os << ".phMem = ";
 
-    details::printPtr(os,
-                      *(params->pphMem));
+    ur::details::printPtr(os,
+                          *(params->pphMem));
 
     os << ", ";
     os << ".phImage = ";
 
-    details::printPtr(os,
-                      *(params->pphImage));
+    ur::details::printPtr(os,
+                          *(params->pphImage));
 
     return os;
 }
@@ -13606,38 +13604,38 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".imageCopyFlags = ";
 
-    details::printFlag<ur_exp_image_copy_flag_t>(os,
-                                                 *(params->pimageCopyFlags));
+    ur::details::printFlag<ur_exp_image_copy_flag_t>(os,
+                                                     *(params->pimageCopyFlags));
 
     os << ", ";
     os << ".srcOffset = ";
@@ -13671,16 +13669,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -13693,8 +13691,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hImageMem = ";
 
-    details::printPtr(os,
-                      *(params->phImageMem));
+    ur::details::printPtr(os,
+                          *(params->phImageMem));
 
     os << ", ";
     os << ".propName = ";
@@ -13704,14 +13702,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pPropValue = ";
 
-    details::printPtr(os,
-                      *(params->ppPropValue));
+    ur::details::printPtr(os,
+                          *(params->ppPropValue));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -13724,20 +13722,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hImageMem = ";
 
-    details::printPtr(os,
-                      *(params->phImageMem));
+    ur::details::printPtr(os,
+                          *(params->phImageMem));
 
     os << ", ";
     os << ".mipmapLevel = ";
@@ -13747,8 +13745,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".phImageMem = ";
 
-    details::printPtr(os,
-                      *(params->pphImageMem));
+    ur::details::printPtr(os,
+                          *(params->pphImageMem));
 
     return os;
 }
@@ -13761,20 +13759,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hMem = ";
 
-    details::printPtr(os,
-                      *(params->phMem));
+    ur::details::printPtr(os,
+                          *(params->phMem));
 
     return os;
 }
@@ -13787,14 +13785,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".size = ";
@@ -13804,14 +13802,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pInteropMemDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppInteropMemDesc));
+    ur::details::printPtr(os,
+                          *(params->ppInteropMemDesc));
 
     os << ", ";
     os << ".phInteropMem = ";
 
-    details::printPtr(os,
-                      *(params->pphInteropMem));
+    ur::details::printPtr(os,
+                          *(params->pphInteropMem));
 
     return os;
 }
@@ -13824,38 +13822,38 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pImageFormat = ";
 
-    details::printPtr(os,
-                      *(params->ppImageFormat));
+    ur::details::printPtr(os,
+                          *(params->ppImageFormat));
 
     os << ", ";
     os << ".pImageDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppImageDesc));
+    ur::details::printPtr(os,
+                          *(params->ppImageDesc));
 
     os << ", ";
     os << ".hInteropMem = ";
 
-    details::printPtr(os,
-                      *(params->phInteropMem));
+    ur::details::printPtr(os,
+                          *(params->phInteropMem));
 
     os << ", ";
     os << ".phImageMem = ";
 
-    details::printPtr(os,
-                      *(params->pphImageMem));
+    ur::details::printPtr(os,
+                          *(params->pphImageMem));
 
     return os;
 }
@@ -13868,20 +13866,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hInteropMem = ";
 
-    details::printPtr(os,
-                      *(params->phInteropMem));
+    ur::details::printPtr(os,
+                          *(params->phInteropMem));
 
     return os;
 }
@@ -13894,26 +13892,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pInteropSemaphoreDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppInteropSemaphoreDesc));
+    ur::details::printPtr(os,
+                          *(params->ppInteropSemaphoreDesc));
 
     os << ", ";
     os << ".phInteropSemaphore = ";
 
-    details::printPtr(os,
-                      *(params->pphInteropSemaphore));
+    ur::details::printPtr(os,
+                          *(params->pphInteropSemaphore));
 
     return os;
 }
@@ -13926,20 +13924,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".hInteropSemaphore = ";
 
-    details::printPtr(os,
-                      *(params->phInteropSemaphore));
+    ur::details::printPtr(os,
+                          *(params->phInteropSemaphore));
 
     return os;
 }
@@ -13952,14 +13950,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hSemaphore = ";
 
-    details::printPtr(os,
-                      *(params->phSemaphore));
+    ur::details::printPtr(os,
+                          *(params->phSemaphore));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -13973,16 +13971,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -13995,14 +13993,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".hSemaphore = ";
 
-    details::printPtr(os,
-                      *(params->phSemaphore));
+    ur::details::printPtr(os,
+                          *(params->phSemaphore));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -14016,16 +14014,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -14038,20 +14036,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pUSMDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppUSMDesc));
+    ur::details::printPtr(os,
+                          *(params->ppUSMDesc));
 
     os << ", ";
     os << ".pool = ";
 
-    details::printPtr(os,
-                      *(params->ppool));
+    ur::details::printPtr(os,
+                          *(params->ppool));
 
     os << ", ";
     os << ".size = ";
@@ -14061,8 +14059,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".ppMem = ";
 
-    details::printPtr(os,
-                      *(params->pppMem));
+    ur::details::printPtr(os,
+                          *(params->pppMem));
 
     return os;
 }
@@ -14075,26 +14073,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pUSMDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppUSMDesc));
+    ur::details::printPtr(os,
+                          *(params->ppUSMDesc));
 
     os << ", ";
     os << ".pool = ";
 
-    details::printPtr(os,
-                      *(params->ppool));
+    ur::details::printPtr(os,
+                          *(params->ppool));
 
     os << ", ";
     os << ".size = ";
@@ -14104,8 +14102,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".ppMem = ";
 
-    details::printPtr(os,
-                      *(params->pppMem));
+    ur::details::printPtr(os,
+                          *(params->pppMem));
 
     return os;
 }
@@ -14118,26 +14116,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pUSMDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppUSMDesc));
+    ur::details::printPtr(os,
+                          *(params->ppUSMDesc));
 
     os << ", ";
     os << ".pool = ";
 
-    details::printPtr(os,
-                      *(params->ppool));
+    ur::details::printPtr(os,
+                          *(params->ppool));
 
     os << ", ";
     os << ".size = ";
@@ -14147,8 +14145,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".ppMem = ";
 
-    details::printPtr(os,
-                      *(params->pppMem));
+    ur::details::printPtr(os,
+                          *(params->pppMem));
 
     return os;
 }
@@ -14161,14 +14159,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     return os;
 }
@@ -14181,14 +14179,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     os << ", ";
     os << ".propName = ";
@@ -14202,13 +14200,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -14221,20 +14219,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pPoolDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppPoolDesc));
+    ur::details::printPtr(os,
+                          *(params->ppPoolDesc));
 
     os << ", ";
     os << ".ppPool = ";
 
-    details::printPtr(os,
-                      *(params->pppPool));
+    ur::details::printPtr(os,
+                          *(params->pppPool));
 
     return os;
 }
@@ -14247,8 +14245,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".pPool = ";
 
-    details::printPtr(os,
-                      *(params->ppPool));
+    ur::details::printPtr(os,
+                          *(params->ppPool));
 
     return os;
 }
@@ -14261,8 +14259,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".pPool = ";
 
-    details::printPtr(os,
-                      *(params->ppPool));
+    ur::details::printPtr(os,
+                          *(params->ppPool));
 
     return os;
 }
@@ -14275,8 +14273,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPool = ";
 
-    details::printPtr(os,
-                      *(params->phPool));
+    ur::details::printPtr(os,
+                          *(params->phPool));
 
     os << ", ";
     os << ".propName = ";
@@ -14290,13 +14288,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -14309,26 +14307,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pUSMDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppUSMDesc));
+    ur::details::printPtr(os,
+                          *(params->ppUSMDesc));
 
     os << ", ";
     os << ".pool = ";
 
-    details::printPtr(os,
-                      *(params->ppool));
+    ur::details::printPtr(os,
+                          *(params->ppool));
 
     os << ", ";
     os << ".widthInBytes = ";
@@ -14348,14 +14346,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".ppMem = ";
 
-    details::printPtr(os,
-                      *(params->pppMem));
+    ur::details::printPtr(os,
+                          *(params->pppMem));
 
     os << ", ";
     os << ".pResultPitch = ";
 
-    details::printPtr(os,
-                      *(params->ppResultPitch));
+    ur::details::printPtr(os,
+                          *(params->ppResultPitch));
 
     return os;
 }
@@ -14368,14 +14366,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     os << ", ";
     os << ".size = ";
@@ -14393,14 +14391,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pMem = ";
 
-    details::printPtr(os,
-                      *(params->ppMem));
+    ur::details::printPtr(os,
+                          *(params->ppMem));
 
     return os;
 }
@@ -14413,26 +14411,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pCommandBufferDesc = ";
 
-    details::printPtr(os,
-                      *(params->ppCommandBufferDesc));
+    ur::details::printPtr(os,
+                          *(params->ppCommandBufferDesc));
 
     os << ", ";
     os << ".phCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->pphCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->pphCommandBuffer));
 
     return os;
 }
@@ -14445,8 +14443,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     return os;
 }
@@ -14459,8 +14457,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     return os;
 }
@@ -14473,8 +14471,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     return os;
 }
@@ -14487,14 +14485,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hKernel = ";
 
-    details::printPtr(os,
-                      *(params->phKernel));
+    ur::details::printPtr(os,
+                          *(params->phKernel));
 
     os << ", ";
     os << ".workDim = ";
@@ -14504,20 +14502,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pGlobalWorkOffset = ";
 
-    details::printPtr(os,
-                      *(params->ppGlobalWorkOffset));
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
 
     os << ", ";
     os << ".pGlobalWorkSize = ";
 
-    details::printPtr(os,
-                      *(params->ppGlobalWorkSize));
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
 
     os << ", ";
     os << ".pLocalWorkSize = ";
 
-    details::printPtr(os,
-                      *(params->ppLocalWorkSize));
+    ur::details::printPtr(os,
+                          *(params->ppLocalWorkSize));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -14527,14 +14525,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14547,20 +14545,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".size = ";
@@ -14575,14 +14573,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14595,20 +14593,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".pMemory = ";
 
-    details::printPtr(os,
-                      *(params->ppMemory));
+    ur::details::printPtr(os,
+                          *(params->ppMemory));
 
     os << ", ";
     os << ".pPattern = ";
 
-    details::printPtr(os,
-                      *(params->ppPattern));
+    ur::details::printPtr(os,
+                          *(params->ppPattern));
 
     os << ", ";
     os << ".patternSize = ";
@@ -14628,14 +14626,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14648,20 +14646,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hSrcMem = ";
 
-    details::printPtr(os,
-                      *(params->phSrcMem));
+    ur::details::printPtr(os,
+                          *(params->phSrcMem));
 
     os << ", ";
     os << ".hDstMem = ";
 
-    details::printPtr(os,
-                      *(params->phDstMem));
+    ur::details::printPtr(os,
+                          *(params->phDstMem));
 
     os << ", ";
     os << ".srcOffset = ";
@@ -14686,14 +14684,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14706,14 +14704,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".offset = ";
@@ -14728,8 +14726,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -14739,14 +14737,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14759,14 +14757,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".offset = ";
@@ -14781,8 +14779,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -14792,14 +14790,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14812,20 +14810,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hSrcMem = ";
 
-    details::printPtr(os,
-                      *(params->phSrcMem));
+    ur::details::printPtr(os,
+                          *(params->phSrcMem));
 
     os << ", ";
     os << ".hDstMem = ";
 
-    details::printPtr(os,
-                      *(params->phDstMem));
+    ur::details::printPtr(os,
+                          *(params->phDstMem));
 
     os << ", ";
     os << ".srcOrigin = ";
@@ -14870,14 +14868,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14890,14 +14888,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".bufferOffset = ";
@@ -14937,8 +14935,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSrc = ";
 
-    details::printPtr(os,
-                      *(params->ppSrc));
+    ur::details::printPtr(os,
+                          *(params->ppSrc));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -14948,14 +14946,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -14968,14 +14966,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".bufferOffset = ";
@@ -15015,8 +15013,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pDst = ";
 
-    details::printPtr(os,
-                      *(params->ppDst));
+    ur::details::printPtr(os,
+                          *(params->ppDst));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -15026,14 +15024,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -15046,20 +15044,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phBuffer));
+    ur::details::printPtr(os,
+                          *(params->phBuffer));
 
     os << ", ";
     os << ".pPattern = ";
 
-    details::printPtr(os,
-                      *(params->ppPattern));
+    ur::details::printPtr(os,
+                          *(params->ppPattern));
 
     os << ", ";
     os << ".patternSize = ";
@@ -15084,14 +15082,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -15104,14 +15102,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".pMemory = ";
 
-    details::printPtr(os,
-                      *(params->ppMemory));
+    ur::details::printPtr(os,
+                          *(params->ppMemory));
 
     os << ", ";
     os << ".size = ";
@@ -15121,8 +15119,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_usm_migration_flag_t>(os,
-                                                *(params->pflags));
+    ur::details::printFlag<ur_usm_migration_flag_t>(os,
+                                                    *(params->pflags));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -15132,14 +15130,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -15152,14 +15150,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".pMemory = ";
 
-    details::printPtr(os,
-                      *(params->ppMemory));
+    ur::details::printPtr(os,
+                          *(params->ppMemory));
 
     os << ", ";
     os << ".size = ";
@@ -15169,8 +15167,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".advice = ";
 
-    details::printFlag<ur_usm_advice_flag_t>(os,
-                                             *(params->padvice));
+    ur::details::printFlag<ur_usm_advice_flag_t>(os,
+                                                 *(params->padvice));
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -15180,14 +15178,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSyncPointWaitList = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPointWaitList));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPointWaitList));
 
     os << ", ";
     os << ".pSyncPoint = ";
 
-    details::printPtr(os,
-                      *(params->ppSyncPoint));
+    ur::details::printPtr(os,
+                          *(params->ppSyncPoint));
 
     return os;
 }
@@ -15200,14 +15198,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hCommandBuffer = ";
 
-    details::printPtr(os,
-                      *(params->phCommandBuffer));
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
 
     os << ", ";
     os << ".hQueue = ";
 
-    details::printPtr(os,
-                      *(params->phQueue));
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -15221,16 +15219,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphEventWaitList))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphEventWaitList))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".phEvent = ";
 
-    details::printPtr(os,
-                      *(params->pphEvent));
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
 
     return os;
 }
@@ -15243,14 +15241,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".commandDevice = ";
 
-    details::printPtr(os,
-                      *(params->pcommandDevice));
+    ur::details::printPtr(os,
+                          *(params->pcommandDevice));
 
     os << ", ";
     os << ".peerDevice = ";
 
-    details::printPtr(os,
-                      *(params->ppeerDevice));
+    ur::details::printPtr(os,
+                          *(params->ppeerDevice));
 
     return os;
 }
@@ -15263,14 +15261,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".commandDevice = ";
 
-    details::printPtr(os,
-                      *(params->pcommandDevice));
+    ur::details::printPtr(os,
+                          *(params->pcommandDevice));
 
     os << ", ";
     os << ".peerDevice = ";
 
-    details::printPtr(os,
-                      *(params->ppeerDevice));
+    ur::details::printPtr(os,
+                          *(params->ppeerDevice));
 
     return os;
 }
@@ -15283,14 +15281,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".commandDevice = ";
 
-    details::printPtr(os,
-                      *(params->pcommandDevice));
+    ur::details::printPtr(os,
+                          *(params->pcommandDevice));
 
     os << ", ";
     os << ".peerDevice = ";
 
-    details::printPtr(os,
-                      *(params->ppeerDevice));
+    ur::details::printPtr(os,
+                          *(params->ppeerDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -15304,13 +15302,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -15323,14 +15321,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".device_flags = ";
 
-    details::printFlag<ur_device_init_flag_t>(os,
-                                              *(params->pdevice_flags));
+    ur::details::printFlag<ur_device_init_flag_t>(os,
+                                                  *(params->pdevice_flags));
 
     os << ", ";
     os << ".hLoaderConfig = ";
 
-    details::printPtr(os,
-                      *(params->phLoaderConfig));
+    ur::details::printPtr(os,
+                          *(params->phLoaderConfig));
 
     return os;
 }
@@ -15352,14 +15350,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -15373,13 +15371,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -15392,14 +15390,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pStart = ";
 
-    details::printPtr(os,
-                      *(params->ppStart));
+    ur::details::printPtr(os,
+                          *(params->ppStart));
 
     os << ", ";
     os << ".size = ";
@@ -15409,8 +15407,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".ppStart = ";
 
-    details::printPtr(os,
-                      *(params->pppStart));
+    ur::details::printPtr(os,
+                          *(params->pppStart));
 
     return os;
 }
@@ -15423,14 +15421,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pStart = ";
 
-    details::printPtr(os,
-                      *(params->ppStart));
+    ur::details::printPtr(os,
+                          *(params->ppStart));
 
     os << ", ";
     os << ".size = ";
@@ -15448,14 +15446,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pStart = ";
 
-    details::printPtr(os,
-                      *(params->ppStart));
+    ur::details::printPtr(os,
+                          *(params->ppStart));
 
     os << ", ";
     os << ".size = ";
@@ -15465,8 +15463,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".hPhysicalMem = ";
 
-    details::printPtr(os,
-                      *(params->phPhysicalMem));
+    ur::details::printPtr(os,
+                          *(params->phPhysicalMem));
 
     os << ", ";
     os << ".offset = ";
@@ -15476,8 +15474,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_virtual_mem_access_flag_t>(os,
-                                                     *(params->pflags));
+    ur::details::printFlag<ur_virtual_mem_access_flag_t>(os,
+                                                         *(params->pflags));
 
     return os;
 }
@@ -15490,14 +15488,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pStart = ";
 
-    details::printPtr(os,
-                      *(params->ppStart));
+    ur::details::printPtr(os,
+                          *(params->ppStart));
 
     os << ", ";
     os << ".size = ";
@@ -15515,14 +15513,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pStart = ";
 
-    details::printPtr(os,
-                      *(params->ppStart));
+    ur::details::printPtr(os,
+                          *(params->ppStart));
 
     os << ", ";
     os << ".size = ";
@@ -15532,8 +15530,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".flags = ";
 
-    details::printFlag<ur_virtual_mem_access_flag_t>(os,
-                                                     *(params->pflags));
+    ur::details::printFlag<ur_virtual_mem_access_flag_t>(os,
+                                                         *(params->pflags));
 
     return os;
 }
@@ -15546,14 +15544,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hContext = ";
 
-    details::printPtr(os,
-                      *(params->phContext));
+    ur::details::printPtr(os,
+                          *(params->phContext));
 
     os << ", ";
     os << ".pStart = ";
 
-    details::printPtr(os,
-                      *(params->ppStart));
+    ur::details::printPtr(os,
+                          *(params->ppStart));
 
     os << ", ";
     os << ".size = ";
@@ -15572,13 +15570,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -15591,8 +15589,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hPlatform = ";
 
-    details::printPtr(os,
-                      *(params->phPlatform));
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
 
     os << ", ";
     os << ".DeviceType = ";
@@ -15611,16 +15609,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pNumDevices = ";
 
-    details::printPtr(os,
-                      *(params->ppNumDevices));
+    ur::details::printPtr(os,
+                          *(params->ppNumDevices));
 
     return os;
 }
@@ -15633,8 +15631,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".propName = ";
@@ -15648,13 +15646,13 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ", ";
     os << ".pPropValue = ";
-    details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
 
     os << ", ";
     os << ".pPropSizeRet = ";
 
-    details::printPtr(os,
-                      *(params->ppPropSizeRet));
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -15667,8 +15665,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     return os;
 }
@@ -15681,8 +15679,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     return os;
 }
@@ -15695,14 +15693,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".NumDevices = ";
@@ -15716,16 +15714,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
             os << ", ";
         }
 
-        details::printPtr(os,
-                          (*(params->pphSubDevices))[i]);
+        ur::details::printPtr(os,
+                              (*(params->pphSubDevices))[i]);
     }
     os << "}";
 
     os << ", ";
     os << ".pNumDevicesRet = ";
 
-    details::printPtr(os,
-                      *(params->ppNumDevicesRet));
+    ur::details::printPtr(os,
+                          *(params->ppNumDevicesRet));
 
     return os;
 }
@@ -15738,14 +15736,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pBinaries = ";
 
-    details::printPtr(os,
-                      *(params->ppBinaries));
+    ur::details::printPtr(os,
+                          *(params->ppBinaries));
 
     os << ", ";
     os << ".NumBinaries = ";
@@ -15755,8 +15753,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << ", ";
     os << ".pSelectedBinary = ";
 
-    details::printPtr(os,
-                      *(params->ppSelectedBinary));
+    ur::details::printPtr(os,
+                          *(params->ppSelectedBinary));
 
     return os;
 }
@@ -15769,14 +15767,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".phNativeDevice = ";
 
-    details::printPtr(os,
-                      *(params->pphNativeDevice));
+    ur::details::printPtr(os,
+                          *(params->pphNativeDevice));
 
     return os;
 }
@@ -15789,26 +15787,26 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hNativeDevice = ";
 
-    details::printPtr(os,
-                      *(params->phNativeDevice));
+    ur::details::printPtr(os,
+                          *(params->phNativeDevice));
 
     os << ", ";
     os << ".hPlatform = ";
 
-    details::printPtr(os,
-                      *(params->phPlatform));
+    ur::details::printPtr(os,
+                          *(params->phPlatform));
 
     os << ", ";
     os << ".pProperties = ";
 
-    details::printPtr(os,
-                      *(params->ppProperties));
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
 
     os << ", ";
     os << ".phDevice = ";
 
-    details::printPtr(os,
-                      *(params->pphDevice));
+    ur::details::printPtr(os,
+                          *(params->pphDevice));
 
     return os;
 }
@@ -15821,25 +15819,25 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     os << ".hDevice = ";
 
-    details::printPtr(os,
-                      *(params->phDevice));
+    ur::details::printPtr(os,
+                          *(params->phDevice));
 
     os << ", ";
     os << ".pDeviceTimestamp = ";
 
-    details::printPtr(os,
-                      *(params->ppDeviceTimestamp));
+    ur::details::printPtr(os,
+                          *(params->ppDeviceTimestamp));
 
     os << ", ";
     os << ".pHostTimestamp = ";
 
-    details::printPtr(os,
-                      *(params->ppHostTimestamp));
+    ur::details::printPtr(os,
+                          *(params->ppHostTimestamp));
 
     return os;
 }
 
-namespace details {
+namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 // @brief Print pointer value
 template <typename T>
@@ -15864,10 +15862,9 @@ inline ur_result_t printPtr(std::ostream &os, const T *ptr) {
 
     return UR_RESULT_SUCCESS;
 }
-} // namespace details
-} // namespace print
+} // namespace ur::details
 
-namespace extras {
+namespace ur::extras {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print function parameters
 /// @returns
@@ -15876,8 +15873,6 @@ namespace extras {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         - `NULL == params`
 UR_APIEXPORT inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_t function, const void *params) {
-    using namespace print;
-
     if (!params) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -16440,7 +16435,6 @@ UR_APIEXPORT inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     }
     return UR_RESULT_SUCCESS;
 }
-} // namespace extras
-} // namespace ur
+} // namespace ur::extras
 
 #endif /* UR_PRINT_HPP */
