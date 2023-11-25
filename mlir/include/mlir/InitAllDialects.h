@@ -39,6 +39,7 @@
 #include "mlir/Dialect/GPU/Transforms/BufferDeallocationOpInterfaceImpl.h"
 #include "mlir/Dialect/IRDL/IR/IRDL.h"
 #include "mlir/Dialect/Index/IR/IndexDialect.h"
+#include "mlir/Dialect/LLVMIR/GENXDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
@@ -111,6 +112,7 @@ inline void registerAllDialects(DialectRegistry &registry) {
                   DLTIDialect,
                   emitc::EmitCDialect,
                   func::FuncDialect,
+                  GENX::GENXDialect,
                   gpu::GPUDialect,
                   index::IndexDialect,
                   irdl::IRDLDialect,
